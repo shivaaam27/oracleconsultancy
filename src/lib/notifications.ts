@@ -10,7 +10,7 @@ import { isQuietHoursNow, getAppSettings } from "./settings";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "update" | "chat" | "chat_mention" | "leave" | "announcement" | "request";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "update" | "chat" | "chat_mention" | "leave" | "announcement" | "request" | "meeting";
 
 export type Notification = {
   id: number;
@@ -38,9 +38,11 @@ export async function recipientForCreatedBy(by: string | null): Promise<string |
     ? by.slice(11)
     : by.startsWith("portal-mgr:")
       ? by.slice(11)
-      : by.startsWith("portal:")
-        ? by.slice(7)
-        : null;
+      : by.startsWith("portal-hr:")
+        ? by.slice(10)
+        : by.startsWith("portal:")
+          ? by.slice(7)
+          : null;
   if (!name) return null;
   const { data } = await sb.from("people").select("id").ilike("name", name).maybeSingle();
   return data ? personRecipient(data.id as number) : null;
@@ -104,9 +106,13 @@ export async function createNotification(input: {
         ? isAdmin
           ? `/requests/${input.requestId}`
           : `/portal/requests/${input.requestId}`
-        : isAdmin
-          ? `/hrms/leave`
-          : `/portal/profile`;
+        : input.kind === "meeting"
+          ? isAdmin
+            ? `/calendar`
+            : `/portal/meetings`
+          : isAdmin
+            ? `/hrms/leave`
+            : `/portal/profile`;
     const tag = input.taskCode
       ? `task-${input.taskCode}`
       : input.requestId

@@ -1,37 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock, MessageSquareText, Video } from "lucide-react";
+import { CalendarDays, CheckCircle2, ListTodo, Users, MessageSquareText, Video } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
-import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
-import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
 import { PortalTasksCommand } from "@/components/portal-tasks-command";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
-import { getScopedPickerData, type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
+import { type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
-import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
-import { getGivenName, getInitials } from "@/lib/names";
-import { listRequestsForPortal } from "@/lib/requests";
+import { getPortalPerson, visibleTaskIds, colleagueCompanyScope } from "@/lib/portal-auth";
+import { getGivenName } from "@/lib/names";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
-import { AnnouncementFeed } from "@/components/announcement-feed";
-import { Megaphone } from "lucide-react";
-import { buildPersonRequirementScores } from "@/lib/requirements";
-import { getJourney } from "@/lib/onboarding";
-import { teamAttendanceToday, personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
+import { AnnouncementBanner } from "@/components/announcement-banner";
+import { personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { TodoCard } from "@/components/todo-card";
 import { listSelfTodos } from "@/lib/todo-reminders";
-import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/portal/actions";
+import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo, portalUpdateTodo } from "@/app/portal/actions";
 import { RequestComposer } from "@/components/request-composer";
 import { requestRecipientsFor, getRequestCategories } from "@/lib/requests";
 import { portalRaiseRequest } from "./requests/actions";
-import { upcomingEventsForPerson } from "@/lib/calendar";
-import { PortalMeetings, type PortalMeeting } from "@/components/portal-meetings";
-import { DirectorEventForm } from "@/components/director-event-form";
-import { portalManagerCreateEvent } from "@/app/portal/actions";
+import { scopedUpcomingMeetings, nearestSoon } from "@/lib/portal-meetings-data";
+import { PortalMeetings } from "@/components/portal-meetings";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +37,11 @@ function attDot(status: keyof typeof ATTENDANCE_TONE): keyof typeof TONE {
 export default async function PortalHome() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Directors are board-first — send them to their operator board.
-  if (me.portalRole === "director") redirect("/portal/board");
+  // Directors AND managers are board-first — send them to their operator board
+  // (scoped to their companies). Their team tools live on the board too, so the
+  // Home surface is for staff + HR only (avoids the duplicate task list managers
+  // used to see on both Home and the Tasks tab).
+  if (me.portalRole === "director" || me.portalRole === "manager") redirect("/portal/board");
 
   // The once-a-day check-in pop-up lives here (home only) so it can't pop over
   // other portal surfaces or run a query on every navigation. Directors never
@@ -63,12 +58,9 @@ export default async function PortalHome() {
     listSelfTodos(me.id),
     requestRecipientsFor(me.id),
     getRequestCategories(),
-    // Upcoming meetings this person is invited to (read-only "Your meetings").
-    upcomingEventsForPerson(me.id, { limit: 6 }).then((events): PortalMeeting[] =>
-      events.map((e) => ({
-        id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, meetLink: e.meetLink, location: e.location,
-      })),
-    ),
+    // Upcoming meetings this person may see (scoped). The home widget shows only
+    // the single nearest one within 2 days — the full list lives on /portal/meetings.
+    scopedUpcomingMeetings(me),
     // Announcements that target this person (pinned + newest, with their read state).
     (async () => {
       const audienceAttrs = await getPersonAudienceAttrs(me.id);
@@ -86,24 +78,25 @@ export default async function PortalHome() {
   // permitted companies + the people in them. Staff can't create tasks/events, so
   // they keep the FULL people/company lists purely so the inline task view can
   // resolve every name/company label it shows.
-  const inlineTasks = me.portalRole === "staff" || me.portalRole === "manager";
+  // Home is now staff + HR only (directors/managers are board-first). Staff get
+  // the inline task view; HR get a link to the Tasks tab (too many to inline).
+  const inlineTasks = me.portalRole === "staff";
   let cmdPeople: PickerPerson[] = [];
   let cmdCompanies: PickerCompany[] = [];
-  let schedulePeople: PickerPerson[] = [];
-  let scheduleCompanies: PickerCompany[] = [];
-  if (me.portalRole === "manager") {
-    const scoped = await getScopedPickerData(me);
-    cmdPeople = scoped.people;
-    cmdCompanies = scoped.companies;
-    schedulePeople = scoped.people;
-    scheduleCompanies = scoped.companies;
-  } else if (inlineTasks) {
-    const [{ data: pl }, { data: cl }, pcMap] = await Promise.all([
+  if (inlineTasks) {
+    const [{ data: pl }, { data: cl }, pcMap, companyScopeIds] = await Promise.all([
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),
       getPersonCompaniesMap(),
+      colleagueCompanyScope(me),
     ]);
-    cmdCompanies = (cl ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    // The company FILTER dropdown must never reveal companies the staff member
+    // isn't part of (confidentiality). `colleagueCompanyScope` = their own
+    // companies (null only for group-wide roles, which don't hit this branch).
+    const allow = companyScopeIds != null ? new Set(companyScopeIds) : null;
+    cmdCompanies = (cl ?? [])
+      .filter((c) => allow == null || allow.has(c.id as number))
+      .map((c) => ({ id: c.id as number, name: c.name as string }));
     cmdPeople = (pl ?? []).map((p) => {
       const id = p.id as number;
       const primary = (p.company_id as number | null) ?? null;
@@ -111,65 +104,14 @@ export default async function PortalHome() {
     });
   }
 
-  // A manager's "team" is their whole company plus any direct reports (matching
-  // how they already see company tasks) — so a newly-created manager is never
-  // shown an empty team. Director/HR don't use this branch (handled elsewhere).
-  const reportIds = me.portalRole === "manager" ? await managerTeamIds(me) : [];
-  const teamToday = reportIds.length > 0 ? await teamAttendanceToday(reportIds) : [];
-  const teamPresent = teamToday.filter((m) => m.status === "Present" || m.status === "Remote").length;
-  const teamMarked = teamToday.filter((m) => m.status).length;
+  // (Manager team tools — attendance, leave-to-approve, my-team — moved to the
+  // board; managers are board-first now. See components/manager-board-extras.tsx.)
 
-  // Managers: pending leave from reports + a team status glance (compliance + onboarding).
-  let teamLeave: TeamLeaveRequest[] = [];
-  let teamMembers: Array<{ id: number; name: string; role: string | null; score: number | null; band: "Good" | "Watch" | "Risk" | null; onboardPct: number | null }> = [];
-  if (reportIds.length > 0) {
-    const [{ data: leaveData }, { data: peopleData }, scores, journeys] = await Promise.all([
-      sb.from("leave_requests")
-        .select("id,person_id,start_date,end_date,half_day,days,reason,status, people(name), leave_types(name,color)")
-        .in("person_id", reportIds).eq("status", "Pending").order("start_date", { ascending: true }),
-      sb.from("people").select("id,name,role").in("id", reportIds).eq("active", true).order("name"),
-      buildPersonRequirementScores(reportIds),
-      Promise.all(reportIds.map((rid) => getJourney(rid, "onboarding"))),
-    ]);
-    teamLeave = (leaveData ?? []).map((r) => {
-      const person = (Array.isArray(r.people) ? r.people[0] : r.people) as { name: string } | null;
-      const lt = (Array.isArray(r.leave_types) ? r.leave_types[0] : r.leave_types) as { name: string; color: string | null } | null;
-      return {
-        id: r.id as number,
-        personName: person?.name ?? "Someone",
-        typeName: lt?.name ?? "Leave",
-        color: lt?.color ?? null,
-        startLabel: new Date(`${(r.start_date as string).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-        days: (r.days as number) ?? 0,
-        halfDay: (r.half_day as boolean) ?? false,
-        reason: (r.reason as string | null) ?? null,
-      };
-    });
-    const scoreById = new Map(scores.map((s) => [s.ownerId, s]));
-    const journeyById = new Map(reportIds.map((rid, i) => [rid, journeys[i]]));
-    teamMembers = (peopleData ?? []).map((p) => {
-      const s = scoreById.get(p.id as number);
-      const j = journeyById.get(p.id as number);
-      return {
-        id: p.id as number,
-        name: p.name as string,
-        role: (p.role as string | null) ?? null,
-        score: s ? s.score : null,
-        band: s ? s.status : null,
-        onboardPct: j && j.total > 0 ? j.percent : null,
-      };
-    });
-  }
-
-  // Managers: requests addressed to them that are still open — a small glance
-  // mirroring the director board's approvals inbox (raised-by-me excluded).
-  let pendingDecisions = 0;
-  if (me.portalRole === "manager") {
-    try {
-      const reqRows = await listRequestsForPortal(me.id);
-      pendingDecisions = reqRows.filter((r) => r.requesterId !== me.id && r.status === "open").length;
-    } catch { /* leave 0 — re-populates next refresh */ }
-  }
+  // Announcements now live on the Briefings page; home only surfaces the ones
+  // still needing this person as a dismissible header banner (like the board).
+  const bannerItems = announcements
+    .filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt))
+    .map((a) => ({ id: a.id, title: a.title, body: a.body || null }));
 
   const open = cmd.filter((t) => !t.isDone);
   const done = cmd.filter((t) => t.isDone);
@@ -206,6 +148,7 @@ export default async function PortalHome() {
 
   return (
     <div className="flex flex-col gap-5">
+      <AnnouncementBanner items={bannerItems} />
       <AutoRefresh seconds={25} />
       <AttendanceCheckin firstName={getGivenName(me.name)} status={today.status} editable={today.editable} />
       <Reveal delay={0}>
@@ -266,38 +209,33 @@ export default async function PortalHome() {
       <Reveal delay={0.04} className="flex flex-col gap-2.5">
         <SectionLabel
           icon={<Video size={13} />}
-          action={
-            me.portalRole === "manager" ? (
-              <DirectorEventForm
-                people={schedulePeople}
-                companies={scheduleCompanies}
-                action={portalManagerCreateEvent}
-                triggerLabel="Schedule"
-              />
-            ) : undefined
-          }
+          action={<Link href="/portal/meetings" className="text-[11px] text-accent hover:underline">View all</Link>}
         >
           Your meetings
         </SectionLabel>
-        {myMeetings.length > 0 ? (
-          <PortalMeetings meetings={myMeetings} />
-        ) : (
-          <Panel className="p-4 text-xs text-fg-muted">
-            {me.portalRole === "manager"
-              ? "No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically."
-              : "No meetings scheduled yet. When you're invited to one, it'll appear here with a Join link."}
-          </Panel>
-        )}
+        {(() => {
+          // Home shows ONLY the nearest meeting within 2 days — the rest live on
+          // /portal/meetings (linked above), keeping home glanceable.
+          const next = nearestSoon(myMeetings);
+          return next ? (
+            <PortalMeetings meetings={[next]} />
+          ) : (
+            <Panel className="p-4 text-xs text-fg-muted">
+              {myMeetings.length > 0
+                ? "Nothing in the next 2 days. Tap View all to see everything coming up."
+                : "No meetings scheduled yet. When you're invited to one, it'll appear here with a Join link."}
+            </Panel>
+          );
+        })()}
       </Reveal>
 
       {/* Tasks — the same Aurora command view as the Tasks tab (portaltaskdesign),
-          inline for staff & managers. HR keep a link (too many to inline). */}
+          inline for staff, in a scroll housing so a long list doesn't run the page
+          on. HR keep a link (too many to inline). */}
       {inlineTasks ? (
         <Reveal delay={0.05} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<ListTodo size={13} />}>
-            {me.portalRole === "manager" ? "Company & team tasks" : "My tasks"}
-          </SectionLabel>
-          <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={false} />
+          <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
+          <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={false} houseList />
         </Reveal>
       ) : (
         <Reveal delay={0.05}>
@@ -313,130 +251,47 @@ export default async function PortalHome() {
         </Reveal>
       )}
 
-      {/* Secondary — to-dos, announcements + (managers) team signals; two
-          columns on the web so they use the width without crowding tasks. */}
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <Reveal delay={0.07}>
-          <TodoCard
-            items={myTodos}
-            createAction={portalCreateTodo}
-            toggleAction={portalToggleTodoDone}
-            deleteAction={portalDeleteTodo}
-            title="Your to-dos"
-          />
-        </Reveal>
+      {/* To-Do List — full width (announcements moved to the Briefings page +
+          header banner; requests sit below the list). */}
+      <Reveal delay={0.07}>
+        <TodoCard
+          items={myTodos}
+          createAction={portalCreateTodo}
+          toggleAction={portalToggleTodoDone}
+          deleteAction={portalDeleteTodo}
+          updateAction={portalUpdateTodo}
+          title="To-Do List"
+        />
+      </Reveal>
 
-        {/* Compact request card — fills the web column beside the to-dos; the
-            full history + filters live on the Requests tab. */}
-        <Reveal delay={0.075} className="flex flex-col gap-2.5">
-          <SectionLabel
-            icon={<MessageSquareText size={13} />}
-            action={<Link href="/portal/requests" className="text-[11px] text-accent hover:underline">View all</Link>}
-          >
-            Raise a request
-          </SectionLabel>
-          <Panel className="flex flex-col gap-3 p-4">
-            <p className="text-xs text-fg-muted">Need equipment, HR help or admin support? Send a request without leaving home — track replies on the Requests tab.</p>
-            <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
-          </Panel>
-        </Reveal>
+      {/* Raise a request — below the to-do list, full width. */}
+      <Reveal delay={0.075} className="flex flex-col gap-2.5">
+        <SectionLabel
+          icon={<MessageSquareText size={13} />}
+          action={<Link href="/portal/requests" className="text-[11px] text-accent hover:underline">View all</Link>}
+        >
+          Raise a request
+        </SectionLabel>
+        <Panel className="flex flex-col gap-3 p-4">
+          <p className="text-xs text-fg-muted">Need equipment, HR help or admin support? Send a request without leaving home — track replies on the Requests tab.</p>
+          <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
+        </Panel>
+      </Reveal>
 
-        {announcements.length > 0 && (
-          <Reveal delay={0.045} className="flex flex-col gap-2.5">
-            <SectionLabel
-              icon={<Megaphone size={13} />}
-              action={
-                announcements.length > 3 ? (
-                  <Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">See all</Link>
-                ) : undefined
-              }
-            >
-              Announcements
-            </SectionLabel>
-            <AnnouncementFeed items={announcements.slice(0, 3)} />
-          </Reveal>
-        )}
-
-        {me.portalRole === "manager" && pendingDecisions > 0 && (
-          <Reveal delay={0.078}>
-            <Link href="/portal/requests" className="block group">
-              <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
-                <div>
-                  <p className="text-sm font-medium">Pending decisions ({pendingDecisions})</p>
-                  <p className="text-xs text-fg-muted">Requests addressed to you and still open — open Requests to respond.</p>
-                </div>
-                <MessageSquareText size={18} className="shrink-0 text-accent" />
-              </Panel>
-            </Link>
-          </Reveal>
-        )}
-
-        {teamLeave.length > 0 && (
-          <Reveal delay={0.08} className="flex flex-col gap-2.5">
-            <SectionLabel icon={<Plane size={13} />}>Leave to approve ({teamLeave.length})</SectionLabel>
-            <PortalTeamLeave requests={teamLeave} />
-          </Reveal>
-        )}
-
-        {teamToday.length > 0 && (
-          <Reveal delay={0.085} className="flex flex-col gap-2.5">
-            <SectionLabel icon={<Clock size={13} />}>Team attendance today</SectionLabel>
-            <Panel className="overflow-hidden p-0">
-              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60">
-                <span className="text-sm font-semibold">{teamPresent} in · {teamToday.length - teamMarked} not marked</span>
-                <span className="text-[11px] text-fg-subtle">{teamMarked}/{teamToday.length} recorded</span>
+      {/* HR keep a shortcut to the team-reminders surface. */}
+      {me.portalRole === "hr" && (
+        <Reveal delay={0.08}>
+          <Link href="/portal/team" className="block group">
+            <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+              <div>
+                <p className="text-sm font-medium">Team reminders</p>
+                <p className="text-xs text-fg-muted">See everyone&apos;s open tasks and send a branded email reminder.</p>
               </div>
-              <ul className="divide-y divide-border/50">
-                {teamToday.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-2 px-4 py-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{m.name}</span>
-                    {m.status ? <Badge tone={ATTENDANCE_TONE[m.status]}>{m.status}</Badge> : <span className="text-[11px] text-fg-subtle">Not marked</span>}
-                  </li>
-                ))}
-              </ul>
+              <Users size={18} className="shrink-0 text-accent" />
             </Panel>
-          </Reveal>
-        )}
-
-        {(me.portalRole === "manager" || me.portalRole === "hr") && (
-          <Reveal delay={0.08}>
-            <Link href="/portal/team" className="block group">
-              <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
-                <div>
-                  <p className="text-sm font-medium">Team reminders</p>
-                  <p className="text-xs text-fg-muted">See everyone&apos;s open tasks and send a branded email reminder.</p>
-                </div>
-                <Users size={18} className="shrink-0 text-accent" />
-              </Panel>
-            </Link>
-          </Reveal>
-        )}
-
-        {teamMembers.length > 0 && (
-          <Reveal delay={0.09} className="flex flex-col gap-2.5">
-            <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
-            <div className="flex flex-col gap-2">
-              {teamMembers.map((m) => (
-                <Link key={m.id} href={`/portal/chat?dm=${m.id}`} className="block group">
-                  <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
-                      {getInitials(m.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{m.name}</p>
-                      <p className="text-[11px] text-fg-muted truncate">{m.role ?? "—"}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      {m.band && <Badge tone={m.band === "Good" ? "success" : m.band === "Watch" ? "warn" : "danger"}>{m.score}%</Badge>}
-                      {m.onboardPct != null && m.onboardPct < 100 && <span className="text-[10px] text-fg-subtle">Onboarding {m.onboardPct}%</span>}
-                    </div>
-                  </Panel>
-                </Link>
-              ))}
-            </div>
-          </Reveal>
-        )}
-      </div>
+          </Link>
+        </Reveal>
+      )}
 
     </div>
   );

@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, companyScope } from "@/lib/portal-auth";
 import { getBrief, parseBriefPeriod } from "@/lib/director-brief";
 import { renderBriefPdf } from "@/lib/brief-pdf";
 import { briefPdfFilename } from "@/lib/brief-pdf-shared";
 
-// Director download of the group Director Brief PDF from the portal. Excluded
-// from the admin edge gate (see src/proxy.ts), so it verifies the portal
-// director session itself. Group-wide scope (no company filter); the detailed
-// brief carries no salary/wage figures, so it is safe for directors.
+// Director download of the Director Brief PDF from the portal. Excluded from the
+// admin edge gate (see src/proxy.ts), so it verifies the portal director session
+// itself. The brief is SCOPED to the director's companies: a portfolio director
+// gets the whole group (companyScope → null), a company-scoped director gets ONLY
+// their assigned companies — never other companies' data. Carries no salary/wage
+// figures. See src/lib/portal-auth.ts companyScope.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Not authorised", { status: 403 });
   }
   const sp = req.nextUrl.searchParams;
-  const b = await getBrief(new Date(), parseBriefPeriod(sp.get("period")), null);
+  // null = all companies (portfolio director); array = that director's companies only.
+  const scope = await companyScope(me);
+  const b = await getBrief(new Date(), parseBriefPeriod(sp.get("period")), scope);
   const buf = await renderBriefPdf(b);
   // `?download=1` forces a real file download (Save dialog); without it the PDF
   // opens inline in the phone's PDF viewer (save + share from there).

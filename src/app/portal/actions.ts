@@ -891,6 +891,25 @@ export async function portalManagerCreateEvent(formData: FormData): Promise<Port
   return res;
 }
 
+/** Create an event from the dedicated /portal/meetings page. Works for ANY
+ *  management role (manager / HR / director) — staff can't create. Scope is
+ *  enforced by `checkEventScope` exactly as the home/board paths. */
+export async function portalCreateEvent(formData: FormData): Promise<PortalEventResult> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole === "staff") return { ok: false, error: "You don't have permission to create events." };
+  const scopeError = await checkEventScope(me, formData);
+  if (scopeError) return { ok: false, error: scopeError };
+  const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "manager" ? "portal-mgr" : "portal-hr";
+  const res = await portalCreateAndSendEvent(formData, `${tag}:${me.name}`);
+  if (res.ok) {
+    revalidatePath("/portal/meetings");
+    revalidatePath("/portal");
+    revalidatePath("/portal/board");
+  }
+  return res;
+}
+
 /* ----------------------------------------------------------------------
  * Management task composer — create & assign one task per selected company,
  * to people in scope. Shared by directors, managers AND HR: scope is decided in
@@ -2362,7 +2381,10 @@ export async function portalCreateTodo(input: {
   if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
   const { createTodo } = await import("@/app/todos/actions");
   const todo = await createTodo({ title, remindAt: input.remindAt ?? null, personId: me.id, kind: "self" });
+  // Home + the manager board both show the personal list — refresh both. The
+  // reminder cron (api/cron/reminders) pushes to person:<id> once the time passes.
   revalidatePath("/portal");
+  revalidatePath("/portal/board");
   return { ok: true, todo };
 }
 
@@ -2375,6 +2397,7 @@ export async function portalToggleTodoDone(id: number, done: boolean): Promise<{
   const { toggleTodo } = await import("@/app/todos/actions");
   await toggleTodo(id, done);
   revalidatePath("/portal");
+  revalidatePath("/portal/board");
   return { ok: true };
 }
 
@@ -2387,6 +2410,27 @@ export async function portalDeleteTodo(id: number): Promise<{ ok: boolean; error
   const { deleteTodo } = await import("@/app/todos/actions");
   await deleteTodo(id);
   revalidatePath("/portal");
+  revalidatePath("/portal/board");
+  return { ok: true };
+}
+
+/** Edit a personal to-do — its title and/or reminder time. Changing the reminder
+ *  re-arms the push (clears `pushed`) so the new time can fire. */
+export async function portalUpdateTodo(input: { id: number; title?: string; remindAt?: string | null }): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/todo-reminders").TodoCardItem }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  const { todoOwner } = await import("@/lib/todo-reminders");
+  const o = await todoOwner(input.id);
+  if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
+  const title = input.title?.trim();
+  if (input.title !== undefined && !title) return { ok: false, error: "Type what you need to do." };
+  if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
+  const { updateTodo } = await import("@/app/todos/actions");
+  await updateTodo({ id: input.id, ...(input.title !== undefined ? { title } : {}), ...(input.remindAt !== undefined ? { remindAt: input.remindAt } : {}) });
+  // Re-arm the push so a new/changed reminder time fires again.
+  if (input.remindAt !== undefined) await sb.from("todos").update({ pushed: false }).eq("id", input.id);
+  revalidatePath("/portal");
+  revalidatePath("/portal/board");
   return { ok: true };
 }
 

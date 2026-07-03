@@ -1,17 +1,17 @@
 import { Suspense, cache } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Megaphone } from "lucide-react";
 import { sb } from "@/db/supabase";
-import { Panel, SectionLabel } from "@/components/surface-kit";
+import { Panel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
-import { getPortalPerson, type PortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, companyScope, type PortalPerson } from "@/lib/portal-auth";
+import { ManagerBoardExtras } from "@/components/manager-board-extras";
+import { BoardTodos } from "@/components/board-todos";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 import { getGivenName, getInitials } from "@/lib/names";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
 import { getScopedPickerData } from "@/lib/portal-picker";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
-import { AnnouncementFeed } from "@/components/announcement-feed";
 import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -28,14 +28,32 @@ const boardBrief = cache((companyIds: number[] | null) => getBrief(new Date(), "
 export default async function DirectorBoard({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") redirect("/portal");
+  // Board is for the operator roles — directors AND managers (each scoped to their
+  // companies). Staff + HR land on Home instead.
+  if (me.portalRole !== "director" && me.portalRole !== "manager") redirect("/portal");
   const { created } = await searchParams;
+
+  // Managers create Tasks from the board; Events go through /portal/meetings and
+  // bulk outreach (Message) stays a director power.
+  const isManager = me.portalRole === "manager";
+  const boardLabel = isManager ? "Manager board" : "Director board";
+  const composerModes: ("Task" | "Event" | "Message")[] = isManager ? ["Task"] : ["Task", "Event", "Message"];
+  // ONE scope model: null = all companies (portfolio director / HR-less), else the
+  // director's / manager's own companies.
+  const scope = await companyScope(me);
 
   const audienceAttrs = await getPersonAudienceAttrs(me.id);
   const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
+  // Announcements now live on the Briefings page; the board only surfaces the
+  // ones still needing this person as a dismissible header banner (Open → tab).
+  const bannerItems = announcements
+    .filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt))
+    .map((a) => ({ id: a.id, title: a.title, body: a.body || null }));
 
   return (
     <div className="flex flex-col gap-5">
+      <AnnouncementBanner items={bannerItems} />
+
       {created && (
         <Reveal delay={0}>
           <Panel className="p-3 text-sm text-success ring-1 ring-success/25 bg-success-soft/40">Task {created} assigned.</Panel>
@@ -43,32 +61,32 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
-        <Board me={me} directorCompanyIds={me.directorCompanyIds.length ? me.directorCompanyIds : null} />
+        <Board me={me} scope={scope} boardLabel={boardLabel} composerModes={composerModes} />
       </Suspense>
 
-      {announcements.length > 0 && (
-        <Reveal delay={0.05} className="flex flex-col gap-2.5">
-          <SectionLabel
-            icon={<Megaphone size={13} />}
-            action={<Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">Post / manage</Link>}
-          >
-            Announcements
-          </SectionLabel>
-          <AnnouncementFeed items={announcements.slice(0, 3)} />
-        </Reveal>
+      {/* Managers keep their team tools (attendance, leave approvals) here — Home
+          is retired for them. */}
+      {isManager && (
+        <Suspense fallback={null}>
+          <ManagerBoardExtras me={me} />
+        </Suspense>
       )}
+
+      {/* Personal to-dos — a full-width footer for MANAGERS only (directors don't
+          need a personal list on their board; staff keep theirs on Home). */}
+      {isManager && <BoardTodos personId={me.id} />}
     </div>
   );
 }
 
-async function Board({ me, directorCompanyIds }: { me: PortalPerson; directorCompanyIds: number[] | null }) {
+async function Board({ me, scope, boardLabel, composerModes }: { me: PortalPerson; scope: number[] | null; boardLabel: string; composerModes: ("Task" | "Event" | "Message")[] }) {
   const personName = me.name;
   // The brief and the composer's picker lists are independent — fetch them
   // CONCURRENTLY rather than in series. The board's load (and its reload when you
   // navigate back from a company) is dominated by these round-trips, so overlapping
   // them is a direct win. Each falls back to empty on a transient error.
   const [brief, pickerData] = await Promise.all([
-    boardBrief(directorCompanyIds),
+    boardBrief(scope),
     // Composer pickers scoped through the one shared helper: a company-scoped
     // director gets only their companies + people; a portfolio director gets all.
     getScopedPickerData(me).catch(() => null),
@@ -131,22 +149,32 @@ async function Board({ me, directorCompanyIds }: { me: PortalPerson; directorCom
   };
   const toInput = (d: Date | null) => (d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : null);
 
-  const watch: WatchItem[] = watchRaw.map((w) => {
-    const o = ownerByTask.get(w.id) ?? { id: null, name: null };
-    return {
-      taskId: w.id,
-      code: w.code,
-      actionItem: w.actionItem,
-      companyId: w.companyId,
-      companyName: w.companyName,
-      overdue: w.overdue,
-      priority: w.priority,
-      dueLabel: dueLabelFor(w.deadline, w.overdue),
-      deadlineInput: toInput(w.deadline),
-      accountableId: o.id,
-      accountableName: o.name,
-    };
-  });
+  const watch: WatchItem[] = watchRaw
+    .map((w) => {
+      const o = ownerByTask.get(w.id) ?? { id: null, name: null };
+      return {
+        taskId: w.id,
+        code: w.code,
+        actionItem: w.actionItem,
+        companyId: w.companyId,
+        companyName: w.companyName,
+        overdue: w.overdue,
+        priority: w.priority,
+        dueLabel: dueLabelFor(w.deadline, w.overdue),
+        deadlineInput: toInput(w.deadline),
+        accountableId: o.id,
+        accountableName: o.name,
+      };
+    })
+    // MOST overdue at the top: overdue items first, and within them the earliest
+    // deadline (= the most days overdue) leads; then soon-due by nearest date. So a
+    // task climbing to the highest overdue count auto-rises to the top.
+    .sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      const ad = a.deadlineInput ? Date.parse(a.deadlineInput) : Infinity;
+      const bd = b.deadlineInput ? Date.parse(b.deadlineInput) : Infinity;
+      return ad - bd;
+    });
 
   // Group health = the share of open work that's on track (i.e. NOT overdue) across
   // the whole portfolio. Task-based, matching the company-health rows and the risk
@@ -188,7 +216,9 @@ async function Board({ me, directorCompanyIds }: { me: PortalPerson; directorCom
       overdue: c.overdue,
       logoUrl: logoMap.get(c.id) ?? null,
     }))
-    .sort((a, b) => rank(a.risk) - rank(b.risk) || b.overdue - a.overdue || b.open - a.open);
+    // Highest OVERDUE count first (so a company whose overdues climb — e.g. PES —
+    // auto-moves up the list to its rank), then risk band, then most open work.
+    .sort((a, b) => b.overdue - a.overdue || rank(a.risk) - rank(b.risk) || b.open - a.open);
 
   const initials = getInitials(personName);
 
@@ -210,8 +240,15 @@ async function Board({ me, directorCompanyIds }: { me: PortalPerson; directorCom
         companies={companies}
         companyHealth={companyHealth}
         watch={watch}
-        upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName, meetLink: e.meetLink, location: e.location }))}
+        upcomingEvents={brief.weekAhead
+          // Board shows ONLY the nearest meeting within 2 days — the full list
+          // lives on /portal/meetings (WeekAhead links there).
+          .filter((e) => { const t = new Date(e.startAt).getTime(); return !Number.isNaN(t) && t <= Date.now() + 48 * 3600000; })
+          .slice(0, 1)
+          .map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName, meetLink: e.meetLink, location: e.location }))}
         suggestions={suggestions}
+        boardLabel={boardLabel}
+        composerModes={composerModes}
       />
       <AutoRefresh seconds={60} />
     </Reveal>

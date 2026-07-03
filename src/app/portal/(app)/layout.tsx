@@ -7,6 +7,7 @@ import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
+import { PortalZoom } from "@/components/portal-zoom";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
@@ -61,8 +62,9 @@ export default async function PortalLayout({ children }: { children: React.React
   ]);
 
   // Everyone gets the room on a large screen (mobile/tablet keep the focused
-  // max-w-3xl). Directors stay widest for their two-column board.
-  const wide = me.portalRole === "director";
+  // max-w-3xl). Board-first operators (directors + managers) stay widest for
+  // their two-column board.
+  const wide = me.portalRole === "director" || me.portalRole === "manager";
 
   // A company-scoped director (e.g. MES Ltd) leads THEIR company, not Oracle — so
   // the header leads with that company (full legal name where set) and credits
@@ -109,6 +111,8 @@ export default async function PortalLayout({ children }: { children: React.React
         </div>
         <PortalSignOut />
       </header>
+      {/* Web-only 0.8 zoom for the whole portal (desktop; mobile/PWA stay 100%). */}
+      <PortalZoom />
       {/* Cache a durable remember token so an installed PWA survives app-kill. */}
       <PortalSessionKeeper />
       <PortalInstallPrompt />

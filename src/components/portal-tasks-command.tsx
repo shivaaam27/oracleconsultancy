@@ -123,7 +123,7 @@ function statusDot(s: string): string {
 const initials = getInitials; // honorific-stripped (Mr Pulin Manek → PM)
 
 export function PortalTasksCommand({
-  tasks, people, companies, role, viewerId, canCreate, initialFilter = "all",
+  tasks, people, companies, role, viewerId, canCreate, initialFilter = "all", houseList = false,
 }: {
   tasks: CommandTask[];
   people: BoardPerson[];
@@ -134,6 +134,9 @@ export function PortalTasksCommand({
   canCreate: boolean;
   /** Pre-select a filter (the board's KPI tiles deep-link here, e.g. ?filter=overdue). */
   initialFilter?: Filter;
+  /** Home inlines this list — cap + scroll it in a "scroll housing" so it doesn't
+   *  run the page long. The full Tasks tab leaves it off (natural page scroll). */
+  houseList?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>(initialFilter);
@@ -193,12 +196,30 @@ export function PortalTasksCommand({
   ];
 
   type Group = { key: string; label: string; dot?: string; dotColor?: string | null; logoUrl?: string | null; items: CommandTask[] };
-  // Newest first everywhere — the most recently created/updated task sits at top.
+  // Newest first — the most recently created/updated task sits at top (In progress,
+  // Not started, company-grouped rest).
   const byRecent = (a: CommandTask, b: CommandTask) =>
     new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime();
   // Done tasks read best "most recently finished first" — sort by close date.
   const byClosed = (a: CommandTask, b: CommandTask) =>
     new Date(b.closedAt ?? b.sortAt).getTime() - new Date(a.closedAt ?? a.sortAt).getTime();
+  // By deadline ascending: the EARLIEST deadline first. For overdue tasks that's
+  // the MOST days overdue; for due-soon that's the SOONEST due. No-deadline last.
+  const byDeadline = (a: CommandTask, b: CommandTask) => {
+    const ad = a.deadlineInput ? Date.parse(a.deadlineInput) : Infinity;
+    const bd = b.deadlineInput ? Date.parse(b.deadlineInput) : Infinity;
+    return ad - bd || byRecent(a, b);
+  };
+  // Universal order for a MIXED list (company-grouped): most-overdue → soonest-due
+  // → most-recent → done-last. Keeps the worst work on top wherever it appears.
+  const byUrgencyThenRecent = (a: CommandTask, b: CommandTask) => {
+    const rank = (t: CommandTask) => (t.isDone ? 3 : t.overdue ? 0 : t.withinSoon ? 1 : 2);
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    if (ra === 0 || ra === 1) return byDeadline(a, b);
+    if (ra === 3) return byClosed(a, b);
+    return byRecent(a, b);
+  };
   const groups = useMemo<Group[]>(() => {
     if (groupByCompany) {
       // One section per company (alphabetical); within each, most-recent first.
@@ -217,13 +238,18 @@ export function PortalTasksCommand({
           label: name,
           dotColor: items[0]?.companyAccent ?? null,
           logoUrl: items[0]?.companyLogoUrl ?? null,
-          items: items.slice().sort(filter === "done" ? byClosed : byRecent),
+          items: items.slice().sort(filter === "done" ? byClosed : byUrgencyThenRecent),
         }));
     }
     // A specific filter chip → a single flat list of just those tasks, newest
     // first (no urgency sub-sections). "All" keeps the urgency sections.
     if (filter !== "all") {
-      const items = filtered.slice().sort(filter === "done" ? byClosed : byRecent);
+      const chipSort =
+        filter === "overdue" ? byDeadline
+        : filter === "soon" ? byDeadline
+        : filter === "done" ? byClosed
+        : byRecent;
+      const items = filtered.slice().sort(chipSort);
       if (items.length === 0) return [];
       const meta: Record<Exclude<Filter, "all">, { label: string; dot: string }> = {
         inprogress: { label: "In Progress", dot: "bg-info" },
@@ -235,9 +261,11 @@ export function PortalTasksCommand({
       const m = meta[filter];
       return [{ key: filter, label: m.label, dot: m.dot, items }];
     }
-    // "All": urgency sections, each newest-first.
-    const overdue = filtered.filter((t) => t.overdue && !t.isDone).sort(byRecent);
-    const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone).sort(byRecent);
+    // "All": urgency sections — Overdue by most-overdue-first, Due soon by
+    // soonest-first, In progress/rest by most-recent-first, Done by most-recently
+    // finished.
+    const overdue = filtered.filter((t) => t.overdue && !t.isDone).sort(byDeadline);
+    const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone).sort(byDeadline);
     const open = filtered.filter((t) => !t.isDone && !t.overdue && !t.withinSoon).sort(byRecent);
     const done = filtered.filter((t) => t.isDone).sort(byClosed);
     return [
@@ -343,8 +371,9 @@ export function PortalTasksCommand({
             : "No open tasks. Enjoy the calm."}
         </div>
       ) : (
-        // Extra breathing room BETWEEN sections / companies (more than the tight
-        // gap within a section) so each block reads as its own group.
+        <TaskListHousing housed={houseList}>
+        {/* Extra breathing room BETWEEN sections / companies (more than the tight
+            gap within a section) so each block reads as its own group. */}
         <div className={cn("flex flex-col", groupByCompany ? "gap-8" : "gap-7")}>
         {groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2.5">
@@ -368,11 +397,26 @@ export function PortalTasksCommand({
           </div>
         ))}
         </div>
+        </TaskListHousing>
       )}
 
       {selectable && selected.size > 0 && (
         <BulkBar taskIds={[...selected]} onClear={clearSelection} />
       )}
+    </div>
+  );
+}
+
+/** Optional "scroll housing" for the inline task list on Home — a soft bordered
+ *  panel that caps the height and scrolls with faded edges. Off (pass-through) on
+ *  the full Tasks tab. */
+function TaskListHousing({ housed, children }: { housed: boolean; children: React.ReactNode }) {
+  if (!housed) return <>{children}</>;
+  return (
+    <div className="rounded-3xl bg-bg-subtle/40 p-1.5 ring-1 ring-border/70">
+      <div className="slim-scroll scroll-fade-y max-h-[38rem] overflow-y-auto overscroll-contain px-1.5 py-2">
+        {children}
+      </div>
     </div>
   );
 }

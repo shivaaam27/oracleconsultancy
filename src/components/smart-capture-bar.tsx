@@ -41,24 +41,36 @@ function detectMode(s: string): Mode {
 }
 
 export function SmartCaptureBar({
-  people, companies,
+  people, companies, modes = ["Task", "Event", "Message"],
 }: {
   people: Person[];
   companies: Company[];
+  /** Which capture modes this operator may use. Managers get Task-only; the
+   *  full board (directors) gets all three. */
+  modes?: Mode[];
 }) {
   const [text, setText] = useState("");
   const [choosing, setChoosing] = useState(false);
   const [sheet, setSheet] = useState<Mode | null>(null);
   const [seed, setSeed] = useState("");
 
+  const allowed = CHOICES.filter((c) => modes.includes(c.key));
   const trimmed = text.trim();
-  const suggested = detectMode(text);
+  const detected = detectMode(text);
+  // Clamp the pre-highlight to an allowed mode.
+  const suggested = modes.includes(detected) ? detected : modes[0];
+  const placeholder =
+    modes.length === 1
+      ? modes[0] === "Task" ? "Assign a task…" : modes[0] === "Event" ? "Schedule an event…" : "Send a message…"
+      : "Assign a task, event or message…";
 
   function submit(e?: React.FormEvent) {
     e?.preventDefault();
     if (!trimmed) return;
     setSeed(trimmed);
-    setChoosing(true);
+    // With a single allowed mode there's nothing to choose — open it directly.
+    if (allowed.length === 1) setSheet(allowed[0].key);
+    else setChoosing(true);
   }
 
   function choose(m: Mode) {
@@ -81,7 +93,7 @@ export function SmartCaptureBar({
         <CaretInput
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Assign a task, event or message…"
+          placeholder={placeholder}
           className="py-2.5 text-sm"
         />
         <button
@@ -102,7 +114,7 @@ export function SmartCaptureBar({
           <div className="absolute inset-x-2.5 top-full z-50 mt-2 rounded-2xl bg-bg-elev p-2 ring-1 ring-border shadow-lg">
             <p className="px-1.5 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">What is this about?</p>
             <div className="grid gap-1.5 sm:grid-cols-3">
-              {CHOICES.map((c) => {
+              {allowed.map((c) => {
                 const Icon = c.icon;
                 const hot = suggested === c.key;
                 return (
@@ -126,10 +138,11 @@ export function SmartCaptureBar({
         </>
       )}
 
-      {/* Controlled sheets, pre-filled with what was typed. */}
-      <DirectorTaskForm people={people} companies={companies} open={sheet === "Task"} onOpenChange={onSheetToggle} seedTitle={seed} />
-      <DirectorEventForm people={people} companies={companies} open={sheet === "Event"} onOpenChange={onSheetToggle} seedTitle={seed} />
-      <DirectorMessage people={people} open={sheet === "Message"} onOpenChange={onSheetToggle} seedBody={seed} />
+      {/* Controlled sheets, pre-filled with what was typed. Only the allowed
+          modes are mounted, so a Task-only operator can never open Event/Message. */}
+      {modes.includes("Task") && <DirectorTaskForm people={people} companies={companies} open={sheet === "Task"} onOpenChange={onSheetToggle} seedTitle={seed} />}
+      {modes.includes("Event") && <DirectorEventForm people={people} companies={companies} open={sheet === "Event"} onOpenChange={onSheetToggle} seedTitle={seed} />}
+      {modes.includes("Message") && <DirectorMessage people={people} open={sheet === "Message"} onOpenChange={onSheetToggle} seedBody={seed} />}
     </div>
   );
 }

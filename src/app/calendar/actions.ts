@@ -16,7 +16,8 @@ import {
 import { buildIcs } from "@/lib/ics";
 import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
 import { senderName, type EmailOffice } from "@/lib/email/layout";
-import { createTasksForEvent, shouldCreateMeetingTasks } from "@/lib/meeting-tasks";
+import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent } from "@/lib/meeting-tasks";
+import { notifyMany, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
 import { cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
@@ -161,6 +162,36 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
         if (created.length) taskCodes = created.map((t) => t.code);
       }
     } catch { /* task spawn is best-effort — never block event creation */ }
+
+    // Notify the people invited — the bell + a push ("You've been added to a
+    // meeting"). This was missing, so attendees added from the command centre or
+    // a portal never heard about it. Gated by the same eventAttendeePings setting
+    // that governs meeting-start pings; the organiser isn't notified of their own
+    // event. Best-effort — never block event creation.
+    try {
+      const settings = await getAppSettings();
+      if (settings.eventAttendeePings) {
+        const attendeeIds = [
+          ...new Set(ev.attendees.map((a) => a.personId).filter((p): p is number => typeof p === "number")),
+        ];
+        if (attendeeIds.length) {
+          const organiser = await recipientForCreatedBy(createdBy ?? null);
+          const recipients = attendeeIds.map(personRecipient).filter((r) => r !== organiser);
+          const when = new Date(ev.startAt).toLocaleString("en-GB", {
+            weekday: "short", day: "numeric", month: "short",
+            ...(ev.allDay ? {} : { hour: "2-digit", minute: "2-digit" }),
+            timeZone: "Africa/Dar_es_Salaam",
+          });
+          const actor = createdBy ? createdBy.split(":").pop() ?? null : null;
+          await notifyMany(recipients, {
+            kind: "meeting",
+            title: `New meeting: ${ev.title}`,
+            body: ev.allDay ? `${when} · All day` : when,
+            actor,
+          });
+        }
+      }
+    } catch { /* notifications are best-effort */ }
 
     invalidate();
     return { ok: true, id: ev.id, taskCodes };
@@ -641,6 +672,11 @@ export async function deleteEventAction(id: number): Promise<Result> {
         googleCancelled = r.ok;
       }
     }
+    // Remove the tasks this event spawned BEFORE deleting the row — the FK is
+    // ON DELETE SET NULL, so once the event is gone the link is lost and the
+    // tasks can no longer be found. This clears them everywhere (command centre
+    // + all portals) so a deleted meeting leaves no orphaned open tasks.
+    await deleteTasksForEvent(id);
     await deleteCalendarEvent(id);
     invalidate();
     return { ok: true, googleCancelled };
@@ -663,6 +699,9 @@ export async function cancelEventAction(id: number): Promise<Result> {
       const r = await cancelGoogleEvent(ev.googleEventId);
       googleCancelled = r.ok;
     }
+    // A cancelled meeting has no work to do — clear its spawned tasks too so they
+    // don't linger as open tasks across the command centre and portals.
+    await deleteTasksForEvent(id);
     await markCalendarEventCancelled(id);
     invalidate();
     return { ok: true, googleCancelled };

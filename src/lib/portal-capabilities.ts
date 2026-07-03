@@ -34,9 +34,9 @@ export type PortalCapabilities = {
   canCreate: boolean;
   /** Which nav-pill / navigation tabs this role gets. */
   tabs: {
-    /** Portfolio board — directors only. */
+    /** Operator board — directors AND managers (each scoped to their companies). */
     board: boolean;
-    /** Home — everyone except directors (they are board-first). */
+    /** Home — staff + HR only (directors/managers are board-first). */
     home: boolean;
     /** Filterable Tasks list — management only. */
     tasks: boolean;
@@ -55,6 +55,8 @@ export type PortalCapabilities = {
     chat: boolean;
     /** Own profile — everyone. */
     profile: boolean;
+    /** Meetings/events — everyone (scoped server-side). */
+    meetings: boolean;
   };
 };
 
@@ -70,7 +72,10 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
     role === "director" || role === "manager" || role === "hr" ? role : "staff";
 
   const isDirector = r === "director";
+  const isManager = r === "manager";
   const isManagement = r === "manager" || r === "hr" || r === "director";
+  // Board-first operators: directors AND managers (each scoped to their companies).
+  const boardFirst = isDirector || isManager;
   const groupWide = r === "hr" || r === "director";
   const canCreate = r !== "staff";
 
@@ -80,8 +85,8 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
     groupWide,
     canCreate,
     tabs: {
-      board: isDirector,
-      home: !isDirector,
+      board: boardFirst,
+      home: !boardFirst,
       tasks: isManagement,
       directory: true,
       outbox: isManagement,
@@ -92,6 +97,7 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
       activity: true,
       chat: true,
       profile: true,
+      meetings: true,
     },
   };
 }

@@ -242,3 +242,44 @@ actionLabel/tone/count/automationAction?`).
   picker; peek menus open it instead of a fixed "Snooze 1 week".
 - Inbox cards swipe (right = File it, left = Dismiss) only when not editing, so
   the textarea keeps full touch.
+
+## 11. Scroll housing (named pattern)
+
+**"Scroll housing"** = wrap a scrollable list/grid in a soft bordered panel so the
+cards read as a *contained* list, not loose floating tiles. When the owner says
+"give this a scroll housing" / "house this", apply it. First built on the board's
+Needs-you + Health columns (`components/director-board-client.tsx`).
+
+- **Outer housing:** `rounded-3xl bg-bg-subtle/40 p-1.5 ring-1 ring-border/70`
+- **Inner scroll area:** `slim-scroll scroll-fade-y max-h-[42rem] overflow-y-auto
+  overscroll-contain px-1.5 py-1.5` (+ `space-y-2` for a list, or `grid
+  grid-cols-2 gap-2` for tiles)
+- `.scroll-fade-y` (globals.css) — masks the top/bottom edges so content fades in/out
+  as it scrolls (no hard cut).
+- `.slim-scroll` (globals.css) — the subtle overlay scrollbar (thumb appears on hover).
+- The inner `px` padding keeps each card's ring/shadow off the clip edge (prevents
+  left-edge clipping).
+
+## 12. Board list ordering — "worst first, always" (`app/portal/(app)/board/page.tsx`)
+
+Both board columns are ordered so the item needing attention **most** sits at the
+top, and the order updates itself as the numbers change — no manual re-ordering.
+
+- **Needs you** (the overdue/at-risk task list): overdue tasks first, and within them
+  the **earliest deadline = the most days overdue leads** (then soon-due by nearest
+  date). A task climbing to the highest overdue count auto-rises to the top.
+- **Company health** (the heat tiles): sorted by **highest overdue count first**, then
+  risk band, then most open work. So if a healthy company (e.g. PES) later gathers
+  overdues, its tile automatically moves up to wherever its number ranks.
+
+Forward rule: any new "attention" list on the board sorts by overdue-severity first,
+computed from live figures — never a fixed/manual order.
+
+### Task-list ordering (universal — `components/portal-tasks-command.tsx`)
+The same worst-first principle governs the shared portal task list (Home, Tasks tab,
+every role). Within each group: **Overdue = most days overdue first** (earliest
+deadline), **Due soon = soonest first**, **In progress / open = most recent first**,
+**Done = most recently finished**. Company-grouped view uses one mixed comparator
+(overdue → soon → recent → done-last). The Home task list is wrapped in a **scroll
+housing** (`houseList` prop) so a growing list scrolls in place instead of running
+the page long; the full Tasks tab uses natural page scroll.

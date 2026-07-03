@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -117,16 +117,26 @@ function useDragScroll() {
   return ref;
 }
 
-function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string }) {
+type NavTipData = { label: string; cx: number };
+type TipFn = (t: NavTipData | null) => void;
+
+function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag, onTip }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string; onTip?: TipFn }) {
+  const show = (el: HTMLElement) => { const r = el.getBoundingClientRect(); onTip?.({ label, cx: r.left + r.width / 2 }); };
   return (
     <Link
       href={href}
       aria-label={label}
-      title={label}
       data-tour={tourTag}
+      onMouseEnter={(e) => show(e.currentTarget)}
+      onMouseLeave={() => onTip?.(null)}
+      onFocus={(e) => show(e.currentTarget)}
+      onBlur={() => onTip?.(null)}
+      onClick={() => onTip?.(null)}
       className={cn(
-        "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
-        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60",
+        "group relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
+        // Hover fills with the soft accent (a clear "this is a button" cue) —
+        // was too see-through before.
+        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-accent hover:bg-accent-soft/60",
         showLabel ? (active ? "" : "px-3 md:px-3.5") : "w-11 md:w-12"
       )}
     >
@@ -141,9 +151,34 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
           />
         )
       )}
-      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+      {/* Playful spring bounce on hover (motion-safe honours reduced motion). */}
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
       {showLabel && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
     </Link>
+  );
+}
+
+/** A frosted name-label that floats ABOVE the hovered icon (replaces the OS's
+ *  black title tooltip). Positioned ABSOLUTELY inside the pill (which isn't
+ *  clipped, unlike the inner scroll row) and zoom-corrected: the portal renders
+ *  at `zoom: 0.8` on the web, so we divide the viewport delta by the pill's
+ *  effective zoom to land the label dead-centre over the icon. */
+function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: React.RefObject<HTMLDivElement | null> }) {
+  if (!tip) return null;
+  const el = containerRef.current;
+  let left = tip.cx;
+  if (el) {
+    const cr = el.getBoundingClientRect();
+    const zoom = el.offsetWidth ? cr.width / el.offsetWidth : 1;
+    left = (tip.cx - cr.left) / (zoom || 1);
+  }
+  return (
+    <div
+      style={{ position: "absolute", left, bottom: "calc(100% + 10px)", transform: "translateX(-50%)" }}
+      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-[11px] font-semibold text-fg shadow-pill"
+    >
+      {tip.label}
+    </div>
   );
 }
 
@@ -154,7 +189,8 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   // HR and directors get the Tasks + Outbox tabs (group-wide for HR/directors,
   // company-wide for managers); staff get neither.
   const caps = portalCapabilities(role);
-  const isDirector = caps.isDirector;
+  const showBoard = caps.tabs.board;
+  const showHome = caps.tabs.home;
   const showTasks = caps.tabs.tasks;
   const showOutbox = caps.tabs.outbox;
   const showInsights = caps.tabs.insights;
@@ -165,6 +201,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const onOutbox = pathname.startsWith("/portal/outbox");
   const onInsights = pathname.startsWith("/portal/insights");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
+  const onMeetings = pathname.startsWith("/portal/meetings");
   const onActivity = pathname.startsWith("/portal/activity");
   const onRequests = pathname.startsWith("/portal/requests");
   const onChat = pathname.startsWith("/portal/chat");
@@ -191,6 +228,8 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const showActiveLabel = lg || !compact;
   const labelFor = (active: boolean) => active && showActiveLabel;
   const scrollRef = useDragScroll();
+  const pillRef = useRef<HTMLDivElement>(null);
+  const [tip, setTip] = useState<NavTipData | null>(null);
 
   return (
     <>
@@ -200,33 +239,38 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
       onChat ? "hidden md:flex" : "flex"
     )}>
       <motion.div
+        ref={pillRef}
         layout={!reduce}
         data-nav-pill
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto max-w-[min(20rem,calc(100vw-1.5rem))] md:max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
+        className="relative pointer-events-auto max-w-[min(20rem,calc(100vw-1.5rem))] md:max-w-[calc(100vw-1.5rem)] nav-frost glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
+        <NavTip tip={tip} containerRef={pillRef} />
         {/* Tabs scroll horizontally only if they truly can't fit; the controls
             below stay anchored so the bell + theme are always reachable. */}
         <div ref={scrollRef} className="nav-scroll no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto select-none touch-pan-x [@media(pointer:fine)]:cursor-grab [@media(pointer:fine)]:active:cursor-grabbing">
-          {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} />}
-          {/* Directors are board-first (/portal redirects them to /portal/board),
-              so a Home tab is redundant for them — show it for everyone else. */}
-          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} tourTag="nav-home" />}
-          {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} />}
+          {showBoard && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} onTip={setTip} />}
+          {/* Directors + managers are board-first (/portal redirects them to
+              /portal/board), so a Home tab is redundant for them — show it for
+              staff + HR only. */}
+          {showHome && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} onTip={setTip} tourTag="nav-home" />}
+          {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} onTip={setTip} />}
           {/* The contact book / company list — scoped per role server-side
               (group-wide for HR/directors, own-company for managers/staff). */}
-          <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} />
+          <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} onTip={setTip} />
           {/* Chat sits right after Directory — it's a primary, everyday destination. */}
-          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} tourTag="nav-chat" />
+          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} onTip={setTip} tourTag="nav-chat" />
+          {/* Briefings = meetings + announcements — everyone (scoped server-side). */}
+          <PillTab href="/portal/meetings" icon={CalendarClock} label="Briefings" active={onMeetings} labelled={labelFor(onMeetings)} reduce={reduce} onTip={setTip} />
           {/* Drafted messages/announcements — management only. */}
-          {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} />}
+          {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} onTip={setTip} />}
           {/* Glanceable portfolio/team Insights — management only. */}
-          {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} />}
-          {showRequests && <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />}
-          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
-          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} tourTag="nav-profile" />
+          {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} onTip={setTip} />}
+          {showRequests && <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} onTip={setTip} tourTag="nav-requests" />}
+          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />
+          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
         {/* Tasks + Requests carry their own contextual + FAB (quick add / raise
             a request), so the pill's create button steps aside there to avoid a
@@ -250,7 +294,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
     {/* When chat hides the pill on mobile, keep a way back. */}
     {onChat && (
       <Link
-        href={isDirector ? "/portal/board" : "/portal"}
+        href={showBoard ? "/portal/board" : "/portal"}
         aria-label="Home"
         title="Home"
         className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full glass elevated shadow-pill text-fg-muted transition-transform active:scale-95"

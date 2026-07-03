@@ -415,7 +415,10 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
  *  tasks) must span this set rather than the single primary company.
  *  Returns [] when they have no company at all. This is a small, cheap query
  *  for ONE person — do not pull the whole getPersonCompaniesMap here. */
-export async function myCompanyIds(person: PortalPerson): Promise<number[]> {
+// cache() de-dupes within one request: myCompanyIds is reached several times per
+// board load (companyScope, getScopedPickerData, managerTeamIds) — all with the
+// same cached `person` reference, so they now share one query.
+export const myCompanyIds = cache(async (person: PortalPerson): Promise<number[]> => {
   const { data } = await sb
     .from("person_companies")
     .select("company_id")
@@ -427,7 +430,7 @@ export async function myCompanyIds(person: PortalPerson): Promise<number[]> {
     if (cid != null) set.add(cid);
   }
   return [...set];
-}
+});
 
 /** Direct reports of a manager: primary line (people.manager_id) plus any
  *  dotted lines (reporting_lines). Active people only. */

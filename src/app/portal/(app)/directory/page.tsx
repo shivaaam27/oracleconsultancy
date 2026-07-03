@@ -7,8 +7,9 @@ import { sb } from "@/db/supabase";
 import { waLink, mailtoLink } from "@/lib/outbox/links";
 import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
-import { DirectoryView, type DirectoryPerson, type DirectoryCompany } from "./directory-view";
+import { DirectoryView, type DirectoryPerson, type DirectoryCompany, type DirectoryAttendance } from "./directory-view";
 import { getCompanyLogoMap } from "@/lib/company-brand";
+import { teamAttendanceToday } from "@/lib/attendance";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,27 @@ export default async function PortalDirectoryPage() {
     logoUrl: logoMap.get(c.id as number) ?? null,
   }));
 
+  // Attendance today — a manager/HR view. Directors don't need it (board-level
+  // operators) and staff never see other people's attendance. Scoped to the same
+  // people the viewer can already see in the directory; enriched with company for
+  // the tab's filter/search.
+  const canSeeAttendance = me.portalRole === "manager" || me.portalRole === "hr";
+  let attendance: DirectoryAttendance[] = [];
+  if (canSeeAttendance && people.length > 0) {
+    const rows = await teamAttendanceToday(people.map((p) => p.id));
+    const byId = new Map(people.map((p) => [p.id, p]));
+    attendance = rows.map((r) => {
+      const person = byId.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        status: r.status,
+        company: person?.company ?? null,
+        companyIds: person?.companyIds ?? [],
+      };
+    });
+  }
+
   const subtitle = groupWide
     ? "Everyone across the group — search, call, message or open a profile."
     : "Your colleagues — search, call or message.";
@@ -144,7 +166,13 @@ export default async function PortalDirectoryPage() {
       </Reveal>
 
       <Reveal delay={0.04}>
-        <DirectoryView people={people} companies={companies} canOpenProfiles={me.portalRole !== "staff"} />
+        <DirectoryView
+          people={people}
+          companies={companies}
+          attendance={attendance}
+          showAttendance={canSeeAttendance}
+          canOpenProfiles={me.portalRole !== "staff"}
+        />
       </Reveal>
     </div>
   );

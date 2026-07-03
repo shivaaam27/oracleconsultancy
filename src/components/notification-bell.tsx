@@ -30,7 +30,8 @@ type NotifKind =
   | "chat_mention"
   | "leave"
   | "announcement"
-  | "request";
+  | "request"
+  | "meeting";
 
 type Notif = {
   id: number;
@@ -56,6 +57,7 @@ const ICON: Record<NotifKind, typeof Bell> = {
   leave: CalendarClock,
   announcement: Megaphone,
   request: MessageSquareText,
+  meeting: CalendarClock,
 };
 
 /** Notifications are grouped into a few human categories (iPhone-style stacks).
@@ -64,6 +66,7 @@ const CATEGORIES: { key: string; label: string; kinds: NotifKind[]; icon: typeof
   { key: "messages", label: "Messages", kinds: ["chat", "chat_mention", "mention", "reply"], icon: MessageCircle },
   { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned", "update"], icon: UserPlus },
   { key: "requests", label: "Requests & leave", kinds: ["request", "leave"], icon: MessageSquareText },
+  { key: "meetings", label: "Meetings", kinds: ["meeting"], icon: CalendarClock },
   { key: "announcements", label: "Announcements", kinds: ["announcement"], icon: Megaphone },
 ];
 
@@ -195,6 +198,8 @@ export function NotificationBell({
     } else if (n.kind === "request" && n.requestId) {
       const base = to.startsWith("/portal") ? "/portal/requests" : "/requests";
       router.push(`${base}/${n.requestId}`);
+    } else if (n.kind === "meeting") {
+      router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {
       // On the admin side, open the task in place via the `?task=CODE` drawer
       // rather than the `/task/[code]` redirect stub. The portal keeps its page.

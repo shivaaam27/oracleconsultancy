@@ -28,23 +28,32 @@ import { useRegisteredActions } from "./context-actions";
 /** A primary nav tab — icon only, filled-accent pill when active. The active tab
  *  grows to show its label inline (iOS-tab-bar style), so the current location is
  *  always named without crowding the bar. Touch targets are ≥44px on mobile. */
+type NavTipData = { label: string; cx: number };
+type TipFn = (t: NavTipData | null) => void;
+
 function NavTab({
-  href, icon: Icon, label, active, reduce,
+  href, icon: Icon, label, active, reduce, onTip,
 }: {
   href: string;
   icon: LucideIcon;
   label: string;
   active: boolean;
   reduce: boolean;
+  onTip?: TipFn;
 }) {
+  const show = (el: HTMLElement) => { const r = el.getBoundingClientRect(); onTip?.({ label, cx: r.left + r.width / 2 }); };
   return (
     <Link
       href={href}
       aria-label={label}
-      title={label}
+      onMouseEnter={(e) => show(e.currentTarget)}
+      onMouseLeave={() => onTip?.(null)}
+      onFocus={(e) => show(e.currentTarget)}
+      onBlur={() => onTip?.(null)}
+      onClick={() => onTip?.(null)}
       className={cn(
-        "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors",
-        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60 w-11 md:w-12"
+        "group relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors",
+        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-accent hover:bg-accent-soft/60 w-11 md:w-12"
       )}
     >
       {active && (
@@ -58,9 +67,30 @@ function NavTab({
           />
         )
       )}
-      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
       {active && <span className="relative text-[13px] font-medium whitespace-nowrap">{label}</span>}
     </Link>
+  );
+}
+
+/** Frosted floating name-label above a hovered nav icon (replaces the OS tooltip).
+ *  Absolutely positioned inside the pill (not clipped) + zoom-corrected. */
+function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: React.RefObject<HTMLDivElement | null> }) {
+  if (!tip) return null;
+  const el = containerRef.current;
+  let left = tip.cx;
+  if (el) {
+    const cr = el.getBoundingClientRect();
+    const zoom = el.offsetWidth ? cr.width / el.offsetWidth : 1;
+    left = (tip.cx - cr.left) / (zoom || 1);
+  }
+  return (
+    <div
+      style={{ position: "absolute", left, bottom: "calc(100% + 10px)", transform: "translateX(-50%)" }}
+      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-[11px] font-semibold text-fg shadow-pill"
+    >
+      {tip.label}
+    </div>
   );
 }
 
@@ -672,6 +702,7 @@ export function TopPill() {
 
   // The drag-lens is a tablet+ flourish (see NavLens usage below).
   const [wide, setWide] = useState(false);
+  const [tip, setTip] = useState<NavTipData | null>(null);
   useEffect(() => {
     const mm = window.matchMedia("(min-width: 768px)");
     const u = () => setWide(mm.matches);
@@ -715,14 +746,15 @@ export function TopPill() {
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         style={{ touchAction: "pan-y" }}
-        className="relative pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
+        className="relative pointer-events-auto max-w-[calc(100vw-1.5rem)] nav-frost glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
+        <NavTip tip={tip} containerRef={pillRef} />
         {/* The drag-lens is a tablet+ flourish — on phones it competes with taps
             and is undiscoverable, so it's disabled there (plain taps still work). */}
         <NavLens containerRef={pillRef} onSelect={selectSlot} enabled={wide} />
-        <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} />
+        <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} onTip={setTip} />
         <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} worldName={currentWorld?.name} />
-        <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} />
+        <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} onTip={setTip} />
 
         <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
 

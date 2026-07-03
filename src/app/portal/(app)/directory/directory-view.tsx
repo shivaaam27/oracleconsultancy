@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/surface-kit";
+import { Badge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { getInitials as initials } from "@/lib/names";
 import { CompanyAvatar } from "@/components/company-avatar";
+import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { Phone, MessageCircle, Mail, ArrowUpRight, Search, X, AlertTriangle } from "lucide-react";
 
 const ICON = "grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full transition-transform active:scale-90";
@@ -34,6 +36,14 @@ export type DirectoryCompany = {
   logoUrl: string | null;
 };
 
+export type DirectoryAttendance = {
+  id: number;
+  name: string;
+  status: string | null; // Present / Remote / Absent / On leave / Holiday / Half-day / Sick / null
+  company: string | null;
+  companyIds: number[];
+};
+
 /** Read-only contact book for directors/HR (managers and staff see only their own
  *  company). Two tabs: People (searchable, with real call/WhatsApp/email anchors)
  *  and Companies (cards with headcount + open/overdue work). No pay or private IDs.
@@ -42,13 +52,19 @@ export type DirectoryCompany = {
 export function DirectoryView({
   people,
   companies,
+  attendance = [],
+  showAttendance = false,
   canOpenProfiles = true,
 }: {
   people: DirectoryPerson[];
   companies: DirectoryCompany[];
+  attendance?: DirectoryAttendance[];
+  showAttendance?: boolean;
   canOpenProfiles?: boolean;
 }) {
-  const [tab, setTab] = useState<"people" | "companies">("people");
+  type Tab = "people" | "companies" | "attendance";
+  const tabs: Tab[] = showAttendance ? ["people", "companies", "attendance"] : ["people", "companies"];
+  const [tab, setTab] = useState<Tab>("people");
   const [q, setQ] = useState("");
   const [companyId, setCompanyId] = useState<number | "all">("all");
   const ql = q.trim().toLowerCase();
@@ -71,6 +87,22 @@ export function DirectoryView({
     });
   }, [people, ql, companyId]);
 
+  // Attendance today, filtered by the same search + company chips as People.
+  const shownAttendance = useMemo(() => {
+    return attendance.filter((a) => {
+      if (companyId !== "all") {
+        const cids = a.companyIds ?? [];
+        if (!cids.includes(companyId)) return false;
+      }
+      if (!ql) return true;
+      return `${a.name} ${a.company ?? ""} ${a.status ?? ""}`.toLowerCase().includes(ql);
+    });
+  }, [attendance, ql, companyId]);
+  const presentCount = shownAttendance.filter((a) => a.status === "Present" || a.status === "Remote").length;
+  const markedCount = shownAttendance.filter((a) => a.status).length;
+
+  const tabCount = (t: Tab) => (t === "people" ? people.length : t === "companies" ? companies.length : attendance.length);
+
   // Only offer the company filter when there's more than one company to pick from.
   const showCompanyFilter = companies.length > 1;
 
@@ -78,7 +110,7 @@ export function DirectoryView({
     <div className="space-y-4">
       {/* Segmented control */}
       <div className="inline-flex rounded-full bg-bg-subtle/60 p-1 ring-1 ring-border/40">
-        {(["people", "companies"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -89,7 +121,7 @@ export function DirectoryView({
             )}
           >
             {t}
-            <span className="ml-1.5 text-[11px] text-fg-subtle">{t === "people" ? people.length : companies.length}</span>
+            <span className="ml-1.5 text-[11px] text-fg-subtle">{tabCount(t)}</span>
           </button>
         ))}
       </div>
@@ -150,12 +182,65 @@ export function DirectoryView({
             </>
           )}
         </div>
-      ) : (
+      ) : tab === "companies" ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {companies.length === 0 ? (
             <Panel className="p-6 text-center text-sm text-fg-muted sm:col-span-2">No companies.</Panel>
           ) : (
             companies.map((c) => <CompanyCard key={c.id} c={c} />)
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3.5 py-2.5 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
+            <Search size={16} className="shrink-0 text-fg-subtle" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by name, company or status…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-fg-muted"
+            />
+            {q && (
+              <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-bg-subtle text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {showCompanyFilter && (
+            <div className="no-scrollbar -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
+              <FilterChip active={companyId === "all"} onClick={() => setCompanyId("all")}>All</FilterChip>
+              {companies.map((c) => (
+                <FilterChip key={c.id} active={companyId === c.id} onClick={() => setCompanyId(c.id)}>{c.name}</FilterChip>
+              ))}
+            </div>
+          )}
+
+          {shownAttendance.length === 0 ? (
+            <Panel className="p-6 text-center text-sm text-fg-muted">No one to show.</Panel>
+          ) : (
+            <Panel className="overflow-hidden p-0">
+              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2.5">
+                <span className="text-sm font-semibold">{presentCount} in · {shownAttendance.length - markedCount} not marked</span>
+                <span className="text-[11px] text-fg-subtle">{markedCount}/{shownAttendance.length} recorded today</span>
+              </div>
+              <ul className="divide-y divide-border/40">
+                {shownAttendance.map((a) => (
+                  <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">{initials(a.name)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{a.name}</p>
+                      {a.company && <p className="truncate text-[11px] text-fg-subtle">{a.company}</p>}
+                    </div>
+                    {a.status ? (
+                      <Badge tone={ATTENDANCE_TONE[a.status as keyof typeof ATTENDANCE_TONE] ?? "default"}>{a.status}</Badge>
+                    ) : (
+                      <span className="text-[11px] text-fg-subtle">Not marked</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
         </div>
       )}

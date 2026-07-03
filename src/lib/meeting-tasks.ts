@@ -4,7 +4,28 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getAppSettings } from "@/lib/settings";
 import { postSystemMessage } from "@/lib/chat";
 import { expandRecurrence, normaliseRecurrence } from "@/lib/ics";
+import { removeEntityIndex } from "@/lib/index-hooks";
 import type { CalendarEvent } from "@/lib/calendar";
+
+/**
+ * Cascade: when a calendar event is deleted or cancelled, remove every task it
+ * spawned (tasks.source_event_id = eventId) so the meeting's work items don't
+ * linger as orphaned open tasks across the command centre and every portal.
+ * Assignees/updates cascade away with the row; each task's search index entry
+ * is dropped. Best-effort and idempotent. Returns the number of tasks removed.
+ */
+export async function deleteTasksForEvent(eventId: number): Promise<number> {
+  const { data: tasks } = await sb
+    .from("tasks")
+    .select("id")
+    .eq("source_event_id", eventId);
+  if (!tasks || tasks.length === 0) return 0;
+  const ids = tasks.map((t) => t.id as number);
+  const { error } = await sb.from("tasks").delete().in("id", ids);
+  if (error) return 0;
+  for (const id of ids) void removeEntityIndex("task", id);
+  return ids.length;
+}
 
 /* ------------------------------------------------------------------ *
  * Meeting-as-task — a calendar event/meeting also becomes a task so the

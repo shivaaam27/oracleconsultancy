@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
@@ -27,7 +28,7 @@ export type CompanyAssociation = {
  * by the task-creation people pickers and the company-wide task/KPI roll-ups so a
  * multi-company person shows up under each of their companies.
  */
-export async function getPersonCompaniesMap(): Promise<Map<number, number[]>> {
+export const getPersonCompaniesMap = cache(async (): Promise<Map<number, number[]>> => {
   const [{ data: peopleRows }, { data: assocRows }] = await Promise.all([
     sb.from("people").select("id,company_id").eq("active", true),
     sb.from("person_companies").select("person_id,company_id"),
@@ -42,7 +43,7 @@ export async function getPersonCompaniesMap(): Promise<Map<number, number[]>> {
   for (const p of peopleRows ?? []) add(p.id as number, (p.company_id as number | null) ?? null);
   for (const a of assocRows ?? []) add(a.person_id as number, (a.company_id as number | null) ?? null);
   return new Map([...map].map(([pid, set]) => [pid, [...set]]));
-}
+});
 
 export type Person = {
   id: number;

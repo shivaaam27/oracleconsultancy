@@ -35,8 +35,9 @@ function dot(t: OutboxTask): string {
 }
 
 /** One person: avatar + counts; expands to their full task list + send actions. */
-function PersonCard({ p, defaultOpen }: { p: OutboxPerson; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function PersonCard({ p }: { p: OutboxPerson }) {
+  // Every card starts collapsed — only the user expands the person they want.
+  const [open, setOpen] = useState(false);
   return (
     <div>
       <button
@@ -136,7 +137,7 @@ export function PortalOutboxLive({ people }: { people: OutboxPerson[] }) {
         {shown.length === 0 ? (
           <p className="p-6 text-center text-sm text-fg-muted">No one matches “{q}”.</p>
         ) : (
-          shown.map((p, i) => <PersonCard key={p.personId} p={p} defaultOpen={i === 0} />)
+          shown.map((p) => <PersonCard key={p.personId} p={p} />)
         )}
       </Panel>
     </div>
