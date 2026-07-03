@@ -277,3 +277,33 @@ export function googleCalendarUrl(ev: IcsEvent): string {
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+/**
+ * "Add to Outlook" deep link (Outlook.com / Microsoft 365 web) — the equivalent
+ * one-tap composer for Outlook users, who can't open a Google template URL.
+ */
+export function outlookCalendarUrl(ev: IcsEvent): string {
+  const allDay = !!ev.allDay;
+  const end =
+    ev.end ??
+    (allDay
+      ? new Date(ev.start.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(ev.start.getTime() + 60 * 60 * 1000));
+
+  const bodyParts: string[] = [];
+  if (ev.description) bodyParts.push(ev.description);
+  if (ev.meetLink) bodyParts.push(`Join: ${ev.meetLink}`);
+
+  const params = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: ev.title,
+    startdt: ev.start.toISOString(),
+    enddt: end.toISOString(),
+  });
+  if (allDay) params.set("allday", "true");
+  if (bodyParts.length) params.set("body", bodyParts.join("\n\n"));
+  if (ev.location || ev.meetLink) params.set("location", ev.location || ev.meetLink || "");
+
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+}

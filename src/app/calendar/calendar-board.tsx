@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
-import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction } from "./actions";
+import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction } from "./actions";
 
 const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: string }> = {
   task: { icon: CheckSquare, tone: "text-info", dot: "hsl(var(--info))" },
@@ -591,6 +591,7 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [preview, setPreview] = useState<{ subject: string; html: string; recipients: string[] } | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const shareUrl = `${origin}/e/${event.publicToken}`;
@@ -618,11 +619,21 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
     start(async () => {
       const r = await deleteEventAction(event.id);
       if (!r.ok) toast(r.error, { tone: "danger" });
+      else if (r.googleCancelled) toast("Event deleted — guests notified of the cancellation.", { tone: "success", duration: 6000 });
+      else toast("Event deleted.", { tone: "success" });
     });
   }
 
   const emailCount = event.attendees.filter((a) => a.email).length;
   const isPast = new Date(event.endAt ?? event.startAt).getTime() < Date.now();
+
+  function openPreview() {
+    start(async () => {
+      const r = await previewEventInviteAction(event.id, isPast ? "followup" : "invite");
+      if (r.ok) setPreview({ subject: r.subject, html: r.html, recipients: r.recipients });
+      else toast(r.error, { tone: "danger" });
+    });
+  }
 
   function draftReminders() {
     start(async () => {
@@ -731,6 +742,16 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
             </button>
             {emailCount > 0 && (
               <button
+                onClick={openPreview}
+                disabled={pending}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
+                title="See exactly what guests will receive before sending"
+              >
+                <Mail size={13} /> Preview
+              </button>
+            )}
+            {emailCount > 0 && (
+              <button
                 onClick={sendInvite}
                 disabled={pending}
                 className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
@@ -819,6 +840,15 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
                   {emailCount > 0 && (
                     <DropdownMenu.Item
                       disabled={pending}
+                      onSelect={(e) => { e.preventDefault(); openPreview(); }}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted data-[disabled]:opacity-50"
+                    >
+                      <Mail size={15} /> Preview email
+                    </DropdownMenu.Item>
+                  )}
+                  {emailCount > 0 && (
+                    <DropdownMenu.Item
+                      disabled={pending}
                       onSelect={(e) => { e.preventDefault(); sendInvite(); }}
                       className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none text-accent data-[highlighted]:bg-accent/10 data-[disabled]:opacity-50"
                     >
@@ -857,6 +887,48 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
           </div>
         </div>
       </div>
+
+      {preview && (
+        <HrmsDialog
+          open
+          onClose={() => setPreview(null)}
+          width="lg"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Mail size={16} className="text-accent" /> Email preview
+            </span>
+          }
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setPreview(null)}>Close</Button>
+              {preview.recipients.length > 0 && !isPast && (
+                <Button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => { setPreview(null); sendInvite(); }}
+                >
+                  <Mail size={15} /> Send to {preview.recipients.length} {preview.recipients.length === 1 ? "guest" : "guests"}
+                </Button>
+              )}
+            </>
+          }
+        >
+          <div className="space-y-2">
+            <div className="text-xs text-fg-muted">
+              <span className="font-medium text-fg">Subject:</span> {preview.subject}
+            </div>
+            <div className="text-xs text-fg-muted">
+              <span className="font-medium text-fg">To:</span>{" "}
+              {preview.recipients.length ? preview.recipients.join(", ") : "No attendees with an email yet — add one to send."}
+            </div>
+            <iframe
+              title="Email preview"
+              srcDoc={preview.html}
+              className="w-full h-[420px] rounded-xl border border-border bg-white"
+            />
+          </div>
+        </HrmsDialog>
+      )}
     </Card>
   );
 }
@@ -953,6 +1025,8 @@ function EventForm({
         if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
           const m = await ensureEventMeetLink(r.id);
           toast(m.meetLink ? "Event created — Google Meet link added." : "Event created.", { tone: "success" });
+        } else if (editing && r.googleSynced) {
+          toast("Event updated — guests notified of the change.", { tone: "success", duration: 6000 });
         } else {
           toast(editing ? "Event updated" : "Event created", { tone: "success" });
         }

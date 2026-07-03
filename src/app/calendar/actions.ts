@@ -6,16 +6,21 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
   getCalendarEvent,
+  markCalendarEventCancelled,
+  setGoogleEventId,
   toIcsEvent,
   type CalendarAttendee,
 } from "@/lib/calendar";
 import { buildIcs } from "@/lib/ics";
+import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
-import { createGoogleEvent } from "@/lib/google-calendar";
+import { cancelGoogleEvent, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
 import { sb } from "@/db/supabase";
 
-type Result = { ok: true; id?: number } | { ok: false; error: string };
+type Result =
+  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean }
+  | { ok: false; error: string };
 
 function str(fd: FormData, key: string): string | null {
   const v = (fd.get(key) ?? "").toString().trim();
@@ -129,8 +134,11 @@ export async function ensureEventMeetLink(id: number): Promise<{ meetLink: strin
   if (!ev) return { meetLink: null };
   if (ev.meetLink) return { meetLink: ev.meetLink };
   const g = await createGoogleEvent(ev, { requestMeet: true });
-  if (g.ok && g.meetLink) {
-    await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", id);
+  if (g.ok) {
+    // Remember the Google event id so a later edit/cancel can reach it, and store
+    // the freshly-minted Meet link.
+    if (g.eventId) await setGoogleEventId(id, g.eventId, g.meetLink);
+    else if (g.meetLink) await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", id);
     invalidate();
     return { meetLink: g.meetLink };
   }
@@ -148,7 +156,7 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
   const endAt = localToIso(str(fd, "endAt"), allDay);
 
   try {
-    await updateCalendarEvent(id, {
+    const updated = await updateCalendarEvent(id, {
       title,
       description: str(fd, "description"),
       location: str(fd, "location"),
@@ -161,8 +169,16 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       ...parseRecurrence(fd),
       attendees: parseAttendees(str(fd, "attendees")),
     });
+    // If this event lives in Google Calendar, push the edit so every guest gets
+    // the reschedule/change email + their calendar updates. Best-effort — a Google
+    // hiccup must never block saving the change locally.
+    let googleSynced = false;
+    if (updated.googleEventId) {
+      const r = await updateGoogleEvent(updated);
+      googleSynced = r.ok;
+    }
     invalidate();
-    return { ok: true, id };
+    return { ok: true, id, googleSynced };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update event." };
   }
@@ -176,8 +192,17 @@ function fmtEat(iso: string, allDay: boolean): string {
   return d.toLocaleString("en-GB", { timeZone: "Africa/Dar_es_Salaam", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** Company display name for an event (for the email letterhead line). */
+async function eventCompanyName(companyId: number | null): Promise<string | null> {
+  if (!companyId) return null;
+  const { data } = await sb.from("companies").select("name").eq("id", companyId).maybeSingle();
+  return (data?.name as string) ?? null;
+}
+
+/** Public share page for an event, if an app URL is configured. */
+function publicEventUrl(token: string): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  return base ? `${base}/e/${token}` : null;
 }
 
 type SendResult =
@@ -201,7 +226,9 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
   const g = await createGoogleEvent(ev, { requestMeet: true });
   if (g.ok) {
     const now = new Date().toISOString();
-    if (g.meetLink && !ev.meetLink) {
+    // Remember the Google event id (for later edit/cancel sync) + any minted Meet link.
+    if (g.eventId) await setGoogleEventId(ev.id, g.eventId, g.meetLink && !ev.meetLink ? g.meetLink : null);
+    else if (g.meetLink && !ev.meetLink) {
       await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: now }).eq("id", ev.id);
     }
     await sb.from("outbox").insert({
@@ -221,19 +248,23 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
     // organiser their own invite, so without this you'd have nothing in your mail.
     // Best-effort: never block or fail the invite if this copy can't send.
     try {
-      const { emailFrom } = await getAppSettings();
+      const { emailFrom, emailFromName } = await getAppSettings();
       if (emailFrom) {
-        const when = fmtEat(ev.startAt, ev.allDay);
-        const meetLink = g.meetLink || ev.meetLink;
-        const guests = ev.attendees.filter((a) => a.email).map((a) => `${a.name || a.email} (${a.email})`).join(", ");
-        const lines: string[] = [`<p><strong>When:</strong> ${escapeHtml(when)}</p>`, `<p><strong>Guests:</strong> ${escapeHtml(guests)}</p>`];
-        if (meetLink) lines.push(`<p><strong>Meet:</strong> <a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`);
-        if (ev.location) lines.push(`<p><strong>Where:</strong> ${escapeHtml(ev.location)}</p>`);
+        const companyName = await eventCompanyName(ev.companyId);
+        // Reflect the freshly-minted Meet link (not yet on the stored ev) in the copy.
+        const evForCopy = { ...ev, meetLink: g.meetLink || ev.meetLink };
+        const mail = buildEventEmail(evForCopy, {
+          kind: "invite",
+          organizerName: emailFromName,
+          organizerEmail: emailFrom,
+          companyName,
+          publicUrl: publicEventUrl(ev.publicToken),
+        });
         await sendEmail({
           to: emailFrom,
           subject: `Copy: invite sent — ${ev.title}`,
-          html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">${escapeHtml(ev.title)}</h2>${lines.join("\n")}<p style="color:#666;font-size:13px;margin-top:16px">This invitation was sent via Google Calendar and added to each guest's calendar. This copy is for your records — the event is already on your own calendar.</p></div>`,
-          text: [`Invite sent — ${ev.title}`, `When: ${when}`, `Guests: ${guests}`, meetLink ? `Meet: ${meetLink}` : "", "", "Sent via Google Calendar; it's already on your own calendar. This is your copy for the record."].filter(Boolean).join("\n"),
+          html: mail.html,
+          text: `This invitation was sent via Google Calendar and added to each guest's calendar. Your copy for the record:\n\n${mail.text}`,
         });
       }
     } catch {
@@ -249,31 +280,20 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
   const { emailFrom, emailFromName } = await getAppSettings();
   const icsEvent = toIcsEvent(ev, { name: emailFromName, email: emailFrom });
   const ics = buildIcs(icsEvent);
-
-  const when = fmtEat(ev.startAt, ev.allDay);
-  const rows: string[] = [`<p><strong>When:</strong> ${escapeHtml(when)}</p>`];
-  if (ev.meetLink)
-    rows.push(`<p><strong>Join:</strong> <a href="${escapeHtml(ev.meetLink)}">${escapeHtml(ev.meetLink)}</a></p>`);
-  if (ev.location) rows.push(`<p><strong>Where:</strong> ${escapeHtml(ev.location)}</p>`);
-  if (ev.description) rows.push(`<p>${escapeHtml(ev.description).replace(/\n/g, "<br>")}</p>`);
-
-  const html = `
-    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.5">
-      <h2 style="margin:0 0 12px">${escapeHtml(ev.title)}</h2>
-      ${rows.join("\n")}
-      <p style="color:#666;font-size:13px;margin-top:16px">The calendar invite is attached — open it to add this to your calendar.</p>
-    </div>`.trim();
-
-  const textParts = [ev.title, `When: ${when}`];
-  if (ev.meetLink) textParts.push(`Join: ${ev.meetLink}`);
-  if (ev.location) textParts.push(`Where: ${ev.location}`);
-  if (ev.description) textParts.push("", ev.description);
+  const companyName = await eventCompanyName(ev.companyId);
+  const mail = buildEventEmail(ev, {
+    kind: "invite",
+    organizerName: emailFromName,
+    organizerEmail: emailFrom,
+    companyName,
+    publicUrl: publicEventUrl(ev.publicToken),
+  });
 
   const result = await sendEmail({
     to: recipients,
-    subject: `Invitation: ${ev.title} — ${when}`,
-    html,
-    text: textParts.join("\n"),
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
     replyTo: emailFrom,
     calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
   });
@@ -295,7 +315,7 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
     recipient_name: ev.attendees.filter((a) => a.email).map((a) => a.name).join(", "),
     recipient_contact: recipients.join(", "),
     subject: `Invitation: ${ev.title}`,
-    body: textParts.join("\n"),
+    body: mail.text,
     message_type: "calendar-invite",
     status: "Sent",
     source: `calendar:${ev.id}`,
@@ -305,6 +325,30 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
 
   invalidate();
   return { ok: true, count: recipients.length, via: "email" };
+}
+
+/**
+ * Render the exact invite email (subject + HTML) WITHOUT sending — powers the
+ * "Preview email" step in the calendar UI, so the owner sees what guests receive
+ * before committing. Read-only.
+ */
+export async function previewEventInviteAction(
+  id: number,
+  kind: EventEmailKind = "invite",
+): Promise<{ ok: true; subject: string; html: string; recipients: string[] } | { ok: false; error: string }> {
+  const ev = await getCalendarEvent(id);
+  if (!ev) return { ok: false, error: "Event not found." };
+  const { emailFrom, emailFromName } = await getAppSettings();
+  const companyName = await eventCompanyName(ev.companyId);
+  const mail = buildEventEmail(ev, {
+    kind,
+    organizerName: emailFromName,
+    organizerEmail: emailFrom,
+    companyName,
+    publicUrl: publicEventUrl(ev.publicToken),
+  });
+  const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
+  return { ok: true, subject: mail.subject, html: mail.html, recipients };
 }
 
 function firstName(name: string | undefined): string {
@@ -391,10 +435,40 @@ export async function draftEventFollowupAction(id: number): Promise<DraftResult>
 
 export async function deleteEventAction(id: number): Promise<Result> {
   try {
+    // Cancel the Google event FIRST (while we still have its id) so Google emails
+    // every guest the cancellation + clears it from their calendars. Best-effort.
+    let googleCancelled = false;
+    const ev = await getCalendarEvent(id);
+    if (ev?.googleEventId) {
+      const r = await cancelGoogleEvent(ev.googleEventId);
+      googleCancelled = r.ok;
+    }
     await deleteCalendarEvent(id);
     invalidate();
-    return { ok: true };
+    return { ok: true, googleCancelled };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not delete event." };
+  }
+}
+
+/**
+ * Cancel WITHOUT deleting — keeps the row (marked cancelled) but tells Google to
+ * notify guests. Useful when you want the audit trail to keep the event. Exposed
+ * for callers that prefer cancel-over-delete; the calendar UI uses delete.
+ */
+export async function cancelEventAction(id: number): Promise<Result> {
+  try {
+    const ev = await getCalendarEvent(id);
+    if (!ev) return { ok: false, error: "Event not found." };
+    let googleCancelled = false;
+    if (ev.googleEventId) {
+      const r = await cancelGoogleEvent(ev.googleEventId);
+      googleCancelled = r.ok;
+    }
+    await markCalendarEventCancelled(id);
+    invalidate();
+    return { ok: true, googleCancelled };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not cancel event." };
   }
 }

@@ -1073,6 +1073,9 @@ export const calendarEvents = pgTable("calendar_events", {
   // calendars treat a re-send as an update to the same event.
   sequence: integer("sequence").notNull().default(0),
   status: text("status").notNull().default("confirmed"), // confirmed | cancelled
+  // Google Calendar event id (set once the event is pushed to Google). Lets a
+  // later COS edit/cancel patch/delete the same Google event so guests are told.
+  googleEventId: text("google_event_id"),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

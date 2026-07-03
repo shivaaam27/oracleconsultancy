@@ -34,6 +34,7 @@ export type CalendarEvent = {
   uid: string;
   sequence: number;
   status: string;
+  googleEventId: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +85,7 @@ function mapRow(r: Row): CalendarEvent {
     uid: r.uid as string,
     sequence: (r.sequence as number) ?? 0,
     status: (r.status as string) ?? "confirmed",
+    googleEventId: (r.google_event_id as string) ?? null,
     createdBy: (r.created_by as string) ?? "web-ui",
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
@@ -244,6 +246,23 @@ export async function updateCalendarEvent(
 export async function deleteCalendarEvent(id: number): Promise<void> {
   const { error } = await sb.from("calendar_events").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+/** Remember the Google Calendar event id (and optionally the minted Meet link)
+ *  once an event has been pushed to Google, so a later edit/cancel can reach it. */
+export async function setGoogleEventId(id: number, googleEventId: string, meetLink?: string | null): Promise<void> {
+  const payload: Row = { google_event_id: googleEventId, updated_at: new Date().toISOString() };
+  if (meetLink) payload.meet_link = meetLink;
+  await sb.from("calendar_events").update(payload).eq("id", id);
+}
+
+/** Mark an event cancelled (used after pushing a cancellation to Google, so the
+ *  public share page + any re-sent .ics reflect the cancellation). */
+export async function markCalendarEventCancelled(id: number): Promise<void> {
+  await sb
+    .from("calendar_events")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", id);
 }
 
 /** Shape a stored event into the form the .ics/Google-URL builders expect. */
