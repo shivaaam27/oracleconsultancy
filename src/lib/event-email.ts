@@ -75,11 +75,12 @@ export function whenLine(ev: CalendarEvent): string {
   return `${start}${end ? `–${end}` : ""} (EAT)`;
 }
 
-function button(href: string, label: string, filled: boolean): string {
-  const base = "display:inline-block;padding:9px 16px;margin:4px 6px 4px 0;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;";
+/** A full-width block button for the right-hand action column. */
+function blockButton(href: string, label: string, filled: boolean): string {
+  const base = "display:block;text-align:center;padding:11px 16px;margin:0 0 9px;border-radius:10px;font-size:14px;font-weight:600;text-decoration:none;";
   const style = filled
     ? `${base}background:${ACCENT};color:#ffffff;`
-    : `${base}background:#eef1f7;color:#1b2a4a;border:1px solid #d7deea;`;
+    : `${base}background:#f2f5fa;color:#1b2a4a;border:1px solid #dde3ee;`;
   return `<a href="${esc(href)}" style="${style}">${esc(label)}</a>`;
 }
 
@@ -127,42 +128,61 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   if (ev.description) rows.push(detailRow("Details", esc(ev.description).replace(/\n/g, "<br>")));
   if (reminders && kind !== "followup") rows.push(detailRow("Reminders", esc(reminders)));
 
-  // --- Add-to-calendar buttons ---
-  const addButtons: string[] = [];
-  if (ev.meetLink && kind !== "followup") addButtons.push(button(ev.meetLink, "Join the meeting", true));
+  // --- Right-hand action column (full-width block buttons) ---
+  const sideButtons: string[] = [];
+  if (ev.meetLink && kind !== "followup") sideButtons.push(blockButton(ev.meetLink, "Join the meeting", true));
   if (kind !== "followup") {
-    addButtons.push(button(googleUrl, "Add to Google", false));
-    addButtons.push(button(outlookUrl, "Add to Outlook", false));
+    sideButtons.push(blockButton(googleUrl, "Add to Google", false));
+    sideButtons.push(blockButton(outlookUrl, "Add to Outlook", false));
   }
-  if (opts.publicUrl) addButtons.push(button(opts.publicUrl, "View details", false));
+  if (opts.publicUrl) sideButtons.push(blockButton(opts.publicUrl, "View details", false));
+  const hasSide = sideButtons.length > 0;
 
   const greeting = opts.recipientName ? `<p style="margin:0 0 12px;font-size:15px;color:#1b2333">Hi ${esc(firstName(opts.recipientName))},</p>` : "";
   const signoff = opts.organizerName
-    ? `<p style="margin:20px 0 0;font-size:14px;color:#5b6577">— ${esc(opts.organizerName)}${company ? `, ${esc(company)}` : ""}</p>`
+    ? `<p style="margin:22px 0 0;font-size:14px;color:#5b6577">— ${esc(opts.organizerName)}${company ? `, ${esc(company)}` : ""}</p>`
     : "";
   const footNote = kind === "invite" || kind === "update"
-    ? `<p style="margin:16px 0 0;color:#9aa3b2;font-size:12px">This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons above.</p>`
+    ? `<p style="margin:16px 0 0;color:#9aa3b2;font-size:12px">This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons.</p>`
     : "";
 
+  // Two columns on a wide screen (details | actions), stacking to one column on a
+  // phone via the media query. White throughout — no grey card.
+  const layout = hasSide
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+        <tr>
+          <td class="cos-stack" style="vertical-align:top;padding-right:28px">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+              ${rows.join("\n")}
+            </table>
+          </td>
+          <td class="cos-stack cos-side" style="vertical-align:top;width:240px">
+            ${sideButtons.join("")}
+          </td>
+        </tr>
+      </table>`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+        ${rows.join("\n")}
+      </table>`;
+
   const html = `
-  <div style="margin:0;padding:0;background:#f4f6fa">
-    <div style="max-width:560px;margin:0 auto;padding:24px 16px">
-      <div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6eaf1">
-        <div style="height:6px;background:${ACCENT}"></div>
-        <div style="padding:22px 24px">
-          <p style="margin:0 0 2px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#9aa3b2;font-weight:600">${esc(company)}</p>
-          <h1 style="margin:0 0 14px;font-size:21px;line-height:1.25;color:#0f1729">${esc(ev.title)}</h1>
-          ${greeting}
-          <p style="margin:0 0 14px;font-size:15px;color:#5b6577">${esc(intro)}</p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 8px">
-            ${rows.join("\n")}
-          </table>
-          <div style="margin-top:16px">${addButtons.join("")}</div>
-          ${signoff}
-          ${footNote}
-        </div>
-      </div>
-      <p style="text-align:center;color:#aab2c0;font-size:11px;margin:14px 0 0">Times shown in Dar es Salaam (EAT, UTC+3).</p>
+  <style>
+    @media only screen and (max-width:620px){
+      .cos-stack{display:block !important;width:100% !important;padding:0 !important}
+      .cos-side{margin-top:20px !important}
+    }
+  </style>
+  <div style="margin:0;padding:0;background:#ffffff">
+    <div style="max-width:820px;margin:0 auto;padding:28px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f1729">
+      <div style="height:4px;width:56px;background:${ACCENT};border-radius:4px;margin-bottom:20px"></div>
+      <p style="margin:0 0 2px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#9aa3b2;font-weight:600">${esc(company)}</p>
+      <h1 style="margin:0 0 14px;font-size:23px;line-height:1.25;color:#0f1729">${esc(ev.title)}</h1>
+      ${greeting}
+      <p style="margin:0 0 20px;font-size:15px;color:#5b6577">${esc(intro)}</p>
+      ${layout}
+      ${signoff}
+      ${footNote}
+      <p style="color:#aab2c0;font-size:11px;margin:20px 0 0">Times shown in Dar es Salaam (EAT, UTC+3).</p>
     </div>
   </div>`.trim();
 
