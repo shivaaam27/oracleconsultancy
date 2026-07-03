@@ -10,7 +10,7 @@ import { googleCalendarUrl, outlookCalendarUrl } from "@/lib/ics";
 const EAT_TZ = "Africa/Dar_es_Salaam";
 const ACCENT = "#2f6bff";
 
-export type EventEmailKind = "invite" | "reminder" | "followup";
+export type EventEmailKind = "invite" | "reminder" | "followup" | "update";
 
 export type EventEmailOptions = {
   kind?: EventEmailKind;
@@ -21,7 +21,29 @@ export type EventEmailOptions = {
   recipientName?: string | null;
   /** Public event page (…/e/<token>) for a "View details" link. */
   publicUrl?: string | null;
+  /** Category name (Board / Site visit / …) shown as a "Type" row. */
+  categoryName?: string | null;
 };
+
+/** "Weekly until 31 December 2026" (shown against a "Repeats" label; null for a
+ *  one-off). */
+function recurrenceLabel(ev: CalendarEvent): string | null {
+  const r = ev.recurrence;
+  if (r !== "daily" && r !== "weekly" && r !== "monthly") return null;
+  const cadence = r === "daily" ? "Daily" : r === "weekly" ? "Weekly" : "Monthly";
+  const until = ev.recurrenceUntil
+    ? new Date(ev.recurrenceUntil).toLocaleDateString("en-GB", { timeZone: EAT_TZ, day: "numeric", month: "long", year: "numeric" })
+    : null;
+  return `${cadence}${until ? ` until ${until}` : ""}`;
+}
+
+/** "1 day before", "1 hour before", "at start". */
+function reminderLabel(mins: number): string {
+  if (mins <= 0) return "at start";
+  if (mins % 1440 === 0) { const n = mins / 1440; return `${n} day${n > 1 ? "s" : ""} before`; }
+  if (mins % 60 === 0) { const n = mins / 60; return `${n} hour${n > 1 ? "s" : ""} before`; }
+  return `${mins} min before`;
+}
 
 export type BuiltEmail = { subject: string; html: string; text: string };
 
@@ -80,20 +102,30 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   const subject =
     kind === "reminder" ? `Reminder: ${ev.title} — ${when}`
     : kind === "followup" ? `Follow-up: ${ev.title}`
+    : kind === "update" ? `Updated: ${ev.title} — ${when}`
     : `Invitation: ${ev.title} — ${when}`;
 
   const intro =
-    kind === "reminder" ? `A reminder that this is coming up:`
+    kind === "reminder" ? `A friendly reminder that this is coming up:`
     : kind === "followup" ? `Thank you for joining. Here's a summary for your records:`
-    : `You're invited to the following:`;
+    : kind === "update" ? `This event has been updated — here are the new details:`
+    : `You're invited — here are the details:`;
+
+  const repeats = recurrenceLabel(ev);
+  const reminders = ev.reminders && ev.reminders.length
+    ? ev.reminders.map(reminderLabel).join(", ")
+    : null;
 
   // --- Detail rows ---
   const rows: string[] = [detailRow("When", esc(when))];
+  if (repeats) rows.push(detailRow("Repeats", esc(repeats)));
+  if (opts.categoryName) rows.push(detailRow("Type", esc(opts.categoryName)));
   if (ev.meetLink) rows.push(detailRow("Join", `<a href="${esc(ev.meetLink)}" style="color:${ACCENT};font-weight:600">${esc(ev.meetLink)}</a>`));
   if (ev.location) rows.push(detailRow("Where", esc(ev.location)));
   const guests = ev.attendees.filter((a) => a.name || a.email).map((a) => a.name || a.email!).join(", ");
   if (guests) rows.push(detailRow("Guests", esc(guests)));
   if (ev.description) rows.push(detailRow("Details", esc(ev.description).replace(/\n/g, "<br>")));
+  if (reminders && kind !== "followup") rows.push(detailRow("Reminders", esc(reminders)));
 
   // --- Add-to-calendar buttons ---
   const addButtons: string[] = [];
@@ -108,8 +140,8 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   const signoff = opts.organizerName
     ? `<p style="margin:20px 0 0;font-size:14px;color:#5b6577">— ${esc(opts.organizerName)}${company ? `, ${esc(company)}` : ""}</p>`
     : "";
-  const footNote = kind === "invite"
-    ? `<p style="margin:16px 0 0;color:#9aa3b2;font-size:12px">A calendar file is attached — open it to add this to Apple Calendar or any other app. If it was sent via Google, it's already on your calendar.</p>`
+  const footNote = kind === "invite" || kind === "update"
+    ? `<p style="margin:16px 0 0;color:#9aa3b2;font-size:12px">This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons above.</p>`
     : "";
 
   const html = `
@@ -138,9 +170,12 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   const textLines: string[] = [];
   if (opts.recipientName) textLines.push(`Hi ${firstName(opts.recipientName)},`, "");
   textLines.push(ev.title, "", intro, "", `When: ${when}`);
+  if (repeats) textLines.push(`Repeats: ${repeats}`);
+  if (opts.categoryName) textLines.push(`Type: ${opts.categoryName}`);
   if (ev.meetLink) textLines.push(`Join: ${ev.meetLink}`);
   if (ev.location) textLines.push(`Where: ${ev.location}`);
   if (guests) textLines.push(`Guests: ${guests}`);
+  if (reminders && kind !== "followup") textLines.push(`Reminders: ${reminders}`);
   if (ev.description) textLines.push("", ev.description);
   if (kind !== "followup") textLines.push("", `Add to Google: ${googleUrl}`, `Add to Outlook: ${outlookUrl}`);
   if (opts.organizerName) textLines.push("", `— ${opts.organizerName}${company ? `, ${company}` : ""}`);

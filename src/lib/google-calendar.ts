@@ -62,9 +62,10 @@ function buildRequestBody(ev: CalendarEvent, wantMeet: boolean): calendar_v3.Sch
 }
 
 /**
- * Pushes a stored COS event into Google Calendar and invites the attendees.
- * `requestMeet` adds a freshly-generated Google Meet room (Option B). With
- * sendUpdates="all", Google emails/auto-adds for every guest.
+ * Pushes a stored COS event into Google Calendar (the owner's calendar mirror +
+ * a freshly-minted Google Meet room when `requestMeet`). sendUpdates="none":
+ * Google NEVER emails the guests — the app sends its own branded invitation +
+ * .ics, so the guest experience is fully ours (not Google's plain template).
  */
 export async function createGoogleEvent(
   ev: CalendarEvent,
@@ -80,7 +81,7 @@ export async function createGoogleEvent(
 
     const res = await calendar.events.insert({
       calendarId: "primary",
-      sendUpdates: "all",
+      sendUpdates: "none",
       conferenceDataVersion: wantMeet ? 1 : 0,
       requestBody,
     });
@@ -111,7 +112,7 @@ export async function updateGoogleEvent(ev: CalendarEvent): Promise<GoogleWriteR
     await calendar.events.patch({
       calendarId: "primary",
       eventId: ev.googleEventId,
-      sendUpdates: "all",
+      sendUpdates: "none",
       requestBody: buildRequestBody(ev, false),
     });
     return { ok: true };
@@ -150,7 +151,7 @@ export async function cancelGoogleInstance(
       return Math.abs(new Date(s).getTime() - target) < 60_000; // within a minute
     });
     if (!instance?.id) return { ok: true }; // nothing to cancel (already gone / not found)
-    await calendar.events.delete({ calendarId: "primary", eventId: instance.id, sendUpdates: "all" });
+    await calendar.events.delete({ calendarId: "primary", eventId: instance.id, sendUpdates: "none" });
     return { ok: true };
   } catch (e) {
     const code = (e as { code?: number })?.code;
@@ -169,7 +170,7 @@ export async function cancelGoogleEvent(googleEventId: string): Promise<GoogleWr
   if (!auth) return { ok: false, reason: "not-connected" };
   try {
     const calendar = google.calendar({ version: "v3", auth });
-    await calendar.events.delete({ calendarId: "primary", eventId: googleEventId, sendUpdates: "all" });
+    await calendar.events.delete({ calendarId: "primary", eventId: googleEventId, sendUpdates: "none" });
     return { ok: true };
   } catch (e) {
     const code = (e as { code?: number })?.code;

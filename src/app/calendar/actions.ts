@@ -215,16 +215,17 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       ...parseRecurrence(fd),
       attendees: parseAttendees(str(fd, "attendees")),
     });
-    // If this event lives in Google Calendar, push the edit so every guest gets
-    // the reschedule/change email + their calendar updates. Best-effort — a Google
-    // hiccup must never block saving the change locally.
+    // Keep the owner's Google copy in step (silent — no guest email from Google).
     let googleSynced = false;
     if (updated.googleEventId) {
       const r = await updateGoogleEvent(updated);
       googleSynced = r.ok;
     }
+    // Tell guests about the change with OUR branded "updated" email (only if an
+    // invite was actually sent before — never for an unsent draft).
+    const guestsNotified = await emailUpdateIfSent(updated);
     invalidate();
-    return { ok: true, id, googleSynced };
+    return { ok: true, id, googleSynced: googleSynced || guestsNotified };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update event." };
   }
@@ -255,113 +256,90 @@ type SendResult =
   | { ok: true; count: number; via: "google" | "email"; meetLink?: string | null }
   | { ok: false; error: string; reason?: string };
 
+/** Category name for an event (for the branded email's "Type" row). */
+async function eventCategoryName(categoryId: number | null): Promise<string | null> {
+  if (!categoryId) return null;
+  const { data } = await sb.from("event_categories").select("name").eq("id", categoryId).maybeSingle();
+  return (data?.name as string) ?? null;
+}
+
 /**
- * Invites every attendee with an email. Prefers the connected Google account
- * (event lands in guests' calendars automatically + a real Meet link is minted),
- * and falls back to the .ics email path when Google isn't connected.
+ * Send guests OUR branded Oracle invitation (Option A). Google is used only to
+ * mint the Meet link + mirror the event on the owner's calendar — it never emails
+ * the guests (sendUpdates="none"), so the guest sees our design, not Google's
+ * plain template. A personalised email ("Hi <name>,") goes to each guest with the
+ * calendar invitation embedded so their app still auto-adds it / offers RSVP.
  */
 export async function sendEventInviteAction(id: number): Promise<SendResult> {
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
 
-  const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
-  if (recipients.length === 0)
+  const guests = ev.attendees.filter((a) => a.email);
+  if (guests.length === 0)
     return { ok: false, error: "No attendees with an email address. Add their email first." };
+  const recipients = guests.map((a) => a.email!) as string[];
 
-  // --- Preferred path: Google Calendar (auto-add + native invites + Meet) ---
+  // 1. Google (silent) — mint the Meet link + put it on the owner's calendar.
+  let meetLink = ev.meetLink;
+  let googleOk = false;
   const g = await createGoogleEvent(ev, { requestMeet: true });
   if (g.ok) {
-    const now = new Date().toISOString();
-    // Remember the Google event id (for later edit/cancel sync) + any minted Meet link.
+    googleOk = true;
     if (g.eventId) await setGoogleEventId(ev.id, g.eventId, g.meetLink && !ev.meetLink ? g.meetLink : null);
     else if (g.meetLink && !ev.meetLink) {
-      await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: now }).eq("id", ev.id);
+      await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", ev.id);
     }
-    await sb.from("outbox").insert({
-      channel: "EMAIL",
-      recipient_name: ev.attendees.filter((a) => a.email).map((a) => a.name).join(", "),
-      recipient_contact: recipients.join(", "),
-      subject: `Invitation: ${ev.title}`,
-      body: `Sent via Google Calendar.${g.meetLink ? ` Meet: ${g.meetLink}` : ""}`,
-      message_type: "calendar-invite",
-      status: "Sent",
-      source: `calendar:${ev.id}`,
-      created_at: now,
-      sent_at: now,
-    });
-
-    // Confirmation copy to the organiser's own inbox — Google never emails the
-    // organiser their own invite, so without this you'd have nothing in your mail.
-    // Best-effort: never block or fail the invite if this copy can't send.
-    try {
-      const { emailFrom, emailFromName } = await getAppSettings();
-      if (emailFrom) {
-        const companyName = await eventCompanyName(ev.companyId);
-        // Reflect the freshly-minted Meet link (not yet on the stored ev) in the copy.
-        const evForCopy = { ...ev, meetLink: g.meetLink || ev.meetLink };
-        const mail = buildEventEmail(evForCopy, {
-          kind: "invite",
-          organizerName: emailFromName,
-          organizerEmail: emailFrom,
-          companyName,
-          publicUrl: publicEventUrl(ev.publicToken),
-        });
-        await sendEmail({
-          to: emailFrom,
-          subject: `Copy: invite sent — ${ev.title}`,
-          html: mail.html,
-          text: `This invitation was sent via Google Calendar and added to each guest's calendar. Your copy for the record:\n\n${mail.text}`,
-        });
-      }
-    } catch {
-      /* confirmation copy is best-effort */
-    }
-
-    invalidate();
-    return { ok: true, count: recipients.length, via: "google", meetLink: g.meetLink };
+    if (g.meetLink && !ev.meetLink) meetLink = g.meetLink;
   }
-  // g.reason === "not-connected" → fall through to email; a real error also falls
-  // back so a guest still gets the invite.
 
+  // 2. Send OUR branded email to each guest, with the .ics for auto-add / RSVP.
   const { emailFrom, emailFromName } = await getAppSettings();
-  const icsEvent = toIcsEvent(ev, { name: emailFromName, email: emailFrom });
-  const ics = buildIcs(icsEvent);
-  const companyName = await eventCompanyName(ev.companyId);
-  const mail = buildEventEmail(ev, {
-    kind: "invite",
-    organizerName: emailFromName,
-    organizerEmail: emailFrom,
-    companyName,
-    publicUrl: publicEventUrl(ev.publicToken),
-  });
+  const [companyName, categoryName] = await Promise.all([
+    eventCompanyName(ev.companyId),
+    eventCategoryName(ev.categoryId),
+  ]);
+  const evForEmail = { ...ev, meetLink };
+  const ics = buildIcs(toIcsEvent(evForEmail, { name: emailFromName, email: emailFrom }));
 
-  const result = await sendEmail({
-    to: recipients,
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-    replyTo: emailFrom,
-    calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
-  });
-
-  if (!result.ok) {
-    if (result.reason === "not-configured")
-      return {
-        ok: false,
-        reason: "not-configured",
-        error: "Email sending isn't switched on yet (no provider key). The invite link still works — share it manually for now.",
-      };
-    return { ok: false, error: result.error ?? "Could not send the email." };
+  let sent = 0;
+  let lastError: string | null = null;
+  let notConfigured = false;
+  for (const a of guests) {
+    const mail = buildEventEmail(evForEmail, {
+      kind: "invite",
+      organizerName: emailFromName,
+      organizerEmail: emailFrom,
+      companyName,
+      categoryName,
+      recipientName: a.name,
+      publicUrl: publicEventUrl(ev.publicToken),
+    });
+    const r = await sendEmail({
+      to: a.email!,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: emailFrom,
+      calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
+    });
+    if (r.ok) sent++;
+    else if (r.reason === "not-configured") notConfigured = true;
+    else lastError = r.error ?? "Could not send the email.";
   }
 
-  // Human-readable sent record in the Outbox (mirrors markSent for other channels).
+  if (sent === 0) {
+    if (notConfigured)
+      return { ok: false, reason: "not-configured", error: "Email sending isn't switched on yet (no provider key). The invite link still works — share it manually for now." };
+    return { ok: false, error: lastError ?? "Could not send the invite." };
+  }
+
   const now = new Date().toISOString();
   await sb.from("outbox").insert({
     channel: "EMAIL",
-    recipient_name: ev.attendees.filter((a) => a.email).map((a) => a.name).join(", "),
+    recipient_name: guests.map((a) => a.name).join(", "),
     recipient_contact: recipients.join(", "),
     subject: `Invitation: ${ev.title}`,
-    body: mail.text,
+    body: `Branded invitation sent to ${sent} guest${sent === 1 ? "" : "s"}.${meetLink ? ` Meet: ${meetLink}` : ""}`,
     message_type: "calendar-invite",
     status: "Sent",
     source: `calendar:${ev.id}`,
@@ -370,7 +348,7 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
   });
 
   invalidate();
-  return { ok: true, count: recipients.length, via: "email" };
+  return { ok: true, count: sent, via: googleOk ? "google" : "email", meetLink };
 }
 
 /**
@@ -385,12 +363,18 @@ export async function previewEventInviteAction(
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
   const { emailFrom, emailFromName } = await getAppSettings();
-  const companyName = await eventCompanyName(ev.companyId);
+  const [companyName, categoryName] = await Promise.all([
+    eventCompanyName(ev.companyId),
+    eventCategoryName(ev.categoryId),
+  ]);
   const mail = buildEventEmail(ev, {
     kind,
     organizerName: emailFromName,
     organizerEmail: emailFrom,
     companyName,
+    categoryName,
+    // Preview reflects the recipient's greeting using the first attendee's name.
+    recipientName: ev.attendees.find((a) => a.name)?.name ?? null,
     publicUrl: publicEventUrl(ev.publicToken),
   });
   const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
@@ -480,17 +464,14 @@ export async function draftEventFollowupAction(id: number): Promise<DraftResult>
 }
 
 /**
- * When an event invited by EMAIL (not Google) is cancelled/deleted, email the
- * guests a METHOD:CANCEL .ics so their calendars remove it — for a recurring
- * series this retracts every occurrence (matched by UID). Google-invited events
- * (googleEventId set) are skipped: Google sends its own cancellation, so we'd
- * otherwise double-notify. Only fires when an invite was actually emailed (a prior
- * calendar-invite Outbox row exists) — never for drafts nobody received.
- * Best-effort: never throws.
+ * On cancel/delete, email the guests a METHOD:CANCEL .ics so their calendars
+ * remove it — for a recurring series this retracts every occurrence (matched by
+ * UID). We always send this now (Google no longer notifies guests — sendUpdates
+ * "none"). Only fires when an invite was actually emailed (a prior calendar-invite
+ * Outbox row exists) — never for drafts nobody received. Best-effort: never throws.
  */
 async function emailCancellationIfSent(ev: CalendarEvent): Promise<void> {
   try {
-    if (ev.googleEventId) return; // Google notifies guests itself on cancel
     const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
     if (recipients.length === 0) return;
     const { data: sent } = await sb
@@ -536,18 +517,56 @@ async function emailCancellationIfSent(ev: CalendarEvent): Promise<void> {
   }
 }
 
+/**
+ * Email guests OUR branded "updated" invitation after an edit (personalised, with
+ * a bumped-SEQUENCE .ics so their calendar updates rather than duplicates). Only
+ * when an invite was actually sent before. Returns true if anyone was emailed.
+ * Best-effort: never throws.
+ */
+async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
+  try {
+    const guests = ev.attendees.filter((a) => a.email);
+    if (guests.length === 0) return false;
+    const { data: sent } = await sb
+      .from("outbox").select("id").eq("source", `calendar:${ev.id}`).eq("message_type", "calendar-invite").limit(1);
+    if (!sent || sent.length === 0) return false; // never invited → nothing to update
+
+    const { emailFrom, emailFromName } = await getAppSettings();
+    const [companyName, categoryName] = await Promise.all([
+      eventCompanyName(ev.companyId),
+      eventCategoryName(ev.categoryId),
+    ]);
+    const ics = buildIcs(toIcsEvent(ev, { name: emailFromName, email: emailFrom }));
+    let any = false;
+    for (const a of guests) {
+      const mail = buildEventEmail(ev, {
+        kind: "update", organizerName: emailFromName, organizerEmail: emailFrom,
+        companyName, categoryName, recipientName: a.name, publicUrl: publicEventUrl(ev.publicToken),
+      });
+      const r = await sendEmail({
+        to: a.email!, subject: mail.subject, html: mail.html, text: mail.text,
+        replyTo: emailFrom, calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
+      });
+      if (r.ok) any = true;
+    }
+    return any;
+  } catch {
+    return false;
+  }
+}
+
 export async function deleteEventAction(id: number): Promise<Result> {
   try {
-    // Cancel the Google event FIRST (while we still have its id) so Google emails
-    // every guest the cancellation + clears it from their calendars. Best-effort.
     let googleCancelled = false;
     const ev = await getCalendarEvent(id);
-    if (ev?.googleEventId) {
-      const r = await cancelGoogleEvent(ev.googleEventId);
-      googleCancelled = r.ok;
-    } else if (ev) {
-      // Email-invited (no Google event) → send a cancellation .ics to guests.
+    if (ev) {
+      // Guests are emailed OUR cancellation (we own their invites now); the Google
+      // event is removed from the owner's calendar too. Both best-effort.
       await emailCancellationIfSent(ev);
+      if (ev.googleEventId) {
+        const r = await cancelGoogleEvent(ev.googleEventId);
+        googleCancelled = r.ok;
+      }
     }
     await deleteCalendarEvent(id);
     invalidate();
@@ -558,20 +577,18 @@ export async function deleteEventAction(id: number): Promise<Result> {
 }
 
 /**
- * Cancel WITHOUT deleting — keeps the row (marked cancelled) but tells Google to
- * notify guests. Useful when you want the audit trail to keep the event. Exposed
- * for callers that prefer cancel-over-delete; the calendar UI uses delete.
+ * Cancel WITHOUT deleting — keeps the row (marked cancelled). Guests get our
+ * cancellation email; the owner's Google copy is removed too.
  */
 export async function cancelEventAction(id: number): Promise<Result> {
   try {
     const ev = await getCalendarEvent(id);
     if (!ev) return { ok: false, error: "Event not found." };
+    await emailCancellationIfSent(ev);
     let googleCancelled = false;
     if (ev.googleEventId) {
       const r = await cancelGoogleEvent(ev.googleEventId);
       googleCancelled = r.ok;
-    } else {
-      await emailCancellationIfSent(ev);
     }
     await markCalendarEventCancelled(id);
     invalidate();
@@ -649,11 +666,10 @@ function occurrenceIso(startIso: string, dateKey: string): string {
   return occ.toISOString();
 }
 
-/** Email guests a RECURRENCE-ID cancellation for ONE occurrence (email-invited
- *  series only; Google-invited series are handled by cancelGoogleInstance). */
+/** Email guests a RECURRENCE-ID cancellation for ONE occurrence (we own guest
+ *  comms now; the owner's Google instance is removed separately). */
 async function emailInstanceCancellation(ev: CalendarEvent, dateKey: string): Promise<void> {
   try {
-    if (ev.googleEventId) return;
     const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
     if (recipients.length === 0) return;
     const { data: sent } = await sb
@@ -695,11 +711,11 @@ export async function skipEventOccurrence(id: number, dateKey: string): Promise<
 
     await setExcludedDates(id, [...ev.excludedDates, key]);
 
-    // Tell guests this one date is off.
+    // Tell guests this one date is off (our branded email) + remove the instance
+    // from the owner's Google calendar.
+    await emailInstanceCancellation(ev, key);
     if (ev.googleEventId) {
       await cancelGoogleInstance(ev.googleEventId, occurrenceIso(ev.startAt, key)).catch(() => {});
-    } else {
-      await emailInstanceCancellation(ev, key);
     }
     invalidate();
     return { ok: true };
