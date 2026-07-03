@@ -12,6 +12,7 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
 import { FluidSelect } from "@/components/fluid-select";
+import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
@@ -1002,8 +1003,6 @@ function EventForm({
   // New events: also track the meeting as a task (creates one task per company).
   const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
   const [trackTask, setTrackTask] = useState(!editing);
-  const toggleCompany = (id: number) =>
-    setCompanyIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   function toggleReminder(v: number) {
     setReminders((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => b - a));
@@ -1161,29 +1160,11 @@ function EventForm({
           </div>
         </div>
 
-        {/* Company (multi-select) — one task per selected company when tracked. */}
+        {/* Company — a searchable dropdown (multi-select). One task per selected
+            company when tracked; the first is the event's lead company. */}
         <div>
           <FieldLabel>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company"}</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {companies.map((c) => {
-              const on = companyIds.includes(c.id);
-              const primary = on && companyIds[0] === c.id;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggleCompany(c.id)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
-                    on ? "bg-accent/15 text-accent ring-accent/40" : "ring-border text-fg-muted hover:text-fg bg-bg-subtle",
-                  )}
-                >
-                  {primary && <span className="text-[9px] uppercase tracking-wider opacity-70">lead</span>}
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
+          <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} />
           {companyIds.length > 1 && (
             <p className="mt-1 text-[11px] text-fg-subtle">A task is created for each company; the first is the event&apos;s lead company.</p>
           )}

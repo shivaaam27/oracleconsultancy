@@ -66,6 +66,14 @@ export function HrmsDialog({
         />
         <Dialog.Content
           aria-describedby={undefined}
+          // Popovers we portal to <body> (FluidSelect, DatePopover — class
+          // `org-pop`) live OUTSIDE this content node, so Radix would treat a click
+          // on a calendar day / dropdown option as "outside" and close the dialog.
+          // Keep the dialog open when the interaction is inside such a popover.
+          onInteractOutside={(e) => {
+            const target = e.detail.originalEvent.target as HTMLElement | null;
+            if (target?.closest?.(".org-pop")) e.preventDefault();
+          }}
           style={isPreset ? undefined : { ["--hrms-w" as string]: `${width}px` }}
           className={cn(
             // Mobile: bottom sheet. Desktop: centred card.

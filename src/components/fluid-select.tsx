@@ -151,10 +151,13 @@ export function FluidSelect({
                 minWidth: Math.max(pos.minWidth, 200),
                 maxHeight: pos.maxHeight,
                 zIndex: 1000,
+                // A modal dialog (Radix) sets body{pointer-events:none}; this menu is
+                // portaled to body, so re-enable clicks on it explicitly.
+                pointerEvents: "auto",
                 transformOrigin:
                   (pos.bottom != null ? "bottom" : "top") + (align === "right" ? " right" : " left"),
               }}
-              className="overflow-y-auto overscroll-contain p-1.5 glass glass-menu rounded-xl shadow-lg"
+              className="overflow-y-auto overscroll-contain p-1.5 org-pop rounded-xl shadow-lg"
             >
               {options.map((opt, i) => {
                 const active = opt.value === value;

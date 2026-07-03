@@ -102,9 +102,12 @@ export function DatePopover({
       {open && anchor && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[100] w-[16rem] overflow-hidden rounded-2xl glass glass-menu elevated p-2.5 shadow-lg"
+          className="fixed z-[120] w-[16rem] overflow-hidden rounded-2xl org-pop elevated p-2.5 shadow-lg"
           style={{
             left: Math.min(anchor.left, window.innerWidth - 272),
+            // A modal dialog (Radix) sets body{pointer-events:none}; this menu is
+            // portaled to body, so re-enable clicks on it explicitly.
+            pointerEvents: "auto",
             ...(anchor.openUp ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.top + 6 }),
           }}
         >
