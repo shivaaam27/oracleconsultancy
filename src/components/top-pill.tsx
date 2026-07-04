@@ -32,7 +32,7 @@ type NavTipData = { label: string; cx: number };
 type TipFn = (t: NavTipData | null) => void;
 
 function NavTab({
-  href, icon: Icon, label, active, reduce, onTip,
+  href, icon: Icon, label, active, reduce, onTip, badge,
 }: {
   href: string;
   icon: LucideIcon;
@@ -40,6 +40,8 @@ function NavTab({
   active: boolean;
   reduce: boolean;
   onTip?: TipFn;
+  /** Small red count bubble (e.g. overdue tasks on Home). 0 hides it. */
+  badge?: number;
 }) {
   const show = (el: HTMLElement) => { const r = el.getBoundingClientRect(); onTip?.({ label, cx: r.left + r.width / 2 }); };
   return (
@@ -69,6 +71,11 @@ function NavTab({
       )}
       <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
       {active && <span className="relative text-[13px] font-medium whitespace-nowrap">{label}</span>}
+      {badge != null && badge > 0 && (
+        <span className="absolute right-1 top-1 z-10 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold tabular text-white ring-2 ring-bg">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -553,7 +560,7 @@ function NavLens({ containerRef, onSelect, enabled = true }: { containerRef: Ref
 
 /** One round slot in the vertical pill — mirrors NavTab, vertical-friendly. */
 function SideSlot({
-  icon: Icon, label, active, onClick, href, color, selected,
+  icon: Icon, label, active, onClick, href, color, selected, badge,
 }: {
   icon: LucideIcon;
   label: string;
@@ -562,6 +569,8 @@ function SideSlot({
   href?: string;
   color?: string;
   selected?: boolean;
+  /** Small red count bubble (e.g. overdue tasks on Home). 0 hides it. */
+  badge?: number;
 }) {
   const cls = cn(
     "relative inline-flex items-center justify-center h-11 w-11 rounded-full shrink-0 transition-colors outline-none",
@@ -572,6 +581,11 @@ function SideSlot({
     <>
       {active && <span className="absolute inset-0 rounded-full bg-accent-soft" />}
       <Icon size={20} strokeWidth={active ? 2.4 : 2} className="relative" style={!active && color ? { color } : undefined} />
+      {badge != null && badge > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 z-10 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold tabular text-white ring-2 ring-bg">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </>
   );
   return href ? (
@@ -641,7 +655,7 @@ function SideWorld({ slug, reduce }: { slug: string; reduce: boolean }) {
 
 const SIDE_WORLD_ORDER = ["people", "companies", "work", "compliance", "assets", "money", "comms"] as const;
 
-function SidePill({ reduce }: { reduce: boolean }) {
+function SidePill({ reduce, overdue }: { reduce: boolean; overdue: number }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
   const { open: openPalette } = useCommandPalette();
@@ -654,7 +668,7 @@ function SidePill({ reduce }: { reduce: boolean }) {
   // gap tracks the viewport so it stays balanced (never lonely at the far edge,
   // never touching the content). Clamped so it can't crowd a narrow xl window.
   return (
-    <div className="hidden xl:flex fixed left-[max(0.75rem,calc((100vw_-_1100px)/2_-_86px))] top-1/2 -translate-y-1/2 z-40 pointer-events-none">
+    <div className="hidden lg:flex fixed left-[max(0.75rem,calc((100vw_-_1100px)/2_-_86px))] top-1/2 -translate-y-1/2 z-40 pointer-events-none">
       <motion.div
         data-nav-pill
         initial={reduce ? false : { x: -20, opacity: 0 }}
@@ -662,7 +676,7 @@ function SidePill({ reduce }: { reduce: boolean }) {
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         className="pointer-events-auto glass elevated rounded-full shadow-pill flex flex-col items-center gap-1 px-1.5 py-2"
       >
-        <SideSlot icon={Home} label="Home" href="/" active={homeActive} />
+        <SideSlot icon={Home} label="Home" href="/" active={homeActive} badge={overdue} />
         <SideSlot icon={MessageCircle} label="Chat" href="/chat" active={chatActive} onClick={() => router.push("/chat")} />
         <SideSlot icon={Search} label="Search (⌘K)" onClick={openPalette} />
 
@@ -687,7 +701,7 @@ function SidePill({ reduce }: { reduce: boolean }) {
 /* The bottom-floating pill                                               */
 /* --------------------------------------------------------------------- */
 
-export function TopPill() {
+export function TopPill({ overdue = 0 }: { overdue?: number }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
   const { open: openPalette } = useCommandPalette();
@@ -731,12 +745,12 @@ export function TopPill() {
 
   return (
     <>
-    {/* Web (xl+): the same liquid-glass pill, stood vertically on the left. */}
-    <SidePill reduce={reduce} />
+    {/* Web (lg+): the same liquid-glass pill, stood vertically on the left. */}
+    <SidePill reduce={reduce} overdue={overdue} />
     {/* On mobile, chat is a full-screen app of its own — the pill steps aside.
-        From xl up the vertical SidePill takes over, so the bottom pill hides. */}
+        From lg up the vertical SidePill takes over, so the bottom pill hides. */}
     <div className={cn(
-      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none xl:hidden",
+      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none lg:hidden",
       chatActive ? "hidden md:flex" : "flex"
     )}>
       <motion.div
@@ -752,7 +766,7 @@ export function TopPill() {
         {/* The drag-lens is a tablet+ flourish — on phones it competes with taps
             and is undiscoverable, so it's disabled there (plain taps still work). */}
         <NavLens containerRef={pillRef} onSelect={selectSlot} enabled={wide} />
-        <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} onTip={setTip} />
+        <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} onTip={setTip} badge={overdue} />
         <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} worldName={currentWorld?.name} />
         <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} onTip={setTip} />
 
@@ -783,10 +797,10 @@ export function TopPill() {
         </div>
       </motion.div>
     </div>
-    {/* At xl+ the bottom pill is gone (vertical SidePill instead), so the bell
-        sits top-right. Below xl it lives in the pill above, so hide it here. */}
+    {/* At lg+ the bottom pill is gone (vertical SidePill instead), so the bell
+        sits top-right. Below lg it lives in the pill above, so hide it here. */}
     {!chatActive && (
-      <div className="hidden xl:block fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
+      <div className="hidden lg:block fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
         <NotificationBell to="/task" align="right" />
       </div>
     )}

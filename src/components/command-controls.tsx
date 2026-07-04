@@ -3,18 +3,16 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal, Sparkles, Send, Mail, ArrowUpRight, ShieldCheck, Zap, FileText, ListChecks } from "lucide-react";
+import { SlidersHorizontal, Sparkles, Send, Mail, ArrowUpRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
-import { Button, Switch } from "@/components/ui";
+import { Switch } from "@/components/ui";
 import { CockpitModule } from "@/components/cockpit-module";
 import {
   setAutomationPausedAction,
   setDirectorOutreachPausedAction,
   setAiEnabledAction,
   setEmailTestModeAction,
-  runAutomationsNowAction,
-  sendBriefNowAction,
 } from "@/app/_hub/control-actions";
 
 export type CommandControlsState = {
@@ -95,22 +93,6 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
   const [testMode, setTestMode] = useState(state.emailTestMode);
   const [busy, setBusy] = useState<string | null>(null);
 
-  // Fire-and-report quick actions (run automations / send brief) — no toggle state,
-  // just a result message.
-  function fire(key: string, action: () => Promise<{ ok: true; message: string } | { ok: false; error: string }>) {
-    setBusy(key);
-    startTransition(async () => {
-      const res = await action();
-      setBusy(null);
-      if (!res.ok) {
-        toast(res.error, { tone: "warn", duration: 4000 });
-        return;
-      }
-      toast(res.message, { tone: "success", duration: 4000 });
-      router.refresh();
-    });
-  }
-
   function run(
     key: string,
     next: boolean,
@@ -161,7 +143,7 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
     >
       <p className="mt-1 text-xs text-fg-muted">The levers that run your operation. One tap to hold or release.</p>
 
-      <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-2.5">
         <Lever
           icon={<SlidersHorizontal size={17} />}
           label="Automations"
@@ -224,27 +206,10 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
         </Link>
       </div>
 
-      {/* Quick actions — fire the engine on demand + email test mode. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-        <Button type="button" variant="secondary" size="sm" loading={busy === "run"} onClick={() => fire("run", runAutomationsNowAction)}>
-          {busy === "run" ? null : <Zap size={13} />} Run automations now
-        </Button>
-        <Button type="button" variant="secondary" size="sm" loading={busy === "brief"} onClick={() => fire("brief", sendBriefNowAction)}>
-          {busy === "brief" ? null : <FileText size={13} />} Send Brief now
-        </Button>
-        <Link
-          href="/approvals"
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-2.5 text-xs font-medium text-fg transition-colors hover:bg-bg-muted btn-rim"
-        >
-          <ListChecks size={13} /> Approvals
-          {state.pendingApprovals > 0 && (
-            <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold tabular">
-              {state.pendingApprovals}
-            </span>
-          )}
-        </Link>
-
-        {state.emailConnected && (
+      {/* Email test mode — the only quick control left here (Run / Brief /
+          Approvals moved up to the hero chips). */}
+      {state.emailConnected && (
+        <div className="mt-3 flex items-center border-t border-border/60 pt-3">
           <button
             type="button"
             onClick={() =>
@@ -267,8 +232,8 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
             Test mode
             <Switch on={testMode} busy={busy === "test"} size="sm" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </CockpitModule>
   );
 }
