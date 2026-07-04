@@ -3,30 +3,24 @@
 import { useEffect, useState } from "react";
 import { ListTodo } from "lucide-react";
 
-/* Staff home hero — the SAME aurora-washed shell as the manager/director board
- * hero (BoardHero), so the welcome section is uniform across the whole portal.
- * The four figures (open · overdue · due this week · done) are compacted into one
- * slim pill instead of four big tiles, so it's far shorter on mobile. */
-
-function Stat({ n, label, tone }: { n: number; label: string; tone: string }) {
-  return (
-    <span className="inline-flex items-baseline gap-1">
-      <b className={`text-[15px] font-semibold tabular ${tone}`}>{n}</b>
-      <span className="text-[12px]">{label}</span>
-    </span>
-  );
-}
+/* Staff home hero — the SAME aurora-washed shell AND stats pill as the
+ * manager/director board hero (BoardHero), so the welcome card is uniform across
+ * the whole portal. The pill shows two figures on a single line that never wraps
+ * (open · overdue), matching the manager's "needs you · due today" — previously
+ * four figures wrapped to two rows and made the staff card noticeably taller. */
 
 export function PortalHomeHero({
-  firstName, initials, subtitle, open, overdue, dueSoon, done,
+  firstName, initials, subtitle, open, overdue,
 }: {
   firstName: string;
   initials: string;
   subtitle: string;
   open: number;
   overdue: number;
-  dueSoon: number;
-  done: number;
+  /** Still accepted (caller passes them) but no longer shown, to match the
+   *  manager hero's two-figure pill. */
+  dueSoon?: number;
+  done?: number;
 }) {
   // Time-of-day greeting resolved on the client (avoids a server/client mismatch).
   const [greeting, setGreeting] = useState("Welcome back");
@@ -49,15 +43,12 @@ export function PortalHomeHero({
         </div>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent ring-1 ring-accent/25">{initials}</span>
       </div>
-      <div className="relative mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-fg-muted ring-1 ring-border">
+      <div className="relative mt-4 flex items-center gap-2 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-sm text-fg-muted ring-1 ring-border">
         <ListTodo size={14} className="shrink-0 text-accent" />
-        <Stat n={open} label="open" tone="text-fg" />
-        <span className="text-border" aria-hidden>·</span>
-        <Stat n={overdue} label="overdue" tone={overdue > 0 ? "text-danger" : "text-fg"} />
-        <span className="text-border" aria-hidden>·</span>
-        <Stat n={dueSoon} label="due this week" tone={dueSoon > 0 ? "text-warn" : "text-fg"} />
-        <span className="text-border" aria-hidden>·</span>
-        <Stat n={done} label="done" tone={done > 0 ? "text-success" : "text-fg"} />
+        <p>
+          <b className="font-semibold text-fg">{open}</b> open ·{" "}
+          <b className={`font-semibold ${overdue > 0 ? "text-danger" : "text-fg"}`}>{overdue}</b> overdue
+        </p>
       </div>
     </section>
   );

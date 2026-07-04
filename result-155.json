@@ -1,0 +1,12 @@
+{
+  "title": "Oracle Consultancy · Calendar invite · Trial Meeting",
+  "category": "Meetings",
+  "docType": "Calendar invite (.ics)",
+  "issuer": "Oracle Consultancy Ltd",
+  "referenceNo": "9f1349fd-9aa4-43bc-98cb-7e753083c01a",
+  "issueDate": "2026-07-04",
+  "expiryDate": null,
+  "companyId": 4,
+  "personId": null,
+  "notes": "iCalendar REQUEST (METHOD:REQUEST, STATUS:CONFIRMED, SEQUENCE:1) inviting to the recurring weekly 'Trial Meeting' (RRULE:FREQ=WEEKLY, 11:00 EAT, 4 July 2026, Google Meet mnd-gprf-xmw), organised by Oracle Consultancy (admin@oracle.co.tz); attendees Hriday Solanki, Maurice Kodiye, Shivam Parmar, Disha Tulsidas. Same event UID (9f1349fd) as the cancellation in documents 764-767/769/770."
+}
