@@ -226,15 +226,34 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
     ? `<span style="font-weight:600;color:${C.ink}">${esc(orgName)}</span>`
     : `<span style="font-weight:600;color:${C.ink}">${esc(officeLabel)}</span><span style="color:${C.faint};padding:0 6px">|</span><span style="color:${C.muted}">${esc(orgName)}</span>`;
 
-  return `${SIG_MARKER}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};font-family:${FONT}"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="${width}" cellpadding="0" cellspacing="0" style="width:${width}px;max-width:${width}px;background:${C.white};border:1px solid ${C.border};border-radius:20px;overflow:hidden">
+  // Responsive email: ONE HTML that adapts to the screen. The card is FLUID
+  // (width:100% capped at max-width) instead of a fixed pixel width — a fixed
+  // width forces phones (iOS Mail / Gmail) to shrink the whole message to fit,
+  // which made the text tiny. The media query then trims the generous desktop
+  // padding + title size on narrow screens so it reads comfortably on a phone.
+  // (Fluid width alone fixes the shrink even where a client strips <style>.)
+  const responsiveStyle = `<style>
+    @media only screen and (max-width:600px){
+      .cos-outer{padding:10px 0 !important}
+      .cos-card{border-radius:0 !important;border-left:0 !important;border-right:0 !important}
+      .cos-pad{padding-left:18px !important;padding-right:18px !important}
+      .cos-title{font-size:20px !important}
+    }
+  </style>`;
+
+  return `${SIG_MARKER}${responsiveStyle}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};font-family:${FONT}"><tr><td class="cos-outer" align="center" style="padding:24px 12px">
+<!--[if mso]><table role="presentation" width="${width}" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="cos-card" style="width:100%;max-width:${width}px;background:${C.white};border:1px solid ${C.border};border-radius:20px;overflow:hidden">
 <tr><td style="height:4px;background:${C.teal};font-size:0;line-height:0">&nbsp;</td></tr>
-<tr><td style="background:${C.white};padding:24px 30px 20px;border-bottom:1px solid ${C.hair}">
+<tr><td class="cos-pad" style="background:${C.white};padding:24px 30px 20px;border-bottom:1px solid ${C.hair}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="middle">
 <table role="presentation" cellpadding="0" cellspacing="0"><tr><td valign="middle" style="padding-right:11px"><img src="${logoUrl}" width="30" height="30" alt="${esc(orgName)}" style="display:block;width:30px;height:30px;border-radius:9px;border:1px solid ${C.border}"></td><td valign="middle" style="font-size:12.5px;font-family:${FONT}">${identity}</td></tr></table>
 </td>${dateLabel}</tr></table>
 </td></tr>
-<tr><td style="padding:22px 30px 0"><div style="font-size:23px;font-weight:600;color:${C.ink};letter-spacing:-0.2px;font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</td></tr>
-<tr><td style="padding:6px 30px 0">${noteCallout}${blocks}${cta}</td></tr>
-<tr><td style="padding:8px 30px 28px;text-align:center"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
-</table></td></tr></table>`;
+<tr><td class="cos-pad" style="padding:22px 30px 0"><div class="cos-title" style="font-size:23px;font-weight:600;color:${C.ink};letter-spacing:-0.2px;font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</td></tr>
+<tr><td class="cos-pad" style="padding:6px 30px 0">${noteCallout}${blocks}${cta}</td></tr>
+<tr><td class="cos-pad" style="padding:8px 30px 28px;text-align:center"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr></table>`;
 }
