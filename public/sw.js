@@ -1,7 +1,6 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v9";
+const CACHE_VERSION = "cos-v10";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/apple-touch-icon.png"];
@@ -35,29 +34,14 @@ self.addEventListener("fetch", (event) => {
   // Never cache API routes — always go to the network.
   if (url.pathname.startsWith("/api/")) return;
 
-  // Authenticated portal pages are NEVER cached: a cached HTML snapshot could
-  // flash a previous (or signed-out) session's data for a moment before the
-  // server re-checks the cookie. Always hit the network; fall back only to the
-  // offline page when genuinely offline.
-  if (request.mode === "navigate" && url.pathname.startsWith("/portal")) {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
-    return;
-  }
-
-  // HTML navigations: network-first, fall back to cache, then the offline page.
+  // HTML navigations are NEVER cached. The whole app (admin Command Centre AND the
+  // staff portal) sits behind a login, so a cached HTML snapshot could flash stale
+  // or signed-out content — and, worse, a transient 404/redirect response would get
+  // frozen into the cache and served back forever as "not found" in the installed
+  // PWA. Always hit the network; fall back to the offline page only when genuinely
+  // offline.
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          return cached || caches.match(OFFLINE_URL);
-        })
-    );
+    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
     return;
   }
 
