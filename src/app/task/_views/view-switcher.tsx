@@ -1,17 +1,19 @@
 import Link from "next/link";
-import { LayoutGrid, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
+import { LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type ViewMode = "board" | "table" | "calendar" | "timeline";
+export type ViewMode = "cards" | "board" | "table" | "calendar" | "timeline";
 
-// Table first — it's the dense, scannable default (the "spreadsheet" view).
-export const VIEW_MODES: ViewMode[] = ["table", "board", "calendar", "timeline"];
+// Cards first — the portal-twin card list is the default (Command Centre
+// unification); the table stays one tap away as the dense spreadsheet view.
+export const VIEW_MODES: ViewMode[] = ["cards", "table", "board", "calendar", "timeline"];
 
 export function parseViewMode(v: string | undefined): ViewMode {
-  return v === "board" || v === "calendar" || v === "timeline" ? v : "table";
+  return v === "board" || v === "calendar" || v === "timeline" || v === "table" ? v : "cards";
 }
 
 const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
+  cards: LayoutList,
   board: LayoutGrid,
   table: Table2,
   calendar: CalendarDays,
@@ -19,6 +21,7 @@ const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
 };
 
 const LABELS: Record<ViewMode, string> = {
+  cards: "Cards",
   board: "Board",
   table: "Table",
   calendar: "Calendar",
@@ -42,8 +45,8 @@ export function ViewSwitcher({
         const Icon = ICONS[m];
         const active = m === current;
         const params = new URLSearchParams(queryWithoutView);
-        // table is the default — keep URLs clean
-        if (m !== "table") params.set("view", m);
+        // cards is the default — keep URLs clean
+        if (m !== "cards") params.set("view", m);
         const q = params.toString();
         const href = q ? `${basePath}?${q}` : basePath;
         return (

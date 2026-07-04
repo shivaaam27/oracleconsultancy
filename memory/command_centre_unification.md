@@ -52,7 +52,51 @@ BottomSheet for action forms · chip rows for quick actions · frosted nav pill 
 hover labels · swipe rows (`use-swipe-row`).
 
 ## Page order (agreed direction: start at Home)
-1. **Home** (`src/app/_hub/cos-home.tsx`) — IN PROGRESS (mockups delivered).
+1. **Home** (`src/app/_hub/cos-home.tsx`) — DONE + PUSHED (2965924).
+2. **Tasks page** (`_hub/tasks-section.tsx`) — IN PROGRESS: 6 mockups T1-T6
+   delivered (artifact "cc-tasks-mockups", 4 Jul 2026). T1 Command Cards (portal
+   twin, per-task WhatsApp/Email/Escalate) · T2 Focus Queue (ORI-ranked chase
+   ritual, Focus|Browse|Done) · T3 Triage Lanes (urgency kanban, drag=action) ·
+   T4 People Ledger (who owes what, Remind-all via Outbox) · T5 Portfolio Split
+   (company rail master-detail) · T6 Mission Log (freshness feed + "gone quiet"
+   band). RECOMMENDED: T1 skeleton + T2 Focus toggle + T6 quiet-days chip/counter
+   + T4 Remind-all inside group-by-person. **Owner CHOSE the recommended mix.**
+   Final composition mockup delivered (artifact "cc-tasks-final") — awaiting
+   approval to build. Zones: 1 pulse bar (tappable KPIs incl. NEW "quiet 7d+") ·
+   2 mode seg Focus|Browse|Done + filter chips + red Gone-quiet chip + group-by ·
+   3 portal-twin cards (late badge, quiet/fresh badge, WhatsApp/Email/Escalate,
+   latest-update quote, inline +update, collapsible group headers) · 4 dark bulk
+   pill (status/re-date/assign/remind). Focus mode: deterministic score = late×2
+   + quiet×3 + priority + blocks-others; big card w/ Remind/Escalate/Re-date/Done
+   + Skip; cleared-today counter; "why this order?" shows arithmetic. Mobile:
+   swipe left=remind right=done. Build order in artifact (card list → quiet-days
+   → bulk/swipe → focus → remind-all → verify/push).
+   **BUILT (4 Jul 2026, local, tsc clean, verified desktop+375, NOT pushed):**
+   - New default view "cards" (view-switcher.tsx: ViewMode+parseViewMode default;
+     table etc. all kept). New `task/_views/cards-view.tsx`: CardsView (worst-first
+     enriched cards: late/dueIn/quiet badges, priority dot, unread dot, Remind
+     (adminRemindTask→link), Escalate (inlineUpdateTask status), open-drawer,
+     swipe-left remind, SelectCheckbox; collapsible group headers w/ overdue+quiet
+     counts; person groups get Remind-all = adminRemindTask(id, allTasks:true)) +
+     FocusQueue (score = late×2 + min(quiet,30)×3 + prio 30/15/5; decisions
+     Remind/Escalate/Re-date(date input)/Done via inlineUpdateTask; Skip rotates;
+     cleared counter; "Why this order?" shows arithmetic; queue = late OR quiet≥7
+     OR due≤3).
+   - tasks-section.tsx: Sp +mode/done/quiet; Focus|Browse|Done segment (cards);
+     Quiet-7d+ chip + kpi; done=1 tab; group-by row now cards+table (cards default
+     company, "none" explicit); dayMode excluded for cards; quick-add row on cards.
+   - page.tsx: **searchParams whitelist — new params MUST be added here too**
+     (mode/done/quiet missed initially → Focus silently didn't engage).
+   - globals.css: admin side-pill gutter — lg..xl main padding-left 88px scoped
+     `html:not([data-portal-zoom])` (SidePill at lg overlapped the 1100px column).
+3. **Task preview/drawer** — 6 mockups D1-D6 delivered (artifact
+   "cc-taskview-mockups"): D1 Conversation Sheet (portal twin, chat-first) ·
+   D2 Dossier Split (wide 2-pane) · D3 Decision Head-Up (Focus strip on top) ·
+   D4 Life Spine (timeline story) · D5 Mission Room (full-page, ruled out —
+   reverses drawer-is-the-view decision) · D6 Stacked Sheets (mobile sheets).
+   RECOMMENDED: D1 skeleton + D3 strip (full when late/quiet, quiet line when
+   healthy) + D2 auto-widen on desktop + D6 sheets on phone; D4 as History chip.
+   Owner pick PENDING.
 2. Then likely: Tasks tab / Companies tab on `/`, `/brief`, `/workbook`, `/meeting`,
    HRMS pages, `/settings`, `/inbox`, `/documents`, `/people`… owner picks order.
 

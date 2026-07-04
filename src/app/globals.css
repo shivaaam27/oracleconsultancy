@@ -577,6 +577,16 @@ input:disabled, select:disabled, textarea:disabled {
   }
 }
 
+/* ---------- Admin side-pill gutter ----------
+   The vertical nav pill shows from lg (1024px). Between lg and xl the centred
+   1100px content column would collide with it, so give the admin <main> a left
+   gutter in exactly that band. Portal pages are excluded (they set
+   data-portal-zoom on <html> and keep the bottom pill instead). From xl up the
+   pill fits in the natural margin — no gutter needed. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  html:not([data-portal-zoom]) main { padding-left: 88px; }
+}
+
 /* ---------- Portal web zoom ----------
    Every staff-portal page renders at 0.8 on the web so it doesn't feel huge on
    large monitors (matches the owner's "80% zoom" preference). Desktop-only —

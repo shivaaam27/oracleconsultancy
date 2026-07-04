@@ -9,6 +9,7 @@ import { ViewPublisher } from "@/components/view-publisher";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
+import { CardsView, FocusQueue } from "@/app/task/_views/cards-view";
 import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -30,6 +31,12 @@ type Sp = {
   group?: string;
   archived?: string;
   kind?: string; // "auto" = the renewals/admin lane (created_by "automation")
+  /** Cards view: "focus" = the ranked Focus queue. */
+  mode?: string;
+  /** Cards view: "1" = the Done tab (Completed/Closed only). */
+  done?: string;
+  /** "1" = only tasks quiet 7+ days (no update). */
+  quiet?: string;
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -51,6 +58,9 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.group) u.set("group", next.group);
   if (next.archived) u.set("archived", next.archived);
   if (next.kind) u.set("kind", next.kind);
+  if (next.mode) u.set("mode", next.mode);
+  if (next.done) u.set("done", next.done);
+  if (next.quiet) u.set("quiet", next.quiet);
   return `/?${u.toString()}`;
 }
 
@@ -125,18 +135,30 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const taskMeta = view === "timeline"
     ? Object.fromEntries(all.map((r) => [r.id, { code: r.code, legacyCode: r.legacyCode, companyName: r.companyName, companyAccent: r.companyAccent, actionItem: r.actionItem }]))
     : {};
+  // Cards-view modes: "focus" = the ranked chase queue; done=1 = the Done tab
+  // (Completed/Closed only — the cards view's closed-history home).
+  const focusMode = sp.mode === "focus" && view === "cards" && !showArchived;
+  const doneTab = sp.done === "1" && view === "cards";
+
   // In the archived view show every archived task regardless of status (many are
   // Closed/Completed); otherwise hide Closed unless explicitly opted in.
-  const showClosed = sp.closed === "1" || showArchived;
+  const showClosed = sp.closed === "1" || showArchived || doneTab;
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
 
   let rows = showClosed || statusOverridesClosed ? base : base.filter((r) => r.status !== "Closed");
+  if (doneTab) rows = rows.filter((r) => r.status === "Completed" || r.status === "Closed");
   if (sp.company) rows = rows.filter((r) => r.companyName === sp.company);
   if (sp.priority) rows = rows.filter((r) => r.priority === sp.priority);
   if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
   if (sp.status) rows = rows.filter((r) => r.status === sp.status);
   if (sp.noOwner === "1") rows = rows.filter((r) => r.assignees.length === 0);
   if (sp.unread === "1") rows = rows.filter((r) => r.unread);
+  // Quiet 7d+ — open tasks nobody has touched in a week (or ever).
+  const QUIET_MS = 7 * 86_400_000;
+  const nowMsQ = Date.now();
+  const isQuiet = (r: (typeof all)[number]) =>
+    isOpenRow(r) && (!r.lastUpdatedAt || nowMsQ - r.lastUpdatedAt.getTime() >= QUIET_MS);
+  if (sp.quiet === "1") rows = rows.filter(isQuiet);
   if (sp.q) {
     const q = sp.q.toLowerCase();
     rows = rows.filter(
@@ -169,6 +191,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     critical: baseForKpis.filter((r) => r.priority === "Critical").length,
     noOwner: baseForKpis.filter((r) => r.assignees.length === 0).length,
     unread: baseForKpis.filter((r) => r.unread).length,
+    quiet: baseForKpis.filter(isQuiet).length,
   };
   const closedCount = base.filter((r) => r.status === "Closed").length;
 
@@ -186,9 +209,13 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   ).length;
   const needYou = kpi.overdue + kpi.escalated;
 
-  const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
+  const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread || sp.quiet);
 
-  const dayMode = !hasFilters && !showArchived && sp.all !== "1" && view !== "calendar" && view !== "timeline" && view !== "board";
+  // The old attention-trimmed "day mode" applies to the table only — the cards
+  // view has its own Focus queue for that job and Browse shows everything.
+  const dayMode =
+    !hasFilters && !showArchived && sp.all !== "1" &&
+    view !== "calendar" && view !== "timeline" && view !== "board" && view !== "cards";
   if (dayMode) {
     rows = rows.filter(
       (r) =>
@@ -208,6 +235,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // emit section headers. Stable within a group by keeping the prior order.
   const groupBy = (["company", "status", "person"].includes(sp.group || "") ? sp.group : null) as
     | "company" | "status" | "person" | null;
+  // Cards default to company grouping (the approved composition) unless the
+  // owner picks another grouping — "none" is sp.group="" (falls to null? no:
+  // empty string means unset → default company here).
+  const cardsGroupBy = view === "cards" ? (sp.group === "none" ? null : (groupBy ?? "company")) : null;
   if (groupBy && view === "table") {
     const keyOf = (r: (typeof rows)[number]) =>
       groupBy === "company" ? r.companyName || "~"
@@ -308,6 +339,30 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           />
 
           <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+            {/* Cards view — the mode segment: Focus (ranked chase queue) ·
+                Browse (everything) · Done (Completed/Closed history). */}
+            {view === "cards" && !showArchived && (
+              <div className="inline-flex shrink-0 items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
+                <Link
+                  href={buildHref(sp, { mode: "focus", done: undefined })}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${focusMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+                >
+                  <Sparkles size={13} /> Focus
+                </Link>
+                <Link
+                  href={buildHref(sp, { mode: undefined, done: undefined })}
+                  className={`px-3 py-1.5 rounded-full transition-all ${!focusMode && !doneTab ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+                >
+                  Browse
+                </Link>
+                <Link
+                  href={buildHref(sp, { done: "1", mode: undefined })}
+                  className={`px-3 py-1.5 rounded-full transition-all ${doneTab ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+                >
+                  Done
+                </Link>
+              </div>
+            )}
             {/* Focus / All — segmented pill */}
             {!hasFilters && (view === "table" || view === "board") && (
               <div className="inline-flex shrink-0 items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
@@ -348,6 +403,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
               { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
               { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
+              { label: "Quiet 7d+",   count: kpi.quiet,       key: "1",           filterKey: "quiet" as const,   tone: "warn" as const,   Icon: PauseCircle },
               { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
               { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
               { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const,   Icon: CalendarOff },
@@ -382,8 +438,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               );
             })}
 
-            {/* Group-by — pushed to the right (table view only; desktop) */}
-            {view === "table" && (
+            {/* Group-by — pushed to the right (cards + table views; desktop).
+                Cards default to Company, so "None" is an explicit group=none. */}
+            {(view === "table" || view === "cards") && (
               <div className="ml-auto hidden shrink-0 items-center gap-2 text-xs sm:flex">
                 <span className="text-fg-subtle">Group</span>
                 <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-bg-subtle/70 ring-1 ring-border/60">
@@ -393,11 +450,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
                     { key: "status", label: "Status" },
                     { key: "person", label: "Person" },
                   ] as const).map((g) => {
-                    const on = (groupBy ?? null) === g.key;
+                    const on = view === "cards" ? cardsGroupBy === g.key : (groupBy ?? null) === g.key;
+                    const groupParam = g.key ?? (view === "cards" ? "none" : undefined);
                     return (
                       <Link
                         key={g.label}
-                        href={buildHref(sp, { group: g.key ?? undefined })}
+                        href={buildHref(sp, { group: groupParam })}
                         className={`px-2.5 py-1 rounded-full transition-colors ${on ? "bg-accent text-accent-fg font-medium" : "text-fg-muted hover:text-fg"}`}
                       >
                         {g.label}
@@ -424,14 +482,14 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         companies={companyList}
         people={peopleNames}
         defaultCompanyId={quickDefaultCompanyId}
-        showInline={view === "table" || view === "board"}
+        showInline={view === "table" || view === "board" || view === "cards"}
       />
 
-      {total === 0 && view !== "calendar" && view !== "timeline" ? (
+      {total === 0 && view !== "calendar" && view !== "timeline" && !focusMode ? (
         <Card className="p-8">
           <EmptyState
             icon={showArchived ? <Archive size={32} /> : <CheckSquare size={32} />}
-            title={showArchived ? "No archived tasks." : hasFilters ? "No tasks match these filters." : "No open tasks."}
+            title={showArchived ? "No archived tasks." : doneTab ? "Nothing completed yet." : hasFilters ? "No tasks match these filters." : "No open tasks."}
             hint={showArchived ? "Archive a task to retire it without losing its history." : hasFilters ? "Try resetting or pick a different view." : "Create one above."}
           />
         </Card>
@@ -444,6 +502,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           <BulkBar />
           {view === "board" ? (
             <BoardView rows={rows} showClosed={showClosed} />
+          ) : view === "cards" ? (
+            focusMode ? (
+              <FocusQueue rows={rows.filter(isOpenRow)} />
+            ) : (
+              <CardsView rows={rows} groupBy={cardsGroupBy} />
+            )
           ) : (
             <TableView rows={rows} groupBy={view === "table" ? groupBy : null} hideCompany={view === "table" && groupBy === "company"} />
           )}
