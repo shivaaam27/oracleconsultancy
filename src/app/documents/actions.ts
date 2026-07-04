@@ -453,7 +453,16 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
 
     // (3) Build + create the document, then route it into its bucket. A file the
     // owner tagged `-OLD`/`-VOID` is a superseded copy → straight to Trash.
-    const finalState: IntakeState = filing.isOld ? "trash" : needsReview ? "quarantine" : "filed";
+    // SUGGEST-ONLY (Jul 2026): the system no longer files auto-pulled documents on
+    // its own. Everything the auto-sorter/attachment intake reads waits in "To Sort"
+    // (quarantine) carrying its guessed company/category/expiry, for the owner to
+    // confirm. Only a copy the owner already tagged -OLD/-VOID skips to Trash.
+    // Confirming in To Sort (fileFromQuarantineAction) is what actually files a doc
+    // and runs the compliance/enrich side-effects. Flip AUTO_FILE to restore the old
+    // fully-automatic filing. (Manual "Add document" is a separate, owner-driven path
+    // — createDocumentAction — and still files directly with the owner's chosen owner.)
+    const AUTO_FILE = false;
+    const finalState: IntakeState = filing.isOld ? "trash" : (needsReview || !AUTO_FILE) ? "quarantine" : "filed";
     // One consistent name on EVERY auto path (Dropbox + manual auto-sort + quarantine):
     // the house format `Prefix_DocType[_Ref][_EXP-date]`. Falls back to the AI
     // title/filename only if there's nothing to compose from. The original read
@@ -500,8 +509,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       revalidateDocs();
     } else if (finalState === "quarantine") {
       // Held for a glance — no profile/compliance side-effects until it's filed.
-      await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
-      try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: reason ?? "Held for review" }); } catch { /* best-effort */ }
+      // A clean, owner-resolved read is simply "ready to confirm"; a shaky one keeps
+      // its specific reason (no owner / unreadable / possible duplicate).
+      const holdReason = reason ?? (needsReview ? "Held for review" : "Ready to file — confirm company & category");
+      await setDocumentIntakeState(id, "quarantine", holdReason);
+      try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: holdReason }); } catch { /* best-effort */ }
       // Hand the hard ones to ORI (the cloud agent on the owner's Max plan): a
       // smarter re-read of whatever the rules/vision path couldn't place — from
       // EVERY door (Dropbox, bulk drop, chat/task/portal attachments), not just
@@ -929,6 +941,97 @@ export async function fileFromQuarantineAction(id: number): Promise<{ ok: boolea
 }
 
 /**
+ * Retire a document that a newer copy has replaced: tag it "-EXP" and move it to
+ * Trash (kept in history, never hard-deleted). Used by the Replace flow (expiry
+ * rows + the duplicate "replace" choice) so a renewal never leaves two live copies.
+ */
+export async function retireSupersededDocumentAction(oldId: number): Promise<{ ok: boolean }> {
+  await setDocumentIntakeState(oldId, "trash", "Replaced by a newer copy", { markExpired: true });
+  revalidateDocs();
+  return { ok: true };
+}
+
+/**
+ * Confirm one document from the Sorting Desk. The owner may correct the guessed
+ * company/person, category or expiry in the same tap; those edits are applied, the
+ * house-format title is rebuilt from the final values, and any correction is fed to
+ * the learning loops (owner + category) so the next similar document reads better.
+ * A quarantined doc is then FILED (with its compliance/enrich side-effects); an
+ * already-filed "unsure/no-owner" doc is simply vetted + its review flag cleared.
+ */
+export async function confirmSortItemAction(
+  id: number,
+  patch?: { companyId?: number | null; personId?: number | null; category?: string | null; expiryDate?: string | null }
+): Promise<{ ok: boolean; title?: string; error?: string }> {
+  try {
+    const before = await getDocument(id);
+    if (!before) return { ok: false, error: "Document not found." };
+
+    // 1) Apply the owner's corrections (only fields actually passed).
+    const edit: Partial<DocumentInput> = {};
+    let companyId = before.companyId;
+    let personId = before.personId;
+    let category = before.category;
+    let expiryDate: Date | null = before.expiryDate;
+    if (patch) {
+      if (patch.companyId !== undefined) { edit.companyId = patch.companyId; companyId = patch.companyId; if (patch.companyId) { edit.personId = null; personId = null; } }
+      if (patch.personId !== undefined) { edit.personId = patch.personId; personId = patch.personId; if (patch.personId) { edit.companyId = null; companyId = null; } }
+      if (patch.category !== undefined) { edit.category = patch.category; category = patch.category; }
+      if (patch.expiryDate !== undefined) { edit.expiryDate = patch.expiryDate; expiryDate = patch.expiryDate ? new Date(patch.expiryDate) : null; }
+    }
+
+    // 2) Rebuild the house-format title from the final owner/type/ref/expiry.
+    let ownerName: string | null = null;
+    let filePrefix: string | null = null;
+    if (companyId) {
+      const { data: co } = await supa.from("companies").select("name,file_prefix").eq("id", companyId).maybeSingle();
+      ownerName = (co?.name as string | null) ?? null;
+      filePrefix = (co?.file_prefix as string | null) ?? null;
+    } else if (personId) {
+      const { data: pe } = await supa.from("people").select("name").eq("id", personId).maybeSingle();
+      ownerName = (pe?.name as string | null) ?? null;
+    }
+    const composed = buildDocTitle({
+      prefix: filePrefix, owner: ownerName, type: before.docType || category,
+      ref: before.referenceNo, date: before.issueDate, expiry: expiryDate,
+    });
+    if (composed && composed !== "Document" && composed !== before.title) edit.title = composed;
+
+    if (Object.keys(edit).length) await updateDocument(id, edit);
+
+    // 3) Teach the learning loops from any correction the owner just made.
+    const ownerChanged = (patch?.companyId !== undefined && patch.companyId !== before.companyId) ||
+      (patch?.personId !== undefined && patch.personId !== before.personId);
+    if (ownerChanged && (companyId || personId)) {
+      await recordOwnerCorrection({
+        title: before.title, issuer: before.issuer, docType: before.docType,
+        ownerType: companyId ? "company" : "person", ownerId: (companyId ?? personId) as number,
+      });
+    }
+    if (patch?.category !== undefined && patch.category && patch.category !== before.category) {
+      await recordCategoryCorrection({ title: before.title, issuer: before.issuer, docType: before.docType, toCategory: patch.category });
+    }
+
+    // 4) File it (quarantine → live) or just vet it (already filed, needed a glance).
+    if (before.intakeState === "quarantine") {
+      await setDocumentIntakeState(id, "filed", null);
+      await setDocumentVetted(id, true);
+      await reconcileOwnerCompliance(personId, companyId);
+      await fireDocumentReactions(id);
+    } else {
+      await setDocumentVetted(id, true);
+      await updateDocument(id, { reviewStatus: "ok" });
+      await reconcileOwnerCompliance(personId, companyId);
+    }
+    revalidateDocs();
+    revalidatePath("/inbox");
+    return { ok: true, title: edit.title ?? before.title };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not confirm the document." };
+  }
+}
+
+/**
  * One-off cleanup: re-evaluate every quarantined doc that was held as a "Possible
  * duplicate" using the current (fixed) near-duplicate logic. The ones that are NOT
  * genuine duplicates (different person's contract, different-dated permit, a cert
@@ -1154,9 +1257,14 @@ export async function trashIntakeDocAction(id: number, reason?: string): Promise
 
 /** Restore a trashed row back to the live library. */
 export async function restoreFromTrashAction(id: number): Promise<{ ok: boolean }> {
-  const doc = await getDocument(id);
-  await setDocumentIntakeState(id, "filed", null);
-  if (doc) await reconcileOwnerCompliance(doc.personId, doc.companyId);
+  // Restore → back to "To Sort" (quarantine), NOT straight into the library, so a
+  // wrongly-trashed doc lands where the owner can re-check its owner/category and
+  // confirm it properly. Strip any "-EXP" the trash pass added so the name is clean.
+  const { data: cur } = await supa.from("documents").select("title").eq("id", id).maybeSingle();
+  const t = (cur?.title as string | null) ?? "";
+  const cleaned = t.replace(/\s*-EXP$/, "");
+  if (cleaned !== t) { try { await supa.from("documents").update({ title: cleaned }).eq("id", id); } catch { /* best-effort */ } }
+  await setDocumentIntakeState(id, "quarantine", "Restored from Trash — re-check and confirm");
   revalidateDocs();
   revalidatePath("/inbox");
   return { ok: true };

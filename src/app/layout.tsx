@@ -73,7 +73,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en-GB" className={inter.variable} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />

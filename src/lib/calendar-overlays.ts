@@ -37,7 +37,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
   const toIso = `${addDaysKey(toKey, 1)}T00:00:00Z`;
   const items: OverlayItem[] = [];
 
-  const [tasksRes, leaveRes, holRes, docRes, peopleRes, commitRes, pipeRes] = await Promise.all([
+  const [tasksRes, leaveRes, holRes, docRes, peopleRes, commitRes] = await Promise.all([
     sb.from("tasks").select("id,code,action_item,company_id,deadline,status")
       .eq("archived", false).not("deadline", "is", null).gte("deadline", fromIso).lt("deadline", toIso),
     sb.from("leave_requests").select("id,person_id,start_date,end_date,status, person:people!leave_requests_person_id_people_id_fk(name)")
@@ -49,7 +49,6 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     // Commitments are placed on their NOTICE-BY date (end − notice_days), which is
     // the actionable deadline — filtered to the window after computing it.
     sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days").eq("archived", false).not("end_date", "is", null),
-    sb.from("pipeline").select("id,subject,type,company_id,deadline").eq("archived", false).not("deadline", "is", null).gte("deadline", fromIso).lt("deadline", toIso),
   ]);
 
   // Task deadlines (open tasks only).
@@ -137,11 +136,6 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     if (!inRange(k, fromKey, toKey)) continue;
     const label = KIND_LABEL[(c.kind as CommitmentKind)] ?? "Commitment";
     items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: "/hrms/registers", companyId: (c.company_id as number) ?? null });
-  }
-
-  // Pipeline — in-flight applications with a deadline.
-  for (const p of pipeRes.data ?? []) {
-    items.push({ id: `pipe-${p.id}`, kind: "pipeline", title: `${p.subject as string} — ${p.type as string} due`, dayKey: dayKey(p.deadline as string), href: "/hrms/pipeline", companyId: (p.company_id as number) ?? null });
   }
 
   return items;

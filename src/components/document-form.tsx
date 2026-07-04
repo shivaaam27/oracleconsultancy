@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
-import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
+import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type, UserPlus, RefreshCw } from "lucide-react";
+import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, retireSupersededDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
 import { DocPreview } from "@/components/doc-preview";
 import { RelatedDocuments } from "@/components/related-documents";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { downscaleImage } from "@/lib/downscale-image";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
-import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, displayDocName, type DocumentRow } from "@/lib/documents-shared";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 import { Segmented } from "@/components/macos";
 import { Button } from "@/components/ui";
@@ -42,6 +42,7 @@ export function DocumentForm({
   initialTitle,
   initialVendorId,
   initialFile,
+  initialSupersedesId,
   submitLabel,
   cancelLabel,
 }: {
@@ -61,6 +62,9 @@ export function DocumentForm({
   initialVendorId?: number | null;
   /** A file to attach + auto-read on mount (used by the bulk-add queue). */
   initialFile?: File;
+  /** Replace flow: the OLD document this new upload supersedes — on save it's
+   *  tagged -EXP and retired to Trash (kept in history). */
+  initialSupersedesId?: number | null;
   /** Override the submit / cancel button text (e.g. "Save & next" / "Skip"). */
   submitLabel?: string;
   cancelLabel?: string;
@@ -108,7 +112,7 @@ export function DocumentForm({
 
   // Duplicate detection: identical-file / same-reference / similar-title matches.
   const [dupDocs, setDupDocs] = useState<DuplicateMatch[]>([]);
-  const [supersedeId, setSupersedeId] = useState<number | null>(null);
+  const [supersedeId, setSupersedeId] = useState<number | null>(initialSupersedesId ?? null);
 
   // Expiry intelligence: "yes" = expires, "no" = no expiry by nature. Drives the
   // "No expiry" toggle so a blank expiry on a CV/invoice reads as correct, not missing.
@@ -238,8 +242,9 @@ export function DocumentForm({
     start(async () => {
       const res = mode === "create" ? await createDocumentAction(fd) : await updateDocumentAction(doc!.id, fd);
       if (res.ok && supersedeId) {
-        // User chose to replace: archive the superseded document (kept as history).
-        try { await archiveDocumentAction(supersedeId, true); } catch { /* best effort */ }
+        // Replace: tag the superseded document "-EXP" and retire it to Trash (kept
+        // in history) so a renewal never leaves two live copies on the shelf.
+        try { await retireSupersededDocumentAction(supersedeId); } catch { /* best effort */ }
       }
       if (!res.ok) setError(res.error);
       onComplete?.(res);
@@ -433,6 +438,24 @@ export function DocumentForm({
       {/* Vendor contract link — only present when adding a contract for a vendor,
           so normal document edits never disturb an existing vendor link. */}
       {initialVendorId != null && <input type="hidden" name="vendorId" value={String(initialVendorId)} />}
+      {initialSupersedesId != null && (
+        <div className="flex items-center gap-2 rounded-xl bg-warn-soft/50 px-3 py-2 text-xs text-warn ring-1 ring-warn/25">
+          <RefreshCw size={14} className="shrink-0" />
+          Replacing an existing document — once you save, the old copy is tagged <b className="mx-0.5">-EXP</b> and kept in Trash for reference.
+        </div>
+      )}
+      {/* Live clean name — what this document reads as (owner shown separately). */}
+      {mode === "edit" && doc && (
+        <div className="flex items-center gap-2.5 rounded-xl bg-accent-soft/40 px-3 py-2 ring-1 ring-accent/20">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-accent">Named</span>
+          <span className="truncate text-sm font-semibold">{displayDocName(doc)}</span>
+        </div>
+      )}
+
+      {/* E2 layout — the file on the LEFT, the fields on the RIGHT on desktop; folds
+          to stacked sections on mobile. All the intake logic stays exactly as-is. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start lg:gap-5">
+      <div className="space-y-4">
       {/* Unified capture — Upload · Link · Paste text. Upload and Paste text are
           read by AI to auto-fill the fields below; Link is just a reference. The
           actual form inputs (file, fileUrl) stay mounted so switching tabs never
@@ -538,8 +561,11 @@ export function DocumentForm({
         )}
       </div>
 
-      <div className="grid gap-2.5 grid-cols-2">
-        <div className="col-span-2">
+      </div>
+      {/* Right column — the fields (stack single-column on mobile). */}
+      <div className="mt-4 lg:mt-0">
+      <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2">
+        <div className="sm:col-span-2">
           <label className={labelCls}>Title <span className="text-danger">*</span></label>
           <input name="title" defaultValue={doc?.title ?? initialTitle ?? ""} required autoFocus={mode === "create"}
             className={inputCls} placeholder="e.g. Dar Spices Trade Licence" />
@@ -796,6 +822,9 @@ export function DocumentForm({
           )}
         </>
       )}
+
+      </div>{/* /right column */}
+      </div>{/* /E2 grid */}
 
       {error && (
         <div className="flex items-start gap-1.5 text-xs text-danger">

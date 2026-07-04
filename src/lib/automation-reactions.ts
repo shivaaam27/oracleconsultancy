@@ -294,68 +294,17 @@ async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
 
 /** Pipeline: advance the application a document belongs to. CERTAIN when the item
  *  is linked to this exact document or its control number matches; else suggest. */
-async function reactPipeline(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    if (!doc.companyId && !doc.personId) return;
-    const target = inferPipelineStage(doc);
-    if (!target) return;
-    const targetIdx = PIPELINE_STAGES.indexOf(target);
-    let q = sb.from("pipeline").select("id,type,stage,control_no,company_id,person_id,document_id").eq("archived", false);
-    // Match the document's owner (company or person).
-    if (doc.companyId) q = q.eq("company_id", doc.companyId);
-    else q = q.eq("person_id", doc.personId as number);
-    const { data } = await q;
-    const refKey = doc.referenceNo ? norm(doc.referenceNo) : null;
-    const typeHay = norm(`${doc.title} ${doc.docType ?? ""} ${doc.category ?? ""}`);
-    for (const p of data ?? []) {
-      const curIdx = PIPELINE_STAGES.indexOf((p.stage as string) as PipelineStage);
-      if (curIdx < 0 || targetIdx <= curIdx) continue; // only advance forward
-      const certain = (p.document_id as number | null) === doc.id || (refKey && p.control_no && norm(p.control_no as string) === refKey);
-      const typeMatch = norm(p.type as string).split(" ").some((w) => w.length >= 4 && typeHay.includes(w));
-      if (!certain && !typeMatch) continue;
-      const targetId = p.id as number;
-      if (await alreadyLogged(doc.id, "pipeline-advance", "pipeline", targetId)) continue;
-      const base = { kind: "pipeline-advance" as const, documentId: doc.id, targetTable: "pipeline" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Advance ${p.type} → ${target} for ${who}`, detail: `From ${p.stage} (matched ${certain ? "control no." : "type"})`, prevValue: p.stage as string, newValue: target };
-      await commit(base, !!certain, `Advanced ${p.type} → ${target}`);
-    }
-  } catch { /* best-effort */ }
+// Pipeline retired (Jul 2026, owner request): the Applications-in-progress module
+// was removed, so a filed document no longer advances or starts any case. These two
+// reactions are now no-ops (kept in the cascade list so re-enabling is a one-file
+// change if the module ever returns). The original advance/create logic lived here
+// and used inferPipelineStage + setPipelineStage/createPipelineFromDocument.
+async function reactPipeline(_doc: DocumentRow, _who: string): Promise<void> {
+  return;
 }
 
-/** Start a NEW application when a bill/application/receipt/certificate arrives and
- *  there's no existing case it fits — at the stage the document implies. If a case
- *  already exists, reactPipeline advances it instead, so this no-ops. Governed by
- *  the "Advance applications" (pipeline-advance) mode; auto creates, suggest waits. */
-async function reactStartPipeline(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    if (!doc.companyId && !doc.personId) return;
-    const stage = inferPipelineStage(doc);
-    if (!stage) return; // not an in-flight bureaucracy document
-    // Does a matching case already exist? Then advancing handles it — don't create.
-    let q = sb.from("pipeline").select("id,type,control_no").eq("archived", false);
-    if (doc.companyId) q = q.eq("company_id", doc.companyId);
-    else q = q.eq("person_id", doc.personId as number);
-    const { data } = await q;
-    const refKey = doc.referenceNo ? norm(doc.referenceNo) : null;
-    const typeHay = norm(`${doc.title} ${doc.docType ?? ""} ${doc.category ?? ""}`);
-    const matches = (data ?? []).some((p) => {
-      if (refKey && p.control_no && norm(p.control_no as string) === refKey) return true;
-      return norm(p.type as string).split(" ").some((w) => w.length >= 4 && typeHay.includes(w));
-    });
-    if (matches) return;
-    // Don't start twice from the same document.
-    const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "pipeline-create").eq("document_id", doc.id).in("status", ["applied", "suggested"]).limit(1);
-    if (ex && ex.length) return;
-    const mode = await getAutomationMode("pipeline-advance");
-    if (mode === "off") return;
-    if (mode === "auto") {
-      const res = await createPipelineFromDocument(doc.id);
-      if (!res.ok) return;
-      await logEvent({ kind: "pipeline-create", status: "applied", documentId: doc.id, targetTable: "pipeline", targetId: res.id, personId: doc.personId, companyId: doc.companyId, summary: `Started ${res.type} at “${res.stage}” for ${who}`, detail: `New application from “${doc.title}”`, prevValue: null, newValue: res.stage });
-    } else {
-      // Suggest: remember the source document so Apply can create the case later.
-      await logEvent({ kind: "pipeline-create", status: "suggested", documentId: doc.id, targetTable: "documents", targetId: doc.id, personId: doc.personId, companyId: doc.companyId, summary: `Start a new application from “${doc.title}” for ${who}`, detail: `Would start at “${stage}”`, prevValue: null, newValue: stage });
-    }
-  } catch { /* best-effort */ }
+async function reactStartPipeline(_doc: DocumentRow, _who: string): Promise<void> {
+  return;
 }
 
 /* ------------------------------------------------------------------ */

@@ -15,13 +15,15 @@ export async function GET(req: NextRequest) {
   const auth = authoriseCron(req);
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
 
-  try {
-    const res = await autoSortInboxAction();
-    await recordEvent("cron.auto-sort", res.ok ? "ok" : "error", { ...res });
-    return NextResponse.json(res);
-  } catch (err) {
-    await reportError(err, { route: "cron.auto-sort" });
-    await recordEvent("cron.auto-sort", "error", { message: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ ok: false, message: "Auto-sort run failed." }, { status: 500 });
-  }
+  // DISABLED (Jul 2026, owner request): no unattended overnight sorting. New files
+  // (Dropbox / chat / task attachments) simply wait in the Documents "To Sort" tab;
+  // the owner reads them in with the "Sort now" button when they choose to. This
+  // keeps the system from moving anything on its own. To restore, reinstate the
+  // autoSortInboxAction() call below.
+  await recordEvent("cron.auto-sort", "skip", { reason: "disabled — sort manually from Documents › To Sort" });
+  return NextResponse.json({ ok: true, skipped: "auto-sort disabled" });
 }
+
+// Kept imported for the one-line re-enable above.
+void autoSortInboxAction;
+void reportError;

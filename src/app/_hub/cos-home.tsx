@@ -54,7 +54,7 @@ function daysUntil(deadline: Date | null, now: number): number | null {
 
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const now = new Date();
-  const [settings, signals, automation, emailCfg, dirRow, activity, nowData, approvals, companiesRes, docCountRes, docReviewRes, pipeRes] =
+  const [settings, signals, automation, emailCfg, dirRow, activity, nowData, approvals, companiesRes, docCountRes, docReviewRes] =
     await Promise.all([
       getAppSettings(),
       gatherHomeSignals(rows, todos),
@@ -67,7 +67,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       sb.from("companies").select("id,name,accent_color"),
       sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false),
       sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false).eq("review_status", "needs_review"),
-      sb.from("pipeline").select("id", { count: "exact", head: true }).neq("stage", "Issued"),
     ]);
   // What ORI did on its own (auto-filed / renamed / verified…) — a slim,
   // trust-building recap; the full undoable feed lives on /inbox.
@@ -189,7 +188,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   /* ---------- Rooms — the live house ---------- */
   const docCount = docCountRes.count ?? 0;
   const docReview = docReviewRes.count ?? 0;
-  const pipeCount = pipeRes.count ?? 0;
   const firstEvent = nowData.events[0];
   const rooms: Room[] = [
     {
@@ -237,14 +235,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       heartbeat: docReview > 0 ? `${docReview} to review` : "all filed",
       href: "/documents",
       tone: docReview > 0 ? "warn" : "success",
-    },
-    {
-      key: "pipeline",
-      label: "Pipeline",
-      count: pipeCount,
-      heartbeat: pipeCount > 0 ? "applications in flight" : "nothing in flight",
-      href: "/hrms/pipeline",
-      tone: pipeCount > 0 ? "warn" : "success",
     },
   ];
 

@@ -120,59 +120,22 @@ export function IntakeAccuracy({ metrics }: { metrics: IntakeMetrics }) {
 
   return (
     <Reveal>
-      <div className="glass elevated rounded-2xl p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-accent">
-            <Sparkles size={14} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight">Intake accuracy</p>
-            <p className="text-[11px] text-fg-subtle">Last {days} days · watch the system get smarter.</p>
-          </div>
-          {autoFileRate != null && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <MiniTrend prev={prevAutoFileRate} now={autoFileRate} />
-              <Trend now={autoFileRate} prev={prevAutoFileRate} />
-            </div>
-          )}
-        </div>
-
-        <p className="text-[12px] text-fg-muted leading-snug pl-0.5">{headline}</p>
-
-        {!nothingYet && (
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4 border-t border-border/50 pt-3">
-            <Stat
-              value={pct(autoFileRate)}
-              label="auto-filed cleanly"
-              tone="success"
-              href="/documents"
-            />
-            <Stat
-              value={neededYou}
-              label="needed you"
-              tone={neededYou > 0 ? "warn" : "subtle"}
-              href="#verify"
-            />
-            <Stat
-              value={now.corrections}
-              label="corrections learned"
-              tone={now.corrections > 0 ? "accent" : "subtle"}
-              href="#automations"
-            />
-            <Stat
-              value={now.discrepancies}
-              label="discrepancies flagged"
-              tone={now.discrepancies > 0 ? "warn" : "subtle"}
-              href="#verify"
-            />
-          </div>
-        )}
-
-        {!nothingYet && (
-          <p className="text-[10.5px] text-fg-subtle leading-snug pl-0.5">
-            {cleanFiled} filed without a touch · {now.autoMoves} follow-on move{now.autoMoves === 1 ? "" : "s"} made on its own
-            {now.reads > 0 && ` · ${now.readsClean}/${now.reads} reads came back clean`}.
-          </p>
+      {/* Slim one-line readout — informative without eating the page. */}
+      <div className="glass flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl px-3.5 py-2.5 text-xs">
+        <span className="inline-flex items-center gap-1.5 font-medium text-fg">
+          <Sparkles size={13} className="text-accent" /> Intake accuracy
+          <span className="font-normal text-[11px] text-fg-subtle">· last {days}d</span>
+        </span>
+        {nothingYet ? (
+          <span className="text-fg-subtle">Fills up as documents come in.</span>
+        ) : (
+          <>
+            <span className="text-fg-muted"><b className="tabular-nums text-success">{pct(autoFileRate)}</b> auto-filed</span>
+            <span className="text-fg-muted"><b className="tabular-nums">{neededYou}</b> needed you</span>
+            <span className="text-fg-muted"><b className={cn("tabular-nums", now.corrections > 0 && "text-accent")}>{now.corrections}</b> learned</span>
+            <span className="text-fg-muted"><b className={cn("tabular-nums", now.discrepancies > 0 && "text-warn")}>{now.discrepancies}</b> flagged</span>
+            {autoFileRate != null && <span className="ml-auto"><Trend now={autoFileRate} prev={prevAutoFileRate} /></span>}
+          </>
         )}
       </div>
     </Reveal>

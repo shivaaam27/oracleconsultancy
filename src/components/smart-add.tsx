@@ -140,9 +140,10 @@ export function SmartAdd({
 
   return (
     <>
-      <Button type="button" size="md" onClick={() => setOpen(true)}>
-        <Sparkles size={15} /> Smart Add
-      </Button>
+      <button type="button" onClick={() => setOpen(true)}
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3.5 text-xs font-semibold text-fg transition-colors hover:bg-bg-muted">
+        <Sparkles size={15} className="text-accent" /> Smart Add
+      </button>
       <HrmsDialog
         open={open}
         onOpenChange={(o) => { setOpen(o); if (!o) resetAll(); }}

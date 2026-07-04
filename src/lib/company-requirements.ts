@@ -1,7 +1,21 @@
 import { sb } from "@/db/supabase";
-import { deriveDocStatus, expiryLabel, worstDocStatus, DEFAULT_LEAD_DAYS, type DocStatus } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, worstDocStatus, DEFAULT_LEAD_DAYS, DOC_SHELVES, SHELF_CODE, shelfForCategory, type DocStatus } from "@/lib/documents-shared";
 import { complianceBand, type ComplianceBand, type EffectiveStatus, type RequirementStatus } from "@/lib/requirements-shared";
-import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/lib/compliance";
+import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue, ShelfCompliance } from "@/lib/compliance";
+
+/** Roll a company's mandatory requirement items up into the 8 shelves — one pip
+ *  per shelf for the compliance cards. A shelf with no required item is "na". */
+function rollUpShelves(items: Array<{ category: string | null; eff: EffectiveStatus }>): ShelfCompliance[] {
+  const unsatisfied = (e: EffectiveStatus) => e === "missing" || e === "requested" || e === "expired";
+  return DOC_SHELVES.map((shelf) => {
+    const mine = items.filter((it) => shelfForCategory(it.category) === shelf);
+    const missing = mine.filter((it) => unsatisfied(it.eff)).length;
+    const expiring = mine.some((it) => it.eff === "expiring");
+    const status: ShelfCompliance["status"] =
+      mine.length === 0 ? "na" : missing > 0 ? "missing" : expiring ? "expiring" : "complete";
+    return { shelf, code: SHELF_CODE[shelf], status, missing, total: mine.length };
+  });
+}
 import { matchDocumentsToItems } from "@/lib/requirement-match";
 import { deriveFiling, CATALOGUE_COMPANY_REQ_KEYS } from "@/lib/doc-catalog";
 import { logCompanyRequirementEvent } from "@/lib/compliance-audit";
@@ -436,22 +450,23 @@ function synthDefaultScore(
   let expired = 0;
   let expiring = 0;
   const gaps: ComplianceGap[] = [];
+  const shelfItems: Array<{ category: string | null; eff: EffectiveStatus }> = [];
   const gap = (label: string, category: string) => gaps.push({ id: `creq-${c.id}-${label}`, label, categories: [category], ownerType: "company", appliesTo: "all", weight: 1, ownerId: c.id, ownerName: c.name });
   for (const it of items) {
     if (!it.mandatory) continue; // optional items don't affect the score
     mandatoryTotal++;
     const link = links.get(it.id);
     const doc = link ? docById.get(link.docId) ?? null : null;
-    if (!doc) { gap(it.label, it.category); continue; }
-    if (doc.status === "Expired") { expired++; gap(it.label, it.category); }
-    else { verified++; if (doc.status === "Expiring") expiring++; }
+    if (!doc) { gap(it.label, it.category); shelfItems.push({ category: it.category, eff: "missing" }); continue; }
+    if (doc.status === "Expired") { expired++; gap(it.label, it.category); shelfItems.push({ category: it.category, eff: "expired" }); }
+    else { verified++; if (doc.status === "Expiring") expiring++; shelfItems.push({ category: it.category, eff: doc.status === "Expiring" ? "expiring" : "verified" }); }
   }
   const documentIssues: ComplianceDocumentIssue[] = companyDocs
     .filter((d) => d.status === "Expired" || d.status === "Expiring")
     .map((d) => ({ id: d.id, title: d.title, category: d.category, status: d.status as "Expired" | "Expiring", expiryLabel: d.expiryLabel }));
   const score = mandatoryTotal === 0 ? 100 : Math.round((verified / mandatoryTotal) * 100);
   return {
-    ownerId: c.id, ownerName: c.name, ownerType: "company", score,
+    ownerId: c.id, ownerName: c.name, ownerType: "company", shelves: rollUpShelves(shelfItems), score,
     required: mandatoryTotal, present: verified, missing: Math.max(0, gaps.length - expired), inProgress: 0, expired, expiring,
     monitoredDocuments: companyDocs.length, status: complianceBand(score, expired > 0), gaps, documentIssues,
   };
@@ -548,6 +563,7 @@ export async function buildCompanyRequirementScores(
     let expiring = 0;
     let inProgress = 0;
     const gaps: ComplianceGap[] = [];
+    const shelfItems: Array<{ category: string | null; eff: EffectiveStatus }> = [];
 
     for (const r of rows) {
       const status = (r.status as RequirementStatus) ?? "missing";
@@ -562,6 +578,7 @@ export async function buildCompanyRequirementScores(
         ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: (cat && DEFAULT_LEAD_DAYS[cat]) || 30 })
         : null;
       const eff = effectiveStatus(status, worstDocStatus(docStatus, reviewStatus));
+      shelfItems.push({ category: cat, eff });
       // "received" (auto-linked compulsory doc) counts as present — mirrors the
       // per-company scorer, so filing a required document raises compliance on its own.
       if (eff === "verified" || eff === "expiring" || eff === "received") verified++;
@@ -592,6 +609,7 @@ export async function buildCompanyRequirementScores(
       ownerId: c.id,
       ownerName: c.name,
       ownerType: "company",
+      shelves: rollUpShelves(shelfItems),
       score,
       required: mandatoryTotal,
       present: verified,

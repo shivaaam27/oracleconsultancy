@@ -30,10 +30,22 @@ export type ComplianceDocumentIssue = {
   expiryLabel: string | null;
 };
 
+// Per-category (shelf) roll-up for the compliance CARDS — one pip per shelf.
+// "na" = the company has no required document on that shelf (nothing to track).
+export type ShelfCompliance = {
+  shelf: string;
+  code: string;
+  status: "complete" | "missing" | "expiring" | "na";
+  missing: number;
+  total: number;
+};
+
 export type ComplianceScore = {
   ownerId: number;
   ownerName: string;
   ownerType: ComplianceOwnerType;
+  /** Per-shelf roll-up (8 shelves) for the compliance cards; company scores only. */
+  shelves?: ShelfCompliance[];
   score: number;
   required: number;
   present: number;

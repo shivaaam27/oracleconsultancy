@@ -36,26 +36,19 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "meeting-tasks", message: e instanceof Error ? e.message : String(e) });
     }
 
-    // 1a. Chase the GAPS — propose tasks for missing records the system spotted
-    //     (a company with no TIN, a person missing a mandatory document, an
-    //     expired critical doc with no renewal). Same rails as the date sweep:
-    //     mode-gated, forward-only, deduped, capped, logged + undoable.
-    let gaps = { created: 0, suggested: 0 };
-    try {
-      const { runGapChasing } = await import("@/lib/automation-gaps");
-      gaps = await runGapChasing();
-    } catch (e) {
-      await recordEvent("cron.morning", "error", { step: "gaps", message: e instanceof Error ? e.message : String(e) });
-    }
-
-    // 1b. Self-heal: re-read documents the system previously mis-read (scanner
-    //     watermarks) and fill owners that now resolve. Best-effort, capped.
-    try {
-      const { selfHealDocuments } = await import("@/app/documents/actions");
-      await selfHealDocuments(20);
-    } catch (e) {
-      await recordEvent("cron.morning", "error", { step: "selfheal", message: e instanceof Error ? e.message : String(e) });
-    }
+    // 1a + 1b DISABLED (Jul 2026, owner request): the system no longer works on
+    //   documents overnight on its own. Gap-chasing (proposing tasks/records from
+    //   spotted gaps) and document self-heal (re-reading + re-owning mis-read scans)
+    //   are OFF — they were the "acts by itself" jobs the owner wanted stopped.
+    //   Expiry stays fully visible + manually actionable on the Documents page
+    //   (Needs-attention bands, Renew/Chase/Notice). Renewal reminders (step 1,
+    //   runTimeAutomations) and the health watchdog (step 1c) remain. To restore,
+    //   re-enable the two blocks below.
+    const gaps = { created: 0, suggested: 0 };
+    // try { const { runGapChasing } = await import("@/lib/automation-gaps"); gaps = await runGapChasing(); }
+    // catch (e) { await recordEvent("cron.morning", "error", { step: "gaps", message: e instanceof Error ? e.message : String(e) }); }
+    // try { const { selfHealDocuments } = await import("@/app/documents/actions"); await selfHealDocuments(20); }
+    // catch (e) { await recordEvent("cron.morning", "error", { step: "selfheal", message: e instanceof Error ? e.message : String(e) }); }
 
     // 1c. Watchdog + SELF-REPAIR: check every scheduled job + the AI reader. Pass
     //     repair:true so any job that failed or went stale gets ONE re-run attempt

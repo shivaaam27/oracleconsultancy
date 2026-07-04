@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox as InboxIcon, ShieldCheck, Trash2, Sparkles, Loader2, FileText, Image as ImageIcon,
-  RotateCcw, X, CheckCircle2,
+  RotateCcw, X, CheckCircle2, Eye,
 } from "lucide-react";
 import { InboxList } from "./inbox-list";
 import { signInboxAttachment, autoSortInboxAction, type InboxItem, type AutoSortSummary } from "./actions";
@@ -35,12 +35,15 @@ export function IntakeShell({
   people,
   verify,
   trash,
+  hideTrash = false,
 }: {
   inboxItems: InboxItem[];
   companies: Array<{ id: number; name: string; aliases?: string[] }>;
   people: Array<{ id: number; name: string }>;
   verify: VerifyItem[];
   trash: IntakeBucketItem[];
+  /** When the page already has its own top-level Trash tab, hide the inner one. */
+  hideTrash?: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(verify.length > 0 ? "verify" : "inbox");
@@ -59,7 +62,7 @@ export function IntakeShell({
   const tabs: Array<{ id: Tab; label: string; icon: typeof InboxIcon; count: number }> = [
     { id: "verify", label: "Verify", icon: ShieldCheck, count: verify.length },
     { id: "inbox", label: "Inbox", icon: InboxIcon, count: inboxItems.length },
-    { id: "trash", label: "Trash", icon: Trash2, count: trash.length },
+    ...(hideTrash ? [] : [{ id: "trash" as Tab, label: "Trash", icon: Trash2, count: trash.length }]),
   ];
 
   return (
@@ -160,7 +163,7 @@ function EmptyBucket({ icon: Icon, title, sub }: { icon: typeof InboxIcon; title
   );
 }
 
-function TrashList({ items }: { items: IntakeBucketItem[] }) {
+export function TrashList({ items }: { items: IntakeBucketItem[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [pending, start] = useTransition();
@@ -208,17 +211,27 @@ function TrashList({ items }: { items: IntakeBucketItem[] }) {
             {it.reason && <p className="text-xs text-fg-muted">{it.reason}</p>}
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <FileChip item={it} />
+              {it.storagePath && (
+                <button
+                  type="button"
+                  onClick={() => openFile(it.storagePath)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted transition-colors hover:text-fg"
+                >
+                  <Eye size={13} /> Preview
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => act(it.id, () => restoreFromTrashAction(it.id))}
                 disabled={isBusy}
+                title="Send back to To Sort to re-check and confirm"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors disabled:opacity-50"
               >
-                {isBusy ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Restore
+                {isBusy ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Restore to To Sort
               </button>
               <button
                 type="button"
-                onClick={() => { if (window.confirm("Permanently delete this item? This can't be undone.")) act(it.id, () => deleteIntakeForeverAction(it.id)); }}
+                onClick={() => { if (window.confirm("Permanently delete this document? Preview it first if you're unsure — this can't be undone.")) act(it.id, () => deleteIntakeForeverAction(it.id)); }}
                 disabled={isBusy}
                 className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
               >

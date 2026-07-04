@@ -5,9 +5,10 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip,
-  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors,
+  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors, ChevronDown, Users,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
+import { CompanyAvatar } from "./company-avatar";
 import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } from "./ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
@@ -19,8 +20,8 @@ import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import {
-  DOC_CATEGORIES, deriveDocStatus, daysToExpiry, expiryLabel, docStatusColor,
-  type DocStatus, type DocumentRow,
+  deriveDocStatus, daysToExpiry, expiryLabel, docStatusColor, displayDocName,
+  shelfForCategory, SHELF_CODE, type DocStatus, type DocumentRow,
 } from "@/lib/documents-shared";
 import { archiveDocumentAction, renewDocumentAction, getDocumentFileLinkAction } from "@/app/documents/actions";
 
@@ -31,11 +32,46 @@ function fmtDate(d: Date | null): string {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+type ShelfGroup = { name: string; code: string; rows: DocumentRow[]; expired: number; expiring: number };
+/** Group a company's documents into the owner's 8 filing shelves (category folders),
+ *  in shelf-code order (01…08) so it reads like the on-disk folders. */
+function groupRowsByShelf(rows: DocumentRow[]): ShelfGroup[] {
+  const map = new Map<string, ShelfGroup>();
+  for (const d of rows) {
+    const name = shelfForCategory(d.category);
+    let g = map.get(name);
+    if (!g) { g = { name, code: SHELF_CODE[name], rows: [], expired: 0, expiring: 0 }; map.set(name, g); }
+    g.rows.push(d);
+    const s = deriveDocStatus(d);
+    if (s === "Expired") g.expired++;
+    else if (s === "Expiring") g.expiring++;
+  }
+  return [...map.values()].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+type SubGroup = { key: string; label: string; code?: string; rows: DocumentRow[]; expired: number; expiring: number };
+/** Group the staff section's documents BY PERSON (each person is a sub-section),
+ *  worst-first then name — a person's file is about the person, not the category. */
+function groupRowsByPerson(rows: DocumentRow[], nameOf: (id: number | null) => string | null): SubGroup[] {
+  const map = new Map<string, SubGroup>();
+  for (const d of rows) {
+    const key = d.personId ? `p${d.personId}` : "np";
+    const label = (d.personId ? nameOf(d.personId) : null) ?? "Unassigned";
+    let g = map.get(key);
+    if (!g) { g = { key, label, rows: [], expired: 0, expiring: 0 }; map.set(key, g); }
+    g.rows.push(d);
+    const s = deriveDocStatus(d);
+    if (s === "Expired") g.expired++;
+    else if (s === "Expiring") g.expiring++;
+  }
+  return [...map.values()].sort((a, b) => b.expired - a.expired || b.expiring - a.expiring || a.label.localeCompare(b.label));
+}
+
 export function DocumentsTable({
   documents, companies, people, linkedTasks = {},
 }: {
   documents: DocumentRow[];
-  companies: Array<{ id: number; name: string; accentColor?: string | null; aliases?: string[] }>;
+  companies: Array<{ id: number; name: string; accentColor?: string | null; aliases?: string[]; logoUrl?: string | null }>;
   people: Array<{ id: number; name: string }>;
   linkedTasks?: Record<number, Array<{ code: string; status: string }>>;
 }) {
@@ -60,6 +96,7 @@ export function DocumentsTable({
   const [prefillCategory, setPrefillCategory] = useState<string | null>(null);
   const [prefillTitle, setPrefillTitle] = useState<string | undefined>(undefined);
   const [prefillVendorId, setPrefillVendorId] = useState<number | null>(null);
+  const [prefillSupersedeId, setPrefillSupersedeId] = useState<number | null>(null);
   // Where to go back to after the create dialog closes (e.g. the person drawer
   // we launched "Add doc" from), so the flow doesn't dump you on the table.
   const [returnTo, setReturnTo] = useState<string | null>(null);
@@ -70,6 +107,9 @@ export function DocumentsTable({
 
   // List vs expiry-timeline (grouped by how soon each document lapses).
   const [view, setView] = useState<"list" | "timeline">("list");
+  // Which company housings the owner has manually collapsed/expanded (overrides the
+  // default, which auto-collapses companies with nothing expiring).
+  const [groupOverride, setGroupOverride] = useState<Record<string, boolean>>({});
 
   const router = useRouter();
   const pathname = usePathname();
@@ -91,6 +131,8 @@ export function DocumentsTable({
       if (title) setPrefillTitle(title);
       const vendor = searchParams.get("vendor");
       if (vendor && /^\d+$/.test(vendor)) setPrefillVendorId(parseInt(vendor, 10));
+      const supersede = searchParams.get("supersede");
+      if (supersede && /^\d+$/.test(supersede)) setPrefillSupersedeId(parseInt(supersede, 10));
       // Remember where we came from so cancel/save returns there (e.g.
       // from=person:42 → /people?person=42, from=company:3 → /companies/3).
       const from = searchParams.get("from");
@@ -106,6 +148,23 @@ export function DocumentsTable({
     const person = searchParams.get("person");
     if (person && /^\d+$/.test(person)) setPersonFilter(parseInt(person, 10));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Replace flow (Expiry watch → "Replace"): a same-page window event opens the
+  // create dialog pre-filled with the owner/category + the doc to supersede. Uses
+  // an event, NOT a URL param, so it never collides with the global ?company= drawer
+  // and works without a page re-mount.
+  useEffect(() => {
+    function onNewDoc(e: Event) {
+      const d = (e as CustomEvent<{ companyId?: number | null; personId?: number | null; category?: string | null; supersedeId?: number | null }>).detail || {};
+      setPrefillCompanyId(d.companyId ?? null);
+      setPrefillPersonId(d.personId ?? null);
+      setPrefillCategory(d.category ?? null);
+      setPrefillSupersedeId(d.supersedeId ?? null);
+      setCreateOpen(true);
+    }
+    window.addEventListener("cos:new-document", onNewDoc);
+    return () => window.removeEventListener("cos:new-document", onNewDoc);
   }, []);
 
   // Deep-link: /documents?doc=ID opens that document's editable form (the
@@ -125,6 +184,7 @@ export function DocumentsTable({
 
   const companyName = (id: number | null) => companies.find((c) => c.id === id)?.name ?? null;
   const companyAccent = (id: number | null) => companies.find((c) => c.id === id)?.accentColor ?? null;
+  const companyLogo = (id: number | null) => companies.find((c) => c.id === id)?.logoUrl ?? null;
   const personName = (id: number | null) => people.find((p) => p.id === id)?.name ?? null;
 
   // Page "+" action
@@ -177,6 +237,7 @@ export function DocumentsTable({
     setPrefillCategory(null);
     setPrefillTitle(undefined);
     setPrefillVendorId(null);
+    setPrefillSupersedeId(null);
     if (returnTo) { const to = returnTo; setReturnTo(null); router.push(to); }
   }
 
@@ -226,6 +287,42 @@ export function DocumentsTable({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
+
+  // Company housings — the filtered rows grouped by owner company (person-only docs
+  // and unfiled docs get their own housings), worst-first (most expired, then most
+  // expiring, then name). Matches the Tasks page's grouped-housing grammar.
+  const docGroups = useMemo(() => {
+    type G = { key: string; name: string; companyId: number | null; kind: "company" | "people" | "none"; accent: string | null; rows: DocumentRow[]; expired: number; expiring: number };
+    const map = new Map<string, G>();
+    for (const d of filtered) {
+      let key: string, name: string, kind: G["kind"], companyId: number | null;
+      if (d.companyId) { key = `c${d.companyId}`; name = companyName(d.companyId) ?? "Company"; kind = "company"; companyId = d.companyId; }
+      else if (d.personId) { key = "people"; name = "Staff & personal files"; kind = "people"; companyId = null; }
+      else { key = "none"; name = "Unfiled"; kind = "none"; companyId = null; }
+      let g = map.get(key);
+      if (!g) { g = { key, name, companyId, kind, accent: companyId ? companyAccent(companyId) : null, rows: [], expired: 0, expiring: 0 }; map.set(key, g); }
+      g.rows.push(d);
+      const s = deriveDocStatus(d);
+      if (s === "Expired") g.expired++;
+      else if (s === "Expiring") g.expiring++;
+    }
+    // Staff & personal files FIRST (top), then companies worst-first, then Unfiled.
+    const kindRank = (k: G["kind"]) => (k === "people" ? 0 : k === "none" ? 2 : 1);
+    return [...map.values()].sort((a, b) =>
+      kindRank(a.kind) - kindRank(b.kind) ||
+      b.expired - a.expired || b.expiring - a.expiring ||
+      a.name.localeCompare(b.name),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered]);
+
+  // Housings are collapsed by default so the Library opens SHORT — a scannable
+  // index of companies with dot-stats flagging where the expiries are (the urgent
+  // documents themselves are listed up top in Needs attention). Tap to drill in.
+  const isCollapsed = (g: { key: string }) => groupOverride[g.key] ?? true;
+  function toggleGroupCollapse(key: string, current: boolean) {
+    setGroupOverride((prev) => ({ ...prev, [key]: !current }));
+  }
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
@@ -297,7 +394,7 @@ export function DocumentsTable({
     return m;
   }, [documents]);
 
-  function renderRow(doc: DocumentRow) {
+  function renderRow(doc: DocumentRow, opts: { hideCompany?: boolean; hidePerson?: boolean } = {}) {
     const dte = daysToExpiry(doc);
     const urgent = dte !== null && dte < 0;
     const soon = dte !== null && dte >= 0 && dte <= doc.reminderLeadDays;
@@ -310,7 +407,7 @@ export function DocumentsTable({
         onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
         onPointerMove={onRowPointerMove}
         onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
-        className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-subtle/40", doc.archived && "opacity-60")}>
+        className={cn("flex items-center gap-3 pl-9 pr-3.5 py-2.5 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-subtle/40", doc.archived && "opacity-60")}>
         {selectMode && (
           <span className={cn("shrink-0 h-5 w-5 rounded-md border inline-flex items-center justify-center transition-colors",
             selected.has(doc.id) ? "bg-accent border-accent text-accent-fg" : "border-border-strong")}>
@@ -321,7 +418,7 @@ export function DocumentsTable({
         <FileText size={16} className="text-fg-subtle shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate text-sm font-medium">{doc.title}</span>
+            <span className="truncate text-sm font-medium">{displayDocName(doc)}</span>
             {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
             {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
             {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
@@ -333,10 +430,12 @@ export function DocumentsTable({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
-            {companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
-            {personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
-          </div>
+          {((!opts.hideCompany && companyName(doc.companyId)) || (!opts.hidePerson && personName(doc.personId))) && (
+            <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
+              {!opts.hideCompany && companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
+              {!opts.hidePerson && personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
+            </div>
+          )}
           {doc.notes && doc.notes.trim() && (
             <div className="text-[11px] text-fg-muted truncate mt-0.5">{doc.notes}</div>
           )}
@@ -356,86 +455,12 @@ export function DocumentsTable({
 
   return (
     <div className="space-y-4">
-      {/* Search + filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search title, type, issuer, reference, company…"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
-        </div>
-        <FluidSelect value={companyFilter === "all" ? "all" : String(companyFilter)}
-          onSelect={(v) => setCompanyFilter(v === "all" ? "all" : parseInt(v, 10))}
-          options={[{ value: "all", label: "All Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]} />
-        <FluidSelect value={personFilter === "all" ? "all" : String(personFilter)}
-          onSelect={(v) => setPersonFilter(v === "all" ? "all" : parseInt(v, 10))}
-          options={[{ value: "all", label: "All People" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
-        <FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
-          options={[{ value: "all", label: "All Categories" }, ...DOC_CATEGORIES.map((c) => ({ value: c, label: c }))]} />
-        <FluidSelect value={statusFilter} onSelect={(v) => setStatusFilter(v as StatusFilter)}
-          options={[
-            { value: "all", label: "All Statuses" },
-            { value: "Expired", label: "Expired" },
-            { value: "Expiring", label: "Expiring soon" },
-            { value: "Valid", label: "Valid" },
-            { value: "No expiry", label: "No expiry" },
-          ]} />
-        <button type="button" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-          className={cn("inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm transition-colors",
-            selectMode ? "border-accent bg-accent-soft/60 text-accent" : "border-border bg-bg-subtle/60 text-fg-muted hover:text-fg hover:border-accent")}>
-          <CheckSquare size={15} /> {selectMode ? "Done" : "Select"}
-        </button>
-        {/* List ⇄ expiry-timeline view */}
-        <div className="inline-flex items-center rounded-xl border border-border bg-bg-subtle/60 p-0.5">
-          <button type="button" onClick={() => setView("list")} aria-pressed={view === "list"}
-            title="List view"
-            className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-              view === "list" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
-            <ListIcon size={15} /> <span className="hidden sm:inline">List</span>
-          </button>
-          <button type="button" onClick={() => setView("timeline")} aria-pressed={view === "timeline"}
-            title="Timeline view (grouped by expiry)"
-            className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-              view === "timeline" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
-            <CalendarRange size={15} /> <span className="hidden sm:inline">Timeline</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Summary chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Filter size={11} className="text-fg-subtle" />
-        {[
-          { key: "all" as StatusFilter, label: "All", count: counts.all, tone: "default" as const },
-          { key: "needs-renewal" as StatusFilter, label: "Needs renewal", count: counts.needsRenewal, tone: "danger" as const },
-          { key: "Expired" as StatusFilter, label: "Expired", count: counts.expired, tone: "danger" as const },
-          { key: "Expiring" as StatusFilter, label: "Expiring soon", count: counts.expiring, tone: "warn" as const },
-          { key: "Valid" as StatusFilter, label: "Valid", count: counts.valid, tone: "success" as const },
-          { key: "No expiry" as StatusFilter, label: "No expiry", count: counts.noExpiry, tone: "default" as const },
-        ].map(({ key, label, count, tone }) => {
-          const active = statusFilter === key;
-          const tint = active
-            ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
-              : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
-              : tone === "success" ? "bg-success-soft/70 ring-2 ring-success/40 text-success"
-              : "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
-            : count === 0 ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-            : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
-            : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
-            : tone === "success" ? "bg-success-soft/50 ring-1 ring-success/25 text-success hover:ring-2"
-            : "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-muted hover:ring-2 hover:ring-border";
-          return (
-            <button key={key} type="button" onClick={() => setStatusFilter(active && key !== "all" ? "all" : key)}
-              className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}>
-              <CountPill count={count} tone="inherit" />
-              <span className="font-medium">{label}</span>
-            </button>
-          );
-        })}
-        <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-accent" />
-          Show archived
-        </label>
+      {/* Search only — the company + category housings below ARE the filter now. */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search a document, number, person or company…"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
       </div>
 
       {/* Bulk action bar */}
@@ -463,12 +488,79 @@ export function DocumentsTable({
         </div>
       )}
 
-      {/* List / Timeline */}
+      {/* List (company housings) / Timeline */}
       {filtered.length > 0 ? (
         view === "list" ? (
-          <RegisterList>
-            {filtered.map(renderRow)}
-          </RegisterList>
+          <div className="space-y-2.5">
+            {docGroups.map((g) => {
+              const collapsed = isCollapsed(g);
+              return (
+                <section key={g.key} className="overflow-hidden rounded-2xl bg-bg-elev/40 ring-1 ring-border/60">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroupCollapse(g.key, collapsed)}
+                    aria-expanded={!collapsed}
+                    className={cn("flex w-full items-center gap-2.5 bg-bg-subtle/60 px-3.5 py-2.5 text-left", !collapsed && "border-b border-border/60")}
+                  >
+                    <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", collapsed && "-rotate-90")} />
+                    {g.kind === "company" ? (
+                      <CompanyAvatar name={g.name} accent={g.accent} logoUrl={companyLogo(g.companyId)} size={24} rounded="rounded-lg" iconSize={12} />
+                    ) : (
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-bg-muted text-fg-subtle">
+                        <Users size={12} />
+                      </span>
+                    )}
+                    <span className="truncate text-[12.5px] font-semibold text-fg">{g.name}</span>
+                    <span className="ml-auto flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-muted">
+                      {g.expired > 0 && (
+                        <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="font-bold text-danger tabular">{g.expired}</b> expired</span>
+                      )}
+                      {g.expiring > 0 && (
+                        <span className="hidden items-center gap-1 sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-warn" /><b className="font-bold text-warn tabular">{g.expiring}</b> due soon</span>
+                      )}
+                      {g.expired === 0 && g.expiring === 0 && (
+                        <span className="inline-flex items-center gap-1 text-success"><Check size={11} strokeWidth={3} /> all valid</span>
+                      )}
+                      <span className="text-fg-subtle">{g.rows.length} doc{g.rows.length === 1 ? "" : "s"}</span>
+                    </span>
+                  </button>
+                  {!collapsed && (
+                    <div className="divide-y divide-border/40">
+                      {(g.kind === "people"
+                        ? groupRowsByPerson(g.rows, personName)
+                        : groupRowsByShelf(g.rows).map((sh): SubGroup => ({ key: sh.name, label: sh.name, code: sh.code, rows: sh.rows, expired: sh.expired, expiring: sh.expiring }))
+                      ).map((sub) => {
+                        const skey = `${g.key}::${sub.key}`;
+                        const scol = isCollapsed({ key: skey });
+                        return (
+                          <div key={skey}>
+                            <button type="button" onClick={() => toggleGroupCollapse(skey, scol)} aria-expanded={!scol}
+                              className="flex w-full items-center gap-2 py-2.5 pl-9 pr-3.5 text-left transition-colors hover:bg-bg-subtle/30">
+                              <ChevronDown size={12} className={cn("shrink-0 text-fg-subtle transition-transform", scol && "-rotate-90")} />
+                              {sub.code
+                                ? <span className="font-mono text-[10px] text-fg-subtle">{sub.code}</span>
+                                : <UserIcon size={12} className="shrink-0 text-fg-subtle" />}
+                              <span className="truncate text-xs font-medium text-fg-muted">{sub.label}</span>
+                              <span className="ml-auto flex shrink-0 items-center gap-2 text-[10px] text-fg-muted">
+                                {sub.expired > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="text-danger tabular">{sub.expired}</b></span>}
+                                {sub.expiring > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warn" /><b className="text-warn tabular">{sub.expiring}</b></span>}
+                                <span className="tabular">{sub.rows.length}</span>
+                              </span>
+                            </button>
+                            {!scol && (
+                              <div className={cn("divide-y divide-border/40 border-t border-border/30 bg-bg-subtle/20", sub.rows.length > 6 && "scroll-fade-y overflow-y-auto overscroll-contain slim-scroll max-h-[26rem]")}>
+                                {sub.rows.map((d) => renderRow(d, g.kind === "people" ? { hidePerson: true } : { hideCompany: true }))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-3">
             {timelineGroups.map((g) => (
@@ -480,7 +572,7 @@ export function DocumentsTable({
                   {g.label}
                 </RegisterGroupHeader>
               }>
-                {g.rows.map(renderRow)}
+                {g.rows.map((d) => renderRow(d))}
               </RegisterList>
             ))}
           </div>
@@ -554,7 +646,7 @@ export function DocumentsTable({
 
       <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) closeCreate(); }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
-          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId}
+          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId} initialSupersedesId={prefillSupersedeId}
           onCancel={() => { setCreateOpen(false); closeCreate(); }}
           onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); closeCreate(); } }} />
       </DocDialog>
@@ -586,7 +678,7 @@ function DocDialog({ open, onOpenChange, title, children }: {
   open: boolean; onOpenChange: (o: boolean) => void; title: string; children: React.ReactNode;
 }) {
   return (
-    <HrmsDialog open={open} onOpenChange={onOpenChange} width={560} title={title}>
+    <HrmsDialog open={open} onOpenChange={onOpenChange} width={860} title={title}>
       {children}
     </HrmsDialog>
   );

@@ -191,6 +191,34 @@ const SHELF_STOPWORDS = new Set([
   "certificate", "certificates", "official", "final", "draft", "signed", "dated",
 ]);
 
+/**
+ * A clean, human display name for a document — the DOCUMENT, not its owner (the
+ * company/person is shown separately in every list). Turns the house-format stored
+ * title `Prefix_Doc-Type[_Ref][_EXP-date]` into `Doc Type (Ref)`:
+ *   `Mr-Sanjay-Kaushik_Indian-Passport_U5515682_EXP-2021-03-22` → `Indian Passport (U5515682)`
+ *   `OracleConsultancy_Tax-Clearance-Certificate_131-…_EXP-…`    → `Tax Clearance Certificate (131-…)`
+ * Non-house titles fall back to the doc type, then the raw title. Refs keep their
+ * own punctuation (a NIDA/licence number isn't hyphen-cleaned); a bare year is dropped.
+ */
+export function displayDocName(d: {
+  title?: string | null; docType?: string | null; referenceNo?: string | null; category?: string | null;
+}): string {
+  const clean = (s?: string | null) => (s ?? "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const title = (d.title ?? "").trim();
+  const parts = title.split("_").filter(Boolean);
+  let base: string, ref: string;
+  if (parts.length >= 2) {
+    const body = parts.slice(1).filter((p) => !/^EXP-\d{4}-\d{2}-\d{2}$/i.test(p)); // drop owner prefix + EXP suffix
+    base = clean(body[0]) || clean(d.docType) || clean(d.category) || "Document";
+    ref = (d.referenceNo ?? "").trim() || body.slice(1).join(" ").trim();
+  } else {
+    base = clean(d.docType) || title || clean(d.category) || "Document";
+    ref = (d.referenceNo ?? "").trim();
+  }
+  const refOk = !!ref && !/^\d{4}$/.test(ref) && !base.toLowerCase().includes(ref.toLowerCase());
+  return refOk ? `${base} (${ref})` : base || "Document";
+}
+
 /** Keep only safe filename characters; collapse the rest to underscores. The one
  *  shared sanitiser (several server files used to each carry a private copy). */
 export function safeFileName(name: string): string {

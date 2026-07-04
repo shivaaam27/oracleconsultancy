@@ -388,6 +388,108 @@ Original mockup spec below:
 2. Then likely: Tasks tab / Companies tab on `/`, `/brief`, `/workbook`, `/meeting`,
    HRMS pages, `/settings`, `/inbox`, `/documents`, `/people`… owner picks order.
 
+## Step 4 — Documents (Documents + Compliance + Inbox MERGED, 4 Jul 2026)
+Owner brief: merge /documents + /inbox into ONE page; sorting has been mis-filing →
+flip to **suggest-only** (auto-pulled docs wait in To Sort with guessed
+company/category/expiry pre-filled; owner confirms/fixes; every fix teaches
+owner_corrections/routing_corrections — learning stays, ACTING stops). Manual
+upload = owner picks company+category, system pre-reads expiry+text only.
+STOP as autonomous: auto-filing, nightly selfHealDocuments, rename sweep,
+auto pipeline/compliance reactions. KEEP: extraction/OCR, strict expiry read
+(show source quote), duplicate catch, reindex cron. **Remove /hrms/pipeline**;
+keep renewal rule = confirming newer same-type doc tags old one ·EXP (never
+deleted). Naming: Prefix_Doc-Name_Ref_EXP-date; contracts carry person name.
+Expiry tracking is the headline feature (directors see their docs — errors
+defame the owner). 6 mockups delivered (artifact "cc-documents-mockups"):
+F1 Library&Sort (3 tabs, company housings) · F2 Expiry Command (urgency bands) ·
+F3 Company Shelves (rail master-detail dossier) · F4 Sorting Desk (Focus-queue
+triage: preview + guess + evidence quote + Confirm/Fix/Trash) · F5 Ledger (flat
+inline-edit table, unsorted pinned) · F6 Compliance Wall (heat tiles worst-first).
+RECOMMENDED: F1 skeleton + F4 as the To Sort tab + F2 expired/due-soon bands
+pinned atop Library + slim F6 tile strip in hero; portal directors get the same
+page company-scoped. **Owner CHOSE the recommended mix.**
+
+**BUILT + VERIFIED (4 Jul 2026, local, tsc clean [only .next/dev generated
+validator.ts noise], ALL THREE tabs render desktop + 375px, no console errors,
+NOT pushed):** — Library (compliance+bands+table), To Sort (Sorting Desk: 17
+"Ready to confirm" cards w/ house-names like "OracleConsultancy_Door-Repair-
+Payment-Chat_2026-06-16" + inline company/category/expiry + Confirm/Preview/Fix/
+Trash, 23 "Unsure reads" collapsed), Trash (restore/delete). Confirm action wired
+but NOT exercised live (would file a real doc). **DEV GOTCHA hit: running two 4GB
+`tsc --noEmit` in parallel WITH the Turbopack dev server OOM-crashed the dev
+server; it auto-restarted into HMR-corrupted state → every admin route 404'd +
+"useToast outside ToastProvider" phantom errors. FIX = preview_stop + preview_start
+(clean restart), NOT a code change. Don't run parallel heavy tsc against a live
+dev server.**
+- **Merged page**: new `src/app/documents/documents-workspace.tsx` (client shell)
+  — aurora hero (DOCUMENTS·live, "Document Room", KPI pill docs/expired/due-soon/
+  to-sort + a compliance % chip [portfolio avg + at-risk]) + rounded-full seg tabs
+  **Library | To Sort | Trash** (violet To-Sort badge). `page.tsx` REWRITTEN to
+  gather BOTH old pages' data (documents+compliance+links AND inbox queues); the 4
+  heavy status panels (automation feed/health/safety/intake-accuracy) fetch ONLY
+  when `?tab=sort` so the default Library stays as light as the old /documents.
+  `switchTab` mirrors `?tab=` via router.replace. **`/inbox` now REDIRECTS to
+  `/documents?tab=sort`**; nav+worlds "Inbox" entry relabelled "To Sort" →
+  /documents?tab=sort (kept id "inbox" so DEFAULT_PINS still resolves).
+- **Library tab** = ComplianceScorePanel (F6) + NeedsAttentionPanel (F2 expired/
+  expiring/missing bands) + DocumentsTable — all existing components, unchanged.
+- **To Sort tab (F4 Sorting Desk)** = new `components/to-sort-panel.tsx` ("Read new
+  files in" = autoSortInboxAction + Rescan/Find-dupes tools + summary) → new
+  `components/sorting-desk.tsx`: per-doc CONFIRM cards grouped place/unsure/owner.
+  Each card shows the proposed house-name + expiry chip + source + why + confidence,
+  inline editable **owner (FluidSelect companies+people) · category · expiry (date
+  input)**, an **evidence quote** ("read from: …" from extracted text near the
+  date), Preview toggle (DocPreview), **Confirm & file / Fix details (→ full editor)
+  / Trash**. Data = new `src/lib/sorting-desk.ts` `getSortingDeskItems()` (quarantine
+  + low-conf/no-owner filed). Confirm = new `confirmSortItemAction(id,patch)` in
+  documents/actions.ts: applies owner/category/expiry edits, REBUILDS house title,
+  teaches recordOwnerCorrection + recordCategoryCorrection, then files (quarantine→
+  filed + reactions) or vets (already-filed). Raw un-read bundles show below via
+  InboxList. Trash tab = exported TrashList.
+- **SUGGEST-ONLY flip** (the core ask): `autoFileDocumentAction` — a would-be
+  "filed" auto-pulled doc now ALWAYS routes to quarantine (const AUTO_FILE=false;
+  isOld still →trash), carrying its guessed owner/category/expiry, reason "Ready to
+  file — confirm company & category". Manual "Add document" (createDocumentAction)
+  unaffected — still files directly with the owner's chosen owner. Renewal ·EXP
+  chaining kept.
+- **STOPPED autonomous overnight jobs**: morning-run 1a (runGapChasing) + 1b
+  (selfHealDocuments) commented out; `/api/cron/auto-sort` early-returns skip.
+  KEPT: runTimeAutomations (renewal reminders), health watchdog, reindex cron.
+- **PIPELINE removed**: nav.ts + worlds.ts entries gone (ClipboardList import
+  dropped), cos-home pipeline room + its count query/destructure removed,
+  reactPipeline + reactStartPipeline gutted to no-ops (⚠️ an early `return;` above
+  live code breaks TS narrowing in the now-unreachable body → had to DELETE the
+  bodies, not just early-return). Route /hrms/pipeline left in place (unlinked) —
+  calendar-overlays/entity-graph still reference pipeline DATA; full deletion is a
+  follow-up.
+**LIBRARY TAB REDESIGN (round 2, owner feedback "you didn't redesign the main
+doc page, it's too long"):** BUILT + verified, tsc clean, NOT pushed.
+- **Compliance panel collapsed by default** — the big ComplianceScorePanel no
+  longer always-open; the hero "X% compliant · N at risk" chip now TOGGLES it
+  (chevron, `showCompliance` state in workspace). Library opens short.
+- **Document list → company HOUSINGS** (`documents-table.tsx`): the flat 212-row
+  RegisterList replaced with per-company collapsible housings (Tasks-page grammar:
+  `bg-bg-subtle/60` header band, CompanyAvatar logo+accent, dot-stats "● N expired
+  ● N due soon · N docs" / "✓ all valid", ChevronDown, body capped >6 rows with
+  scroll-fade-y slim-scroll max-h-28rem, divide-y rows). Groups: by company, then
+  "Staff & personal files" (person-only docs), then "Unfiled". **Worst-first**
+  (expired desc → expiring desc → company-before-other → name). **Collapsed by
+  default** (`isCollapsed = groupOverride[key] ?? true`) so the page is a short
+  scannable index — red dot-stats flag which companies have expiries; tap to drill
+  in; the urgent docs themselves are already listed up top in Needs attention.
+  renderRow + all dialogs (create/edit/split/peek/renew) + timeline view + filters
+  + bulk select KEPT unchanged. (Note: an earlier `?? (expired+expiring===0)` seed
+  rendered all-collapsed anyway — didn't debug, switched to always-collapsed which
+  is the better short UX regardless.)
+- Needs attention (expiry bands) kept — already worst-first + capped at 8, so it's
+  the tight expiry-first view; the 355 "missing" compliance gaps only show if you
+  expand it.
+- Pipeline also removed from **calendar-overlays.ts** (query + pipeRes destructure
+  + items block gone) — the calendar no longer references /hrms/pipeline.
+NEXT: consider a Settings toggle for AUTO_FILE; slim the doc filter row (2 rows →
+1) if still too busy; real company logos in housings (currently accent+initials);
+portal directors' scoped documents view; full pipeline route/table deletion.
+
 ## Home — the 6 mockups (artifact "cc-home-mockups", 4 Jul 2026)
 M1 **Portal Twin** — current order reskinned (aurora hero, SwitchRow levers, housed feed). Safest.
 M2 **Mission Deck** — director-board two-column shape: Needs-you swipe cards + heat/controls rail. Best unification; recommended skeleton.
