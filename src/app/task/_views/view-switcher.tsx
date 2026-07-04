@@ -4,9 +4,10 @@ import { cn } from "@/lib/cn";
 
 export type ViewMode = "cards" | "board" | "table" | "calendar" | "timeline";
 
-// Cards first — the portal-twin card list is the default (Command Centre
-// unification); the table stays one tap away as the dense spreadsheet view.
-export const VIEW_MODES: ViewMode[] = ["cards", "table", "board", "calendar", "timeline"];
+// The merged "Tasks" view (cards, with a Comfortable|Compact density toggle)
+// replaces the old Cards + Table entries — Table stays reachable at ?view=table
+// but no longer clutters the switcher (Command Centre unification, round 2).
+export const VIEW_MODES: ViewMode[] = ["cards", "board", "calendar", "timeline"];
 
 export function parseViewMode(v: string | undefined): ViewMode {
   return v === "board" || v === "calendar" || v === "timeline" || v === "table" ? v : "cards";
@@ -21,7 +22,7 @@ const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
 };
 
 const LABELS: Record<ViewMode, string> = {
-  cards: "Cards",
+  cards: "Tasks",
   board: "Board",
   table: "Table",
   calendar: "Calendar",

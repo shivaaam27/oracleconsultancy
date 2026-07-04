@@ -93,7 +93,10 @@ export default async function RootLayout({ children, modal }: { children: React.
                 {/* Bottom padding clears the floating bottom pill on mobile/tablet.
                     From xl up the pill moves to the vertical SidePill on the left, so
                     there's nothing at the bottom to clear — reclaim that space. */}
-                <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12">
+                {/* Top padding respects the notch/status-bar safe area so the
+                    hero isn't clipped in the installed PWA (env inset is 0 in a
+                    normal browser, so desktop is unaffected). */}
+                <main className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12">
                   <div className="mx-auto max-w-[1100px]">
                     <PageTransition>{children}</PageTransition>
                   </div>

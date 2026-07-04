@@ -9,6 +9,7 @@ import { getCompanyLogoMap } from "@/lib/company-brand";
 import { CommandWall } from "@/components/command-wall";
 import { CommandBar } from "@/components/command-bar";
 import { CommandHero } from "@/components/command-hero";
+import { HomeControlBar } from "@/components/home-control-bar";
 import { CommandRooms, CompanyHeat, NeedsYou, type HeatTile, type NeedsYouItem, type Room } from "@/components/command-deck";
 import { CommandControls, type CommandControlsState } from "@/components/command-controls";
 import { CockpitNow } from "@/components/cockpit-now";
@@ -17,7 +18,6 @@ import { listRecentActivity } from "@/lib/activity";
 import { gatherCockpitNow } from "@/lib/cockpit-now";
 import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
 import { HomeAutonomyRecap } from "@/components/home-autonomy-recap";
-import type { Tone } from "@/components/surface-kit";
 import { HomeActions } from "./home-actions";
 import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
 import type { Todo } from "@/app/todos/actions";
@@ -84,9 +84,8 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     pendingApprovals: approvals.length,
   };
 
-  // Persist today's health so the hero can show a real "vs last reading" delta.
-  const prevHealth = await recordHealthPoint(signals.health);
-  const healthDelta = prevHealth === null ? null : signals.health - prevHealth;
+  // Persist today's health point (history for trends elsewhere).
+  await recordHealthPoint(signals.health);
 
   // Hero figures, pulled from the already-computed signals.
   const pulse = (label: string) => signals.pulse.find((p) => p.label === label)?.value ?? 0;
@@ -96,18 +95,19 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const draftCount = signals.queue.filter((q) => q.group === "draft").length;
 
   const health = signals.health;
-  const healthTone: Tone = health >= 80 ? "success" : health >= 55 ? "warn" : "danger";
-  const band = health >= 80 ? "healthy" : health >= 55 ? "watch" : "at risk";
-  const healthSub =
-    healthDelta === null || healthDelta === 0
-      ? band
-      : `${band} · ${healthDelta > 0 ? "up" : "down"} ${Math.abs(healthDelta)}% vs last`;
 
   // ORI's one-line read of the day — deterministic from signals (AI-off safe).
-  const focus = signals.command.slice(0, 3).map((c) => c.title);
+  // A natural sentence ("Prepare …, chase …, then review …") instead of a
+  // ·-joined list, so it reads like a person handing you the morning.
+  const focus = signals.command.slice(0, 3).map((c) => c.title.trim());
+  const naturalList = (items: string[]): string => {
+    const parts = items.map((f, i) => (i === 0 ? f : f.charAt(0).toLowerCase() + f.slice(1)));
+    if (parts.length <= 1) return parts[0] ?? "";
+    return `${parts.slice(0, -1).join(", ")}, then ${parts[parts.length - 1]}`;
+  };
   const oriLine = focus.length
-    ? `Here's where I'd look — ${focus.join(" · ")}.`
-    : "Everything's running — the desk is clear.";
+    ? `${naturalList(focus)}.`
+    : "You're all caught up — nothing needs chasing right now.";
 
   /* ---------- Deck: Needs-you (worst first) + company heat ---------- */
   const nowMs = now.getTime();
@@ -265,18 +265,14 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
           open={open}
           overdue={overdue}
           dueToday={dueToday}
-          health={health}
-          healthTone={healthTone}
-          healthSub={healthSub}
           oriLine={oriLine}
-          pendingApprovals={approvals.length}
         />
 
         {/* The deck — Needs-you beside the full company heat wall (equal-height
             scroll housings; controls live further down beside the activity feed). */}
-        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <NeedsYou items={needsYou} totalOverdue={overdue} />
-          <CompanyHeat tiles={heatTiles} />
+          <CompanyHeat tiles={heatTiles} health={health} atRisk={heatTiles.filter((t) => t.tone === "danger").length} />
         </div>
 
         {/* The rooms — every area of the house, breathing. */}
@@ -286,10 +282,14 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         <CockpitNow now={nowData} dueToday={dueToday} />
 
         {/* The pulse + the levers, side by side. */}
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           <CockpitActivity items={activity} />
           <CommandControls state={controls} />
         </div>
+
+        {/* The engine — Run automations · Send Brief · Approvals — as a calm
+            tab strip at the foot of the page (moved out of the hero). */}
+        <HomeControlBar pendingApprovals={approvals.length} />
       </div>
     </CommandWall>
   );

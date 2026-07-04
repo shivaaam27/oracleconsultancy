@@ -26,6 +26,8 @@ type Sp = {
   mode?: string;
   done?: string;
   quiet?: string;
+  who?: string;
+  whoMode?: string;
 };
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Sp> }) {
@@ -40,7 +42,7 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
         sp={{
           company: sp.company, priority: sp.priority, flag: sp.flag, status: sp.status,
           noOwner: sp.noOwner, closed: sp.closed, view: sp.view, month: sp.month, q: sp.q, all: sp.all, unread: sp.unread, group: sp.group, archived: sp.archived, kind: sp.kind,
-          mode: sp.mode, done: sp.done, quiet: sp.quiet,
+          mode: sp.mode, done: sp.done, quiet: sp.quiet, who: sp.who, whoMode: sp.whoMode,
         }}
       />
     );

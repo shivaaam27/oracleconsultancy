@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Plus, Check, CalendarDays, Building2, Search, ArrowRight } from "lucide-react";
+import { Plus, Check, Search, ArrowRight } from "lucide-react";
 import { createCaptureTask } from "@/app/capture/actions";
 import { deleteTaskQuick } from "@/app/task/actions";
 import { useToast } from "./toast";
@@ -41,23 +40,40 @@ export function InlineAddTask({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [action, setAction] = useState("");
-  const [companyId, setCompanyId] = useState<number | undefined>(defaultCompanyId ?? companies[0]?.id);
+  // Company is no longer picked here (the form collects it) — the default only
+  // powers the Shift+Enter quick-save.
+  const [companyId] = useState<number | undefined>(defaultCompanyId ?? companies[0]?.id);
   const [assignees, setAssignees] = useState<string[]>([]);
-  const [deadline, setDeadline] = useState(""); // yyyy-mm-dd
   const [fly, setFly] = useState<string | null>(null);
 
-  const company = companies.find((c) => c.id === companyId);
+  /** Enter → the full form, director-portal style: carries the typed title +
+   *  any circles already picked, and guesses the company from the title words
+   *  (e.g. "…for Terra Green" → Terra Green) when the picker wasn't touched. */
+  function openForm() {
+    const text = action.trim();
+    const params = new URLSearchParams();
+    if (text) params.set("title", text);
+    const guessed = text
+      ? companies.find((c) => {
+          const n = c.name.toLowerCase().replace(/\s+(ltd|limited|llc|fzco)\.?$/i, "").trim();
+          return n.length > 2 && text.toLowerCase().includes(n);
+        })
+      : undefined;
+    const cid = guessed?.id ?? companyId;
+    if (cid) params.set("companyId", String(cid));
+    if (assignees.length) params.set("assignees", assignees.join(","));
+    params.set("returnTo", `${location.pathname}${location.search}`);
+    router.push(`${fullFormHref}?${params.toString()}`);
+  }
 
   function submit() {
     const text = action.trim();
     if (!text) { inputRef.current?.focus(); return; }
     if (!companyId) { toast("Pick a company first.", { tone: "warn" }); return; }
     const names = assignees.slice();
-    const dl = deadline;
     if (!reduce) setFly(text); // swipe-away the typed line
     setAction("");
     setAssignees([]);
-    setDeadline("");
     inputRef.current?.focus();
     start(async () => {
       const res = await createCaptureTask({
@@ -65,7 +81,7 @@ export function InlineAddTask({
         actionItem: text,
         priority: "Medium",
         status: "Not Started",
-        deadline: dl ? new Date(`${dl}T17:00:00`).toISOString() : null,
+        deadline: null,
         assignees: names.join(", ") || undefined,
         createdBy: "web-ui",
       });
@@ -83,15 +99,11 @@ export function InlineAddTask({
     });
   }
 
-  const dlLabel = deadline
-    ? new Date(`${deadline}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-    : null;
-
   return (
     <div
       className={cn(
-        "group/add relative flex items-center gap-2 rounded-2xl border bg-bg-elev px-2.5 py-2 transition-colors",
-        "border-border/70 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15",
+        "group/add relative flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 transition-colors",
+        "border-border/70 bg-transparent focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15",
       )}
     >
       {/* leading + */}
@@ -99,18 +111,29 @@ export function InlineAddTask({
         <Plus size={15} />
       </span>
 
-      {/* action input (+ fly-away overlay) */}
+      {/* action input — bare (no grey well) with a blinking caret + hint while
+          empty, so it's clear you can type here. Enter opens the form; the
+          quick pickers are gone (the form collects company/date). */}
       <div className="relative min-w-0 flex-1">
         <input
           ref={inputRef}
           id="inline-add-action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
-          placeholder="What needs doing?"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); submit(); }
+            else if (e.key === "Enter") { e.preventDefault(); openForm(); }
+          }}
+          placeholder=" "
           aria-label="New task — what needs doing?"
-          className="w-full bg-transparent text-sm outline-none placeholder:text-fg-subtle"
+          className="bare-field peer w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent"
         />
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
+          <span className="caret-blink mr-1.5 inline-block h-[1.15em] w-px shrink-0 rounded-full bg-accent" />
+          <span className="truncate text-sm text-fg-subtle">
+            What needs doing?<span className="hidden sm:inline"> · Enter opens the form · Shift+Enter quick-saves</span>
+          </span>
+        </span>
         <AnimatePresence>
           {fly && (
             <motion.span
@@ -127,42 +150,9 @@ export function InlineAddTask({
         </AnimatePresence>
       </div>
 
-      {/* circle pickers — company · assignee · deadline */}
+      {/* Only the assignee circle stays — company + deadline are collected by
+          the form that opens on Enter. */}
       <div className="flex shrink-0 items-center gap-1.5">
-        {/* Company */}
-        <CirclePicker label="Company" align="right" trigger={
-          <span
-            title={company ? company.name : "Pick a company"}
-            className={cn(
-              "grid h-7 w-7 place-items-center rounded-full text-[11px] font-semibold ring-1 transition-colors",
-              company ? "bg-accent-soft text-accent ring-accent/25" : "bg-bg-subtle text-fg-subtle ring-border/60",
-            )}
-          >
-            {company ? initials(company.name).slice(0, 2) : <Building2 size={13} />}
-          </span>
-        }>
-          {(close) => (
-            <div className="max-h-64 overflow-y-auto p-1">
-              {companies.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => { setCompanyId(c.id); close(); }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
-                    c.id === companyId ? "bg-accent/12 text-fg font-medium" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
-                  )}
-                >
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-bg-subtle text-[9px] font-semibold text-fg-muted">{initials(c.name).slice(0, 2)}</span>
-                  <span className="flex-1 truncate">{c.name}</span>
-                  {c.id === companyId && <Check size={14} className="text-accent" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </CirclePicker>
-
-        {/* Assignees — avatars + add */}
         <CirclePicker label="Assignee" align="right" trigger={
           <span className="flex items-center" title={assignees.length ? assignees.join(", ") : "Add assignee"}>
             {assignees.length > 0 && (
@@ -184,50 +174,6 @@ export function InlineAddTask({
             setAssignees((cur) => cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n])
           } />}
         </CirclePicker>
-
-        {/* Deadline */}
-        <CirclePicker label="Deadline" align="right" trigger={
-          <span
-            title={dlLabel ? `Due ${dlLabel}` : "Set a deadline"}
-            className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium ring-1 transition-colors",
-              dlLabel ? "bg-accent-soft text-accent ring-accent/25" : "w-7 justify-center bg-bg-subtle text-fg-subtle ring-border/60",
-            )}
-          >
-            <CalendarDays size={13} />
-            {dlLabel && <span className="pr-0.5">{dlLabel}</span>}
-          </span>
-        }>
-          {(close) => (
-            <div className="w-52 p-2">
-              <div className="grid grid-cols-3 gap-1.5">
-                {([
-                  { label: "Today", days: 0 },
-                  { label: "Tomorrow", days: 1 },
-                  { label: "+1 week", days: 7 },
-                ]).map((o) => (
-                  <button
-                    key={o.label}
-                    type="button"
-                    onClick={() => { const d = new Date(); d.setDate(d.getDate() + o.days); setDeadline(d.toISOString().slice(0, 10)); close(); }}
-                    className="rounded-lg bg-bg-subtle/70 px-2 py-1.5 text-xs text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="date"
-                value={deadline}
-                onChange={(e) => { setDeadline(e.target.value); if (e.target.value) close(); }}
-                className="mt-2 w-full rounded-lg bg-bg-subtle/60 px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-              />
-              {deadline && (
-                <button type="button" onClick={() => { setDeadline(""); close(); }} className="mt-1.5 text-[11px] text-fg-muted hover:text-fg">Clear</button>
-              )}
-            </div>
-          )}
-        </CirclePicker>
       </div>
 
       {/* Add */}
@@ -236,22 +182,22 @@ export function InlineAddTask({
         onClick={submit}
         disabled={pending}
         className={cn(
-          "shrink-0 inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-all active:scale-95",
+          "shrink-0 inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-medium transition-all active:scale-95",
           action.trim() ? "bg-accent text-accent-fg shadow-sm" : "bg-bg-subtle text-fg-subtle",
         )}
       >
         Add
       </button>
 
-      {/* Full form — for the rare task that needs everything */}
-      <Link
-        href={fullFormHref}
-        onClick={(e) => e.stopPropagation()}
+      {/* Full form — same destination as Enter, carries the typed line along. */}
+      <button
+        type="button"
+        onClick={openForm}
         className="hidden shrink-0 items-center gap-0.5 pl-0.5 pr-1 text-[11px] text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
-        title="Open the full task form"
+        title="Open the full task form (Enter)"
       >
         Full form <ArrowRight size={11} />
-      </Link>
+      </button>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-type SP = Promise<{ companyId?: string; returnTo?: string }>;
+type SP = Promise<{ companyId?: string; returnTo?: string; title?: string; deadline?: string; assignees?: string }>;
 
 /**
  * Intercepting route: when /task/new is reached by in-app navigation, it renders
@@ -35,5 +35,16 @@ async function ModalFormLoader({ searchParams }: { searchParams: SP }) {
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const people = (ppl ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   const presetCompany = sp.companyId ? parseInt(sp.companyId, 10) : companies[0]?.id;
-  return <NewTaskForm companies={companies} people={people} presetCompany={presetCompany} returnTo={sp.returnTo} variant="modal" />;
+  return (
+    <NewTaskForm
+      companies={companies}
+      people={people}
+      presetCompany={presetCompany}
+      returnTo={sp.returnTo}
+      defaultTitle={sp.title}
+      defaultDeadline={sp.deadline}
+      defaultAccountable={sp.assignees ? sp.assignees.split(",").map((s) => s.trim()).filter(Boolean) : undefined}
+      variant="modal"
+    />
+  );
 }

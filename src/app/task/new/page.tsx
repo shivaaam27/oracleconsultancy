@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewTaskPage({ searchParams }: { searchParams: Promise<{ companyId?: string; returnTo?: string }> }) {
+export default async function NewTaskPage({ searchParams }: { searchParams: Promise<{ companyId?: string; returnTo?: string; title?: string; deadline?: string; assignees?: string }> }) {
   const sp = await searchParams;
   const [{ data: rows }, { data: ppl }] = await Promise.all([
     sb.from("companies").select("id,name").order("name"),
@@ -27,7 +27,15 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
         <p className="text-xs text-fg-muted mt-0.5">Create an action item tracked across the portfolio.</p>
       </div>
 
-      <NewTaskForm companies={companies} people={people} presetCompany={presetCompany} returnTo={sp.returnTo} />
+      <NewTaskForm
+        companies={companies}
+        people={people}
+        presetCompany={presetCompany}
+        returnTo={sp.returnTo}
+        defaultTitle={sp.title}
+        defaultDeadline={sp.deadline}
+        defaultAccountable={sp.assignees ? sp.assignees.split(",").map((s) => s.trim()).filter(Boolean) : undefined}
+      />
     </div>
   );
 }

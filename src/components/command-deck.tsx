@@ -147,11 +147,28 @@ const HEAT_TONE = {
 } as const;
 const HEAT_TEXT = { danger: "text-danger", warn: "text-warn", success: "text-success" } as const;
 
-export function CompanyHeat({ tiles }: { tiles: HeatTile[] }) {
+export function CompanyHeat({
+  tiles,
+  health,
+  atRisk,
+}: {
+  tiles: HeatTile[];
+  /** Portfolio health % (0–100). */
+  health: number;
+  /** Companies with overdue work. */
+  atRisk: number;
+}) {
+  const tone = health >= 80 ? "text-success" : health >= 55 ? "text-warn" : "text-danger";
   return (
     <div className="flex flex-col rounded-3xl glass p-4 sm:p-5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">Company health</p>
+        {/* Portfolio score + at-risk, mirroring the director board's header
+            ("N healthy · X at risk"). */}
+        <span className="text-[11px] text-fg-muted">
+          <b className={cn("font-semibold tabular", tone)}>{health}%</b> healthy
+          {atRisk > 0 && <> · <span className="font-medium text-danger">{atRisk} at risk</span></>}
+        </span>
         <Link href="/?tab=companies" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
           Companies <ArrowUpRight size={12} />
         </Link>

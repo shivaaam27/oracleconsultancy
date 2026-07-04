@@ -96,7 +96,171 @@ hover labels · swipe rows (`use-swipe-row`).
    reverses drawer-is-the-view decision) · D6 Stacked Sheets (mobile sheets).
    RECOMMENDED: D1 skeleton + D3 strip (full when late/quiet, quiet line when
    healthy) + D2 auto-widen on desktop + D6 sheets on phone; D4 as History chip.
-   Owner pick PENDING.
+   **Owner CHOSE the mix. BUILT (4 Jul 2026, local, tsc clean, verified 800px +
+   1280px, NOT pushed)** — restructured task-drawer.tsx (no rewrite):
+   - Conversation is the FIRST + DEFAULT tab (dtab fallback "conversation");
+     Overview renamed "Details" (tab IDs unchanged → old ?dtab= links work).
+   - Decision strip (D3) in the hero when open task is late OR quiet≥7d OR never
+     updated: "Xd late · quiet Nd" + Remind (adminRemindTask) / Escalate / Re-date
+     (inline date input → inlineUpdateTask deadline, undo toast) / Done
+     (quickAction). Healthy tasks: no strip.
+   - Dossier split (D2): Conversation tab is lg:grid [220px rail | chat] — rail =
+     Accountable avatars, DeadlineEditor, Category, Department, About (clamped),
+     Copy-link + DraftEmail. EntityDrawer maxWidth now conditional:
+     conversation tab → min(920px,94vw), other tabs 680px. Rail hides <lg.
+   - Deferred to refinements: D6 true BottomSheets on phone (tabs already act as
+     full-screen sections), D4 spine styling for History tab.
+   NEXT: owner refinements round on tasks page + task view.
+
+## Tasks page — refinement round 1 (owner feedback, 4 Jul 2026)
+Owner's complaints: top section not unified/too many duplicate filters; card
+badges not column-aligned (due/quiet float, update quote spans full row);
+company groups have no housing/logos, collapsed headers look ugly, no spacing;
+quick-add Enter silently saves — wants director-portal flow (Enter → form).
+**Owner approved. BUILT (4 Jul 2026, local, tsc clean, all four verified live,
+NOT pushed):** new `components/task-filter-bar.tsx` (search row + counting chips
++ Company/Person/More popovers + Group dd + identity strips w/ Assigned|Created
+toggle + Remind-all) · new `components/task-form-fields.tsx` (PrioritySegment,
+DeadlineQuickPick, CompanySelectField) · tasks-section.tsx REWRITTEN (hero strip
+w/ Focus|Browse + New-task btn + KPI pill + ViewSwitcher; TaskToolbar/PageHeader/
+lane pill/old chips/dayMode all gone; Done=chip not mode; person filter) ·
+cards-view.tsx rows = fixed grid rails (dot·code·title+meta·due·activity·actions,
+quote in meta line) + GroupHousing (tinted header band, CompanyAvatar logo,
+dot-stats, clean collapsed bar) · new-task-form.tsx portal-grade (title→company
+FluidSelect→priority segment→deadline quick-picks→people→description; rare under
+More) + prefill props title/deadline/assignees · inline-add-task: Enter→/task/new
+modal prefilled w/ company GUESSED from title words, Shift+Enter=quick save.
+**⚠️ GOTCHA: URL param `person` is owned by the global person DRAWER
+(global-drawers) — the tasks person filter uses `who`/`whoMode` instead.**
+
+## Tasks — Cards+Table merge (round 2, 4 Jul 2026)
+Owner loves both views, wants them merged. 4 mockups delivered (artifact
+"cc-tasks-merge"): V1 Table-in-Housings (column headers + tap-to-edit
+status/priority cells inside the housings) · V2 Density Toggle (ONE view,
+Comfortable=cards | Compact=one-line table rows, persisted choice) · V3
+Expanding Rows (dense rows bloom into a card on hover/tap) · V4 Column Tuner
+(Columns ▾ promotes fields to rails). RECOMMENDED: V2 built on V1's bones —
+one "Tasks" view replaces Cards AND Table in the switcher; Compact = header
+line + status/priority edit cells. V4 later on top.
+**Owner CHOSE: V2 on V1 bones + V3 expand in Comfortable + table-style inline
+controls everywhere + redesigned deadline popover.** Final composition mockup
+delivered (artifact "cc-tasks-merge-final") — awaiting approval to build:
+- Both skins use the TABLE's controls on every row: status dropdown pill w/
+  tone dot (TaskInlineStatus), EDITABLE date button (red "📅 21d late ▾" /
+  muted "No date" — fixes uneditable overdue date in cards), accountable
+  avatar circles; quiet/fresh stays a read-only rail; 🔔 + expand.
+- Comfortable: two-line cards; chevron/row-tap expands in place → Description
+  + 2 latest updates (pinned first) + quick actions (+Add update · Escalate ·
+  Done · Open full task). One open at a time. Compact: one-line rows under a
+  slim column-header line (Code·Task·Status·Due·Activity·Who·Actions); no
+  expansion — tap opens drawer. Toggle persists per browser.
+- Switcher: Cards+Table merge into one "Tasks" entry (?view=table kept as a
+  hidden fallback for a while).
+- Deadline popover redesign (list + drawer + Focus): quick-picks show their
+  REAL dates (Today · Sat 4 Jul…), header strip shows current deadline +
+  lateness, blue footer previews the new choice ("Sat 11 Jul · in 7 days")
+  before commit, Clear + Set·⏎.
+
+**BUILT + VERIFIED (4 Jul 2026, local, tsc clean, desktop+375px, NOT pushed).**
+Owner refinements folded in: buttons = rounded-lg roomy (px-3 py-1.5), outline
+lucide icons only (Calendar, MessageSquareDashed=quiet, Check=fresh, Bell), the
+expand control is a BARE centred ChevronDown (no button box), and every control
+sits in a FIXED grid rail so columns align across all rows (dot·code·title·
+Status·Due·Activity·Who·Actions). Files: cards-view.tsx rewritten (density
+toggle persisted `cos-tasks-density`; Comfortable two-line + expand→ExpandPanel
+lazy-fetches /api/task-detail for description+2 updates+actions; Compact one-line
+tap-opens; controls wrapper `sm:contents` so mobile wraps to row 2 / desktop
+flows into grid cells; reuses TaskInlineStatus + DeadlineEditor + AssigneeAvatars).
+deadline-editor.tsx popover redesigned (current-deadline+lateness strip, quick
+picks Today/Tomorrow/Next week/Month end each showing real date, date input,
+Clear). view-switcher.tsx: Cards+Table → ONE "Tasks" entry (Table still at
+?view=table, dropped from switcher). **GOTCHA fixed: the row `<li>` overflow-hidden
+(for the swipe tray) clipped the deadline popover → now clips ONLY while swiping
+(`swipeActive`).** Launch: app needs port 3000 (Google OAuth) → autoPort:false.
+
+## Tasks — refinement round 3 (owner feedback, BUILT + verified, NOT pushed)
+1. Deadline popover PORTALLED (createPortal to body, fixed pos, flips above/below)
+   so it can never be clipped by a row/housing overflow. Kept the real-date
+   quick-picks + current-deadline/lateness strip.
+2. All control/chip BUTTONS → rounded-lg (rectangle, roomy): task-filter-bar
+   chips + dd triggers, FocusQueue decision buttons, drawer decision strip +
+   hero inline status/priority/deadline, inline-add "Add" btn.
+3. Filter row: added **Not started** chip after All; removed 😶 emoji from Quiet.
+4. Filter-AWARE sorting (CardsView `sortMode` + comparator, derived in section):
+   recent (All/Not started/In progress = lastUpdated→created desc) · overdue
+   (most days late) · duesoon (nearest deadline) · quiet (most quiet days) ·
+   done (most recently closed). Groups still worst-first.
+5. **Unread broadened**: open task with ANY update you haven't seen — incl.
+   never-opened tasks that already have an update. (NOTE: computed on load, NOT
+   live push — true realtime would need a Realtime subscription; future.)
+6. Group-by-company lists **ALL companies** incl. empty (new `companies` query
+   → allCompanyRows; CardsView `allCompanies` prop adds empty housings, seeded
+   collapsed, "on track · 0 tasks", real logos).
+7. Quick-add (inline-add-task): removed the Company + Deadline circle pickers
+   (form collects them on Enter), taller row (py-3), bare transparent field with
+   a blinking caret + hint (bare-field + caret-blink), assignee circle kept.
+
+## Home hero declutter (owner feedback, BUILT + verified, NOT pushed)
+- CommandHero slimmed: removed the Run/Brief/Approvals chips AND the health %.
+  Now just greeting + avatar + stats pill (open/overdue/due today) + ORI line
+  (divider between). Props dropped: health/healthTone/healthSub/pendingApprovals.
+- NEW `components/home-control-bar.tsx`: Run automations · Send Brief · Approvals
+  as a 3-cell tab strip at the FOOT of the home page (grid-cols-3, glass). Icons
+  `hidden sm:block` so mobile is clean text tabs; busy spinner always shows.
+- Portfolio health moved into CompanyHeat header (director-board grammar):
+  "{health}% healthy · {atRisk} at risk" (atRisk = companies with overdue).
+  CompanyHeat gains health/atRisk props.
+- ORI line rewritten to a natural sentence (naturalList: "Prepare …, chase …,
+  then review ….") instead of the "Here's where I'd look — a · b · c" join;
+  empty state "You're all caught up — nothing needs chasing right now."
+
+## Tasks — mobile round (owner feedback, BUILT + verified, NOT pushed)
+- Hero stacks on mobile (`flex-col sm:flex-row`, actions wrapped in a
+  `sm:contents` div) so the title no longer squeezes vertically; quick-add hint
+  shortens to "What needs doing?" under sm.
+- **PWA top cut-off**: admin `<main>` pt now `max(1.5rem,env(safe-area-inset-top))`
+  in layout.tsx (env inset = 0 in a browser, so desktop unchanged) — fixes the
+  hero going under the notch/status bar in the installed app.
+- **Group control on mobile**: task-filter-bar Group popover was `hidden sm:block`
+  → now always shown (in the scrolling chip row) so you can change/clear grouping
+  on a phone, not just web.
+- **Company sections cap at ~5 rows + internal scroll** (portal section pattern):
+  GroupHousing wraps its `<ul>` in `scroll-fade-y overflow-y-auto slim-scroll`
+  with max-h (comfortable 23rem / compact 15rem) when items.length > 5.
+- **Equal-width controls**: FluidSelect sizes to content, so status pills were
+  ragged ("Waiting External" wider). Status button now fixed `w-[150px]`, date
+  `w-[116px]`; grid status/due columns matched (150/116) → clean aligned rails.
+- **Removed the hero "New task" button** (redundant — quick-add Enter opens the
+  form, nav-pill + focuses it, quick-add has "Full form →"). Dropped newTaskHref.
+- **Expand updates load INSTANTLY**: ExpandPanel seeds from TaskRow.latestActivity
+  (already in memory) so the latest update shows with no spinner; only fetches
+  /api/task-detail when updateCount>1 (background, fills the 2nd). No more Loading.
+- **Home mobile overflow fix**: the two cos-home grid rows (deck + activity/
+  controls) had 1 mobile column sized to content → panels overran 375px and the
+  right edge (company-health numbers, "Companies" link) got clipped by body
+  overflow-x-hidden. Added `grid-cols-1` (= minmax(0,1fr)) so the column shrinks
+  and children truncate. FORWARD: single-col mobile grids need grid-cols-1, not
+  bare `grid`, or content-sized tracks overflow.
+Original mockup spec below:
+1. Top = 4 layers: hero strip (title + live + Focus|Browse seg + New-task btn +
+   KPI pill) → search row → ONE counting filter-chip row (All/In progress/
+   Overdue/Due soon/Quiet/Unread/Done + Company ▾ + NEW Person ▾ + ⋯More
+   [Archived·Renewals·Critical·Escalated·Stalled·No owner·No deadline·saved
+   views] + Group ▾). Done becomes a chip (3rd mode removed).
+2. NEW person filter: 👤 Person ▾ → identity strip w/ **Assigned | Created by**
+   toggle (createdByPersonId) + Remind-all.
+3. Rows = fixed grid (dot·code·title+meta·due col·activity col·actions col),
+   badges in aligned rails; latest-update quote INSIDE meta line (1 line,
+   truncated, green).
+4. Company groups = housed panels: tinted header band (CompanyAvatar logo +
+   name + dot-stats ●4 overdue ●5 quiet · 7 tasks) + rows inside; collapsed =
+   slim clean bar; air between housings.
+5. Quick-add: Enter → New-task sheet prefilled (title carried, company guessed
+   from title words/active filter); Shift+Enter = old instant save. Form
+   redesign: big title, company chip-combobox, priority segment, deadline
+   quick-picks (Today/Tomorrow/Next week/Month end/pick), people chips, voice
+   description, rare fields under "More"; BottomSheet mobile / centred glass
+   desktop.
 2. Then likely: Tasks tab / Companies tab on `/`, `/brief`, `/workbook`, `/meeting`,
    HRMS pages, `/settings`, `/inbox`, `/documents`, `/people`… owner picks order.
 

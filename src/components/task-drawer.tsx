@@ -164,6 +164,9 @@ export function TaskDrawer() {
   const [posting, setPosting] = useState(false);
   const [reminding, setReminding] = useState(false);
   const [remindScope, setRemindScope] = useState<"task" | "all">("task");
+  // Decision-strip re-date popover (inline date input, no Edit-tab trip).
+  const [redating, setRedating] = useState(false);
+  const [newDate, setNewDate] = useState("");
   // Controlled values for the Edit tab's FluidSelects (kit dropdowns don't emit a
   // form field, so each is mirrored into a hidden input). Re-seeded when data loads.
   const [editCompany, setEditCompany] = useState("");
@@ -198,11 +201,13 @@ export function TaskDrawer() {
   // Seed the active tab from the `dtab` URL param so openers can deep-link a tab
   // (e.g. table-view openTask(code,"conversation") sets ?dtab=conversation). A
   // drawer-specific name, NOT "tab" (which selects the page section). The ids
-  // here must match the DrawerTab ids below. Falls back to Overview.
+  // here must match the DrawerTab ids below. Falls back to Conversation — the
+  // task view is conversation-first (Command Centre unification, owner-approved).
   useEffect(() => {
-    setActiveTab(searchParams.get("dtab") ?? "overview");
+    setActiveTab(searchParams.get("dtab") ?? "conversation");
     setConfirmDel(false);
     setFilter("all");
+    setRedating(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
@@ -237,6 +242,23 @@ export function TaskDrawer() {
       duration: 6000,
       action: res.link ? { label: "Send now", onClick: () => { window.open(res.link!, "_blank"); } } : undefined,
     });
+  }
+
+  // Decision-strip re-date — same inlineUpdateTask as everywhere else.
+  async function applyRedate() {
+    if (!data || !newDate) return;
+    setActing("redate");
+    const res = await inlineUpdateTask(data.task.code, "deadline", newDate);
+    setActing(null);
+    if (res.ok) {
+      setRedating(false);
+      setNewDate("");
+      toast(`${data.task.code} re-dated.`, { tone: "success", duration: 5000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setRefreshKey((k) => k + 1); router.refresh(); } } : undefined });
+      setRefreshKey((k) => k + 1);
+      router.refresh();
+    } else {
+      toast(res.error || "Could not re-date", { tone: "warn", duration: 3000 });
+    }
   }
 
   async function handleDelete() {
@@ -334,6 +356,51 @@ export function TaskDrawer() {
 
   const convoCount = data?.convoMessages.length ?? 0;
 
+  // ---- Decision strip (D3) — the Focus queue's four moves, pinned on top of a
+  // task that needs attention (late OR quiet 7d+). Healthy tasks show nothing:
+  // the strip is for action, not decoration. ----
+  const lateDays = t && typeof t.daysToDeadline === "number" && t.daysToDeadline < 0 ? Math.abs(t.daysToDeadline) : 0;
+  const quietDays = t?.lastUpdatedAt ? Math.floor((Date.now() - new Date(t.lastUpdatedAt).getTime()) / 86_400_000) : null;
+  const needsAttention = !!t && !done && (lateDays > 0 || (quietDays !== null && quietDays >= 7) || quietDays === null);
+  const decisionStrip = t && needsAttention ? (
+    <div className="rounded-2xl bg-danger-soft/25 p-2.5 ring-1 ring-danger/20">
+      <p className="flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-danger">
+        <AlertOctagon size={12} className="shrink-0" />
+        {lateDays > 0 && <span>{lateDays}d late</span>}
+        {lateDays > 0 && (quietDays === null || quietDays >= 7) && <span aria-hidden>·</span>}
+        {quietDays === null ? <span>never updated</span> : quietDays >= 7 ? <span>quiet {quietDays}d</span> : null}
+      </p>
+      {redating && (
+        <div className="mt-2 flex items-center gap-2 px-0.5">
+          <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
+            className="rounded-lg border border-border bg-bg-elev px-2 py-1 text-xs" />
+          <Button type="button" size="sm" className="rounded-lg" onClick={applyRedate} disabled={!newDate || acting === "redate"} loading={acting === "redate"}>
+            Set date
+          </Button>
+          <button type="button" onClick={() => setRedating(false)} className="text-xs text-fg-muted hover:text-fg">Cancel</button>
+        </div>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {t.assignees.length > 0 && (
+          <Button type="button" size="sm" className="rounded-lg" onClick={remindOwner} loading={reminding} disabled={reminding}>
+            {!reminding && <Bell size={12} />} Remind
+          </Button>
+        )}
+        {t.escalation !== "Yes" && (
+          <Button type="button" variant="danger-soft" size="sm" className="rounded-lg" onClick={() => quickAction("escalate")} loading={acting === "escalate"} disabled={acting !== null}>
+            {acting !== "escalate" && <AlertOctagon size={12} />} Escalate
+          </Button>
+        )}
+        <Button type="button" variant="ghost" size="sm" className="rounded-lg" onClick={() => setRedating((s) => !s)}>
+          Re-date
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="rounded-lg text-success" onClick={() => quickAction("complete")} loading={acting === "complete"} disabled={acting !== null}>
+          {acting !== "complete" && <CheckCircle2 size={12} />} Done
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
   const heroNode = t ? (
     <div className="pr-8 space-y-2.5">
       <div className="flex items-center gap-2 min-w-0">
@@ -355,12 +422,13 @@ export function TaskDrawer() {
       <h2 className="text-base font-semibold leading-snug">{t.actionItem}</h2>
       {/* Inline-editable status + priority + deadline — 1 touch, no Edit-tab trip. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <TaskInlineStatus task={t} buttonClassName="rounded-full ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1 text-xs" />
-        <TaskInlinePriority task={t} buttonClassName="rounded-full ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1 text-xs" />
+        <TaskInlineStatus task={t} buttonClassName="rounded-lg ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1 text-xs" />
+        <TaskInlinePriority task={t} buttonClassName="rounded-lg ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1 text-xs" />
         <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline}
-          className="rounded-full ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1" />
+          className="rounded-lg ring-1 ring-border/60 bg-bg-subtle/70 px-2.5 py-1" />
         {t.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
       </div>
+      {decisionStrip}
     </div>
   ) : <div className="h-12" />;
 
@@ -517,10 +585,44 @@ export function TaskDrawer() {
   ) : null;
 
   const conversationContent = t && data ? (
+    // Conversation-first with the Dossier split (D2): on a wide screen a compact
+    // facts rail sits beside the chat — zero taps to the essentials; on mobile
+    // the rail hides (facts live one tap away on the Details tab).
     // A conversation post (add / pin / status) runs as a server-action form;
     // PortalConversation fires onPosted when it resolves, so we refetch exactly
     // then — no fixed 0.7s guess that could miss a slow upload.
-    <div>
+    <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4 lg:items-start">
+      <aside className="hidden lg:block space-y-1 rounded-2xl bg-bg-subtle/40 p-3 ring-1 ring-border/60">
+        <FactRow label="Accountable">
+          {t.assignees.length ? (
+            <span className="inline-flex items-center gap-1.5 min-w-0 align-middle">
+              <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={3} size={20} />
+              <span className="truncate max-w-[7rem] text-[12px] text-fg-muted">{getGivenName(t.assignees[0])}{t.assignees.length > 1 ? ` +${t.assignees.length - 1}` : ""}</span>
+            </span>
+          ) : <SetLink onClick={() => setActiveTab("edit")}>Assign</SetLink>}
+        </FactRow>
+        <FactRow label="Deadline">
+          <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
+        </FactRow>
+        <FactRow label="Category">
+          {t.category ? <span className="text-[12px] font-medium text-fg">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
+        </FactRow>
+        <FactRow label="Department" last>
+          {t.department ? <span className="text-[12px] font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
+        </FactRow>
+        {t.comments && t.comments.trim() && (
+          <div className="pt-2">
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">About</div>
+            <p className="text-[12px] leading-relaxed text-fg-muted whitespace-pre-wrap break-words line-clamp-6"><CodeLinkedText text={t.comments} /></p>
+          </div>
+        )}
+        <div className="pt-2 flex flex-wrap gap-1.5">
+          <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={copyLink}>
+            <LinkIcon size={12} /> Link
+          </Button>
+          <DraftEmailButton taskId={t.id} />
+        </div>
+      </aside>
       <PortalConversation
         taskId={t.id}
         code={t.code}
@@ -634,9 +736,11 @@ export function TaskDrawer() {
     </form>
   ) : null;
 
+  // Conversation-first (owner-approved D1+D3 mix): the chat leads, facts follow.
+  // Tab IDs are unchanged so every existing ?dtab= deep link keeps working.
   const tabs: DrawerTab[] = t ? [
-    { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} />, content: overviewContent },
     { id: "conversation", label: "Conversation", icon: <MessageSquare size={14} />, badge: convoCount || undefined, content: conversationContent },
+    { id: "overview", label: "Details", icon: <LayoutDashboard size={14} />, content: overviewContent },
     { id: "history", label: "History", icon: <History size={14} />, badge: counts.all || undefined, content: historyContent },
     { id: "edit", label: "Edit", icon: <Pencil size={14} />, content: editContent },
   ] : [];
@@ -682,7 +786,9 @@ export function TaskDrawer() {
       loading={loading && !data}
       error={error}
       errorLabel="Couldn't load task."
-      maxWidth="680px"
+      // Dossier split (D2): the drawer auto-widens on the Conversation tab so the
+      // facts rail fits beside the chat; other tabs keep the classic width.
+      maxWidth={activeTab === "conversation" ? "min(920px, 94vw)" : "680px"}
       fullScreenOnMobile
       hero={heroNode}
       tabs={tabs}

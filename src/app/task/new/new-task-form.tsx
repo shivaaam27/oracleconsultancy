@@ -1,15 +1,22 @@
 import { createTask } from "../actions";
-import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
+import { STATUSES, RISKS } from "@/lib/constants";
 import { Button, FieldLabel, Input, Select } from "@/components/ui";
 import { SubmitTextarea, EnterHint } from "@/components/form-keys";
 import { ActionItemField } from "@/components/action-item-field";
 import { PersonPicker, type PickerPerson } from "@/components/person-picker";
+import { PrioritySegment, DeadlineQuickPick, CompanySelectField } from "@/components/task-form-fields";
 import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
 
 /**
  * The New Task form body — shared by the full-page route and the modal
  * (intercepting route) so there's one source of truth.
+ *
+ * Portal-grade layout (tasks refinement round 1): big title first, company as
+ * the kit FluidSelect, priority as a segment, deadline as quick-pick chips +
+ * calendar, people picker, description — everything rare under "More details".
+ * Quick-add's Enter flow lands here with the title (and any circles already
+ * picked) carried in via `defaultTitle` / `defaultDeadline` / `defaultAccountable`.
  *
  * - `returnTo`, when set, is submitted as a hidden field so `createTask`
  *   redirects back to the originating section instead of the standalone page.
@@ -22,6 +29,8 @@ export function NewTaskForm({
   people,
   presetCompany,
   defaultAccountable,
+  defaultTitle,
+  defaultDeadline,
   returnTo,
   variant = "page",
 }: {
@@ -31,6 +40,10 @@ export function NewTaskForm({
   /** Pre-select these people in the Accountable picker (e.g. opening from a
    *  person's drawer so their name fills in). */
   defaultAccountable?: string[];
+  /** Carry the quick-add row's typed title in (Enter → this form). */
+  defaultTitle?: string;
+  /** yyyy-mm-dd from the quick-add row's deadline circle. */
+  defaultDeadline?: string;
   returnTo?: string;
   variant?: "page" | "modal";
 }) {
@@ -52,41 +65,33 @@ export function NewTaskForm({
         />
         <div className="relative">
           <FieldLabel>Action Item <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
-          <ActionItemField name="actionItem" required placeholder="What needs to happen?" />
+          <ActionItemField name="actionItem" required placeholder="What needs to happen?" defaultValue={defaultTitle} />
         </div>
 
-        {/* Description (stored as the task's comments). Sits up top, by the action. */}
+        <div className="relative">
+          <FieldLabel>Company</FieldLabel>
+          <CompanySelectField companies={companies} defaultValue={presetCompany} />
+        </div>
+
+        <div className="relative">
+          <FieldLabel>Priority</FieldLabel>
+          <PrioritySegment />
+        </div>
+
+        <div className="relative">
+          <FieldLabel>Deadline</FieldLabel>
+          <DeadlineQuickPick defaultValue={defaultDeadline} />
+        </div>
+
+        <div className="relative">
+          <FieldLabel>Accountable</FieldLabel>
+          <PersonPicker people={people} defaultNames={defaultAccountable} placeholder="Search people, or type a new name…" />
+        </div>
+
+        {/* Description (stored as the task's comments). */}
         <div className="relative">
           <FieldLabel>Description</FieldLabel>
           <SubmitTextarea name="comments" rows={2} placeholder="Add any context or detail…" />
-        </div>
-
-        {/* Short fields sit two-per-row; full-width fields span both columns. */}
-        <div className="relative grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div>
-            <FieldLabel>Company</FieldLabel>
-            <Select name="companyId" defaultValue={presetCompany} required>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <FieldLabel>Meeting Date</FieldLabel>
-            <Input name="meetingDate" type="date" />
-          </div>
-          <div>
-            <FieldLabel>Priority</FieldLabel>
-            <Select name="priority" defaultValue="Medium">
-              {PRIORITIES.map((s) => <option key={s}>{s}</option>)}
-            </Select>
-          </div>
-          <div>
-            <FieldLabel>Deadline</FieldLabel>
-            <Input name="deadline" type="date" />
-          </div>
-          <div className="col-span-2">
-            <FieldLabel>Accountable</FieldLabel>
-            <PersonPicker people={people} defaultNames={defaultAccountable} placeholder="Search people, or type a new name…" />
-          </div>
         </div>
       </div>
 
@@ -95,7 +100,7 @@ export function NewTaskForm({
         <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
           <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90" />
           More details
-          <span className="text-fg-subtle normal-case tracking-normal font-normal">status, risk, category &amp; department</span>
+          <span className="text-fg-subtle normal-case tracking-normal font-normal">status, risk, meeting date, category &amp; department</span>
         </summary>
         <div className="px-5 pb-5 space-y-3 sm:space-y-4">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
@@ -118,6 +123,10 @@ export function NewTaskForm({
                 <option>No</option>
                 <option>Yes</option>
               </Select>
+            </div>
+            <div>
+              <FieldLabel>Meeting Date</FieldLabel>
+              <Input name="meetingDate" type="date" />
             </div>
             <div>
               <FieldLabel>Department</FieldLabel>
