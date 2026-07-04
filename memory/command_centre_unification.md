@@ -33,8 +33,15 @@ Centre.)
   `ExternalLink`; row = `flex items-center gap-2.5 rounded-xl bg-bg-elev px-3 py-2
   ring-1 ring-border/60`.
 - **Hero strip:** aurora `glass elevated rounded-3xl`, `<eyebrow> · live` dot,
-  greeting/title, avatar or seg tabs, slim stats/KPI pill (border-t before a
-  secondary line); stacks `flex-col sm:flex-row` on mobile.
+  greeting/title, avatar or seg tabs, slim stats/KPI pill; stacks `flex-col
+  sm:flex-row` on mobile. **NO "add"/create button in the hero** — the top card
+  is calm/informational; the create action goes ABOVE the search (full-width on
+  mobile via `flex flex-col-reverse sm:flex-row`, beside search on desktop) or in
+  the nav-pill `+`.
+- **KPI/stat pills:** each stat a whole unit (bold `tabular` number + muted
+  label), `flex flex-wrap gap-x-5 gap-y-1.5` — NO inline `·` separators (they
+  strand a leading dot on mobile wrap). Short labels; compact select labels
+  ("Companies"/"Types") so filter rows fit a phone.
 - **Mobile:** hero actions wrap via the `sm:contents` trick; single-col grids
   MUST use `grid-cols-1` (= minmax(0,1fr)) or content overflows & clips; admin
   `<main>` top pad `max(1.5rem,env(safe-area-inset-top))` for the PWA notch.

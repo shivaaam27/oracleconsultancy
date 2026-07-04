@@ -376,35 +376,23 @@ export function CalendarBoard({
             </p>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">The week, briefed</h1>
           </div>
-          <div className="flex items-center gap-2 sm:contents">
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
-              <button type="button" onClick={() => setTab("events")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "events" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
-                <CalendarDays size={13} /> Events
-              </button>
-              <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "announcements" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
-                <Megaphone size={13} /> Announcements
-                {counts.unacknowledged > 0 && <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white">{counts.unacknowledged}</span>}
-              </button>
-            </span>
-            {tab === "events" ? (
-              <button type="button" onClick={openNew} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90">
-                <Plus size={14} /> New event
-              </button>
-            ) : (
-              <Link href="/announcements" className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90">
-                <Plus size={14} /> New announcement
-              </Link>
-            )}
-          </div>
+          {/* Tabs only — the hero never carries an "add" button (CC rule). */}
+          <span className="inline-flex items-center gap-0.5 self-start rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60 sm:self-auto">
+            <button type="button" onClick={() => setTab("events")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "events" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+              <CalendarDays size={13} /> Events
+            </button>
+            <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "announcements" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+              <Megaphone size={13} /> Announcements
+              {counts.unacknowledged > 0 && <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white">{counts.unacknowledged}</span>}
+            </button>
+          </span>
         </div>
-        <div className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border">
-          <span><b className="font-semibold text-fg tabular">{counts.thisWeek}</b> this week</span>
-          <span aria-hidden className="text-border">·</span>
-          <span><b className="font-semibold text-fg tabular">{counts.today}</b> today</span>
-          <span aria-hidden className="text-border">·</span>
-          <span className={counts.needInvites > 0 ? "text-warn" : ""}><b className="font-semibold tabular">{counts.needInvites}</b> need invites</span>
-          <span aria-hidden className="text-border">·</span>
-          <span className={counts.unacknowledged > 0 ? "text-fg" : ""}><b className="font-semibold tabular">{counts.unacknowledged}</b> haven&apos;t acknowledged</span>
+        {/* KPI pill — clean stat units (wrap as whole items, no floating separators). */}
+        <div className="relative mt-3 flex flex-wrap gap-x-5 gap-y-1.5 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-sm ring-1 ring-border">
+          <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{counts.thisWeek}</b><span className="text-fg-muted">this week</span></span>
+          <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{counts.today}</b><span className="text-fg-muted">today</span></span>
+          <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.needInvites > 0 ? "text-warn" : "text-fg")}>{counts.needInvites}</b><span className="text-fg-muted">need invites</span></span>
+          <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.unacknowledged > 0 ? "text-violet-500" : "text-fg")}>{counts.unacknowledged}</b><span className="text-fg-muted">unacknowledged</span></span>
         </div>
       </section>
 
@@ -430,11 +418,24 @@ export function CalendarBoard({
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-3">
-            {/* Search */}
-            <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
-              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
-                className="w-full rounded-full border border-border/70 bg-bg-elev py-2.5 pl-10 pr-4 text-sm outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50 focus:ring-2 focus:ring-accent/15" />
+            {/* New button + search. On mobile the New button sits ABOVE the search
+                full-width (flex-col-reverse); on desktop it's to the right of it.
+                The hero itself never carries an add button (CC rule). */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+              <div className="relative sm:flex-1">
+                <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
+                  className="w-full rounded-full border border-border/70 bg-bg-elev py-2.5 pl-10 pr-4 text-sm outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50 focus:ring-2 focus:ring-accent/15" />
+              </div>
+              {tab === "events" ? (
+                <button type="button" onClick={openNew} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90 sm:w-auto sm:py-2">
+                  <Plus size={15} /> New event
+                </button>
+              ) : (
+                <Link href="/announcements" className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90 sm:w-auto sm:py-2">
+                  <Plus size={15} /> New announcement
+                </Link>
+              )}
             </div>
             {/* ONE filter row — tasks-page grammar (rounded-lg chips, outline icons). */}
             <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -452,10 +453,10 @@ export function CalendarBoard({
                 </button>
               )}
               <div className="shrink-0"><FluidSelect value={companyFilter} onSelect={setCompanyFilter}
-                options={[{ value: "all", label: "All companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+                options={[{ value: "all", label: "Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
                 buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
               <div className="shrink-0"><FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
-                options={[{ value: "all", label: "All types" }, ...categories.map((c) => ({ value: String(c.id), label: c.name })), ...(categories.length ? [{ value: "none", label: "Uncategorised" }] : [])]}
+                options={[{ value: "all", label: "Types" }, ...categories.map((c) => ({ value: String(c.id), label: c.name })), ...(categories.length ? [{ value: "none", label: "Uncategorised" }] : [])]}
                 buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
               {/* ⋯ More — source, noise controls, category manager. */}
               <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>

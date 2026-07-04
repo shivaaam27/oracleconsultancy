@@ -314,8 +314,17 @@ styles. (This is the CC layer on top of Aurora above.)
   sublabel, optional trailing `ExternalLink`; row = `flex items-center gap-2.5
   rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/60`.
 - **Hero strip:** aurora `glass elevated rounded-3xl`, `<EYEBROW> · live` dot,
-  greeting/title, avatar or segmented tabs, then a slim stats/KPI pill (use a
-  `border-t` before any secondary line). Stacks `flex-col sm:flex-row` on mobile.
+  greeting/title, avatar or segmented tabs, then a slim stats/KPI pill. Stacks
+  `flex-col sm:flex-row` on mobile. **The hero NEVER carries an "add"/create
+  button** — put the primary create action below (e.g. above the search,
+  full-width on mobile / beside the search on desktop, via `flex flex-col-reverse
+  sm:flex-row`), or in the nav-pill `+`. Keep the top card calm/informational.
+- **KPI / stat pills:** render each stat as a whole unit
+  (`inline-flex items-baseline gap-1.5` → bold `tabular` number + muted label) in
+  a `flex flex-wrap gap-x-5 gap-y-1.5` row. NO inline `·` separators — they strand
+  a leading dot when a line wraps on mobile. Keep labels short ("unacknowledged",
+  not "haven't acknowledged"). Compact select labels too ("Companies"/"Types",
+  not "All companies"/"All types") so filter rows fit a phone.
 - **Mobile rules:** hero actions wrap to their own row via the `sm:contents`
   trick; single-column grids MUST be `grid-cols-1` (Tailwind's = `minmax(0,1fr)`)
   or content overflows and gets clipped; admin `<main>` top padding uses
