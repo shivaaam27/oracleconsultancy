@@ -63,3 +63,7 @@ dispatcher.log
 result.json
 job.json
 err.log
+
+# Local scratch/test extraction outputs
+result-*.json
+scratch-result.json
