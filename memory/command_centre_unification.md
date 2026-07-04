@@ -1,8 +1,62 @@
 # Command Centre unification — match the portal design (Jul 2026)
 
-**Status: HOME BUILT locally (4 Jul 2026) — verified in preview desktop+375px, tsc
-clean, NOT pushed (owner reviewing). Health ring REMOVED (owner's call) — health is
-a tinted % figure in the hero pill linking /insights.**
+**Status: Home + Tasks (+ task drawer) SHIPPED (pushed). Brief (calendar +
+announcements) BUILT — check git log for what's pushed. Continue page-by-page.**
+
+## ⭐ COMMAND CENTRE CONTROL / DESIGN LANGUAGE — THE STANDARD (follow everywhere)
+Owner mandate: every CC page reuses ONE control language, first set on the Tasks
+page. When building/redesigning ANY Command Centre surface, match this exactly —
+do NOT invent new button/icon styles. (CC-specific layer on top of Aurora /
+DESIGN_SYSTEM.md; the same rules are mirrored in DESIGN_SYSTEM.md § Command
+Centre.)
+- **Buttons = rounded-rectangle, NOT pills.** `rounded-lg`, roomy padding
+  (chips `px-3 py-1.5`, primary `px-3.5 py-2`). Never `rounded-full` for filter
+  chips / control / action buttons. EXCEPTION: a true segmented toggle
+  (Comfortable|Compact, Events|Announcements, Focus|Browse) MAY be a
+  `rounded-full` pill segment.
+- **Icons = OUTLINE lucide only.** No emoji in UI chrome. Size ~13–15 in
+  buttons; match the nav-pill icon weight.
+- **Filter/counting chips:** one horizontal row, `rounded-lg px-3 py-1.5 text-xs
+  font-medium ring-1`, count in `<b className="tabular">`; active = solid accent
+  (`bg-accent text-accent-fg ring-accent`), soft tone variants danger/warn/info.
+  Scrolls-x on mobile, wraps sm+.
+- **Dropdowns = `FluidSelect`** `buttonClassName="rounded-lg border border-border
+  bg-bg-elev px-3 py-1.5 text-xs font-medium"`; overflow menus = Radix
+  DropdownMenu with `glass glass-menu`, check-marked items.
+- **Aligned rails:** fixed-width controls (status `w-[150px]`, date `w-[116px]`)
+  so columns line up down the page.
+- **Housings:** `rounded-2xl ring-1 ring-border/60` panel + tinted header band
+  (`bg-bg-subtle/60`); collapse → clean slim bar; long lists cap ~5 rows +
+  internal `scroll-fade-y slim-scroll`; real logos via `CompanyAvatar`.
+- **Icon-badge rows** (day-sheet overlays etc.): tinted `h-8 w-8 rounded-lg`
+  badge (kind colour ~14%) + outline icon, title + quiet sublabel, optional
+  `ExternalLink`; row = `flex items-center gap-2.5 rounded-xl bg-bg-elev px-3 py-2
+  ring-1 ring-border/60`.
+- **Hero strip:** aurora `glass elevated rounded-3xl`, `<eyebrow> · live` dot,
+  greeting/title, avatar or seg tabs, slim stats/KPI pill (border-t before a
+  secondary line); stacks `flex-col sm:flex-row` on mobile.
+- **Mobile:** hero actions wrap via the `sm:contents` trick; single-col grids
+  MUST use `grid-cols-1` (= minmax(0,1fr)) or content overflows & clips; admin
+  `<main>` top pad `max(1.5rem,env(safe-area-inset-top))` for the PWA notch.
+- **Deadline popover** (`components/deadline-editor.tsx`): portalled, real-date
+  quick-picks + current-deadline strip — reuse wherever a deadline is edited.
+- **Reusable pieces:** command-hero, command-deck (NeedsYou/CompanyHeat/
+  CommandRooms), home-control-bar, task-filter-bar, task-form-fields, cards-view
+  (CardsView/FocusQueue), deadline-editor, FluidSelect, CompanyAvatar, useSwipeRow.
+
+---
+## Brief (calendar + announcements) — refinements round (4 Jul 2026)
+BUILT + verified desktop+375, tsc clean:
+- **Mini-month arrows page MONTHS**, not days — MiniMonth has its own `viewMonth`
+  state (syncs to cursor on external change); the `< Today >` period nav is what
+  changes the day/period. (Was: mini-month used view-dependent `step` → paged days
+  in Day view.)
+- **Day-detail redesign** — new shared `DaySheet` (events as EventRow + overlays
+  as the new `OverlayRow`: tinted icon badge + title + kind sublabel + link) used
+  by BOTH the Day view and the mobile Month tapped-day panel ("ON THIS DAY · N"
+  housing). Replaces the flat OverlayChip list. This is the icon-badge-row grammar.
+
+## Home — first build (Mission Deck + Rooms), later decluttered (see below)
 
 Built pieces: `components/command-hero.tsx` (aurora hero strip: live dot, greeting,
 subtitle date·companies·people, chips Run/Brief/Approvals-badge, stats pill + ORI
@@ -199,6 +253,69 @@ Clear). view-switcher.tsx: Cards+Table → ONE "Tasks" entry (Table still at
 7. Quick-add (inline-add-task): removed the Company + Deadline circle pickers
    (form collects them on Enter), taller row (py-3), bare transparent field with
    a blinking caret + hint (bare-field + caret-blink), assignee circle kept.
+
+## Step 3 — Brief (calendar + announcements redesign, 4 Jul 2026)
+Owner: /calendar becomes **"Brief"** — admin twin of portal Briefings, hosting
+events AND announcements (from /announcements), more advanced; redesign in the
+home/tasks grammar. Current inventory (all must survive): month/week/day/agenda
+views (agenda = mobile default), search, category/company/source filters,
+meetings-only + collapse-recurring toggles, 9 overlay layers (deadlines, leave,
+holidays, renewals, birthdays, anniversaries, probation, commitments, pipeline),
+rich EventForm (attendees/reminders/recurrence/all-day/Meet/multi-company/
+track-as-task/category), EventRow actions (edit/send-invite/preview-email/copy/
+Google/.ics/delete/remind-drafts/follow-up/skip-occurrence), category manager,
+hero metrics. 6 mockups delivered (artifact "cc-brief-mockups"):
+B1 Command Briefings (Events|Announcements tabs, agenda-first day housings) ·
+B2 Agenda + Rail (living mini-month w/ dots, layer toggles, 📣 glance card) ·
+B3 Week Deck (7 heat columns) · B4 The Wire (one stream: past outcomes ↑ NOW ↓
+future, incl. scheduled announcements; broadcast composer) · B5 Horizon Rooms
+(Today/Week/Later/Past/Announcements master-detail, full command card per
+event) · B6 Heat Month (month heat cells + day-sheet on tap).
+RECOMMENDED: B1 skeleton + B2 desktop rail + B4 time-sense (NOW marker,
+"needs invites" chip, past outcomes) + B6 day-sheet for grid taps.
+**Owner CHOSE the recommended mix.** Final composition mockup delivered
+(artifact "cc-brief-final") — awaiting approval to build. Zones:
+1 hero (BRIEF·live, Events|Announcements seg w/ violet unack badge, ＋New,
+KPI pill: this week·today·need invites·haven't acknowledged) ·
+2 search + ONE filter row (view chips Agenda default/Month/Week/Day, 🔔
+Need-invites chip, Company▾, Type▾, ⋯More = source/meetings-only/collapse-
+recurring/manage-categories) ·
+3 agenda day-housings w/ pulse (TODAY ● ring, happening-now Join pill,
+overlay footers 🎂📋🌴, in-line violet scheduled announcements, past days
+dimmed w/ outcomes) ·
+4 desktop rail lg+ (living mini-month: blue/amber/violet dots, tap=jump,
+2nd tap=day-sheet; 9 layer chips; 📣 glance card w/ ack bar + nudge) ·
+5-6 Announcements tab (broadcast composer: kind seg/audience/publish-now-
+or-schedule/needs-ack; feed cards w/ ack progress bar, "Who hasn't?",
+🔔 Nudge N; REPLACES /announcements w/ redirect) ·
+7 day-sheet (shared comp for all grid taps; BottomSheet mobile; "+Event
+this day" + "📣 Announce this day").
+Route: /calendar renamed Brief in nav/launcher (redirect kept). Build order
+in artifact: shell/tabs → agenda → rail → day-sheet → announcements → verify.
+**BUILT + verified desktop+375, tsc clean, NOT pushed (4 Jul 2026).**
+Owner mandate this build: "same button + icon design as tasks page throughout
+the Command Centre" — rounded-lg roomy buttons + outline lucide icons + FluidSelect
+is now the CC-wide standard (applied here). Changes:
+- nav.ts + worlds.ts label "Calendar"→"Brief" (route /calendar unchanged).
+- announcements/actions.ts: +nudgeAnnouncementAction (re-notify unseenPersonIds).
+- page.tsx (calendar): loads listAnnouncements + receiptStats per published →
+  BriefAnnouncement[] {live,scheduled,stats}; computes counts {thisWeek,today,
+  needInvites(=upcoming w/ email attendees & no googleEventId),unacknowledged};
+  dropped old Hero/HrmsCrumbs.
+- calendar-board.tsx: BriefTab state (events|announcements); new hero (BRIEF·live,
+  Events|Announcements seg w/ violet unack badge, ＋New, KPI pill); redesigned
+  toolbar = search + ONE filter row (view chips agenda-default, Need-invites chip,
+  Company/Type FluidSelect, ⋯More DropdownMenu[source/meetings-only/hide-repeats/
+  manage-categories], period nav); default view agenda; needInvitesOnly filter.
+  New components: HousedAgenda (day housings, TODAY ● ring, EventRow inside,
+  overlay footer), MiniMonth (rail, dots), BriefRail (mini-month+layers+📣 glance,
+  lg+ only), AnnouncementsPanel (Live/Scheduled/Drafts sections, type pill, ack
+  progress bar, Nudge N, Edit→/announcements, "This board" explainer rail).
+  KEPT intact: MonthView/WeekView/DayView/AgendaView(now unused)/EventRow/EventForm,
+  all filters, 9 overlay layers, recurrence expand, category manager.
+DEFERRED (noted): B6 day-sheet on grid taps (still setView("day") for now),
+inline announcement composer (uses /announcements composer via ＋New link),
+counts don't expand recurrence (base date only — minor).
 
 ## Home hero declutter (owner feedback, BUILT + verified, NOT pushed)
 - CommandHero slimmed: removed the Run/Brief/Approvals chips AND the health %.

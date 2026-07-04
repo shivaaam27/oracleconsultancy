@@ -50,7 +50,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "leave",       href: "/hrms/leave",          label: "Leave & Attendance",  icon: CalendarDays },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications in progress", icon: ClipboardList },
   { id: "registers",   href: "/hrms/registers",      label: "Commitments register", icon: FileWarning },
-  { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
+  { id: "calendar",    href: "/calendar",            label: "Brief",               icon: CalendarClock },
   { id: "ocr",         href: "/hrms/ocr",            label: "OCR",                 icon: Sparkles },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },

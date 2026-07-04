@@ -2,12 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X, type LucideIcon,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
+  Megaphone, Plus, Layers as LayersIcon, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
+import { ANNOUNCEMENT_TYPES } from "@/lib/announcements-shared";
+import { nudgeAnnouncementAction } from "@/app/announcements/actions";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
@@ -61,6 +67,22 @@ type Person = { id: number; name: string; email: string | null };
 type Company = { id: number; name: string; accent?: string | null };
 type EventCategory = { id: number; name: string };
 type ViewMode = "month" | "week" | "day" | "agenda";
+type BriefTab = "events" | "announcements";
+
+/** An announcement enriched with live receipt stats for the Brief's
+ *  Announcements tab (seen / acknowledged / audience total). */
+export type BriefAnnouncement = Announcement & {
+  live: boolean;
+  scheduled: boolean;
+  stats: ReceiptStats;
+};
+
+export type BriefCounts = {
+  thisWeek: number;
+  today: number;
+  needInvites: number;
+  unacknowledged: number;
+};
 
 // Distinct hues for category tags/dots, picked deterministically by id so a
 // category keeps its colour without needing a stored colour column.
@@ -165,19 +187,26 @@ export function CalendarBoard({
   people,
   companies,
   categories,
+  announcements = [],
+  counts = { thisWeek: 0, today: 0, needInvites: 0, unacknowledged: 0 },
 }: {
   events: CalendarEventView[];
   overlays?: OverlayItem[];
   people: Person[];
   companies: Company[];
   categories: EventCategory[];
+  announcements?: BriefAnnouncement[];
+  counts?: BriefCounts;
 }) {
+  const [tab, setTab] = useState<BriefTab>("events");
   const [formOpen, setFormOpen] = useState(false);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
-  const [view, setView] = useState<ViewMode>("month");
+  const [view, setView] = useState<ViewMode>("agenda");
+  const [needInvitesOnly, setNeedInvitesOnly] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -247,12 +276,14 @@ export function CalendarBoard({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const now = Date.now();
     return events.filter((e) => {
       if (companyFilter !== "all" && String(e.companyId ?? "") !== companyFilter) return false;
       if (sourceFilter !== "all" && (e.source || "manual") !== sourceFilter) return false;
       if (categoryFilter !== "all") {
         if (categoryFilter === "none" ? e.categoryId != null : String(e.categoryId ?? "") !== categoryFilter) return false;
       }
+      if (needInvitesOnly && !(new Date(e.startAt).getTime() >= now && !e.googleEventId && e.attendees.some((a) => a.email))) return false;
       if (q) {
         const hay = [e.title, e.description, e.location, e.companyLabel, e.categoryName, ...e.attendees.map((a) => a.name)]
           .filter(Boolean).join(" ").toLowerCase();
@@ -260,7 +291,7 @@ export function CalendarBoard({
       }
       return true;
     });
-  }, [events, search, companyFilter, sourceFilter, categoryFilter]);
+  }, [events, search, companyFilter, sourceFilter, categoryFilter, needInvitesOnly]);
 
   // Expand recurring events into individual occurrences across a wide window so
   // every view can page without refetching. Occurrences keep the base id (edit/
@@ -328,160 +359,167 @@ export function CalendarBoard({
     return `${ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${we.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
   }, [view, cursor]);
 
-  const usedCompanies = useMemo(
-    () => companies.filter((c) => events.some((e) => e.companyId === c.id)),
-    [companies, events]
-  );
-
-  const views: ViewMode[] = ["month", "week", "day", "agenda"];
+  const views: ViewMode[] = ["agenda", "month", "week", "day"];
+  const chip = "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition-all";
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-xl bg-bg-subtle p-1 ring-1 ring-border/60">
-            {views.map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)}
-                className={cn("rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium capitalize transition-colors",
-                  view === v ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
-                {v}
+      {/* ---- Hero: BRIEF · Events | Announcements · KPI pill ---- */}
+      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
+        <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.22), transparent 70%)" }} />
+        <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="min-w-0 sm:flex-1">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+              Brief
+              <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" /></span>
+              <span className="normal-case tracking-normal text-success/90">live</span>
+            </p>
+            <h1 className="mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">The week, briefed</h1>
+          </div>
+          <div className="flex items-center gap-2 sm:contents">
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
+              <button type="button" onClick={() => setTab("events")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "events" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+                <CalendarDays size={13} /> Events
               </button>
-            ))}
-          </div>
-          {view !== "agenda" && (
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => step(-1)} title="Previous"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-border"><ChevronLeft size={16} /></button>
-              <button type="button" onClick={goToday}
-                className="h-8 px-3 inline-flex items-center rounded-lg text-xs font-medium text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-border">Today</button>
-              <button type="button" onClick={() => step(1)} title="Next"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-border"><ChevronRight size={16} /></button>
-            </div>
-          )}
-          <span className="text-sm font-semibold tracking-tight">{periodLabel}</span>
-          {/* The bottom nav-pill carries a page-action "+" on phones, so this
-              toolbar button (which also wraps awkwardly on a narrow screen) is
-              desktop-only — no duplicate create affordance on mobile. */}
-          <Button onClick={openNew} className="gap-1.5 ml-auto hidden sm:inline-flex"><CalendarPlus size={16} /> New event</Button>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
-          <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, person, place…"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
-            <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="h-9 text-sm shrink-0">
-              <option value="all">All companies</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="h-9 text-sm shrink-0">
-              <option value="all">All sources</option>
-              <option value="manual">Manual</option>
-              <option value="meeting">From meeting</option>
-              <option value="task">From task</option>
-            </Select>
-            <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 text-sm shrink-0">
-              <option value="all">All categories</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              {categories.length > 0 && <option value="none">Uncategorised</option>}
-            </Select>
-            <button type="button" onClick={() => setManageCatsOpen(true)}
-              title="Add, rename or remove event categories"
-              className="h-9 px-2.5 inline-flex items-center gap-1 rounded-lg text-xs font-medium text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-border shrink-0">
-              <Pencil size={13} /> Categories
-            </button>
+              <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "announcements" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+                <Megaphone size={13} /> Announcements
+                {counts.unacknowledged > 0 && <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white">{counts.unacknowledged}</span>}
+              </button>
+            </span>
+            {tab === "events" ? (
+              <button type="button" onClick={openNew} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90">
+                <Plus size={14} /> New event
+              </button>
+            ) : (
+              <Link href="/announcements" className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90">
+                <Plus size={14} /> New announcement
+              </Link>
+            )}
           </div>
         </div>
-
-        {/* Noise controls — one-tap ways to calm a busy multi-company calendar. */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" onClick={() => setMeetingsOnly((v) => !v)}
-            aria-pressed={meetingsOnly}
-            title="Hide task deadlines, renewals, birthdays and other overlays — show only real events"
-            className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 transition-colors",
-              meetingsOnly ? "ring-accent/40 bg-accent/15 text-accent" : "ring-border bg-bg-subtle text-fg-muted hover:text-fg")}>
-            <CalendarDays size={11} /> Meetings only
-          </button>
-          <button type="button" onClick={() => setCollapseRecurring((v) => !v)}
-            aria-pressed={collapseRecurring}
-            title="Collapse a recurring series to one entry per period (it still repeats — the ↻ badge shows it)"
-            className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 transition-colors",
-              collapseRecurring ? "ring-accent/40 bg-accent/15 text-accent" : "ring-border bg-bg-subtle text-fg-muted hover:text-fg")}>
-            <Repeat size={11} /> Hide repeats
-          </button>
+        <div className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border">
+          <span><b className="font-semibold text-fg tabular">{counts.thisWeek}</b> this week</span>
+          <span aria-hidden className="text-border">·</span>
+          <span><b className="font-semibold text-fg tabular">{counts.today}</b> today</span>
+          <span aria-hidden className="text-border">·</span>
+          <span className={counts.needInvites > 0 ? "text-warn" : ""}><b className="font-semibold tabular">{counts.needInvites}</b> need invites</span>
+          <span aria-hidden className="text-border">·</span>
+          <span className={counts.unacknowledged > 0 ? "text-fg" : ""}><b className="font-semibold tabular">{counts.unacknowledged}</b> haven&apos;t acknowledged</span>
         </div>
-
-        {/* Overlay layer toggles (also act as a legend). Hidden while "Meetings
-            only" is on — the layers do nothing then. */}
-        {!meetingsOnly && availableLayers.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] uppercase tracking-wider text-fg-subtle mr-0.5">Layers</span>
-            {availableLayers.map((k) => {
-              const m = OVERLAY_META[k]; const Icon = m.icon; const on = enabledLayers.has(k);
-              return (
-                <button key={k} type="button" onClick={() => toggleLayer(k)}
-                  className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors",
-                    on ? "ring-border bg-bg-subtle text-fg" : "ring-border/60 text-fg-subtle opacity-60 hover:opacity-100")}>
-                  <Icon size={11} className={on ? m.tone : ""} /> {OVERLAY_LABELS[k]}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Company colour legend */}
-        {usedCompanies.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-muted">
-            {usedCompanies.map((c) => (
-              <span key={c.id} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
-                {c.name}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      </section>
 
       {/* Remounted on each open so its state seeds cleanly from `editing`. */}
       {formOpen && (
         <EventForm people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
       )}
-
       {manageCatsOpen && (
         <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
           title={<span className="inline-flex items-center gap-2"><Pencil size={15} className="text-accent" /> Event categories</span>}
           sub="Name your meeting types (e.g. Board, Site visit, Review). Used to colour + filter the calendar.">
           <ReferenceAdmin
             items={categories.map((c) => ({ id: c.id, name: c.name }))}
-            noun="category"
-            addPlaceholder="Add a category — e.g. Board meeting"
-            onCreate={createEventCategory}
-            onRename={renameEventCategory}
-            onMerge={mergeEventCategories}
-            onDelete={deleteEventCategory}
-            mergeNote="Its events move to the target category."
-            deleteNote="Its events become uncategorised."
+            noun="category" addPlaceholder="Add a category — e.g. Board meeting"
+            onCreate={createEventCategory} onRename={renameEventCategory} onMerge={mergeEventCategories} onDelete={deleteEventCategory}
+            mergeNote="Its events move to the target category." deleteNote="Its events become uncategorised."
           />
         </HrmsDialog>
       )}
 
-      {filtered.length === 0 && view === "agenda" ? (
-        <EmptyState
-          icon={<CalendarDays size={28} />}
-          title="No events"
-          hint="Create an event to generate a calendar invite (.ics) and a Google Meet/Calendar link you can share."
-        />
-      ) : view === "month" ? (
-        <MonthView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
-      ) : view === "week" ? (
-        <WeekView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
-      ) : view === "day" ? (
-        <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
+      {tab === "announcements" ? (
+        <AnnouncementsPanel announcements={announcements} />
       ) : (
-        <AgendaView events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)} onEdit={openEdit} />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="min-w-0 space-y-3">
+            {/* Search */}
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
+                className="w-full rounded-full border border-border/70 bg-bg-elev py-2.5 pl-10 pr-4 text-sm outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50 focus:ring-2 focus:ring-accent/15" />
+            </div>
+            {/* ONE filter row — tasks-page grammar (rounded-lg chips, outline icons). */}
+            <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              {views.map((v) => (
+                <button key={v} type="button" onClick={() => setView(v)}
+                  className={cn(chip, "capitalize", view === v ? "bg-accent text-accent-fg ring-accent font-semibold" : "bg-bg-elev text-fg-muted ring-border/60 hover:text-fg hover:ring-2")}>
+                  {v}
+                </button>
+              ))}
+              <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden />
+              {counts.needInvites > 0 && (
+                <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)}
+                  className={cn(chip, needInvitesOnly ? "bg-warn text-white ring-warn font-semibold" : "bg-warn-soft/50 text-warn ring-warn/25 hover:ring-2")}>
+                  <Bell size={13} /> Need invites <b className="font-bold tabular">{counts.needInvites}</b>
+                </button>
+              )}
+              <div className="shrink-0"><FluidSelect value={companyFilter} onSelect={setCompanyFilter}
+                options={[{ value: "all", label: "All companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+                buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
+              <div className="shrink-0"><FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
+                options={[{ value: "all", label: "All types" }, ...categories.map((c) => ({ value: String(c.id), label: c.name })), ...(categories.length ? [{ value: "none", label: "Uncategorised" }] : [])]}
+                buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
+              {/* ⋯ More — source, noise controls, category manager. */}
+              <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
+                <DropdownMenu.Trigger asChild>
+                  <button type="button" className={cn(chip, "bg-bg-elev text-fg-muted ring-border/60 hover:text-fg hover:ring-2")}>
+                    <MoreHorizontal size={13} /> More
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content align="end" sideOffset={6} className="z-[140] w-56 glass glass-menu elevated rounded-2xl p-1.5 shadow-lg text-sm">
+                    <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">Source</div>
+                    {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((s) => (
+                      <button key={s.v} type="button" onClick={() => setSourceFilter(s.v)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors", sourceFilter === s.v ? "bg-accent/12 font-medium text-fg" : "text-fg-muted hover:bg-bg-muted")}>
+                        <span className="flex-1">{s.l}</span>{sourceFilter === s.v && <Check size={14} className="text-accent" />}
+                      </button>
+                    ))}
+                    <div className="my-1 h-px bg-border/60" />
+                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
+                      <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} className="text-accent" />}
+                    </button>
+                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
+                      <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} className="text-accent" />}
+                    </button>
+                    <div className="my-1 h-px bg-border/60" />
+                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
+                      <Pencil size={14} /><span className="flex-1">Manage categories</span>
+                    </button>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+              {/* Period nav for the grid views. */}
+              {view !== "agenda" && (
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => step(-1)} title="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2"><ChevronLeft size={15} /></button>
+                  <button type="button" onClick={goToday} className="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2">Today</button>
+                  <button type="button" onClick={() => step(1)} title="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2"><ChevronRight size={15} /></button>
+                </span>
+              )}
+            </div>
+            {view !== "agenda" && <p className="px-0.5 text-sm font-semibold tracking-tight">{periodLabel}</p>}
+
+            {/* Views */}
+            {view === "agenda" ? (
+              <HousedAgenda
+                events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)}
+                overlayByDay={overlayByDay} onEdit={openEdit}
+              />
+            ) : view === "month" ? (
+              <MonthView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+            ) : view === "week" ? (
+              <WeekView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+            ) : (
+              <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
+            )}
+          </div>
+
+          {/* ---- The rail (desktop lg+): mini-month · layers · announcements ---- */}
+          <BriefRail
+            cursor={cursor} byDay={byDay} overlayByDay={overlayByDay}
+            onPickDay={(d) => { setCursor(d); setView("day"); }}
+            availableLayers={availableLayers} enabledLayers={enabledLayers} toggleLayer={toggleLayer} meetingsOnly={meetingsOnly}
+            announcements={announcements}
+          />
+        </div>
       )}
     </div>
   );
@@ -511,6 +549,56 @@ function OverlayChip({ item }: { item: OverlayItem }) {
   return item.href
     ? <a href={item.href} onClick={(e) => e.stopPropagation()} className={cls}>{inner}</a>
     : <div className={cls}>{inner}</div>;
+}
+
+/** A full overlay row for the day-sheet — a tinted icon badge, the title, and a
+ *  quiet kind label, in the rounded-rectangle grammar (outline icons only). */
+function OverlayRow({ item }: { item: OverlayItem }) {
+  const m = OVERLAY_META[item.kind]; const Icon = m.icon; const c = m.dot;
+  const inner = (
+    <>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${c} 14%, transparent)` }}>
+        <Icon size={15} style={{ color: c }} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium text-fg">{item.title}</span>
+        <span className="block text-[11px] text-fg-subtle">{OVERLAY_LABELS[item.kind]}</span>
+      </span>
+      {item.href && <ExternalLink size={13} className="shrink-0 text-fg-subtle" />}
+    </>
+  );
+  const cls = "flex items-center gap-2.5 rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/60 transition-all hover:ring-accent/30";
+  return item.href
+    ? <a href={item.href} className={cls}>{inner}</a>
+    : <div className={cls}>{inner}</div>;
+}
+
+/** Shared "what's on this day" sheet — events as full rows, then overlays
+ *  (deadlines, renewals, birthdays…) as a housed "Also on this day" group.
+ *  Used by the Day view and the mobile month panel. */
+function DaySheet({
+  evs, ovs, onEdit,
+}: {
+  evs: CalendarEventView[];
+  ovs: OverlayItem[];
+  onEdit: (e: CalendarEventView) => void;
+}) {
+  if (evs.length === 0 && ovs.length === 0) {
+    return <EmptyState icon={<CalendarDays size={28} />} title="Nothing scheduled" hint="No events on this day. Use New event to add one." />;
+  }
+  return (
+    <div className="space-y-3">
+      {evs.length > 0 && <div className="space-y-2">{evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}</div>}
+      {ovs.length > 0 && (
+        <section className="overflow-hidden rounded-2xl bg-bg-elev/40 ring-1 ring-border/60">
+          <div className="border-b border-border/60 bg-bg-subtle/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-subtle">
+            {evs.length > 0 ? "Also on this day" : "On this day"} · {ovs.length}
+          </div>
+          <div className="space-y-1.5 p-2">{ovs.map((o) => <OverlayRow key={o.id} item={o} />)}</div>
+        </section>
+      )}
+    </div>
+  );
 }
 
 /* ------------------------------ Month view ---------------------------- */
@@ -629,23 +717,18 @@ function MonthView({
           </div>
         </div>
 
-        {/* Tapped day's events */}
-        <div className="space-y-1.5">
+        {/* Tapped day's events — the day-sheet card grammar. */}
+        <div className="space-y-2">
           <div className="flex items-center gap-2 px-0.5">
-            <span className="text-xs font-semibold">
+            <span className="text-sm font-semibold">
               {selectedDate.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
             </span>
             <button type="button" onClick={() => onPickDay(selectedDate)}
-              className="ml-auto text-[11px] text-accent hover:underline">Open day →</button>
+              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
+              Open day →
+            </button>
           </div>
-          {selEvs.length === 0 && selOvs.length === 0 ? (
-            <p className="text-[13px] text-fg-subtle px-0.5 py-2">Nothing scheduled.</p>
-          ) : (
-            <div className="bg-bg-elev ring-1 ring-border elevated rounded-xl p-2 space-y-1">
-              {selEvs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
-              {selOvs.map((o) => <OverlayChip key={o.id} item={o} />)}
-            </div>
-          )}
+          <DaySheet evs={selEvs} ovs={selOvs} onEdit={onEdit} />
         </div>
       </div>
     </>
@@ -705,40 +788,188 @@ function DayView({
 }) {
   const evs = byDay.get(keyOfDate(cursor)) ?? [];
   const ovs = overlayByDay.get(keyOfDate(cursor)) ?? [];
-  if (evs.length === 0 && ovs.length === 0) {
-    return <EmptyState icon={<CalendarDays size={28} />} title="Nothing scheduled" hint="No events on this day. Use New event to add one." />;
-  }
-  return (
-    <div className="space-y-3">
-      {ovs.length > 0 && (
-        <Card className="p-2 space-y-0.5">
-          {ovs.map((o) => <OverlayChip key={o.id} item={o} />)}
-        </Card>
-      )}
-      <div className="space-y-2">{evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}</div>
-    </div>
-  );
+  return <DaySheet evs={evs} ovs={ovs} onEdit={onEdit} />;
 }
 
-/* ------------------------------ Agenda view --------------------------- */
-function AgendaView({ events, onEdit }: { events: CalendarEventView[]; onEdit: (e: CalendarEventView) => void }) {
+/* -------------------------- Housed agenda (Brief) --------------------- */
+/** True when an upcoming event has email attendees but no Google event yet — the
+ *  "invite not sent" signal (mirrors the page's needInvites count). */
+function eventNeedsInvite(e: CalendarEventView): boolean {
+  return new Date(e.startAt).getTime() >= Date.now() && !e.googleEventId && e.attendees.some((a) => a.email);
+}
+
+/** The Brief agenda: each day is a housing with a tinted header (today glows with
+ *  a live ● ring), the day's events as rows, and an overlay footer (birthdays,
+ *  deadlines, leave…). */
+function HousedAgenda({
+  events, overlayByDay, onEdit,
+}: {
+  events: CalendarEventView[];
+  overlayByDay: Map<string, OverlayItem[]>;
+  onEdit: (e: CalendarEventView) => void;
+}) {
   const grouped = useMemo(() => {
     const map = new Map<string, CalendarEventView[]>();
     for (const e of events) (map.get(keyOfIso(e.startAt)) ?? map.set(keyOfIso(e.startAt), []).get(keyOfIso(e.startAt))!).push(e);
     return [...map.entries()].sort((a, b) => new Date(a[1][0].startAt).getTime() - new Date(b[1][0].startAt).getTime());
   }, [events]);
 
+  if (grouped.length === 0) {
+    return (
+      <EmptyState icon={<CalendarDays size={28} />} title="Nothing coming up"
+        hint="Create an event to generate a calendar invite (.ics) and a Google Meet link you can share." />
+    );
+  }
+
   return (
-    <div className="space-y-5">
-      {grouped.map(([key, evs]) => (
-        <section key={key} className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted px-1">{fmtDayLabel(evs[0].startAt)}</h3>
-          <div className="space-y-2">
-            {evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
-          </div>
-        </section>
-      ))}
+    <div className="space-y-3">
+      {grouped.map(([key, evs]) => {
+        const isToday = key === todayKeyGlobal;
+        const ovs = overlayByDay.get(key) ?? [];
+        return (
+          <section key={key} className={cn("overflow-hidden rounded-2xl bg-bg-elev/40 ring-1", isToday ? "ring-accent/30" : "ring-border/60")}>
+            <div className={cn("flex items-center gap-2 border-b px-3.5 py-2.5", isToday ? "border-accent/20 bg-accent-soft/40" : "border-border/60 bg-bg-subtle/60")}>
+              {isToday && <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-accent opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" /></span>}
+              <span className={cn("text-[12.5px] font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
+              <span className="ml-auto text-[10.5px] text-fg-subtle">{evs.length} event{evs.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="space-y-2 p-2">
+              {evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
+            </div>
+            {ovs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/60 bg-bg-subtle/30 px-3.5 py-2">
+                {ovs.map((o) => {
+                  const m = OVERLAY_META[o.kind]; const Icon = m.icon;
+                  return <span key={o.id} className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><Icon size={12} className={m.tone} /> {o.title}</span>;
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
+  );
+}
+
+/* ----------------------------- Mini month (rail) ---------------------- */
+function MiniMonth({
+  cursor, byDay, overlayByDay, onPickDay,
+}: {
+  cursor: Date;
+  byDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onPickDay: (d: Date) => void;
+}) {
+  // The mini-month browses MONTH-by-MONTH on its own (a calendar's chevrons page
+  // months), independent of the main view's period nav (< Today >). Re-syncs to
+  // the shown month whenever the main cursor jumps (e.g. Today / picking a day).
+  const [viewMonth, setViewMonth] = useState<Date>(() => new Date(cursor.getFullYear(), cursor.getMonth(), 1, 12));
+  useEffect(() => { setViewMonth(new Date(cursor.getFullYear(), cursor.getMonth(), 1, 12)); }, [cursor]);
+  const monthStart = viewMonth;
+  const gridStart = startOfWeekMon(monthStart);
+  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  const monthLabel = viewMonth.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" });
+  return (
+    <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{monthLabel}</span>
+        <span className="ml-auto flex items-center gap-0.5">
+          <button type="button" onClick={() => setViewMonth((m) => addMonths(m, -1))} title="Previous month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronLeft size={13} /></button>
+          <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} title="Next month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronRight size={13} /></button>
+        </span>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i} className="pb-1 text-[8px] font-medium uppercase text-fg-subtle">{d}</span>)}
+        {cells.map((cell, i) => {
+          const k = keyOfDate(cell);
+          const evs = byDay.get(k) ?? [];
+          const ovs = overlayByDay.get(k) ?? [];
+          const inMonth = cell.getMonth() === viewMonth.getMonth();
+          const isToday = k === todayKeyGlobal;
+          const dots = [...evs.map((e) => accentOf(e)), ...ovs.map((o) => OVERLAY_META[o.kind].dot)].slice(0, 3);
+          return (
+            <button key={i} type="button" onClick={() => onPickDay(cell)}
+              className={cn("relative flex h-8 flex-col items-center justify-center rounded-md text-[10px] transition-colors hover:bg-bg-muted",
+                isToday ? "bg-accent font-semibold text-white" : inMonth ? "text-fg" : "text-fg-subtle/60")}>
+              {cell.getDate()}
+              {dots.length > 0 && (
+                <span className="absolute bottom-0.5 flex gap-[1.5px]">
+                  {dots.map((c, di) => <span key={di} className="h-[3px] w-[3px] rounded-full" style={{ backgroundColor: isToday ? "#fff" : c }} />)}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ Brief rail ---------------------------- */
+function BriefRail({
+  cursor, byDay, overlayByDay, onPickDay,
+  availableLayers, enabledLayers, toggleLayer, meetingsOnly, announcements,
+}: {
+  cursor: Date;
+  byDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onPickDay: (d: Date) => void;
+  availableLayers: OverlayKind[];
+  enabledLayers: Set<OverlayKind>;
+  toggleLayer: (k: OverlayKind) => void;
+  meetingsOnly: boolean;
+  announcements: BriefAnnouncement[];
+}) {
+  const live = announcements.filter((a) => a.live);
+  return (
+    <aside className="hidden space-y-3 lg:block">
+      <MiniMonth cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={onPickDay} />
+
+      {!meetingsOnly && availableLayers.length > 0 && (
+        <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle"><LayersIcon size={12} /> Layers</p>
+          <div className="flex flex-wrap gap-1.5">
+            {availableLayers.map((k) => {
+              const m = OVERLAY_META[k]; const Icon = m.icon; const on = enabledLayers.has(k);
+              return (
+                <button key={k} type="button" onClick={() => toggleLayer(k)}
+                  className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-medium ring-1 transition-colors",
+                    on ? "bg-bg-subtle text-fg ring-border" : "text-fg-subtle opacity-55 ring-border/60 hover:opacity-100")}>
+                  <Icon size={11} className={on ? m.tone : ""} /> {OVERLAY_LABELS[k]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+        <div className="mb-1.5 flex items-center gap-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-500"><Megaphone size={12} /> Announcements</p>
+          <Link href="/announcements" className="ml-auto text-[10.5px] font-medium text-accent hover:underline">Manage →</Link>
+        </div>
+        {live.length === 0 ? (
+          <p className="text-[11px] text-fg-subtle">Nothing live right now.</p>
+        ) : (
+          <div className="space-y-2">
+            {live.slice(0, 2).map((a) => {
+              const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
+              return (
+                <div key={a.id} className="rounded-xl border-l-2 border-violet-400 bg-bg-elev px-2.5 py-1.5 ring-1 ring-border/50">
+                  <p className="truncate text-[11px] font-medium text-fg">{a.title}</p>
+                  {a.requireAck && (
+                    <>
+                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-violet-100"><span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div>
+                      <p className="mt-0.5 text-[9.5px] text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</p>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -1463,5 +1694,122 @@ function EventForm({
         </div>
       </form>
     </HrmsDialog>
+  );
+}
+
+/* -------------------------- Announcements panel ----------------------- */
+function toneClasses(tone: string): { pill: string; border: string } {
+  switch (tone) {
+    case "danger": return { pill: "bg-danger-soft text-danger ring-danger/25", border: "border-danger" };
+    case "warn": return { pill: "bg-warn-soft text-warn ring-warn/25", border: "border-warn" };
+    case "success": return { pill: "bg-success-soft text-success ring-success/25", border: "border-success" };
+    case "info": return { pill: "bg-info-soft text-info ring-info/25", border: "border-info" };
+    default: return { pill: "bg-violet-100 text-violet-600 ring-violet-300/40", border: "border-violet-400" };
+  }
+}
+
+function AnnouncementsPanel({ announcements }: { announcements: BriefAnnouncement[] }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const live = announcements.filter((a) => a.live);
+  const scheduled = announcements.filter((a) => a.scheduled);
+  const drafts = announcements.filter((a) => a.status === "draft");
+
+  function nudge(id: number) {
+    setBusy(id);
+    start(async () => {
+      const res = await nudgeAnnouncementAction(id);
+      setBusy(null);
+      if (!res.ok) return toast(res.error ?? "Could not nudge.", { tone: "warn" });
+      toast(res.nudged ? `Reminded ${res.nudged} ${res.nudged === 1 ? "person" : "people"}.` : "Everyone's already seen it.", { tone: "success" });
+      router.refresh();
+    });
+  }
+
+  const typeMeta = (t: string) => ANNOUNCEMENT_TYPES.find((x) => x.value === t) ?? ANNOUNCEMENT_TYPES[0];
+
+  function Card_({ a, faded }: { a: BriefAnnouncement; faded?: boolean }) {
+    const meta = typeMeta(a.type);
+    const tc = toneClasses(meta.tone);
+    const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
+    const outstanding = Math.max(0, a.stats.total - a.stats.ack);
+    return (
+      <div className={cn("rounded-2xl border-l-[3px] bg-bg-elev p-3.5 ring-1 ring-border/60", tc.border, faded && "opacity-70")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-semibold ring-1", tc.pill)}>{meta.label}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{a.title}</span>
+          {a.scheduled && a.publishAt && (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-border/60">
+              scheduled · {new Date(a.publishAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </span>
+          )}
+          {a.status === "draft" && <span className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-border/60">draft</span>}
+        </div>
+        {a.body && <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-fg-muted">{a.body}</p>}
+        {a.live && a.requireAck && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+            <div className="h-1.5 min-w-[120px] flex-1 overflow-hidden rounded-full bg-violet-100">
+              <span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-[11px] tabular text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</span>
+            {outstanding > 0 && (
+              <button type="button" onClick={() => nudge(a.id)} disabled={busy === a.id}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-warn transition-colors hover:border-warn/40 disabled:opacity-50">
+                <Bell size={13} /> Nudge {outstanding}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="mt-2 flex items-center gap-1.5">
+          {a.live && !a.requireAck && <span className="text-[11px] text-fg-subtle">Seen by {a.stats.seen}/{a.stats.total}</span>}
+          <Link href="/announcements" className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
+            <Pencil size={12} /> Edit
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (announcements.length === 0) {
+    return <EmptyState icon={<Megaphone size={28} />} title="No announcements yet" hint="Post one to broadcast it to staff — with read + acknowledge tracking." />;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0 space-y-4">
+        {live.length > 0 && (
+          <section className="space-y-2">
+            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Live</p>
+            {live.map((a) => <Card_ key={a.id} a={a} />)}
+          </section>
+        )}
+        {scheduled.length > 0 && (
+          <section className="space-y-2">
+            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Scheduled</p>
+            {scheduled.map((a) => <Card_ key={a.id} a={a} faded />)}
+          </section>
+        )}
+        {drafts.length > 0 && (
+          <section className="space-y-2">
+            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Drafts</p>
+            {drafts.map((a) => <Card_ key={a.id} a={a} faded />)}
+          </section>
+        )}
+      </div>
+      <aside className="hidden lg:block">
+        <div className="rounded-2xl bg-bg-elev/50 p-3.5 ring-1 ring-border/60">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">This board</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-fg-muted">
+            Announcements publish to staff&apos;s portal + phone, mirror into their Announcements chat, and (when you tick <b className="text-fg">require acknowledge</b>) track who&apos;s read them. Scheduled ones also appear on the Events agenda until they go live.
+          </p>
+          <Link href="/announcements" className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent/40">
+            <Plus size={13} /> New announcement
+          </Link>
+        </div>
+      </aside>
+    </div>
   );
 }

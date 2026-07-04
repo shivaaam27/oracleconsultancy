@@ -13,6 +13,7 @@ import {
   toggleReaction,
   listComments,
   addComment,
+  unseenPersonIds,
   type AudienceKind,
   type AnnouncementType,
 } from "@/lib/announcements";
@@ -202,6 +203,21 @@ export async function deleteAnnouncementAction(id: number): Promise<Result> {
   if (error) return { ok: false, error: error.message };
   revalidatePath("/announcements");
   return { ok: true, id };
+}
+
+/** Re-notify the people who haven't yet seen/acknowledged a live announcement —
+ *  the "Nudge N" action on the Brief's Announcements feed. */
+export async function nudgeAnnouncementAction(id: number): Promise<{ ok: boolean; nudged?: number; error?: string }> {
+  const a = await getAnnouncement(id);
+  if (!a) return { ok: false, error: "Not found." };
+  const ids = await unseenPersonIds(a);
+  if (ids.length === 0) return { ok: true, nudged: 0 };
+  await notifyMany(
+    ids.map((pid) => personRecipient(pid)),
+    { kind: "announcement", title: `📣 Reminder: ${a.title}`, body: a.body.slice(0, 160), actor: a.createdBy },
+  );
+  revalidatePath("/calendar");
+  return { ok: true, nudged: ids.length };
 }
 
 /* --------------------------- portal (director / manager) --------------------------- */

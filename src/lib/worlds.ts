@@ -50,7 +50,7 @@ export const WORLDS: World[] = [
     pages: [
       { label: "Task Management", href: "/?tab=tasks",           icon: "ClipboardCheck" },
       { label: "Workbook",        href: "/workbook",             icon: "NotebookPen" },
-      { label: "Calendar",        href: "/calendar",             icon: "CalendarClock" },
+      { label: "Brief",           href: "/calendar",             icon: "CalendarClock" },
       { label: "Requests",        href: "/requests",             icon: "MessageSquareText" },
     ],
   },

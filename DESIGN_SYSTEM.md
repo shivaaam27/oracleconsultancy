@@ -283,3 +283,48 @@ deadline), **Due soon = soonest first**, **In progress / open = most recent firs
 (overdue → soon → recent → done-last). The Home task list is wrapped in a **scroll
 housing** (`houseList` prop) so a growing list scrolls in place instead of running
 the page long; the full Tasks tab uses natural page scroll.
+
+## §13 · Command Centre control language (THE standard — follow on every CC page)
+
+Set on the Tasks page and now the CC-wide standard. When building or redesigning
+ANY Command Centre surface, reuse these exactly — do not invent new button/icon
+styles. (This is the CC layer on top of Aurora above.)
+
+- **Buttons are rounded-RECTANGLES, not pills** — `rounded-lg`, roomy padding
+  (chips `px-3 py-1.5`; primary `px-3.5 py-2`). Never `rounded-full` for filter
+  chips / control / action buttons. The ONE exception is a true segmented toggle
+  (Comfortable|Compact, Events|Announcements, Focus|Browse), which may be a
+  `rounded-full` pill segment.
+- **Icons: outline lucide only. No emoji in UI chrome.** ~13–15px in buttons,
+  matching the nav-pill icon weight.
+- **Filter / counting chips:** one horizontal row (`-mx-4 overflow-x-auto` on
+  mobile, wraps `sm:`); each chip `rounded-lg px-3 py-1.5 text-xs font-medium
+  ring-1`, count in `<b className="tabular">`; active = `bg-accent text-accent-fg
+  ring-accent`; soft tone variants for danger/warn/info.
+- **Dropdowns:** `FluidSelect` with `buttonClassName="rounded-lg border
+  border-border bg-bg-elev px-3 py-1.5 text-xs font-medium"`. Overflow menus:
+  Radix DropdownMenu, `glass glass-menu elevated rounded-2xl`, check-marked items.
+- **Aligned rails:** give repeated controls fixed widths (e.g. status
+  `w-[150px]`, date `w-[116px]`) so every row's controls line up in a column.
+- **Housings:** `rounded-2xl ring-1 ring-border/60` with a tinted header band
+  (`bg-bg-subtle/60`); collapsed = a clean slim bar; long lists cap ~5 rows with
+  internal `scroll-fade-y slim-scroll`; company logos via `CompanyAvatar`.
+- **Icon-badge rows** (day-sheets, overlay lists): tinted `h-8 w-8 rounded-lg`
+  badge (kind colour ~14% via `color-mix`) + outline icon, title + quiet
+  sublabel, optional trailing `ExternalLink`; row = `flex items-center gap-2.5
+  rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/60`.
+- **Hero strip:** aurora `glass elevated rounded-3xl`, `<EYEBROW> · live` dot,
+  greeting/title, avatar or segmented tabs, then a slim stats/KPI pill (use a
+  `border-t` before any secondary line). Stacks `flex-col sm:flex-row` on mobile.
+- **Mobile rules:** hero actions wrap to their own row via the `sm:contents`
+  trick; single-column grids MUST be `grid-cols-1` (Tailwind's = `minmax(0,1fr)`)
+  or content overflows and gets clipped; admin `<main>` top padding uses
+  `pt-[max(1.5rem,env(safe-area-inset-top))]` for the installed-PWA notch.
+- **Deadline editing:** always the portalled `components/deadline-editor.tsx`
+  popover (real-date quick-picks + current-deadline strip).
+
+Reusable CC components: `command-hero`, `command-deck` (NeedsYou / CompanyHeat /
+CommandRooms), `home-control-bar`, `task-filter-bar`, `task-form-fields`,
+`cards-view` (CardsView / FocusQueue), `deadline-editor`, plus shared
+`FluidSelect`, `CompanyAvatar`, `useSwipeRow`. Full running log +
+mockups-per-page: `memory/command_centre_unification.md`.
