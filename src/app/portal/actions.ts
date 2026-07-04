@@ -796,7 +796,9 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
   await enrichAttendeeEmails(formData);
   // Whether to auto-add a Google Meet link (form toggle; default on). "0" = off.
   const requestMeet = formData.get("requestMeet") !== "0";
-  const res = await createEventAction(formData, createdBy);
+  // autoInvite:false — this portal path sends the invite itself below (honouring
+  // the outreach kill switch + Meet fallback), so don't double-send from create.
+  const res = await createEventAction(formData, createdBy, { autoInvite: false });
   if (!res.ok || !res.id) return res;
 
   // Honour the global kill switch — if outreach is paused, the event is still

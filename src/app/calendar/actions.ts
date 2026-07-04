@@ -28,7 +28,7 @@ import { calendarEvents, eventCategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 type Result =
-  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean; taskCodes?: string[] }
+  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean; taskCodes?: string[]; invited?: number; inviteNotConfigured?: boolean }
   | { ok: false; error: string };
 
 /** Parse a JSON array of company ids from the form ("companyIds"), falling back
@@ -118,7 +118,11 @@ function invalidate() {
   revalidatePath("/calendar");
 }
 
-export async function createEventAction(fd: FormData, createdBy?: string): Promise<Result> {
+export async function createEventAction(
+  fd: FormData,
+  createdBy?: string,
+  opts?: { autoInvite?: boolean },
+): Promise<Result> {
   const title = str(fd, "title");
   if (!title) return { ok: false, error: "Give the event a title." };
   const allDay = fd.get("allDay") === "1" || fd.get("allDay") === "on";
@@ -193,8 +197,23 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
       }
     } catch { /* notifications are best-effort */ }
 
+    // Auto-send the branded invitation to any guests with an email — create ==
+    // invite, like a ticketing system. sendEventInviteAction also mints the Meet
+    // link + mirrors to Google, so the UI's later ensureEventMeetLink is a no-op.
+    // Best-effort — never block event creation; the "Send invite" button stays as
+    // a manual re-send.
+    let invited: number | undefined;
+    let inviteNotConfigured = false;
+    try {
+      if (opts?.autoInvite !== false && ev.attendees.some((a) => a.email)) {
+        const r = await sendEventInviteAction(ev.id);
+        if (r.ok) invited = r.count;
+        else if (r.reason === "not-configured") inviteNotConfigured = true;
+      }
+    } catch { /* invite send is best-effort */ }
+
     invalidate();
-    return { ok: true, id: ev.id, taskCodes };
+    return { ok: true, id: ev.id, taskCodes, invited, inviteNotConfigured };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not create event." };
   }

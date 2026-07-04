@@ -1221,13 +1221,18 @@ function EventForm({
         const taskNote = r.taskCodes?.length
           ? ` · task ${r.taskCodes.length === 1 ? r.taskCodes[0] : `${r.taskCodes.length} created`}`
           : "";
+        const inviteNote = r.invited
+          ? ` · invite emailed to ${r.invited} guest${r.invited === 1 ? "" : "s"}`
+          : r.inviteNotConfigured
+            ? " · email not switched on — share the invite manually"
+            : "";
         if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
           const m = await ensureEventMeetLink(r.id);
-          toast((m.meetLink ? "Event created — Google Meet link added." : "Event created.") + taskNote, { tone: "success" });
+          toast((m.meetLink ? "Event created — Google Meet link added." : "Event created.") + taskNote + inviteNote, { tone: r.inviteNotConfigured ? "warn" : "success" });
         } else if (editing && r.googleSynced) {
           toast("Event updated — guests notified of the change.", { tone: "success", duration: 6000 });
         } else {
-          toast((editing ? "Event updated" : "Event created") + taskNote, { tone: "success" });
+          toast((editing ? "Event updated" : "Event created") + taskNote + inviteNote, { tone: r.inviteNotConfigured ? "warn" : "success" });
         }
         onClose();
       } else {
