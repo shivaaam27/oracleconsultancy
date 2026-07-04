@@ -163,6 +163,18 @@
 
 html, body { height: 100%; }
 
+/* Pin text scaling to 100% so the layout renders identically across platforms.
+   Android Chrome/WebView (the installed PWA + "Add to Home") auto-INFLATES text
+   in tall/narrow columns ("font boosting") and also applies the system font-size
+   setting to web content — which is why the portal felt noticeably bigger on
+   Android than on iPhone. iOS never boosts. Locking text-size-adjust disables the
+   inflation so both platforms match the intended design. */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* Lock the document to vertical scrolling only — inner regions (e.g. the board
    columns) still scroll horizontally via their own overflow containers. Stops
    the whole page rubber-banding sideways on mobile. */
