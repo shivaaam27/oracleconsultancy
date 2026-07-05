@@ -3386,7 +3386,47 @@ async function extractOfficeText(file: File): Promise<string> {
       .slice(0, 12000);
   }
 
+  // PowerPoint (.pptx) — a zip of XML. Read each slide's text runs (<a:t>…</a:t>),
+  // one "Slide N" block per slide so the passage layer labels them by slide.
+  if (lower.endsWith(".pptx") || file.type.includes("presentation")) {
+    const JSZip = (await import("jszip")).default;
+    const zip = await JSZip.loadAsync(buffer);
+    const slideNames = Object.keys(zip.files)
+      .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort((a, b) => Number(a.match(/slide(\d+)/)![1]) - Number(b.match(/slide(\d+)/)![1]));
+    const slides: string[] = [];
+    for (const name of slideNames.slice(0, 80)) {
+      const xml = await zip.files[name].async("string");
+      const runs = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => decodeXmlEntities(m[1]));
+      const slideText = runs.join(" ").replace(/\s+/g, " ").trim();
+      if (slideText) slides.push(`Slide ${slides.length + 1}\n${slideText}`);
+    }
+    return slides.join("\n\n").slice(0, 14000);
+  }
+
+  // Plain-text family (.txt/.md/.log/.rtf/.json/text-*) — read the bytes directly.
+  const isText =
+    lower.endsWith(".txt") || lower.endsWith(".md") || lower.endsWith(".log") ||
+    lower.endsWith(".rtf") || file.type.startsWith("text/") || file.type === "application/json";
+  if (isText) {
+    let text = buffer.toString("utf8");
+    if (lower.endsWith(".rtf")) {
+      // Strip RTF control words/groups to get readable text.
+      text = text.replace(/\\'[0-9a-f]{2}/gi, " ").replace(/\\[a-z]+-?\d* ?/gi, " ").replace(/[{}]/g, " ");
+    }
+    return text.replace(/\r\n/g, "\n").slice(0, 20000);
+  }
+
   return "";
+}
+
+/** Decode the handful of XML entities that appear in Office slide/text runs. */
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 }
 
 /**
@@ -3530,8 +3570,16 @@ async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): 
     lowerName.endsWith(".xlsx") ||
     lowerName.endsWith(".xls") ||
     lowerName.endsWith(".csv") ||
+    lowerName.endsWith(".pptx") ||
+    lowerName.endsWith(".txt") ||
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".rtf") ||
+    lowerName.endsWith(".log") ||
     file.type.includes("spreadsheet") ||
+    file.type.includes("presentation") ||
     file.type === "text/csv" ||
+    file.type.startsWith("text/") ||
+    file.type === "application/json" ||
     file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
   if (isOffice) {

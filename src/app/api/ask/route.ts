@@ -64,6 +64,7 @@ type RawTaskRow = {
   created_date: string | null;
   closed_date: string | null;
   last_updated_at: string | null;
+  created_by_person_id: number | null;
 };
 
 type EnrichedTask = {
@@ -78,10 +79,11 @@ type EnrichedTask = {
   companyName: string | null;
   createdDate: string | null;
   closedDate: string | null;
+  createdByPersonId: number | null;
 };
 
 const TASK_COLS =
-  "id,code,action_item,status,priority,deadline,latest_update,escalation,company_id,created_date,closed_date,last_updated_at";
+  "id,code,action_item,status,priority,deadline,latest_update,escalation,company_id,created_date,closed_date,last_updated_at,created_by_person_id";
 
 function enrich(rows: RawTaskRow[], cMap: Map<number, string>): EnrichedTask[] {
   return rows.map((t) => ({
@@ -96,6 +98,7 @@ function enrich(rows: RawTaskRow[], cMap: Map<number, string>): EnrichedTask[] {
     companyName: t.company_id ? cMap.get(t.company_id) ?? null : null,
     createdDate: t.created_date,
     closedDate: t.closed_date,
+    createdByPersonId: t.created_by_person_id,
   }));
 }
 
@@ -135,6 +138,9 @@ export async function buildContext(question: string, page?: PageCtx) {
     personType: normalizePersonType(p.person_type as string | null),
     active: (p.active as boolean | null) ?? true,
   }));
+  // Who RAISED each task — so ORI can answer "who created the most tasks", "tasks
+  // Pulin made", etc. (the created_by_person_id was previously never in context).
+  const personNameById = new Map(peopleAll.map((p) => [p.id, p.name]));
   const cMap = new Map(companies.map((c) => [c.id, c.name]));
 
   // Company name matching stays on the LITERAL question tokens (not the synonym
@@ -941,6 +947,7 @@ export async function buildContext(question: string, page?: PageCtx) {
       status: t.status,
       priority: t.priority,
       company: t.companyName,
+      raisedBy: t.createdByPersonId ? personNameById.get(t.createdByPersonId) ?? null : null,
       assignees: assigneesByTask[t.id] || [],
       deadline: t.deadline ? new Date(t.deadline).toISOString().slice(0, 10) : null,
       escalation: t.escalation,

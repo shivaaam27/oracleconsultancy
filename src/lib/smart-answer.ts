@@ -305,6 +305,71 @@ async function assetsAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/hrms/assets" };
 }
 
+/** Tasks a specific PERSON raised (created) or is on (owner/assignee). Answers
+ *  "how many tasks did Pulin make", "what did Dipto create", "Hiral's tasks",
+ *  "tasks assigned to X" — deterministically, from created_by_person_id + the
+ *  owner/assignee joins (no AI). Fixes the gap where the LLM had no creator data. */
+async function tasksByPersonAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\btasks?\b/i.test(q)) return null;
+  // Strip possessive apostrophes ("Hiral's" → "Hiral ") so the name word matches.
+  const person = await matchPerson(q.replace(/['’]/g, " "));
+  if (!person) return null;
+  const given = person.name.split(/\s+/).find((w) => w.length >= 3) ?? person.name;
+
+  const rowsOf = (data: Record<string, unknown>[] | null): SmartRow[] =>
+    (data ?? []).map((t) => {
+      const c = t.companies as { name?: string } | { name?: string }[] | null;
+      const cn = (Array.isArray(c) ? c[0]?.name : c?.name) ?? null;
+      const st = (t.status as string) ?? "";
+      const done = st === "Completed" || st === "Closed";
+      return {
+        label: `[${t.code}] ${t.action_item}`,
+        sub: cn,
+        badge: st || null,
+        tone: (done ? "success" : st === "Blocked" || st === "Escalated" ? "danger" : "muted") as SmartTone,
+        href: `/task/${t.code}`,
+      };
+    });
+
+  const createdMode = /\b(made|make|making|creat|raise[sd]?|raising|logg|opened|set\s?up)\b/i.test(q);
+  const explicitlyAssigned = /\b(assigned to|working on|responsible for|handling|doing)\b/i.test(q);
+
+  // "made / created / raised by X" → tasks X RAISED (created_by_person_id).
+  if (createdMode && !explicitlyAssigned) {
+    const { data } = await sb.from("tasks")
+      .select("code,action_item,status,company_id,companies(name)")
+      .eq("archived", false).eq("created_by_person_id", person.id)
+      .order("created_date", { ascending: false }).limit(40);
+    const rows = rowsOf(data);
+    return {
+      kind: "tasks",
+      title: `Tasks ${person.name} raised`,
+      count: rows.length,
+      rows: rows.slice(0, MAX_ROWS),
+      note: rows.length === 0 ? `${given} hasn't raised any tasks in the system.` : undefined,
+      href: "/?tab=tasks",
+    };
+  }
+
+  // Otherwise → tasks X is ON (owner or assignee).
+  const [{ data: owned }, { data: links }] = await Promise.all([
+    sb.from("tasks").select("id").eq("archived", false).eq("owner_id", person.id),
+    sb.from("task_assignees").select("task_id").eq("person_id", person.id),
+  ]);
+  const ids = Array.from(new Set([
+    ...((owned ?? []) as Record<string, unknown>[]).map((r) => r.id as number),
+    ...((links ?? []) as Record<string, unknown>[]).map((r) => r.task_id as number),
+  ]));
+  if (ids.length === 0) {
+    return { kind: "tasks", title: `${person.name}'s tasks`, count: 0, rows: [], note: `Nothing is assigned to ${given} right now.`, href: "/?tab=tasks" };
+  }
+  const { data } = await sb.from("tasks")
+    .select("code,action_item,status,company_id,companies(name)")
+    .eq("archived", false).in("id", ids).limit(40);
+  const rows = rowsOf(data);
+  return { kind: "tasks", title: `${person.name}'s tasks`, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/?tab=tasks" };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
@@ -312,7 +377,8 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
   if (q.length < 3) return null;
   const resolvers = [
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
-    overdueTasksAnswer, dueTasksAnswer, probationAnswer, assetsAnswer, countAnswer,
+    overdueTasksAnswer, dueTasksAnswer, probationAnswer, assetsAnswer,
+    tasksByPersonAnswer, countAnswer,
   ];
   for (const r of resolvers) {
     try { const a = await r(q); if (a) return a; } catch { /* try the next */ }
