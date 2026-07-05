@@ -9,6 +9,7 @@ import { useToast } from "./toast";
 import { downscaleImage } from "@/lib/downscale-image";
 import { autoFileDocumentAction, type AutoFileResult } from "@/app/documents/actions";
 import { createInboxBundle } from "@/app/inbox/actions";
+import { ScanButton } from "@/components/scan-capture";
 
 type Row = AutoFileResult & { fileName: string };
 type Owner = { kind: "company" | "person"; id: number; name: string };
@@ -172,7 +173,7 @@ export function SmartAdd({
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <button type="button" onClick={() => fileInput.current?.click()}
                 className="rounded-xl border border-dashed border-border-strong bg-bg-subtle/40 px-4 py-7 text-center hover:border-accent hover:bg-bg-muted/40 transition-colors">
                 <UploadCloud size={22} className="mx-auto text-fg-subtle" />
@@ -185,6 +186,9 @@ export function SmartAdd({
                 <div className="mt-1.5 text-sm font-medium">Choose a folder</div>
                 <div className="text-[11px] text-fg-muted">subfolders → company/category</div>
               </button>
+              <div className="col-span-2 sm:col-span-1">
+                <ScanButton onScan={(file) => setPicked((prev) => [...prev, file as Pick])} />
+              </div>
             </div>
 
             {picked.length > 0 && (

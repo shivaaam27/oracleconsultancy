@@ -19,6 +19,26 @@ still mis-read poor photos — only the evidence-snippet SELECTION was improved,
 extraction; chat-message evidence can be noisy. `/hrms/pipeline` route still exists but
 unlinked (calendar/entity-graph reference its DATA) — full deletion is a later cleanup.
 
+## In-site camera scanner — SHIPPED 2026-07-06
+Owner wanted to scan paper documents with their phone camera directly on the site
+instead of a separate iOS-scanner app. Added `src/components/scan-capture.tsx`
+(`ScanButton`) as a third tile in **Smart Add** (`smart-add.tsx`, To Sort tab) next
+to "Choose files"/"Choose a folder": tapping it opens a nested dialog with a
+`<input type="file" accept="image/*" capture="environment">` — the same
+native-camera-launch mechanism every mobile browser already supports, so NO
+`getUserMedia`/live-video-preview plumbing was needed (simpler + far more
+reliable across iOS Safari/Android Chrome than a custom camera UI). One tap =
+one photo = one page; photos build up as a thumbnail strip (reorder not built,
+delete-per-page is); "Save N pages as PDF" stitches them into a single
+multi-page PDF client-side via `pdf-lib` (new dep — no existing PDF-gen lib was
+in the repo) using each photo's own pixel dimensions as the page size. Each
+photo is downscaled first via the existing `downscaleImage()` helper (already
+shared by `document-form.tsx`/`bulk-upload-dialog.tsx`) to keep the PDF a sane
+size. The resulting `File` is pushed into Smart Add's existing `picked` array —
+**zero server-side changes**: it flows through the unchanged "Sort now"
+(`autoFileDocumentAction`) / "Save to inbox" (`createInboxBundle`) pipeline
+exactly like any picked file. Admin-side only (Smart Add has no portal twin).
+
 ## Round 5 — Document editor redesign — DONE + SHIPPED
 Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on
 mobile** (mockup was artifact "cc-doc-editor"). Built by RESTRUCTURING document-form.tsx
