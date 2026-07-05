@@ -112,6 +112,104 @@ export const SYNONYM_GROUPS: string[][] = [
     "identification", "id", "visa", "visas", "immigration", "citizenship",
     "nationality",
   ],
+  // Creation & attribution — who MADE / RAISED / OWNS a task
+  [
+    "made", "make", "makes", "making", "create", "created", "creates",
+    "creating", "raise", "raised", "raises", "raising", "opened", "logged",
+    "author", "authored", "set", "setup", "started", "initiated", "added",
+    "assigned", "assign", "assignee", "assignees", "responsible", "accountable",
+    "working", "handling", "handled", "owns", "owner", "delegated",
+  ],
+  // Status & progress
+  [
+    "status", "progress", "ongoing", "active", "started", "notstarted",
+    "inprogress", "underreview", "review", "waiting", "waitingexternal",
+    "blocked", "escalated", "completed", "complete", "done", "finished",
+    "closed", "close", "stuck", "stalled", "moving", "state",
+  ],
+  // Priority & urgency
+  [
+    "priority", "priorities", "critical", "high", "medium", "low", "urgent",
+    "urgency", "important", "importance", "top", "biggest", "worst", "pressing",
+    "severe", "serious",
+  ],
+  // Superlatives & comparison
+  [
+    "most", "least", "top", "highest", "lowest", "best", "worst", "more",
+    "fewer", "fewest", "greater", "smaller", "biggest", "smallest", "compare",
+    "comparison", "compared", "versus", "vs", "against", "between", "difference",
+    "differences", "differ", "rank", "ranking", "leader", "leaderboard",
+  ],
+  // Counts & totals
+  [
+    "many", "number", "numbers", "count", "counts", "total", "totals",
+    "amount", "quantity", "sum", "tally", "howmany",
+  ],
+  // Updates, timeline & activity
+  [
+    "update", "updates", "updated", "comment", "comments", "commented", "note",
+    "notes", "progress", "history", "timeline", "activity", "activities", "log",
+    "logs", "latest", "recent", "recently", "change", "changed", "changes",
+    "modified", "posted", "post", "feed", "trail",
+  ],
+  // Portal, roles & access
+  [
+    "portal", "portals", "staff", "manager", "managers", "director", "directors",
+    "admin", "hr", "role", "roles", "access", "permission", "permissions",
+    "login", "signin", "capability", "capabilities", "rights", "allowed",
+  ],
+  // Announcements & notices
+  [
+    "announcement", "announcements", "announce", "announced", "notice",
+    "notices", "noticeboard", "broadcast", "bulletin", "memo", "memos", "post",
+    "posted", "publish", "published",
+  ],
+  // Events & calendar
+  [
+    "event", "events", "calendar", "schedule", "scheduled", "appointment",
+    "appointments", "meeting", "meetings", "call", "calls", "session",
+    "sessions", "invite", "invited", "invitation", "booking", "upcoming",
+    "diary",
+  ],
+  // Reminders & outreach
+  [
+    "remind", "reminder", "reminders", "reminded", "chase", "chased", "nudge",
+    "ping", "follow", "followup", "outreach", "message", "messages", "notify",
+    "notification", "notifications", "email", "emails", "whatsapp", "sms",
+    "contact", "reach", "send",
+  ],
+  // Onboarding / offboarding & HR lifecycle
+  [
+    "onboarding", "onboard", "onboarded", "offboarding", "offboard", "joiner",
+    "joiners", "joined", "leaver", "leavers", "left", "probation", "probationary",
+    "startdate", "start", "newhire", "newstaff", "resign", "resignation",
+    "termination", "terminated", "dismissal",
+  ],
+  // Requests
+  [
+    "request", "requests", "requested", "ask", "asked", "asking", "ticket",
+    "tickets", "raise", "raised", "query", "queries", "enquiry", "enquiries",
+  ],
+  // Time windows
+  [
+    "today", "tomorrow", "yesterday", "week", "weekly", "weeks", "month",
+    "monthly", "months", "quarter", "quarterly", "year", "yearly", "annual",
+    "recent", "recently", "soon", "upcoming", "past", "latest", "now", "current",
+    "currently", "thisweek", "thismonth",
+  ],
+  // Location & site
+  [
+    "site", "sites", "location", "locations", "branch", "branches", "office",
+    "offices", "where", "based", "residence", "worksite", "posted", "region",
+    "area", "place", "premises",
+  ],
+  // Companies & the portfolio
+  [
+    "company", "companies", "business", "businesses", "firm", "firms", "entity",
+    "entities", "portfolio", "group", "organisation", "organization",
+    "cocozuri", "chocolat", "darspices", "dar", "spices", "terra", "green",
+    "oracle", "consultancy", "pes", "mes", "pamoja", "plus",
+  ],
 ];
 
 // Common words that carry no search signal — dropped from queries before

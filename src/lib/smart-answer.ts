@@ -370,12 +370,86 @@ async function tasksByPersonAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "tasks", title: `${person.name}'s tasks`, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/?tab=tasks" };
 }
 
+/** Leaderboard — "who created/made the most tasks", "top task creators", "who's
+ *  the busiest". Ranks people by tasks they RAISED (created_by_person_id) or,
+ *  when asked about "assigned/busiest", tasks they're ON. */
+async function mostTasksByPersonAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(most|top|busiest|biggest|leaderboard|rank)\b/i.test(q) || !/\btasks?\b/i.test(q)) return null;
+  const involvedMode = /\b(assigned|working|busiest|involved|handling|has|on)\b/i.test(q) && !/\b(creat|made|make|raise)\b/i.test(q);
+
+  const counts = new Map<number, number>();
+  if (involvedMode) {
+    const [{ data: owned }, { data: links }] = await Promise.all([
+      sb.from("tasks").select("owner_id").eq("archived", false).not("owner_id", "is", null),
+      sb.from("task_assignees").select("person_id"),
+    ]);
+    for (const r of (owned ?? []) as Record<string, unknown>[]) counts.set(r.owner_id as number, (counts.get(r.owner_id as number) ?? 0) + 1);
+    for (const r of (links ?? []) as Record<string, unknown>[]) counts.set(r.person_id as number, (counts.get(r.person_id as number) ?? 0) + 1);
+  } else {
+    const { data } = await sb.from("tasks").select("created_by_person_id").eq("archived", false).not("created_by_person_id", "is", null);
+    for (const r of (data ?? []) as Record<string, unknown>[]) counts.set(r.created_by_person_id as number, (counts.get(r.created_by_person_id as number) ?? 0) + 1);
+  }
+  if (counts.size === 0) return { kind: "count", title: involvedMode ? "Busiest people" : "Top task creators", count: 0, rows: [], note: "No task attribution recorded yet.", href: "/?tab=tasks" };
+
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_ROWS);
+  const { data: peopleRows } = await sb.from("people").select("id,name").in("id", top.map(([id]) => id));
+  const nameById = new Map((peopleRows ?? []).map((p) => [p.id as number, p.name as string]));
+  const rows: SmartRow[] = top.map(([id, n], i) => ({
+    label: nameById.get(id) ?? `Person #${id}`,
+    sub: null,
+    badge: `${n} task${n === 1 ? "" : "s"}`,
+    tone: (i === 0 ? "accent" : "muted") as SmartTone,
+    href: "/people",
+  }));
+  return { kind: "count", title: involvedMode ? "Busiest people (most tasks)" : "Top task creators", count: rows.length, rows, href: "/?tab=tasks" };
+}
+
+/** Compare TWO (or more) companies mentioned in the query — "compare Dar Spices
+ *  and Terra Green", "Dar vs Terra". Shows each side's open + overdue task load. */
+async function compareAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(compare|comparison|versus|vs|difference between)\b/i.test(q)) return null;
+  const { data: cos } = await sb.from("companies").select("id,name,legal_name,aliases,code_prefix,file_prefix").eq("active", true);
+  const lower = ` ${q} `;
+  const mentioned: { id: number; name: string }[] = [];
+  const seen = new Set<number>();
+  for (const c of (cos ?? []) as Record<string, unknown>[]) {
+    const cands = [c.name, c.legal_name, c.code_prefix, c.file_prefix, ...(Array.isArray(c.aliases) ? (c.aliases as unknown[]) : [])];
+    for (const cand of cands) {
+      const s = String(cand ?? "").toLowerCase().trim();
+      if (s.length < 3) continue;
+      if (new RegExp(`\\b${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower) && !seen.has(c.id as number)) {
+        seen.add(c.id as number);
+        mentioned.push({ id: c.id as number, name: c.name as string });
+      }
+    }
+  }
+  if (mentioned.length < 2) return null; // need at least two things to compare
+
+  const rows: SmartRow[] = [];
+  for (const co of mentioned.slice(0, 4)) {
+    const nowIso = new Date().toISOString();
+    const [{ count: open }, { count: overdue }] = await Promise.all([
+      sb.from("tasks").select("id", { count: "exact", head: true }).eq("company_id", co.id).eq("archived", false).not("status", "in", '("Completed","Closed")'),
+      sb.from("tasks").select("id", { count: "exact", head: true }).eq("company_id", co.id).eq("archived", false).not("status", "in", '("Completed","Closed")').not("deadline", "is", null).lt("deadline", nowIso),
+    ]);
+    rows.push({
+      label: co.name,
+      sub: `${open ?? 0} open · ${overdue ?? 0} overdue`,
+      badge: `${overdue ?? 0} overdue`,
+      tone: ((overdue ?? 0) > 0 ? "danger" : "success") as SmartTone,
+      href: `/companies/${co.id}`,
+    });
+  }
+  return { kind: "count", title: `Comparing ${mentioned.slice(0, 4).map((m) => m.name).join(" · ")}`, count: rows.length, rows, href: "/companies" };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
   const q = (query ?? "").toLowerCase().trim();
   if (q.length < 3) return null;
   const resolvers = [
+    compareAnswer, mostTasksByPersonAnswer,
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
     overdueTasksAnswer, dueTasksAnswer, probationAnswer, assetsAnswer,
     tasksByPersonAnswer, countAnswer,

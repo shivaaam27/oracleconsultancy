@@ -207,11 +207,10 @@ function DocReaderPane({
         <button type="button" onClick={onBack} aria-label="Back to results" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-elev hover:text-fg"><ArrowLeft size={16} /></button>
         <FileText size={15} className="shrink-0 text-accent" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{doc.title}</span>
-        <button type="button" onClick={() => onOpen(doc.href)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1.5 text-[12px] font-medium text-accent hover:bg-accent-soft">Open <ExternalLink size={12} /></button>
         <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:text-fg"><XIcon size={15} /></button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5">
         {passages === null ? (
           <div className="py-10 text-center text-sm text-fg-muted">Reading…</div>
         ) : passages.length === 0 ? (
@@ -220,13 +219,25 @@ function DocReaderPane({
           </div>
         ) : (
           passages.map((p) => (
-            <div key={p.ord} className="rounded-xl bg-bg-elev/60 px-3.5 py-2.5 ring-1 ring-border">
-              <div className="mb-1 text-[11px] font-medium text-fg-subtle">{p.location}</div>
-              <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
+            <div key={p.ord} className="flex gap-3">
+              <span className="mt-1 w-0.5 shrink-0 rounded-full bg-accent/50" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle">{p.location}</div>
+                <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
+              </div>
             </div>
           ))
         )}
       </div>
+
+      {passages && passages.length > 0 && (
+        <div className="flex items-center gap-2 border-t border-border px-3.5 py-2">
+          <button type="button" onClick={() => onOpen(doc.href)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-[12px] font-medium text-accent hover:bg-accent-soft">
+            <ExternalLink size={13} /> Open{passages[0] ? ` at ${passages[0].location.toLowerCase()}` : " document"}
+          </button>
+          <span className="ml-auto text-[10px] text-fg-subtle">works offline-first</span>
+        </div>
+      )}
 
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">

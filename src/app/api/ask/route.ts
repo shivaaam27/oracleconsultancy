@@ -178,7 +178,7 @@ export async function buildContext(question: string, page?: PageCtx) {
   const detailPersonIds = [...new Set([
     ...matchedPeople.map((p) => p.id),
     ...[...semanticPersonIds],
-  ])].slice(0, 6);
+  ])].slice(0, 14);
   let peopleDetail: Array<{
     name: string; role: string | null; passportNo: string | null; nationalId: string | null;
     nationality: string | null; dateOfBirth: string | null; probationEnd: string | null;
@@ -392,7 +392,7 @@ export async function buildContext(question: string, page?: PageCtx) {
     .map((t) => ({ t, s: rankTask(t) }))
     .sort((a, b) => b.s - a.s)
     .map((x) => x.t)
-    .slice(0, 20);
+    .slice(0, 32);
 
   // Always include the task whose page the operator is viewing.
   if (page?.taskCode) {
@@ -400,7 +400,7 @@ export async function buildContext(question: string, page?: PageCtx) {
     if (!already) {
       const { data } = await sb.from("tasks").select(TASK_COLS).ilike("code", page.taskCode).limit(1);
       const pageTask = enrich((data ?? []) as RawTaskRow[], cMap);
-      if (pageTask.length) filtered = [pageTask[0], ...filtered].slice(0, 20);
+      if (pageTask.length) filtered = [pageTask[0], ...filtered].slice(0, 32);
     }
   }
 
@@ -511,7 +511,7 @@ export async function buildContext(question: string, page?: PageCtx) {
     .map((m) => ({ m, s: rankMeeting(m) }))
     .sort((a, b) => b.s - a.s)
     .map((x) => x.m)
-    .slice(0, 12);
+    .slice(0, 18);
 
   const meetingIds = meetingRows.map((m) => m.id as number);
   const tasksByMeeting: Record<number, string[]> = {};
@@ -575,7 +575,7 @@ export async function buildContext(question: string, page?: PageCtx) {
         if (am !== bm) return am - bm;
         return (daysToExpiry(a.d) ?? Infinity) - (daysToExpiry(b.d) ?? Infinity);
       })
-      .slice(0, 12)
+      .slice(0, 18)
       .map(({ d, status }) => ({
         title: d.title,
         company: d.companyId ? cMap.get(d.companyId) ?? null : null,
@@ -941,7 +941,7 @@ export async function buildContext(question: string, page?: PageCtx) {
     matchedCompanies: matchedCompanies.map(c => c.name),
     matchedPeople: [...new Set([...matchedPeople.map(p => p.name), ...peopleAll.filter(p => semanticPersonIds.has(p.id)).map(p => p.name)])],
     peopleDetail,
-    tasks: filtered.slice(0, 12).map(t => ({
+    tasks: filtered.slice(0, 24).map(t => ({
       code: t.code,
       action: t.actionItem,
       status: t.status,
