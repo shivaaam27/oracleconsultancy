@@ -3053,7 +3053,11 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
   ).join("\n") || "(none)";
   const cNames = "the COMPANIES list below (match by name, alias, TIN, VRN, email domain or code)";
   const pNames = "the PEOPLE list below (match by name; use their company/role to disambiguate)";
-  return `You are reading a business/compliance document (it may be a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document). It may be a clean scan, a phone photo, a faded/old/dirty page, or rough handwritten notes, possibly at an angle or in mixed languages (English/Swahili). Read it as carefully as you can; transcribe uncertain text rather than dropping it. Extract the key details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
+  return `You are reading a photo or scan that MAY be a business/compliance document (a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document) — but it may equally be a phone photo of something unrelated (an object, a room, a screen, a whiteboard, a person, a blurry/accidental shot). Judge this from what you actually see; do NOT assume it is an official document just because that's what you're usually asked to read. It may be a clean scan, a phone photo, a faded/old/dirty page, or rough handwritten notes, possibly at an angle or in mixed languages (English/Swahili). Read it as carefully as you can; transcribe uncertain text rather than dropping it.
+
+IF THIS IS NOT A RECOGNISABLE DOCUMENT (e.g. a photo of an object, a screen, a person, or anything without readable document content): set category to "Other", title to a short PLAIN description of what the image actually shows (e.g. "Photo of a cardboard box", "Laptop screen photo"), confidence to 0.2 or below, and DO NOT invent a docType, issuer, referenceNo or any other document field — omit them entirely rather than guessing a category like "Tax Certificate" that isn't actually shown. Only fill in document fields (docType, issuer, referenceNo, expiryDate, etc.) when you can genuinely see them.
+
+Extract the key details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
 - title: a short human label for the document
 - category: one of [${DOC_CATEGORIES.join(", ")}]
 - docType: the specific type (e.g. "Work Permit", "Class C Driving Licence", "TIN Certificate")

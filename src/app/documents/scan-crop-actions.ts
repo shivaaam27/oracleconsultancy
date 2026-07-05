@@ -10,8 +10,8 @@
 // touches pixels itself, so a bad/low-confidence read can never corrupt a
 // page, only skip the crop (the caller falls back to the original photo).
 import { callGroqJson } from "@/lib/ai-json";
-import { providerVisionModels } from "@/lib/ai-models";
-import { getGroqKey, getActiveProvider } from "@/lib/settings";
+import { GROQ_VISION_MODELS } from "@/lib/ai-models";
+import { getGroqKey } from "@/lib/settings";
 
 export type Corner = { x: number; y: number }; // fractions of image width/height, 0..1
 export type CornerResult =
@@ -39,17 +39,24 @@ function asCorner(v: unknown): Corner | null {
 /** Ask the active provider's vision model for the 4 corners of the document in
  *  frame, as fractions of the image's own width/height. Never throws; returns
  *  {ok:false} on any failure (no key, rate-limited, bad JSON, wrong shape) so
- *  callers can fall back to the uncropped photo without special-casing errors. */
+ *  callers can fall back to the uncropped photo without special-casing errors.
+ *
+ *  IMPORTANT: `model` below must be a GROQ_VISION_MODELS entry (a recognized
+ *  tier head), NOT a raw Gemini model id — `callGroqJson`'s internal ladder
+ *  fallback only expands a model into the active provider's FULL ladder when
+ *  `tierOf()` recognizes it as a known tier (see ai-models.ts). Passing a
+ *  specific Gemini id directly (the bug this comment replaces) silently
+ *  disabled all fallback: a single rate-limited model made corner detection
+ *  fail outright instead of trying the other ~9 vision models. */
 export async function detectDocumentCornersAction(imageDataUrl: string): Promise<CornerResult> {
   const apiKey = await getGroqKey();
   if (!apiKey) return { ok: false };
-  const provider = await getActiveProvider();
   const res = await callGroqJson({
     apiKey,
-    model: providerVisionModels(provider)[0],
+    model: GROQ_VISION_MODELS[0],
     maxTokens: 200,
     temperature: 0,
-    attempts: 1, // disposable per-page helper — skip the crop rather than retry/backoff
+    attempts: 1, // one try per ladder entry — disposable per-page helper, skip rather than backoff
     timeoutMs: 8000,
     source: "scan-crop",
     messages: [

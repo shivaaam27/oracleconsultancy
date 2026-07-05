@@ -99,7 +99,7 @@ error path itself was re-tested and still degrades gracefully) but NOT
 confirmed on a real device — needs the owner to re-test Live view on their
 phone.
 
-### Auto-crop / straighten (iOS-Files-style) — Phase 1+2 SHIPPED, Phase 3+4 PENDING
+### Auto-crop / straighten (iOS-Files-style) — ALL 4 PHASES SHIPPED 2026-07-06
 Owner wants scanned photos auto-cropped to just the document (like iOS's Files
 scanner), not the desk/background. Chose **Option A** (AI-detected corners +
 a real perspective warp) over Option B (OpenCV.js — accurate + offline but an
@@ -120,14 +120,51 @@ before the next touches the live camera UI:
   exported and unit-tested in isolation (`perspective-warp.test.ts` — identity
   case, pure-scale case, and a genuine skewed-trapezoid case) since the DOM/
   canvas parts can't run in the node-environment Vitest config.
-- **Phase 3 (pending)**: wire corner-detection → warp with a hard confidence
-  gate — low confidence/failure = keep the original photo, never block or
-  corrupt the page.
-- **Phase 4 (pending)**: wire into `scan-capture.tsx`'s capture flow with a
-  preview + "use this / use original instead" choice BEFORE making it fully
-  automatic — so a bad warp is caught immediately, not after the PDF's built.
-- **Phase 5 (pending)**: owner tests on real documents (mostly top-down/
-  aligned per the owner, so the easy case; angled shots are the stress test).
+- **Phase 3+4 (done)**: `scan-capture.tsx`'s `Page` type now keeps BOTH
+  `original` and `cropped` (nullable) + a `useCropped` flag. `addPage()` shows
+  the original immediately (never blocks "take the next photo"), then runs
+  `tryAutoCrop()` in the background; if confidence ≥ `CROP_CONFIDENCE_THRESHOLD`
+  (0.55) the thumbnail swaps to the straightened version with a small
+  "Cropped"/"Original" toggle badge (tap to flip back — the "preview + use
+  this/use original" safety net, as a lightweight per-page toggle rather than a
+  blocking modal, since most of the owner's photos are already top-down/
+  aligned). `saveAsPdf()` uses whichever is currently selected per page.
+- **🐛 Found + fixed during Phase 3 wiring**: `detectDocumentCornersAction`
+  initially passed `providerVisionModels(provider)[0]` (a SPECIFIC Gemini model
+  id, e.g. `"gemini-3.5-flash"`) as `callGroqJson`'s `model` — but
+  `callGroqJson`'s internal ladder-fallback only expands a model into the
+  active provider's FULL ladder when `tierOf()` recognizes it as a known tier
+  head (GROQ_FAST/GROQ_SMART/a GROQ_VISION_MODELS entry — see `ai-models.ts`).
+  A raw Gemini id isn't recognized, so it silently ran with NO fallback ladder
+  at all — one rate-limited model (confirmed live: `gemini-3.5-flash` was
+  rate-limited during testing) made the WHOLE corner-detection call fail. FIX:
+  pass `GROQ_VISION_MODELS[0]` instead (the tier-selector convention every
+  other vision call site in the codebase already uses — see `groqVision` in
+  `documents/actions.ts`) so `providerLadder()` correctly substitutes the full
+  ~10-model Gemini vision ladder. Verified end-to-end with a synthetic test
+  document image (drawn via canvas, injected into the hidden capture input via
+  `DataTransfer`) — corner detection returned coordinates matching the drawn
+  shape almost exactly (confidence 1.0) after transparently falling through
+  the rate-limited model, and the resulting crop rendered correctly in the UI
+  with a working toggle back to the original.
+- **Naming bug fixed alongside** (owner-reported: random non-document photos —
+  a box, a laptop screen — kept getting labelled things like "TIN Certificate"):
+  root cause was `extractPrompt()` in `documents/actions.ts` presupposing the
+  input WAS a business document, with no escape hatch for "this isn't a
+  document at all". Added an explicit branch: if the photo shows no
+  recognisable document, use category `"Other"`, a plain description as the
+  title (e.g. "Photo of a cardboard box"), low confidence, and no invented
+  docType/issuer/referenceNo. Not separately camera-tested (needs a real
+  ambiguous photo + a live AI call to see the actual label), so worth an extra
+  look from the owner.
+- **Live caption UI fixed alongside** (owner-reported: captions were cut off
+  to one line): the caption bar in `scan-capture.tsx` used `truncate` (single
+  line + ellipsis); changed to wrap normally with a `max-h-24 overflow-y-auto`
+  cap so long captions are fully readable without growing unbounded over the
+  video preview.
+- **Phase 5 (owner)**: real-device testing — the owner's photos are mostly
+  top-down/aligned already (the easy case); angled/skewed shots are the real
+  stress test for the warp math.
 
 ## Round 5 — Document editor redesign — DONE + SHIPPED
 Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on

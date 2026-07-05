@@ -1,28 +1,44 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Eye, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
+import { Camera, Crop, Eye, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { Button } from "./ui";
 import { narrateScanFrameAction, saveScanNarrationAction } from "@/app/documents/scan-narrate-actions";
+import { detectDocumentCornersAction } from "@/app/documents/scan-crop-actions";
+import { warpToRectangle, type Point } from "@/lib/perspective-warp";
 
-type Page = { id: string; file: File; url: string };
+// A page keeps BOTH the original photo and (if auto-crop succeeded confidently
+// enough) the straightened version, so a bad detection is always one tap away
+// from being undone — never a dead end. `useCropped` picks which one actually
+// goes into the final PDF.
+type Page = {
+  id: string;
+  original: File;
+  originalUrl: string;
+  cropped: File | null;
+  croppedUrl: string | null;
+  useCropped: boolean;
+  processing: boolean;
+};
 
 // Page size (long edge, px) — capped so the PDF page stays a sane size.
 const PAGE_MAX_DIM = 2000;
 const PAGE_QUALITY = 0.85;
+// Corner-detection is asked on a smaller, cheaper render of the photo — the
+// crop math only needs the 4 fractional points, not full resolution.
+const DETECT_MAX_DIM = 1000;
+const DETECT_QUALITY = 0.7;
+// Below this, the AI wasn't sure it found the actual document edges — keep
+// the original photo rather than risk cropping into the document itself.
+const CROP_CONFIDENCE_THRESHOLD = 0.55;
 
-/**
- * Always re-encode a captured photo through a canvas before it becomes a PDF
- * page. This is NOT optional/size-gated (unlike the shared `downscaleImage()`
- * helper, which only kicks in above 3.5 MB): `createImageBitmap` bakes the
- * photo's EXIF orientation into the redrawn pixels, and pdf-lib's `embedJpg`
- * does NOT read EXIF at all — a phone photo under 3.5 MB would otherwise go
- * into the PDF sideways/upside-down with its orientation tag silently
- * dropped, and the AI reader would then be reading a rotated page (the
- * "completely wrong" reads the owner hit). Every captured page — from either
- * capture mode — must go through this before joining `pages`.
- */
+/** Always re-encode a captured photo through a canvas before it's used. This is
+ *  NOT optional/size-gated (unlike the shared `downscaleImage()` helper, which
+ *  only kicks in above 3.5 MB): `createImageBitmap` bakes the photo's EXIF
+ *  orientation into the redrawn pixels, and pdf-lib's `embedJpg` does NOT read
+ *  EXIF at all — a phone photo under 3.5 MB would otherwise go into the PDF
+ *  sideways/upside-down. Every captured page must go through this. */
 async function normalizeCapturedPhoto(file: File | Blob, name: string): Promise<File> {
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -38,6 +54,46 @@ async function normalizeCapturedPhoto(file: File | Blob, name: string): Promise<
     return new File([blob], name, { type: "image/jpeg" });
   } catch {
     return file instanceof File ? file : new File([file], name, { type: "image/jpeg" });
+  }
+}
+
+/** Draw an already-oriented photo to a small canvas and return a JPEG data URL
+ *  — the cheap render sent for corner detection (never the saved page). */
+async function toDataUrlCapped(file: File, maxDim: number, quality: number): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return null;
+  }
+}
+
+/** Try to auto-crop/straighten a normalized photo: detect the document's
+ *  corners, and if confident enough, warp it flat. Returns null on ANY
+ *  failure or low confidence — callers keep the original in that case, so a
+ *  bad AI read can only mean "no crop", never a corrupted page. */
+async function tryAutoCrop(file: File): Promise<File | null> {
+  const dataUrl = await toDataUrlCapped(file, DETECT_MAX_DIM, DETECT_QUALITY);
+  if (!dataUrl) return null;
+  const res = await detectDocumentCornersAction(dataUrl);
+  if (!res.ok || res.confidence < CROP_CONFIDENCE_THRESHOLD) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const corners = res.corners.map((c: Point) => ({ x: c.x * bitmap.width, y: c.y * bitmap.height })) as [Point, Point, Point, Point];
+    const canvas = warpToRectangle(bitmap, corners, PAGE_MAX_DIM);
+    if (!canvas) return null;
+    const blob: Blob | null = await new Promise((r) => canvas.toBlob((b) => r(b), "image/jpeg", PAGE_QUALITY));
+    if (!blob) return null;
+    return new File([blob], file.name, { type: "image/jpeg" });
+  } catch {
+    return null;
   }
 }
 
@@ -89,10 +145,14 @@ function frameToDataUrl(video: HTMLVideoElement, maxDim: number, quality: number
  *    memory/ai_provider_gemini.md). A shutter button grabs the current frame
  *    as a page. Every caption is kept and saved to ORI memory when the scan
  *    finishes, so what the camera saw is recallable later.
- * "Save as PDF" stitches all pages into one multi-page PDF (pdf-lib,
- * client-side) and hands the result back as a normal `File` — so it drops
- * into Smart Add's existing `picked` list and flows through the unchanged
- * Sort now / Save to inbox pipeline.
+ * Every captured page ALSO runs through auto-crop in the background (detect
+ * the document's corners, straighten if confident) — never blocking "take the
+ * next photo", and always leaving the original one tap away if the crop looks
+ * wrong (per-page "Cropped"/"Original" toggle).
+ * "Save as PDF" stitches all pages (their currently-selected version) into one
+ * multi-page PDF (pdf-lib, client-side) and hands the result back as a normal
+ * `File` — so it drops into Smart Add's existing `picked` list and flows
+ * through the unchanged Sort now / Save to inbox pipeline.
  */
 export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
   const [open, setOpen] = useState(false);
@@ -163,21 +223,37 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
     };
   }, [live]);
 
+  useEffect(() => () => stopLive(), []);
+
+  /** Add a page immediately (showing the original), then run auto-crop in the
+   *  background and swap the thumbnail over to the straightened version if it
+   *  succeeds confidently — never blocks capturing the next page. */
+  function addPage(original: File) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const originalUrl = URL.createObjectURL(original);
+    setPages((prev) => [...prev, { id, original, originalUrl, cropped: null, croppedUrl: null, useCropped: false, processing: true }]);
+    tryAutoCrop(original).then((cropped) => {
+      setPages((prev) => prev.map((p) => {
+        if (p.id !== id) return p;
+        if (!cropped) return { ...p, processing: false };
+        return { ...p, cropped, croppedUrl: URL.createObjectURL(cropped), useCropped: true, processing: false };
+      }));
+    }).catch(() => {
+      setPages((prev) => prev.map((p) => (p.id === id ? { ...p, processing: false } : p)));
+    });
+  }
+
   async function captureLiveFrame() {
     if (!videoRef.current) return;
     // A video frame is already a plain canvas draw (no EXIF, correct
     // orientation) — no need to round-trip it through normalizeCapturedPhoto.
     const blob = await frameToBlob(videoRef.current, PAGE_MAX_DIM, PAGE_QUALITY);
     if (!blob) { setError("Couldn't capture that frame — try again."); return; }
-    const file = new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" });
-    const url = URL.createObjectURL(file);
-    setPages((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, url }]);
+    addPage(new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" }));
   }
 
-  useEffect(() => () => stopLive(), []);
-
   function reset() {
-    pages.forEach((p) => URL.revokeObjectURL(p.url));
+    pages.forEach((p) => { URL.revokeObjectURL(p.originalUrl); if (p.croppedUrl) URL.revokeObjectURL(p.croppedUrl); });
     setPages([]);
     setError(null);
     setBuilding(false);
@@ -192,8 +268,7 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
     setError(null);
     try {
       const file = await normalizeCapturedPhoto(raw, raw.name.replace(/\.\w+$/, "") + ".jpg");
-      const url = URL.createObjectURL(file);
-      setPages((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, url }]);
+      addPage(file);
     } catch {
       setError("Couldn't read that photo — try again.");
     }
@@ -202,9 +277,13 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
   function removePage(id: string) {
     setPages((prev) => {
       const gone = prev.find((p) => p.id === id);
-      if (gone) URL.revokeObjectURL(gone.url);
+      if (gone) { URL.revokeObjectURL(gone.originalUrl); if (gone.croppedUrl) URL.revokeObjectURL(gone.croppedUrl); }
       return prev.filter((p) => p.id !== id);
     });
+  }
+
+  function toggleCrop(id: string) {
+    setPages((prev) => prev.map((p) => (p.id === id && p.cropped ? { ...p, useCropped: !p.useCropped } : p)));
   }
 
   async function saveAsPdf() {
@@ -215,7 +294,8 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
       const { PDFDocument } = await import("pdf-lib");
       const pdf = await PDFDocument.create();
       for (const p of pages) {
-        const bytes = new Uint8Array(await p.file.arrayBuffer());
+        const active = p.useCropped && p.cropped ? p.cropped : p.original;
+        const bytes = new Uint8Array(await active.arrayBuffer());
         const jpg = await pdf.embedJpg(bytes);
         const { width, height } = jpg.scale(1);
         const page = pdf.addPage([width, height]);
@@ -275,10 +355,10 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
             <div className="space-y-2">
               <div className="relative overflow-hidden rounded-xl bg-black">
                 <video ref={videoRef} playsInline muted className="w-full aspect-[3/4] object-cover" />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 pt-6">
-                  <p className="flex items-center gap-1.5 text-[12px] text-white/90">
-                    {narrating ? <Loader2 size={11} className="animate-spin shrink-0" /> : <Sparkles size={11} className="shrink-0 text-accent" />}
-                    <span className="truncate">{caption ?? "Point the camera at your document…"}</span>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-2.5 pt-8">
+                  <p className="flex items-start gap-1.5 text-[12px] leading-snug text-white/95 max-h-24 overflow-y-auto">
+                    {narrating ? <Loader2 size={11} className="mt-0.5 animate-spin shrink-0" /> : <Sparkles size={11} className="mt-0.5 shrink-0 text-accent" />}
+                    <span className="whitespace-normal break-words">{caption ?? "Point the camera at your document…"}</span>
                   </p>
                 </div>
               </div>
@@ -301,12 +381,24 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {pages.map((p, i) => (
                   <div key={p.id} className="relative shrink-0">
-                    <img src={p.url} alt={`Page ${i + 1}`} className="h-24 w-20 rounded-lg object-cover ring-1 ring-border/60" />
+                    <img src={p.useCropped && p.croppedUrl ? p.croppedUrl : p.originalUrl} alt={`Page ${i + 1}`}
+                      className="h-24 w-20 rounded-lg object-cover ring-1 ring-border/60" />
                     <span className="absolute left-1 top-1 rounded bg-bg/80 px-1 text-[10px] font-medium">{i + 1}</span>
                     <button type="button" onClick={() => removePage(p.id)}
                       className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-danger text-white shadow">
                       <X size={11} />
                     </button>
+                    {p.processing && (
+                      <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/40">
+                        <Loader2 size={16} className="animate-spin text-white" />
+                      </div>
+                    )}
+                    {!p.processing && p.cropped && (
+                      <button type="button" onClick={() => toggleCrop(p.id)}
+                        className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 rounded-b-lg bg-bg/85 py-0.5 text-[9px] font-medium text-fg-muted hover:text-fg">
+                        <Crop size={9} /> {p.useCropped ? "Cropped" : "Original"}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
