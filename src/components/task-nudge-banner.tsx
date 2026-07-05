@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, ChevronRight, X } from "lucide-react";
+import { cn } from "@/lib/cn";
 import type { PortalNudge } from "@/lib/portal-nudge";
 
 /* A calm, dismissible nudge shown above every portal hero (home + board).
@@ -64,24 +65,35 @@ export function TaskNudgeBanner({
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const multi = lines.length > 1;
   const inner = (l: { n: number; msg: string }) => (
     <>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="font-semibold text-warn">{l.n}</span>{" "}
         <span className="font-medium">{l.n === 1 ? "task" : "tasks"}</span>{" "}
         <span className="text-fg-muted">{l.msg}</span>
       </span>
-      <ChevronRight size={14} className="shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5" />
+      <ChevronRight size={15} className="mt-0.5 shrink-0 self-start text-fg-subtle transition-transform group-hover:translate-x-0.5" />
     </>
   );
-  const rowCls = "group flex w-full items-center gap-1.5 text-left text-[13px] leading-snug text-fg";
+  // A single line sits centred with the icon; two lines get their own padded rows
+  // with a hairline between so they don't crowd (esp. on a phone).
+  const rowCls = cn(
+    "group flex w-full items-start gap-2 text-left text-[13.5px] leading-relaxed text-fg",
+    multi && "py-2.5",
+  );
 
   return (
-    <div className="print-hidden flex items-center gap-3 rounded-2xl border border-warn/25 bg-gradient-to-r from-warn-soft/70 to-bg-elev px-3.5 py-3">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warn/15 text-warn">
+    <div
+      className={cn(
+        "print-hidden flex gap-3 rounded-2xl border border-warn/25 bg-gradient-to-r from-warn-soft/70 to-bg-elev px-4",
+        multi ? "items-start py-1.5" : "items-center py-3",
+      )}
+    >
+      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warn/15 text-warn", multi && "mt-3")}>
         <ClipboardList size={15} />
       </span>
-      <div className="min-w-0 flex-1 space-y-1.5">
+      <div className={cn("min-w-0 flex-1", multi && "divide-y divide-warn/15")}>
         {lines.map((l) =>
           scrollToId ? (
             <button key={l.key} type="button" onClick={scrollToTasks} className={rowCls}>
@@ -98,7 +110,10 @@ export function TaskNudgeBanner({
         type="button"
         aria-label="Dismiss"
         onClick={close}
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-fg-subtle transition-colors hover:bg-bg-subtle hover:text-fg"
+        className={cn(
+          "grid h-7 w-7 shrink-0 place-items-center rounded-lg text-fg-subtle transition-colors hover:bg-bg-subtle hover:text-fg",
+          multi && "mt-2.5",
+        )}
       >
         <X size={15} />
       </button>

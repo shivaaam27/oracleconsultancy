@@ -231,8 +231,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   portalNudges: true,
   portalNudgeNotStartedHours: 2,
   portalNudgeNoUpdateDays: 1,
-  portalNudgeNotStartedMsg: "haven't been started yet. Please take a look.",
-  portalNudgeNoUpdateMsg: "you raised haven't been updated in a while. Review or send a reminder.",
+  // Count-neutral wording (no verb that must agree with 1 vs many) so it reads
+  // right after both "1 task" and "12 tasks".
+  portalNudgeNotStartedMsg: "not started yet. Please take a look.",
+  portalNudgeNoUpdateMsg: "you raised with no recent update. Review or send a reminder.",
 };
 
 /** Map of canonical setting field → storage key. */

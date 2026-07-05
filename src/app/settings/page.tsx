@@ -476,12 +476,12 @@ export default async function SettingsPage({
               <div className="space-y-4 border-t border-border/60 pt-3.5">
                 <div>
                   <FieldLabel>&ldquo;Not started&rdquo; wording</FieldLabel>
-                  <Input name="portalNudgeNotStartedMsg" defaultValue={s.portalNudgeNotStartedMsg} placeholder="haven't been started yet. Please take a look." />
+                  <Input name="portalNudgeNotStartedMsg" defaultValue={s.portalNudgeNotStartedMsg} placeholder="not started yet. Please take a look." />
                   <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;3 tasks &hellip;&rdquo;. Blank restores the default.</p>
                 </div>
                 <div>
                   <FieldLabel>&ldquo;No update&rdquo; wording</FieldLabel>
-                  <Input name="portalNudgeNoUpdateMsg" defaultValue={s.portalNudgeNoUpdateMsg} placeholder="you raised haven't been updated in a while. Review or send a reminder." />
+                  <Input name="portalNudgeNoUpdateMsg" defaultValue={s.portalNudgeNoUpdateMsg} placeholder="you raised with no recent update. Review or send a reminder." />
                   <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;2 tasks &hellip;&rdquo;. Blank restores the default.</p>
                 </div>
               </div>
