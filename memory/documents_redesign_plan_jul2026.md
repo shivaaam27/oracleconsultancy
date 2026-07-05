@@ -64,6 +64,41 @@ kept in a ref and, on "Save as PDF", saved to ORI memory via
 never blocks the save) — so "what did the camera see" becomes recallable through
 Ask COS's existing memory recall, same mechanism as any other remembered Q&A.
 
+### Scanner bugfixes — 2026-07-06 (owner-reported, same day as ship)
+Three bugs surfaced immediately on real-device use:
+1. **"First reading completely wrong"** — root cause: `pdf-lib`'s `embedJpg`
+   does NOT read EXIF orientation tags, and the shared `downscaleImage()`
+   helper only re-encodes (which bakes in correct rotation) above 3.5 MB — a
+   smaller camera photo skipped that step and went into the PDF sideways/
+   upside-down, so the AI read garbage. FIX: `normalizeCapturedPhoto()` in
+   `scan-capture.tsx` — ALWAYS re-encodes through
+   `createImageBitmap(file, {imageOrientation:"from-image"})` + canvas
+   (unconditional, no size gate), used by the "Take a photo" path; the Live
+   view "Capture this page" path already drew a fresh canvas frame (no EXIF to
+   begin with) so it was already correct and is left alone.
+2. **New scans didn't appear in "To Sort" until a manual refresh** — root
+   cause: `createInboxBundle` (`src/app/inbox/actions.ts`, used by "Save to
+   inbox") only called `revalidatePath("/inbox")`; the Documents/Inbox merge
+   moved the "To Sort" queue onto `/documents`, and every OTHER document
+   action already goes through a shared `revalidateDocs()` helper that
+   invalidates `/documents` — this one call site was missed. FIX: added
+   `revalidatePath("/documents")` alongside the existing `/inbox` call.
+3. **Live view = black screen, unresponsive** — root cause: a classic React
+   mount-order bug. The stream was attached to `videoRef.current` INSIDE
+   `startLive()`, before `setLive(true)` had run — but the `<video>` element
+   is only rendered when `live` is true, so at that point the ref was still
+   `null` and the stream silently never got attached; the element then
+   mounted with nothing wired to it. FIX: `startLive()` now only requests the
+   stream and flips `live` on; a `useEffect` keyed on `live` attaches
+   `streamRef.current` to `videoRef.current` (and starts the narration
+   interval) once the element actually exists, tearing the interval back down
+   on stop/unmount.
+⚠️ **Verification caveat**: this dev sandbox has no physical camera, so bug 3's
+fix is verified by code/logic (tsc clean, no console errors, the getUserMedia
+error path itself was re-tested and still degrades gracefully) but NOT
+confirmed on a real device — needs the owner to re-test Live view on their
+phone.
+
 ## Round 5 — Document editor redesign — DONE + SHIPPED
 Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on
 mobile** (mockup was artifact "cc-doc-editor"). Built by RESTRUCTURING document-form.tsx

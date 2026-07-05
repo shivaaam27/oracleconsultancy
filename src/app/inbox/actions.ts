@@ -68,6 +68,11 @@ export async function createInboxBundle(
     .single();
   if (error) return { ok: false, error: error.message };
   revalidatePath("/inbox");
+  // The Documents/Inbox merge (Jul 2026) moved the "To Sort" queue onto
+  // /documents — without this, a bundle saved here (e.g. from the in-site
+  // scanner) doesn't show up there until an unrelated navigation/reload
+  // happens to invalidate the router cache.
+  revalidatePath("/documents");
   return { ok: true, id: data.id as number };
 }
 

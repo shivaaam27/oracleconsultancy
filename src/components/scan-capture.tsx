@@ -4,10 +4,42 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Eye, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { Button } from "./ui";
-import { downscaleImage } from "@/lib/downscale-image";
 import { narrateScanFrameAction, saveScanNarrationAction } from "@/app/documents/scan-narrate-actions";
 
 type Page = { id: string; file: File; url: string };
+
+// Page size (long edge, px) — capped so the PDF page stays a sane size.
+const PAGE_MAX_DIM = 2000;
+const PAGE_QUALITY = 0.85;
+
+/**
+ * Always re-encode a captured photo through a canvas before it becomes a PDF
+ * page. This is NOT optional/size-gated (unlike the shared `downscaleImage()`
+ * helper, which only kicks in above 3.5 MB): `createImageBitmap` bakes the
+ * photo's EXIF orientation into the redrawn pixels, and pdf-lib's `embedJpg`
+ * does NOT read EXIF at all — a phone photo under 3.5 MB would otherwise go
+ * into the PDF sideways/upside-down with its orientation tag silently
+ * dropped, and the AI reader would then be reading a rotated page (the
+ * "completely wrong" reads the owner hit). Every captured page — from either
+ * capture mode — must go through this before joining `pages`.
+ */
+async function normalizeCapturedPhoto(file: File | Blob, name: string): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, PAGE_MAX_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file instanceof File ? file : new File([file], name, { type: "image/jpeg" });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", PAGE_QUALITY));
+    if (!blob) throw new Error("toBlob failed");
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch {
+    return file instanceof File ? file : new File([file], name, { type: "image/jpeg" });
+  }
+}
 
 const NARRATE_INTERVAL_MS = 2500;
 // Small + low-quality on purpose — this is a disposable live caption, not the
@@ -91,36 +123,53 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
+      // Flip `live` on FIRST — the <video> element only exists in the DOM once
+      // this render lands, so attaching the stream has to wait for that (an
+      // effect below does it) rather than happening here against a null ref.
       setLive(true);
-      narrateTimerRef.current = setInterval(async () => {
-        if (busyRef.current || !videoRef.current) return;
-        const dataUrl = frameToDataUrl(videoRef.current, NARRATE_MAX_DIM, NARRATE_QUALITY);
-        if (!dataUrl) return;
-        busyRef.current = true;
-        setNarrating(true);
-        try {
-          const res = await narrateScanFrameAction(dataUrl);
-          if (res.ok && res.caption) {
-            setCaption(res.caption);
-            captionsRef.current = [...captionsRef.current, res.caption].slice(-40);
-          }
-        } finally {
-          busyRef.current = false;
-          setNarrating(false);
-        }
-      }, NARRATE_INTERVAL_MS);
     } catch {
       setError("Couldn't open the camera for live view — your browser or device may not support it. Use \"Take a photo\" instead.");
     }
   }
 
+  // Attach the stream once the <video> element has actually mounted (`live`
+  // just became true) and start the narration loop. Runs again if `live`
+  // toggles off then on (stopLive → startLive) so the loop is always torn
+  // down/rebuilt in step with the element's lifecycle.
+  useEffect(() => {
+    if (!live || !streamRef.current || !videoRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {});
+    narrateTimerRef.current = setInterval(async () => {
+      if (busyRef.current || !videoRef.current) return;
+      const dataUrl = frameToDataUrl(videoRef.current, NARRATE_MAX_DIM, NARRATE_QUALITY);
+      if (!dataUrl) return;
+      busyRef.current = true;
+      setNarrating(true);
+      try {
+        const res = await narrateScanFrameAction(dataUrl);
+        if (res.ok && res.caption) {
+          setCaption(res.caption);
+          captionsRef.current = [...captionsRef.current, res.caption].slice(-40);
+        }
+      } finally {
+        busyRef.current = false;
+        setNarrating(false);
+      }
+    }, NARRATE_INTERVAL_MS);
+    return () => {
+      if (narrateTimerRef.current) { clearInterval(narrateTimerRef.current); narrateTimerRef.current = null; }
+    };
+  }, [live]);
+
   async function captureLiveFrame() {
     if (!videoRef.current) return;
-    const blob = await frameToBlob(videoRef.current, 2000, 0.85);
+    // A video frame is already a plain canvas draw (no EXIF, correct
+    // orientation) — no need to round-trip it through normalizeCapturedPhoto.
+    const blob = await frameToBlob(videoRef.current, PAGE_MAX_DIM, PAGE_QUALITY);
     if (!blob) { setError("Couldn't capture that frame — try again."); return; }
-    const raw = new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" });
-    const file = await downscaleImage(raw);
+    const file = new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" });
     const url = URL.createObjectURL(file);
     setPages((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, url }]);
   }
@@ -142,7 +191,7 @@ export function ScanButton({ onScan }: { onScan: (file: File) => void }) {
     if (!raw) return;
     setError(null);
     try {
-      const file = await downscaleImage(raw);
+      const file = await normalizeCapturedPhoto(raw, raw.name.replace(/\.\w+$/, "") + ".jpg");
       const url = URL.createObjectURL(file);
       setPages((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, url }]);
     } catch {
