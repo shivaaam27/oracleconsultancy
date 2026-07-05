@@ -1,8 +1,34 @@
 ---
 name: documents-redesign-plan-jul2026
-description: Phased plan + owner decisions for the Documents page redesign (compliance cards, category structure, expiry-only needs-attention)
+description: Documents page redesign — SHIPPED to master. Merged page, suggest-only intake, compliance cards, category drill-down, editor redesign.
 metadata:
   type: project
+---
+
+## ✅ SHIPPED — pushed to master, commit **1bd2e2f** (5 Jul 2026), Vercel deploys from master.
+The ENTIRE Documents redesign below (rounds 1→5 + all phases) is DONE, tsc-clean,
+verified desktop + 375px, and LIVE. No DB migration (statutory-tracking uses the
+settings table `compliance.untrackedCompanies`). New chat: the page is finished and
+deployed — this file is the "why/how" record. Owner TODOs still open (their side):
+untrack the ~6 non-core companies (toggle works), clean the 2 mis-filed Cocozuri
+insurance docs under PES (#542/#547).
+
+**Open follow-ups / ideas (not built):** reframe intake-accuracy "auto-filed %" for
+the suggest-only world (it's a legacy metric now); the AI READ itself (Groq OCR) can
+still mis-read poor photos — only the evidence-snippet SELECTION was improved, not the
+extraction; chat-message evidence can be noisy. `/hrms/pipeline` route still exists but
+unlinked (calendar/entity-graph reference its DATA) — full deletion is a later cleanup.
+
+## Round 5 — Document editor redesign — DONE + SHIPPED
+Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on
+mobile** (mockup was artifact "cc-doc-editor"). Built by RESTRUCTURING document-form.tsx
+LAYOUT ONLY (all intake logic untouched): a `lg:grid lg:grid-cols-[minmax(0,320px)_1fr]`
+wraps the capture/file panel (LEFT) + the fields (RIGHT); folds to stacked <lg; fields
+grid `grid-cols-1 sm:grid-cols-2` (single-col mobile); a live **clean-name bar**
+(`displayDocName(doc)`) on top; DocDialog widened to 860. ⚠️ GOTCHA: mid-edit Turbopack
+cached a broken chunk → persistent STALE "document-form parse error line 847" in the dev
+console even though the file is valid (46/46 divs, tsc clean, renders). Trust tsc.
+
 ---
 
 Owner reviewed the first Documents build (merged page + Sorting Desk + collapsible

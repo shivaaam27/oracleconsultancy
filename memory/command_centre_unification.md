@@ -388,6 +388,13 @@ Original mockup spec below:
 2. Then likely: Tasks tab / Companies tab on `/`, `/brief`, `/workbook`, `/meeting`,
    HRMS pages, `/settings`, `/inbox`, `/documents`, `/people`… owner picks order.
 
+## Step 4 — Documents — ✅ SHIPPED to master (commit 1bd2e2f, 5 Jul 2026)
+Full record + every round/decision in [[documents-redesign-plan-jul2026]]. The merged
+Documents page (Library·To Sort·Trash), suggest-only intake, compliance cards +
+statutory-tracking toggle, Expiry watch, Company→Category→Docs + Staff-by-person,
+Sorting Desk, Trash preview/restore-to-sort, Replace ·EXP flow, and the E2/E1 editor
+redesign are all DONE + PUSHED. Original mockup/plan notes below.
+
 ## Step 4 — Documents (Documents + Compliance + Inbox MERGED, 4 Jul 2026)
 Owner brief: merge /documents + /inbox into ONE page; sorting has been mis-filing →
 flip to **suggest-only** (auto-pulled docs wait in To Sort with guessed
