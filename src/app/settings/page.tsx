@@ -27,7 +27,7 @@ import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "location", "swipe", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
+  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
@@ -443,6 +444,51 @@ export default async function SettingsPage({
               </Button>
             </form>
           </SettingsCard>
+        </section>
+
+        {/* ───────────────────────── Portals ───────────────────────── */}
+        <section data-group="portals" className="space-y-4">
+          <form action={saveSettings} className="space-y-4">
+            <input type="hidden" name="__keys" value="portalNudges,portalNudgeNotStartedHours,portalNudgeNoUpdateDays,portalNudgeNotStartedMsg,portalNudgeNoUpdateMsg" />
+            <input type="hidden" name="__section" value="portals" />
+
+            <SettingsCard id="portal-nudges" icon={<ClipboardList size={15} />} title="Task nudges" desc="The reminder banner above every portal home & board." keywords="portal nudge banner not started reminder staff manager director tasks hero updates">
+              <FormSwitch
+                name="portalNudges"
+                defaultChecked={s.portalNudges}
+                label="Show the task nudge banner"
+                hint="A calm banner on every portal home / board pointing staff, managers and directors to tasks that need a look."
+              />
+
+              <div className="grid grid-cols-1 gap-4 border-t border-border/60 pt-3.5 sm:grid-cols-2">
+                <div>
+                  <FieldLabel>Not started — remind after (hours)</FieldLabel>
+                  <Input name="portalNudgeNotStartedHours" type="number" min={0} max={168} defaultValue={s.portalNudgeNotStartedHours} />
+                  <p className="mt-1 text-[11px] text-fg-muted">How long a task can sit at &ldquo;Not Started&rdquo;, untouched, before it&apos;s flagged. Shown to everyone.</p>
+                </div>
+                <div>
+                  <FieldLabel>Raised by me — remind after (days)</FieldLabel>
+                  <Input name="portalNudgeNoUpdateDays" type="number" min={0} max={90} defaultValue={s.portalNudgeNoUpdateDays} />
+                  <p className="mt-1 text-[11px] text-fg-muted">How long a task someone raised can go without an update before it&apos;s flagged. Managers, directors &amp; admin only.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t border-border/60 pt-3.5">
+                <div>
+                  <FieldLabel>&ldquo;Not started&rdquo; wording</FieldLabel>
+                  <Input name="portalNudgeNotStartedMsg" defaultValue={s.portalNudgeNotStartedMsg} placeholder="haven't been started yet. Please take a look." />
+                  <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;3 tasks &hellip;&rdquo;. Blank restores the default.</p>
+                </div>
+                <div>
+                  <FieldLabel>&ldquo;No update&rdquo; wording</FieldLabel>
+                  <Input name="portalNudgeNoUpdateMsg" defaultValue={s.portalNudgeNoUpdateMsg} placeholder="you raised haven't been updated in a while. Review or send a reminder." />
+                  <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;2 tasks &hellip;&rdquo;. Blank restores the default.</p>
+                </div>
+              </div>
+            </SettingsCard>
+
+            <SaveBar />
+          </form>
         </section>
 
         {/* ───────────────────── Email & Integrations ───────────────────── */}

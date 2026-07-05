@@ -149,6 +149,11 @@ export async function saveSettings(fd: FormData): Promise<void> {
     eventAttendeePings: fd.get("eventAttendeePings") === "on",
     recurringMeetingTaskMode: fd.get("recurringMeetingTaskMode") === "series" ? "series" : (fd.has("recurringMeetingTaskMode") ? "occurrence" : undefined),
     meetingFollowupPrompt: fd.get("meetingFollowupPrompt") === "on",
+    portalNudges: fd.get("portalNudges") === "on",
+    portalNudgeNotStartedHours: num(fd, "portalNudgeNotStartedHours"),
+    portalNudgeNoUpdateDays: num(fd, "portalNudgeNoUpdateDays"),
+    portalNudgeNotStartedMsg: ((fd.get("portalNudgeNotStartedMsg") as string | null) ?? "").trim(),
+    portalNudgeNoUpdateMsg: ((fd.get("portalNudgeNoUpdateMsg") as string | null) ?? "").trim(),
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

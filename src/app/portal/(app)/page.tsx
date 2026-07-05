@@ -15,6 +15,8 @@ import { getPortalPerson, visibleTaskIds, colleagueCompanyScope } from "@/lib/po
 import { getGivenName, getInitials } from "@/lib/names";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { getPortalNudge } from "@/lib/portal-nudge";
+import { TaskNudgeBanner } from "@/components/task-nudge-banner";
 import { personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { TodoCard } from "@/components/todo-card";
@@ -73,6 +75,10 @@ export default async function PortalHome() {
 
   // The person's tasks in the shared Aurora command shape (same as the Tasks tab).
   const cmd = await buildCommandTasks(ids, me.id, me.name);
+
+  // Task nudge banner (above the hero) — computed fresh; null when nothing needs
+  // a look or the owner has switched it off in Settings → Portals.
+  const nudge = await getPortalNudge(me);
 
   // Create-surface pickers (task quick-add + the manager event form) are scoped to
   // the viewer's companies through the one shared helper — a manager only sees their
@@ -143,6 +149,9 @@ export default async function PortalHome() {
   return (
     <div className="flex flex-col gap-5">
       <AnnouncementBanner items={bannerItems} />
+      {/* Staff have no separate Tasks page — their tasks live inline below, so the
+          nudge SCROLLS to that section instead of navigating. HR keep the link. */}
+      {nudge && <TaskNudgeBanner nudge={nudge} scrollToId={inlineTasks ? "my-tasks" : undefined} />}
       <AutoRefresh seconds={25} />
       <AttendanceCheckin firstName={getGivenName(me.name)} status={today.status} editable={today.editable} />
       {/* Uniform with the manager/director board hero — aurora shell + greeting +
@@ -223,8 +232,10 @@ export default async function PortalHome() {
           on. HR keep a link (too many to inline). */}
       {inlineTasks ? (
         <Reveal delay={0.05} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-          <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={false} houseList />
+          <div id="my-tasks" className="scroll-mt-4 flex flex-col gap-2.5">
+            <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
+            <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={false} houseList />
+          </div>
         </Reveal>
       ) : (
         <Reveal delay={0.05}>

@@ -78,7 +78,7 @@ export type CommandTask = {
   closedAt: string | null;
 };
 
-export type Filter = "all" | "inprogress" | "overdue" | "soon" | "mine" | "done";
+export type Filter = "all" | "inprogress" | "overdue" | "soon" | "fromme" | "mine" | "done" | "notstarted";
 
 const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
 const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
@@ -168,9 +168,11 @@ export function PortalTasksCommand({
     inprogress: byCompany.filter((t) => t.status === "In Progress" && !t.isDone).length,
     overdue: byCompany.filter((t) => t.overdue && !t.isDone).length,
     soon: byCompany.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
+    fromme: byCompany.filter((t) => t.createdByPersonId === viewerId && !t.isDone).length,
     mine: byCompany.filter((t) => t.raisedByMe && !t.isDone).length,
     done: byCompany.filter((t) => t.isDone).length,
-  }), [byCompany]);
+    notstarted: byCompany.filter((t) => t.status === "Not Started" && !t.isDone).length,
+  }), [byCompany, viewerId]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -182,13 +184,15 @@ export function PortalTasksCommand({
       if (filter === "inprogress") return t.status === "In Progress" && !t.isDone;
       if (filter === "overdue") return t.overdue && !t.isDone;
       if (filter === "soon") return t.withinSoon && !t.overdue && !t.isDone;
+      if (filter === "fromme") return t.createdByPersonId === viewerId && !t.isDone;
       if (filter === "mine") return t.raisedByMe && !t.isDone;
+      if (filter === "notstarted") return t.status === "Not Started" && !t.isDone;
       if (filter === "done") return t.isDone;
       // "all": open work only — finished tasks are hidden from the glance unless
       // the director explicitly selects the Done chip.
       return !t.isDone;
     });
-  }, [byCompany, q, filter]);
+  }, [byCompany, q, filter, viewerId]);
 
   const companyFilterOptions: FluidOption[] = [
     { value: "all", label: "All companies" },
@@ -255,7 +259,9 @@ export function PortalTasksCommand({
         inprogress: { label: "In Progress", dot: "bg-info" },
         overdue: { label: "Overdue", dot: "bg-danger" },
         soon: { label: "Due soon", dot: "bg-warn" },
-        mine: { label: "Raised by me", dot: "bg-accent" },
+        fromme: { label: "I raised", dot: "bg-accent" },
+        mine: { label: "My work", dot: "bg-accent" },
+        notstarted: { label: "Not Started", dot: "bg-fg-subtle" },
         done: { label: "Done", dot: "bg-fg-subtle" },
       };
       const m = meta[filter];
@@ -276,14 +282,24 @@ export function PortalTasksCommand({
     ].filter((g) => g.items.length > 0);
   }, [filtered, groupByCompany, filter]);
 
-  const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = [
-    { key: "all", label: "All", n: counts.all },
-    { key: "inprogress", label: "In Progress", n: counts.inprogress },
-    { key: "overdue", label: "Overdue", n: counts.overdue, danger: true },
-    { key: "soon", label: "Due soon", n: counts.soon },
-    { key: "mine", label: "Mine", n: counts.mine },
-    { key: "done", label: "Done", n: counts.done },
-  ];
+  // Staff get a stripped-down bar — just All (their open count) + Not Started.
+  // The management roles get the full set: Not Started sits right after All, and
+  // "Assigned" (tasks you're on) is distinct from "From me" (tasks you raised).
+  const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = isManagement
+    ? [
+        { key: "all", label: "All", n: counts.all },
+        { key: "notstarted", label: "Not Started", n: counts.notstarted },
+        { key: "inprogress", label: "In Progress", n: counts.inprogress },
+        { key: "overdue", label: "Overdue", n: counts.overdue, danger: true },
+        { key: "soon", label: "Due soon", n: counts.soon },
+        { key: "fromme", label: "I raised", n: counts.fromme },
+        { key: "mine", label: "My work", n: counts.mine },
+        { key: "done", label: "Done", n: counts.done },
+      ]
+    : [
+        { key: "all", label: "All", n: counts.all },
+        { key: "notstarted", label: "Not Started", n: counts.notstarted },
+      ];
 
   // Outreach (remind / message a person) stays role-based — any management role
   // may nudge. Edit/complete is decided per-task inside TaskRow (creator/director).
@@ -301,59 +317,86 @@ export function PortalTasksCommand({
             className="py-3 text-sm"
           />
         </div>
-        {companies.length > 1 && (
-          <FluidSelect
-            value={companyFilter}
-            options={companyFilterOptions}
-            onSelect={setCompanyFilter}
-            align="right"
-            buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
-          />
+        {(companies.length > 1 || isManagement) && (
+          <div className="flex items-center gap-2.5">
+            {companies.length > 1 && (
+              <FluidSelect
+                value={companyFilter}
+                options={companyFilterOptions}
+                onSelect={setCompanyFilter}
+                align="right"
+                buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
+              />
+            )}
+            {/* Divider between the company dropdown and Company wise. */}
+            {companies.length > 1 && <span className="mx-0.5 my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />}
+            {/* Grouping toggle — matches the company dropdown look (same pill:
+                bg-bg-elev, py-3, ring). Accent when active. */}
+            <button
+              type="button"
+              aria-pressed={groupByCompany}
+              onClick={() => setGroupByCompany((v) => !v)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 text-sm ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+            >
+              <Building2 size={15} />
+              <span>Company wise</span>
+            </button>
+            {/* Bulk-select mode toggle (management) — sits to the right of the
+                company dropdown. Ticks + the action bar only exist while it's on. */}
+            {isManagement && (
+              <button
+                type="button"
+                aria-pressed={selectMode}
+                onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+              >
+                {selectMode ? <CheckSquare size={15} /> : <Square size={15} />}
+                <span className="text-[12.5px]">{selectMode ? "Done" : "Select"}</span>
+              </button>
+            )}
+            {/* "Done" filter — on MOBILE it lives here next to Select (kept out of
+                the scroll strip); from sm up it renders inline with the chips. */}
+            {isManagement && (
+              <button
+                type="button"
+                onClick={() => setFilter("done")}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 sm:hidden",
+                  filter === "done" ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
+                )}
+              >
+                <span className={cn("text-[15px] font-semibold leading-none tabular", filter === "done" ? "" : "text-success")}>{counts.done}</span>
+                <span className="text-[12.5px]">Done</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Mobile keeps the horizontal scroll strip (mobile layout handled
+          separately); desktop WRAPS so every filter is visible with no scroll. */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
         {FILTERS.map((f) => {
           const active = filter === f.key;
-          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : "text-accent";
+          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : f.key === "notstarted" ? "text-fg-subtle" : "text-accent";
           return (
             <button
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+              className={cn(
+                "shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95",
+                active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
+                // Done lives next to Select on mobile (top row) — hide it here so
+                // it isn't duplicated; show it inline again from sm up.
+                f.key === "done" ? "hidden sm:inline-flex" : "inline-flex",
+              )}
             >
               {f.n != null && <span className={`text-[15px] font-semibold leading-none tabular ${active ? "" : tint}`}>{f.n}</span>}
               <span className="text-[12.5px]">{f.label}</span>
             </button>
           );
         })}
-
-        {/* Grouping toggle: lay the list out company-by-company instead of by status. */}
-        <span className="mx-0.5 my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
-        <button
-          type="button"
-          aria-pressed={groupByCompany}
-          onClick={() => setGroupByCompany((v) => !v)}
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
-        >
-          <Building2 size={14} />
-          <span className="text-[12.5px]">Company wise</span>
-        </button>
-
-        {/* Bulk-select mode toggle (management). Ticks + the action bar only exist
-            while this is on, so the everyday list stays clean. */}
-        {isManagement && (
-          <button
-            type="button"
-            aria-pressed={selectMode}
-            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
-          >
-            {selectMode ? <CheckSquare size={14} /> : <Square size={14} />}
-            <span className="text-[12.5px]">{selectMode ? "Done" : "Select"}</span>
-          </button>
-        )}
       </div>
 
       {canCreate && <QuickAdd people={people} companies={companies} role={role} />}
@@ -366,7 +409,9 @@ export function PortalTasksCommand({
             : filter === "overdue" ? "Nothing overdue — you're on top of it."
             : filter === "soon" ? "Nothing due in the next week."
             : filter === "inprogress" ? "Nothing in progress right now."
-            : filter === "mine" ? "You haven't raised any open tasks."
+            : filter === "fromme" ? "You haven't created any open tasks."
+            : filter === "mine" ? "You're not on any open tasks."
+            : filter === "notstarted" ? "Nothing sitting un-started."
             : filter === "done" ? "No completed tasks yet."
             : "No open tasks. Enjoy the calm."}
         </div>

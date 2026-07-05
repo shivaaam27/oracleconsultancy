@@ -7,6 +7,8 @@ import { getPortalPerson, companyScope, type PortalPerson } from "@/lib/portal-a
 import { ManagerBoardExtras } from "@/components/manager-board-extras";
 import { BoardTodos } from "@/components/board-todos";
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { getPortalNudge } from "@/lib/portal-nudge";
+import { TaskNudgeBanner } from "@/components/task-nudge-banner";
 import { getGivenName, getInitials } from "@/lib/names";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
@@ -54,9 +56,14 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
     .filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt))
     .map((a) => ({ id: a.id, title: a.title, body: a.body || null }));
 
+  // Task nudge banner (above the hero) — company-wise not-started + stale tasks
+  // this operator raised. Null when nothing needs a look or it's switched off.
+  const nudge = await getPortalNudge(me);
+
   return (
     <div className="flex flex-col gap-5">
       <AnnouncementBanner items={bannerItems} />
+      {nudge && <TaskNudgeBanner nudge={nudge} />}
 
       {created && (
         <Reveal delay={0}>

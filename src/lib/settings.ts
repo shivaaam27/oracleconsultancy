@@ -165,6 +165,18 @@ export type AppSettings = {
   /** After a meeting ends, if its task is still open, post a "capture the outcome /
    *  minutes" prompt into the task so nothing is forgotten. */
   meetingFollowupPrompt: boolean;
+
+  /* ---- Portal task nudges (the banner above every portal hero) ---- */
+  /** Master switch for the portal "you have tasks to look at" nudge banner. */
+  portalNudges: boolean;
+  /** A Not-Started task nudges once it has sat untouched this many HOURS. */
+  portalNudgeNotStartedHours: number;
+  /** A task the person RAISED nudges once it has had no update for this many DAYS
+   *  (managers/directors/HR only — it's about work they delegated). */
+  portalNudgeNoUpdateDays: number;
+  /** Editable wording. Rendered after the count, e.g. "3 tasks {message}". */
+  portalNudgeNotStartedMsg: string;
+  portalNudgeNoUpdateMsg: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -216,6 +228,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   eventAttendeePings: true,
   recurringMeetingTaskMode: "occurrence",
   meetingFollowupPrompt: true,
+  portalNudges: true,
+  portalNudgeNotStartedHours: 2,
+  portalNudgeNoUpdateDays: 1,
+  portalNudgeNotStartedMsg: "haven't been started yet. Please take a look.",
+  portalNudgeNoUpdateMsg: "you raised haven't been updated in a while. Review or send a reminder.",
 };
 
 /** Map of canonical setting field → storage key. */
@@ -258,6 +275,11 @@ const KEY: Record<keyof AppSettings, string> = {
   eventAttendeePings: "v2.eventAttendeePings",
   recurringMeetingTaskMode: "v2.recurringMeetingTaskMode",
   meetingFollowupPrompt: "v2.meetingFollowupPrompt",
+  portalNudges: "v2.portalNudges",
+  portalNudgeNotStartedHours: "v2.portalNudgeNotStartedHours",
+  portalNudgeNoUpdateDays: "v2.portalNudgeNoUpdateDays",
+  portalNudgeNotStartedMsg: "v2.portalNudgeNotStartedMsg",
+  portalNudgeNoUpdateMsg: "v2.portalNudgeNoUpdateMsg",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -323,6 +345,12 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     eventAttendeePings: toBool(map.get(KEY.eventAttendeePings), d.eventAttendeePings),
     recurringMeetingTaskMode: map.get(KEY.recurringMeetingTaskMode) === "series" ? "series" : d.recurringMeetingTaskMode,
     meetingFollowupPrompt: toBool(map.get(KEY.meetingFollowupPrompt), d.meetingFollowupPrompt),
+    portalNudges: toBool(map.get(KEY.portalNudges), d.portalNudges),
+    portalNudgeNotStartedHours: toNum(map.get(KEY.portalNudgeNotStartedHours), d.portalNudgeNotStartedHours),
+    portalNudgeNoUpdateDays: toNum(map.get(KEY.portalNudgeNoUpdateDays), d.portalNudgeNoUpdateDays),
+    // `|| default` (not `??`): a blank saved message falls back to the default wording.
+    portalNudgeNotStartedMsg: (map.get(KEY.portalNudgeNotStartedMsg) || "").trim() || d.portalNudgeNotStartedMsg,
+    portalNudgeNoUpdateMsg: (map.get(KEY.portalNudgeNoUpdateMsg) || "").trim() || d.portalNudgeNoUpdateMsg,
   };
 });
 
