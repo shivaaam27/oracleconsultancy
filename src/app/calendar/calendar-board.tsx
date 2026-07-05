@@ -979,6 +979,14 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; html: string; recipients: string[] } | null>(null);
+  // Delete confirmation (Aurora dialog, replaces the native confirm). For a
+  // recurring event the operator chooses this-date-only vs the whole series.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const isRecurring = !!event.recurrence && event.recurrence !== "none";
+  // UTC-derived key — MUST match how excluded dates + occurrence meeting_dates are
+  // stored elsewhere (edit-form skip + deleteTaskForOccurrence).
+  const occDateKey = new Date(event.startAt).toISOString().slice(0, 10);
+  const [delScope, setDelScope] = useState<"occurrence" | "series">("occurrence");
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const shareUrl = `${origin}/e/${event.publicToken}`;
@@ -1002,12 +1010,26 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   }
 
   function remove() {
-    if (!confirm("Delete this event?")) return;
+    // Open the Aurora confirmation instead of a native confirm(). Recurring events
+    // default to "this event only" (the safe choice); one-offs just delete.
+    setDelScope(isRecurring ? "occurrence" : "series");
+    setConfirmOpen(true);
+  }
+
+  function doDelete() {
     start(async () => {
-      const r = await deleteEventAction(event.id);
-      if (!r.ok) toast(r.error, { tone: "danger" });
-      else if (r.googleCancelled) toast("Event deleted — guests notified of the cancellation.", { tone: "success", duration: 6000 });
-      else toast("Event deleted.", { tone: "success" });
+      if (isRecurring && delScope === "occurrence") {
+        const r = await skipEventOccurrence(event.id, occDateKey);
+        if (!r.ok) { toast(r.error, { tone: "danger" }); return; }
+        toast("This event was cancelled — the rest of the series stays. Its task was removed.", { tone: "success", duration: 6000 });
+      } else {
+        const r = await deleteEventAction(event.id);
+        if (!r.ok) { toast(r.error, { tone: "danger" }); return; }
+        const whole = isRecurring; // deleting a series vs a single one-off
+        if (r.googleCancelled) toast(whole ? "Whole series deleted — guests notified." : "Event deleted — guests notified of the cancellation.", { tone: "success", duration: 6000 });
+        else toast(whole ? "Whole series deleted." : "Event deleted.", { tone: "success" });
+      }
+      setConfirmOpen(false);
     });
   }
 
@@ -1313,6 +1335,69 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
               srcDoc={preview.html}
               className="w-full h-[420px] rounded-xl border border-border bg-white"
             />
+          </div>
+        </HrmsDialog>
+      )}
+
+      {confirmOpen && (
+        <HrmsDialog
+          open
+          onClose={() => setConfirmOpen(false)}
+          width="sm"
+          title={<span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Delete event</span>}
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+              <Button type="button" variant="danger" disabled={pending} onClick={doDelete}>
+                <Trash2 size={15} /> {!isRecurring ? "Delete" : delScope === "occurrence" ? "Delete this event" : "Delete series"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {/* Preview of what's being deleted */}
+            <div className="rounded-xl bg-bg-muted/40 p-3 ring-1 ring-border">
+              <p className="font-medium leading-snug">{event.title}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
+                <span className="inline-flex items-center gap-1"><CalendarDays size={12} />{fmtDayLabel(event.startAt)}{event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}</span>
+                {event.companyLabel && <span className="inline-flex items-center gap-1"><Building2 size={12} />{event.companyLabel}</span>}
+                {event.attendees.length > 0 && <span className="inline-flex items-center gap-1"><Users size={12} />{event.attendees.length} {event.attendees.length === 1 ? "attendee" : "attendees"}</span>}
+                {isRecurring && <span className="inline-flex items-center gap-1 capitalize"><Repeat size={12} />{event.recurrence}</span>}
+              </div>
+            </div>
+
+            {isRecurring ? (
+              <div className="space-y-1.5">
+                <p className="text-xs text-fg-muted">This is a repeating event — what would you like to delete?</p>
+                {([
+                  { v: "occurrence", label: "This event only", desc: "Cancels just this date; the rest of the series stays. Its task is removed." },
+                  { v: "series", label: "All events in the series", desc: "Deletes every occurrence and all their tasks. Guests are notified." },
+                ] as const).map((o) => {
+                  const active = delScope === o.v;
+                  return (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setDelScope(o.v)}
+                      className={cn(
+                        "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
+                        active ? "bg-accent-soft ring-accent" : "bg-bg-elev ring-border hover:bg-bg-muted",
+                      )}
+                    >
+                      <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ring-1", active ? "bg-accent text-accent-fg ring-accent" : "ring-border")}>
+                        {active && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-medium text-fg">{o.label}</span>
+                        <span className="block text-[11px] text-fg-muted">{o.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-fg-muted">This permanently deletes the event. Its linked task (if any) is removed too, and any invited guests are notified.</p>
+            )}
           </div>
         </HrmsDialog>
       )}

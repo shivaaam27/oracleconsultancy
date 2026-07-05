@@ -16,7 +16,7 @@ import {
 import { buildIcs } from "@/lib/ics";
 import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
 import { senderName, type EmailOffice } from "@/lib/email/layout";
-import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent } from "@/lib/meeting-tasks";
+import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent, deleteTaskForOccurrence } from "@/lib/meeting-tasks";
 import { notifyMany, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
@@ -851,6 +851,9 @@ export async function skipEventOccurrence(id: number, dateKey: string): Promise<
     if (ev.excludedDates.includes(key)) return { ok: true }; // already skipped
 
     await setExcludedDates(id, [...ev.excludedDates, key]);
+    // Remove the task spawned for THIS occurrence so a cancelled date leaves no
+    // orphaned open task (the whole-event delete already clears all of them).
+    await deleteTaskForOccurrence(id, key);
 
     // Tell guests this one date is off (our branded email) + remove the instance
     // from the owner's Google calendar.

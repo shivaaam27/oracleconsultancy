@@ -27,6 +27,32 @@ export async function deleteTasksForEvent(eventId: number): Promise<number> {
   return ids.length;
 }
 
+/**
+ * Delete the task(s) spawned for ONE occurrence of a recurring meeting — those with
+ * source_event_id = eventId AND a meeting_date falling on `dateKey` (yyyy-mm-dd).
+ * Called when a single date is cancelled (skipEventOccurrence) so that occurrence's
+ * task doesn't linger. The date key is UTC-derived to match how the calendar stores
+ * excluded dates + occurrence meeting_dates. Best-effort; returns the count removed.
+ */
+export async function deleteTaskForOccurrence(eventId: number, dateKey: string): Promise<number> {
+  const key = (dateKey ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return 0;
+  const lo = `${key}T00:00:00.000Z`;
+  const hi = `${key}T23:59:59.999Z`;
+  const { data: tasks } = await sb
+    .from("tasks")
+    .select("id")
+    .eq("source_event_id", eventId)
+    .gte("meeting_date", lo)
+    .lte("meeting_date", hi);
+  if (!tasks || tasks.length === 0) return 0;
+  const ids = tasks.map((t) => t.id as number);
+  const { error } = await sb.from("tasks").delete().in("id", ids);
+  if (error) return 0;
+  for (const id of ids) void removeEntityIndex("task", id);
+  return ids.length;
+}
+
 /* ------------------------------------------------------------------ *
  * Meeting-as-task — a calendar event/meeting also becomes a task so the
  * work around a meeting (prep, follow-through) lives in the task system.
