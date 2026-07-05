@@ -25,6 +25,29 @@ export type PassageHit = Passage & {
 const MIN_PASSAGE = 40; // merge blocks shorter than this into the next
 const MAX_PASSAGES = 400; // bound a pathologically long document
 const SNIPPET_RADIUS = 140; // chars of context on each side of the first hit
+const MAX_BLOCK = 1200; // sub-split any block longer than this so no content is lost
+const SUB_CHUNK = 900; // target size of a sub-split chunk
+
+/** Break a long block into ~SUB_CHUNK passages on sentence/line boundaries, so a
+ *  wall-of-text document (single-newline OCR/vision output) becomes many
+ *  searchable passages instead of one truncated blob. Short blocks pass through. */
+function subSplit(block: string): string[] {
+  if (block.length <= MAX_BLOCK) return [block];
+  const out: string[] = [];
+  let i = 0;
+  while (i < block.length) {
+    let end = Math.min(i + SUB_CHUNK, block.length);
+    if (end < block.length) {
+      const slice = block.slice(i, end);
+      const brk = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n"), slice.lastIndexOf("; "));
+      if (brk > SUB_CHUNK * 0.5) end = i + brk + 1;
+    }
+    const piece = block.slice(i, end).trim();
+    if (piece) out.push(piece);
+    i = end;
+  }
+  return out;
+}
 
 /** Explicit location label at the top of a block: "Page 4", "--- page 4 ---",
  *  "Sheet: Payroll", "Slide 3". Null if none. */
@@ -64,27 +87,15 @@ export function splitIntoPassages(text: string | null | undefined): Passage[] {
   const usedFormFeed = t.includes("\f");
   const rawBlocks = usedFormFeed ? t.split("\f") : t.split(/\n\s*\n+/);
 
-  const passages: Passage[] = [];
+  // Pass 1 — assemble (body, location) blocks, merging tiny fragments forward
+  // (but never across a form-feed page break — each page is its own unit).
+  const blocks: { body: string; loc: string | null }[] = [];
   let pageCounter = 0;
-  let sectionCounter = 0;
   let carry = "";
   let carriedLoc: string | null = null;
-
-  const flush = (body: string, loc: string | null) => {
-    const clean = body.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-    if (!clean) return;
-    sectionCounter += 1;
-    const location = loc || clauseLocation(clean) || `Section ${sectionCounter}`;
-    passages.push({ ord: passages.length, location, body: clean.slice(0, 4000) });
-  };
-
   for (const raw of rawBlocks) {
-    if (passages.length >= MAX_PASSAGES) break;
     const block = raw.trim();
     if (!block) continue;
-
-    // A form-feed is a hard page boundary — trust the running page count over any
-    // in-text "Page …" phrase. Otherwise fall back to marker detection.
     let loc: string | null;
     if (usedFormFeed) {
       pageCounter += 1;
@@ -92,20 +103,33 @@ export function splitIntoPassages(text: string | null | undefined): Passage[] {
     } else {
       loc = markerLocation(block);
     }
-
     const candidate = carry ? `${carry}\n\n${block}` : block;
-    // Merge tiny fragments forward — but NOT across a form-feed page break, where
-    // each page is its own passage however short.
     if (!usedFormFeed && candidate.length < MIN_PASSAGE) {
       carry = candidate;
       carriedLoc = carriedLoc || loc;
       continue;
     }
-    flush(candidate, carriedLoc || loc);
+    blocks.push({ body: candidate, loc: carriedLoc || loc });
     carry = "";
     carriedLoc = null;
   }
-  if (carry) flush(carry, carriedLoc);
+  if (carry) blocks.push({ body: carry, loc: carriedLoc });
+
+  // Pass 2 — sub-split long blocks so the WHOLE document is covered (nothing
+  // truncated), tagging each passage with its location.
+  const passages: Passage[] = [];
+  let sectionCounter = 0;
+  for (const b of blocks) {
+    if (passages.length >= MAX_PASSAGES) break;
+    for (const chunk of subSplit(b.body)) {
+      const clean = chunk.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+      if (!clean) continue;
+      sectionCounter += 1;
+      const location = b.loc || clauseLocation(clean) || `Section ${sectionCounter}`;
+      passages.push({ ord: passages.length, location, body: clean });
+      if (passages.length >= MAX_PASSAGES) break;
+    }
+  }
   return passages;
 }
 

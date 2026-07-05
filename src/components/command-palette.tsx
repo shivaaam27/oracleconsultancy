@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch, FileText, ExternalLink } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
@@ -149,6 +149,102 @@ function HighlightSnippet({ text }: { text: string }) {
   );
 }
 
+/** Multi-line version of HighlightSnippet — renders a whole passage, bolding
+ *  every «…»-marked hit. Used by the in-place document reader. */
+function HighlightBlock({ text }: { text: string }) {
+  const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
+  return (
+    <span className="block text-[13px] leading-relaxed text-fg whitespace-pre-wrap">
+      {parts.map((p, i) =>
+        p.startsWith("«")
+          ? <mark key={i} className="rounded bg-accent/20 px-0.5 text-accent">{p.slice(1, -1)}</mark>
+          : <span key={i}>{p}</span>,
+      )}
+    </span>
+  );
+}
+
+type ReaderPassage = { ord: number; location: string; body: string; snippet: string };
+
+/**
+ * In-place document reader — opened when a document search result is chosen.
+ * Fetches the document's located passages (AI-free /api/doc-passages), shows the
+ * matching ones with their location + highlight so you READ without leaving the
+ * palette, lets you ask ORI about THIS file, or open it at the exact spot.
+ */
+function DocReaderPane({
+  doc, onBack, onClose, onOpen, onAsk,
+}: {
+  doc: { id: number; title: string; href: string; query: string };
+  onBack: () => void;
+  onClose: () => void;
+  onOpen: (href: string) => void;
+  onAsk: (question: string) => void;
+}) {
+  const [passages, setPassages] = useState<ReaderPassage[] | null>(null);
+  const [ask, setAsk] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setPassages(null);
+    const url = `/api/doc-passages?id=${doc.id}${doc.query ? `&q=${encodeURIComponent(doc.query)}` : ""}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setPassages((d.passages ?? []) as ReaderPassage[]); })
+      .catch(() => { if (alive) setPassages([]); });
+    return () => { alive = false; };
+  }, [doc.id, doc.query]);
+
+  const submitAsk = () => {
+    const q = ask.trim();
+    if (!q) return;
+    onAsk(`In the document "${doc.title}": ${q}`);
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <button type="button" onClick={onBack} aria-label="Back to results" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-elev hover:text-fg"><ArrowLeft size={16} /></button>
+        <FileText size={15} className="shrink-0 text-accent" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{doc.title}</span>
+        <button type="button" onClick={() => onOpen(doc.href)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1.5 text-[12px] font-medium text-accent hover:bg-accent-soft">Open <ExternalLink size={12} /></button>
+        <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:text-fg"><XIcon size={15} /></button>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
+        {passages === null ? (
+          <div className="py-10 text-center text-sm text-fg-muted">Reading…</div>
+        ) : passages.length === 0 ? (
+          <div className="py-10 text-center text-sm text-fg-muted">
+            {doc.query ? "No matching passages found — open the document to read it in full." : "No readable text captured for this file yet."}
+          </div>
+        ) : (
+          passages.map((p) => (
+            <div key={p.ord} className="rounded-xl bg-bg-elev/60 px-3.5 py-2.5 ring-1 ring-border">
+              <div className="mb-1 text-[11px] font-medium text-fg-subtle">{p.location}</div>
+              <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="border-t border-border p-3">
+        <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+          <MessageSquarePlus size={15} className="shrink-0 text-accent" />
+          <input
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitAsk(); } }}
+            placeholder="Ask ORI about this document…"
+            className="flex-1 bg-transparent py-2.5 text-sm outline-none placeholder:text-fg-subtle"
+          />
+          <button type="button" onClick={submitAsk} disabled={!ask.trim()} aria-label="Ask ORI" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40"><ArrowRight size={14} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MagneticChip({ onClick, className, children }: { onClick?: () => void; className?: string; children: React.ReactNode }) {
   const m = useMagnetic<HTMLButtonElement>(0.12);
   return (
@@ -175,7 +271,10 @@ export function CommandPaletteProvider({
   voiceLanguage?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<"search" | "chat">("search");
+  const [mode, setMode] = useState<"search" | "chat" | "doc">("search");
+  // The document being read in-place (expand, don't open). Set when a document
+  // search result is chosen; cleared on Back.
+  const [docReader, setDocReader] = useState<{ id: number; title: string; href: string; query: string } | null>(null);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -238,8 +337,11 @@ export function CommandPaletteProvider({
         e.preventDefault();
         if (!onPortal) setIsOpen((o) => !o);
       }
-      // ESC closes from search mode (chat mode handles its own back-step).
-      if (e.key === "Escape") setIsOpen((o) => (o && mode === "search" ? false : o));
+      // ESC closes from search mode; from the doc reader it steps back to results.
+      if (e.key === "Escape") {
+        if (mode === "doc") { setMode("search"); setDocReader(null); return; }
+        setIsOpen((o) => (o && mode === "search" ? false : o));
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -512,7 +614,7 @@ export function CommandPaletteProvider({
               transition={{ type: "spring", stiffness: 460, damping: 32 }}
               className={cn(
                 "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
-                mode === "chat" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl",
+                mode === "chat" || mode === "doc" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl",
               )}
             >
               {/* GSAP-driven sheen that sweeps once on open. */}
@@ -526,9 +628,17 @@ export function CommandPaletteProvider({
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, filter: "blur(6px)" }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                className={cn("flex flex-col min-h-0", mode === "chat" && "flex-1 h-full")}
+                className={cn("flex flex-col min-h-0", (mode === "chat" || mode === "doc") && "flex-1 h-full")}
               >
-              {mode === "chat" ? (
+              {mode === "doc" && docReader ? (
+                <DocReaderPane
+                  doc={docReader}
+                  onBack={() => { setMode("search"); setDocReader(null); }}
+                  onClose={() => setIsOpen(false)}
+                  onOpen={(href) => { setIsOpen(false); router.push(href); }}
+                  onAsk={(question) => { setMode("chat"); submitPrompt(question); }}
+                />
+              ) : mode === "chat" ? (
                 <ConversationPane
                   thread={thread}
                   thinking={thinking}
@@ -807,7 +917,14 @@ export function CommandPaletteProvider({
                               // Prepend the live query so cmdk's own fuzzy filter
                               // never drops a server-ranked (incl. typo-tolerant) hit.
                               value={`${query} ${r.type} ${r.title} ${r.subtitle} ${r.snippet ?? ""}`}
-                              onSelect={() => go(r.href)}
+                              onSelect={() => {
+                                if (r.type === "document") {
+                                  setDocReader({ id: r.id, title: r.title, href: r.href, query });
+                                  setMode("doc");
+                                } else {
+                                  go(r.href);
+                                }
+                              }}
                               className={cn(
                                 "group/idx px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted",
                                 r.lifecycle === "history" && "opacity-70",
