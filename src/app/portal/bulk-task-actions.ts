@@ -39,8 +39,8 @@ export async function portalBulkCreateTasks(
 ): Promise<PortalBulkResult> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
-  if (me.portalRole !== "director" && me.portalRole !== "manager" && me.portalRole !== "hr") {
-    return { ok: false, error: "Only managers, HR and directors can create tasks." };
+  if (!me.caps.createTasks) {
+    return { ok: false, error: "You don't have permission to create tasks." };
   }
 
   // Clean the pasted lines: trim, drop blanks, de-dupe nothing (a repeated line

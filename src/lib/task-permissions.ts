@@ -11,7 +11,14 @@
 // Editing and completing share the same predicate today; kept as two named
 // exports so a future divergence is a one-line change, not a hunt.
 
-export type TaskPermViewer = { id: number; portalRole: string | null | undefined };
+export type TaskPermViewer = {
+  id: number;
+  portalRole: string | null | undefined;
+  /** Owner-configurable "manage any task" grant for this viewer's role (from
+   *  Settings → Portals). When provided it wins; when omitted we fall back to the
+   *  built-in default (director/HR) so existing callers behave exactly as before. */
+  canManageAny?: boolean;
+};
 export type TaskPermTask = { createdByPersonId: number | null };
 
 /** True when the viewer created the task. */
@@ -19,10 +26,12 @@ export function isTaskCreator(viewer: TaskPermViewer, task: TaskPermTask): boole
   return task.createdByPersonId != null && viewer.id === task.createdByPersonId;
 }
 
-/** The core predicate: director/HR (reach), or the task's own creator. */
+/** The core predicate: a role with the "manage any task" grant (config; default
+ *  director/HR), or the task's own creator (always — the creator rule is fixed). */
 export function canManageTask(viewer: TaskPermViewer, task: TaskPermTask): boolean {
   const r = (viewer.portalRole ?? "").toLowerCase();
-  if (r === "director" || r === "hr") return true;
+  const manageAny = viewer.canManageAny ?? (r === "director" || r === "hr");
+  if (manageAny) return true;
   return isTaskCreator(viewer, task);
 }
 

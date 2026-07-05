@@ -10,7 +10,10 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause } from "./actions";
+import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause, savePortalPermissionsAction } from "./actions";
+import { getPortalPermissions } from "@/lib/portal-permissions-store";
+import { resolveMatrix } from "@/lib/portal-permissions";
+import { PortalPermissionsEditor } from "@/components/portal-permissions-editor";
 import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
@@ -27,7 +30,7 @@ import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +41,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "location", "swipe", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
-  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges"] },
+  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
@@ -104,6 +107,7 @@ export default async function SettingsPage({
   const automationStatuses = await getAutomationRuleStatuses();
   const recordsConfidence = await getRecordsConfidence();
   const dropboxStatus = await getDropboxStatus();
+  const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -489,6 +493,10 @@ export default async function SettingsPage({
 
             <SaveBar />
           </form>
+
+          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="Full control over what Staff, Managers, Admin & Directors can see and do." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
+            <PortalPermissionsEditor initial={portalPermsMatrix} action={savePortalPermissionsAction} />
+          </SettingsCard>
         </section>
 
         {/* ───────────────────── Email & Integrations ───────────────────── */}

@@ -27,7 +27,7 @@ async function CommandTasks({
   // companies they belong to + the people in them.
   const { companies, people } = await getScopedPickerData(me);
 
-  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} viewerId={me.id} canCreate={canCreate} initialFilter={initialFilter} />;
+  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} viewerId={me.id} canCreate={canCreate} canManageAny={me.caps.manageAnyTask} initialFilter={initialFilter} />;
 }
 
 export const dynamic = "force-dynamic";
@@ -36,9 +36,9 @@ export const metadata = { title: "Tasks — Oracle Consultancy" };
 export default async function PortalTasksPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Staff have no separate Tasks page — their tasks live on Home (no nav tab either).
-  // Bounce any direct/old link back so the experience stays "tasks on Home" for them.
-  if (me.portalRole === "staff") redirect("/portal");
+  // The Tasks tab is owner-configurable per role (Settings → Portals). By default
+  // staff have no Tasks page (tasks live on Home) — bounce anyone without the tab.
+  if (!me.caps.navTasks) redirect("/portal");
 
   const { filter } = await searchParams;
   const initialFilter: Filter = FILTERS.includes(filter as Filter) ? (filter as Filter) : "all";
@@ -49,10 +49,8 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
   // shouldn't pad the glance number.
   const openCount = cmd.filter((t) => !t.isDone).length;
 
-  // EVERY role now gets the one Aurora command view (portaltaskdesign) — staff
-  // included. Permissions are enforced inside it (status set, completion via the
-  // secure sheet, no bulk-remind) AND server-side; staff just can't raise tasks.
-  const isManagement = me.portalRole === "manager" || me.portalRole === "hr" || me.portalRole === "director";
+  // EVERY role gets the one Aurora command view (portaltaskdesign). Permissions
+  // are enforced inside it AND server-side; task creation follows me.caps.createTasks.
   const scopeNote =
     me.portalRole === "hr" || me.portalRole === "director"
       ? "Every task across all companies."
@@ -71,7 +69,7 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>
-        <CommandTasks me={me} cmd={cmd} initialFilter={initialFilter} canCreate={isManagement} />
+        <CommandTasks me={me} cmd={cmd} initialFilter={initialFilter} canCreate={me.caps.createTasks} />
       </Reveal>
     </div>
   );

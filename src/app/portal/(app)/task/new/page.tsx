@@ -9,8 +9,8 @@ export const metadata = { title: "New task — Oracle Consultancy" };
 export default async function PortalNewTaskPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Managers, HR and directors can create tasks. Staff cannot.
-  if (me.portalRole === "staff") redirect("/portal");
+  // Task creation is owner-configurable per role (Settings → Portals).
+  if (!me.caps.createTasks) redirect("/portal");
   const isDirector = me.portalRole === "director";
 
   // One scoped source for the pickers (same as the Tasks page + board): portfolio

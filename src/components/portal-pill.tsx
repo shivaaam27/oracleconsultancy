@@ -211,19 +211,26 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
   );
 }
 
-export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; role?: string }) {
+export function PortalPill({ canCreate = false, role, tabOverrides }: {
+  canCreate?: boolean;
+  role?: string;
+  /** Owner-configurable tab visibility (Settings → Portals → Roles & permissions),
+   *  resolved server-side and passed in. When omitted, the built-in defaults from
+   *  portalCapabilities apply. */
+  tabOverrides?: Partial<{ tasks: boolean; outbox: boolean; insights: boolean; requests: boolean }>;
+}) {
   const pathname = usePathname() || "/portal";
   // Role capabilities come from the single registry (src/lib/portal-capabilities.ts)
-  // so the same rules drive every surface. Directors are board-first; managers,
-  // HR and directors get the Tasks + Outbox tabs (group-wide for HR/directors,
-  // company-wide for managers); staff get neither.
+  // for the STRUCTURAL tabs (board/home/directory/chat/…). The four configurable
+  // tabs (tasks/outbox/insights/requests) honour the owner's per-role toggles when
+  // provided via tabOverrides.
   const caps = portalCapabilities(role);
   const showBoard = caps.tabs.board;
   const showHome = caps.tabs.home;
-  const showTasks = caps.tabs.tasks;
-  const showOutbox = caps.tabs.outbox;
-  const showInsights = caps.tabs.insights;
-  const showRequests = caps.tabs.requests;
+  const showTasks = tabOverrides?.tasks ?? caps.tabs.tasks;
+  const showOutbox = tabOverrides?.outbox ?? caps.tabs.outbox;
+  const showInsights = tabOverrides?.insights ?? caps.tabs.insights;
+  const showRequests = tabOverrides?.requests ?? caps.tabs.requests;
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");

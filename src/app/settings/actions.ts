@@ -117,6 +117,25 @@ function num(fd: FormData, key: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** Save the portal role-permissions matrix (Settings → Portals → Roles &
+ *  permissions). Stored as one JSON row; merged over defaults at read time. */
+export async function savePortalPermissionsAction(fd: FormData): Promise<void> {
+  const { savePortalPermissions } = await import("@/lib/portal-permissions-store");
+  const raw = String(fd.get("config") ?? "").trim();
+  let config: import("@/lib/portal-permissions").PortalPermissionsConfig = {};
+  try {
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (parsed && typeof parsed === "object") config = parsed;
+  } catch {
+    redirect("/settings?section=portals"); // parse failure — bail without wiping
+  }
+  await savePortalPermissions(config);
+  revalidatePath("/portal");
+  revalidatePath("/portal/board");
+  revalidatePath("/settings");
+  redirect("/settings?saved=1&section=portals");
+}
+
 export async function saveSettings(fd: FormData): Promise<void> {
   const patch: Partial<AppSettings> = {
     dueSoonDays: num(fd, "dueSoonDays"),

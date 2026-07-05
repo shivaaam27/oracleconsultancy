@@ -239,8 +239,8 @@ export async function portalCreateTask(
 ): Promise<{ error: string } | null> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "manager" && me.portalRole !== "hr") {
-    return { error: "Only managers and HR can create tasks." };
+  if (!me.caps.createTasks) {
+    return { error: "You don't have permission to create tasks." };
   }
 
   const actionItem = String(formData.get("actionItem") ?? "").trim();
@@ -372,7 +372,7 @@ export async function portalDirectorDraftMessage(input: {
 }): Promise<{ ok: true; link: string | null; contactMissing: boolean; channel: "WHATSAPP" | "EMAIL" | "SMS" } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
 
   // Soft kill switch (owner can pause all director outreach from Settings).
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -450,7 +450,7 @@ export async function portalDirectorChatMessage(input: {
 }): Promise<{ ok: true; threadId: number; group: boolean } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
 
   const body = (input.body ?? "").trim();
   if (!body) return { ok: false, error: "Write a message." };
@@ -491,7 +491,7 @@ export async function portalMessageTaskGroup(
 ): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!me.caps.messageOnTasks) return { ok: false, error: "You don't have permission to do this." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: t } = await sb.from("tasks").select("code,action_item").eq("id", taskId).maybeSingle();
@@ -546,7 +546,7 @@ export async function portalDirectorGroupEmail(input: {
 }): Promise<{ ok: true; link: string | null; missing: string[] } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
   if ((killRow?.value as string | null) === "1") return { ok: false, error: "Director outreach is paused by the administrator." };
@@ -603,8 +603,8 @@ export async function portalSendReminderEmail(
   const me = await getPortalPerson();
   if (!me) return { ok: false, reason: "error", error: "Please sign in again." };
   const role = me.portalRole;
-  if (role !== "director" && role !== "manager" && role !== "hr") {
-    return { ok: false, reason: "error", error: "Only managers, Admin and directors can send reminders." };
+  if (!me.caps.messageOnTasks) {
+    return { ok: false, reason: "error", error: "You don't have permission to send reminders." };
   }
 
   // Owner kill switch (pauses all portal outreach).
@@ -669,8 +669,8 @@ export async function portalSendReminderWhatsApp(
   const me = await getPortalPerson();
   if (!me) return { ok: false, reason: "error", error: "Please sign in again." };
   const role = me.portalRole;
-  if (role !== "director" && role !== "manager" && role !== "hr") {
-    return { ok: false, reason: "error", error: "Only managers, Admin and directors can send reminders." };
+  if (!me.caps.messageOnTasks) {
+    return { ok: false, reason: "error", error: "You don't have permission to send reminders." };
   }
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -713,8 +713,8 @@ export async function portalSendTaskSummaryWhatsApp(
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
   const role = me.portalRole;
-  if (role !== "director" && role !== "manager" && role !== "hr") {
-    return { ok: false, error: "Only managers, Admin and directors can send reminders." };
+  if (!me.caps.messageOnTasks) {
+    return { ok: false, error: "You don't have permission to send reminders." };
   }
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -872,7 +872,7 @@ async function checkEventScope(me: PortalPerson, formData: FormData): Promise<st
 export async function portalDirectorCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
   const res = await portalCreateAndSendEvent(formData, `portal-dir:${me.name}`);
@@ -885,7 +885,7 @@ export async function portalDirectorCreateEvent(formData: FormData): Promise<Por
 export async function portalManagerCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "manager") return { ok: false, error: "Only managers can do this." };
+  if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
   const res = await portalCreateAndSendEvent(formData, `portal-mgr:${me.name}`);
@@ -899,7 +899,7 @@ export async function portalManagerCreateEvent(formData: FormData): Promise<Port
 export async function portalCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole === "staff") return { ok: false, error: "You don't have permission to create events." };
+  if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
   const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "manager" ? "portal-mgr" : "portal-hr";
@@ -926,8 +926,8 @@ export async function portalDirectorCreateTask(
 ): Promise<{ error: string } | null> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director" && me.portalRole !== "manager" && me.portalRole !== "hr") {
-    return { error: "Only managers, HR and directors can do this." };
+  if (!me.caps.createTasks) {
+    return { error: "You don't have permission to create tasks." };
   }
   const isDir = me.portalRole === "director";
 
@@ -1088,7 +1088,8 @@ export async function portalEditTask(input: {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  // Staff can't edit tasks unless the owner has granted their role "manage any task".
+  if (role === "staff" && !me.caps.manageAnyTask) return { ok: false, error: "You don't have permission to edit tasks." };
   if (!(await personCanSeeTask(me, input.taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: t } = await sb
@@ -1102,7 +1103,7 @@ export async function portalEditTask(input: {
   // task; everyone else only a task they created. Replaces the old `full` +
   // ad-hoc creator_close_only checks so every surface obeys one rule.
   const canManage = canManageTask(
-    { id: me.id, portalRole: role },
+    { id: me.id, portalRole: role, canManageAny: me.caps.manageAnyTask },
     { createdByPersonId: (t.created_by_person_id as number | null) ?? null },
   );
 
@@ -1222,7 +1223,7 @@ export async function portalEditTask(input: {
   let movedCode: string | null = null;
   const targetCompany = input.companyId;
   if (canManage && targetCompany && targetCompany !== (t.company_id as number)) {
-    if (!seesAllCompanies(me)) return { ok: false, error: "Only a group director can move a task between companies." };
+    if (!me.caps.crossCompanyTasks || !seesAllCompanies(me)) return { ok: false, error: "You don't have permission to move a task between companies." };
     const [{ data: newComp }, { data: existing }] = await Promise.all([
       sb.from("companies").select("name,code,code_prefix").eq("id", targetCompany).maybeSingle(),
       sb.from("tasks").select("code").eq("company_id", targetCompany),
@@ -1312,7 +1313,7 @@ export async function portalBulkTaskAction(
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!me.caps.bulkTaskActions) return { ok: false, error: "You don't have permission to do this." };
 
   const ids = Array.from(new Set(taskIds.filter((n) => Number.isFinite(n) && n > 0)));
   if (ids.length === 0) return { ok: false, error: "No tasks selected." };
@@ -1327,7 +1328,7 @@ export async function portalBulkTaskAction(
   const allowed: { id: number; code: string; companyId: number; deadline: string | null; status: string }[] = [];
   for (const t of rows ?? []) {
     const id = t.id as number;
-    if (!canManageTask({ id: me.id, portalRole: role }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) continue;
+    if (!canManageTask({ id: me.id, portalRole: role, canManageAny: me.caps.manageAnyTask }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) continue;
     if (!(await personCanSeeTask(me, id))) continue;
     allowed.push({ id, code: t.code as string, companyId: t.company_id as number, deadline: (t.deadline as string | null) ?? null, status: (t.status as string) ?? "" });
   }
@@ -1391,7 +1392,7 @@ export async function portalCopyTaskToCompany(
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
   if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
-  if (!seesAllCompanies(me)) return { ok: false, error: "Only a group director can copy a task to another company." };
+  if (!me.caps.crossCompanyTasks || !seesAllCompanies(me)) return { ok: false, error: "You don't have permission to copy a task to another company." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: src } = await sb
@@ -1473,7 +1474,7 @@ export async function portalSetTaskLeads(
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  if (role === "staff" && !me.caps.manageAnyTask) return { ok: false, error: "You don't have permission to edit tasks." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   // Unique, valid lead ids — at least one is required.
@@ -1580,7 +1581,7 @@ export async function portalRemoveTaskPerson(
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  if (role === "staff" && !me.caps.manageAnyTask) return { ok: false, error: "You don't have permission to edit tasks." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: t } = await sb
@@ -1593,7 +1594,7 @@ export async function portalRemoveTaskPerson(
   // Same rule as editing: director/HR reach any task; everyone else only the
   // tasks they created (task-permissions.ts).
   const canManage = canManageTask(
-    { id: me.id, portalRole: role },
+    { id: me.id, portalRole: role, canManageAny: me.caps.manageAnyTask },
     { createdByPersonId: (t.created_by_person_id as number | null) ?? null },
   );
   if (!canManage) return { ok: false, error: "Only the task's creator or a director can change who's on this task." };
@@ -1774,7 +1775,7 @@ export async function portalRemindTask(
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!me.caps.messageOnTasks) return { ok: false, error: "You don't have permission to send reminders." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -1840,7 +1841,7 @@ export async function portalRemindTaskAll(
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!me.caps.messageOnTasks) return { ok: false, error: "You don't have permission to send reminders." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -2107,7 +2108,7 @@ export async function portalCompleteTask(
   if (current === "Completed" || current === "Closed") return { ok: false, error: "This task is already finished." };
   if ((t.requires_attachment as boolean) && !file) return { ok: false, error: "This task needs a file attached to complete." };
   // Only a director/HR or the task's creator may complete it (task-permissions.ts).
-  if (!canManageTask({ id: me.id, portalRole: me.portalRole }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
+  if (!canManageTask({ id: me.id, portalRole: me.portalRole, canManageAny: me.caps.manageAnyTask }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
     return { ok: false, error: "Only the person who set this task can complete it." };
   }
 
@@ -2304,7 +2305,7 @@ export async function portalDecideLeave(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "manager") return { ok: false, error: "Only managers can decide leave." };
+  if (!me.caps.approveLeave) return { ok: false, error: "You don't have permission to decide leave." };
 
   const { data: req } = await sb.from("leave_requests").select("person_id,status").eq("id", requestId).maybeSingle();
   if (!req) return { ok: false, error: "Request not found." };
@@ -2559,7 +2560,7 @@ export async function portalDeleteTask(taskId: number): Promise<{ error?: string
   if (!me) redirect("/portal/login");
   const { data: t } = await sb.from("tasks").select("id,code,created_by_person_id,archived").eq("id", taskId).maybeSingle();
   if (!t) return { error: "Task not found." };
-  if (!canManageTask({ id: me.id, portalRole: me.portalRole }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
+  if (!canManageTask({ id: me.id, portalRole: me.portalRole, canManageAny: me.caps.manageAnyTask }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
     return { error: "You can only delete tasks you created." };
   }
   const { error } = await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", taskId);

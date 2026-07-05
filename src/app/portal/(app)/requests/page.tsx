@@ -15,8 +15,8 @@ export const metadata = { title: "Requests — Oracle Consultancy" };
 export default async function PortalRequestsPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Requests are removed from the director portal for now.
-  if (me.portalRole === "director") redirect("/portal/board");
+  // Requests visibility is owner-configurable per role (Settings → Portals).
+  if (!me.caps.navRequests) redirect("/portal");
 
   const [rows, { people }, categories] = await Promise.all([
     listRequestsForPortal(me.id),

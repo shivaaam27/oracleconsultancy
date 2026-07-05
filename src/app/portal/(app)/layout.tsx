@@ -11,7 +11,6 @@ import { PortalZoom } from "@/components/portal-zoom";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
-import { portalCapabilities } from "@/lib/portal-capabilities";
 import { sb } from "@/db/supabase";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
@@ -121,7 +120,11 @@ export default async function PortalLayout({ children }: { children: React.React
           navigation. Opens on ⌘K / Ctrl+K / Ctrl+Space or the header trigger. */}
       <PortalSearch />
       <PageTransition>{children}</PageTransition>
-      <PortalPill canCreate={portalCapabilities(me.portalRole).canCreate} role={me.portalRole} />
+      <PortalPill
+        canCreate={me.caps.createTasks || me.caps.createEvents}
+        role={me.portalRole}
+        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, requests: me.caps.navRequests }}
+      />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
       <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
     </div>

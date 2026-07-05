@@ -20,7 +20,7 @@ export const metadata = { title: "Outbox — Oracle Consultancy" };
 export default async function PortalOutboxPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole === "staff") redirect("/portal"); // management only
+  if (!me.caps.navOutbox) redirect("/portal"); // owner-configurable (Settings → Portals)
 
   const groupWide = seesAllCompanies(me);
   let drafts = await generateDrafts();

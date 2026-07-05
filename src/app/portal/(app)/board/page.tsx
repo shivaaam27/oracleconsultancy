@@ -35,11 +35,16 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   if (me.portalRole !== "director" && me.portalRole !== "manager") redirect("/portal");
   const { created } = await searchParams;
 
-  // Managers create Tasks from the board; Events go through /portal/meetings and
-  // bulk outreach (Message) stays a director power.
+  // Composer options follow the owner-configurable capabilities: Task (createTasks),
+  // Event (createEvents), Message (bulkOutreach). Defaults match the old behaviour
+  // (managers Task-only; directors Task/Event/Message).
   const isManager = me.portalRole === "manager";
   const boardLabel = isManager ? "Manager board" : "Director board";
-  const composerModes: ("Task" | "Event" | "Message")[] = isManager ? ["Task"] : ["Task", "Event", "Message"];
+  const composerModes: ("Task" | "Event" | "Message")[] = [
+    ...(me.caps.createTasks ? (["Task"] as const) : []),
+    ...(me.caps.createEvents ? (["Event"] as const) : []),
+    ...(me.caps.bulkOutreach ? (["Message"] as const) : []),
+  ];
   // ONE scope model: null = all companies (portfolio director / HR-less), else the
   // director's / manager's own companies.
   const scope = await companyScope(me);

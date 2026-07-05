@@ -123,7 +123,7 @@ function statusDot(s: string): string {
 const initials = getInitials; // honorific-stripped (Mr Pulin Manek → PM)
 
 export function PortalTasksCommand({
-  tasks, people, companies, role, viewerId, canCreate, initialFilter = "all", houseList = false,
+  tasks, people, companies, role, viewerId, canCreate, canManageAny, initialFilter = "all", houseList = false,
 }: {
   tasks: CommandTask[];
   people: BoardPerson[];
@@ -132,6 +132,10 @@ export function PortalTasksCommand({
   /** The signed-in person's id — for the creator-only edit/complete rule. */
   viewerId: number;
   canCreate: boolean;
+  /** Owner-configurable "manage any task" grant for this role (Settings → Portals).
+   *  Drives the Edit/Complete affordances so the UI matches the server. Omitted =
+   *  fall back to the built-in default (director/HR). */
+  canManageAny?: boolean;
   /** Pre-select a filter (the board's KPI tiles deep-link here, e.g. ?filter=overdue). */
   initialFilter?: Filter;
   /** Home inlines this list — cap + scroll it in a "scroll housing" so it doesn't
@@ -433,11 +437,11 @@ export function PortalTasksCommand({
             </div>
             {/* desktop — ONE floating card per task (info left, controls panel right). */}
             <div className="hidden flex-col gap-2 sm:flex">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canManageAny={canManageAny} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
             </div>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canManageAny={canManageAny} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
             </div>
           </div>
         ))}
@@ -586,10 +590,10 @@ function SelectBox({ checked, onToggle, className }: { checked: boolean; onToggl
 }
 
 function TaskRow({
-  t, people, companies, role, viewerId, canRemind, desktop = false, groupByCompany = false,
+  t, people, companies, role, viewerId, canManageAny, canRemind, desktop = false, groupByCompany = false,
   selectable = false, selected = false, onToggleSelect,
 }: {
-  t: CommandTask; people: BoardPerson[]; companies: BoardCompany[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
+  t: CommandTask; people: BoardPerson[]; companies: BoardCompany[]; role: string; viewerId: number; canManageAny?: boolean; canRemind: boolean; desktop?: boolean;
   /** When the list is grouped by company, drop the company name from the row (the
    *  group header already shows it). */
   groupByCompany?: boolean;
@@ -614,7 +618,7 @@ function TaskRow({
 
   // Per-task permissions (task-permissions.ts): a director/HR or the creator may
   // edit content + complete; managers limited to open-status moves on others'.
-  const viewer = { id: viewerId, portalRole: role };
+  const viewer = { id: viewerId, portalRole: role, canManageAny };
   const perm = { createdByPersonId: t.createdByPersonId };
   const canEdit = canEditTask(viewer, perm);
   const canComplete = canCompleteTask(viewer, perm);

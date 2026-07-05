@@ -4,6 +4,8 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
+import { getPortalPermissions } from "@/lib/portal-permissions-store";
+import { resolveRolePerms, type ScopeLevel, type CapabilityKey } from "@/lib/portal-permissions";
 
 /* ------------------------------------------------------------------ *
  * Staff-portal authentication.
@@ -241,21 +243,22 @@ export function isScopedDirector(p: PortalPerson): boolean {
   return p.portalRole === "director" && p.directorCompanyIds.length > 0;
 }
 
-/** Does this person's DATA scope span every company? HR + PORTFOLIO directors only —
- *  a company-scoped director does NOT. This replaces `isGroupWide` everywhere a read
- *  is gated. */
+/** Does this person's DATA scope span every company? Driven by the owner-set
+ *  scope level (default: HR + portfolio directors). A company-scoped director is
+ *  ALWAYS narrowed to their companies regardless of the level. This is the single
+ *  gate every read routes through. */
 export function seesAllCompanies(p: PortalPerson): boolean {
-  return isGroupWide(p.portalRole) && !isScopedDirector(p);
+  return p.scopeLevel === "all" && !isScopedDirector(p);
 }
 
 /** The set of company ids whose work this person governs wholesale (every task /
- *  person in them), or `null` for "all companies". Scoped director → their one
- *  company; manager → their company memberships; portfolio director / HR → null
- *  (all); plain staff → [] (they only ever see their own items, handled by callers). */
+ *  person in them), or `null` for "all companies". Scoped director → their
+ *  companies; scope level "companies" → their memberships; "all" → null;
+ *  "own" → [] (they only ever see their own items, handled by callers). */
 export async function companyScope(p: PortalPerson): Promise<number[] | null> {
-  if (seesAllCompanies(p)) return null;
   if (isScopedDirector(p)) return p.directorCompanyIds;
-  if (p.portalRole === "manager") return await myCompanyIds(p);
+  if (p.scopeLevel === "all") return null;
+  if (p.scopeLevel === "companies") return await myCompanyIds(p);
   return [];
 }
 
@@ -315,6 +318,13 @@ export type PortalPerson = {
    *  "Company Director"). EMPTY = portfolio-wide (the default for directors). Only
    *  meaningful for the "director" role. See the scope helpers below. */
   directorCompanyIds: number[];
+  /** Owner-configurable (Settings → Portals → Roles & permissions) data-visibility
+   *  level for this person's role, resolved once here so every scope helper is a
+   *  cheap sync read. Scoped directors are still narrowed by directorCompanyIds. */
+  scopeLevel: ScopeLevel;
+  /** Owner-configurable capability grants for this person's role — the single
+   *  source of truth every server gate + UI affordance reads. */
+  caps: Record<CapabilityKey, boolean>;
 };
 
 /** Extract a director's scoped company-id set from the people row (join-table
@@ -337,6 +347,10 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   // No / expired / tampered token = genuinely not signed in → caller sends to login.
   if (!parsed) return null;
   const { personId, fp } = parsed;
+
+  // Owner-configurable role permissions (cached) — merged onto the person below so
+  // every scope helper + gate reads one resolved object.
+  const permsConfig = await getPortalPermissions();
 
   // The token IS valid. Now look the person up — but a freshly-woken phone (PWA
   // relaunched from recents → cold serverless + cold PgBouncer connection +
@@ -366,6 +380,15 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
         console.warn(`[portal-auth] fingerprint mismatch person ${personId} — keeping session (cookie valid)`);
       }
+      const portalRole: PortalRole =
+        data.portal_role === "manager"
+          ? "manager"
+          : data.portal_role === "hr"
+            ? "hr"
+            : data.portal_role === "director"
+              ? "director"
+              : "staff";
+      const resolved = resolveRolePerms(permsConfig, portalRole);
       return {
         id: data.id as number,
         name: data.name as string,
@@ -373,19 +396,14 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
         role: (data.role as string | null) ?? null,
         companyId: (data.company_id as number | null) ?? null,
         portalDesignation: (data.portal_designation as string | null) ?? null,
-        portalRole:
-          data.portal_role === "manager"
-            ? "manager"
-            : data.portal_role === "hr"
-              ? "hr"
-              : data.portal_role === "director"
-                ? "director"
-                : "staff",
+        portalRole,
         // Only a director can be company-scoped; ignore for other roles so a stray
         // value can never narrow a non-director's (already-narrow) scope. Read the
         // full set from the join table, falling back to the legacy single column
         // if the backfill hasn't run yet.
         directorCompanyIds: data.portal_role === "director" ? directorScopeFrom(data) : [],
+        scopeLevel: resolved.scopeLevel,
+        caps: resolved.caps,
       };
     }
 
@@ -523,11 +541,13 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
   }
   const ids = [person.id];
   if (person.portalRole === "manager") ids.push(...(await directReportIds(person.id)));
-  // Managers also see everything in any of their companies (multi-company aware).
-  const managerCids = person.portalRole === "manager" ? await myCompanyIds(person) : [];
+  // Everything in the companies this person's scope covers (empty for "own"-level).
+  // companyScope returns [] for own, their memberships for "companies" (the "all"
+  // case is handled by the seesAllCompanies branch above).
+  const scopeCids = (await companyScope(person)) ?? [];
   const companyTasks =
-    managerCids.length > 0
-      ? sb.from("tasks").select("id").in("company_id", managerCids).eq("archived", false)
+    scopeCids.length > 0
+      ? sb.from("tasks").select("id").in("company_id", scopeCids).eq("archived", false)
       : Promise.resolve({ data: [] as { id: number }[] });
   const [{ data: assigned }, { data: owned }, { data: company }] = await Promise.all([
     sb.from("task_assignees").select("task_id").in("person_id", ids),

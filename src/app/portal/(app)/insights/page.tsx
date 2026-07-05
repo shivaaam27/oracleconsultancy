@@ -5,7 +5,6 @@ import type { Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getPortalPerson, visibleTaskIds, seesAllCompanies, colleagueCompanyScope } from "@/lib/portal-auth";
-import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@/lib/queries";
 import { PortalInsights, type Segment, type CompanyOpen } from "@/components/portal-insights";
 
@@ -37,8 +36,8 @@ function priorityTone(p: string): Tone {
 export default async function PortalInsightsPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Management only (manager / HR / director). Staff never see Insights.
-  if (!portalCapabilities(me.portalRole).isManagement) redirect("/portal");
+  // Insights visibility is owner-configurable per role (Settings → Portals).
+  if (!me.caps.navInsights) redirect("/portal");
 
   const groupWide = seesAllCompanies(me);
 
