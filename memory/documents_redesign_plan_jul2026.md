@@ -39,6 +39,31 @@ size. The resulting `File` is pushed into Smart Add's existing `picked` array �
 (`autoFileDocumentAction`) / "Save to inbox" (`createInboxBundle`) pipeline
 exactly like any picked file. Admin-side only (Smart Add has no portal twin).
 
+### Live-narration "Live view" mode — SHIPPED 2026-07-06
+Owner wanted a Gemini-Live-style camera experience — ORI narrating what it sees
+as you point the phone. **Real Gemini Live is the wrong tool**: it's a separate
+WebSocket/session product with its OWN quota (session-count + time-capped, often
+TIGHTER than plain request quota, not "unlimited" as the owner assumed) and needs
+continuous audio+video streaming infra we don't have. Built the FEEL instead,
+reusing everything already shipped: `ScanButton` got a second optional tile,
+**"Live view"**, alongside the default "Take a photo" tile (which stays the
+reliable default — Live view is opt-in, degrades to an inline error + "use Take
+a photo instead" if `getUserMedia` fails/is denied, never blocks the core flow).
+Live view opens a `getUserMedia({video:{facingMode:"environment"}})` preview;
+every ~2.5s (`NARRATE_INTERVAL_MS`) a small/cheap downscaled frame (900px,
+q0.55 — disposable, NOT the saved page) is sent to the new server action
+`narrateScanFrameAction` (`src/app/documents/scan-narrate-actions.ts`), which
+calls `callGroqText` with `providerVisionModels(activeProvider)` — the SAME
+widened/reordered vision ladder as document extraction — `attempts:1` (a live
+caption is disposable, skip the frame rather than retry/backoff). The caption
+renders as a live overlay caption bar over the video. A "Capture this page"
+button grabs the current frame at full quality into the same `pages` array as
+the reliable path — both modes feed one PDF. All captions from the session are
+kept in a ref and, on "Save as PDF", saved to ORI memory via
+`saveScanNarrationAction` → `recordQA("admin", …)` (best-effort, fire-and-forget,
+never blocks the save) — so "what did the camera see" becomes recallable through
+Ask COS's existing memory recall, same mechanism as any other remembered Q&A.
+
 ## Round 5 — Document editor redesign — DONE + SHIPPED
 Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on
 mobile** (mockup was artifact "cc-doc-editor"). Built by RESTRUCTURING document-form.tsx
