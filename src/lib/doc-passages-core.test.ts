@@ -51,6 +51,16 @@ describe("document passage layer", () => {
     expect(hits[0].score).toBeGreaterThan(hits[1].score);
   });
 
+  it("reads a spreadsheet 'Sheet:' marker as the location and carries it", () => {
+    const p = splitIntoPassages("Sheet: Payroll\nName,Salary,Start\nAsha,1200,2024-01-05\nBen,1500,2023-06-01 and more staff rows here to make it long.");
+    expect(p[0].location).toBe("Sheet Payroll");
+  });
+
+  it("numbers pages across a multi-page document via form feeds", () => {
+    const p = splitIntoPassages("Cover sheet with enough words to be a page.\fSecond page also has plenty of words here.\fThird page rounds out the set.");
+    expect(p.map((x) => x.location)).toEqual(["Page 1", "Page 2", "Page 3"]);
+  });
+
   it("returns nothing when no term matches", () => {
     const passages = splitIntoPassages("A passage about annual leave and public holidays only.");
     expect(searchPassages(passages, "passport visa").length).toBe(0);

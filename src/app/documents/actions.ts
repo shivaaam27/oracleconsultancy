@@ -3236,7 +3236,9 @@ async function extractFromPageImages(
     // Release the shared Tesseract worker after a no-AI read (mirrors ocrDocumentText).
     try { const { disposeOcr } = await import("@/lib/ocr-engines"); await disposeOcr(); } catch { /* best-effort */ }
   }
-  const transcript = parts.join("\n\n").trim() || null;
+  // Join pages with a form-feed so the passage layer can label each "Page N"
+  // (a single image → one part → no page split, which is correct).
+  const transcript = parts.join("\f").trim() || null;
 
   if (vision?.ok && vision.data) {
     // Vision read the fields; the transcript adds the deterministic layers the
@@ -3551,8 +3553,11 @@ async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): 
     try {
       const { extractText, getDocumentProxy } = await import("unpdf");
       const pdf = await getDocumentProxy(Uint8Array.from(base));
-      const r = await extractText(pdf, { mergePages: true });
-      text = Array.isArray(r.text) ? r.text.join("\n") : r.text;
+      // Per-page (mergePages:false) so page boundaries survive as form-feeds (\f) —
+      // the passage layer turns those into real "Page N" locations. Falls back to a
+      // plain join if unpdf returns a single string.
+      const r = await extractText(pdf, { mergePages: false });
+      text = Array.isArray(r.text) ? r.text.map((p) => p.trim()).filter(Boolean).join("\f") : r.text;
     } catch {
       text = "";
     }
