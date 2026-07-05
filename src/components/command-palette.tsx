@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch, FileText, ExternalLink } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch, FileText, ExternalLink, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
@@ -42,11 +42,29 @@ function tidyOri(s: string): string {
 
 type SearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };
 
+// Pick a file-type icon + tint from a document's original file name, so a PDF,
+// photo, spreadsheet or slide deck each read at a glance in the results list.
+// Falls back to the generic amber document icon when the extension is unknown.
+function fileIconFor(fileName?: string): { Icon: LucideIcon; tint: string } {
+  const ext = (fileName ?? "").toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+  if (["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff"].includes(ext))
+    return { Icon: ImageIcon, tint: "text-fuchsia-500" };
+  if (["xls", "xlsx", "xlsm", "csv", "tsv"].includes(ext))
+    return { Icon: FileSpreadsheet, tint: "text-emerald-500" };
+  if (["ppt", "pptx", "key"].includes(ext))
+    return { Icon: Presentation, tint: "text-orange-500" };
+  if (["doc", "docx", "rtf", "odt", "txt", "md"].includes(ext))
+    return { Icon: FileType, tint: "text-sky-500" };
+  // pdf + everything else → the standard document icon.
+  return { Icon: FileText, tint: "text-amber-500" };
+}
+
 // A turn in the conversation thread.
 type Msg =
   | { id: string; role: "user"; text: string }
   | { id: string; role: "assistant"; text: string; taskCount?: number | null; meetingCount?: number | null; sourceSummary?: string | null; streaming?: boolean }
   | { id: string; role: "action"; command: string }
+  | { id: string; role: "agent"; command: string }
   | { id: string; role: "error"; text: string; retry?: string };
 
 export type Pulse = { overdue: number; dueSoon: number; critical: number; escalated: number; open: number; meetingsToday: number };
@@ -73,9 +91,21 @@ const newId = () => `m${++msgSeq}`;
 // Which natural-language inputs are commands (mutations / navigations) vs
 // free-text questions. Commands go to /api/action, questions to /api/ask.
 function looksLikeCommand(text: string): boolean {
-  return /^(mark|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign|remind|chase|nudge|ping|message|tell|notify|let|send|follow[\s-]?up|reach out|draft|prepare|generate|build)\b/i.test(
+  return /^(mark|complete|finish|close|escalate|create|add|update|set|change|edit|rename|reword|retitle|recategor|assign|reassign|give|move|delete|remove|archive|schedule|book|put|announce|post|open|go to|navigate|show me task|remind|chase|nudge|ping|message|tell|notify|let|send|follow[\s-]?up|reach out|draft|prepare|generate|build)\b/i.test(
     text.trim(),
   );
+}
+// The ORI AGENT handles the create/edit/schedule/announce family — the actions
+// that benefit from a clarify→confirm→execute conversation (and multi-step). The
+// other command intents (remind, brief, who's-missing, on-leave, navigate,
+// remember) stay on the single-shot /api/action path, so nothing regresses.
+function looksLikeAgentCommand(text: string): boolean {
+  const t = text.trim();
+  if (!/^(create|add|new|make|edit|rename|reword|retitle|recategor|update|set|change|reassign|assign|give|schedule|book|put|announce|post)\b/i.test(t)) return false;
+  // Only route to the agent when it's clearly about a task / event / announcement
+  // (the agent's current tool coverage) — otherwise fall through to /api/action.
+  return /\b(task|tasks|to-?do|event|meeting|announce|announcement|assignee|deadline|status|priority|reassign)\b/i.test(t)
+    || /^(rename|retitle|reassign|reword|recategor)\b/i.test(t);
 }
 // "who is missing a passport" / "who is on leave" are handled deterministically
 // by /api/action, so route them there even though they read as questions.
@@ -173,32 +203,101 @@ type ReaderPassage = { ord: number; location: string; body: string; snippet: str
  * palette, lets you ask ORI about THIS file, or open it at the exact spot.
  */
 function DocReaderPane({
-  doc, onBack, onClose, onOpen, onAsk,
+  doc, onBack, onClose, onOpen,
 }: {
   doc: { id: number; title: string; href: string; query: string };
   onBack: () => void;
   onClose: () => void;
   onOpen: (href: string) => void;
-  onAsk: (question: string) => void;
 }) {
   const [passages, setPassages] = useState<ReaderPassage[] | null>(null);
   const [ask, setAsk] = useState("");
+  // A mini-conversation scoped to THIS document (RAGs only its passages via
+  // /api/ask-doc). Follow-ups stay in-place — no hand-off to the main chat.
+  const [turns, setTurns] = useState<{ role: "user" | "assistant" | "error"; content: string }[]>([]);
+  const [sending, setSending] = useState(false);
+  // The AI-first answer shown the moment the reader opens — a clean, paraphrased
+  // read of the document (not the raw indexed text). `off` = AI unavailable, so we
+  // fall back to the exact-text passages (the offline experience). `sourceOpen`
+  // toggles the raw "exact words" section, collapsed by default once we have a
+  // clean answer to lead with.
+  const [summary, setSummary] = useState<{ loading: boolean; text: string | null; off: boolean }>({ loading: false, text: null, off: false });
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const convoEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     setPassages(null);
+    setTurns([]);
+    setSummary({ loading: false, text: null, off: false });
+    setSourceOpen(false);
     const url = `/api/doc-passages?id=${doc.id}${doc.query ? `&q=${encodeURIComponent(doc.query)}` : ""}`;
     fetch(url)
       .then((r) => r.json())
-      .then((d) => { if (alive) setPassages((d.passages ?? []) as ReaderPassage[]); })
+      .then((d) => {
+        if (!alive) return;
+        const ps = (d.passages ?? []) as ReaderPassage[];
+        setPassages(ps);
+        // AI-first: as soon as we have text, ask ORI to read it cleanly. This is
+        // what makes the reader feel like a real chat rather than an OCR dump.
+        if (ps.length > 0) void runSummary();
+      })
       .catch(() => { if (alive) setPassages([]); });
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id, doc.query]);
 
-  const submitAsk = () => {
+  useEffect(() => { convoEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [turns, sending, summary]);
+
+  // The clean opening read. Fires once per open; falls back silently (off=true)
+  // when AI isn't configured so the exact-text passages carry the offline case.
+  const runSummary = async () => {
+    setSummary({ loading: true, text: null, off: false });
+    const question = doc.query
+      ? `The principal searched for "${doc.query}". In a short, natural paragraph (2–4 sentences), tell them plainly what this document is and exactly what it says about "${doc.query}" — quote the specific names, numbers and dates. If the document doesn't actually cover that, say so briefly and describe what it is instead.`
+      : `In a short, natural paragraph (2–4 sentences), tell the principal plainly what this document is and its key details — who it concerns, its type, and the important numbers or dates.`;
+    try {
+      const res = await fetch("/api/ask-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id, question }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.answer) setSummary({ loading: false, text: d.answer as string, off: false });
+      else if (res.status === 503 || d.source === "no-key") setSummary({ loading: false, text: null, off: true });
+      else setSummary({ loading: false, text: null, off: true });
+    } catch {
+      setSummary({ loading: false, text: null, off: true });
+    }
+  };
+
+  const submitAsk = async () => {
     const q = ask.trim();
-    if (!q) return;
-    onAsk(`In the document "${doc.title}": ${q}`);
+    if (!q || sending) return;
+    // Seed the doc-scoped history with the opening summary so follow-ups have
+    // context ("and the expiry?") without re-summarising.
+    const seed = summary.text ? [{ role: "assistant" as const, content: summary.text }] : [];
+    const history = [...seed, ...turns.filter((t) => t.role !== "error").map((t) => ({ role: t.role as "user" | "assistant", content: t.content }))];
+    setTurns((t) => [...t, { role: "user", content: q }]);
+    setAsk("");
+    setSending(true);
+    try {
+      const res = await fetch("/api/ask-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id, question: q, history }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.answer) {
+        setTurns((t) => [...t, { role: "assistant", content: d.answer as string }]);
+      } else {
+        setTurns((t) => [...t, { role: "error", content: friendlyAIError(d.error || d.source || "server-error").message }]);
+      }
+    } catch {
+      setTurns((t) => [...t, { role: "error", content: "Couldn't reach ORI just now — try again." }]);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -218,15 +317,87 @@ function DocReaderPane({
             {doc.query ? "No matching passages found — open the document to read it in full." : "No readable text captured for this file yet."}
           </div>
         ) : (
-          passages.map((p) => (
-            <div key={p.ord} className="flex gap-3">
-              <span className="mt-1 w-0.5 shrink-0 rounded-full bg-accent/50" aria-hidden />
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle">{p.location}</div>
-                <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
+          <>
+            {/* AI-FIRST — the clean, paraphrased read. Leads the reader so it feels
+                like a conversation, not an OCR dump. Hidden entirely when AI is off
+                (the exact-text section below then carries the offline case). */}
+            {(summary.loading || summary.text) && (
+              <div className="rounded-2xl bg-accent-soft/60 p-3.5 ring-1 ring-accent/20">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-accent">
+                  <Sparkles size={12} /> ORI
+                </div>
+                {summary.loading ? (
+                  <div className="space-y-1.5" aria-label="Reading the document">
+                    <span className="block h-2.5 w-[92%] animate-pulse rounded-full bg-accent/15" />
+                    <span className="block h-2.5 w-[80%] animate-pulse rounded-full bg-accent/15" />
+                    <span className="block h-2.5 w-[64%] animate-pulse rounded-full bg-accent/15" />
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap">{summary.text}</p>
+                )}
               </div>
-            </div>
-          ))
+            )}
+
+            {/* SOURCE — the exact words from the document (the offline/proof layer).
+                Collapsed once there's a clean answer to lead with; always shown when
+                AI is off so the reader still works with no key. */}
+            {(() => {
+              const showRaw = sourceOpen || summary.off || (!summary.loading && !summary.text);
+              return (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setSourceOpen((v) => !v)}
+                    className="flex w-full items-center gap-1.5 py-1 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle hover:text-fg"
+                  >
+                    <ChevronRight size={12} className={cn("transition-transform", showRaw && "rotate-90")} />
+                    Exact words from the document{doc.query ? " · matches highlighted" : ""}
+                  </button>
+                  {showRaw && (
+                    <div className="mt-1.5 space-y-3">
+                      {passages.map((p) => (
+                        <div key={p.ord} className="flex gap-3">
+                          <span className="mt-1 w-0.5 shrink-0 rounded-full bg-accent/50" aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle">{p.location}</div>
+                            <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </>
+        )}
+
+        {/* The doc-scoped mini-conversation — answers RAG only this document. */}
+        {(turns.length > 0 || sending) && (
+          <div className="space-y-2.5 border-t border-border/60 pt-3">
+            {turns.map((t, i) => (
+              <div key={i} className={cn("flex", t.role === "user" ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap",
+                    t.role === "user" && "bg-accent text-accent-fg",
+                    t.role === "assistant" && "bg-bg-elev text-fg ring-1 ring-border",
+                    t.role === "error" && "bg-red-500/10 text-red-600 ring-1 ring-red-500/30",
+                  )}
+                >
+                  {t.content}
+                </div>
+              </div>
+            ))}
+            {sending && (
+              <div className="flex justify-start">
+                <div className="inline-flex items-center gap-2 rounded-2xl bg-bg-elev px-3 py-2 text-sm text-fg-muted ring-1 ring-border">
+                  <Loader2 size={14} className="animate-spin text-accent" /> Reading the document…
+                </div>
+              </div>
+            )}
+            <div ref={convoEndRef} />
+          </div>
         )}
       </div>
 
@@ -245,11 +416,11 @@ function DocReaderPane({
           <input
             value={ask}
             onChange={(e) => setAsk(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitAsk(); } }}
-            placeholder="Ask ORI about this document…"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitAsk(); } }}
+            placeholder={turns.length ? "Ask a follow-up…" : "Ask ORI about this document…"}
             className="flex-1 bg-transparent py-2.5 text-sm outline-none placeholder:text-fg-subtle"
           />
-          <button type="button" onClick={submitAsk} disabled={!ask.trim()} aria-label="Ask ORI" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40"><ArrowRight size={14} /></button>
+          <button type="button" onClick={() => void submitAsk()} disabled={!ask.trim() || sending} aria-label="Ask ORI" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40">{sending ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}</button>
         </div>
       </div>
     </div>
@@ -553,6 +724,12 @@ export function CommandPaletteProvider({
     append({ id: newId(), role: "action", command: text });
   }
 
+  // Agent commands open a self-managed AgentCard — a clarify→confirm→execute
+  // conversation (multi-turn, multi-step) with /api/ori.
+  function runAgent(text: string) {
+    append({ id: newId(), role: "agent", command: text });
+  }
+
   // Entry point for every conversational turn.
   function submitPrompt(text: string) {
     const t = text.trim();
@@ -561,7 +738,8 @@ export function CommandPaletteProvider({
     setMode("chat");
     setQuery("");
     append({ id: newId(), role: "user", text: t });
-    if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t);
+    if (looksLikeAgentCommand(t)) runAgent(t);
+    else if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t);
     else runAsk(t);
   }
 
@@ -647,7 +825,6 @@ export function CommandPaletteProvider({
                   onBack={() => { setMode("search"); setDocReader(null); }}
                   onClose={() => setIsOpen(false)}
                   onOpen={(href) => { setIsOpen(false); router.push(href); }}
-                  onAsk={(question) => { setMode("chat"); submitPrompt(question); }}
                 />
               ) : mode === "chat" ? (
                 <ConversationPane
@@ -916,13 +1093,25 @@ export function CommandPaletteProvider({
                       if (group.length === 0) return null;
                       const meta = TYPE_META[type];
                       const Icon = meta.icon;
+                      // Documents get a body-aware heading: "Found in N documents · M
+                      // mentions" (mentions = results with a matched in-body snippet).
+                      const isDoc = type === "document";
+                      const mentions = isDoc ? group.filter((r) => r.snippet).length : 0;
+                      const heading = isDoc
+                        ? `Found in ${group.length} document${group.length === 1 ? "" : "s"}${mentions ? ` · ${mentions} mention${mentions === 1 ? "" : "s"}` : ""}`
+                        : meta.label;
                       return (
                         <Command.Group
                           key={type}
-                          heading={meta.label}
+                          heading={heading}
                           className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                         >
-                          {group.map((r) => (
+                          {group.map((r) => {
+                            // Per-document file-type icon (PDF/photo/Excel/slide);
+                            // other types keep their single entity icon.
+                            const rowIcon = isDoc ? fileIconFor(r.fileName) : { Icon, tint: meta.tint };
+                            const RowIcon = rowIcon.Icon;
+                            return (
                             <MagneticItem
                               key={`${r.type}-${r.id}`}
                               // Prepend the live query so cmdk's own fuzzy filter
@@ -941,7 +1130,7 @@ export function CommandPaletteProvider({
                                 r.lifecycle === "history" && "opacity-70",
                               )}
                             >
-                              <Icon size={14} className={cn("shrink-0 self-start mt-0.5", meta.tint)} />
+                              <RowIcon size={14} className={cn("shrink-0 self-start mt-0.5", rowIcon.tint)} />
                               <span className="flex-1 min-w-0">
                                 <span className="block truncate">{r.title}</span>
                                 {/* Full-text hit inside the document body — the exact
@@ -972,8 +1161,14 @@ export function CommandPaletteProvider({
                                   <GitBranch size={13} />
                                 </button>
                               )}
+                              {/* Documents expand in place into the reader — a chevron
+                                  signals the row opens rather than navigates away. */}
+                              {isDoc && (
+                                <ChevronRight size={14} className="shrink-0 self-start mt-0.5 text-fg-subtle group-data-[selected=true]/idx:text-accent transition-transform group-data-[selected=true]/idx:translate-x-0.5" />
+                              )}
                             </MagneticItem>
-                          ))}
+                            );
+                          })}
                         </Command.Group>
                       );
                     })}
@@ -1305,6 +1500,9 @@ function MessageBubble({
       </div>
     );
   }
+  if (msg.role === "agent") {
+    return <AgentCard command={msg.command} onNavigate={onNavigate} />;
+  }
   // action
   return <ActionCard command={msg.command} onNavigate={onNavigate} currentView={currentView} />;
 }
@@ -1420,6 +1618,157 @@ function ActionCard({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+
+// The ORI AGENT turn — a self-managed clarify → confirm → execute conversation
+// with /api/ori. ORI asks for missing details (multi-turn), shows a plan for the
+// owner's yes, then runs it (multi-step). This is the "feels like Claude" surface.
+type AgentPlanStep = { tool: string; args: Record<string, unknown>; summary: string };
+type AgentRunResult = { tool: string; ok: boolean; message: string; redirect?: string };
+
+function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href: string) => void }) {
+  type Phase =
+    | { kind: "thinking" }
+    | { kind: "ask"; reply: string }
+    | { kind: "confirm"; reply: string; plan: AgentPlanStep[] }
+    | { kind: "running" }
+    | { kind: "answer"; reply: string }
+    | { kind: "done"; reply: string; results: AgentRunResult[] }
+    | { kind: "error"; message: string };
+  // The agent-visible history (seeded with the opening command). Clarify Q&A is
+  // appended here so the planner always sees the full context.
+  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([{ role: "user", content: command }]);
+  const [phase, setPhase] = useState<Phase>({ kind: "thinking" });
+  const [reply, setReply] = useState(""); // the clarify answer being typed
+  const started = useRef(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const plan = useCallback(async () => {
+    setPhase({ kind: "thinking" });
+    try {
+      const res = await fetch("/api/ori", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: historyRef.current }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setPhase({ kind: "error", message: friendlyAIError(d.error || "server-error").message }); return; }
+      if (d.mode === "ask") { historyRef.current.push({ role: "assistant", content: d.reply }); setPhase({ kind: "ask", reply: d.reply }); }
+      else if (d.mode === "confirm") setPhase({ kind: "confirm", reply: d.reply, plan: (d.plan ?? []) as AgentPlanStep[] });
+      else setPhase({ kind: "answer", reply: d.reply || "I'm not sure how to action that yet." });
+    } catch {
+      setPhase({ kind: "error", message: "Couldn't reach ORI just now — try again." });
+    }
+  }, []);
+
+  useEffect(() => { if (!started.current) { started.current = true; void plan(); } }, [plan]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [phase]);
+
+  const sendClarify = () => {
+    const a = reply.trim();
+    if (!a) return;
+    historyRef.current.push({ role: "user", content: a });
+    setReply("");
+    void plan();
+  };
+
+  const runPlan = async (steps: AgentPlanStep[]) => {
+    setPhase({ kind: "running" });
+    try {
+      const res = await fetch("/api/ori", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmPlan: steps }),
+      });
+      const d = await res.json().catch(() => ({}));
+      const results = (d.results ?? []) as AgentRunResult[];
+      setPhase({ kind: "done", reply: d.ok ? "Done." : "Ran with some issues:", results });
+      const firstRedirect = results.find((r) => r.ok && r.redirect)?.redirect;
+      if (firstRedirect) setTimeout(() => onNavigate(firstRedirect), 1100);
+    } catch {
+      setPhase({ kind: "error", message: "Couldn't run that just now — try again." });
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
+        <Sparkles size={15} />
+      </span>
+      <div className="max-w-[85%] w-full rounded-2xl rounded-tl-md bg-bg-muted/60 px-3.5 py-2.5 text-sm space-y-2.5">
+        {phase.kind === "thinking" && (
+          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Thinking it through…</div>
+        )}
+
+        {phase.kind === "ask" && (
+          <div className="space-y-2">
+            <RichAnswer text={phase.reply} />
+            <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+              <input
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendClarify(); } }}
+                placeholder="Your answer…"
+                autoFocus
+                className="flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-fg-subtle"
+              />
+              <button type="button" onClick={sendClarify} disabled={!reply.trim()} aria-label="Send" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-white disabled:opacity-40"><ArrowRight size={14} /></button>
+            </div>
+          </div>
+        )}
+
+        {phase.kind === "confirm" && (
+          <div className="space-y-2">
+            <RichAnswer text={phase.reply} />
+            <div className="rounded-xl border border-border bg-bg-elev/60 divide-y divide-border/60">
+              {phase.plan.map((s, i) => (
+                <div key={i} className="flex items-start gap-2 px-3 py-2">
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-[10px] font-semibold text-accent">{i + 1}</span>
+                  <span className="text-[13px] text-fg">{s.summary}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-0.5">
+              <button onClick={() => runPlan(phase.plan)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
+                <Check size={12} /> Approve &amp; run
+              </button>
+              <button onClick={() => setPhase({ kind: "answer", reply: "Cancelled — nothing was changed." })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors">
+                <XIcon size={12} /> Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase.kind === "running" && (
+          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Running…</div>
+        )}
+
+        {phase.kind === "answer" && <RichAnswer text={phase.reply} />}
+
+        {phase.kind === "done" && (
+          <div className="space-y-1.5">
+            <div className="font-medium text-fg">{phase.reply}</div>
+            {phase.results.map((r, i) => (
+              <div key={i} className="flex items-start gap-2 text-[13px]">
+                {r.ok ? <Check size={14} className="mt-0.5 shrink-0 text-success" /> : <XIcon size={14} className="mt-0.5 shrink-0 text-danger" />}
+                <span className={r.ok ? "text-fg" : "text-danger"}>{r.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {phase.kind === "error" && (
+          <div className="space-y-2 text-danger">
+            <p>{phase.message}</p>
+            <button onClick={() => plan()} className="inline-flex items-center gap-1.5 text-xs font-medium text-fg hover:text-accent transition-colors">
+              <RotateCw size={12} /> Try again
+            </button>
+          </div>
+        )}
+        <div ref={endRef} />
       </div>
     </div>
   );

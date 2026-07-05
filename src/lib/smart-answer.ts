@@ -404,6 +404,82 @@ async function mostTasksByPersonAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title: involvedMode ? "Busiest people (most tasks)" : "Top task creators", count: rows.length, rows, href: "/?tab=tasks" };
 }
 
+/** Leaderboard — "who has the most overdue", "who's most behind", "who's
+ *  overloaded with late tasks". Ranks people (owner + assignees) by the number
+ *  of OPEN, past-deadline tasks they're on. Deterministic/offline. */
+async function mostOverdueByPersonAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(who|which person|whose)\b/i.test(q)) return null;
+  if (!/\b(most|worst|top|biggest|behind|overloaded)\b/i.test(q) && !/\bhas the most\b/i.test(q)) return null;
+  if (!/overdue|past due|late|behind|slipping|missed/i.test(q)) return null;
+
+  const nowIso = new Date().toISOString();
+  const { data: overdue } = await sb.from("tasks")
+    .select("id,owner_id")
+    .eq("archived", false)
+    .not("deadline", "is", null).lt("deadline", nowIso)
+    .not("status", "in", '("Completed","Closed")');
+  const overdueRows = (overdue ?? []) as Record<string, unknown>[];
+  if (overdueRows.length === 0) return { kind: "count", title: "Most overdue by person", count: 0, rows: [], note: "Nothing overdue — everyone's on track.", href: "/?tab=tasks&flag=overdue" };
+
+  const ids = overdueRows.map((r) => r.id as number);
+  const { data: links } = await sb.from("task_assignees").select("task_id,person_id").in("task_id", ids);
+  const counts = new Map<number, number>();
+  for (const r of overdueRows) if (r.owner_id != null) counts.set(r.owner_id as number, (counts.get(r.owner_id as number) ?? 0) + 1);
+  // Assignees who aren't already the owner also carry the overdue task.
+  const ownerByTask = new Map(overdueRows.map((r) => [r.id as number, r.owner_id as number | null]));
+  for (const r of (links ?? []) as Record<string, unknown>[]) {
+    const pid = r.person_id as number;
+    if (ownerByTask.get(r.task_id as number) === pid) continue; // don't double-count
+    counts.set(pid, (counts.get(pid) ?? 0) + 1);
+  }
+  if (counts.size === 0) return { kind: "count", title: "Most overdue by person", count: 0, rows: [], note: "Overdue tasks aren't assigned to anyone yet.", href: "/?tab=tasks&flag=overdue" };
+
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_ROWS);
+  const { data: peopleRows } = await sb.from("people").select("id,name").in("id", top.map(([id]) => id));
+  const nameById = new Map((peopleRows ?? []).map((p) => [p.id as number, p.name as string]));
+  const rows: SmartRow[] = top.map(([id, n], i) => ({
+    label: nameById.get(id) ?? `Person #${id}`,
+    sub: null,
+    badge: `${n} overdue`,
+    tone: (i === 0 ? "danger" : "warn") as SmartTone,
+    href: "/?tab=tasks&flag=overdue",
+  }));
+  return { kind: "count", title: "Most overdue by person", count: rows.length, rows, href: "/?tab=tasks&flag=overdue" };
+}
+
+/** WHAT CHANGED — "tasks updated today", "recently changed/updated", "what's
+ *  changed this week". Lists open+recently-touched tasks by last_updated_at. */
+async function recentlyUpdatedTasksAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(updated|changed|touched|edited|modified|recent(ly)?|latest)\b/i.test(q) || !/\btasks?\b/i.test(q)) return null;
+  const todayOnly = /\btoday\b/i.test(q);
+  const thisWeek = /\bweek\b/i.test(q);
+  const since = todayOnly ? startOfToday() : new Date(startOfToday().getTime() - (thisWeek ? 7 : 3) * day);
+  const company = await matchCompany(q);
+
+  let qb = sb.from("tasks")
+    .select("code,action_item,status,last_updated_at,company_id,companies(name)")
+    .eq("archived", false)
+    .not("last_updated_at", "is", null)
+    .gte("last_updated_at", since.toISOString())
+    .order("last_updated_at", { ascending: false }).limit(40);
+  if (company) qb = qb.eq("company_id", company.id);
+  const { data } = await qb;
+  const now = Date.now();
+  const rows: SmartRow[] = (data ?? []).map((t: Record<string, unknown>) => {
+    const c = t.companies as { name?: string } | { name?: string }[] | null;
+    const cn = (Array.isArray(c) ? c[0]?.name : c?.name) ?? null;
+    const upd = t.last_updated_at ? new Date(t.last_updated_at as string) : null;
+    const hrs = upd ? Math.floor((now - upd.getTime()) / 3_600_000) : null;
+    const badge = hrs == null ? null : hrs < 1 ? "just now" : hrs < 24 ? `${hrs}h ago` : `${Math.floor(hrs / 24)}d ago`;
+    return { label: `[${t.code}] ${t.action_item}`, sub: cn, badge, tone: "muted" as SmartTone, href: `/task/${t.code}` };
+  });
+  const scope = company ? `${company.name} · ` : "";
+  const win = todayOnly ? "today" : thisWeek ? "this week" : "recently";
+  const title = `${scope}Tasks updated ${win}`;
+  if (rows.length === 0) return { kind: "tasks", title, count: 0, rows: [], note: `No task updates ${win}.`, href: "/?tab=tasks" };
+  return { kind: "tasks", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/?tab=tasks" };
+}
+
 /** Compare TWO (or more) companies mentioned in the query — "compare Dar Spices
  *  and Terra Green", "Dar vs Terra". Shows each side's open + overdue task load. */
 async function compareAnswer(q: string): Promise<SmartAnswer | null> {
@@ -449,9 +525,9 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
   const q = (query ?? "").toLowerCase().trim();
   if (q.length < 3) return null;
   const resolvers = [
-    compareAnswer, mostTasksByPersonAnswer,
+    compareAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
-    overdueTasksAnswer, dueTasksAnswer, probationAnswer, assetsAnswer,
+    overdueTasksAnswer, dueTasksAnswer, recentlyUpdatedTasksAnswer, probationAnswer, assetsAnswer,
     tasksByPersonAnswer, countAnswer,
   ];
   for (const r of resolvers) {

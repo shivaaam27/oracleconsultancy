@@ -42,6 +42,8 @@ export type SearchEntityResult = {
   href: string;
   badge?: string;
   lifecycle: Lifecycle;
+  /** Documents only: original file name, for the palette's file-type icon. */
+  fileName?: string;
   /** Ordered fields (primary first) the caller feeds to its scorer. */
   scoreParts: (string | null | undefined)[];
 };
@@ -428,7 +430,7 @@ export const ENTITY_DEFS: EntityDef[] = [
     searchOrder: 4,
     trace: { mode: "bespoke" },
     search: {
-      select: "id,title,category,doc_type,issuer,reference_no,company_id,person_id,archived, companies(name), people(name)",
+      select: "id,title,category,doc_type,issuer,reference_no,file_name,company_id,person_id,archived, companies(name), people(name)",
       ilikeColumns: ["title", "category", "doc_type", "issuer", "reference_no"],
       currentFilter: { column: "archived", value: false },
       limit: 60,
@@ -445,6 +447,7 @@ export const ENTITY_DEFS: EntityDef[] = [
           href,
           badge: archived ? (sx(r.doc_type) ?? "Archived") : (sx(r.doc_type) ?? undefined),
           lifecycle: archived ? "history" : "active",
+          fileName: sx(r.file_name) ?? undefined,
           scoreParts: [r.title as string, sx(r.category), sx(r.doc_type), sx(r.issuer), sx(r.reference_no), owner],
         };
       },

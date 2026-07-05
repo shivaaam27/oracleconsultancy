@@ -30,6 +30,11 @@ type ParsedIntent =
   | { type: "create";   companyName?: string; actionItem: string; priority?: string; deadline?: string; assignee?: string }
   | { type: "set_status"; taskCode: string; status: string }
   | { type: "set_priority"; taskCode: string; priority: string }
+  | { type: "edit_task"; taskCode: string; field: "title" | "description" | "category" | "risk"; value: string }
+  | { type: "reassign"; taskCode: string; assignee: string }
+  | { type: "archive_task"; taskCode: string }
+  | { type: "create_event"; title: string; date?: string; time?: string; companyName?: string; location?: string }
+  | { type: "draft_announcement"; title: string; body: string }
   | { type: "bulk"; op: "complete" | "escalate" | "set_status" | "set_priority"; status?: string; priority?: string; taskCodes?: string[] }
   | { type: "navigate"; target: string; query?: string }
   | { type: "person_pack"; personName: string; purpose: PersonPackPurpose }
@@ -53,6 +58,11 @@ Possible intents (output ONLY the JSON, no prose):
 - Add an update / progress note: {"type":"update","taskCode":"DAR-007","body":"the actual update text","newStatus":"In Progress"}
 - Change status: {"type":"set_status","taskCode":"DAR-007","status":"Blocked"}
 - Change priority: {"type":"set_priority","taskCode":"DAR-007","priority":"Critical"}
+- Edit a task's title / description / category / risk: {"type":"edit_task","taskCode":"DAR-007","field":"title","value":"the new text"}. field is one of title|description|category|risk. Use for "rename DAR-007 to …", "change the description of DAR-007 to …", "set DAR-007 category to Finance", "mark DAR-007 risk as High". VALID CATEGORIES: Finance | Operations | Marketing | HR | Legal | Technology | Sales | Admin | Meetings | Strategy | Other. VALID RISK: Critical | High | Medium | Low.
+- Reassign a task to a person: {"type":"reassign","taskCode":"DAR-007","assignee":"Shivam"}. Use for "reassign DAR-007 to Shivam", "give DAR-007 to Hiral", "assign DAR-007 to …".
+- Delete / remove / archive a task (it is ARCHIVED, reversible): {"type":"archive_task","taskCode":"DAR-007"}. Use for "delete DAR-007", "remove DAR-007", "archive DAR-007".
+- Create a calendar event / meeting: {"type":"create_event","title":"Board meeting","date":"2026-07-10","time":"14:00","companyName":"Dar Spices","location":"Head office"}. date is YYYY-MM-DD; time is HH:MM 24h (omit if all-day); companyName and location optional. Use for "schedule/create/add an event/meeting …", "put a meeting in the calendar …".
+- Draft an announcement (creates a DRAFT for review — NEVER auto-published): {"type":"draft_announcement","title":"Office closed Friday","body":"the announcement text"}. Use for "announce …", "post an announcement …", "tell everyone …", "draft an announcement …".
 - Create a new task: {"type":"create","companyName":"Dar Spices","actionItem":"Send invoice","priority":"High","deadline":"2026-06-15","assignee":"Shivam"}
 - Remind a person — prepares an Outbox reminder DRAFT, never auto-sent: {"type":"remind","personName":"Shivam","about":"his work permit"}
 - Draft the Director Brief — creates an email DRAFT in Outbox, never auto-sent: {"type":"draft_brief","companyName":"Dar Spices","period":"month"}. Omit companyName for the whole portfolio. period is one of month|last-month|quarter|year.
@@ -572,6 +582,98 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     void reindexEntity("task", t.id); // best-effort (priority isn't indexed text, but keep parity)
     revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `⚡ ${t.code} priority → ${intent.priority}`, redirect: `/task/${t.code}` };
+  }
+
+  if (intent.type === "edit_task") {
+    const t = await findTaskByCode(intent.taskCode);
+    if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
+    const value = (intent.value ?? "").trim();
+    if (!value) return { ok: false, message: "Nothing to change to — tell me the new value." };
+    // Map the friendly field to its column + validate the constrained ones.
+    const COLUMN: Record<string, string> = { title: "action_item", description: "comments", category: "category", risk: "risk" };
+    const column = COLUMN[intent.field];
+    if (!column) return { ok: false, message: `Can't edit "${intent.field}".` };
+    if (intent.field === "category") {
+      const valid = ["Finance","Operations","Marketing","HR","Legal","Technology","Sales","Admin","Meetings","Strategy","Other"];
+      if (!valid.includes(value)) return { ok: false, message: `Invalid category "${value}". Use one of: ${valid.join(", ")}.` };
+    }
+    if (intent.field === "risk") {
+      const valid = ["Critical","High","Medium","Low"];
+      if (!valid.includes(value)) return { ok: false, message: `Invalid risk "${value}". Use Critical, High, Medium or Low.` };
+    }
+    // Read the old value for the audit trail (best-effort).
+    const { data: before } = await sb.from("tasks").select(column).eq("id", t.id).maybeSingle();
+    const oldVal = before ? String((before as unknown as Record<string, unknown>)[column] ?? "") : null;
+    await sb.from("tasks").update({ [column]: value, last_updated_at: nowIso }).eq("id", t.id);
+    const label = intent.field[0].toUpperCase() + intent.field.slice(1);
+    await audit(t.id, t.code, t.company_id, "CHANGE", label, oldVal, value, "Edited via command");
+    void reindexEntity("task", t.id); // title/description are indexed text (best-effort)
+    revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
+    return { ok: true, message: `✏️ ${t.code} ${intent.field} updated`, redirect: `/task/${t.code}` };
+  }
+
+  if (intent.type === "reassign") {
+    const t = await findTaskByCode(intent.taskCode);
+    if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
+    const p = await findPersonByName(intent.assignee ?? "");
+    if (!p) return { ok: false, message: `Couldn't find an active person matching "${intent.assignee}"` };
+    // Reassign = set the owner AND make them the sole assignee (replace the list),
+    // matching the UI's "reassign" (not "add assignee"). Reversible via history.
+    await sb.from("tasks").update({ owner_id: p.id, last_updated_at: nowIso }).eq("id", t.id);
+    await sb.from("task_assignees").delete().eq("task_id", t.id);
+    await sb.from("task_assignees").upsert({ task_id: t.id, person_id: p.id }, { ignoreDuplicates: true });
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Owner", null, p.name, "Reassigned via command");
+    void reindexEntity("task", t.id);
+    revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
+    return { ok: true, message: `👤 ${t.code} reassigned to ${p.name}`, redirect: `/task/${t.code}` };
+  }
+
+  if (intent.type === "archive_task") {
+    const t = await findTaskByCode(intent.taskCode);
+    if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
+    // ARCHIVE, never hard-delete (guardrails: automated paths never destroy data).
+    await sb.from("tasks").update({ archived: true, last_updated_at: nowIso }).eq("id", t.id);
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Archived", "false", "true", "Archived via command");
+    void reindexEntity("task", t.id); // archived → removed from the live index (best-effort)
+    revalidatePath("/registry"); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
+    return { ok: true, message: `🗑️ Archived ${t.code} (recoverable from the archive)` };
+  }
+
+  if (intent.type === "create_event") {
+    const title = (intent.title ?? "").trim();
+    if (!title) return { ok: false, message: "Give the event a title." };
+    let companyId: number | undefined;
+    if (intent.companyName) { const c = await findCompanyByName(intent.companyName); if (c) companyId = c.id; }
+    // Build start/end from date (+optional time). No date → default to today.
+    const dateStr = intent.date && /^\d{4}-\d{2}-\d{2}$/.test(intent.date) ? intent.date : new Date().toISOString().slice(0, 10);
+    const allDay = !intent.time;
+    const startAt = new Date(`${dateStr}T${allDay ? "09:00" : intent.time}:00+03:00`); // Dar es Salaam (UTC+3)
+    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000); // default 1h
+    const ev = await createCalendarEvent({
+      title, companyId, location: intent.location, startAt, endAt, allDay, source: "manual", createdBy: "ai-command",
+    });
+    revalidatePath("/calendar");
+    const google = googleCalendarUrl(toIcsEvent(ev));
+    return { ok: true, message: `📅 Scheduled "${title}" for ${startAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}${allDay ? "" : ` at ${intent.time}`}`, redirect: "/calendar", googleUrl: google };
+  }
+
+  if (intent.type === "draft_announcement") {
+    const title = (intent.title ?? "").trim();
+    const body = (intent.body ?? "").trim();
+    if (!title && !body) return { ok: false, message: "Tell me what to announce." };
+    // Create a DRAFT (never auto-published — outward-facing needs a review click).
+    const { data, error } = await sb.from("announcements").insert({
+      title: title || "Untitled announcement",
+      body: body || title,
+      type: "operational",
+      audience_kind: "all",
+      status: "draft",
+      created_by: "ai-command",
+      created_at: nowIso,
+    }).select("id").single();
+    if (error) return { ok: false, message: error.message };
+    revalidatePath("/announcements");
+    return { ok: true, message: `📣 Drafted announcement "${title || "Untitled"}" — review and publish it`, redirect: `/announcements?edit=${data.id}` };
   }
 
   if (intent.type === "create") {

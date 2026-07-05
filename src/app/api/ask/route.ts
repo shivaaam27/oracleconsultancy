@@ -24,8 +24,9 @@ export const maxDuration = 60; // allow up to 60s on Vercel
 const SYSTEM_PROMPT = `You are ORI, the assistant for a multi-company portfolio (Oracle Consultancy). Answer the principal's question using ONLY the data provided in the CONTEXT below. Be specific — name people, task codes, deadlines, and companies.
 
 STYLE:
-- CRITICAL — speak like a chief of staff, never like a database. NEVER begin with "Based on the CONTEXT/data provided", never write the word "CONTEXT", internal field names (CONTEXT.graph, "matched companies", "matched people"), or raw JSON/bracketed arrays. Just give the answer. If linked records exist but don't directly answer, say e.g. "I don't have the directors on record, but the people linked to Terra Green are …".
-- Direct and decision-grade. No hedging.
+- CRITICAL — speak like a trusted chief of staff, never like a database. NEVER begin with "Based on the CONTEXT/data provided", never write the word "CONTEXT", internal field names (CONTEXT.graph, "matched companies", "matched people"), or raw JSON/bracketed arrays. Just give the answer. If linked records exist but don't directly answer, say e.g. "I don't have the directors on record, but the people linked to Terra Green are …".
+- TONE: professional but warm and conversational — like a sharp colleague talking to you, not a formal report. Contractions are good ("you've", "there's", "I'd"). Lead with the answer, add a brief human touch where it helps (e.g. "Good news —", "Heads up —", "Nothing urgent here."). Never stiff, never robotic, never over-familiar or chatty for its own sake. No emoji.
+- Direct and decision-grade. No hedging, no filler, no throat-clearing.
 - British English.
 - Use task codes in brackets, e.g. [DAR-007].
 - If using meeting notes or minutes, name the meeting and date.
@@ -160,6 +161,7 @@ export async function buildContext(question: string, page?: PageCtx) {
   const matchedPeople = peopleAll.filter(p =>
     matchTokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
+  const matchedPersonIds = new Set(matchedPeople.map((p) => p.id));
 
   // Hybrid semantic search (full-text + vector, RRF) over tasks/meetings/documents/
   // people — best-effort; returns [] unless semantic search is on AND backfilled.
@@ -436,7 +438,7 @@ export async function buildContext(question: string, page?: PageCtx) {
         .limit(40),
       sb
         .from("task_assignees")
-        .select("task_id,people(name)")
+        .select("task_id,person_id,people(name)")
         .in("task_id", taskIds),
     ]);
     updates = (updateRows ?? []).map((u) => ({
@@ -449,6 +451,22 @@ export async function buildContext(question: string, page?: PageCtx) {
       const pf = (a as { people?: { name?: string } | { name?: string }[] }).people;
       const nm = Array.isArray(pf) ? pf[0]?.name : pf?.name;
       if (nm) (assigneesByTask[tid] ||= []).push(nm);
+      // #6 — the people ON a matched task (assignees) count as linked people, even
+      // when the question never named them. Fixes "Dipto-style" misses where the
+      // person IS a record but only surfaces through the task they're assigned to.
+      const pid = (a as { person_id?: number }).person_id;
+      if (pid && !matchedPersonIds.has(pid)) {
+        const p = peopleAll.find((x) => x.id === pid);
+        if (p) { matchedPeople.push(p); matchedPersonIds.add(pid); }
+      }
+    }
+    // …and the people who RAISED the matched tasks (created_by), same rationale.
+    for (const t of filtered) {
+      const pid = t.createdByPersonId;
+      if (pid && !matchedPersonIds.has(pid)) {
+        const p = peopleAll.find((x) => x.id === pid);
+        if (p) { matchedPeople.push(p); matchedPersonIds.add(pid); }
+      }
     }
   }
 

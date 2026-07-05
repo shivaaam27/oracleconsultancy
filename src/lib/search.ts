@@ -49,6 +49,9 @@ export type SearchResult = {
    *  excerpt with the hit wrapped in «…» so the UI can show "found inside" with
    *  the phrase highlighted. Absent for column/metadata matches. */
   snippet?: string;
+  /** For documents: the original uploaded file name, so the palette can pick a
+   *  file-type icon (PDF / photo / spreadsheet / slides). Optional. */
+  fileName?: string;
 };
 
 const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with"]);
@@ -306,6 +309,7 @@ export async function unifiedSearch(
         existing.subtitle = subtitle;
         if (rawSnippet.includes("«")) existing.snippet = rawSnippet;
         if (!existing.badge && r.reference_no) existing.badge = r.reference_no as string;
+        if (!existing.fileName && r.file_name) existing.fileName = r.file_name as string;
         existing.score += 6 + rankBoost;
       } else {
         const href = r.person_id ? `/documents?person=${r.person_id}` : r.company_id ? `/documents?company=${r.company_id}` : "/documents";
@@ -316,6 +320,7 @@ export async function unifiedSearch(
           href,
           badge: (r.reference_no as string) || undefined,
           score: 42 + rankBoost,
+          ...(r.file_name ? { fileName: r.file_name as string } : {}),
           ...(rawSnippet.includes("«") ? { snippet: rawSnippet } : {}),
         });
       }

@@ -124,6 +124,52 @@ function describe(intent: Intent): {
           { label: "Period", value: s("period") || "This month" },
         ],
       };
+    case "edit_task":
+      return {
+        icon: <MessageSquarePlus size={15} className="text-accent" />,
+        title: `Edit task ${s("field") || "field"}`,
+        rows: [
+          { label: "Task", value: code },
+          { label: "Field", value: s("field") },
+          { label: "New value", value: s("value") },
+        ].filter((r) => r.value),
+      };
+    case "reassign":
+      return {
+        icon: <BriefcaseBusiness size={15} className="text-accent" />,
+        title: "Reassign task",
+        rows: [
+          { label: "Task", value: code },
+          { label: "To", value: s("assignee") },
+        ].filter((r) => r.value),
+      };
+    case "archive_task":
+      return {
+        icon: <AlertOctagon size={15} className="text-warn" />,
+        title: "Archive task (recoverable)",
+        rows: [{ label: "Task", value: code }].filter((r) => r.value),
+      };
+    case "create_event":
+      return {
+        icon: <Plus size={15} className="text-accent" />,
+        title: "Create calendar event",
+        rows: [
+          { label: "Title", value: s("title") },
+          { label: "Date", value: fmtDate(s("date")) ?? s("date") },
+          { label: "Time", value: s("time") },
+          { label: "Company", value: s("companyName") },
+          { label: "Location", value: s("location") },
+        ].filter((r) => r.value),
+      };
+    case "draft_announcement":
+      return {
+        icon: <Send size={15} className="text-accent" />,
+        title: "Draft announcement (review before publishing)",
+        rows: [
+          { label: "Title", value: s("title") },
+          { label: "Message", value: s("body") },
+        ].filter((r) => r.value),
+      };
     case "navigate":
       return {
         icon: <ArrowRight size={15} className="text-accent" />,
