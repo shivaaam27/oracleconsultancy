@@ -120,24 +120,30 @@ const norm = (s: string) => ` ${(s ?? "").toLowerCase().replace(/[_\-]+/g, " ").
 const aliasWeight = (alias: string) => Math.max(2, Math.round(alias.length / 3));
 
 /**
- * Score a document against the catalogue; best match first. The document NAME
- * (filename + title) is the strong signal and is weighted ~5× the body, so a
- * "WCF-Receipt" filename isn't overturned by a taxpayer number mentioned in the
- * body text. Pass the body separately (optional).
+ * Score a document against the catalogue; best match first. CONTENT-FIRST (owner
+ * rule): the document's actual TEXT (body) decides the type. The name (filename +
+ * title) is a LAST RESORT — used only when the body gave no signal at all —
+ * because filenames can mislead. Pass the body separately (optional).
  */
 export function classifyDocText(name: string, body = ""): { type: CatalogType; score: number }[] {
   const nameHay = norm(name);
   const bodyHay = norm(body);
-  const scored: { type: CatalogType; score: number }[] = [];
+  const bodyScored: { type: CatalogType; score: number }[] = [];
+  const nameScored: { type: CatalogType; score: number }[] = [];
   for (const type of DOC_CATALOG) {
-    let score = 0;
+    let bodyScore = 0;
+    let nameScore = 0;
     for (const alias of type.aliases) {
       const w = aliasWeight(alias);
-      if (nameHay.includes(alias)) score += w * 10; // name match strongly dominates
-      else if (bodyHay.includes(alias)) score += w; // body match is a weak hint
+      if (bodyHay.includes(alias)) bodyScore += w;
+      if (nameHay.includes(alias)) nameScore += w;
     }
-    if (score > 0) scored.push({ type, score });
+    if (bodyScore > 0) bodyScored.push({ type, score: bodyScore });
+    if (nameScore > 0) nameScored.push({ type, score: nameScore });
   }
+  // The body wins whenever it matched ANYTHING; the filename is consulted only
+  // when the content yielded nothing (a pure image with no readable text, etc.).
+  const scored = bodyScored.length ? bodyScored : nameScored;
   // Tie-break: on an equal score, prefer a type that satisfies a compliance
   // requirement (a statutory type beats a generic one — e.g. an "…Receipt" that
   // scores level should resolve to the statutory doc, not a plain receipt).

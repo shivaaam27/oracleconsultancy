@@ -15,8 +15,12 @@ describe("doc catalogue classifier", () => {
     expect(t?.shelf).toBe("Licences & Permits");
     expect(t?.companyReqKey).toBe("business-licence");
   });
-  it("does not let a body taxpayer number override the filename type", () => {
-    expect(bestDocType("DarSpices_NSSF-Document.pdf", "taxpayer identification number 123")?.key).toBe("nssf");
+  it("lets the document CONTENT decide the type over a misleading filename (content-first)", () => {
+    // Filename says NSSF, but the body reads as a taxpayer/TIN document — content wins.
+    expect(bestDocType("DarSpices_NSSF-Document.pdf", "taxpayer identification number 123")?.key).toBe("tin-certificate");
+  });
+  it("falls back to the filename only when the body has no type signal (last resort)", () => {
+    expect(bestDocType("DarSpices_NSSF-Document.pdf", "page 1 of 2")?.key).toBe("nssf");
   });
   it("maps VRN to the VAT requirement", () => {
     expect(bestDocType("DarSpices_VRN-Certificate.pdf")?.companyReqKey).toBe("vat-registration");

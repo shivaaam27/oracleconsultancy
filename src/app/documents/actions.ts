@@ -418,13 +418,19 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // Quarantine when the read failed, the scan was unclear, NO owner resolved, it
     // looks like several documents bundled, or it might be a duplicate (held, not
     // auto-binned, since we're not certain).
-    const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation || !!nearDupOf;
+    // Owner rule: the auto-generated NAME is only trusted at ≥95% read confidence.
+    // Below that, the doc waits in To Sort so the owner confirms the name (the
+    // composed name is still shown as the best guess, just flagged to check).
+    const NAME_CONFIDENCE = 0.95;
+    const lowNameConfidence = res.ok && typeof res.confidence === "number" && res.confidence < NAME_CONFIDENCE;
+    const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation || !!nearDupOf || lowNameConfidence;
     const reason = !res.ok
       ? (res.note ?? "Couldn't read the file — AI may be off")
       : isCompilation ? `Looks like ${segCount} documents — open to split`
       : !hasOwner ? "No company or person matched"
       : nearDupOf ? `Possible duplicate of #${nearDupOf.id} ${nearDupOf.title}`
       : res.needsReview ? "Scan was unclear"
+      : lowNameConfidence ? "Check the name — read below 95% confidence"
       : undefined;
 
     const partsNote = isCompilation

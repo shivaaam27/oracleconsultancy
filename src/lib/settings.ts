@@ -213,8 +213,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoSendWhatsapp: false,
   autoSendSms: false,
   autoHardDeleteForbidden: true, // automated paths archive, never hard-delete
-  groqApiKey: "", // blank = fall back to process.env.GROQ_API_KEY (today's behaviour)
-  aiProvider: "groq", // default keeps today's behaviour until the owner picks Gemini
+  groqApiKey: "", // legacy — everyday AI is Gemini now; only /api/transcribe (voice) may still read a Groq key
+  aiProvider: "gemini", // Gemini is the sole everyday-AI provider (Groq removed)
   geminiApiKey: "", // blank = fall back to process.env.GEMINI_API_KEY
   ocrSpaceApiKey: "", // blank = fall back to process.env.OCRSPACE_API_KEY
   quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
@@ -330,7 +330,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),
     autoHardDeleteForbidden: toBool(map.get(KEY.autoHardDeleteForbidden), d.autoHardDeleteForbidden),
     groqApiKey: map.get(KEY.groqApiKey) ?? d.groqApiKey,
-    aiProvider: ((map.get(KEY.aiProvider) as AiProvider | null) === "gemini" ? "gemini" : "groq"),
+    aiProvider: "gemini", // Groq removed — the everyday AI is always Gemini now
     geminiApiKey: map.get(KEY.geminiApiKey) ?? d.geminiApiKey,
     ocrSpaceApiKey: map.get(KEY.ocrSpaceApiKey) ?? d.ocrSpaceApiKey,
     quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,
@@ -381,14 +381,11 @@ export async function saveAppSettings(patch: Partial<AppSettings>): Promise<void
  * actually being set (default 0 = unlimited), and isOverSpendCap() fails OPEN on
  * any error — so default behaviour is completely unchanged.
  */
-/** The AI provider that is ACTUALLY active right now. Honours the `aiProvider`
- *  setting, but only resolves to "gemini" when a Gemini key is available — so
- *  selecting Gemini without a key can never leave the app with no working AI (it
- *  falls back to Groq). Read by the AI harness to pick the endpoint + model ladder. */
+/** The AI provider for the everyday AI. Groq has been removed — this is always
+ *  Gemini now. When no Gemini key is set, getAiKey() returns undefined and every
+ *  AI path degrades gracefully to its rules/manual fallback. */
 export async function getActiveProvider(): Promise<AiProvider> {
-  const { aiProvider, geminiApiKey } = await getAppSettings();
-  if (aiProvider === "gemini" && (geminiApiKey.trim() || process.env.GEMINI_API_KEY)) return "gemini";
-  return "groq";
+  return "gemini";
 }
 
 /**
