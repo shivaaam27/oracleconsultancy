@@ -99,6 +99,36 @@ error path itself was re-tested and still degrades gracefully) but NOT
 confirmed on a real device — needs the owner to re-test Live view on their
 phone.
 
+### Auto-crop / straighten (iOS-Files-style) — Phase 1+2 SHIPPED, Phase 3+4 PENDING
+Owner wants scanned photos auto-cropped to just the document (like iOS's Files
+scanner), not the desk/background. Chose **Option A** (AI-detected corners +
+a real perspective warp) over Option B (OpenCV.js — accurate + offline but an
+~8MB WASM bundle and a much bigger build). Phased deliberately, given same-day
+bugs on the simpler scan feature — each phase ships independently testable
+before the next touches the live camera UI:
+- **Phase 1 (done)**: `src/app/documents/scan-crop-actions.ts` →
+  `detectDocumentCornersAction(imageDataUrl)` — one Gemini vision call (same
+  ladder as everything else) asking for the 4 corner fractions + a confidence
+  score. Returns `{ok:false}` on ANY failure (no key, bad JSON, wrong shape,
+  low-effort single attempt) — deliberately never throws, so a bad read can
+  only mean "skip the crop", never corrupt a page.
+- **Phase 2 (done)**: `src/lib/perspective-warp.ts` → `warpToRectangle()` — a
+  dependency-free projective (homography) transform: given an image + 4
+  corners, produces a flattened top-down rectangle sized from the corners'
+  own proportions (Gaussian-elimination 8-point DLT solve, inverse-mapped
+  per-output-pixel so there are no holes). `computeInverseHomography` is
+  exported and unit-tested in isolation (`perspective-warp.test.ts` — identity
+  case, pure-scale case, and a genuine skewed-trapezoid case) since the DOM/
+  canvas parts can't run in the node-environment Vitest config.
+- **Phase 3 (pending)**: wire corner-detection → warp with a hard confidence
+  gate — low confidence/failure = keep the original photo, never block or
+  corrupt the page.
+- **Phase 4 (pending)**: wire into `scan-capture.tsx`'s capture flow with a
+  preview + "use this / use original instead" choice BEFORE making it fully
+  automatic — so a bad warp is caught immediately, not after the PDF's built.
+- **Phase 5 (pending)**: owner tests on real documents (mostly top-down/
+  aligned per the owner, so the easy case; angled shots are the stress test).
+
 ## Round 5 — Document editor redesign — DONE + SHIPPED
 Owner chose **E2 file-beside-fields on desktop, folding to E1 stacked sections on
 mobile** (mockup was artifact "cc-doc-editor"). Built by RESTRUCTURING document-form.tsx
