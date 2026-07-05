@@ -30,17 +30,30 @@ existing harness works with a URL change.
   the harness (`ai-json.ts`) already falls through to the next ladder entry on a
   429, more distinct models = far fewer real rate-limit failures (excluded from
   the vision ladder — Gemma is text-only).
-  **Reordered same day (owner call)**: most-advanced-first, highest-quota-last.
-  Owner-reported free-tier daily caps on their key: flash-lite variants ~500/day
-  (lowest — sit mid-ladder, not last, since they're less capable too), Gemini
-  2.0/2.5 "plain" flash + most other defaults ~1,500/day, Gemma 4 ~1,500/day.
-  So each ladder tries the smartest model (3.5/pro) first for quality, falls
-  through on rate-limit, and ends on Gemma — a separate open-weight family with
-  its OWN quota pool, so it keeps answering even if every native Gemini model on
-  the key is exhausted for the day. All still env-overridable (`GEMINI_*_MODELS`).
+  **Reordered + UNIFIED same day (owner call)**: owner cross-checked the full
+  Google AI Studio model picker (screenshots) against the key — everything shown
+  there beyond plain chat models (Imagen/Veo/Lyria/Nano Banana = image/video/
+  music gen, TTS/Live/Translate = audio, Computer Use/Deep Research Pro/
+  Robotics-ER = agent tools, `-latest` aliases = same quota bucket as the pinned
+  model they point to) is deliberately excluded — wrong call shape or no real
+  fallback benefit. What's left is ONE shared `GEMINI_TEXT_LADDER` (10 models,
+  most-advanced-first: 3.5-flash → 3.1-pro-preview → 3-pro-preview →
+  3-flash-preview → 2.5-pro → 2.5-flash → 2.0-flash → 3.1/2.5/2.0-flash-lite)
+  applied to ALL THREE tiers — fast, smart AND vision now try the same capability
+  order, quality first. `GEMMA_LADDER` (2 models, separate open-weight quota pool,
+  ~1,500/day) is appended after it on fast/smart only (Gemma is text-only, so
+  excluded from vision). All still env-overridable (`GEMINI_*_MODELS`).
   `scripts/list-gemini-models.ts` lists what's actually enabled on the current key
   (`npx tsx scripts/list-gemini-models.ts`) — re-run it after a key change before
   editing these lists, since availability varies per key/region.
+  **Document scanning/extraction already inherits this for free** — no separate
+  wiring needed. `src/app/documents/actions.ts`'s `groqVision`/`visionTranscribe`
+  call `providerVisionModels(await getActiveProvider())` (the vision ladder
+  above); the text-based extraction fallback (`groqExtract` via
+  `getQualityTextModel()`) passes a single model name through `callGroqJson`,
+  which maps ANY single model through `providerLadder()` to the FULL active-
+  provider ladder for its tier (`ai-json.ts`) — so both paths already try the
+  smartest model first and fall through the same way ORI's chat does.
 - Key gate: `getGroqKey()` is now a back-compat alias of the new `getAiKey()`, which
   returns the ACTIVE provider's key (in-app first, env `GEMINI_API_KEY`/`GROQ_API_KEY`
   fallback), gated on aiEnabled + spend cap. Every existing caller (does `getGroqKey()`)
