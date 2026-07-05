@@ -69,18 +69,49 @@ export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
  * ladders. Gemini is only USED when the owner selects it + sets a key (Settings);
  * until then everything stays on Groq, so this is inert by default.
  * ---------------------------------------------------------------------- */
+// Widened Jul 2026 — verified live against the account's key (32 generateContent
+// models available, incl. Gemini 2.0/2.5/3/3.1/3.5 and Gemma 4). Each tier is now
+// a LONG ladder spanning several model FAMILIES (Gemini flash/pro generations +
+// Gemma), not just flash vs flash-lite — because Gemini rate-limits per model, a
+// 429 on one entry falls through to the next (ai-json.ts already retries 429 by
+// walking the ladder), so more distinct models = fewer real-world rate-limit
+// failures. Gemma sits last in fast/smart: a separate open-weight model family
+// with its own quota pool, so it keeps working even if every Gemini model on the
+// key is rate-limited. Re-run `npx tsx scripts/_gemini_models.ts` after a key
+// change to confirm what's actually enabled before editing these lists.
 export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
   "gemini-2.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash-lite-001",
+  "gemini-3.1-flash-lite",
   "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-001",
+  "gemini-flash-latest",
+  "gemma-4-26b-a4b-it",
+  "gemma-4-31b-it",
 ]);
 export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
   "gemini-2.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash",
+  "gemini-2.5-pro",
+  "gemini-pro-latest",
+  "gemini-3.1-pro-preview",
+  "gemini-2.0-flash",
   "gemini-2.5-flash-lite",
+  "gemma-4-31b-it",
 ]);
 // Gemini reads images/PDF pages natively (the real fix for the Groq-vision death).
+// Gemma is text-only, so it's excluded here (would fail every vision call).
 export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-3-flash-preview",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash-lite",
+  "gemini-flash-latest",
 ]);
 
 export type AiProvider = "groq" | "gemini";

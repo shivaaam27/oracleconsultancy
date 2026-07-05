@@ -24,9 +24,17 @@ existing harness works with a URL change.
   substitutes the ACTIVE provider's ladder — so a call that asks for GROQ_FAST runs
   on `GEMINI_FAST_MODELS` when Gemini is active. `providerVisionModels()` does the
   same for the scan reader (`groqVision` in documents/actions.ts).
-- Gemini ladders: `GEMINI_FAST_MODELS` (gemini-2.5-flash-lite → flash),
-  `GEMINI_SMART_MODELS`/`GEMINI_VISION_MODELS` (gemini-2.5-flash → flash-lite),
-  all env-overridable (`GEMINI_*_MODELS`).
+- Gemini ladders: originally just flash ↔ flash-lite; **widened 2026-07-05** to a
+  long multi-family ladder per tier (Gemini 2.0/2.5/3/3.1/3.5 flash+pro generations,
+  plus Gemma 4 as the last resort on fast/smart) — see `src/lib/ai-models.ts`. Since
+  Gemini rate-limits per model and the harness (`ai-json.ts`) already falls through
+  to the next ladder entry on a 429, more distinct models = far fewer real
+  rate-limit failures; Gemma has its own quota pool so it survives even if every
+  Gemini model on the key is limited (excluded from the vision ladder — text only).
+  All still env-overridable (`GEMINI_*_MODELS`). `scripts/list-gemini-models.ts`
+  lists what's actually enabled on the current key
+  (`npx tsx scripts/list-gemini-models.ts`) — re-run it after a key change before
+  editing these lists, since availability varies per key/region.
 - Key gate: `getGroqKey()` is now a back-compat alias of the new `getAiKey()`, which
   returns the ACTIVE provider's key (in-app first, env `GEMINI_API_KEY`/`GROQ_API_KEY`
   fallback), gated on aiEnabled + spend cap. Every existing caller (does `getGroqKey()`)
