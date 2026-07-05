@@ -75,43 +75,57 @@ export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
 // Gemma), not just flash vs flash-lite — because Gemini rate-limits per model, a
 // 429 on one entry falls through to the next (ai-json.ts already retries 429 by
 // walking the ladder), so more distinct models = fewer real-world rate-limit
-// failures. Gemma sits last in fast/smart: a separate open-weight model family
-// with its own quota pool, so it keeps working even if every Gemini model on the
-// key is rate-limited. Re-run `npx tsx scripts/_gemini_models.ts` after a key
-// change to confirm what's actually enabled before editing these lists.
+// failures.
+//
+// ORDER = most-advanced-first, highest-quota-last (owner's call, 2026-07-05): try
+// the smartest model for quality; each 429 drops to the next; the ladder ends on
+// the highest-daily-quota models so the app basically never goes fully quiet.
+// Owner-reported free-tier daily caps (per-key, checked on their new key):
+//   gemini-3.1-flash-lite / other flash-lite ~500/day · gemini-2.0/2.5 flash
+//   ("plain") ~1,500/day · Gemma 4 ~1,500/day · most other defaults ~1,500/day.
+// So flash-lite variants (lowest quota) sit ABOVE the 1,500/day models even
+// though they're less capable — they're a mid-ladder rung, not the backstop.
+// Gemma sits LAST: a separate open-weight family with its OWN quota pool, so it
+// keeps answering even if every native Gemini model on the key is exhausted.
+// Re-run `npx tsx scripts/list-gemini-models.ts` after a key change to confirm
+// what's actually enabled/available before editing these lists.
 export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
-  "gemini-2.5-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-2.0-flash-lite",
-  "gemini-2.0-flash-lite-001",
-  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-2.0-flash-001",
-  "gemini-flash-latest",
-  "gemma-4-26b-a4b-it",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash-lite",
   "gemma-4-31b-it",
+  "gemma-4-26b-a4b-it",
 ]);
 export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
-  "gemini-2.5-flash",
-  "gemini-3-flash-preview",
   "gemini-3.5-flash",
-  "gemini-2.5-pro",
-  "gemini-pro-latest",
   "gemini-3.1-pro-preview",
+  "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
+  "gemini-3.1-flash-lite",
   "gemini-2.5-flash-lite",
   "gemma-4-31b-it",
+  "gemma-4-26b-a4b-it",
 ]);
 // Gemini reads images/PDF pages natively (the real fix for the Groq-vision death).
 // Gemma is text-only, so it's excluded here (would fail every vision call).
 export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-pro-preview",
+  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash-lite",
-  "gemini-flash-latest",
 ]);
 
 export type AiProvider = "groq" | "gemini";
