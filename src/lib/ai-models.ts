@@ -82,18 +82,6 @@ export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
 // robotics products, wrong call shape for chat/JSON); `-preview` duplicates of
 // a model already GA'd below. Re-run `npx tsx scripts/list-gemini-models.ts`
 // after a key change to confirm what's actually enabled before editing these.
-const GEMINI_TEXT_LADDER = [
-  "gemini-3.5-flash", // newest, most capable flash
-  "gemini-3.1-pro-preview", // strongest reasoning
-  "gemini-3-pro-preview", // prior-gen pro
-  "gemini-3-flash-preview", // prior-gen flash
-  "gemini-2.5-pro", // solid reasoning, older gen
-  "gemini-2.5-flash", // reliable mid-tier
-  "gemini-2.0-flash", // older, still capable
-  "gemini-3.1-flash-lite", // ~500/day cap
-  "gemini-2.5-flash-lite", // ~500/day cap
-  "gemini-2.0-flash-lite", // ~500/day cap, oldest
-];
 const GEMMA_LADDER = [
   "gemma-4-31b-it", // separate open-weight quota pool, ~1,500/day
   "gemma-4-26b-a4b-it", // separate open-weight quota pool, ~1,500/day
@@ -103,13 +91,18 @@ const GEMMA_LADDER = [
 // first so frequent calls don't exhaust the tiny-quota pro models (2.5-pro ~50/day,
 // 3.x-pro-preview ~100/day). Gemma (separate ~1,500/day pool) is a strong tail;
 // pro models sit LAST as a last resort. This is the fix for the rate-limit errors.
+// FAST lane (agent JSON planning, extraction, high-frequency + vision). DEFAULT
+// head = gemini-3-flash-preview: pro-grade quality (beats 2.5-pro on reasoning/
+// coding/SWE) with a flash-sized ~1,500/day quota — best value, so rate-limits are
+// rare. Then quota-first flash/flash-lite, the Gemma pool (separate ~1,500/day),
+// and the tiny-quota pro models LAST. Ordered by (quality × quota headroom).
 const GEMINI_FAST_LADDER = [
-  "gemini-2.5-flash-lite",   // ~1,000/day, 15-30 RPM — reliable workhorse
-  "gemini-3-flash-preview",  // ~1,500/day, 10 RPM
+  "gemini-3-flash-preview",  // ⭐ DEFAULT — pro-grade, ~1,500/day
+  "gemini-3.5-flash",        // top flash (agentic/coding)
+  "gemini-2.5-flash-lite",   // ~1,000/day workhorse
   "gemini-2.0-flash-lite",   // older, own quota bucket
   "gemini-2.0-flash",        // older, own quota bucket
-  "gemini-3.5-flash",        // newest flash
-  "gemini-2.5-flash",        // mid-tier
+  "gemini-2.5-flash",        // mid-tier, 1M context
   "gemini-3.1-flash-lite",   // ~500/day
 ];
 export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
@@ -117,14 +110,23 @@ export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
   ...GEMMA_LADDER,           // separate open-weight ~1,500/day pool
   "gemini-2.5-pro",          // low quota — last resort only
 ]);
+// SMART lane (occasional deep quality: minutes, summaries, hard answers). DEFAULT
+// head = gemini-3.1-pro-preview (strongest reasoning), then fall back to the
+// high-quota flash models so a busy pro quota never leaves smart calls stranded.
 export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
-  ...GEMINI_TEXT_LADDER,
+  "gemini-3.1-pro-preview",  // ⭐ DEFAULT — strongest reasoning
+  "gemini-3-pro-preview",    // prior-gen pro
+  "gemini-3-flash-preview",  // high-quota fallback (still pro-grade)
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   ...GEMMA_LADDER,
 ]);
-// Gemini reads images/PDF pages natively (the real fix for the Groq-vision death).
-// Gemma is text-only, so it's excluded here (would fail every vision call).
+// Vision/OCR — every gemini flash/pro reads images natively. DEFAULT =
+// gemini-3-flash-preview (quality + quota). Gemma is text-only, so excluded.
 export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
-  ...GEMINI_TEXT_LADDER,
+  ...GEMINI_FAST_LADDER,
+  "gemini-2.5-pro",
 ]);
 
 export type AiProvider = "groq" | "gemini";
