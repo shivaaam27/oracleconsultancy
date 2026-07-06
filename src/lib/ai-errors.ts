@@ -1,6 +1,6 @@
 /**
  * Turns raw AI/command failure codes into plain-English, owner-friendly messages.
- * The command/ask routes return codes like "groq-413", "groq-429", "no-key",
+ * The command/ask routes return codes like "ai-413", "ai-429", "no-key",
  * "server-error", "bad-json" — never show those to the operator. Map them here.
  *
  * `retryable` tells the UI whether to offer a one-tap "Try again".
@@ -10,8 +10,8 @@ export type FriendlyError = { message: string; retryable: boolean };
 export function friendlyAIError(raw: string | null | undefined): FriendlyError {
   const code = (raw || "").toLowerCase().trim();
 
-  // Groq HTTP statuses, surfaced as "groq-<status>".
-  const groq = code.match(/^groq-(\d{3})$/);
+  // Groq HTTP statuses, surfaced as "ai-<status>".
+  const groq = code.match(/^ai-(\d{3})$/);
   if (groq) {
     const status = Number(groq[1]);
     if (status === 429 || status === 413)

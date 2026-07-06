@@ -1,7 +1,7 @@
 import "server-only";
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqJson } from "@/lib/ai-json";
-import { getGroqKey } from "@/lib/settings";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIJson } from "@/lib/ai-json";
+import { getAiKey } from "@/lib/settings";
 import { toolCatalogue, TOOL_BY_NAME } from "@/lib/ori/tools";
 
 /**
@@ -62,7 +62,7 @@ function buildGuide(): string {
 type PlannerJson = { reply?: string; need_more_info?: boolean; plan?: unknown };
 
 export async function planTurn(messages: ChatMsg[]): Promise<AgentTurn> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { mode: "answer", reply: "ORI's AI isn't switched on — add the AI key in Settings and I can start acting on your instructions." };
 
   const payload = [
@@ -73,7 +73,7 @@ export async function planTurn(messages: ChatMsg[]): Promise<AgentTurn> {
   // The planner emits structured JSON (tool calls), which the FAST model (Gemini
   // Flash) handles well — with far more rate-limit headroom, lower latency and
   // lower cost than the "quality" model. Planning doesn't need the big model.
-  const res = await callGroqJson({ messages: payload, apiKey, model: GROQ_FAST, maxTokens: 700, temperature: 0.1, source: "ori-agent" });
+  const res = await callAIJson({ messages: payload, apiKey, model: AI_FAST, maxTokens: 700, temperature: 0.1, source: "ori-agent" });
   if (!res.ok || !res.data) {
     const reply = res.error === "rate-limited"
       ? "ORI's AI is busy right now (rate limit) — give it a moment and try again."

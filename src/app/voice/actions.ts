@@ -1,8 +1,8 @@
 "use server";
 
-import { GROQ_SMART } from "@/lib/ai-models";
-import { callGroqText } from "@/lib/ai-json";
-import { getAppSettings, getGroqKey, saveAppSettings } from "@/lib/settings";
+import { AI_SMART } from "@/lib/ai-models";
+import { callAIText } from "@/lib/ai-json";
+import { getAppSettings, getAiKey, saveAppSettings } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 
 type VoiceMode = "note" | "minutes" | "task" | "update" | "ask" | "message";
@@ -67,9 +67,9 @@ async function polishChat(
   apiKey: string,
   messages: unknown[],
 ): Promise<{ ok: true; content: string } | { ok: false; status: number }> {
-  const res = await callGroqText({
+  const res = await callAIText({
     apiKey,
-    model: GROQ_SMART, // mapped to the ACTIVE provider's smart ladder by the harness
+    model: AI_SMART, // mapped to the ACTIVE provider's smart ladder by the harness
     messages,
     maxTokens: 700,
     temperature: 0,
@@ -88,7 +88,7 @@ export async function polishDictation(input: {
   const raw = input.text.trim();
   if (!raw) return { raw, polished: "", source: "rules" };
 
-  const [settings, apiKey] = await Promise.all([getAppSettings(), getGroqKey()]);
+  const [settings, apiKey] = await Promise.all([getAppSettings(), getAiKey()]);
   const language = input.language || settings.voiceLanguage;
   const languageName = LANGUAGE_LABELS[language] ?? language;
   const dictionary = settings.voiceDictionary

@@ -1,8 +1,8 @@
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIJson } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getGroqKey } from "@/lib/settings";
+import { getAiKey } from "@/lib/settings";
 import { wrapUntrusted } from "@/lib/prompt-safety";
 
 export const maxDuration = 60;
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     const taskId = Number(body?.taskId);
     if (!taskId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
 
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured" }, { status: 503 });
     }
@@ -77,20 +77,20 @@ export async function POST(req: NextRequest) {
       escalation: task.escalation,
     };
 
-    const result = await callGroqJson({
+    const result = await callAIJson({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: `Draft a follow-up email for this task:\n\n${wrapUntrusted("task data", taskContext)}` },
       ],
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 500,
       temperature: 0.3,
     });
 
     if (!result.ok || !result.data) {
       console.error("Draft email error:", result.error);
-      return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
+      return NextResponse.json({ error: `ai-${result.error}` }, { status: 502 });
     }
     const parsed = result.data;
     return NextResponse.json({

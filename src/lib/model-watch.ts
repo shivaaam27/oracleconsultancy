@@ -1,5 +1,5 @@
 import { getGroqOnlyKey, getAppSettings, getActiveProvider } from "./settings";
-import { GROQ_FAST, GROQ_SMART, GROQ_VISION_MODELS, GROQ_WHISPER } from "./ai-models";
+import { AI_FAST, AI_SMART, AI_VISION_MODELS, GROQ_WHISPER } from "./ai-models";
 import { recordEvent } from "./system-events";
 
 const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
@@ -41,17 +41,17 @@ export async function checkModelAvailability(): Promise<{ missing: string[]; che
 
   const missing: string[] = [];
   // Vision: the whole ladder is "down" only if NONE of its models survive.
-  if (!GROQ_VISION_MODELS.some((m) => available.has(m))) {
-    missing.push(`vision (${GROQ_VISION_MODELS.join(" / ")})`);
+  if (!AI_VISION_MODELS.some((m) => available.has(m))) {
+    missing.push(`vision (${AI_VISION_MODELS.join(" / ")})`);
   }
-  for (const m of [GROQ_FAST, GROQ_SMART, GROQ_WHISPER]) {
+  for (const m of [AI_FAST, AI_SMART, GROQ_WHISPER]) {
     if (!available.has(m)) missing.push(m);
   }
 
   if (missing.length) {
     await recordEvent("model.deprecation", "error", {
       missing,
-      hint: "Set GROQ_VISION_MODELS (or update src/lib/ai-models.ts) to a current model.",
+      hint: "Set AI_VISION_MODELS (or update src/lib/ai-models.ts) to a current model.",
     });
   } else {
     await recordEvent("model.deprecation", "ok", { checkedCount: available.size });
@@ -84,7 +84,7 @@ const KEY_HEALTH_TTL_MS = 5 * 60_000; // 5 minutes
 
 /**
  * Validate the Groq key that the app would actually use. This is deliberately
- * SEPARATE from getGroqKey() (which also returns undefined when the master switch
+ * SEPARATE from getAiKey() (which also returns undefined when the master switch
  * is off or the spend cap is reached) — here we want to know whether the KEY
  * itself is good, regardless of those toggles, so the owner can tell "my key
  * expired" apart from "I turned AI off" / "I'm over budget".

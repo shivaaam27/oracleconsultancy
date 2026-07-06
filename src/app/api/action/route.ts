@@ -4,11 +4,11 @@
 //   POST { command: "..." }              → parses, returns intent JSON for confirmation
 //   POST { command, confirm: true }      → parses AND executes
 
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIJson } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getGroqKey } from "@/lib/settings";
+import { getAiKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { reindexEntity } from "@/lib/index-hooks";
@@ -369,7 +369,7 @@ async function parseCommand(
   history: { role: "user" | "assistant"; content: string }[] = [],
   activeContext?: { taskCode?: string; companyName?: string; viewCodes?: string[]; viewLabel?: string },
 ): Promise<ParsedIntent> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { type: "unknown", reason: "AI not configured" };
 
   // Inject pronoun + current-view resolution context.
@@ -389,10 +389,10 @@ async function parseCommand(
   ];
 
   // Retry + timeout + strip-and-parse via the shared harness.
-  const result = await callGroqJson({
+  const result = await callAIJson({
     messages,
     apiKey,
-    model: GROQ_FAST,
+    model: AI_FAST,
     maxTokens: 200,
     temperature: 0.1,
   });

@@ -5,9 +5,9 @@
 // edge gate (src/proxy.ts), same as /api/ask + /api/doc-passages.
 
 import { NextRequest, NextResponse } from "next/server";
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqText } from "@/lib/ai-json";
-import { getGroqKey, getQualityTextModel } from "@/lib/settings";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIText } from "@/lib/ai-json";
+import { getAiKey, getQualityTextModel } from "@/lib/settings";
 import { getDocumentPassages, searchDocumentPassages } from "@/lib/doc-passages";
 import { sb } from "@/db/supabase";
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "id and question required" }, { status: 400 });
     }
 
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
     if (!apiKey) return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
 
     const { data: doc } = await sb.from("documents").select("title").eq("id", id).maybeSingle();
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       .filter((p) => { budget -= p.text.length; return budget > -1400; });
 
     const smartModel = await getQualityTextModel();
-    const canFallback = smartModel !== GROQ_FAST;
+    const canFallback = smartModel !== AI_FAST;
     const messages: { role: string; content: string }[] = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: `DOCUMENT: "${title}"\n\nPASSAGES:\n${JSON.stringify(passages)}\n\nAnswer the principal's questions about this document only.` },
@@ -75,12 +75,12 @@ export async function POST(req: NextRequest) {
       { role: "user", content: question },
     ];
 
-    let result = await callGroqText({ messages, apiKey, model: smartModel, maxTokens: 500, temperature: 0.2 });
+    let result = await callAIText({ messages, apiKey, model: smartModel, maxTokens: 500, temperature: 0.2 });
     if (!result.ok && result.error === "rate-limited" && canFallback) {
-      result = await callGroqText({ messages, apiKey, model: GROQ_FAST, maxTokens: 500, temperature: 0.2 });
+      result = await callAIText({ messages, apiKey, model: AI_FAST, maxTokens: 500, temperature: 0.2 });
     }
     if (!result.ok || !result.text) {
-      return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
+      return NextResponse.json({ error: `ai-${result.error}` }, { status: 502 });
     }
     return NextResponse.json({ answer: result.text.trim(), source: "ai" });
   } catch (e) {

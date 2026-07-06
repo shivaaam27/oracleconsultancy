@@ -8,7 +8,7 @@
 //                                       out of fenced/prose-wrapped replies.
 //   3. Validate against a schema      — validateShape() checks required fields
 //                                       and types; failure => no data, a reason.
-//   4. Retry on transient errors      — callGroqJson() retries 429 / 5xx / network
+//   4. Retry on transient errors      — callAIJson() retries 429 / 5xx / network
 //                                       blips with exponential backoff.
 //   5. Confidence gate + queue        — the caller reads `confidence`/`ok` and,
 //                                       when low or failed, routes to human review
@@ -18,16 +18,16 @@
 // keeps a flaky free-tier model from silently corrupting data. Kept dependency
 // free (no Zod) to match the codebase's existing hand-rolled validators.
 
-import { GROQ_FAST, providerLadder, type AiProvider } from "./ai-models";
+import { AI_FAST, providerLadder, type AiProvider } from "./ai-models";
 import { recordUsage, isOverSpendCap } from "./ai-spend";
 
 /** Token counts a Groq response carries under `usage` (OpenAI-compatible). */
-type GroqUsage = { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
+type AiUsage = { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
 
 /** Record one call's token usage in the ledger. Fire-and-forget, never awaited,
  *  never throws (recordUsage swallows its own errors) — usage tracking must not
  *  affect an AI feature. */
-function trackUsage(model: string, source: string, usage: GroqUsage): void {
+function trackUsage(model: string, source: string, usage: AiUsage): void {
   void recordUsage({
     model,
     source,
@@ -149,7 +149,7 @@ export interface ProviderChatResult {
   /** Assistant message text, or null if the body had none. */
   content: string | null;
   /** Token usage for the spend ledger, if the provider reports it. */
-  usage?: GroqUsage;
+  usage?: AiUsage;
   /** True only when a request was actually made AND a body parsed. */
   ok: boolean;
 }
@@ -224,7 +224,7 @@ function openAiCompatProvider(id: string, url: string, extraBody?: Record<string
       return {
         status: res.status,
         content: body?.choices?.[0]?.message?.content ?? null,
-        usage: body?.usage as GroqUsage,
+        usage: body?.usage as AiUsage,
         ok: true,
       };
     },
@@ -303,13 +303,13 @@ export interface CallGroqJsonOpts {
 /**
  * Call Groq expecting a JSON object back, with all five guards applied.
  * Pure plumbing: holds no key (caller passes it), runs only server-side
- * (callers already gate on getGroqKey, which is server-only).
+ * (callers already gate on getAiKey, which is server-only).
  */
-export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResult> {
+export async function callAIJson(opts: CallGroqJsonOpts): Promise<GroqJsonResult> {
   const {
     messages,
     apiKey,
-    model = GROQ_FAST,
+    model = AI_FAST,
     maxTokens = 400,
     temperature = 0,
     shape,
@@ -328,7 +328,7 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
   const provider = PROVIDERS[providerId];
   // The model the caller passed (a fast/smart head, or a specific vision id) maps
   // to the ACTIVE provider's equivalent ladder — so a call site that asks for
-  // GROQ_FAST runs on Gemini's fast ladder when Gemini is active, and a
+  // AI_FAST runs on Gemini's fast ladder when Gemini is active, and a
   // decommissioned primary self-heals to the next entry. No call-site change.
   const ladder = providerLadder(providerId, model);
   let lastError: GroqJsonError = "network";
@@ -389,9 +389,9 @@ function readConfidence(obj: Record<string, unknown>): number | null {
  *  one-tap human confirm. Reconfirming is cheap now (cache-backed). */
 export const LOW_CONFIDENCE = 0.75;
 
-// --- callGroqText: the prose sibling of callGroqJson -----------------------
+// --- callAIText: the prose sibling of callAIJson -----------------------
 //
-// Same retry / backoff / timeout guards as callGroqJson, but returns free text
+// Same retry / backoff / timeout guards as callAIJson, but returns free text
 // (no JSON mode) and supports an optional model-fallback ladder (e.g. try the
 // stronger model first, drop to the fast one if it is busy). Used by every prose
 // caller — Ask COS, company summary, meeting minutes/notes/insight, action-item
@@ -411,7 +411,7 @@ export interface GroqTextResult {
 export interface CallGroqTextOpts {
   messages: unknown[];
   apiKey: string | null | undefined;
-  /** Single model (ignored when `models` is given). Defaults to GROQ_FAST. */
+  /** Single model (ignored when `models` is given). Defaults to AI_FAST. */
   model?: string;
   /** Optional fallback ladder, tried in order on persistent transient failure. */
   models?: string[];
@@ -427,7 +427,7 @@ export interface CallGroqTextOpts {
   source?: string;
 }
 
-export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResult> {
+export async function callAIText(opts: CallGroqTextOpts): Promise<GroqTextResult> {
   const {
     messages,
     apiKey,
@@ -449,7 +449,7 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
   // mapped through the ACTIVE provider's equivalent ladder (a Groq name on the
   // Gemini endpoint would 404; this was the live "AI key isn't working" bug).
   // Unknown/one-off names pass through unchanged; duplicates collapse.
-  const requested = opts.models?.length ? opts.models : [opts.model ?? GROQ_FAST];
+  const requested = opts.models?.length ? opts.models : [opts.model ?? AI_FAST];
   const ladder = [...new Set(requested.flatMap((m) => providerLadder(providerId, m)))];
   let lastError: GroqTextError = "network";
   let lastStatus: number | undefined;

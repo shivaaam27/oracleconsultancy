@@ -1,5 +1,25 @@
 # ORI search + AI reliability (2026-07-02/03) — how it works now
 
+## UPDATE 2026-07-06 — Groq→neutral rename + streaming-ask ladder fix (NOT pushed)
+- **Naming:** the everyday text/vision AI layer is de-Groq-branded (owner was
+  confused seeing "groq" when it runs Gemini). Renamed across ~22 src files + tests:
+  `GROQ_FAST/SMART/VISION(+_MODELS)` → `AI_*`, `callGroqText/Json` → `callAIText/AIJson`,
+  `GroqUsage` → `AiUsage`, error codes `groq-<n>` → `ai-<n>`; removed the `getGroqKey`
+  alias (use `getAiKey`). KEPT genuine-Groq: `GROQ_WHISPER`, `getGroqOnlyKey`,
+  `api.groq.com` (voice/Whisper still Groq), and env/DB key strings `GROQ_API_KEY`/
+  `groqApiKey` (renaming would wipe the stored key). `ladder()` in ai-models.ts reads
+  legacy `GROQ_*_MODELS` env as fallback. tsc clean, ai-models.test passes.
+- **ORI kept failing ("ORI couldn't complete that" = an `ai-400/404`):** the STREAMING
+  branch of `/api/ask` only tried the TWO ladder HEADS (`providerLadder(...)[0]`), not
+  the full ladder like `callAIText` does — so once `gemini-3.5-flash`'s 30/day was spent
+  it fell to `gemma-4-31b-it`, which **400s because every request sent `reasoning_effort:
+  "none"`** (Gemma has no thinking config). FIX: walk the whole ladder (smart+fast,
+  deduped, cap 6), move to the next model on 429/400/404, and send `reasoning_effort`
+  ONLY to `gemini-*` (stripped for `gemma-*`). Logs the real model+status on failure.
+  NOT pushed; can't exercise live quota path locally.
+
+
+
 Durable reference for the ⌘K search engine, the AI provider routing, and the
 cloud-agent bridge after the reliability + search-upgrade sessions. All commits
 pushed to master (last: 8bbc83f). Builds on [[ai_provider_gemini]] and

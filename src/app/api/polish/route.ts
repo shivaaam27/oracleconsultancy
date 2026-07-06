@@ -1,7 +1,7 @@
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
-import { getGroqKey } from "@/lib/settings";
+import { getAiKey } from "@/lib/settings";
 import { polishActionItem } from "@/lib/smart-parse";
 import { loadContext } from "@/lib/ai-context";
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     if (!text) return NextResponse.json({ result: "" });
 
     const fallback = polishActionItem(text);
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
 
     if (!apiKey) {
       return NextResponse.json({ result: fallback, source: "rules", debug: "no-key" });
@@ -70,13 +70,13 @@ export async function POST(req: NextRequest) {
       systemPrompt = buildSystemPrompt([], [], []);
     }
 
-    const result = await callGroqText({
+    const result = await callAIText({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: text },
       ],
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 80,
       temperature: 0.15,
     });
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         result: fallback,
         source: "rules",
-        debug: `groq-${result.error}`,
+        debug: `ai-${result.error}`,
       });
     }
 

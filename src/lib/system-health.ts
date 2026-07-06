@@ -158,7 +158,7 @@ export async function checkSystemHealth(
   // Groq KEY health + search coverage in parallel (both best-effort, never throw).
   //
   // KEY: its own brain in model-watch (cached a few minutes), kept separate from
-  // getGroqKey so "key expired" reads differently to "AI switched off" / "over
+  // getAiKey so "key expired" reads differently to "AI switched off" / "over
   // budget".
   //
   // COVERAGE: does the index actually cover everything it should? A material gap

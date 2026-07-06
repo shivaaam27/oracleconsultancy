@@ -1,8 +1,8 @@
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getGroqKey } from "@/lib/settings";
+import { getAiKey } from "@/lib/settings";
 import { wrapUntrusted } from "@/lib/prompt-safety";
 
 type TaskRow = {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const companyId = Number(body?.companyId);
     if (!companyId) return NextResponse.json({ error: "companyId required" }, { status: 400 });
 
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
     if (!apiKey) return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
 
     const { data: company } = await sb
@@ -111,20 +111,20 @@ export async function POST(req: NextRequest) {
       recentUpdates: recentUpdates.map(u => ({ body: u.body.slice(0, 150) })),
     };
 
-    const result = await callGroqText({
+    const result = await callAIText({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: `Write the executive briefing for this company:\n\n${wrapUntrusted("company snapshot", snapshot)}` },
       ],
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 450,
       temperature: 0.25,
     });
 
     if (!result.ok || !result.text) {
       console.error("Company summary error:", result.error);
-      return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
+      return NextResponse.json({ error: `ai-${result.error}` }, { status: 502 });
     }
     return NextResponse.json({ summary: result.text.trim(), source: "ai" });
   } catch (e) {

@@ -2,14 +2,14 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { GROQ_FAST, providerLadder } from "@/lib/ai-models";
-import { callGroqText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
+import { AI_FAST, providerLadder } from "@/lib/ai-models";
+import { callAIText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
 import { getActiveProvider } from "@/lib/settings";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
 import { hybridSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getGroqKey, getQualityTextModel } from "@/lib/settings";
+import { getAiKey, getQualityTextModel } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
 import { worstComplianceScores } from "@/lib/compliance";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -1059,7 +1059,7 @@ export async function POST(req: NextRequest) {
     const wantStream: boolean = !!body?.stream;
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
     }
@@ -1067,7 +1067,7 @@ export async function POST(req: NextRequest) {
     // (Settings → AI; default on). If the smart model is rate-limited it AUTO-
     // FALLS BACK to the fast model (see both call sites below).
     const smartModel = await getQualityTextModel();
-    const canFallback = smartModel !== GROQ_FAST;
+    const canFallback = smartModel !== AI_FAST;
 
     // For retrieval, combine the current question with the last user message
     // so follow-ups like "open it" still hit relevant data.
@@ -1093,7 +1093,7 @@ export async function POST(req: NextRequest) {
 
     // Non-streaming answers go through the shared harness (retry + timeout).
     if (!wantStream) {
-      let result = await callGroqText({
+      let result = await callAIText({
         messages,
         apiKey,
         model: smartModel,
@@ -1102,10 +1102,10 @@ export async function POST(req: NextRequest) {
       });
       // Smart model busy → retry once on the fast model automatically.
       if (!result.ok && result.error === "rate-limited" && canFallback) {
-        result = await callGroqText({ messages, apiKey, model: GROQ_FAST, maxTokens: 600, temperature: 0.2 });
+        result = await callAIText({ messages, apiKey, model: AI_FAST, maxTokens: 600, temperature: 0.2 });
       }
       if (!result.ok || !result.text) {
-        return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
+        return NextResponse.json({ error: `ai-${result.error}` }, { status: 502 });
       }
       const answer = result.text.trim();
       // Capability C — ORI MEMORY (record). Remember this successful exchange for
@@ -1135,54 +1135,77 @@ export async function POST(req: NextRequest) {
     // transient 429/5xx with backoff, mirroring the non-stream path's retries.
     const provider = await getActiveProvider();
     const chatUrl = PROVIDER_CHAT_URLS[provider];
-    const extras = providerRequestExtras(provider);
-    // Interactive chat LEADS with the smart head (gemini-3.5-flash: best available
-    // quality, 30/day) and auto-falls to the fast head (gemma-4-31b, 1,500/day) the
-    // moment the 30 are spent — so it's top-quality while quota lasts, then reliable.
-    const streamSmart = providerLadder(provider, smartModel)[0];
-    const streamFast = providerLadder(provider, GROQ_FAST)[0];
+    // Per-model request extras: Gemini's `reasoning_effort` only applies to the
+    // "thinking" gemini-* models — the Gemma models (gemma-*) have NO thinking
+    // config and REJECT that field with a 400. So decide it per model, not once,
+    // or the high-quota Gemma fallback dies on every request.
+    const extrasFor = (model: string): Record<string, unknown> => {
+      const base = providerRequestExtras(provider);
+      if (provider === "gemini" && /^gemma/i.test(model)) {
+        const { reasoning_effort: _drop, ...rest } = base as Record<string, unknown>;
+        void _drop;
+        return rest;
+      }
+      return base;
+    };
+    // Walk the WHOLE ladder, not just the two heads (the old bug). Interactive chat
+    // LEADS with the smart ladder (best quality first — gemini-3.5-flash, 30/day)
+    // then folds in the fast ladder (the 1,500/day Gemma + 500/day flash-lite pool),
+    // deduped and capped. When one model is out of quota (429) or decommissioned
+    // (400/404) we move to the NEXT model — a different quota pool — so ORI keeps
+    // answering all day instead of dying once the 30 top-quality calls are spent.
+    const candidateModels = [
+      ...new Set([...providerLadder(provider, smartModel), ...providerLadder(provider, AI_FAST)]),
+    ].slice(0, 6);
     let res: Response | null = null;
-    let currentModel = streamSmart;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
-      try {
-        res = await fetch(chatUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: currentModel,
-            messages,
-            max_tokens: 600,
-            temperature: 0.2,
-            stream: true,
-            ...extras,
-          }),
-          signal: AbortSignal.timeout(30000),
-        });
-      } catch (e) {
-        console.error("Ask stream connect error:", e);
-        res = null;
-        continue;
+    let lastStatus = 0;
+    outer: for (const model of candidateModels) {
+      // One retry per model, but only for a transient server hiccup (5xx) or a
+      // dropped connection — a 429/400/404 means "this model won't help", move on.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
+        let r: Response;
+        try {
+          r = await fetch(chatUrl, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages,
+              max_tokens: 600,
+              temperature: 0.2,
+              stream: true,
+              ...extrasFor(model),
+            }),
+            signal: AbortSignal.timeout(25000),
+          });
+        } catch (e) {
+          console.error("Ask stream connect error:", model, e);
+          if (attempt === 0) continue; // retry same model once
+          continue outer; // then give up on it, try the next model
+        }
+        if (r.ok) { res = r; break outer; }
+        lastStatus = r.status;
+        const errText = await r.text().catch(() => "");
+        console.error("Ask model failed:", model, r.status, errText.slice(0, 200));
+        if (r.status >= 500 && attempt === 0) continue; // transient — retry same model once
+        continue outer; // 429/400/404 or retries spent — next model
       }
-      // Smart head busy/decommissioned → drop to the fast head for the rest.
-      if ((res.status === 429 || res.status === 400 || res.status === 404) && canFallback && currentModel === streamSmart && currentModel !== streamFast) {
-        currentModel = streamFast; res = null; continue;
-      }
-      if ((res.status === 429 || res.status >= 500) && attempt < 2) { res = null; continue; }
-      break;
     }
-    if (!res) return NextResponse.json({ error: "groq-timeout" }, { status: 504 });
+    if (!res) {
+      return NextResponse.json({ error: lastStatus ? `ai-${lastStatus}` : "ai-timeout" }, { status: lastStatus || 504 });
+    }
 
     if (!res.ok) {
       const err = await res.text();
       console.error("Ask error:", res.status, err);
-      return NextResponse.json({ error: `groq-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
+      return NextResponse.json({ error: `ai-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
     }
     if (!res.body) {
-      return NextResponse.json({ error: "groq-no-body" }, { status: 502 });
+      return NextResponse.json({ error: "ai-no-body" }, { status: 502 });
     }
 
     // Proxy the provider's SSE to the client as plain-text deltas. We drain the

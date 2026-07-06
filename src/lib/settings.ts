@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./derive";
-import { GROQ_FAST, GROQ_SMART, type AiProvider } from "./ai-models";
+import { AI_FAST, AI_SMART, type AiProvider } from "./ai-models";
 
 /**
  * Canonical V2 app settings. These are the ONLY settings that drive behaviour.
@@ -59,7 +59,7 @@ export type AppSettings = {
   /**
    * Monthly AI spend ceiling, in the same currency unit as ai-spend.ts MODEL_RATES.
    * 0 = UNLIMITED (the default — AI is never disabled by budget out of the box).
-   * When > 0 and the current EAT month's recorded spend reaches it, getGroqKey()
+   * When > 0 and the current EAT month's recorded spend reaches it, getAiKey()
    * returns undefined so every AI path degrades to its manual/rule fallback — a
    * graceful, reversible "out of budget" rather than a silent overspend. The Groq
    * free tier costs nothing today, so this stays inert until a paid rate is set.
@@ -85,7 +85,7 @@ export type AppSettings = {
   /**
    * An IN-APP Groq API key the owner can set/rotate from Settings WITHOUT a
    * redeploy. When non-empty it takes precedence over process.env.GROQ_API_KEY in
-   * getGroqKey(), so a dead/rotated key can be fixed instantly from the UI.
+   * getAiKey(), so a dead/rotated key can be fixed instantly from the UI.
    *
    * SECURITY NOTE: this is stored as a plain row in the `settings` table. The whole
    * admin side is behind one owner password (single operator), so an admin-only
@@ -410,12 +410,6 @@ export async function getAiKey(): Promise<string | undefined> {
   return key;
 }
 
-/** Back-compat alias — every existing caller does `getGroqKey()` and now
- *  transparently receives the ACTIVE provider's key. New code should call getAiKey. */
-export async function getGroqKey(): Promise<string | undefined> {
-  return getAiKey();
-}
-
 /** The GROQ key specifically — for services that only exist on Groq (Whisper
  *  speech-to-text, the Groq model-deprecation watch), regardless of which
  *  provider powers the chat AI. Without a Groq key those degrade gracefully
@@ -525,7 +519,7 @@ export async function isQuietHoursNow(now = new Date()): Promise<boolean> {
  */
 export async function getQualityTextModel(): Promise<string> {
   const { aiHighQuality } = await getAppSettings();
-  return aiHighQuality ? GROQ_SMART : GROQ_FAST;
+  return aiHighQuality ? AI_SMART : AI_FAST;
 }
 
 export type EmailConfig = {
@@ -548,7 +542,7 @@ export type EmailConfig = {
 /**
  * Resolves the live email-send config plus the sender identity. Returns null
  * when no provider is configured so callers degrade gracefully to manual links —
- * exactly like getGroqKey for AI.
+ * exactly like getAiKey for AI.
  *
  * Two providers, picked from env (SMTP preferred — it's the no-DNS Gmail route):
  * - **SMTP / Gmail**: GMAIL_USER + GMAIL_APP_PASSWORD (sends through the real

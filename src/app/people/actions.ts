@@ -1,7 +1,7 @@
 "use server";
 
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIJson } from "@/lib/ai-json";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
@@ -10,7 +10,7 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
-import { getGroqKey } from "@/lib/settings";
+import { getAiKey } from "@/lib/settings";
 import { reindexEntity } from "@/lib/index-hooks";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
@@ -362,7 +362,7 @@ export async function extractPersonFields(
 ): Promise<{ ok: boolean; fields: PersonProfileFields; source: "ai" | "rules" }> {
   const trimmed = (text ?? "").toString().trim();
   if (!trimmed) return { ok: false, fields: {}, source: "rules" };
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { ok: true, fields: rulePersonFields(trimmed), source: "rules" };
 
   const prompt = `You are reading a message that describes a PERSON (a staff member or contact), possibly forwarded from WhatsApp or email, in English or Swahili. Extract their details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
@@ -390,13 +390,13 @@ ${trimmed.slice(0, 6000)}`;
 
   try {
     // Shared harness: retry on a brief 429/5xx, timeout, strip-and-parse.
-    const result = await callGroqJson({
+    const result = await callAIJson({
       messages: [
         { role: "system", content: "You extract structured data and reply with strict JSON only." },
         { role: "user", content: prompt },
       ],
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 400,
       temperature: 0,
     });

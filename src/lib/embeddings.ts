@@ -14,9 +14,9 @@
 
 import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
-import { getAppSettings, getGroqKey } from "@/lib/settings";
-import { callGroqText } from "@/lib/ai-json";
-import { GROQ_FAST } from "@/lib/ai-models";
+import { getAppSettings, getAiKey } from "@/lib/settings";
+import { callAIText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
 
 export type SourceType =
   | "task"
@@ -107,11 +107,11 @@ async function maybeTranslate(text: string): Promise<string> {
   const t = text.trim();
   if (!t || !looksNonEnglish(t)) return text;
   try {
-    const apiKey = await getGroqKey();
+    const apiKey = await getAiKey();
     if (!apiKey) return text;
-    const res = await callGroqText({
+    const res = await callAIText({
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 1024,
       temperature: 0,
       messages: [

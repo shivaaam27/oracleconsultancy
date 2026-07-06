@@ -8,9 +8,9 @@
 // that's the wrong tool here). Every caption is cheap (small maxTokens, terse
 // prompt) and reuses the SAME widened/reordered vision ladder as document
 // extraction, so it inherits the same rate-limit resilience automatically.
-import { callGroqText } from "@/lib/ai-json";
+import { callAIText } from "@/lib/ai-json";
 import { providerVisionModels } from "@/lib/ai-models";
-import { getGroqKey, getActiveProvider } from "@/lib/settings";
+import { getAiKey, getActiveProvider } from "@/lib/settings";
 import { recordQA } from "@/lib/ai-memory";
 
 const NARRATE_PROMPT =
@@ -22,10 +22,10 @@ const NARRATE_PROMPT =
 export async function narrateScanFrameAction(
   imageDataUrl: string
 ): Promise<{ ok: boolean; caption: string | null }> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { ok: false, caption: null };
   const provider = await getActiveProvider();
-  const res = await callGroqText({
+  const res = await callAIText({
     apiKey,
     models: providerVisionModels(provider),
     maxTokens: 60,

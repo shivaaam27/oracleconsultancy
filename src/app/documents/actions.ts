@@ -1,7 +1,7 @@
 "use server";
 
-import { GROQ_VISION, GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART, providerVisionModels } from "@/lib/ai-models";
-import { callGroqJson, callGroqText, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
+import { AI_VISION, AI_VISION_MODELS, AI_FAST, AI_SMART, providerVisionModels } from "@/lib/ai-models";
+import { callAIJson, callAIText, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
 import { revalidatePath, updateTag } from "next/cache";
@@ -35,7 +35,7 @@ import { extractPhones, extractEmails, extractBankAccounts, extractAddresses, no
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
-import { getGroqKey, getQualityTextModel, getActiveProvider } from "@/lib/settings";
+import { getAiKey, getQualityTextModel, getActiveProvider } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
 import { deriveFiling, subjectTokensOf, subjectCompatible, sameLogicalDocPair, type LogicalDocLite } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
@@ -2069,7 +2069,7 @@ async function reExtractStored(doc: { storagePath: string | null; fileName: stri
 
 // Scanned PDFs: OCR up to this many pages. Raised 20 → 40 so long statements /
 // contracts / bundles are read end-to-end. Env-overridable (DOC_MAX_OCR_PAGES),
-// mirroring GROQ_VISION_MODELS, so the cap can be tuned without a redeploy.
+// mirroring AI_VISION_MODELS, so the cap can be tuned without a redeploy.
 // COST TRADE-OFF: each extra page is one more Groq vision call (latency + spend);
 // 40 is a deliberate ceiling on very long files, not "read everything".
 const MAX_OCR_PAGES = envPageCap("DOC_MAX_OCR_PAGES", 40);
@@ -2168,7 +2168,7 @@ async function extractTypedTextFromFile(file: File): Promise<string | null> {
 
 /** Transcribe one document-page image to text via the vision model (plain text). */
 async function visionTranscribe(imageUrl: string, apiKey: string): Promise<string | null> {
-  const res = await callGroqText({
+  const res = await callAIText({
     apiKey,
     // The ACTIVE provider's vision models (Gemini reads scans natively + fast);
     // falls to the layered OCR engines below only when the model can't read it.
@@ -2204,7 +2204,7 @@ async function transcribePageLayered(img: string, apiKey: string | null | undefi
 /** OCR a scanned PDF / image to its full text (DR2). Works even with Groq off —
  *  falls through to cloud OCR / in-site Tesseract. null only when truly unreadable. */
 async function ocrDocumentText(file: File): Promise<string | null> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   let images: string[] = [];
   const lower = file.name.toLowerCase();
   const isPdf = file.type === "application/pdf" || lower.endsWith(".pdf");
@@ -3132,7 +3132,7 @@ ${pLines}`;
 // Run an extraction through the shared Groq harness: retries on 429/5xx/network,
 // strips-and-parses the JSON, validates the date fields, and reports confidence.
 async function groqExtract(messages: unknown[], model: string, apiKey: string, maxTokens = 400): Promise<GroqJsonResult> {
-  return callGroqJson({ messages, model, apiKey, maxTokens, shape: EXTRACT_SHAPE });
+  return callAIJson({ messages, model, apiKey, maxTokens, shape: EXTRACT_SHAPE });
 }
 
 /**
@@ -3143,7 +3143,7 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
   const trimmed = (text ?? "").toString().trim();
   if (!trimmed) return { ok: false, fields: {}, source: "rules" };
   const { companies, people } = await loadEntities();
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) {
     return { ok: true, fields: await applyIdFirstCompany({ ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, trimmed), source: "rules" };
   }
@@ -3204,7 +3204,7 @@ async function renderPdfPages(base: Buffer, maxPages = MAX_VISION_PAGES): Promis
 // FIELD extraction. Raised 8 → 20 so multi-page bundles / compilations and long
 // documents are read end-to-end (the AI needs to SEE every page to detect several
 // documents in one file and to read late-page detail). Env-overridable
-// (DOC_MAX_VISION_PAGES), mirroring GROQ_VISION_MODELS.
+// (DOC_MAX_VISION_PAGES), mirroring AI_VISION_MODELS.
 // COST TRADE-OFF: every page is an extra image in one vision call (more input
 // tokens + latency); 20 is a deliberate ceiling, not unbounded.
 const MAX_VISION_PAGES = envPageCap("DOC_MAX_VISION_PAGES", 20);
@@ -3492,7 +3492,7 @@ function decodeXmlEntities(s: string): string {
 async function cachedExtract(fd: FormData, fileHash: string | null, force: boolean): Promise<ExtractResult & { cached?: boolean }> {
   if (!force && fileHash) {
     // Model-aware: only serve a cached read if its model is still one we'd use.
-    const validModels = [...GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART, "rules"];
+    const validModels = [...AI_VISION_MODELS, AI_FAST, AI_SMART, "rules"];
     const cached = (await getCachedExtraction(fileHash, validModels)) as ExtractResult | null;
     if (cached && typeof cached === "object" && "fields" in cached) {
       return { ...cached, fileHash, cached: true };
@@ -3504,7 +3504,7 @@ async function cachedExtract(fd: FormData, fileHash: string | null, force: boole
   // Track the model that actually produced the KEPT read, so caching stays
   // model-aware (a future model swap invalidates the cache).
   let modelUsed =
-    res.source === "vision" ? GROQ_VISION
+    res.source === "vision" ? AI_VISION
     : res.source === "ai" ? await getQualityTextModel()
     : "rules";
 
@@ -3522,11 +3522,11 @@ async function cachedExtract(fd: FormData, fileHash: string | null, force: boole
       // Text: force the stronger model regardless of the aiHighQuality toggle —
       // but only if the first pass didn't already use it (else the retry is a
       // wasted identical call).
-      if (modelUsed !== GROQ_SMART) { opts = { textModel: GROQ_SMART }; retryModel = GROQ_SMART; }
+      if (modelUsed !== AI_SMART) { opts = { textModel: AI_SMART }; retryModel = AI_SMART; }
     } else {
       // Vision: step to the NEXT model in the ladder (a stronger fallback), if one
       // is configured. With a single vision model there's nothing stronger to try.
-      if (GROQ_VISION_MODELS.length > 1) { opts = { visionStartIndex: 1 }; retryModel = GROQ_VISION_MODELS[1]; }
+      if (AI_VISION_MODELS.length > 1) { opts = { visionStartIndex: 1 }; retryModel = AI_VISION_MODELS[1]; }
     }
     if (opts) {
       try {
@@ -3594,7 +3594,7 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
 }
 
 /** Options for a STRONGER second read (the two-pass confidence re-read). When
- *  set, the AI branches escalate: text → force GROQ_SMART; vision → start one step
+ *  set, the AI branches escalate: text → force AI_SMART; vision → start one step
  *  further down the model ladder (a stronger fallback) when one exists. */
 type RereadOpts = { textModel?: string; visionStartIndex?: number };
 
@@ -3609,7 +3609,7 @@ async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): 
     if (jpeg) file = new File([new Uint8Array(jpeg)], file.name.replace(/\.hei[cf]$/i, ".jpg"), { type: "image/jpeg" });
   }
 
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   const { companies, people } = await loadEntities();
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   const lowerName = file.name.toLowerCase();

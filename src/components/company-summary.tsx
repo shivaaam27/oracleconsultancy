@@ -22,7 +22,7 @@ export function CompanySummary({ companyId }: { companyId: number }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(friendlyAIError(data.error || `groq-${res.status}`).message);
+        setError(friendlyAIError(data.error || `ai-${res.status}`).message);
         return;
       }
       const data = await res.json();

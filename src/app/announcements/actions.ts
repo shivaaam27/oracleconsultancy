@@ -20,8 +20,8 @@ import {
 import { recipientForCreatedBy, createNotification } from "@/lib/notifications";
 import type { AnnouncementComment } from "@/lib/announcements-shared";
 
-import { callGroqJson, LOW_CONFIDENCE } from "@/lib/ai-json";
-import { getGroqKey } from "@/lib/settings";
+import { callAIJson, LOW_CONFIDENCE } from "@/lib/ai-json";
+import { getAiKey } from "@/lib/settings";
 
 type Result = { ok: true; id: number } | { ok: false; error: string };
 
@@ -348,10 +348,10 @@ export async function draftAnnouncementAction(prompt: string): Promise<DraftResu
   if (!(await canAuthor())) return { ok: false, error: "Not allowed." };
   const clean = (prompt ?? "").trim();
   if (!clean) return { ok: false, error: "Tell me what the announcement is about." };
-  const key = await getGroqKey();
+  const key = await getAiKey();
   if (!key) return { ok: false, error: "AI is switched off. You can write it by hand." };
 
-  const res = await callGroqJson({
+  const res = await callAIJson({
     apiKey: key,
     maxTokens: 500,
     temperature: 0.4,
@@ -382,11 +382,11 @@ export async function translateAnnouncementAction(text: string, to: "sw" | "en")
   if (!(await canAuthor())) return { ok: false, error: "Not allowed." };
   const clean = (text ?? "").trim();
   if (!clean) return { ok: false, error: "Nothing to translate yet." };
-  const key = await getGroqKey();
+  const key = await getAiKey();
   if (!key) return { ok: false, error: "AI is switched off." };
 
   const target = to === "sw" ? "Swahili (Kiswahili, as spoken in Tanzania)" : "English (British English)";
-  const res = await callGroqJson({
+  const res = await callAIJson({
     apiKey: key,
     maxTokens: 600,
     temperature: 0.2,

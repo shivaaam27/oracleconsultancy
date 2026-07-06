@@ -1,7 +1,7 @@
 import { config } from "dotenv"; config({ path: ".env.local" });
 async function run() {
-  const { getGroqKey } = await import("@/lib/settings");
-  const key = await getGroqKey();
+  const { getAiKey } = await import("@/lib/settings");
+  const key = await getAiKey();
   if (!key) { console.log("no key"); return; }
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`);
   const d = await res.json().catch(() => ({}));

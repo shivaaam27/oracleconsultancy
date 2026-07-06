@@ -1,13 +1,13 @@
 "use server";
 
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqJson, callGroqText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai-models";
+import { callAIJson, callAIText } from "@/lib/ai-json";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { sb } from "@/db/supabase";
-import { getGroqKey, getQualityTextModel } from "@/lib/settings";
+import { getAiKey, getQualityTextModel } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
@@ -192,12 +192,12 @@ export async function generateMeetingMinutes(input: {
   attendees?: string | null;
   rawNotes: string;
 }): Promise<{ minutes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string; flags?: ProseFlag[] }> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!input.rawNotes.trim()) return { minutes: "", source: "rules", message: "Add notes before generating minutes." };
   if (!apiKey) return { minutes: fallbackMinutes(input.rawNotes), source: "no-key" };
 
   try {
-    const result = await callGroqText({
+    const result = await callAIText({
       apiKey,
       model: await getQualityTextModel(),
       maxTokens: 900,
@@ -248,15 +248,15 @@ export async function improveMeetingNotes(input: {
   companyName?: string | null;
   rawNotes: string;
 }): Promise<{ notes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string; flags?: ProseFlag[] }> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!input.rawNotes.trim()) return { notes: "", source: "rules", message: "Add notes before cleaning them." };
   const fallback = fallbackCleanNotes(input.rawNotes);
   if (!apiKey) return { notes: fallback, source: "no-key" };
 
   try {
-    const result = await callGroqText({
+    const result = await callAIText({
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 1000,
       temperature: 0.15,
       messages: [
@@ -321,7 +321,7 @@ export async function generateMeetingInsight(input: {
   const fallbackHits = fallbackLines.filter((line) => re.test(line)).slice(0, 8);
   const fallback = [label, ...(fallbackHits.length ? fallbackHits.map((line) => `- ${line}`) : ["- Nothing clear was detected."])].join("\n");
 
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { text: fallback, source: "no-key" };
 
   const instruction =
@@ -332,9 +332,9 @@ export async function generateMeetingInsight(input: {
         : "Draft a concise follow-up message to attendees summarising decisions and next actions. British English, professional, no invented facts.";
 
   try {
-    const result = await callGroqText({
+    const result = await callAIText({
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: input.kind === "follow-up" ? 700 : 450,
       temperature: 0.2,
       messages: [
@@ -376,7 +376,7 @@ type AIExtractResult =
   | { ok: false; reason: "no-key" | "http-error" | "exception"; detail?: string };
 
 async function extractWithAI(notes: string, companyMap: { id: number; name: string }[], defaultCompanyId?: number): Promise<AIExtractResult> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { ok: false, reason: "no-key" };
 
   try {
@@ -416,13 +416,13 @@ Rules:
 Example — notes: "caught up w/ dipto. he'll send the TRA invoice by fri. also need to chase gofiber re printer, urgent."
 → { "tasks": [ { "actionItem": "Send the TRA invoice", "companyName": null, "assigneeNames": ["Dipto"], "priority": "Medium", "status": "Not Started", "deadline": null, "deadlineLabel": "by Friday", "category": "Finance", "escalation": "No" }, { "actionItem": "Chase Gofiber about the printer", "companyName": null, "assigneeNames": [], "priority": "High", "status": "Not Started", "deadline": null, "deadlineLabel": null, "category": "Operations", "escalation": "No" } ] }`;
 
-    const result = await callGroqJson({
+    const result = await callAIJson({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: notes },
       ],
       apiKey,
-      model: GROQ_FAST,
+      model: AI_FAST,
       maxTokens: 2500,
       temperature: 0.15,
     });

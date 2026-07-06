@@ -9,9 +9,9 @@
 // this action ONLY returns coordinates + a confidence score — it never
 // touches pixels itself, so a bad/low-confidence read can never corrupt a
 // page, only skip the crop (the caller falls back to the original photo).
-import { callGroqJson } from "@/lib/ai-json";
-import { GROQ_VISION_MODELS } from "@/lib/ai-models";
-import { getGroqKey } from "@/lib/settings";
+import { callAIJson } from "@/lib/ai-json";
+import { AI_VISION_MODELS } from "@/lib/ai-models";
+import { getAiKey } from "@/lib/settings";
 
 export type Corner = { x: number; y: number }; // fractions of image width/height, 0..1
 export type CornerResult =
@@ -41,19 +41,19 @@ function asCorner(v: unknown): Corner | null {
  *  {ok:false} on any failure (no key, rate-limited, bad JSON, wrong shape) so
  *  callers can fall back to the uncropped photo without special-casing errors.
  *
- *  IMPORTANT: `model` below must be a GROQ_VISION_MODELS entry (a recognized
- *  tier head), NOT a raw Gemini model id — `callGroqJson`'s internal ladder
+ *  IMPORTANT: `model` below must be a AI_VISION_MODELS entry (a recognized
+ *  tier head), NOT a raw Gemini model id — `callAIJson`'s internal ladder
  *  fallback only expands a model into the active provider's FULL ladder when
  *  `tierOf()` recognizes it as a known tier (see ai-models.ts). Passing a
  *  specific Gemini id directly (the bug this comment replaces) silently
  *  disabled all fallback: a single rate-limited model made corner detection
  *  fail outright instead of trying the other ~9 vision models. */
 export async function detectDocumentCornersAction(imageDataUrl: string): Promise<CornerResult> {
-  const apiKey = await getGroqKey();
+  const apiKey = await getAiKey();
   if (!apiKey) return { ok: false };
-  const res = await callGroqJson({
+  const res = await callAIJson({
     apiKey,
-    model: GROQ_VISION_MODELS[0],
+    model: AI_VISION_MODELS[0],
     maxTokens: 200,
     temperature: 0,
     attempts: 1, // one try per ladder entry — disposable per-page helper, skip rather than backoff

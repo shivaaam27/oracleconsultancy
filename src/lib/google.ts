@@ -7,7 +7,7 @@
 // "Connect Google" in Settings once to grant access; we store the refresh token.
 //
 // Degrades gracefully: when not configured/connected, callers fall back to the
-// .ics email path — exactly like getEmailConfig/getGroqKey.
+// .ics email path — exactly like getEmailConfig/getAiKey.
 
 import { google } from "googleapis";
 import { sb } from "@/db/supabase";
