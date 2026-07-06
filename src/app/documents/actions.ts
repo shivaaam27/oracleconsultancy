@@ -1296,6 +1296,50 @@ export async function emptyTrashAction(): Promise<{ ok: boolean; removed: number
   return { ok: true, removed };
 }
 
+/* ── Owner delete controls (per document / category / company / all) ──────────
+ * Two modes:
+ *   "trash"      → soft-delete: moves to Trash, recoverable (setDocumentIntakeState).
+ *   "permanent"  → hard-delete EVERYWHERE: stored file + search vectors + row
+ *                  (+ FK-cascaded links), via deleteDocumentForever. Not recoverable.
+ */
+export type DeleteMode = "trash" | "permanent";
+export type DeleteScope =
+  | { kind: "ids"; ids: number[] }
+  | { kind: "company"; companyId: number }
+  | { kind: "category"; category: string }
+  | { kind: "all" };
+
+/** Resolve a scope to the document ids it covers (permanent also sweeps Trash). */
+async function resolveDeleteIds(scope: DeleteScope, includeTrashed: boolean): Promise<number[]> {
+  if (scope.kind === "ids") return scope.ids.filter((n) => Number.isFinite(n));
+  let q = sb.from("documents").select("id");
+  if (scope.kind === "company") q = q.eq("company_id", scope.companyId);
+  else if (scope.kind === "category") q = q.eq("category", scope.category);
+  if (!includeTrashed) q = q.neq("intake_state", "trash");
+  const { data } = await q.limit(10000);
+  return ((data ?? []) as { id: number }[]).map((r) => r.id);
+}
+
+/** Delete documents by scope + mode. Owner-only (admin route). Returns the count. */
+export async function deleteDocumentsAction(scope: DeleteScope, mode: DeleteMode): Promise<{ ok: boolean; count: number; error?: string }> {
+  try {
+    const ids = await resolveDeleteIds(scope, mode === "permanent");
+    let count = 0;
+    for (const id of ids) {
+      try {
+        if (mode === "permanent") await deleteDocumentForever(id);
+        else await setDocumentIntakeState(id, "trash", "Deleted by owner");
+        count++;
+      } catch { /* skip one bad row, keep going */ }
+    }
+    revalidateDocs();
+    revalidatePath("/inbox");
+    return { ok: true, count };
+  } catch (e) {
+    return { ok: false, count: 0, error: e instanceof Error ? e.message : "Delete failed" };
+  }
+}
+
 export async function createDocumentAction(fd: FormData): Promise<Result> {
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };

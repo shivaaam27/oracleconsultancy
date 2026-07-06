@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip,
-  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors, ChevronDown, Users,
+  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors, ChevronDown, Users, Trash2, AlertTriangle, Loader2,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { CompanyAvatar } from "./company-avatar";
@@ -23,7 +23,7 @@ import {
   deriveDocStatus, daysToExpiry, expiryLabel, docStatusColor, displayDocName,
   shelfForCategory, SHELF_CODE, type DocStatus, type DocumentRow,
 } from "@/lib/documents-shared";
-import { archiveDocumentAction, renewDocumentAction, getDocumentFileLinkAction } from "@/app/documents/actions";
+import { archiveDocumentAction, renewDocumentAction, getDocumentFileLinkAction, deleteDocumentsAction, type DeleteScope } from "@/app/documents/actions";
 
 type StatusFilter = "all" | DocStatus | "needs-renewal";
 
@@ -332,6 +332,8 @@ export function DocumentsTable({
     });
   }
   function exitSelect() { setSelectMode(false); setSelected(new Set()); }
+  // Delete flow — one dialog for every level (doc / category / company / all).
+  const [deleteTarget, setDeleteTarget] = useState<{ scope: DeleteScope; label: string } | null>(null);
   const allFilteredSelected = filtered.length > 0 && filtered.every((d) => selected.has(d.id));
   function toggleSelectAll() {
     setSelected(() => (allFilteredSelected ? new Set<number>() : new Set(filtered.map((d) => d.id))));
@@ -360,7 +362,8 @@ export function DocumentsTable({
     if (doc.storagePath) a.push({ label: "Split into documents", icon: <Scissors size={16} />, onClick: () => { setPeek(null); setSplitDoc(doc); } });
     a.push(doc.archived
       ? { label: "Restore", icon: <ArchiveRestore size={16} />, onClick: () => doArchive(doc, false) }
-      : { label: "Archive", icon: <Archive size={16} />, tone: "danger", onClick: () => doArchive(doc, true) });
+      : { label: "Archive", icon: <Archive size={16} />, onClick: () => doArchive(doc, true) });
+    a.push({ label: "Delete", icon: <Trash2 size={16} />, tone: "danger", onClick: () => { setPeek(null); setDeleteTarget({ scope: { kind: "ids", ids: [doc.id] }, label: displayDocName(doc) }); } });
     return a;
   };
 
@@ -463,6 +466,15 @@ export function DocumentsTable({
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
       </div>
 
+      {documents.length > 0 && (
+        <div className="flex justify-end -mt-1.5">
+          <button type="button" onClick={() => setDeleteTarget({ scope: { kind: "all" }, label: `ALL ${documents.length} documents` })}
+            className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-danger transition-colors">
+            <Trash2 size={12} /> Delete all documents
+          </button>
+        </div>
+      )}
+
       {/* Bulk action bar */}
       {selectMode && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl glass-menu ring-1 ring-border/70 px-3 py-2 text-sm">
@@ -478,8 +490,12 @@ export function DocumentsTable({
               </button>
             )}
             <button type="button" disabled={selected.size === 0} onClick={() => doBulkArchive(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-danger-soft/70 text-danger ring-1 ring-danger/25 hover:ring-danger/50 disabled:opacity-40 transition-all">
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-bg-muted text-fg-muted ring-1 ring-border hover:text-fg disabled:opacity-40 transition-all">
               <Archive size={14} /> Archive
+            </button>
+            <button type="button" disabled={selected.size === 0} onClick={() => setDeleteTarget({ scope: { kind: "ids", ids: [...selected] }, label: `${selected.size} selected document${selected.size === 1 ? "" : "s"}` })}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-danger-soft/70 text-danger ring-1 ring-danger/25 hover:ring-danger/50 disabled:opacity-40 transition-all">
+              <Trash2 size={14} /> Delete
             </button>
             <button type="button" onClick={exitSelect} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-fg-muted hover:text-fg transition-colors">
               <X size={14} /> Cancel
@@ -496,11 +512,12 @@ export function DocumentsTable({
               const collapsed = isCollapsed(g);
               return (
                 <section key={g.key} className="overflow-hidden rounded-2xl bg-bg-elev/40 ring-1 ring-border/60">
+                  <div className={cn("flex items-center bg-bg-subtle/60", !collapsed && "border-b border-border/60")}>
                   <button
                     type="button"
                     onClick={() => toggleGroupCollapse(g.key, collapsed)}
                     aria-expanded={!collapsed}
-                    className={cn("flex w-full items-center gap-2.5 bg-bg-subtle/60 px-3.5 py-2.5 text-left", !collapsed && "border-b border-border/60")}
+                    className="flex flex-1 min-w-0 items-center gap-2.5 px-3.5 py-2.5 text-left"
                   >
                     <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", collapsed && "-rotate-90")} />
                     {g.kind === "company" ? (
@@ -524,6 +541,14 @@ export function DocumentsTable({
                       <span className="text-fg-subtle">{g.rows.length} doc{g.rows.length === 1 ? "" : "s"}</span>
                     </span>
                   </button>
+                  {g.kind === "company" && g.companyId != null && (
+                    <button type="button" title="Delete this company's documents"
+                      onClick={() => setDeleteTarget({ scope: { kind: "company", companyId: g.companyId! }, label: `all documents for ${g.name}` })}
+                      className="mr-2 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-fg-subtle hover:bg-danger-soft hover:text-danger transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                  </div>
                   {!collapsed && (
                     <div className="divide-y divide-border/40">
                       {(g.kind === "people"
@@ -534,8 +559,9 @@ export function DocumentsTable({
                         const scol = isCollapsed({ key: skey });
                         return (
                           <div key={skey}>
+                            <div className="flex items-center transition-colors hover:bg-bg-subtle/30">
                             <button type="button" onClick={() => toggleGroupCollapse(skey, scol)} aria-expanded={!scol}
-                              className="flex w-full items-center gap-2 py-2.5 pl-9 pr-3.5 text-left transition-colors hover:bg-bg-subtle/30">
+                              className="flex flex-1 min-w-0 items-center gap-2 py-2.5 pl-9 pr-3.5 text-left">
                               <ChevronDown size={12} className={cn("shrink-0 text-fg-subtle transition-transform", scol && "-rotate-90")} />
                               {sub.code
                                 ? <span className="font-mono text-[10px] text-fg-subtle">{sub.code}</span>
@@ -547,6 +573,12 @@ export function DocumentsTable({
                                 <span className="tabular">{sub.rows.length}</span>
                               </span>
                             </button>
+                            <button type="button" title="Delete these documents"
+                              onClick={() => setDeleteTarget({ scope: { kind: "ids", ids: sub.rows.map((r) => r.id) }, label: `${sub.rows.length} document${sub.rows.length === 1 ? "" : "s"} in ${sub.label}` })}
+                              className="mr-2.5 grid h-6 w-6 shrink-0 place-items-center rounded-md text-fg-subtle hover:bg-danger-soft hover:text-danger transition-colors">
+                              <Trash2 size={12} />
+                            </button>
+                            </div>
                             {!scol && (
                               <div className={cn("divide-y divide-border/40 border-t border-border/30 bg-bg-subtle/20", sub.rows.length > 6 && "scroll-fade-y overflow-y-auto overscroll-contain slim-scroll max-h-[26rem]")}>
                                 {sub.rows.map((d) => renderRow(d, g.kind === "people" ? { hidePerson: true } : { hideCompany: true }))}
@@ -670,7 +702,66 @@ export function DocumentsTable({
           onDone={() => router.refresh()}
         />
       )}
+
+      {/* Delete flow (per document / category / company / all) — Trash or permanent. */}
+      <DeleteDocsDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDone={(mode, count) => {
+          setDeleteTarget(null);
+          exitSelect();
+          toast(`${count} document${count === 1 ? "" : "s"} ${mode === "permanent" ? "permanently deleted" : "moved to Trash"}`, { tone: "success" });
+          router.refresh();
+        }}
+      />
     </div>
+  );
+}
+
+function DeleteDocsDialog({ target, onClose, onDone }: {
+  target: { scope: DeleteScope; label: string } | null;
+  onClose: () => void;
+  onDone: (mode: "trash" | "permanent", count: number) => void;
+}) {
+  const [busy, setBusy] = useState<"trash" | "permanent" | null>(null);
+  const [confirmPermanent, setConfirmPermanent] = useState(false);
+  useEffect(() => { if (target) setConfirmPermanent(false); }, [target]);
+  if (!target) return null;
+  const run = async (mode: "trash" | "permanent") => {
+    setBusy(mode);
+    const res = await deleteDocumentsAction(target.scope, mode);
+    setBusy(null);
+    if (res.ok) onDone(mode, res.count);
+  };
+  return (
+    <HrmsDialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }} width={460} title={`Delete ${target.label}`}>
+      <div className="space-y-4 p-1">
+        <p className="text-sm text-fg-muted">Choose how to delete <b className="text-fg">{target.label}</b>.</p>
+        <button type="button" disabled={!!busy} onClick={() => run("trash")}
+          className="flex w-full items-start gap-3 rounded-xl border border-border p-3 text-left hover:border-accent hover:bg-accent-soft/30 disabled:opacity-50 transition-colors">
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg-muted text-fg-muted">{busy === "trash" ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}</span>
+          <span><span className="block text-sm font-medium">Move to Trash</span><span className="block text-xs text-fg-muted">Recoverable — restore any time from the Trash tab.</span></span>
+        </button>
+        {!confirmPermanent ? (
+          <button type="button" disabled={!!busy} onClick={() => setConfirmPermanent(true)}
+            className="flex w-full items-start gap-3 rounded-xl border border-danger/30 p-3 text-left hover:bg-danger-soft/40 disabled:opacity-50 transition-colors">
+            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-danger-soft text-danger"><AlertTriangle size={16} /></span>
+            <span><span className="block text-sm font-medium text-danger">Delete permanently</span><span className="block text-xs text-fg-muted">Removes the file, its search index and record everywhere. Cannot be undone.</span></span>
+          </button>
+        ) : (
+          <div className="rounded-xl border border-danger/40 bg-danger-soft/30 p-3 space-y-2.5">
+            <p className="text-xs text-danger flex items-center gap-1.5"><AlertTriangle size={14} /> This can't be undone. Make sure you have a backup.</p>
+            <div className="flex gap-2">
+              <button type="button" disabled={!!busy} onClick={() => run("permanent")}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50">
+                {busy === "permanent" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Yes, delete permanently
+              </button>
+              <button type="button" disabled={!!busy} onClick={() => setConfirmPermanent(false)} className="rounded-lg px-3 py-1.5 text-xs text-fg-muted hover:text-fg">Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </HrmsDialog>
   );
 }
 
