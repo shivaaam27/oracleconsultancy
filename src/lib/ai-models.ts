@@ -98,9 +98,24 @@ const GEMMA_LADDER = [
   "gemma-4-31b-it", // separate open-weight quota pool, ~1,500/day
   "gemma-4-26b-a4b-it", // separate open-weight quota pool, ~1,500/day
 ];
+// FAST lane (agent JSON planning, extraction, high-frequency calls) is ordered
+// QUOTA-FIRST, not quality-first: the high-RPD flash-lite / flash models come
+// first so frequent calls don't exhaust the tiny-quota pro models (2.5-pro ~50/day,
+// 3.x-pro-preview ~100/day). Gemma (separate ~1,500/day pool) is a strong tail;
+// pro models sit LAST as a last resort. This is the fix for the rate-limit errors.
+const GEMINI_FAST_LADDER = [
+  "gemini-2.5-flash-lite",   // ~1,000/day, 15-30 RPM — reliable workhorse
+  "gemini-3-flash-preview",  // ~1,500/day, 10 RPM
+  "gemini-2.0-flash-lite",   // older, own quota bucket
+  "gemini-2.0-flash",        // older, own quota bucket
+  "gemini-3.5-flash",        // newest flash
+  "gemini-2.5-flash",        // mid-tier
+  "gemini-3.1-flash-lite",   // ~500/day
+];
 export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
-  ...GEMINI_TEXT_LADDER,
-  ...GEMMA_LADDER,
+  ...GEMINI_FAST_LADDER,
+  ...GEMMA_LADDER,           // separate open-weight ~1,500/day pool
+  "gemini-2.5-pro",          // low quota — last resort only
 ]);
 export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
   ...GEMINI_TEXT_LADDER,
