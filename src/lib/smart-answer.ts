@@ -555,12 +555,24 @@ async function engagementAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title: `${person.name} · engagement`, count: rows.length, rows, note };
 }
 
+/** RADAR — "what needs my attention", "anything slipping / wrong", "risks",
+ *  "what should I worry about". Proactive anomaly scan (ori/radar.ts). */
+async function radarAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(needs? (my )?attention|anything (wrong|slipping|off|concerning)|what'?s (wrong|slipping|off|up)|should i worry|radar|red flags?|problems?|falling behind|at risk|worry about|what needs)\b/i.test(q)) return null;
+  const { buildRadar } = await import("@/lib/ori/radar");
+  const findings = await buildRadar();
+  if (findings.length === 0) return { kind: "count", title: "Nothing on the radar", count: 0, rows: [], note: "All clear — nothing overdue, stuck or slipping right now." };
+  const rows: SmartRow[] = findings.slice(0, MAX_ROWS).map((f) => ({ label: f.label, sub: f.detail, badge: null, tone: f.tone as SmartTone, href: f.href }));
+  return { kind: "count", title: "On the radar", count: findings.length, rows };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
   const q = (query ?? "").toLowerCase().trim();
   if (q.length < 3) return null;
   const resolvers = [
+    radarAnswer,
     compareAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
     performanceAnswer, engagementAnswer,
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
