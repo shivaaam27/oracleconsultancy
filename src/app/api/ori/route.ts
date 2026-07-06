@@ -8,8 +8,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { planTurn, type ChatMsg, type PlanStep } from "@/lib/ori/agent";
 import { TOOL_BY_NAME } from "@/lib/ori/tools";
+import { sb } from "@/db/supabase";
 
 export const maxDuration = 60;
+
+const UNDO_TTL_MS = 10 * 60 * 1000;
+
+/** Persist an undo token for an executed tool step (reuses the app undo framework
+ *  + /api/undo consume path). Returns the token id, or undefined on failure. */
+async function createUndoToken(spec: { kind: string; payload: unknown }): Promise<string | undefined> {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const now = new Date();
+  const { error } = await sb.from("undo_tokens").insert({
+    id, kind: spec.kind, payload: JSON.stringify(spec.payload),
+    created_by: "ai-command", created_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + UNDO_TTL_MS).toISOString(), consumed_at: null,
+  });
+  return error ? undefined : id;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,13 +34,15 @@ export async function POST(req: NextRequest) {
     // ---- EXECUTE a confirmed plan ---------------------------------------
     const confirmPlan = Array.isArray(body?.confirmPlan) ? (body.confirmPlan as PlanStep[]) : null;
     if (confirmPlan) {
-      const results: { tool: string; ok: boolean; message: string; redirect?: string }[] = [];
+      const results: { tool: string; ok: boolean; message: string; redirect?: string; undoToken?: string }[] = [];
       for (const step of confirmPlan.slice(0, 8)) {
         const tool = TOOL_BY_NAME.get(step.tool);
         if (!tool) { results.push({ tool: step.tool, ok: false, message: `Unknown tool "${step.tool}".` }); continue; }
         try {
           const r = await tool.run(step.args ?? {});
-          results.push({ tool: step.tool, ...r });
+          // Mint an undo token for a reversible write so the owner can one-tap undo.
+          const undoToken = r.ok && r.undo ? await createUndoToken(r.undo) : undefined;
+          results.push({ tool: step.tool, ok: r.ok, message: r.message, redirect: r.redirect, undoToken });
           // A step that fails (e.g. a company didn't resolve) stops the chain so a
           // half-built workflow doesn't run on wrong assumptions.
           if (!r.ok) break;

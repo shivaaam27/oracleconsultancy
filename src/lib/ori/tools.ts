@@ -21,7 +21,10 @@ import { createCalendarEvent } from "@/lib/calendar";
 
 export type ToolTier = 1 | 2 | 3;
 export type ToolParam = { type: "string" | "number" | "date" | "string[]"; required: boolean; description: string };
-export type ToolResult = { ok: boolean; message: string; redirect?: string };
+/** An executed write can carry an `undo` spec — a registered undo-handler kind +
+ *  the payload to reverse it. The /api/ori route turns it into an undo token the
+ *  owner can one-tap to reverse the step. Reuses the app's undo framework. */
+export type ToolResult = { ok: boolean; message: string; redirect?: string; undo?: { kind: string; payload: unknown } };
 export type ToolDef = {
   name: string;
   tier: ToolTier;
@@ -57,6 +60,31 @@ async function resolveTask(code: string): Promise<{ id: number; code: string; co
   if (!token) return null;
   const { data } = await sb.from("tasks").select("id,code,company_id,status").ilike("code", escapeLike(token)).maybeSingle();
   return (data as { id: number; code: string; company_id: number; status: string } | null) ?? null;
+}
+
+/** Snapshot a task's full field set + assignees BEFORE a mutation, shaped for the
+ *  existing "task.update" undo handler (undo-handlers/tasks.ts) so a status change
+ *  or reassignment is one-tap reversible. */
+async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payload: unknown } | undefined> {
+  const { data: t } = await sb.from("tasks")
+    .select("id,code,company_id,action_item,department_id,status,priority,risk,escalation,category,deadline,meeting_date,comments,latest_update,last_updated_at,closed_date")
+    .eq("id", taskId).maybeSingle();
+  if (!t) return undefined;
+  const { data: as } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
+  const r = t as Record<string, unknown>;
+  return {
+    kind: "task.update",
+    payload: {
+      taskId, taskCode: r.code, companyId: r.company_id,
+      before: {
+        actionItem: r.action_item, departmentId: r.department_id, status: r.status, priority: r.priority,
+        risk: r.risk, escalation: r.escalation, category: r.category, deadline: r.deadline,
+        meetingDate: r.meeting_date, comments: r.comments, latestUpdate: r.latest_update,
+        lastUpdatedAt: r.last_updated_at, closedDate: r.closed_date,
+      },
+      beforeAssignees: ((as ?? []) as { person_id: number }[]).map((x) => x.person_id),
+    },
+  };
 }
 
 /** Parse a natural deadline the planner passes as an ISO date OR "in N days".
@@ -104,7 +132,7 @@ export const TOOLS: ToolDef[] = [
       await sb.from("audit_log").insert({ task_id: task.id, task_code: task.code, company_id: company.id, entry_type: "CREATE", field: "Task", old_value: null, new_value: title, change_reason: "Created via ORI", created_at: nowIso(), created_by: "ai-command" });
       void reindexEntity("task", task.id);
       const who = names.length ? ` · assigned to ${names.join(", ")}` : "";
-      return { ok: true, message: `Created ${task.code}: ${title}${who}`, redirect: `/task/${task.code}` };
+      return { ok: true, message: `Created ${task.code}: ${title}${who}`, redirect: `/task/${task.code}`, undo: { kind: "task.create", payload: { taskId: task.id } } };
     },
   },
   {
@@ -121,13 +149,19 @@ export const TOOLS: ToolDef[] = [
       if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
       const body = str(args.body);
       if (!body) return { ok: false, message: "The update is empty." };
-      await sb.from("task_updates").insert({ task_id: t.id, body, created_at: nowIso(), created_by: "ai-command" });
+      // Snapshot the fields the update touches so it can be reversed.
+      const { data: bt } = await sb.from("tasks").select("latest_update,last_updated_at,status,closed_date").eq("id", t.id).maybeSingle();
+      const before = (bt as Record<string, unknown>) ?? {};
+      const { data: ins } = await sb.from("task_updates").insert({ task_id: t.id, body, created_at: nowIso(), created_by: "ai-command" }).select("id").single();
       const patch: Record<string, unknown> = { latest_update: body, last_updated_at: nowIso() };
       const status = str(args.status);
       if (status && status !== t.status) patch.status = status;
       await sb.from("tasks").update(patch).eq("id", t.id);
       void reindexEntity("task", t.id);
-      return { ok: true, message: `Added an update to ${t.code}${status ? ` and set it to ${status}` : ""}.`, redirect: `/task/${t.code}` };
+      const undo = ins?.id
+        ? { kind: "task.update.add", payload: { taskUpdateId: ins.id, taskId: t.id, taskCode: t.code, companyId: t.company_id, before: { latestUpdate: before.latest_update ?? null, lastUpdatedAt: before.last_updated_at ?? null, status: before.status ?? t.status, closedDate: before.closed_date ?? null } } }
+        : undefined;
+      return { ok: true, message: `Added an update to ${t.code}${status ? ` and set it to ${status}` : ""}.`, redirect: `/task/${t.code}`, undo };
     },
   },
   {
@@ -144,6 +178,7 @@ export const TOOLS: ToolDef[] = [
       const valid = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];
       const status = str(args.status);
       if (!valid.includes(status)) return { ok: false, message: `"${status}" isn't a valid status.` };
+      const undo = await snapshotTaskForUndo(t.id);
       const patch: Record<string, unknown> = { status, last_updated_at: nowIso() };
       const isClosed = status === "Completed" || status === "Closed";
       const wasClosed = t.status === "Completed" || t.status === "Closed";
@@ -151,7 +186,7 @@ export const TOOLS: ToolDef[] = [
       else if (!isClosed && wasClosed) patch.closed_date = null;
       await sb.from("tasks").update(patch).eq("id", t.id);
       void reindexEntity("task", t.id);
-      return { ok: true, message: `${t.code} → ${status}.`, redirect: `/task/${t.code}` };
+      return { ok: true, message: `${t.code} → ${status}.`, redirect: `/task/${t.code}`, undo };
     },
   },
   {
@@ -167,11 +202,24 @@ export const TOOLS: ToolDef[] = [
       if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
       const p = await resolvePerson(str(args.assignee));
       if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.assignee)}".` };
+      // Snapshot owner + assignees (the shared task.update handler doesn't restore
+      // owner_id, so reassign has its own undo kind).
+      const { data: bt } = await sb.from("tasks").select("owner_id,last_updated_at").eq("id", t.id).maybeSingle();
+      const { data: ba } = await sb.from("task_assignees").select("person_id").eq("task_id", t.id);
+      const undo = {
+        kind: "ori.task.reassign",
+        payload: {
+          taskId: t.id,
+          prevOwnerId: (bt as { owner_id?: number | null })?.owner_id ?? null,
+          prevLastUpdatedAt: (bt as { last_updated_at?: string | null })?.last_updated_at ?? null,
+          prevAssignees: ((ba ?? []) as { person_id: number }[]).map((x) => x.person_id),
+        },
+      };
       await sb.from("tasks").update({ owner_id: p.id, last_updated_at: nowIso() }).eq("id", t.id);
       await sb.from("task_assignees").delete().eq("task_id", t.id);
       await sb.from("task_assignees").upsert({ task_id: t.id, person_id: p.id }, { ignoreDuplicates: true });
       void reindexEntity("task", t.id);
-      return { ok: true, message: `Reassigned ${t.code} to ${p.name}.`, redirect: `/task/${t.code}` };
+      return { ok: true, message: `Reassigned ${t.code} to ${p.name}.`, redirect: `/task/${t.code}`, undo };
     },
   },
   {
@@ -195,8 +243,8 @@ export const TOOLS: ToolDef[] = [
       const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
       let companyId: number | undefined;
       if (str(args.company)) { const c = await resolveCompany(str(args.company)); if (c) companyId = c.id; }
-      await createCalendarEvent({ title, companyId, location: str(args.location) || undefined, startAt, endAt, allDay, source: "manual", createdBy: "ai-command" });
-      return { ok: true, message: `Scheduled "${title}" for ${startAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}${allDay ? "" : ` at ${time}`}.`, redirect: "/calendar" };
+      const ev = await createCalendarEvent({ title, companyId, location: str(args.location) || undefined, startAt, endAt, allDay, source: "manual", createdBy: "ai-command" });
+      return { ok: true, message: `Scheduled "${title}" for ${startAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}${allDay ? "" : ` at ${time}`}.`, redirect: "/calendar", undo: { kind: "ori.event.create", payload: { eventId: ev.id } } };
     },
   },
   {
@@ -216,7 +264,7 @@ export const TOOLS: ToolDef[] = [
         audience_kind: "all", status: "draft", created_by: "ai-command", created_at: nowIso(),
       }).select("id").single();
       if (error) return { ok: false, message: error.message };
-      return { ok: true, message: `Drafted the announcement "${title || "Untitled"}" — review and publish when ready.`, redirect: `/announcements?edit=${data.id}` };
+      return { ok: true, message: `Drafted the announcement "${title || "Untitled"}" — review and publish when ready.`, redirect: `/announcements?edit=${data.id}`, undo: { kind: "ori.announcement.draft", payload: { announcementId: data.id } } };
     },
   },
 ];

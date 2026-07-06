@@ -119,10 +119,18 @@ already has an ORI entry admin-side; add the agent (scoped) to the portals.
   day's testing (both /api/ori AND /api/ask returned rate-limited). Code path
   verified correct up to the 429. Re-demo clarify→confirm→execute when quota
   resets (or owner raises the Gemini quota/adds billing).
-  STILL TODO in Phase 0: (a) wire the agent into the command-palette chat UI
-  (command → clarify/confirm/execute conversation with a "Confirm" button that
-  POSTs confirmPlan); (b) undo tokens on executed steps + an ORI action log;
-  (c) carry pending-plan state across turns in the UI.
+  UI DONE: `AgentCard` in command-palette.tsx — a self-managed clarify→confirm→
+  execute chat. Agent-family commands (create/edit/schedule/announce/task-mutation,
+  via `looksLikeAgentCommand`) route to it; all other intents stay on the old
+  /api/action ActionCard (no regression). AgentCard carries the pending plan +
+  clarify history within the card. EXECUTE half verified live (confirmPlan →
+  draft_announcement ran + cleaned up); PLANNING half still blocked by the Gemini
+  daily quota — visually demo clarify→confirm→execute once quota resets.
+  ⭐ SHIPPED + PUSHED to master (commit 31c767a, 2026-07-05) → Vercel deploys.
+  STILL TODO in Phase 0: (a) undo tokens on executed steps + an ORI action log the
+  owner can review; (b) auto model/provider fallback so a rate-limit is invisible
+  (Gemini ladder switch already works WITHIN Gemini; a project-wide daily cap needs
+  a 2nd provider key e.g. Groq, or billing — owner call).
 - **Phase 1 — Task workflow tools.** Deliver the owner's worked example end-to-end
   (create task + assignees + reminders + escalation rule + post-deadline event,
   with ORI asking for the missing bits).

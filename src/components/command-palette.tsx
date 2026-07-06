@@ -1629,7 +1629,7 @@ function ActionCard({
 // with /api/ori. ORI asks for missing details (multi-turn), shows a plan for the
 // owner's yes, then runs it (multi-step). This is the "feels like Claude" surface.
 type AgentPlanStep = { tool: string; args: Record<string, unknown>; summary: string };
-type AgentRunResult = { tool: string; ok: boolean; message: string; redirect?: string };
+type AgentRunResult = { tool: string; ok: boolean; message: string; redirect?: string; undoToken?: string };
 
 function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href: string) => void }) {
   type Phase =
@@ -1645,8 +1645,20 @@ function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([{ role: "user", content: command }]);
   const [phase, setPhase] = useState<Phase>({ kind: "thinking" });
   const [reply, setReply] = useState(""); // the clarify answer being typed
+  const [undone, setUndone] = useState<Record<number, "pending" | "done" | "error">>({});
   const started = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const undoStep = async (i: number, token: string) => {
+    setUndone((u) => ({ ...u, [i]: "pending" }));
+    try {
+      const res = await fetch("/api/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+      const d = await res.json().catch(() => ({}));
+      setUndone((u) => ({ ...u, [i]: res.ok && d.ok ? "done" : "error" }));
+    } catch {
+      setUndone((u) => ({ ...u, [i]: "error" }));
+    }
+  };
 
   const plan = useCallback(async () => {
     setPhase({ kind: "thinking" });
@@ -1686,8 +1698,8 @@ function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href
       const d = await res.json().catch(() => ({}));
       const results = (d.results ?? []) as AgentRunResult[];
       setPhase({ kind: "done", reply: d.ok ? "Done." : "Ran with some issues:", results });
-      const firstRedirect = results.find((r) => r.ok && r.redirect)?.redirect;
-      if (firstRedirect) setTimeout(() => onNavigate(firstRedirect), 1100);
+      // No auto-navigate — keep the palette open so Undo stays available. The
+      // owner can open any created item from its result line if they want.
     } catch {
       setPhase({ kind: "error", message: "Couldn't run that just now — try again." });
     }
@@ -1754,7 +1766,29 @@ function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href
             {phase.results.map((r, i) => (
               <div key={i} className="flex items-start gap-2 text-[13px]">
                 {r.ok ? <Check size={14} className="mt-0.5 shrink-0 text-success" /> : <XIcon size={14} className="mt-0.5 shrink-0 text-danger" />}
-                <span className={r.ok ? "text-fg" : "text-danger"}>{r.message}</span>
+                <span className={cn("flex-1", r.ok ? "text-fg" : "text-danger")}>
+                  {undone[i] === "done" ? <span className="text-fg-muted line-through">{r.message}</span> : r.message}
+                </span>
+                {r.ok && r.redirect && undone[i] !== "done" && (
+                  <button type="button" onClick={() => onNavigate(r.redirect!)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline">
+                    <ExternalLink size={11} /> Open
+                  </button>
+                )}
+                {r.ok && r.undoToken && (
+                  undone[i] === "done" ? (
+                    <span className="shrink-0 text-[11px] text-fg-subtle">Undone</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => undoStep(i, r.undoToken!)}
+                      disabled={undone[i] === "pending"}
+                      className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent disabled:opacity-50 transition-colors"
+                    >
+                      <RotateCw size={11} className={undone[i] === "pending" ? "animate-spin" : ""} />
+                      {undone[i] === "error" ? "Retry undo" : "Undo"}
+                    </button>
+                  )
+                )}
               </div>
             ))}
           </div>

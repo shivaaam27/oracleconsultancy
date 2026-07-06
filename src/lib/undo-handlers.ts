@@ -7,3 +7,4 @@
 
 import "./undo-handlers/tasks";
 import "./undo-handlers/outbox";
+import "./undo-handlers/ori";
