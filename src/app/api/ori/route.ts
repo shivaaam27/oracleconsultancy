@@ -35,11 +35,21 @@ export async function POST(req: NextRequest) {
     const confirmPlan = Array.isArray(body?.confirmPlan) ? (body.confirmPlan as PlanStep[]) : null;
     if (confirmPlan) {
       const results: { tool: string; ok: boolean; message: string; redirect?: string; undoToken?: string }[] = [];
+      // Chaining: a task created earlier in THIS plan isn't known at plan time, so
+      // later steps reference it as "$new" (or an invented "TASK-..." placeholder —
+      // real codes never start with TASK). Substitute the real code here.
+      let lastTaskCode: string | null = null;
+      const isPlaceholder = (v: unknown) => typeof v === "string" && (/^\$?new$/i.test(v.trim()) || /^task[-_]?\d+$/i.test(v.trim()));
       for (const step of confirmPlan.slice(0, 8)) {
         const tool = TOOL_BY_NAME.get(step.tool);
         if (!tool) { results.push({ tool: step.tool, ok: false, message: `Unknown tool "${step.tool}".` }); continue; }
+        const args = { ...(step.args ?? {}) };
+        if (lastTaskCode && "taskCode" in tool.params && (isPlaceholder(args.taskCode) || !args.taskCode)) args.taskCode = lastTaskCode;
         try {
-          const r = await tool.run(step.args ?? {});
+          const r = await tool.run(args);
+          // Capture a newly-created task's code so later steps can attach to it.
+          const m = r.ok && r.redirect ? /\/task\/([^/?#]+)/.exec(r.redirect) : null;
+          if (m && step.tool === "create_task") lastTaskCode = m[1];
           // Mint an undo token for a reversible write so the owner can one-tap undo.
           const undoToken = r.ok && r.undo ? await createUndoToken(r.undo) : undefined;
           results.push({ tool: step.tool, ok: r.ok, message: r.message, redirect: r.redirect, undoToken });
