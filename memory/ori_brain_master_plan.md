@@ -150,9 +150,21 @@ already has an ORI entry admin-side; add the agent (scoped) to the portals.
   tests; tool→rule→undo vertical (script: created rule id, undone, row deleted);
   tsc clean; 202 tests. NOT yet exercised end-to-end LIVE via the agent (login/quota
   during the session) — watch the first real rule + firing. Backup taken pre-migration.
-- **Phase 3 — Analytics brain + `activity_events` telemetry.**
+- **Phase 3 — Analytics brain + telemetry. ✅ SHIPPED (2026-07-06, migration 0113, c93af6b).**
+  `activity_events` (owner-only) + `activity-telemetry.ts` + `/api/activity/ping`
+  (ActivityPinger in root layout, dedup 1/hr). `analytics.ts` = completionStats +
+  responseStats. smart-answer resolvers: performanceAnswer ("how efficient is X",
+  response rate, tasks completed, on-time %, avg days) + engagementAnswer ("how
+  often does X open the app / last seen"). Engagement=0 until telemetry accrues.
 - **Phase 4 — Portal rollout** (scoped agent in director/manager/staff).
-- **Phase 5 — Semantic recall ON + proactive suggestions/anomaly radar.**
+- **Phase 5 — proactive radar ✅ SHIPPED (11b1904); semantic ⏳ owner-deploy.**
+  `src/lib/ori/radar.ts` buildRadar() (overdue, due-soon, gone-quiet 7d, blocked/
+  escalated, disengaged staff via activity_events, docs expiring 30d) + smart-answer
+  `radarAnswer` ("what needs my attention / anything slipping / red flags"). Verified
+  live (5 findings). SEMANTIC is code-complete + deploy-ready (supabase/functions/
+  embed/index.ts + scripts/backfill-embeddings.ts + Settings semanticSearch toggle);
+  OWNER runs: `supabase functions deploy embed` → toggle semanticSearch on → `npm run
+  db:embed-backfill`. Then hybridSearch/ORI recall by meaning goes live.
 
 ## Capabilities the owner didn't name but we should add
 - **Undo everything** ORI does (undo_tokens already exist) + an **ORI action log**.
