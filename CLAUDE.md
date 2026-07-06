@@ -340,6 +340,16 @@ See `memory/portal.md` for the full twin map.
 - Categories: Finance, Operations, Marketing, HR, Legal, Technology, Sales, Admin, Meetings, Strategy, Other.
 - Channels: WHATSAPP, EMAIL, SMS.
 
+## Token discipline (READ FIRST — owner watches 5-hour usage closely)
+
+The owner's #1 complaint is wasted usage, and the waste is TOOL-OUTPUT VOLUME, not thinking. Every session must:
+- **No preview screenshots** unless explicitly asked. Verify with a small targeted `eval`/`grep`, never images.
+- **Never dump full `next build` / full `tsc` / full test output.** Run these ONCE at the very end; pipe to a temp file and read only the tail / error lines (`grep -E "error|EXIT"`).
+- **Read files with `offset`/`limit`** after a `grep` for the exact lines — never read whole large files.
+- **Batch shell commands** into one call; don't re-verify what already passed.
+- **No live UI walkthroughs** unless the owner asks. Code + one final check is enough.
+- Terse replies: what changed + what matters. No narration between tool calls.
+
 ## Workflow
 
 - Verify code with `npm exec tsc -- --noEmit`. A full type-check needs a bigger heap locally: `NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit`.
