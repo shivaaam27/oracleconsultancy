@@ -45,7 +45,7 @@
     },
     {
       "path": "/api/cron/ori-automations",
-      "schedule": "0 6,11 * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
