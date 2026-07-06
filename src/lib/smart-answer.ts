@@ -519,6 +519,42 @@ async function compareAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title: `Comparing ${mentioned.slice(0, 4).map((m) => m.name).join(" · ")}`, count: rows.length, rows, href: "/companies" };
 }
 
+/** PERFORMANCE — "how efficient is X", "X's response rate", "how many tasks did X
+ *  complete", "average time X takes to finish a task". Deterministic (analytics.ts). */
+async function performanceAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(efficien|response rate|responsive|how many .*(complete|finish|done)|average|avg|on[- ]time|how (fast|long|quick)|productiv|performance|completion)/i.test(q)) return null;
+  const person = await matchPerson(q.replace(/['’]/g, " "));
+  if (!person) return null;
+  const { completionStats, responseStats } = await import("@/lib/analytics");
+  const [c, r] = await Promise.all([completionStats(person.id), responseStats(person.id)]);
+  const rows: SmartRow[] = [
+    { label: "Tasks completed", sub: null, badge: String(c.completed), tone: "accent", href: "/?tab=tasks" },
+    { label: "On-time", sub: c.onTimePct == null ? "no deadlines set" : `${c.onTime} of those with a deadline`, badge: c.onTimePct == null ? "—" : `${c.onTimePct}%`, tone: (c.onTimePct != null && c.onTimePct >= 70 ? "success" : "warn") as SmartTone, href: "/?tab=tasks" },
+    { label: "Avg time to complete", sub: null, badge: c.avgDays == null ? "—" : `${c.avgDays}d`, tone: "muted", href: "/?tab=tasks" },
+    { label: "Response rate", sub: `posts updates on ${r.responded} of ${r.assigned} tasks`, badge: r.responseRatePct == null ? "—" : `${r.responseRatePct}%`, tone: (r.responseRatePct != null && r.responseRatePct >= 60 ? "success" : "warn") as SmartTone, href: "/?tab=tasks" },
+    { label: "Avg time to first update", sub: null, badge: r.avgFirstResponseDays == null ? "—" : `${r.avgFirstResponseDays}d`, tone: "muted", href: "/?tab=tasks" },
+  ];
+  return { kind: "count", title: `${person.name} · performance`, count: rows.length, rows };
+}
+
+/** ENGAGEMENT — "how often does X open the app", "when was X last seen/active". */
+async function engagementAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(open|opens|opened|log ?in|logs? in|active|last seen|engage|use the (app|site)|how often)\b/i.test(q)) return null;
+  const person = await matchPerson(q.replace(/['’]/g, " "));
+  if (!person) return null;
+  const { appOpenStats } = await import("@/lib/activity-telemetry");
+  const s = await appOpenStats(person.id, 30);
+  const last = s.lastSeen ? new Date(s.lastSeen) : null;
+  const lastLabel = last ? `${Math.max(0, Math.floor((Date.now() - last.getTime()) / 86400000))}d ago` : "never";
+  const rows: SmartRow[] = [
+    { label: "Opens (last 30 days)", sub: null, badge: String(s.opens), tone: "accent", href: "#" },
+    { label: "Active days (of 30)", sub: null, badge: String(s.days), tone: (s.days >= 10 ? "success" : "warn") as SmartTone, href: "#" },
+    { label: "Last seen", sub: null, badge: lastLabel, tone: "muted", href: "#" },
+  ];
+  const note = s.opens === 0 ? "No app activity recorded yet (telemetry started recently)." : undefined;
+  return { kind: "count", title: `${person.name} · engagement`, count: rows.length, rows, note };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
@@ -526,6 +562,7 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
   if (q.length < 3) return null;
   const resolvers = [
     compareAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
+    performanceAnswer, engagementAnswer,
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
     overdueTasksAnswer, dueTasksAnswer, recentlyUpdatedTasksAnswer, probationAnswer, assetsAnswer,
     tasksByPersonAnswer, countAnswer,

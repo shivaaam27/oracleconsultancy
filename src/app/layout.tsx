@@ -27,6 +27,7 @@ import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
+import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -81,6 +82,7 @@ export default async function RootLayout({ children, modal }: { children: React.
       </head>
       <body>
         <AppSplash />
+        <ActivityPinger />
         <ThemeProvider>
           <MotionConfig reducedMotion="user">
           <ToastProvider>

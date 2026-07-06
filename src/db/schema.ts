@@ -1940,3 +1940,20 @@ export const automationRules = pgTable("automation_rules", {
   index("automation_rules_live_idx").on(t.active, t.done),
   index("automation_rules_task_idx").on(t.taskId),
 ]);
+
+// Activity telemetry (Phase 3, OWNER-ONLY analytics). One row per notable event —
+// a login or an app/site "open" — per person. Powers engagement analytics
+// ("how often does X open the app", "last seen"). Visible only to the owner.
+//   who:  "admin" (owner) | "person:<id>" (staff, portal)
+//   kind: "login" | "open" | "view"
+export const activityEvents = pgTable("activity_events", {
+  id: serial("id").primaryKey(),
+  who: text("who").notNull(),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(),
+  path: text("path"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("activity_events_person_idx").on(t.personId, t.at),
+  index("activity_events_at_idx").on(t.at),
+]);
