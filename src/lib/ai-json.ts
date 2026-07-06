@@ -344,7 +344,7 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
         continue;
       }
       // Retry the genuinely transient HTTP statuses on the SAME model.
-      if (res.status === 429) { lastError = "rate-limited"; continue; }
+      if (res.status === 429) { lastError = "rate-limited"; break; }
       if (res.status >= 500) { lastError = "http-error"; continue; }
       // A 4xx (e.g. 400 model_decommissioned / 404 model_not_found) won't recover
       // by retrying THIS model — abandon it and fall through to the next ladder
@@ -465,7 +465,7 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
         continue;
       }
       lastStatus = res.status;
-      if (res.status === 429) { lastError = "rate-limited"; continue; }
+      if (res.status === 429) { lastError = "rate-limited"; break; }
       if (res.status >= 500) { lastError = "http-error"; continue; }
       // A 4xx (e.g. 400 model_decommissioned / 404 model_not_found) won't recover
       // by retrying THIS model — abandon it and fall through to the next ladder

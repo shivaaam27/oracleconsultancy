@@ -1136,10 +1136,14 @@ export async function POST(req: NextRequest) {
     const provider = await getActiveProvider();
     const chatUrl = PROVIDER_CHAT_URLS[provider];
     const extras = providerRequestExtras(provider);
-    const streamSmart = providerLadder(provider, smartModel)[0];
+    // Interactive chat LEADS with the fast head (gemini-3-flash-preview: pro-grade
+    // quality + ~1,500/day quota). The old "smart" head (gemini-3.1-pro-preview,
+    // ~100/day) rate-limited constantly → the slow/flaky chat the owner reported.
+    // Smart stays as the fallback for a rare fast-model blip.
     const streamFast = providerLadder(provider, GROQ_FAST)[0];
+    const streamSmart = providerLadder(provider, smartModel)[0];
     let res: Response | null = null;
-    let currentModel = streamSmart;
+    let currentModel = streamFast;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
       try {
@@ -1164,9 +1168,9 @@ export async function POST(req: NextRequest) {
         res = null;
         continue;
       }
-      // Smart model busy/decommissioned → drop to the fast model for the rest.
-      if ((res.status === 429 || res.status === 400 || res.status === 404) && canFallback && currentModel === streamSmart && currentModel !== streamFast) {
-        currentModel = streamFast; res = null; continue;
+      // Fast head busy/decommissioned → drop to the smart model for the rest.
+      if ((res.status === 429 || res.status === 400 || res.status === 404) && canFallback && currentModel === streamFast && currentModel !== streamSmart) {
+        currentModel = streamSmart; res = null; continue;
       }
       if ((res.status === 429 || res.status >= 500) && attempt < 2) { res = null; continue; }
       break;
