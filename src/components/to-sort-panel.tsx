@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Sparkles, CheckCircle2, Inbox as InboxIcon } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, Inbox as InboxIcon, Wand2 } from "lucide-react";
 import { SortingDesk } from "@/components/sorting-desk";
 import { InboxList } from "@/app/inbox/inbox-list";
 import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
 import { SmartAdd } from "@/components/smart-add";
 import { IntakeAccuracy } from "@/components/intake-accuracy";
+import { useToast } from "@/components/toast";
+import { autoSortReadyAction } from "@/app/documents/actions";
 import { autoSortInboxAction, type InboxItem, type AutoSortSummary } from "@/app/inbox/actions";
 import type { SortItem } from "@/lib/sorting-desk";
 import type { IntakeMetrics } from "@/lib/intake-metrics";
@@ -27,14 +29,27 @@ export function ToSortPanel({
   intakeMetrics: IntakeMetrics | null;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [sorting, startSort] = useTransition();
+  const [autoFiling, startAutoFile] = useTransition();
   const [summary, setSummary] = useState<AutoSortSummary | null>(null);
+
+  const readyCount = sortItems.filter((i) => i.group === "place" && (i.companyId || i.personId)).length;
 
   function sortNow() {
     setSummary(null);
     startSort(async () => {
       const res = await autoSortInboxAction();
       setSummary(res);
+      router.refresh();
+    });
+  }
+
+  function autoSort() {
+    startAutoFile(async () => {
+      const res = await autoSortReadyAction();
+      if (res.ok) toast(res.filed ? `Filed ${res.filed} ready ${res.filed === 1 ? "document" : "documents"}.` : "Nothing was ready to file automatically.", { tone: "success" });
+      else toast(res.error ?? "Couldn't auto-sort.", { tone: "warn" });
       router.refresh();
     });
   }
@@ -52,6 +67,17 @@ export function ToSortPanel({
           {sorting ? <Loader2 size={14} className="animate-spin text-accent" /> : <Sparkles size={14} className="text-accent" />} New files
         </button>
         <SmartAdd companies={companies} people={people} />
+        {readyCount > 0 && (
+          <button
+            type="button"
+            onClick={autoSort}
+            disabled={autoFiling}
+            title="File every ready-to-confirm document at once, using the guessed owner and category"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/5 px-3.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
+          >
+            {autoFiling ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Auto Sort <span className="tabular opacity-70">{readyCount}</span>
+          </button>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <RescanDocumentsButton />
           <FindDuplicatesButton />

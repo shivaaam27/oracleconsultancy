@@ -4,13 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check, Trash2, Loader2, FileText, Image as ImageIcon, Eye, Pencil,
-  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown,
+  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { DOC_CATEGORIES, displayDocName } from "@/lib/documents-shared";
-import { confirmSortItemAction, bulkTrashQuarantineAction, getDocumentFileLinkAction } from "@/app/documents/actions";
+import { confirmSortItemAction, bulkTrashQuarantineAction, getDocumentFileLinkAction, rescanDocumentAction } from "@/app/documents/actions";
 import type { SortItem, SortGroup } from "@/lib/sorting-desk";
 
 const GROUP_META: Record<SortGroup, { label: string; sub: string; Icon: typeof ShieldQuestion; cls: string }> = {
@@ -47,6 +47,10 @@ export function SortingDesk({
   const router = useRouter();
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState<Set<SortGroup>>(new Set(["unsure", "owner"]));
+  // Optimistic: a filed/trashed card disappears the instant you tap, then the
+  // background refresh reconciles — File and Trash feel immediate.
+  const [removed, setRemoved] = useState<Set<number>>(new Set());
+  function handleDone(id: number) { setRemoved((p) => new Set(p).add(id)); router.refresh(); }
 
   const ownerOptions = useMemo(
     () => [
@@ -58,15 +62,15 @@ export function SortingDesk({
   );
 
   const groups = useMemo(
-    () => ORDER.map((g) => ({ group: g, rows: items.filter((i) => i.group === g) })).filter((g) => g.rows.length),
-    [items],
+    () => ORDER.map((g) => ({ group: g, rows: items.filter((i) => i.group === g && !removed.has(i.id)) })).filter((g) => g.rows.length),
+    [items, removed],
   );
 
   function toggleCollapse(g: SortGroup) {
     setCollapsed((p) => { const n = new Set(p); n.has(g) ? n.delete(g) : n.add(g); return n; });
   }
 
-  if (items.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="glass elevated rounded-2xl py-12 text-center">
         <CheckCircle2 size={26} className="mx-auto mb-2 text-success" />
@@ -98,7 +102,7 @@ export function SortingDesk({
               // Cap the section at ~5 cards; the rest scroll inside (portal housing).
               <div className={cn("divide-y divide-border/50", rows.length > 5 && "scroll-fade-y slim-scroll max-h-[38rem] overflow-y-auto overscroll-contain")}>
                 {rows.map((it) => (
-                  <SortCard key={it.id} item={it} ownerOptions={ownerOptions} onDone={() => router.refresh()} toast={toast} />
+                  <SortCard key={it.id} item={it} ownerOptions={ownerOptions} onDone={() => handleDone(it.id)} toast={toast} />
                 ))}
               </div>
             )}
@@ -118,11 +122,30 @@ function SortCard({
   toast: (msg: string, opts?: { tone?: "success" | "warn" | "danger" | "info"; duration?: number }) => void;
 }) {
   const [pending, start] = useTransition();
+  const [scanning, setScanning] = useState(false);
 
   const initialOwner = item.companyId ? `c${item.companyId}` : item.personId ? `p${item.personId}` : "";
   const [owner, setOwner] = useState(initialOwner);
   const [category, setCategory] = useState(item.category ?? "");
   const [expiry, setExpiry] = useState(item.expiryDate ?? "");
+
+  // Double-check with AI — re-read the stored file and update the guessed owner/
+  // category/expiry in place for review before you File. Good for shaky "unsure" reads.
+  async function scan() {
+    setScanning(true);
+    try {
+      const res = await rescanDocumentAction(item.id, true);
+      if (!res.ok) { toast(res.error ?? "Couldn't re-read the file.", { tone: "warn" }); return; }
+      const p = res.patch;
+      if (typeof p.category === "string") setCategory(p.category);
+      if ("expiryDate" in p) setExpiry(typeof p.expiryDate === "string" ? p.expiryDate : "");
+      if (typeof p.companyId === "number") setOwner(`c${p.companyId}`);
+      else if (typeof p.personId === "number") setOwner(`p${p.personId}`);
+      toast(res.changes.length ? `Re-read — ${res.changes.length} update${res.changes.length === 1 ? "" : "s"}. Check and File.` : "Re-read — the details look the same.", { tone: "success" });
+    } finally {
+      setScanning(false);
+    }
+  }
 
   const Icon = item.isPdf ? FileText : ImageIcon;
   const ownerPatch = () => (owner.startsWith("c") ? { companyId: Number(owner.slice(1)), personId: null }
@@ -214,6 +237,11 @@ function SortCard({
             <button type="button" onClick={preview} disabled={pending}
               className={cn(ctl, "w-[104px] justify-center border border-border bg-bg-elev text-fg-muted transition-colors hover:text-fg disabled:opacity-50")}>
               <Eye size={13} /> Preview
+            </button>
+            <button type="button" onClick={scan} disabled={scanning || pending}
+              title="Double-check with AI — re-read the file and update the details"
+              className={cn(ctl, "w-[104px] justify-center border border-accent/40 bg-accent/5 text-accent transition-colors hover:bg-accent/10 disabled:opacity-50")}>
+              {scanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Scan
             </button>
             <button type="button" onClick={fixDetails}
               className={cn(ctl, "w-[116px] justify-center border border-border bg-bg-elev text-fg-muted transition-colors hover:text-fg")}>

@@ -86,7 +86,9 @@ export function DocumentsTable({
   const [showArchived, setShowArchived] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
+  // Editing is owned by the ONE workspace-level inline editor (opens over whatever
+  // tab you're on; closing returns you there). We just hand it the doc.
+  const openEditor = (doc: DocumentRow) => window.dispatchEvent(new CustomEvent("cos:edit-document", { detail: { id: doc.id, doc } }));
   const [splitDoc, setSplitDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
@@ -167,16 +169,19 @@ export function DocumentsTable({
     return () => window.removeEventListener("cos:new-document", onNewDoc);
   }, []);
 
-  // Deep-link: /documents?doc=ID opens that document's editable form (the
-  // Needs-review queue "Open" button). Reacts to URL changes (same-page nav).
+  // Deep-link: /documents?doc=ID opens that document's editor. Hand it to the ONE
+  // workspace-level inline editor (works for quarantined docs not in this list too)
+  // and strip the param immediately — MOUNT-ONLY so it never re-fires on tab switch.
   useEffect(() => {
     const doc = searchParams.get("doc");
     if (doc && /^\d+$/.test(doc)) {
-      const target = documents.find((d) => d.id === parseInt(doc, 10));
-      if (target) { setEditDoc(target); router.replace(pathname, { scroll: false }); }
+      window.dispatchEvent(new CustomEvent("cos:edit-document", { detail: { id: parseInt(doc, 10) } }));
+      const sp = new URLSearchParams(Array.from(searchParams.entries()));
+      sp.delete("doc");
+      router.replace(sp.toString() ? `${pathname}?${sp}` : pathname, { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, []);
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -355,7 +360,7 @@ export function DocumentsTable({
 
   const peekActions = (doc: DocumentRow): PeekAction[] => {
     const a: PeekAction[] = [];
-    a.push({ label: "Edit", icon: <Pencil size={16} />, tone: "accent", onClick: () => { setPeek(null); setEditDoc(doc); } });
+    a.push({ label: "Edit", icon: <Pencil size={16} />, tone: "accent", onClick: () => { setPeek(null); openEditor(doc); } });
     if (doc.companyId) a.push({ label: "Renew", icon: <RefreshCw size={16} />, onClick: () => doRenew(doc) });
     if (doc.storagePath) a.push({ label: "Open file", icon: <Paperclip size={16} />, onClick: () => openStoredFile(doc) });
     else if (doc.fileUrl) a.push({ label: "Open link", icon: <ExternalLink size={16} />, onClick: () => window.open(doc.fileUrl!, "_blank") });
@@ -405,8 +410,8 @@ export function DocumentsTable({
     const openLinkedTask = linkedTasks[doc.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
     return (
       <div key={doc.id} role="button" tabIndex={0}
-        onClick={() => { if (longPressed.current) { longPressed.current = false; return; } if (selectMode) { toggleSelect(doc.id); return; } setEditDoc(doc); }}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMode ? toggleSelect(doc.id) : setEditDoc(doc); } }}
+        onClick={() => { if (longPressed.current) { longPressed.current = false; return; } if (selectMode) { toggleSelect(doc.id); return; } openEditor(doc); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMode ? toggleSelect(doc.id) : openEditor(doc); } }}
         onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
         onPointerMove={onRowPointerMove}
         onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
@@ -636,7 +641,7 @@ export function DocumentsTable({
       <PeekPreview
         open={!!peek}
         onClose={() => setPeek(null)}
-        onOpen={peek ? () => { const d = peek; setPeek(null); setEditDoc(d); } : undefined}
+        onOpen={peek ? () => { const d = peek; setPeek(null); openEditor(d); } : undefined}
         title={peek?.title}
         subtitle={peek ? [companyName(peek.companyId), peek.category, personName(peek.personId)].filter(Boolean).join(" · ") || undefined : undefined}
         pills={peek ? (
@@ -683,14 +688,6 @@ export function DocumentsTable({
           onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); closeCreate(); } }} />
       </DocDialog>
 
-      {/* Edit dialog */}
-      <DocDialog open={!!editDoc} onOpenChange={(o) => !o && setEditDoc(null)} title="Edit document">
-        {editDoc && (
-          <DocumentForm mode="edit" doc={editDoc} companies={companies} people={people}
-            onCancel={() => setEditDoc(null)}
-            onComplete={(res) => { if (res.ok) { toast("Saved.", { tone: "success" }); setEditDoc(null); } }} />
-        )}
-      </DocDialog>
 
       {/* Split a multi-document file into separate records (sharing the file). */}
       {splitDoc && (

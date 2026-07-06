@@ -36,7 +36,7 @@ import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { getAiKey, getQualityTextModel, getActiveProvider } from "@/lib/settings";
-import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState, type DocumentRow } from "@/lib/documents-shared";
 import { deriveFiling, subjectTokensOf, subjectCompatible, sameLogicalDocPair, type LogicalDocLite } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { learnedOwnerFor, recordOwnerCorrection } from "@/lib/owner-corrections";
@@ -46,6 +46,10 @@ import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirem
 import { buildComplianceCsv, complianceCsvFilename } from "@/lib/compliance-export";
 import type { PersonProfileFields } from "@/app/people/actions";
 import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
+
+// Categories whose documents belong to an individual, not a business — used to
+// pick THE owner when a read names both a person and a company (one owner only).
+const PERSONAL_DOC_CATEGORIES = new Set(["Immigration", "Passport", "HR"]);
 
 export type OwnerDocMatch = {
   id: number;
@@ -383,6 +387,14 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const learnedCat = await learnedCategoryFor(`${f.title ?? ""} ${f.issuer ?? ""} ${fileName}`);
     if (learnedCat) f.category = learnedCat;
 
+    // ONE owner, never both — a document belongs to a company OR a person. If a
+    // read (or correlation) produced both, the document's own nature decides:
+    // personal papers → the person, everything else → the company.
+    if (companyId && personId) {
+      if (PERSONAL_DOC_CATEGORIES.has(f.category ?? "")) companyId = null;
+      else personId = null;
+    }
+
     const hasOwner = !!companyId || !!personId;
     if (!ownerName && hasOwner) {
       const { companies, people } = await loadEntities();
@@ -561,6 +573,9 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       }
       await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
       await fireDocumentReactions(id);
+      // A filed receipt / real certificate retires the earlier paperwork it
+      // supersedes (control number / application / receipt) → Trash for history.
+      await retirePrecursorDocuments(id);
       // Log the filing so it appears in the scannable Activity log (the system,
       // not a person, filed this). Best-effort — never blocks the file.
       try { await recordEvent("documents.filed", "ok", { docId: id, title: input.title, owner: ownerName ?? null, reason: resolutionReason ?? null, confidence: res.confidence ?? null }); } catch { /* best-effort */ }
@@ -574,7 +589,19 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       segmentCount: isCompilation ? segCount : undefined,
     };
   } catch (e) {
-    return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: e instanceof Error ? e.message : "Could not file the document." };
+    // Even a hard failure must not lose the file: create a quarantine row with the
+    // file attached so it shows in To Sort as a previewable card the owner can read
+    // manually or fix — nothing dropped silently. Best-effort within the catch.
+    const err = e instanceof Error ? e.message : "Could not file the document.";
+    try {
+      const id = await createDocument({ title: fallbackTitle, reviewStatus: "needs_review" }, "ai-intake");
+      if (file instanceof File && file.size > 0) { try { await uploadDocumentFile(id, file); } catch { /* attach best-effort */ } }
+      await setDocumentIntakeState(id, "quarantine", `Couldn't read this file — added for a manual check (${err})`);
+      revalidateDocs();
+      return { ok: true, id, title: fallbackTitle, status: "needs_review", owner: null, reason: "Couldn't read — added for a manual check" };
+    } catch {
+      return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: err };
+    }
   }
 }
 
@@ -830,6 +857,95 @@ async function findRenewalTarget(
   return { id: best.id, title: best.title };
 }
 
+// ── Phase 3: certificate supersedes its precursors ─────────────────────────
+// A single official outcome (a licence/permit/certificate) is preceded by
+// paperwork: an application, then a control number / assessment (a payment
+// instruction), then a payment receipt. The owner's rule: a control number
+// matters only until its receipt lands, and once the real certificate arrives
+// EVERYTHING before it is history — only the certificate stays live.
+//
+// stageRankOf models that lineage: application(1) → control number(2) →
+// receipt(3) → issued document(4). 0 = not part of a lineage (a letter, CV,
+// lease, contract…) so it never participates.
+function stageRankOf(category: string | null, docType: string | null, title: string | null): number {
+  const hay = ` ${[docType, title, category].filter(Boolean).join(" ").toLowerCase()} `;
+  const has = (...w: string[]) => w.some((x) => hay.includes(x));
+  if (has("control number", "control no", " assessment", "demand note", "namba ya kumbukumbu")) return 2;
+  if (has("payment receipt", "transaction receipt", " receipt", "risiti", "payment slip", "efd receipt", "proof of payment")) return 3;
+  if (has(" application", "acknowledg", "maombi")) return 1;
+  if (has("invoice", "quotation", "proforma", "pro forma")) return 2; // a bill to pay = pre-receipt
+  if (has("certificate", "licence", "license", "permit", "registration", "passport", " visa", "incorporation", "clearance")) return 4;
+  return 0;
+}
+
+const RANK_NAME = ["", "application", "control number", "payment receipt", "certificate"];
+const TOKEN_STOP = new Set(["certificate", "license", "licence", "permit", "number", "form", "national", "tanzania", "the", "and", "for", "of"]);
+const TOKEN_SHORT_OK = new Set(["tin", "vrn", "crb", "wcf", "sdl", "paye", "nssf", "osha", "visa"]);
+function normRef(s: string | null | undefined): string { return (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+// The distinctive words that identify WHAT a final document is for — used to tie a
+// precursor to it ("Business Licence" → business, licence; "TIN Certificate" → tin).
+function distinctiveTokens(docType: string | null, title: string | null): string[] {
+  const words = `${docType ?? ""} ${title ?? ""}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const out = new Set<string>();
+  for (const w of words) {
+    if (TOKEN_STOP.has(w)) continue;
+    if (w.length >= 4 || TOKEN_SHORT_OK.has(w)) out.add(w);
+  }
+  return [...out];
+}
+
+/**
+ * When a later-stage document is filed, retire the EARLIER-stage paperwork it
+ * makes obsolete (same owner, older, and clearly the same subject) to Trash —
+ * restorable, logged, never deleted. Conservative by design: fires only for a
+ * receipt or an issued document, and only retires a precursor that either shares
+ * the same reference/control number OR is named for this document's own subject.
+ * Best-effort — never throws, never blocks filing.
+ */
+async function retirePrecursorDocuments(docId: number): Promise<number> {
+  try {
+    const doc = await getDocument(docId);
+    if (!doc || doc.intakeState !== "filed") return 0;
+    if (!doc.companyId && !doc.personId) return 0;
+    const incRank = stageRankOf(doc.category, doc.docType, doc.title);
+    if (incRank < 3) return 0; // only a receipt or the real certificate retires precursors
+    const incRef = normRef(doc.referenceNo);
+    const incDate = (doc.expiryDate ? doc.expiryDate.toISOString() : doc.issueDate ? doc.issueDate.toISOString() : "").slice(0, 10);
+    const tokens = distinctiveTokens(doc.docType, doc.title);
+
+    let q = supa.from("documents")
+      .select("id,title,doc_type,category,reference_no,notes,issue_date,expiry_date")
+      .eq("intake_state", "filed").eq("archived", false).neq("id", docId);
+    if (doc.personId) q = q.eq("person_id", doc.personId);
+    else q = q.eq("company_id", doc.companyId as number);
+    const { data } = await q;
+    const rows = (data ?? []) as Array<{ id: number; title: string | null; doc_type: string | null; category: string | null; reference_no: string | null; notes: string | null; issue_date: string | null; expiry_date: string | null }>;
+
+    let retired = 0;
+    let primarySupersede: number | null = null;
+    for (const r of rows) {
+      if (retired >= 8) break; // bound the blast radius of any bad match
+      const rRank = stageRankOf(r.category, r.doc_type, r.title);
+      if (rRank === 0 || rRank >= incRank) continue; // only EARLIER-stage precursors
+      const rDate = (r.expiry_date || r.issue_date || "").slice(0, 10);
+      if (rDate && incDate && rDate > incDate) continue; // a precursor can't post-date the outcome
+      const sharedRef = incRef.length >= 5 && normRef(r.reference_no) === incRef;
+      const rText = ` ${[r.doc_type, r.title, r.notes].filter(Boolean).join(" ").toLowerCase()} `;
+      const tokenMatch = tokens.some((t) => rText.includes(t));
+      if (!sharedRef && !tokenMatch) continue;
+      await setDocumentIntakeState(r.id, "trash", `Superseded by #${docId} ${doc.title ?? ""} — the ${RANK_NAME[rRank]} is kept in history`, { markExpired: true });
+      try { await recordEvent("documents.supersede-precursor", "ok", { docId: r.id, supersededBy: docId, stage: RANK_NAME[rRank], via: sharedRef ? "reference" : "subject" }); } catch { /* best-effort */ }
+      if (primarySupersede == null || rRank > 1) primarySupersede = r.id;
+      retired++;
+    }
+    if (retired > 0 && primarySupersede != null && !doc.supersedesId) {
+      try { await updateDocument(docId, { supersedesId: primarySupersede }); } catch { /* best-effort */ }
+    }
+    if (retired > 0) revalidateDocs();
+    return retired;
+  } catch { return 0; }
+}
+
 async function findSameLogicalDoc(
   owner: { companyId: number | null; personId: number | null },
   category: string | null,
@@ -1019,22 +1135,62 @@ export async function confirmSortItemAction(
     }
 
     // 4) File it (quarantine → live) or just vet it (already filed, needed a glance).
-    if (before.intakeState === "quarantine") {
+    //    The state change is the only thing "File" must wait for — the compliance
+    //    reconcile + automation reactions are heavy (graph traversal) and don't
+    //    change what the desk shows, so they run AFTER the response (instant File).
+    const wasQuarantined = before.intakeState === "quarantine";
+    if (wasQuarantined) {
       await setDocumentIntakeState(id, "filed", null);
       await setDocumentVetted(id, true);
-      await reconcileOwnerCompliance(personId, companyId);
-      await fireDocumentReactions(id);
     } else {
       await setDocumentVetted(id, true);
       await updateDocument(id, { reviewStatus: "ok" });
-      await reconcileOwnerCompliance(personId, companyId);
     }
     revalidateDocs();
-    revalidatePath("/inbox");
+    after(async () => {
+      try {
+        await reconcileOwnerCompliance(personId, companyId);
+        if (wasQuarantined) {
+          await fireDocumentReactions(id);
+          // Filing a receipt or the real certificate retires the earlier
+          // paperwork it supersedes (control number / application / receipt).
+          await retirePrecursorDocuments(id);
+        }
+      } catch { /* best-effort side-effects — never block or fail the confirm */ }
+    });
     return { ok: true, title: edit.title ?? before.title };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not confirm the document." };
   }
+}
+
+/**
+ * Auto Sort — file every "Ready to confirm" item at once, using the owner/category/
+ * expiry the intake already guessed (so the owner can skip confirming one-by-one).
+ * Only the "place" group (a clear guessed owner) is filed; shaky/no-owner items are
+ * deliberately left for a human glance. Each uses the same confirm path (learning +
+ * supersession side-effects run after).
+ */
+export async function autoSortReadyAction(): Promise<{ ok: boolean; filed: number; error?: string }> {
+  try {
+    const { getSortingDeskItems } = await import("@/lib/sorting-desk");
+    const items = await getSortingDeskItems();
+    const ready = items.filter((i) => i.group === "place" && (i.companyId || i.personId));
+    let filed = 0;
+    for (const it of ready) {
+      const res = await confirmSortItemAction(it.id);
+      if (res.ok) filed++;
+    }
+    revalidateDocs();
+    return { ok: true, filed };
+  } catch (e) {
+    return { ok: false, filed: 0, error: e instanceof Error ? e.message : "Couldn't auto-sort." };
+  }
+}
+
+/** Fetch one document for the inline editor (Fix details opens it in place, off Library). */
+export async function getDocumentRowAction(id: number): Promise<DocumentRow | null> {
+  try { return await getDocument(id); } catch { return null; }
 }
 
 /**
@@ -1272,7 +1428,6 @@ export async function restoreFromTrashAction(id: number): Promise<{ ok: boolean 
   if (cleaned !== t) { try { await supa.from("documents").update({ title: cleaned }).eq("id", id); } catch { /* best-effort */ } }
   await setDocumentIntakeState(id, "quarantine", "Restored from Trash — re-check and confirm");
   revalidateDocs();
-  revalidatePath("/inbox");
   return { ok: true };
 }
 
@@ -1280,7 +1435,6 @@ export async function restoreFromTrashAction(id: number): Promise<{ ok: boolean 
 export async function deleteIntakeForeverAction(id: number): Promise<{ ok: boolean }> {
   await deleteDocumentForever(id);
   revalidateDocs();
-  revalidatePath("/inbox");
   return { ok: true };
 }
 
@@ -1292,7 +1446,6 @@ export async function emptyTrashAction(): Promise<{ ok: boolean; removed: number
     try { await deleteDocumentForever(r.id); removed++; } catch { /* skip one bad row */ }
   }
   revalidateDocs();
-  revalidatePath("/inbox");
   return { ok: true, removed };
 }
 
@@ -3079,6 +3232,46 @@ function coerceFields(
 // reject would needlessly drop the good fields alongside one bad date.
 const EXTRACT_SHAPE: ShapeSpec = { optional: { confidence: "number" } };
 
+// Per-document-type "reading templates" — once the model has identified the type,
+// this tells it EXACTLY which fields carry the value for that type, so it captures
+// the right identifier as referenceNo and the type-specific details into notes /
+// personProfile / companyProfile / facts instead of a generic read. Tanzania-aware.
+// One compact line per type; the model consults the line that matches what it sees.
+const DOC_TYPE_FIELD_GUIDE = `ONCE YOU KNOW THE TYPE, capture ITS key fields (put the main identifier in referenceNo; the rest into notes, or personProfile/companyProfile/facts where they fit):
+IDENTITY & IMMIGRATION (person):
+- Passport → referenceNo = passport number; capture surname + given names, nationality, date of birth, sex, place of birth, date of issue, date of expiry (expiry), issuing country/authority.
+- National ID (NIDA) → referenceNo = NIN (format like 19880402-11102-00001-28); full name, DOB, sex, nationality. No expiry.
+- Work Permit / Residence Permit → referenceNo = permit number; class (A/B/C for work), holder name, nationality, employer, occupation, date of issue, expiry, authority (Immigration/Labour). Expires.
+- Visa → referenceNo = visa number; type (business/tourist/transit), holder, entries (single/multiple), issue date, expiry, issuing mission. Expires.
+- Driving Licence → referenceNo = licence number; class, holder, DOB, issue date, expiry. Expires.
+TAX (usually company; TIN can be person):
+- TIN Certificate → referenceNo = TIN (9 digits, e.g. 123-456-789); registered taxpayer name, registration date, TRA region/office. NO expiry.
+- VRN / VAT Certificate → referenceNo = VRN; registered name, effective date, TRA. NO expiry.
+- Tax Clearance Certificate → referenceNo = certificate number; taxpayer name, TIN, period/year covered, issue date, expiry (valid until). Expires.
+- Control Number / Assessment / Demand Note → referenceNo = control number; amount due, tax type, due date, TRA. This is a PAYMENT INSTRUCTION, not a certificate. No expiry.
+- Tax Invoice / EFD Receipt → receipt/invoice number, seller, buyer, VAT amount, total, date. facts if useful.
+LEGAL & REGISTRATION (company):
+- Certificate of Incorporation → referenceNo = registration/incorporation number; company legal name, incorporation date, BRELA. NO expiry.
+- Business Licence → referenceNo = licence number; business name, activity/class, issuing local authority/council, period/year, issue date, expiry. Expires (usually annual).
+- BRELA Annual Return → return year, company name, registration number, filing date.
+- MEMART → company legal name, registration number, authorised & issued share capital, principal objects. facts: Authorised Capital / Issued Shares.
+- Beneficial Ownership (UBO) → each owner's name + %, the company. facts: Shareholding.
+COMPLIANCE PERMITS (company):
+- OSHA / Fire / CRB / Sector (TFDA/TBS) → referenceNo = certificate/registration number; premises or company, class/product where relevant, issue date, expiry. Expires.
+HR & STATUTORY:
+- NSSF / WCF / PAYE-SDL Registration → referenceNo = the scheme number; employer name. No expiry.
+- Employment Contract (person) → employee name, job title, employer, start date, probation end, contract end if fixed-term, signatures. facts: Salary, Contract End; personProfile: role, startDate, probationEndDate.
+- Academic / Professional Certificate (person) → award (degree/diploma/level), institution, holder name, year, classification/grade.
+BANKING & FINANCE:
+- Bank Details → referenceNo = account number; bank name, account name, branch, SWIFT/sort. facts: Bank Account.
+- Insurance Policy → referenceNo = policy number; insurer, insured, cover type, sum insured, period from–to (expiry). Expires.
+- Transaction / Payment Receipt → receipt number, payer, payee, amount, date, and ANY control/reference number it pays against (put that in notes — it links the receipt to its control number).
+CONTRACTS & PROPERTY (company):
+- Lease Agreement → landlord, tenant, premises/plot, rent, term from–to (expiry), notice period, deposit. facts: Contract End.
+- Service / Commercial Contract → the parties, scope, value, start–end (expiry), notice/termination. facts: Contract End.
+OPERATIONS:
+- Letter / Notice → sender, recipient, subject, date, any reference number.`;
+
 function extractPrompt(companies: Entity[], people: Entity[]): string {
   // RAG context: rich, identifier-laden lines so the model can resolve the owner
   // and relations from sparse documents (a TIN, an email domain, a short name).
@@ -3101,6 +3294,16 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 
 IF THIS IS NOT A RECOGNISABLE DOCUMENT (e.g. a photo of an object, a screen, a person, or anything without readable document content): set category to "Other", title to a short PLAIN description of what the image actually shows (e.g. "Photo of a cardboard box", "Laptop screen photo"), confidence to 0.2 or below, and DO NOT invent a docType, issuer, referenceNo or any other document field — omit them entirely rather than guessing a category like "Tax Certificate" that isn't actually shown. Only fill in document fields (docType, issuer, referenceNo, expiryDate, etc.) when you can genuinely see them.
 
+IDENTIFY THE TRUE TYPE — do not confuse a document with the paperwork AROUND it. Read the whole page and decide what it ACTUALLY is, from its title/letterhead/wording, not from a number it happens to mention:
+- A RECEIPT or INVOICE paid to OBTAIN something (e.g. a TIN application fee, a permit fee, a licence renewal payment) is a "Payment Receipt" or "Invoice" — it is NOT the certificate/permit/licence itself, even though it names one. Name it as the receipt/invoice (docType "Payment Receipt"/"Invoice", category "Banking").
+- A CONTROL NUMBER, assessment, demand note, or "bill" (a reference you pay money against — often labelled "Control No", "Namba ya Kumbukumbu", "Assessment", "Demand Note") is NOT a licence, certificate or permit. It is a payment instruction. Use docType "Control Number" / "Assessment" (category "Tax" or "Banking"); set expiryKind "no".
+- An APPLICATION or acknowledgement (a form you submitted, an "application received" slip) is NOT the issued certificate. Only the ISSUED, signed/sealed certificate/licence/permit with a serial or registration number is the real thing.
+- So: distinguish the real TIN CERTIFICATE (issued by TRA, shows the TIN and "Certificate") from an invoice or control number that merely quotes a TIN; distinguish a real BUSINESS LICENCE (issued by the local authority/BRELA, shows a licence number and validity) from the application fee receipt for it; distinguish an issued PERMIT from the fee paid to apply for it.
+
+TANZANIAN DOCUMENTS — you will often see these; know them so you name them correctly: TRA issues TIN certificates, VRN/VAT certificates, tax clearance certificates, and control numbers/assessments (payment references). BRELA issues certificates of incorporation, business names, and annual returns. Local authorities issue business licences. NIDA issues the National ID (NIDA number). Immigration issues passports, residence permits, work permits (Class A/B/C), and visas — each with its own validity. OSHA, Fire, and sector regulators issue compliance certificates and permits. NSSF/WCF/PAYE/SDL are statutory contributions. Government papers carry official stamps, seals, coats of arms and signatures — their presence supports "issued certificate"; their absence on a plain printout supports "receipt/application/control number".
+
+${DOC_TYPE_FIELD_GUIDE}
+
 Extract the key details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
 - title: a short human label for the document
 - category: one of [${DOC_CATEGORIES.join(", ")}]
@@ -3112,6 +3315,7 @@ Extract the key details and return ONLY a JSON object with these optional keys (
 - expiryKind: "yes" if this TYPE of document genuinely expires and should be renewed (permit, visa, passport, licence, insurance policy, lease, registration, warranty, certificate with a validity period, contract with an end date); "no" if this type does NOT expire by its nature (CV/résumé, invoice, receipt, payslip, bank statement, meeting minutes, analytical/valuation/inspection report, letter, memo, transcript, incorporation/birth/marriage certificate, title deed, academic certificate). Decide from the document TYPE, not whether you happened to find a date. Always include this.
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
+  OWNER IS ONE OR THE OTHER, NOT BOTH. A document belongs to a single owner. Personal papers (passport, national ID, CV, academic/employment certificate, work/residence permit, individual contract) belong to the PERSON — return "person" and OMIT "company" (naming the employer as context is fine in notes, but the owner is the person). Business papers (incorporation, business licence, TIN/VRN, tax, company bank/insurance/lease) belong to the COMPANY — return "company" and OMIT "person" even if a director or signatory is named. Only fill the one that truly owns the document.
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
 - lineItems: ONLY for an invoice, receipt, quotation, bank/account statement or any document with an itemised table — a short plain-text summary of the key rows/totals (e.g. "3× Widget @ 10,000 = 30,000; Subtotal 30,000; VAT 5,400; Total 35,400" or "Opening 1,200,000; Closing 980,500; 14 transactions"). Capture the figures that matter for searching/auditing, not every row. Omit entirely for documents with no itemised table.
 - personProfile: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "personProfile" object for company-only documents. (Note: "person" above is just the matched name; "personProfile" is the detail object — keep them separate.)
@@ -3120,7 +3324,9 @@ Extract the key details and return ONLY a JSON object with these optional keys (
 - is_photo_placeholder: true ONLY if this file is clearly a phone photo or screenshot standing in for an official document that should be a clean scan/PDF (e.g. a photo of a paper licence, a screenshot of a bank letter). Set false for documents that are legitimately images (logos, stamps, headshots, product labels, signatures, certificates).
 - confidence: a number from 0 to 1 for how confident you are that you read this document correctly (1 = crystal-clear scan you are sure about, 0.3 = a blurry/partial/ambiguous page you mostly guessed). Always include this.
 - parts: ONLY if this file is clearly a COMPILATION of SEVERAL DISTINCT documents bundled together (e.g. a new recruit's scan containing a passport AND a CV AND a contract, or several different certificates scanned in one go), return an array describing each distinct document: [{ title, category (from the list above), docType, issuer, referenceNo, issueDate, expiryDate, expiryKind ("yes"/"no"), person (matched name), company (matched name), pageRange (the pages it spans, e.g. "1" or "2-3") }]. Judge by content, NOT page count — a single multi-page contract is ONE document, so OMIT "parts" for it. Only include "parts" when there are genuinely two or more different documents in the one file. When you DO return parts, still fill the top-level fields for the FIRST/primary document.
-Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.
+Resolve relative or worded dates to YYYY-MM-DD. British English.
+
+GROUND EVERYTHING IN WHAT YOU CAN ACTUALLY READ — do not hallucinate. Every value you return (type, issuer, number, dates, owner, facts) must be visibly present in this document or be an unambiguous match to the KNOWN RECORDS below. Never invent a reference number, an expiry date, an issuer or an owner to make the document look complete. If a field is not on the page, OMIT it. If the page is unclear, lower "confidence" rather than guessing — a low-confidence honest read is sent for human review; a confident wrong read is not.
 
 KNOWN RECORDS — match "company"/"person" to one of these (a document may name only a TIN, an email domain, a short name or a person; use any of these to identify the right owner). Do NOT invent an owner that isn't listed.
 COMPANIES:
@@ -3266,22 +3472,34 @@ async function extractFromPageImages(
   apiKey: string | undefined,
   reread?: RereadOpts,
 ): Promise<ExtractResult> {
-  // (1) Vision fields — most accurate while the model lives.
-  const vision = apiKey
-    ? await groqVision(images, extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0)
-    : null;
-  const visionOk = Boolean(vision?.ok && vision?.data);
-
-  // (2) Layered transcript (page-capped): a supplement when vision read the
-  // fields, the primary read when it didn't.
-  const cap = visionOk ? INLINE_OCR_PAGES : FALLBACK_CLASSIFY_OCR_PAGES;
-  const parts: string[] = [];
-  for (const img of images.slice(0, cap)) {
-    const txt = await transcribePageLayered(img, apiKey);
-    if (txt) parts.push(txt);
-  }
-  if (!apiKey) {
-    // Release the shared Tesseract worker after a no-AI read (mirrors ocrDocumentText).
+  // Vision reads the FIELDS (most accurate); the layered OCR transcript is a
+  // supplement when vision succeeds (search text + ID-first owner backfill) and the
+  // PRIMARY read when it doesn't. The two don't depend on each other, so with AI on
+  // we run vision AND the inline OCR pages CONCURRENTLY (order preserved) instead of
+  // back-to-back — the total wait becomes the slower of the two, not their sum. If
+  // vision fails, OCR becomes primary and we top up to the deeper fallback cap.
+  // With AI off it's the shared Tesseract worker (one CPU worker) → serial.
+  let vision: Awaited<ReturnType<typeof groqVision>> | null = null;
+  let parts: string[] = [];
+  if (apiKey) {
+    const visionP = groqVision(images, extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0);
+    const inlineImages = images.slice(0, INLINE_OCR_PAGES);
+    const inlineOcrP = Promise.all(inlineImages.map((img) => transcribePageLayered(img, apiKey).catch(() => null)));
+    vision = await visionP;
+    const texts = await inlineOcrP;
+    // Vision failed → OCR is now the primary read; go deeper to the fallback cap.
+    if (!(vision?.ok && vision?.data) && images.length > INLINE_OCR_PAGES) {
+      const extra = images.slice(INLINE_OCR_PAGES, FALLBACK_CLASSIFY_OCR_PAGES);
+      const extraTexts = await Promise.all(extra.map((img) => transcribePageLayered(img, apiKey).catch(() => null)));
+      texts.push(...extraTexts);
+    }
+    parts = texts.filter((t): t is string => !!t);
+  } else {
+    // AI off: no vision, serial Tesseract OCR to the fallback cap, then free the worker.
+    for (const img of images.slice(0, FALLBACK_CLASSIFY_OCR_PAGES)) {
+      const txt = await transcribePageLayered(img, apiKey);
+      if (txt) parts.push(txt);
+    }
     try { const { disposeOcr } = await import("@/lib/ocr-engines"); await disposeOcr(); } catch { /* best-effort */ }
   }
   // Join pages with a form-feed so the passage layer can label each "Page N"

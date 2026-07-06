@@ -3,7 +3,7 @@
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import {
-  X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
+  X, Mail, Phone, MessageCircle, MessagesSquare, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
   LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
@@ -193,6 +193,15 @@ function documentTone(status: string): "default" | "success" | "warn" | "danger"
   return "default";
 }
 
+/** Soft state-tint for a vitals tile, keyed by its text-tone class (HealthTile grammar). */
+function vitalTint(tone: string): string {
+  if (tone.includes("danger")) return "bg-danger-soft/40 ring-danger/25 hover:ring-danger/40";
+  if (tone.includes("warn")) return "bg-warn-soft/40 ring-warn/25 hover:ring-warn/40";
+  if (tone.includes("success")) return "bg-success-soft/40 ring-success/25 hover:ring-success/40";
+  if (tone.includes("info")) return "bg-info-soft/40 ring-info/25 hover:ring-info/40";
+  return "bg-bg-elev ring-border/70 hover:ring-accent/30";
+}
+
 function whatsappHref(num: string) {
   // strip non-digits then prefix wa.me
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
@@ -305,7 +314,6 @@ export function PersonDrawer() {
   // lifecycle-relevant one (onboarding while active, offboarding once archived)
   // but you can switch to view/prepare the other regardless of active state.
   const [journeyKind, setJourneyKind] = useState<"onboarding" | "offboarding">("onboarding");
-  const [packOpen, setPackOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
   const [actionPending, setActionPending] = useState(false);
@@ -355,7 +363,7 @@ export function PersonDrawer() {
   }, [idStr, refreshKey]);
 
   // Reset to view mode + Overview whenever a new person opens
-  useEffect(() => { setMode("view"); setActiveTab("snapshot"); setBackTo("snapshot"); setRemindInfo(null); setPackOpen(openPack); setNewTask(false); setAddDoc(null); }, [idStr, openPack]);
+  useEffect(() => { setMode("view"); setActiveTab(openPack ? "pack" : "snapshot"); setBackTo("snapshot"); setRemindInfo(null); setNewTask(false); setAddDoc(null); }, [idStr, openPack]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
   // Open a deep view, remembering where to return ("snapshot" by default, "more"
@@ -495,8 +503,13 @@ export function PersonDrawer() {
   // ── Hero ────────────────────────────────────────────────────────────
   const heroNode = person ? (
     <div className="flex items-start gap-3.5 pr-8">
-      <span className={cn("h-12 w-12 shrink-0 inline-flex items-center justify-center rounded-2xl text-base font-semibold ring-1", avatarTone)}>
-        {initials(person.name)}
+      <span className="relative shrink-0">
+        <span className={cn("h-12 w-12 inline-flex items-center justify-center rounded-2xl text-base font-semibold ring-1", avatarTone)}>
+          {initials(person.name)}
+        </span>
+        {onLeaveNow && (
+          <span title="On approved leave today" className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full bg-warn ring-2 ring-bg-elev" />
+        )}
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2">
@@ -590,7 +603,7 @@ export function PersonDrawer() {
       {/* Vitals strip — replaces the old compliance card + 4 tiles */}
       <div className="grid grid-cols-4 gap-2">
         {vitals.map((v) => (
-          <button key={v.key} type="button" onClick={v.onClick} className="rounded-xl bg-bg-elev ring-1 ring-border/70 px-2 py-2.5 text-center hover:ring-accent/30 transition-all">
+          <button key={v.key} type="button" onClick={v.onClick} className={cn("rounded-xl ring-1 px-2 py-2.5 text-center transition-all", vitalTint(v.tone))}>
             <div className={cn("text-lg font-semibold tabular leading-none", v.tone)}>{v.value}</div>
             <div className="mt-1 text-[10px] text-fg-muted leading-tight">{v.label}</div>
           </button>
@@ -627,6 +640,32 @@ export function PersonDrawer() {
           </ul>
         )}
       </div>
+
+      {/* Team — reports fold into the record (D6). Additive: only for managers;
+          each report is a door to their own drawer. */}
+      {data.directReports.length > 0 && (
+        <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+            <Users size={12} /> Team
+            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.directReports.length}</span>
+          </div>
+          <ul className="divide-y divide-border/50">
+            {data.directReports.map((r) => (
+              <li key={r.id}>
+                <button type="button" onClick={() => goToManager(r.id)} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
+                  <span className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent ring-1 ring-accent/25">{initials(r.name)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium truncate">{r.name}</span>
+                    <span className="block text-[11px] text-fg-subtle truncate">{[r.role, r.companyName].filter(Boolean).join(" · ") || "—"}</span>
+                  </span>
+                  {r.kind === "dotted" && <Badge tone="info" className="shrink-0 normal-case">Also reports</Badge>}
+                  <ExternalLink size={13} className="text-fg-subtle shrink-0" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {person.notes && (
         <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 p-4">
@@ -892,15 +931,17 @@ export function PersonDrawer() {
             <Clock size={12} /> History
             <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events.length}</span>
           </div>
-          <ul className="divide-y divide-border/50">
+          {/* Life spine (D5) — a vertical timeline, newest first, each event a
+              node on the accent rail with its own relative-time eyebrow. */}
+          <ol className="relative ml-5 my-3 mr-4 border-l-2 border-border/70 flex flex-col gap-3.5">
             {data.events.map((e) => (
-              <li key={e.id} className="flex items-start gap-2.5 px-4 py-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
-                <span className="min-w-0 flex-1 text-[12px] leading-snug text-fg-muted break-words">{personEventText(e)}</span>
-                <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">{relTime(e.createdAt)} · {personActor(e.createdBy)}</span>
+              <li key={e.id} className="relative pl-4">
+                <span className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-accent ring-2 ring-bg-elev" />
+                <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{relTime(e.createdAt)} · {personActor(e.createdBy)}</div>
+                <div className="text-[12.5px] leading-snug text-fg-muted break-words">{personEventText(e)}</div>
               </li>
             ))}
-          </ul>
+          </ol>
         </SectionCard>
       ) : (
         <SectionCard><EmptyState icon={<Clock size={20} />} title="No history yet" hint="Changes to this person will appear here." /></SectionCard>
@@ -961,13 +1002,13 @@ export function PersonDrawer() {
 
   const tabs: DrawerTab[] = !(person && data)
     ? []
-    : packOpen
-    ? [{ id: "pack", label: "Pack", content: <PersonPackPanel personId={person.id} personName={person.name} initialPurpose={packPurpose} onBack={() => setPackOpen(false)} /> }]
     : [
-        // Visible: just three doors.
+        // Visible: four doors — Snapshot, Profile, More, Pack.
         { id: "snapshot", label: "Snapshot", icon: <LayoutDashboard size={14} />, content: snapshotContent },
         { id: "profile", label: "Profile", icon: <IdCard size={14} />, content: profileContent },
         { id: "more", label: "More", icon: <ListPlus size={14} />, content: moreContent },
+        { id: "pack", label: "Pack", icon: <PackageCheck size={14} />,
+          content: <PersonPackPanel personId={person.id} personName={person.name} initialPurpose={packPurpose} onBack={() => setActiveTab("snapshot")} /> },
         // Hidden but mounted (so their onSummary feeds the vitals); reached from
         // a vital chip or the More menu.
         { id: "compliance", label: "Compliance", hidden: true,
@@ -995,21 +1036,21 @@ export function PersonDrawer() {
           <button type="button" onClick={() => setRemindInfo(null)} className="shrink-0 text-fg-subtle hover:text-fg" aria-label="Dismiss"><X size={13} /></button>
         </div>
       )}
-      <div className="flex items-center gap-2">
+      {/* Footer wraps to two comfortable rows on a phone (contact cluster · then
+          actions right-aligned), collapses to one row from sm up. Touch targets
+          are larger on mobile (h-11) so the icons are easy to hit. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
         {/* Contact cluster — moved here from the hero to keep the header slim. */}
-        <div className="flex items-center gap-1.5">
-          {person.email && <IconButton icon={<Mail size={15} />} label={person.email} href={`mailto:${person.email}`} />}
-          {person.whatsapp && <IconButton icon={<MessageCircle size={15} />} label={person.whatsapp} href={whatsappHref(person.whatsapp)} external />}
-          {person.phone && <IconButton icon={<Phone size={15} />} label={person.phone} href={`tel:${person.phone}`} />}
-          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />
+        <div className="flex items-center gap-2 sm:gap-1.5">
+          {person.email && <IconButton icon={<Mail size={16} />} label={person.email} href={`mailto:${person.email}`} className="h-11 w-11 sm:h-9 sm:w-9" />}
+          {person.whatsapp && <IconButton icon={<MessageCircle size={16} />} label={`WhatsApp ${person.whatsapp}`} href={whatsappHref(person.whatsapp)} external className="h-11 w-11 sm:h-9 sm:w-9" />}
+          {person.phone && <IconButton icon={<Phone size={16} />} label={person.phone} href={`tel:${person.phone}`} className="h-11 w-11 sm:h-9 sm:w-9" />}
+          <IconButton icon={<MessagesSquare size={16} />} label="Message in chat" href={`/chat?dm=${person.id}`} className="h-11 w-11 sm:h-9 sm:w-9" />
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
-          <IconButton icon={<ListPlus size={15} />} label="New task" onClick={() => setNewTask(true)} />
-          <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
-          <Button type="button" size="sm" onClick={() => setPackOpen(true)}>
-            <PackageCheck size={13} /> Pack
-          </Button>
+        <div className="ml-auto flex items-center gap-2 sm:gap-1.5">
+          {hasOpenTasks && <IconButton icon={<Send size={16} />} label="Remind about open work" onClick={handleRemind} tone="accent" className="h-11 w-11 sm:h-9 sm:w-9" />}
+          <IconButton icon={<ListPlus size={16} />} label="New task" onClick={() => setNewTask(true)} className="h-11 w-11 sm:h-9 sm:w-9" />
+          <IconButton icon={<FileText size={16} />} label="Add document" onClick={() => setAddDoc({ category: null })} className="h-11 w-11 sm:h-9 sm:w-9" />
         </div>
       </div>
     </div>
@@ -1031,7 +1072,7 @@ export function PersonDrawer() {
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
-      actionBar={mode === "view" && !packOpen ? actionBar : undefined}
+      actionBar={mode === "view" && activeTab !== "pack" ? actionBar : undefined}
     />
 
     {/* In-place "Add document" — layered above the person, so the flow stays

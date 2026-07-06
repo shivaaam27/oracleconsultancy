@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type, UserPlus, RefreshCw } from "lucide-react";
-import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, retireSupersededDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
+import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, retireSupersededDocumentAction, rescanDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
 import { DocPreview } from "@/components/doc-preview";
 import { RelatedDocuments } from "@/components/related-documents";
 import { ConfidenceBadge } from "@/components/confidence-badge";
@@ -18,7 +18,19 @@ import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
 import { cn } from "@/lib/cn";
 
 type CaptureMode = "upload" | "link" | "text";
-type OwnerMode = "company" | "person" | "both";
+type OwnerMode = "company" | "person";
+
+// A document belongs to EITHER a company OR a person — never both. When a read
+// returns both an individual and a business, this decides the true owner from the
+// document's own nature: personal papers (passport, ID, permit, HR) belong to the
+// person; everything else (tax, licences, registration…) to the company.
+const PERSONAL_CATEGORIES = new Set(["Immigration", "Passport", "HR"]);
+function ownerModeFor(category: string | null | undefined, hasCompany: boolean, hasPerson: boolean): OwnerMode {
+  if (hasPerson && !hasCompany) return "person";
+  if (hasCompany && !hasPerson) return "company";
+  if (hasPerson && hasCompany) return PERSONAL_CATEGORIES.has(category ?? "") ? "person" : "company";
+  return "company";
+}
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -74,7 +86,7 @@ export function DocumentForm({
   const [error, setError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
   const [ownerMode, setOwnerMode] = useState<OwnerMode>(
-    doc?.companyId && doc?.personId ? "both" : doc?.personId || initialPersonId ? "person" : "company"
+    doc?.personId || initialPersonId ? "person" : "company"
   );
   const [category, setCategory] = useState(doc?.category ?? initialCategory ?? "");
   const formRef = useRef<HTMLFormElement>(null);
@@ -272,11 +284,10 @@ export function DocumentForm({
         setCategory(f.category);
         if (!leadTouched && DEFAULT_LEAD_DAYS[f.category]) setLead(String(DEFAULT_LEAD_DAYS[f.category]));
       }
-      // Reflect the detected owner in the segmented control so the right
-      // field(s) are visible (company / person / both).
-      if (f.companyId && f.personId) setOwnerMode("both");
-      else if (f.personId) setOwnerMode("person");
-      else if (f.companyId) setOwnerMode("company");
+      // Reflect the detected owner in the segmented control so the right field
+      // is visible. One owner only — if a read names both a person and a company,
+      // the document's category decides which it truly belongs to.
+      setOwnerMode(ownerModeFor(f.category ?? category, !!f.companyId, !!f.personId));
       // Overflow → Notes: append anything that didn't map to a labelled field,
       // without overwriting what's already there or duplicating it.
       if (f.notes) {
@@ -381,6 +392,36 @@ export function DocumentForm({
     }
   }
 
+  // Re-scan: re-run the AI read on the STORED file and fill the fields for review
+  // (the "Scan" button on an existing document — reverify a shaky/old read).
+  async function runScan() {
+    if (!doc?.id) return;
+    setExtracting(true);
+    setExtractNote(null);
+    try {
+      const res = await rescanDocumentAction(doc.id, true);
+      if (!res.ok) { setExtractNote(res.error ?? "Couldn't re-read that file."); return; }
+      const p = res.patch;
+      const form = formRef.current;
+      const set = (name: string, v: string) => { const el = form?.elements.namedItem(name) as HTMLInputElement | null; if (el) el.value = v; };
+      if (typeof p.docType === "string") set("docType", p.docType);
+      if (typeof p.issuer === "string") set("issuer", p.issuer);
+      if (typeof p.referenceNo === "string") set("referenceNo", p.referenceNo);
+      if (typeof p.issueDate === "string") set("issueDate", p.issueDate);
+      if ("expiryDate" in p) set("expiryDate", typeof p.expiryDate === "string" ? p.expiryDate : "");
+      if (typeof p.title === "string" && p.title) set("title", p.title);
+      if (typeof p.category === "string") setCategory(p.category);
+      const hasCo = typeof p.companyId === "number";
+      const hasPe = typeof p.personId === "number";
+      if (hasCo) set("companyId", String(p.companyId));
+      if (hasPe) set("personId", String(p.personId));
+      if (hasCo || hasPe) setOwnerMode(ownerModeFor(typeof p.category === "string" ? p.category : category, hasCo, hasPe));
+      setExtractNote(res.changes.length ? `Re-read — ${res.changes.length} field${res.changes.length === 1 ? "" : "s"} updated. Review and save.` : "Re-read — nothing changed.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
   // When filing an Inbox item, run extraction automatically once.
   useEffect(() => {
     if (initialExtractText && !autoRan.current) {
@@ -418,7 +459,7 @@ export function DocumentForm({
         setLocalPeople((prev) => [...prev, { id: res.id!, name }].sort((a, b) => a.name.localeCompare(b.name)));
         const el = formRef.current?.elements.namedItem("personId") as HTMLSelectElement | null;
         if (el) el.value = String(res.id);
-        setOwnerMode((m) => (m === "company" ? "both" : m === "person" ? "person" : m));
+        setOwnerMode("person");
         setCreatingPerson(false);
         setNewPersonName("");
         setNewPersonType("local_staff");
@@ -501,6 +542,12 @@ export function DocumentForm({
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-accent hover:opacity-80 shrink-0">Replace</button>
                 <button type="button" onClick={() => setRemoveExisting(true)} className="text-fg-muted hover:text-danger shrink-0" title="Remove file"><X size={14} /></button>
               </div>
+              {/* Reverify — re-run the AI read on the stored file and fill the fields. */}
+              <button type="button" onClick={runScan} disabled={extracting}
+                className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/5 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-50">
+                {extracting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {extracting ? "Reading…" : "Scan — reverify with AI"}
+              </button>
             </div>
           ) : (
             <button type="button" onClick={() => { setRemoveExisting(false); fileInputRef.current?.click(); }}
@@ -577,7 +624,6 @@ export function DocumentForm({
             options={[
               { value: "company", label: "Company" },
               { value: "person", label: "Person" },
-              { value: "both", label: "Company + Person" },
             ]} />
         </div>
 

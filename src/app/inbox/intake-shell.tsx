@@ -166,20 +166,26 @@ function EmptyBucket({ icon: Icon, title, sub }: { icon: typeof InboxIcon; title
 export function TrashList({ items }: { items: IntakeBucketItem[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
+  const [removed, setRemoved] = useState<Set<number>>(new Set());
   const [pending, start] = useTransition();
   const [emptying, startEmpty] = useTransition();
 
+  // Optimistic: hide the card the instant you tap, then reconcile in the
+  // background — restore/delete feel immediate instead of waiting on a re-fetch.
   function act(id: number, fn: () => Promise<unknown>) {
     setBusy(id);
+    setRemoved((p) => new Set(p).add(id));
     start(async () => { await fn(); router.refresh(); setBusy(null); });
   }
 
   function emptyAll() {
-    if (!window.confirm(`Permanently delete all ${items.length} item${items.length === 1 ? "" : "s"} in Trash? This can't be undone.`)) return;
+    if (!window.confirm(`Permanently delete all ${visible.length} item${visible.length === 1 ? "" : "s"} in Trash? This can't be undone.`)) return;
+    setRemoved(new Set(items.map((i) => i.id)));
     startEmpty(async () => { await emptyTrashAction(); router.refresh(); });
   }
 
-  if (items.length === 0)
+  const visible = items.filter((i) => !removed.has(i.id));
+  if (visible.length === 0)
     return <EmptyBucket icon={Trash2} title="Trash is empty." sub="Exact duplicates and photos replaced by a PDF land here. Nothing is ever deleted automatically." />;
 
   return (
@@ -195,7 +201,7 @@ export function TrashList({ items }: { items: IntakeBucketItem[] }) {
           {emptying ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Empty Trash
         </button>
       </div>
-      {items.map((it) => {
+      {visible.map((it) => {
         const isBusy = pending && busy === it.id;
         return (
           <div key={it.id} className="glass p-3.5 space-y-2 rounded-2xl opacity-90">

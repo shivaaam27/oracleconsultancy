@@ -25,9 +25,12 @@
 
 import { sb } from "@/db/supabase";
 import { expandQuery } from "@/lib/synonyms";
+import { hybridSearch } from "@/lib/embeddings";
 import {
   SEARCHABLE_DEFS,
+  getEntityDef,
   type EntityRow,
+  type EntityType,
   type SearchCustomCtx,
   type ScoredSearchResult,
 } from "@/lib/entity-registry";
@@ -55,6 +58,18 @@ export type SearchResult = {
 };
 
 const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with"]);
+
+// Generic "scope" words a person adds to say WHAT KIND of thing they want, not
+// WHICH one — "terragreen business", "rakesh documents", "dar spices files". They
+// must NOT gate the match (the company "Terra Green Ltd" has no word "business"),
+// so they're demoted to soft boosts: the distinctive words decide the hit, these
+// just nudge ranking. Kept small + clearly-generic so real type words (licence,
+// insurance, passport…) still gate normally.
+const SOFT = new Set([
+  "business", "businesses", "document", "documents", "doc", "docs", "file", "files",
+  "record", "records", "info", "information", "details", "detail", "data", "stuff",
+  "paper", "papers", "paperwork", "thing", "things", "everything",
+]);
 
 // History rows still appear, just below their live equivalents.
 const HISTORY_PENALTY = 18;
@@ -107,12 +122,20 @@ function score(
   if (fields.length === 0) return 0;
   const primary = fields[0];
   const haystack = fields.join(" ");
+  // Separator-collapsed forms so "terragreen" matches "Terra Green" and
+  // "darspices" matches "Dar Spices" — a space/hyphen/underscore in the record
+  // (or the query) never hides a match. Computed once per field.
+  const collapse = (x: string) => x.replace(/[\s\-_/]+/g, "");
+  const fieldsCollapsed = fields.map(collapse);
+  const haystackCollapsed = fieldsCollapsed.join("");
+  const qCollapsed = collapse(q);
   let s = 0;
 
   // Whole-query signals on the primary field (name/title/code).
   if (primary === q) s += 120;
   else if (primary.startsWith(q)) s += 70;
   else if (haystack.includes(q)) s += 40;
+  else if (qCollapsed.length >= 4 && haystackCollapsed.includes(qCollapsed)) s += 44; // space-insensitive whole-query
 
   let matchedTokens = 0;
   for (const t of tokens) {
@@ -124,6 +147,7 @@ function score(
       if (words.some((w) => w === t)) best = Math.max(best, 30 * weight);
       else if (words.some((w) => w.startsWith(t))) best = Math.max(best, 22 * weight);
       else if (f.includes(t)) best = Math.max(best, 14 * weight);
+      else if (t.length >= 4 && fieldsCollapsed[fi].includes(t)) best = Math.max(best, 13 * weight); // "terragreen" in "terragreenltd"
       else if (t.length >= 4 && words.some((w) => w.length >= 4 && within(w, t, 1)))
         best = Math.max(best, 10 * weight); // typo tolerance
     }
@@ -167,12 +191,20 @@ function one<T>(rel: T | T[] | null | undefined): T | null {
 
 export async function unifiedSearch(
   query: string,
-  perTypeLimit = 6,
+  perTypeLimit = 10,
   includeHistory = false,
 ): Promise<SearchResult[]> {
   const q = query.toLowerCase().trim();
-  const tokens = tokenize(q);
-  if (!q || tokens.length === 0) return [];
+  const allTokens = tokenize(q);
+  if (!q || allTokens.length === 0) return [];
+
+  // Distinctive words gate the match; generic scope words ("business", "documents")
+  // only boost — so "terragreen business" still finds the Terra Green company even
+  // though its name never says "business". If the WHOLE query is generic, keep them
+  // all (a bare "documents" should still list documents).
+  const gating = allTokens.filter((t) => !SOFT.has(t));
+  const softExtra = allTokens.filter((t) => SOFT.has(t));
+  const tokens = gating.length ? gating : allTokens;
 
   // Synonym-expanded recall tokens — used to WIDEN the ilike net on the
   // free-text tables and to softly boost in-memory scoring. Always include the
@@ -183,7 +215,9 @@ export async function unifiedSearch(
   } catch {
     expanded = [];
   }
-  const netTokens = Array.from(new Set([...tokens, ...expanded]));
+  // The fetch net stays WIDE (all literal words + synonyms) so a row that only
+  // mentions a soft word in a secondary field is still pulled in to be scored.
+  const netTokens = Array.from(new Set([...allTokens, ...expanded]));
 
   // Build the supabase query for one per-row searchable def, applying exactly the
   // select/ilike-net/current-filter/order/limit the hand-written block used.
@@ -206,7 +240,7 @@ export async function unifiedSearch(
   // The scorer + the read context handed to each def. `score` here closes over
   // this query's tokens, so a def's `toResult` parts and `searchCustom` self-score
   // are ranked identically to the inline blocks they replaced.
-  const scoreParts = (parts: (string | null | undefined)[]) => score(parts, q, tokens, expanded);
+  const scoreParts = (parts: (string | null | undefined)[]) => score(parts, q, tokens, [...expanded, ...softExtra]);
   const ctx: SearchCustomCtx = { q, tokens, includeHistory, score: scoreParts, one };
 
   // One collected result set per def. `custom` = the governance escape-hatch
@@ -280,9 +314,11 @@ export async function unifiedSearch(
   // only in a scanned PDF now surfaces that document with the matching excerpt.
   // Merge: boost + snippet an existing hit, or add one the column-net missed.
   try {
-    // Stopword-cleaned terms so the OR-based FTS isn't flooded by common words.
-    const ftsTerms = tokens.filter((t) => !STOP.has(t));
-    const { data: fts } = await sb.rpc("search_documents", { p_query: (ftsTerms.length ? ftsTerms : tokens).join(" "), p_limit: perTypeLimit });
+    // Search the body for ALL the words (incl. soft ones like "business") so a
+    // phrase that lives only inside a scanned PDF still surfaces. Pull a wider set
+    // than the per-type cap so ranking can pick the best, then the cap trims.
+    const ftsTerms = allTokens.filter((t) => !STOP.has(t));
+    const { data: fts } = await sb.rpc("search_documents", { p_query: (ftsTerms.length ? ftsTerms : allTokens).join(" "), p_limit: Math.max(perTypeLimit * 2, 20) });
     const ftsRows = (fts ?? []) as Array<Record<string, unknown>>;
     // Resolve owner names so every result shows WHOSE document it is (a bare
     // "Passport" tells you nothing; "Mr Rakesh Raja · «…AL562003…»" does).
@@ -329,6 +365,45 @@ export async function unifiedSearch(
     console.error("Document FTS augmentation error:", e);
   }
 
+  // SEMANTIC augmentation — meaning-based recall (embeddings/hybrid_search), so the
+  // NATIVE list is as smart at FINDING as the AI answer is. Keyword + FTS above match
+  // WORDS; this matches MEANING, so "terragreen business" surfaces the Terra Green
+  // company, "who handles our permits" surfaces the immigration docs, etc. Best-effort
+  // + no-ops when semantic search is off. Merges: boost an existing hit, or add the
+  // ones the word-nets missed (scored by similarity, bypassing the every-word gate).
+  try {
+    const hits = await hybridSearch(query, { limit: 24, lifecycle: includeHistory ? "all" : "active" });
+    // Group by type (skip tasks — the palette lists those from its own search).
+    const byType = new Map<EntityType, Map<number, number>>();
+    for (const h of hits) {
+      if (h.sourceType === "task") continue;
+      const def = getEntityDef(h.sourceType);
+      if (!def?.search?.toResult) continue;
+      let m = byType.get(h.sourceType);
+      if (!m) { m = new Map(); byType.set(h.sourceType, m); }
+      m.set(h.sourceId, Math.max(m.get(h.sourceId) ?? 0, h.similarity));
+    }
+    await Promise.all([...byType.entries()].map(async ([type, idMap]) => {
+      const def = getEntityDef(type)!;
+      const ids = [...idMap.keys()];
+      if (!ids.length) return;
+      const { data } = await sb.from(def.table).select(def.search!.select).in("id", ids);
+      for (const row of (data ?? []) as unknown as EntityRow[]) {
+        const er = def.search!.toResult(row, ctx);
+        if (!er) continue;
+        const { scoreParts: _p, ...rest } = er;
+        void _p;
+        const rid = (row as { id?: number }).id ?? rest.id;
+        const sim = idMap.get(rid) ?? 0;
+        const existing = out.find((o) => o.type === rest.type && o.id === rest.id);
+        if (existing) existing.score += 12; // it also means what you asked — nudge it up
+        else push(HISTORY({ ...rest, score: 34 + Math.round(sim * 40) } as SearchResult));
+      }
+    }));
+  } catch (e) {
+    console.error("Semantic augmentation error:", e);
+  }
+
   // Rank globally, then keep at most `perTypeLimit` of each type so no single
   // type floods the list, then sort the survivors by score again.
   out.sort((x, y) => y.score - x.score);
@@ -337,5 +412,5 @@ export async function unifiedSearch(
     counts[r.type] = (counts[r.type] ?? 0) + 1;
     return counts[r.type] <= perTypeLimit;
   });
-  return kept.sort((x, y) => y.score - x.score).slice(0, includeHistory ? 40 : 24);
+  return kept.sort((x, y) => y.score - x.score).slice(0, includeHistory ? 80 : 50);
 }

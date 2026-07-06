@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.status !== "Completed" && r.status !== "Closed")
       .sort((a, b) => (b.lastUpdatedAt?.getTime() ?? 0) - (a.lastUpdatedAt?.getTime() ?? 0));
   }
-  const items = rows.slice(0, q ? 8 : 6).map((r) => ({
+  const items = rows.slice(0, q ? 12 : 8).map((r) => ({
     code: r.code,
     label: r.actionItem,
     sub: r.companyName,
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
   if (q) {
     try {
       [results, directAnswer, smartAnswer] = await Promise.all([
-        unifiedSearch(q, 6, includeHistory),
+        unifiedSearch(q, 12, includeHistory),
         resolveDirectAnswer(q).catch(() => null),
         resolveSmartAnswer(q).catch(() => null),
       ]);

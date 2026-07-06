@@ -1,10 +1,10 @@
 import { FileText } from "lucide-react";
-import { PageHeader } from "@/components/ui";
 import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildPersonRequirementScores } from "@/lib/requirements";
+import { getCompanyLogoMap } from "@/lib/company-brand";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -15,19 +15,21 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }] = await Promise.all([
+  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap] = await Promise.all([
     getAllPeopleWithWorkload(),
     buildPersonRequirementScores(),
     sb.from("companies").select("id,name,accent_color").order("name"),
     sb.from("departments").select("name").order("name"),
     sb.from("sites").select("name").eq("active", true).order("name"),
     sb.from("job_titles").select("name").eq("active", true).order("name"),
+    getCompanyLogoMap(),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
     id: c.id as number,
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
+    logoUrl: logoMap.get(c.id as number) ?? null,
   }));
   const departments = (departmentsRaw ?? []).map((d) => d.name as string);
   const sites = (sitesRaw ?? []).map((s) => s.name as string);
@@ -62,29 +64,33 @@ export default async function PeoplePage({
   // For the manager dropdown in the create dialog — derived from already-loaded data
   const peopleList = people.map((p) => ({ id: p.id, name: p.name, active: p.active }));
 
-  const activeCount = people.filter((p) => p.active).length;
-  const overdueLoad = people.filter((p) => p.active && p.workload.overdue > 0).length;
-  const complianceIssues = personScores.filter((score) => score.status !== "Good").length;
   const complianceById: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }> = {};
   for (const s of personScores) complianceById[s.ownerId] = { score: s.score, status: s.status };
+
+  const siteCount = new Set(
+    people.flatMap((p) => [p.workSiteName, p.residenceName].filter(Boolean) as string[])
+  ).size;
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
-      <PageHeader
-        title="People Directory"
-        sub={`${activeCount} active · ${overdueLoad} carrying overdue work · ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`}
-        action={
+      <PeopleTable
+        people={people}
+        companies={companies}
+        complianceById={complianceById}
+        directoryHints={directoryHints}
+        totalCompanies={companies.length}
+        totalSites={siteCount}
+        createSlot={
           <div className="flex items-center gap-2">
             <a href="/people/form" target="_blank" rel="noopener" title="Printable data-collection form for staff with no system access"
-              className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium hover:ring-accent/40 transition">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-bg-elev ring-1 ring-border px-3 py-2 text-xs font-medium hover:ring-accent/40 transition">
               <FileText size={13} /> Blank data form
             </a>
             <NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />
           </div>
         }
       />
-      <PeopleTable people={people} companies={companies} complianceById={complianceById} directoryHints={directoryHints} />
     </div>
   );
 }

@@ -24,7 +24,7 @@ const FILL: Record<KitTone, string> = {
 
 /** A small circular icon action — used for header contact buttons etc. */
 export function IconButton({
-  icon, label, href, onClick, tone = "muted", external,
+  icon, label, href, onClick, tone = "muted", external, className,
 }: {
   icon: ReactNode;
   label: string;
@@ -32,10 +32,13 @@ export function IconButton({
   onClick?: () => void;
   tone?: KitTone;
   external?: boolean;
+  /** Extra classes (merged last) — e.g. a larger touch target on mobile. */
+  className?: string;
 }) {
   const cls = cn(
     "inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-border bg-bg-elev/60 transition-all hover:-translate-y-0.5 hover:ring-accent/40 hover:text-accent",
-    TEXT[tone]
+    TEXT[tone],
+    className
   );
   if (href) {
     return (

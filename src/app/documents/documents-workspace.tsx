@@ -20,6 +20,9 @@ import { DocumentsTable } from "@/components/documents-table";
 import { ToSortPanel } from "@/components/to-sort-panel";
 import { TrashList } from "@/app/inbox/intake-shell";
 import { SystemStatusCard } from "@/components/system-status-card";
+import { DocumentForm } from "@/components/document-form";
+import { HrmsDialog } from "@/components/hrms/hrms-dialog";
+import { getDocumentRowAction } from "@/app/documents/actions";
 
 type Tab = "library" | "sort" | "trash";
 
@@ -67,6 +70,10 @@ export function DocumentsWorkspace({
     return t === "sort" || t === "trash" ? t : "library";
   })();
   const [tab, setTab] = useState<Tab>(initial);
+  // "Fix details" opens the editor IN PLACE (a dialog over the current tab) —
+  // no jump to Library, no second mount. The doc is fetched on demand.
+  const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   // Glance counts.
   const stats = useMemo(() => {
@@ -103,21 +110,26 @@ export function DocumentsWorkspace({
     router.replace(sp.toString() ? `/documents?${sp}` : "/documents", { scroll: false });
   }
 
-  // "Fix details" on a Sorting-Desk card (To Sort tab) → jump to the Library tab and
-  // open that document's editor (DocumentsTable owns the ?doc= edit dialog).
+  // "Fix details" on a Sorting-Desk card → open the editor IN PLACE (a dialog over
+  // the To Sort tab). No tab switch, no ?doc= round-trip — just fetch + open.
   useEffect(() => {
-    function onEdit(e: Event) {
-      const id = (e as CustomEvent<{ id?: number }>).detail?.id;
+    let cancelled = false;
+    async function onEdit(e: Event) {
+      const detail = (e as CustomEvent<{ id?: number; doc?: DocumentRow }>).detail;
+      const id = detail?.id;
       if (!id) return;
-      setTab("library");
-      const sp = new URLSearchParams(Array.from(searchParams.entries()));
-      sp.delete("tab");
-      sp.set("doc", String(id));
-      router.replace(`/documents?${sp}`, { scroll: false });
+      // A Library row hands us the full doc → open instantly. Sort/deep-links pass
+      // only the id (the quarantined doc isn't in the library list) → fetch it.
+      if (detail?.doc) { setEditDoc(detail.doc); return; }
+      setEditLoading(true);
+      const doc = await getDocumentRowAction(id);
+      if (cancelled) return;
+      setEditLoading(false);
+      if (doc) setEditDoc(doc);
     }
     window.addEventListener("cos:edit-document", onEdit);
-    return () => window.removeEventListener("cos:edit-document", onEdit);
-  }, [searchParams, router]);
+    return () => { cancelled = true; window.removeEventListener("cos:edit-document", onEdit); };
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -219,6 +231,30 @@ export function DocumentsWorkspace({
             Nothing is deleted automatically — restore anything, or empty when you&apos;re sure.
           </p>
           <TrashList items={trash} />
+        </div>
+      )}
+
+      {/* ── Inline "Fix details" editor — opens over the current tab ─── */}
+      <HrmsDialog
+        open={!!editDoc}
+        onOpenChange={(o) => { if (!o) setEditDoc(null); }}
+        width={860}
+        title="Fix document details"
+      >
+        {editDoc && (
+          <DocumentForm
+            mode="edit"
+            doc={editDoc}
+            companies={companies.map((c) => ({ id: c.id, name: c.name }))}
+            people={people.map((p) => ({ id: p.id, name: p.name }))}
+            onComplete={(res) => { if (res.ok) { setEditDoc(null); router.refresh(); } }}
+            onCancel={() => setEditDoc(null)}
+          />
+        )}
+      </HrmsDialog>
+      {editLoading && (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-bg/40 backdrop-blur-sm">
+          <div className="glass elevated rounded-xl px-4 py-3 text-sm text-fg-muted">Opening…</div>
         </div>
       )}
     </div>

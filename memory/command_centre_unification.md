@@ -388,6 +388,90 @@ Original mockup spec below:
 2. Then likely: Tasks tab / Companies tab on `/`, `/brief`, `/workbook`, `/meeting`,
    HRMS pages, `/settings`, `/inbox`, `/documents`, `/people`… owner picks order.
 
+## Step 5 — Directory (/people) — BUILT (6 Jul 2026, local, tsc clean, verified live, NOT pushed)
+6 mockups delivered (artifact "cc-directory-mockups"): P1 Company Housings · P2
+People Ledger (density+inline cells) · P3 Team Rooms (manager grouping) · P4
+Attention Queue · P5 Face Wall (presence) · P6 Dossier Split. **Owner chose the
+recommended mix: P1 skeleton + P2 density/inline + P4 Attention mode + P5 presence
+ring + P3 manager grouping as a Group-by option; P6 held.** Built directly (no
+separate final-composition mockup — idea was set).
+- **`src/components/people-table.tsx` REWRITTEN** (kept ALL prior logic: search,
+  scope filters, 8 counting chips, select+bulk bar, long-press peek, snooze/toggle):
+  - **Aurora hero** (replaces old PageHeader+StatStrip): DIRECTORY·live dot, "People",
+    sub "N people · M companies · K sites", **Browse | Attention** seg top-right
+    (mirrors Tasks Focus|Browse), KPI pill (active·portal·compliance%·needs attention).
+  - **Browse mode**: **company housings** (Tasks GroupHousing grammar — CompanyAvatar
+    real logos via new getCompanyLogoMap in page, dot-stats ●overdue ●no-contact ·N
+    people, collapsible, >6 rows scroll-fade cap). Worst-first within group.
+  - **Group-by** FluidSelect: Company (default) · Manager · Department · Location ·
+    None. Manager/Dept use initials-circle header; "No manager set"/"Outsiders &
+    candidates" catch-all housings double as hygiene queues.
+  - **Density Comfortable|Compact** (persisted `cos-people-density`): Comfortable =
+    existing rich PersonCard; **Compact = new `CompactRow`** one-liner with table-grade
+    **inline cells** — manager Combobox (commits via bulkSetPeopleField([id])), portal
+    role tap-cycle staff→manager→director (bulkSetPortalRole([id]); md+/sm+ only),
+    compliance %, workload. Inline single edits reuse the bulk actions with one id
+    (refactored to `applyFieldTo/applyRoleTo(ids,...)`).
+  - **Attention mode** (P4): deterministic worst-first score — no contact ×3 ·
+    compliance Risk ×3/Watch ×1 · probation ending ×2 · overdue ×2/overloaded ×1;
+    big `AttentionCard` with reason pills + Message/Add-contact · Fix documents
+    (→drawer) · Snooze · Skip (session skip set, resettable). Empty state when clean.
+  - **Presence (P5, honest)**: kept PersonCard's amber on-leave-today dot (real data);
+    did NOT fake "present" rings (no per-today attendance flag exists).
+- **`src/app/people/page.tsx`**: dropped PageHeader; loads `getCompanyLogoMap()` →
+  `companies[].logoUrl`; passes `createSlot` (Blank data form + NewPersonButton — the
+  latter is nav-pill-`+` "Add person", per CC no-create-in-hero rule), `totalCompanies`,
+  `totalSites`.
+VERIFIED live (1114px): hero renders, 7 company housings w/ logos, Attention = 29
+scored cards w/ reason pills, Compact = 29 manager combos + 29 role cells, no console
+errors, tsc EXIT 0. NEXT: owner review → push; possible refinements (mobile compact
+cells, manager-group team-health stat in band).
+
+### Directory — person drawer redesign (6 Jul 2026, local, tsc clean, verified live, NOT pushed)
+6 mockups (artifact "cc-person-drawer-mockups"): D1 Snapshot Refined · D2 One Scroll ·
+D3 People-Ops Console · D4 Contact-First · D5 Life Spine · D6 Manager's Team. **Owner
+chose the recommended mix: D1 skeleton + D3 HR depth in deep views + D6 Team housing +
+presence rings + D5 timeline as the History look.** Built directly into
+`src/components/person-drawer.tsx` (surgical, no rewrite — kept ALL: 3 tabs
+Snapshot/Profile/More, 6 hidden deep views, footer action bar, Pack):
+- **Presence ring** on hero avatar — amber on-leave-today dot (HONEST: no per-today
+  attendance flag exists, so no faked green "in" ring; `onLeaveNow` from leave requests).
+- **HealthTile vitals** — the 4 Snapshot doors now soft-tinted by state via new
+  `vitalTint(tone)` (danger/warn/success/info soft bg + ring), not flat boxes.
+- **Team housing** (D6) — in Snapshot, `data.directReports.length > 0` only: report
+  mini-cards (initials avatar, name, role·company, "Also reports" badge for kind=dotted),
+  each `goToManager(id)` → that report's drawer. Additive; hidden for non-managers.
+  (Honest: no per-report health roll-up — that data isn't in the drawer payload.)
+- **History tab → life spine** (D5) — the flat `<ul>` became an `<ol>` accent-rail
+  timeline (node dots + per-event `relTime · actor` eyebrow), newest first.
+VERIFIED live: opened Jitesh Solanki (OC-M01, CFO) — Team housing shows all 7 reports
+w/ Also-reports badges; vitals tinted (25% danger, 1/10 journey info); History = 2-node
+spine; no console errors; tsc EXIT 0. D2/D4 deferred (D4 already served by footer+Remind;
+D2 One-Scroll = bolder future option).
+
+**Drawer footer mobile fix (owner: mobile action icons cramped/hard to tap):**
+- `drawer-kit.tsx` `IconButton` gained a `className` prop (merged last via cn/twMerge)
+  so callers can override size.
+- Footer (`person-drawer.tsx`): buttons now **44×44 on mobile** (`h-11 w-11 sm:h-9 sm:w-9`),
+  Pack `h-11 sm:h-9`; footer row is **`flex-wrap`** so on a phone the contact cluster sits
+  on row 1 and the actions right-align on row 2 (verified: no overflow, Pack right=359<375).
+- Fixed the **two identical chat-bubble icons** — in-app chat now uses `MessagesSquare`
+  (distinct from WhatsApp's `MessageCircle`).
+**Whole /people mobile audit @375 (verified live):** no horizontal page overflow; hero +
+KPI pill fit; Compact inline manager/role cells correctly `display:none` on mobile (rows
+tap to open drawer, 49px height); PersonCard rows 106px; filter chips scroll-x. All clean.
+
+**Pack moved into the tab strip (owner ask):** Pack is now a **4th visible tab** next to
+Snapshot/Profile/More (same pill styling via EntityDrawer — `PackageCheck` icon + label;
+`iconOnly` only triggers at 5+ tabs so all 4 keep labels). Removed the `packOpen` overlay
+state entirely — `?pack=1` now just defaults `activeTab="pack"`; the pack panel's onBack →
+`setActiveTab("snapshot")`; footer hides when `activeTab === "pack"`. Footer Pack button
+removed → footer re-aligned (contact cluster left · Remind/New/Add right). Verified live:
+tabs = Snapshot·Profile·More·Pack, Pack tab active shows the pack builder (Download PDF /
+Save draft), footer hidden on Pack, no footer Pack button. (Stale HMR console errors across
+the multi-edit seq — flushed by dev restart; source clean, tsc 0 src errors.)
+NEXT: owner review both /people builds → push.
+
 ## Step 4 — Documents — ✅ SHIPPED to master (commit 1bd2e2f, 5 Jul 2026)
 Full record + every round/decision in [[documents-redesign-plan-jul2026]]. The merged
 Documents page (Library·To Sort·Trash), suggest-only intake, compliance cards +
