@@ -87,6 +87,22 @@ async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payl
   };
 }
 
+/** Snapshot a task's owner + assignees for undo (reuses the ori.task.reassign
+ *  handler, which restores owner_id — unchanged here — and the assignee list). */
+async function snapshotAssigneesForUndo(taskId: number): Promise<{ kind: string; payload: unknown }> {
+  const { data: bt } = await sb.from("tasks").select("owner_id,last_updated_at").eq("id", taskId).maybeSingle();
+  const { data: ba } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
+  return {
+    kind: "ori.task.reassign",
+    payload: {
+      taskId,
+      prevOwnerId: (bt as { owner_id?: number | null })?.owner_id ?? null,
+      prevLastUpdatedAt: (bt as { last_updated_at?: string | null })?.last_updated_at ?? null,
+      prevAssignees: ((ba ?? []) as { person_id: number }[]).map((x) => x.person_id),
+    },
+  };
+}
+
 /** Parse a natural deadline the planner passes as an ISO date OR "in N days".
  *  The planner is told today's date, so it should send ISO; this is a backstop. */
 function parseDeadline(v: unknown): Date | null {
@@ -220,6 +236,61 @@ export const TOOLS: ToolDef[] = [
       await sb.from("task_assignees").upsert({ task_id: t.id, person_id: p.id }, { ignoreDuplicates: true });
       void reindexEntity("task", t.id);
       return { ok: true, message: `Reassigned ${t.code} to ${p.name}.`, redirect: `/task/${t.code}`, undo };
+    },
+  },
+  {
+    name: "add_assignees",
+    tier: 2,
+    description: "Add one or more people to a task's assignees (without removing the existing ones).",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      assignees: { type: "string[]", required: true, description: "People to add, by name." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const undo = await snapshotAssigneesForUndo(t.id);
+      const list = Array.isArray(args.assignees) ? (args.assignees as unknown[]) : [];
+      const added: string[] = [];
+      const missed: string[] = [];
+      for (const a of list) {
+        const name = str(a);
+        if (!name) continue;
+        const p = await resolvePerson(name);
+        if (p) { await sb.from("task_assignees").upsert({ task_id: t.id, person_id: p.id }, { ignoreDuplicates: true }); added.push(p.name); }
+        else missed.push(name);
+      }
+      if (added.length === 0) return { ok: false, message: `Couldn't match ${missed.length ? missed.join(", ") : "anyone"} to add.` };
+      await sb.from("tasks").update({ last_updated_at: nowIso() }).eq("id", t.id);
+      void reindexEntity("task", t.id);
+      const tail = missed.length ? ` (couldn't match ${missed.join(", ")})` : "";
+      return { ok: true, message: `Added ${added.join(", ")} to ${t.code}${tail}.`, redirect: `/task/${t.code}`, undo };
+    },
+  },
+  {
+    name: "remove_assignees",
+    tier: 2,
+    description: "Remove one or more people from a task's assignees.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      assignees: { type: "string[]", required: true, description: "People to remove, by name." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const undo = await snapshotAssigneesForUndo(t.id);
+      const list = Array.isArray(args.assignees) ? (args.assignees as unknown[]) : [];
+      const removed: string[] = [];
+      for (const a of list) {
+        const name = str(a);
+        if (!name) continue;
+        const p = await resolvePerson(name);
+        if (p) { await sb.from("task_assignees").delete().eq("task_id", t.id).eq("person_id", p.id); removed.push(p.name); }
+      }
+      if (removed.length === 0) return { ok: false, message: "Couldn't match anyone to remove." };
+      await sb.from("tasks").update({ last_updated_at: nowIso() }).eq("id", t.id);
+      void reindexEntity("task", t.id);
+      return { ok: true, message: `Removed ${removed.join(", ")} from ${t.code}.`, redirect: `/task/${t.code}`, undo };
     },
   },
   {
