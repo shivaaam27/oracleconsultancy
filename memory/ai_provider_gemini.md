@@ -54,6 +54,20 @@ existing harness works with a URL change.
   which maps ANY single model through `providerLadder()` to the FULL active-
   provider ladder for its tier (`ai-json.ts`) — so both paths already try the
   smartest model first and fall through the same way ORI's chat does.
+  ⚠️ **FORWARD RULE — this only works when the single name is a RECOGNIZED tier
+  head.** `providerLadder()` expands a model name to the full ladder ONLY if
+  `tierOf()` recognizes it as `GROQ_FAST`/`GROQ_SMART`/a `GROQ_VISION_MODELS`
+  entry — passing a specific PROVIDER model id directly (e.g.
+  `providerVisionModels(provider)[0]` → `"gemini-3.5-flash"`) is NOT recognized,
+  so it silently runs as a single-entry ladder with NO fallback at all. Hit this
+  for real on 2026-07-06 building the scanner's auto-crop
+  (`detectDocumentCornersAction` in `scan-crop-actions.ts`): one rate-limited
+  Gemini model failed the WHOLE call instead of falling through the other ~9.
+  Fix: always pass the Groq-side tier head (`GROQ_FAST`/`GROQ_SMART`/
+  `GROQ_VISION_MODELS[0]`) as `model` to `callGroqJson`/`callGroqText`, never a
+  raw provider-specific id — let `providerLadder()` do the substitution. (If you
+  genuinely have a whole ladder already in hand, `callGroqText` also accepts a
+  `models:` array directly — see `narrateScanFrameAction`.)
 - Key gate: `getGroqKey()` is now a back-compat alias of the new `getAiKey()`, which
   returns the ACTIVE provider's key (in-app first, env `GEMINI_API_KEY`/`GROQ_API_KEY`
   fallback), gated on aiEnabled + spend cap. Every existing caller (does `getGroqKey()`)
