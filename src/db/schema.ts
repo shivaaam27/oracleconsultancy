@@ -1908,3 +1908,35 @@ export const aiJobs = pgTable("ai_jobs", {
   index("ai_jobs_queue_idx").on(t.status, t.lane, t.priority, t.createdAt),
   index("ai_jobs_thread_idx").on(t.threadId),
 ]);
+
+// ORI automation rules — durable "standing rules" the agent creates from a
+// conversation (memory/ori_brain_master_plan.md, Phase 1/2). Each row is one rule
+// attached to a task; a scheduled tick (/api/cron/automations) fires the due ones.
+// Owner autonomy = "trust standing rules once set up": once the owner approves the
+// rule at creation, it fires without re-confirming each firing.
+//   kind:
+//     reminder_before_deadline     — remind assignees N days before the deadline
+//     nudge_until_update           — nudge assignees at set times until they post an update
+//     escalate_if_no_update        — escalate + notify a director if no update in N days
+//     create_event_after_deadline  — create a calendar event once the deadline passes
+//   config (jsonb, kind-specific), e.g.
+//     { daysBefore: 1, channel: "email" } · { times: ["09:00","14:00"] }
+//     { afterDays: 1, escalateToPersonId: 42 } · { title, time, location }
+export const automationRules = pgTable("automation_rules", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  companyId: integer("company_id"),
+  kind: text("kind").notNull(),
+  config: jsonb("config").notNull().default({}),
+  active: boolean("active").notNull().default(true),
+  // One-shot rules (reminder / event / escalation) flip this once they've fired.
+  done: boolean("done").notNull().default(false),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Last time the tick evaluated this rule / last time it actually fired.
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
+}, (t) => [
+  index("automation_rules_live_idx").on(t.active, t.done),
+  index("automation_rules_task_idx").on(t.taskId),
+]);

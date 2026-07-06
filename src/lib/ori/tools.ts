@@ -103,6 +103,15 @@ async function snapshotAssigneesForUndo(taskId: number): Promise<{ kind: string;
   };
 }
 
+/** Insert an ORI automation rule; returns the new rule id (or null on failure). */
+async function createRule(taskId: number, companyId: number, kind: string, config: Record<string, unknown>): Promise<number | null> {
+  const { data, error } = await sb.from("automation_rules").insert({
+    task_id: taskId, company_id: companyId, kind, config, active: true, done: false,
+    created_by: "ai-command", created_at: nowIso(),
+  }).select("id").single();
+  return error ? null : (data.id as number);
+}
+
 /** Parse a natural deadline the planner passes as an ISO date OR "in N days".
  *  The planner is told today's date, so it should send ISO; this is a backstop. */
 function parseDeadline(v: unknown): Date | null {
@@ -336,6 +345,83 @@ export const TOOLS: ToolDef[] = [
       }).select("id").single();
       if (error) return { ok: false, message: error.message };
       return { ok: true, message: `Drafted the announcement "${title || "Untitled"}" — review and publish when ready.`, redirect: `/announcements?edit=${data.id}`, undo: { kind: "ori.announcement.draft", payload: { announcementId: data.id } } };
+    },
+  },
+  {
+    name: "remind_before_deadline",
+    tier: 2,
+    description: "Set a STANDING RULE to remind a task's assignees a set number of days before its deadline. Fires automatically once approved.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      daysBefore: { type: "number", required: false, description: "How many days before the deadline to remind (default 1)." },
+      channel: { type: "string", required: false, description: "email | push | whatsapp (default push)." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const daysBefore = Math.max(0, Math.round(Number(args.daysBefore) || 1));
+      const channel = str(args.channel) || "push";
+      const rule = await createRule(t.id, t.company_id, "reminder_before_deadline", { daysBefore, channel });
+      if (!rule) return { ok: false, message: "Couldn't save that reminder rule." };
+      return { ok: true, message: `Reminder set: I'll nudge ${t.code}'s assignees ${daysBefore} day${daysBefore === 1 ? "" : "s"} before the deadline.`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+  {
+    name: "nudge_until_update",
+    tier: 2,
+    description: "Set a STANDING RULE to nudge a task's assignees at set times each day UNTIL they post an update. Fires automatically once approved.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      times: { type: "string[]", required: false, description: "Times of day HH:MM (default 09:00 and 14:00)." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const times = (Array.isArray(args.times) ? (args.times as unknown[]).map(str).filter((s) => /^\d{1,2}:\d{2}$/.test(s)) : []);
+      const rule = await createRule(t.id, t.company_id, "nudge_until_update", { times: times.length ? times : ["09:00", "14:00"] });
+      if (!rule) return { ok: false, message: "Couldn't save that nudge rule." };
+      const when = times.length ? times.join(" & ") : "09:00 & 14:00";
+      return { ok: true, message: `Nudge set: I'll remind ${t.code}'s assignees at ${when} each day until they post an update.`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+  {
+    name: "escalate_if_no_update",
+    tier: 2,
+    description: "Set a STANDING RULE to escalate a task and notify a director/manager if there's no update within N days. Fires automatically once approved.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      afterDays: { type: "number", required: false, description: "Escalate if no update within this many days (default 1)." },
+      escalateTo: { type: "string", required: true, description: "Who to escalate to (the director/manager), by name." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const person = await resolvePerson(str(args.escalateTo));
+      if (!person) return { ok: false, message: `Couldn't find a person called "${str(args.escalateTo)}" to escalate to.` };
+      const afterDays = Math.max(0, Math.round(Number(args.afterDays) || 1));
+      const rule = await createRule(t.id, t.company_id, "escalate_if_no_update", { afterDays, escalateToPersonId: person.id });
+      if (!rule) return { ok: false, message: "Couldn't save that escalation rule." };
+      return { ok: true, message: `Escalation set: if ${t.code} has no update in ${afterDays} day${afterDays === 1 ? "" : "s"}, I'll escalate it and alert ${person.name}.`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+  {
+    name: "schedule_event_after_deadline",
+    tier: 2,
+    description: "Set a STANDING RULE to create a calendar event automatically once a task's deadline passes. Fires automatically once approved.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      title: { type: "string", required: true, description: "Title for the event to create." },
+      time: { type: "string", required: false, description: "Event start time HH:MM (omit for all-day)." },
+      location: { type: "string", required: false, description: "Where the event is." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const title = str(args.title);
+      if (!title) return { ok: false, message: "What should the event be called?" };
+      const rule = await createRule(t.id, t.company_id, "create_event_after_deadline", { title, time: str(args.time) || undefined, location: str(args.location) || undefined });
+      if (!rule) return { ok: false, message: "Couldn't save that event rule." };
+      return { ok: true, message: `Scheduled: once ${t.code}'s deadline passes, I'll create the event "${title}".`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
     },
   },
 ];

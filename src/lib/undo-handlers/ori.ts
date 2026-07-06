@@ -28,3 +28,9 @@ registerUndoHandler("ori.announcement.draft", async (raw) => {
   const p = raw as { announcementId: number };
   await sb.from("announcements").delete().eq("id", p.announcementId);
 });
+
+// Automation rule creation — delete the rule (before it has fired).
+registerUndoHandler("ori.automation.create", async (raw) => {
+  const p = raw as { ruleId: number };
+  await sb.from("automation_rules").delete().eq("id", p.ruleId);
+});

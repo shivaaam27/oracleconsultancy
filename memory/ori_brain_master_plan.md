@@ -131,10 +131,25 @@ already has an ORI entry admin-side; add the agent (scoped) to the portals.
   owner can review; (b) auto model/provider fallback so a rate-limit is invisible
   (Gemini ladder switch already works WITHIN Gemini; a project-wide daily cap needs
   a 2nd provider key e.g. Groq, or billing — owner call).
-- **Phase 1 — Task workflow tools.** Deliver the owner's worked example end-to-end
-  (create task + assignees + reminders + escalation rule + post-deadline event,
-  with ORI asking for the missing bits).
-- **Phase 2 — Automations engine** (`automation_rules`/`runs` + scheduler).
+- **Phase 1 — Task workflow tools. ✅ SHIPPED (2026-07-06).** add_assignees/
+  remove_assignees tools (undo via ori.task.reassign). Undo on EVERY executed step
+  (Phase 0 finisher): ToolResult.undo → /api/ori mints a token → AgentCard "Undo"
+  button; handlers in undo-handlers/ori.ts. Commits 823bb34 (undo), 470e444
+  (assignees).
+- **Phase 2 — Automations engine. ✅ BUILT (2026-07-06, migration 0112).** THE
+  worked example is now real: `automation_rules` table + 4 rule-creating tools
+  (remind_before_deadline, nudge_until_update, escalate_if_no_update,
+  schedule_event_after_deadline — each undoable via ori.automation.create). Pure
+  evaluator `src/lib/ori/automations.ts` (12 unit tests) decides due/fire/retire;
+  firing cron `/api/cron/ori-automations` (scheduled 06:00 & 11:00 UTC = 09:00 &
+  14:00 Dar in vercel.json) performs the actions: nudge/remind assignees (in-app
+  notification + push), escalate + alert a director (task→Escalated), create the
+  post-deadline event. Owner autonomy honoured: rules fire without re-confirming
+  once approved. External email/WhatsApp auto-send NOT wired (in-app+push only).
+  Cron is a NO-OP until a rule exists, so it's safe live. VERIFIED: evaluator 12
+  tests; tool→rule→undo vertical (script: created rule id, undone, row deleted);
+  tsc clean; 202 tests. NOT yet exercised end-to-end LIVE via the agent (login/quota
+  during the session) — watch the first real rule + firing. Backup taken pre-migration.
 - **Phase 3 — Analytics brain + `activity_events` telemetry.**
 - **Phase 4 — Portal rollout** (scoped agent in director/manager/staff).
 - **Phase 5 — Semantic recall ON + proactive suggestions/anomaly radar.**
