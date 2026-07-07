@@ -16,6 +16,7 @@ import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
 import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
+import { invalidateAllTasks } from "@/lib/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
@@ -417,7 +418,7 @@ export async function updateTask(code: string, formData: FormData) {
   if (finalCode !== code) revalidatePath(`/task/${finalCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   // Return the user to where they opened the task from (a company page, a filtered
   // list) instead of the generic Tasks list — unless the company changed (the code
   // changed too, so land on the renamed task to avoid a stale link).
@@ -575,7 +576,7 @@ export async function createTask(formData: FormData) {
 
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   // When created from the modal flow, return to the originating section (tasks
   // list / company page) instead of the standalone task page — keeps the user
   // in context. Falls back to the task detail page for the full-page form.
@@ -640,7 +641,7 @@ export async function deleteTask(code: string) {
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   redirect("/registry");
 }
 
@@ -734,7 +735,7 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   await broadcastPulse("task-update");
 }
 
@@ -851,7 +852,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   await broadcastPulse("task-update");
 }
 
@@ -971,7 +972,7 @@ export async function editTaskUpdate(
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
@@ -999,7 +1000,7 @@ export async function deleteTaskUpdate(
     revalidatePath(`/companies/${t.company_id}`);
   }
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
@@ -1015,7 +1016,7 @@ export async function restoreTaskUpdate(updateId: number): Promise<{ ok: boolean
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
@@ -1050,7 +1051,7 @@ export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; 
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   return { ok: true, pinned: !wasPinned };
 }
 
@@ -1175,7 +1176,7 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
   }
 
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
 
   return { ok: errors.length === 0, applied, skipped, errors };
 }
@@ -1274,7 +1275,7 @@ export async function inlineUpdateTask(
 
   revalidatePath(`/task/${code}`);
   revalidatePath("/");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
   return { ok: true, undoToken: result.undoToken };
 }
 
@@ -1293,7 +1294,7 @@ export async function setTaskArchived(code: string, archived: boolean): Promise<
   // Re-index to re-stamp lifecycle (active ↔ history). We keep history searchable,
   // so this is reindexEntity, not removeEntityIndex.
   void reindexEntity("task", t.id);
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
@@ -1318,7 +1319,7 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
   });
   if (!result.ok) return { ok: false, error: result.error };
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true, undoToken: result.undoToken };
 }
 
@@ -1336,7 +1337,7 @@ async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {
 export async function setTaskAccountability(taskId: number, mode: "shared" | "lead") {
   await sb.from("tasks").update({ accountability: mode }).eq("id", taskId);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
@@ -1350,7 +1351,7 @@ export async function setTaskBlocker(taskId: number, personId: number, reason: s
   }).eq("id", taskId);
   await postTaskUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
@@ -1361,7 +1362,7 @@ export async function clearTaskBlocker(taskId: number, note?: string) {
   }).eq("id", taskId);
   await postTaskUpdate(taskId, `▶ Blocker cleared${note ? `: ${note.trim()}` : ""}`);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
@@ -1372,6 +1373,6 @@ export async function toggleMyPartDone(taskId: number, personId: number, done: b
     .update({ part_done_at: done ? new Date().toISOString() : null })
     .eq("task_id", taskId).eq("person_id", personId);
   await postTaskUpdate(taskId, done ? `✓ ${p?.name ?? "Someone"} marked their part done` : `↺ ${p?.name ?? "Someone"} reopened their part`);
-  revalidatePath("/"); updateTag("tasks");
+  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }

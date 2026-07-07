@@ -51,6 +51,18 @@ type DocDbRow = {
 
 export const DOCUMENTS_BUCKET = "documents";
 
+// Every mapped column EXCEPT the heavy `extracted_text` blob (a full OCR/typed
+// body, often tens–hundreds of KB per row). List callers only need metadata, so
+// the default fetch omits it — a large Supabase egress saving given listDocuments
+// runs on Home, the Director Brief, /documents and several crons. The full body
+// is loaded on demand via getDocument() or the { withText:true } opt-in (only the
+// Sorting Desk, which shows evidence snippets, needs it in bulk).
+const DOC_LIGHT_COLUMNS =
+  "id,title,company_id,person_id,category,doc_type,issuer,reference_no,issue_date,expiry_date," +
+  "reminder_lead_days,file_url,storage_path,file_name,notes,text_source,supersedes_id,review_status," +
+  "needs_original,file_hash,compilation_id,page_range,expiry_kind,vetted_at,intake_state,intake_reason," +
+  "confidence,trashed_at,archived,created_at,updated_at,created_by";
+
 const d = (s: string | null): Date | null => (s ? new Date(s) : null);
 
 function mapRow(r: DocDbRow): DocumentRow {
@@ -92,14 +104,16 @@ function mapRow(r: DocDbRow): DocumentRow {
 }
 
 /** Documents ordered by expiry (soonest first, nulls last). */
-export const listDocuments = cache(async (opts?: { includeArchived?: boolean }): Promise<DocumentRow[]> => {
+export const listDocuments = cache(async (opts?: { includeArchived?: boolean; withText?: boolean }): Promise<DocumentRow[]> => {
   // cache(): repeat calls within one render (Home loads documents in several
   // places) reuse the first result instead of re-scanning the table each time.
-  let q = sb.from("documents").select("*");
+  // Omit the heavy extracted_text blob unless a caller explicitly needs it.
+  let q = sb.from("documents").select(opts?.withText ? "*" : DOC_LIGHT_COLUMNS);
   if (!opts?.includeArchived) q = q.eq("archived", false);
   const { data, error } = await q.order("expiry_date", { ascending: true, nullsFirst: false });
   if (error) throw new Error(error.message);
-  return (data as DocDbRow[]).map(mapRow);
+  // Dynamic select string → supabase-js widens `data` to GenericStringError[]; cast via unknown.
+  return (data as unknown as DocDbRow[]).map(mapRow);
 });
 
 export async function getDocument(id: number): Promise<DocumentRow | null> {
@@ -272,14 +286,15 @@ export async function setDocumentIntakeState(
 }
 
 /** Documents sitting in a given intake bucket (quarantine/trash), newest first. */
-export async function listIntakeDocuments(state: IntakeState): Promise<DocumentRow[]> {
+export async function listIntakeDocuments(state: IntakeState, opts?: { withText?: boolean }): Promise<DocumentRow[]> {
   const { data, error } = await sb
     .from("documents")
-    .select("*")
+    .select(opts?.withText ? "*" : DOC_LIGHT_COLUMNS)
     .eq("intake_state", state)
     .order(state === "trash" ? "trashed_at" : "updated_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(error.message);
-  return (data as DocDbRow[]).map(mapRow);
+  // Dynamic select string → supabase-js widens `data` to GenericStringError[]; cast via unknown.
+  return (data as unknown as DocDbRow[]).map(mapRow);
 }
 
 /** Permanently delete a document row (and its stored file, if not shared). Used
@@ -410,11 +425,26 @@ export async function removeDocumentFile(documentId: number): Promise<void> {
     .eq("id", documentId);
 }
 
-/** Short-lived signed URL to view/download a stored file. */
+// Signed-URL memo. createSignedUrl() mints a fresh token every call, so without
+// this each page load hands the browser a brand-new URL for the SAME image —
+// defeating its HTTP cache and re-downloading the bytes from Supabase Storage
+// (letterheads sign 4 images × every company on each /letters load; document and
+// Brief previews re-sign too). Returning a STABLE url for a path lets the browser
+// reuse its cached copy. Keyed by path+expiry; reused while >60s of life remains.
+const _signedUrlCache = new Map<string, { url: string; exp: number }>();
+
+/** Signed URL to view/download a stored file. Memoised per path so repeat loads
+ *  reuse one browser-cacheable URL instead of re-downloading the object. */
 export async function signDocumentFile(storagePath: string, expiresInSeconds = 300): Promise<string | null> {
+  const key = `${storagePath}|${expiresInSeconds}`;
+  const now = Date.now();
+  const hit = _signedUrlCache.get(key);
+  if (hit && hit.exp - now > 60_000) return hit.url;
   const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUrl(storagePath, expiresInSeconds);
   if (error) return null;
-  return data?.signedUrl ?? null;
+  const url = data?.signedUrl ?? null;
+  if (url) _signedUrlCache.set(key, { url, exp: now + expiresInSeconds * 1000 });
+  return url;
 }
 
 /** Live documents whose stored file has the exact same content hash — i.e. the

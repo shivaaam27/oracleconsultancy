@@ -12,6 +12,7 @@ import { getAiKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { reindexEntity } from "@/lib/index-hooks";
+import { invalidateAllTasks } from "@/lib/queries";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
@@ -1128,7 +1129,7 @@ export async function POST(req: NextRequest) {
     const result = await execute(intent);
     if (result.ok) {
       // AI command touched a task — bust the cross-request cache so the next read is fresh.
-      revalidateTag("tasks", { expire: 0 });
+      revalidateTag("tasks", { expire: 0 }); invalidateAllTasks();
     }
     return NextResponse.json({ intent, ...result, executed: result.ok });
   } catch (e) {

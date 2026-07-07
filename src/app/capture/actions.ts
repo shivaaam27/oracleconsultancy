@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { parseCapture, type ParsedCapture } from "@/lib/smart-parse";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { invalidateAllTasks } from "@/lib/queries";
 
 export async function parseRawCapture(raw: string): Promise<ParsedCapture> {
   const [{ data: cRows }, { data: pRows }] = await Promise.all([
@@ -98,7 +99,7 @@ export async function createCaptureTask(input: {
 
     revalidatePath("/registry");
     revalidatePath("/");
-    updateTag("tasks");
+    updateTag("tasks"); invalidateAllTasks();
     return { ok: true, code: task.code };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to create task." };

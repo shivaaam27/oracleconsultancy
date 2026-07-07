@@ -12,6 +12,7 @@ import { loadContext } from "@/lib/ai-context";
 import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { invalidateAllTasks } from "@/lib/queries";
 
 export type SavedMeeting = {
   id: number;
@@ -596,7 +597,7 @@ export async function bulkCreateTasks(
   revalidatePath("/registry");
   revalidatePath("/");
   revalidatePath("/meeting");
-  updateTag("tasks");
+  updateTag("tasks"); invalidateAllTasks();
 
   if (!result.ok) {
     return { created: 0, failures: [{ index: -1, actionItem: "", reason: result.error }] };

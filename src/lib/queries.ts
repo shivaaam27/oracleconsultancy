@@ -352,11 +352,39 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   });
 }
 
+// Cross-request memo for the whole task graph — the single heaviest read in the
+// app (it's called by ~7 pages plus the portal auto-refresh, so it fires all day
+// and dominates Supabase egress). React cache() only dedupes within ONE render;
+// this collapses the fetch across renders/requests on a warm server instance.
+// Kept safe two ways: (1) a short TTL bounds staleness, and (2) every task-write
+// path already calls invalidateAllTasks() (alongside updateTag("tasks")), so the
+// operator's own edits show immediately. getAllTasks structuredClone()s the memo
+// so each request gets its own objects — consumers mutate rows in place (e.g. the
+// hub sets row.unread), which must never leak across requests/users.
+const ALL_TASKS_TTL_MS = 30_000;
+let _allTasksMemo: { at: number; p: Promise<TaskRow[]> } | null = null;
+
+/** Drop the cross-request task memo so the next read re-fetches. Called by every
+ *  task-write path so edits are visible without waiting out the TTL. */
+export function invalidateAllTasks(): void {
+  _allTasksMemo = null;
+}
+
+function allTasksMemo(): Promise<TaskRow[]> {
+  const now = Date.now();
+  if (_allTasksMemo && now - _allTasksMemo.at < ALL_TASKS_TTL_MS) return _allTasksMemo.p;
+  const p = buildAllTasks(false);
+  _allTasksMemo = { at: now, p };
+  // Never cache a rejected fetch — clear it so the next call retries.
+  p.catch(() => { if (_allTasksMemo?.p === p) _allTasksMemo = null; });
+  return p;
+}
+
 /** Every LIVE task (archived excluded), enriched for the Aurora rows. This is
  *  the default source for the hub, all views, KPIs and the Director Brief —
  *  archived tasks are filtered out at the base fetch (ACTTASKS-01). React
- *  cache() dedupes within a single render. */
-export const getAllTasks = cache((): Promise<TaskRow[]> => buildAllTasks(false));
+ *  cache() dedupes within a single render; allTasksMemo() dedupes across them. */
+export const getAllTasks = cache(async (): Promise<TaskRow[]> => structuredClone(await allTasksMemo()));
 
 /** Same shape as getAllTasks but INCLUDING archived tasks — for the explicit
  *  "Show archived" opt-in only. Never feed this into KPI/brief aggregations. */

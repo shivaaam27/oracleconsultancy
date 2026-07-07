@@ -73,8 +73,8 @@ function sourceLabel(createdBy: string | null): string | null {
 
 export async function getSortingDeskItems(): Promise<SortItem[]> {
   const [quarantine, filed, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
-    listIntakeDocuments("quarantine"),
-    listDocuments(), // archived=false → filed docs only
+    listIntakeDocuments("quarantine", { withText: true }),
+    listDocuments({ withText: true }), // archived=false → filed docs only; needs body for evidence snippets
     sb.from("companies").select("id,name"),
     sb.from("people").select("id,name"),
   ]);
