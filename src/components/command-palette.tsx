@@ -652,7 +652,9 @@ export function CommandPaletteProvider({
         <p className="text-[11px] leading-relaxed">Use <kbd className="font-mono">↑↓</kbd> to preview a result here, <kbd className="font-mono">↵</kbd> to open it.</p>
       </div>
     );
-    const meta = TYPE_META[r.type];
+    // Fallback for any type not in the palette meta map (e.g. a task surfaced by
+    // semantic search, which renders elsewhere) so previewing it can never throw.
+    const meta = TYPE_META[r.type] ?? { icon: Sparkles, tint: "text-fg-subtle", label: r.type };
     const pIcon = r.type === "document" ? fileIconFor(r.fileName) : { Icon: meta.icon, tint: meta.tint };
     const PIcon = pIcon.Icon;
     const links = scopedLinks(r);
@@ -1220,6 +1222,7 @@ export function CommandPaletteProvider({
                       const group = results.filter((r) => r.type === type && !(heroResult && r.id === heroResult.id));
                       if (group.length === 0) return null;
                       const meta = TYPE_META[type];
+                      if (!meta) return null; // unknown type → skip rather than crash
                       const Icon = meta.icon;
                       // Documents get a body-aware heading: "Found in N documents · M
                       // mentions" (mentions = results with a matched in-body snippet).
