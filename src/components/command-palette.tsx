@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch, FileText, ExternalLink, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, type LucideIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, Building2, CalendarPlus, GitBranch, FileText, ExternalLink, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
@@ -175,6 +175,21 @@ function HighlightSnippet({ text }: { text: string }) {
           : <span key={i}>{p}</span>,
       )}
       <span className="opacity-60">”</span>
+    </span>
+  );
+}
+
+/** Tiny "why it matched" tag — so the list is trustworthy at a glance. "name" is
+ *  the obvious default (hidden); "meaning" (semantic) and "inside" (found in the
+ *  document body) are the interesting ones worth surfacing. */
+function WhyTag({ kind }: { kind?: "name" | "inside" | "meaning" }) {
+  if (kind !== "meaning" && kind !== "inside") return null;
+  const meta = kind === "meaning"
+    ? { label: "meaning", cls: "bg-[#a78bfa]/15 text-[#b9a5fb]" }
+    : { label: "inside", cls: "bg-warn-soft/70 text-warn" };
+  return (
+    <span className={cn("shrink-0 self-start mt-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide hidden sm:inline", meta.cls)}>
+      {meta.label}
     </span>
   );
 }
@@ -462,6 +477,10 @@ export function CommandPaletteProvider({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [directAnswer, setDirectAnswer] = useState<DirectAnswer | null>(null);
   const [smartAnswer, setSmartAnswer] = useState<SmartAnswer | null>(null);
+  // The value of the currently-highlighted cmdk item (arrow-key focus), so the
+  // desktop preview pane can show that result live. Result items carry a
+  // "__r_<type>_<id>" token in their value we parse back to the SearchResult.
+  const [activeValue, setActiveValue] = useState("");
   // Search mode: when ON, the deep index also returns archived/closed/expired
   // records (each flagged lifecycle:"history"). Default OFF keeps everyday
   // search to live records only.
@@ -765,6 +784,88 @@ export function CommandPaletteProvider({
     (r) => visible(r) && !pins.includes(r.id) && !recentRoutes.some((rr) => rr.id === r.id),
   );
 
+  // The highlighted result → the desktop preview pane. Parse the "__r_<type>_<id>"
+  // token from the active cmdk value; fall back to the hero / top result so the
+  // pane is never empty (cmdk doesn't fire onValueChange for the initial select).
+  const activeResult = ((): SearchResult | null => {
+    const m = /__r_([a-z]+)_(\d+)/.exec(activeValue);
+    const parsed = m ? results.find((r) => r.type === m[1] && r.id === Number(m[2])) : null;
+    return parsed ?? null;
+  })();
+  // Entity hero — a strongly-matched company/person surfaces as a card on top,
+  // "the thing you meant, front and centre". Excluded from its own group below.
+  const heroResult = results.find((r) => (r.type === "company" || r.type === "person") && r.score >= 60) ?? null;
+
+  // Scoped quick-links for a company/person result (navigate, no fetch).
+  const scopedLinks = (r: SearchResult): Array<{ label: string; icon: LucideIcon; href: string }> => {
+    if (r.type === "company") return [
+      { label: "Open company", icon: Building2, href: r.href },
+      { label: "Its documents", icon: FileText, href: `/documents?company=${r.id}` },
+    ];
+    if (r.type === "person") return [
+      { label: "Open profile", icon: User, href: r.href },
+      { label: "Their documents", icon: FileText, href: `/documents?person=${r.id}` },
+    ];
+    return [];
+  };
+
+  // The desktop preview pane — shows the highlighted result live so you can skim
+  // without opening. No extra fetch: identity + why + snippet + quick actions.
+  const openResult = (r: SearchResult) => {
+    if (r.type === "document") { setDocReader({ id: r.id, title: r.title, href: r.href, query }); setMode("doc"); }
+    else go(r.href);
+  };
+  const previewNode = (() => {
+    // Seed with the hero / top result so the pane always shows something; hover
+    // and arrow-keys refine it.
+    const r = activeResult ?? heroResult ?? results[0] ?? null;
+    if (!r) return (
+      <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-fg-subtle">
+        <Sparkles size={18} className="opacity-50" />
+        <p className="text-[11px] leading-relaxed">Use <kbd className="font-mono">↑↓</kbd> to preview a result here, <kbd className="font-mono">↵</kbd> to open it.</p>
+      </div>
+    );
+    const meta = TYPE_META[r.type];
+    const pIcon = r.type === "document" ? fileIconFor(r.fileName) : { Icon: meta.icon, tint: meta.tint };
+    const PIcon = pIcon.Icon;
+    const links = scopedLinks(r);
+    return (
+      <div className="flex flex-col gap-3 p-3.5">
+        <div className="flex items-start gap-2.5">
+          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-bg-muted", pIcon.tint)}><PIcon size={17} /></span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">{meta.label}</span>
+              <WhyTag kind={r.matchKind} />
+            </div>
+            <div className="mt-0.5 text-sm font-semibold leading-snug break-words">{r.title}</div>
+          </div>
+        </div>
+        {r.badge && <div className="font-mono text-[11px] text-fg-muted">{r.badge}</div>}
+        {r.snippet ? <div className="rounded-lg bg-bg-subtle/50 p-2 ring-1 ring-border/50"><HighlightBlock text={r.snippet} /></div>
+          : <div className="text-xs leading-relaxed text-fg-muted">{r.subtitle}</div>}
+        <div className="mt-1 flex flex-col gap-1.5">
+          <button type="button" onClick={() => openResult(r)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90">
+            {r.type === "document" ? <><FileText size={13} /> Read in place</> : <><ArrowRight size={13} /> Open</>}
+          </button>
+          {links.map((l) => (
+            <button key={l.href} type="button" onClick={() => go(l.href)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-fg-muted ring-1 ring-border transition-colors hover:text-fg hover:bg-bg-muted/50">
+              <l.icon size={13} /> {l.label} →
+            </button>
+          ))}
+          {r.type !== "governance" && (
+            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("cos:trace", { detail: { type: r.type, id: r.id, title: r.title } }))}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-fg-subtle transition-colors hover:text-accent">
+              <GitBranch size={13} /> Trace history
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  })();
+
   return (
     <CommandCtx.Provider
       value={{
@@ -803,7 +904,7 @@ export function CommandPaletteProvider({
               transition={{ type: "spring", stiffness: 460, damping: 32 }}
               className={cn(
                 "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
-                mode === "chat" || mode === "doc" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl",
+                mode === "chat" || mode === "doc" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
               )}
             >
               {/* GSAP-driven sheen that sweeps once on open. */}
@@ -842,7 +943,7 @@ export function CommandPaletteProvider({
                   currentView={currentView}
                 />
               ) : (
-                <Command shouldFilter={true} loop>
+                <Command shouldFilter={true} loop onValueChange={setActiveValue}>
                   <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-border">
                     <Search size={16} className="text-fg-subtle shrink-0" />
                     <Command.Input
@@ -882,10 +983,45 @@ export function CommandPaletteProvider({
                       ESC
                     </kbd>
                   </div>
-                  <Command.List className="max-h-[460px] overflow-y-auto p-1.5">
+                  <div className="flex min-h-0">
+                  <Command.List className="flex-1 min-w-0 max-h-[460px] overflow-y-auto p-1.5">
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
+
+                    {/* Entity hero — the strongly-matched company/person you meant,
+                        front and centre with quick-links to its records. */}
+                    {heroResult && (
+                      <Command.Group className="[&_[cmdk-group-heading]]:hidden">
+                        <MagneticItem
+                          value={`${query} __r_${heroResult.type}_${heroResult.id} ${heroResult.title} ${heroResult.subtitle}`}
+                          onMouseEnter={() => setActiveValue(`__r_${heroResult.type}_${heroResult.id}`)}
+                          onSelect={() => go(heroResult.href)}
+                          className="group/hero mb-1 flex items-center gap-3 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2.5 cursor-pointer aria-selected:border-[#2dd4bf]/50"
+                        >
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: "linear-gradient(135deg,#2dd4bf,#16a34a)" }}>
+                            {heroResult.type === "company" ? <Building2 size={19} /> : <User size={19} />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate text-sm font-semibold">{heroResult.title}</span>
+                              <span className="rounded bg-[#2dd4bf]/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[#2dd4bf]">{heroResult.type}</span>
+                              <WhyTag kind={heroResult.matchKind} />
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11.5px] text-fg-subtle">{heroResult.subtitle}</span>
+                          </span>
+                          <span className="hidden shrink-0 items-center gap-1.5 sm:flex" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                            {scopedLinks(heroResult).slice(1).map((l) => (
+                              <button key={l.href} type="button" onClick={() => go(l.href)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg">
+                                <l.icon size={12} /> {l.label.replace(/^(Its|Their) /, "")}
+                              </button>
+                            ))}
+                            <ChevronRight size={15} className="text-[#2dd4bf]" />
+                          </span>
+                        </MagneticItem>
+                      </Command.Group>
+                    )}
 
                     {/* Smart answer — instant natural-language LIST answer, no AI
                         ("who's on leave", "expiring documents", "MES overdue tasks",
@@ -1089,7 +1225,7 @@ export function CommandPaletteProvider({
 
                     {/* Deep index — people, companies, documents, letters, meetings, vendors, assets */}
                     {results.length > 0 && TYPE_ORDER.map((type) => {
-                      const group = results.filter((r) => r.type === type);
+                      const group = results.filter((r) => r.type === type && !(heroResult && r.id === heroResult.id));
                       if (group.length === 0) return null;
                       const meta = TYPE_META[type];
                       const Icon = meta.icon;
@@ -1116,7 +1252,10 @@ export function CommandPaletteProvider({
                               key={`${r.type}-${r.id}`}
                               // Prepend the live query so cmdk's own fuzzy filter
                               // never drops a server-ranked (incl. typo-tolerant) hit.
-                              value={`${query} ${r.type} ${r.title} ${r.subtitle} ${r.snippet ?? ""}`}
+                              // The __r_<type>_<id> token lets the preview pane resolve this row.
+                              value={`${query} __r_${r.type}_${r.id} ${r.title} ${r.subtitle} ${r.snippet ?? ""}`}
+                              onMouseEnter={() => setActiveValue(`__r_${r.type}_${r.id}`)}
+                              onFocus={() => setActiveValue(`__r_${r.type}_${r.id}`)}
                               onSelect={() => {
                                 if (r.type === "document") {
                                   setDocReader({ id: r.id, title: r.title, href: r.href, query });
@@ -1143,6 +1282,7 @@ export function CommandPaletteProvider({
                               {!r.snippet && (
                                 <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
                               )}
+                              <WhyTag kind={r.matchKind} />
                               {/* Trace — opens the self-managed TracePanel. Not for
                                   governance (trace doesn't support it). */}
                               {r.type !== "governance" && (
@@ -1188,6 +1328,13 @@ export function CommandPaletteProvider({
                       <RouteGroup heading="Pages" routes={otherRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
                   </Command.List>
+                  {/* Live preview pane — desktop only, when a query has results. */}
+                  {trimmed && (results.length > 0 || items.length > 0) && (
+                    <div className="hidden lg:flex w-[260px] shrink-0 flex-col border-l border-border max-h-[460px] overflow-y-auto slim-scroll">
+                      {previewNode}
+                    </div>
+                  )}
+                  </div>
                   <div className="border-t border-border px-3 py-2 text-[10px] text-fg-subtle flex items-center gap-3">
                     <span><kbd className="font-mono">↑↓</kbd> navigate</span>
                     <span><kbd className="font-mono">↵</kbd> open / ask</span>

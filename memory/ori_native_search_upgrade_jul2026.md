@@ -44,7 +44,49 @@ whole palette + retrieval with 2 Explore agents.
 ⚠️ Needs LIVE testing (login) — "terragreen business" should now surface the Terra Green COMPANY +
 its docs/tasks. Semantic adds ~1 embed round-trip per search (acceptable; owner wants recall).
 
-## UI REDESIGN — 6 mockups delivered (artifact "ori-search-mockups"), owner to pick
+## UI REDESIGN — BUILT (owner chose S2+S3+S1/S4 tags), tsc clean, NOT pushed
+`src/components/command-palette.tsx` + `src/lib/search.ts`:
+- **`matchKind`** added to `SearchResult` (search.ts): registry hits → "name", FTS body hits →
+  "inside", semantic hits → "meaning". New `WhyTag` component renders meaning/inside tags on rows +
+  hero + preview (name is the silent default).
+- **Two-pane on desktop** (lg+): panel widened `lg:max-w-[52rem]`; `Command.List` + a right
+  **preview pane** (`w-[260px]`, `hidden lg:flex`) wrapped in a flex row. `onValueChange={setActiveValue}`
+  on `<Command>` tracks the highlighted item; each result Item's value carries a `__r_<type>_<id>`
+  token parsed back to the `SearchResult` (`activeResult`). Preview = icon + type + WhyTag + title +
+  badge + highlighted snippet + actions (Open / "Read in place" for docs / Trace / scoped quick-links
+  "Its documents"). No fetch (identity + actions only). Collapses to single-column on <lg.
+- **Entity hero** (S3): `heroResult` = top company/person with score ≥60, rendered as a teal card at
+  the top of the list (MagneticItem, keyboard-selectable, `__r_` token) with inline quick-link chips;
+  excluded from its own type group to avoid dup.
+- **Scoped quick-links** `scopedLinks(r)`: company → Open company + `/documents?company=id`; person →
+  Open profile + `/documents?person=id`.
+Icons added: Building2. `useToast`-outside-provider error seen during build was the known HMR phantom
+(ToastProvider wraps layout.tsx; fixed by dev restart, not code).
+
+### Preview-pane fix (owner: "preview isn't loading") — DONE
+Root cause: cmdk 1.1.1 fires `onValueChange` only on CHANGE, NOT for the initial auto-selected item →
+pane started empty. Fixes: (1) `previewNode` seeds `r = activeResult ?? heroResult ?? results[0]` so the
+pane always shows the top/hero result immediately; (2) `onMouseEnter`/`onFocus` on each result row + the
+hero set `setActiveValue("__r_<type>_<id>")` so hover drives the preview precisely; (3) arrow-keys still
+update via `onValueChange`. So: pane shows the hero on open, follows your mouse, and follows ↑↓.
+
+## ⭐ NEXT STEP (owner-directed, START HERE next chat): improve ORI search — BOTH native + AI results
+Owner wants the whole ORI search experience levelled up further — native ⌘K AND the AI (/api/ask) answers.
+Native retrieval + the two-pane/hero/tags UI are now in (this file). Directions to explore next:
+- **Native recall/ranking**: tune semantic vs keyword blend weights; surface tasks semantically in the
+  palette too (currently semantic augment SKIPS task — resolve task hits in /api/search route); add
+  per-entity "glance" stats to the preview pane + entity hero (needs a light `/api/entity-glance?type=&id=`
+  — open tasks/people/docs/compliance counts) so the hero feels alive like the mockup; more `SOFT` scope
+  words + `synonyms.ts` groups; consider a small typo/alias map for company nicknames.
+- **AI (/api/ask) results**: richer synthesis, better passage citations, multi-hop, follow-ups; make the
+  AI answer reuse the SAME improved retrieval (it already uses hybridSearch); the in-doc reader chat.
+- **UI polish**: preview-pane live stats, "Read in place" opening the doc reader INSIDE the right pane
+  (not full-screen), keyboard hint that ↑↓ drives the preview, mobile parity.
+Files: `src/lib/search.ts` (unifiedSearch + score + semantic augment), `src/app/api/search/route.ts`,
+`src/components/command-palette.tsx`, `src/app/api/ask/route.ts`, `src/lib/smart-answer.ts`,
+`src/lib/synonyms.ts`, `src/lib/embeddings.ts` (hybridSearch). Semantic IS on (1071 rows). [[ori_brain]]
+
+## UI REDESIGN — 6 mockups delivered (artifact "ori-search-mockups")
 Same query "terragreen business" in each. All current elements preserved (Ask-ORI row, smart answer,
 type groups, reference chips, doc reader, History toggle, kbd nav). Directions:
 S1 Refined Groups (today + why-it-matched tags name/meaning/inside + counts) · **S2 Two-Pane Preview**

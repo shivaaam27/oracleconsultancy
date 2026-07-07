@@ -55,6 +55,10 @@ export type SearchResult = {
   /** For documents: the original uploaded file name, so the palette can pick a
    *  file-type icon (PDF / photo / spreadsheet / slides). Optional. */
   fileName?: string;
+  /** WHY this result matched — shown as a tiny tag so the list is trustworthy:
+   *  "name" = matched its name/title/fields, "inside" = matched text inside a
+   *  document body, "meaning" = matched by meaning (semantic, no shared words). */
+  matchKind?: "name" | "inside" | "meaning";
 };
 
 const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with"]);
@@ -303,7 +307,7 @@ export async function unifiedSearch(
       const { scoreParts: parts, ...rest } = er;
       // `rest.type` is the wide EntityType (includes "task"); searchable defs never
       // include tasks, so it's always a SearchResultType at runtime — assert it.
-      push(HISTORY({ ...rest, score: scoreParts(parts) } as SearchResult));
+      push(HISTORY({ ...rest, score: scoreParts(parts), matchKind: "name" } as SearchResult));
     }
   }
 
@@ -343,7 +347,7 @@ export async function unifiedSearch(
       const existing = out.find((o) => o.type === "document" && o.id === id);
       if (existing) {
         existing.subtitle = subtitle;
-        if (rawSnippet.includes("«")) existing.snippet = rawSnippet;
+        if (rawSnippet.includes("«")) { existing.snippet = rawSnippet; existing.matchKind = "inside"; }
         if (!existing.badge && r.reference_no) existing.badge = r.reference_no as string;
         if (!existing.fileName && r.file_name) existing.fileName = r.file_name as string;
         existing.score += 6 + rankBoost;
@@ -356,6 +360,7 @@ export async function unifiedSearch(
           href,
           badge: (r.reference_no as string) || undefined,
           score: 42 + rankBoost,
+          matchKind: rawSnippet.includes("«") ? "inside" : "name",
           ...(r.file_name ? { fileName: r.file_name as string } : {}),
           ...(rawSnippet.includes("«") ? { snippet: rawSnippet } : {}),
         });
@@ -397,7 +402,7 @@ export async function unifiedSearch(
         const sim = idMap.get(rid) ?? 0;
         const existing = out.find((o) => o.type === rest.type && o.id === rest.id);
         if (existing) existing.score += 12; // it also means what you asked — nudge it up
-        else push(HISTORY({ ...rest, score: 34 + Math.round(sim * 40) } as SearchResult));
+        else push(HISTORY({ ...rest, score: 34 + Math.round(sim * 40), matchKind: "meaning" } as SearchResult));
       }
     }));
   } catch (e) {
