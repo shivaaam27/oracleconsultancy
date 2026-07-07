@@ -52,6 +52,7 @@ export const WORLDS: World[] = [
       { label: "Workbook",        href: "/workbook",             icon: "NotebookPen" },
       { label: "Brief",           href: "/calendar",             icon: "CalendarClock" },
       { label: "Requests",        href: "/requests",             icon: "MessageSquareText" },
+      { label: "ORI Automation",  href: "/ori-automations",      icon: "Zap" },
     ],
   },
   {

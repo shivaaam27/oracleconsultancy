@@ -19,6 +19,7 @@ import {
   MessageSquareText,
   ListChecks,
   Activity,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
   { id: "inbox",       href: "/documents?tab=sort",  label: "To Sort",             icon: Inbox },
   { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },
+  { id: "ori-automations", href: "/ori-automations", label: "ORI Automation",      icon: Zap },
   { id: "insights",    href: "/insights",            label: "Insights",            icon: BarChart3 },
   { id: "settings",    href: "/settings",            label: "Settings",            icon: Settings },
 ];

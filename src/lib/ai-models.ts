@@ -50,16 +50,14 @@ export const AI_SMART_MODELS: string[] = ladder("AI_SMART_MODELS", [
 ]);
 export const AI_SMART = AI_SMART_MODELS[0]; // primary; existing imports keep working
 
-// Vision (reads images / scanned PDFs) is the highest deprecation risk — Groq
-// retired llama-4-scout's sibling (maverick) in Feb 2026 with short notice. So
-// this is a FALLBACK LADDER, not a single name: the OCR/extraction paths try each
-// model in order and fall through when one is decommissioned. If Scout retires,
-// set AI_VISION_MODELS in the environment (comma-separated, best first) and the
-// whole app follows — no code change / redeploy of source needed.
-// ⚠️ scout itself is now deprecated (shutdown 2026-07-17). A vision-capable Groq
-// replacement still needs confirming (Groq's stated replacements are text-only),
-// so it's left as primary for now — document reading falls back to "rules" if it
-// goes. When confirmed, prepend the new model here or via AI_VISION_MODELS.
+// LEGACY GROQ vision ladder — used ONLY when the active provider is Groq. The app
+// runs on GEMINI (owner-selected), and OCR/extraction on that path uses
+// GEMINI_VISION_MODELS below (native multimodal) via providerVisionModels(), so
+// this ladder is a DORMANT fallback and does NOT read live documents today.
+// scout is deprecated on Groq (shutdown 2026-07-17) — that only matters if you
+// switch the provider back to Groq; the Gemini vision path is unaffected. If you
+// ever do, set AI_VISION_MODELS in the env (comma-separated, best first) to a
+// current multimodal model and the whole app follows — no redeploy of source.
 export const AI_VISION_MODELS: string[] = ladder("AI_VISION_MODELS", [
   "meta-llama/llama-4-scout-17b-16e-instruct",
 ]);
