@@ -1,5 +1,7 @@
 import { sb } from "@/db/supabase";
 import { bestDocType, deriveFiling } from "@/lib/doc-catalog";
+import { getAllTasks } from "@/lib/queries";
+import { computeWorkload } from "@/lib/workload";
 
 /**
  * smart-answer.ts — natural-language INSTANT answers for the command palette,
@@ -402,6 +404,48 @@ async function mostTasksByPersonAnswer(q: string): Promise<SmartAnswer | null> {
     href: "/people",
   }));
   return { kind: "count", title: involvedMode ? "Busiest people (most tasks)" : "Top task creators", count: rows.length, rows, href: "/?tab=tasks" };
+}
+
+/** WORKLOAD — "workload", "who's overloaded", "who has too many / the most
+ *  tasks", "task distribution / balance", "is anyone overloaded". Shows how OPEN
+ *  tasks spread across active people (owner + assignees), heaviest-first, and
+ *  flags anyone well above the team average. Reuses the memoised getAllTasks()
+ *  read + the pure computeWorkload() — same distribution as the Insights panel,
+ *  deterministic, no AI. */
+async function workloadAnswer(q: string): Promise<SmartAnswer | null> {
+  const overloadPhrasing = /\boverload(ed|ing)?\b|too many tasks|task (distribution|balance|spread|load)|workload|spread of tasks|who('?s| is) (the )?(most )?(busy|busiest|stretched|swamped|overwhelmed)/i.test(q);
+  const mostTasks = /\b(who|which person)\b/i.test(q) && /\bmost tasks\b/i.test(q);
+  if (!overloadPhrasing && !mostTasks) return null;
+
+  const [rows, { data: people }] = await Promise.all([
+    getAllTasks(),
+    sb.from("people").select("id,name,company_id").eq("active", true),
+  ]);
+  const summary = computeWorkload(
+    rows,
+    (people ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null })),
+  );
+  if (summary.totalOpen === 0) {
+    return { kind: "count", title: "Workload", count: 0, rows: [], note: "No open tasks assigned to anyone — everyone's clear.", href: "/insights" };
+  }
+
+  const avg = summary.average % 1 === 0 ? String(summary.average) : summary.average.toFixed(1);
+  const loaded = summary.people.filter((p) => p.open > 0);
+  const rowsOut: SmartRow[] = loaded.slice(0, MAX_ROWS).map((p) => {
+    const parts = [`${p.open} open`];
+    if (p.overdue > 0) parts.push(`${p.overdue} overdue`);
+    return {
+      label: p.name,
+      sub: p.overloaded ? `well above the ${avg} average` : null,
+      badge: parts.join(" · "),
+      tone: (p.overloaded ? "warn" : p.overdue > 0 ? "danger" : "muted") as SmartTone,
+      href: "/insights",
+    };
+  });
+  const note = summary.overloaded.length > 0
+    ? `${summary.overloaded.map((p) => `${p.name} ${p.open}`).join(", ")} · well above the ${avg} average.`
+    : `Evenly spread — team average is ${avg} open each.`;
+  return { kind: "count", title: "Workload — open tasks per person", count: loaded.length, rows: rowsOut, note, href: "/insights" };
 }
 
 /** Leaderboard — "who has the most overdue", "who's most behind", "who's
@@ -1167,7 +1211,9 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
     // Oversight — estate-wide "what happened" digest + per-entity activity.
     // Ahead of the generic count/overdue resolvers so activity phrasing wins.
     whatHappenedAnswer, entityActivityAnswer,
-    compareAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
+    // Workload BEFORE the leaderboards so "overloaded / distribution / balance /
+    // who has the most tasks" resolve to the spread card, not a bare ranking.
+    compareAnswer, workloadAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
     // Portal analytics (owner scope) — ahead of the per-person engagement card so
     // "leaderboard / who hasn't logged in / most-used pages / who hasn't acked" win.
     announcementAckAnswer, engagementLeaderboardAnswer, inactiveStaffAnswer, pageUsageAnswer,

@@ -7,6 +7,9 @@ import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import { sb } from "@/db/supabase";
 import { computePersonKpi } from "@/lib/kpi";
 import { KpiLeaderboard, type KpiBoardPerson } from "@/components/kpi-leaderboard";
+import { computeWorkload } from "@/lib/workload";
+import { CompanyAvatar } from "@/components/company-avatar";
+import { AlertTriangle, Users } from "lucide-react";
 
 /** Build the monthly KPI leaderboard data (last 4 months) for active, non-director
  *  staff. Directors are excluded (they set the work, not deliver it). */
@@ -74,6 +77,27 @@ export default async function InsightsPage() {
   const companyRows = [...companyAgg.entries()].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.open - a.open);
   const maxCompanyOpen = Math.max(...companyRows.map((c) => c.open), 1);
 
+  // Workload — how OPEN tasks spread across active people (owner + assignees),
+  // derived from the same memoised `rows` above (no extra heavy query). The
+  // company name/accent lookup is built from those rows too (already loaded).
+  const companyMeta = new Map<number, { name: string; accent: string | null }>();
+  for (const r of rows) if (!companyMeta.has(r.companyId)) companyMeta.set(r.companyId, { name: r.companyName, accent: r.companyAccent });
+  const { data: activePeople } = await sb.from("people").select("id,name,company_id").eq("active", true);
+  const workload = computeWorkload(
+    rows,
+    (activePeople ?? []).map((p) => {
+      const meta = p.company_id != null ? companyMeta.get(p.company_id as number) : undefined;
+      return { id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null, companyName: meta?.name ?? null, companyAccent: meta?.accent ?? null };
+    }),
+  );
+  const avgLabel = workload.average % 1 === 0 ? String(workload.average) : workload.average.toFixed(1);
+  const topLoaded = workload.people.find((p) => p.open > 0) ?? null;
+  const read = topLoaded
+    ? workload.overloaded.length > 0
+      ? `${workload.overloaded[0].name} ${workload.overloaded[0].open} · well above the ${avgLabel} average`
+      : `${topLoaded.name} ${topLoaded.open} · in line with the ${avgLabel} average`
+    : null;
+
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <HrmsCrumbs />
@@ -106,6 +130,53 @@ export default async function InsightsPage() {
               {c.overdue > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger shrink-0">{c.overdue} overdue</span>}
             </CompanyDrawerLink>
           ))}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Workload — open tasks per person</p>
+        <div className="glass elevated rounded-2xl overflow-hidden">
+          {/* Tinted header band (§13): team average + one-line read. */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-accent-soft/40 border-b border-border/50">
+            <span className="inline-flex items-center justify-center size-8 rounded-xl bg-accent/15 text-accent shrink-0"><Users size={16} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium leading-tight">Team average <span className="tabular text-accent">{avgLabel}</span> open each</p>
+              {read && <p className="text-[12px] text-fg-muted truncate">{read}</p>}
+            </div>
+            {workload.overloaded.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn shrink-0">
+                <AlertTriangle size={12} /> {workload.overloaded.length} above average
+              </span>
+            )}
+          </div>
+          <div className="p-3 space-y-1">
+            {topLoaded == null ? (
+              <p className="text-sm text-fg-muted py-2 px-1">No open tasks assigned to anyone. 🎉</p>
+            ) : workload.people.map((p) => {
+              const idle = p.open === 0;
+              const inits = p.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+              return (
+                <div
+                  key={p.id}
+                  className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-1.5 text-sm ${p.overloaded ? "bg-warn-soft/40 ring-1 ring-warn/20" : ""} ${idle ? "opacity-55" : ""}`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    {p.companyName ? (
+                      <CompanyAvatar name={p.companyName} accent={p.companyAccent} size={26} rounded="rounded-lg" iconSize={12} />
+                    ) : (
+                      <span className="inline-flex items-center justify-center size-[26px] rounded-lg bg-bg-muted text-[10px] font-semibold text-fg-muted shrink-0">{inits}</span>
+                    )}
+                    <span className="truncate">{p.name}</span>
+                  </span>
+                  <Bar value={p.open} max={workload.maxOpen} tone={p.overloaded ? "warn" : "accent"} />
+                  <span className="flex items-center gap-1.5 justify-end shrink-0">
+                    {p.overdue > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">{p.overdue} overdue</span>}
+                    <span className="tabular font-semibold w-6 text-right">{p.open}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
