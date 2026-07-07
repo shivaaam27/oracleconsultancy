@@ -1,7 +1,7 @@
 import "server-only";
 import {
   Eye, BellRing, MessageSquareWarning, ArrowUpCircle, CalendarPlus,
-  Repeat, PlaySquare, DoorClosed, UserCog, Cog, type LucideIcon,
+  Repeat, PlaySquare, DoorClosed, UserCog, Cog, ListChecks, type LucideIcon,
 } from "lucide-react";
 
 // Turns a raw automation_rules row into a plain-language card for the management
@@ -39,6 +39,7 @@ export type DescribedRule = {
   active: boolean;
   done: boolean;
   lastFired: string | null; // relative, e.g. "3 days ago"
+  lastRun: string | null;   // relative — last time the rule was *evaluated* (may not have fired)
   createdAt: string | null;
 };
 
@@ -54,6 +55,8 @@ const KIND_META: Record<string, { label: string; icon: LucideIcon }> = {
   auto_reassign_on_leave: { label: "Leave cover", icon: UserCog },
   recurring_task: { label: "Recurring task", icon: Repeat },
   scheduled_macro: { label: "Scheduled macro", icon: PlaySquare },
+  smart_reminder: { label: "Smart reminder", icon: BellRing },
+  escalation_ladder: { label: "Overdue ladder", icon: ListChecks },
 };
 
 function num(v: unknown): number | null {
@@ -198,6 +201,80 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
       break;
     }
 
+    case "smart_reminder": {
+      const trig = (cfg.trigger ?? {}) as { byHour?: number; daysBeforeDeadline?: number; onOverdue?: boolean };
+      const scope = (cfg.scope ?? {}) as { personId?: number; companyId?: number; taskId?: number };
+      const audience = (cfg.audience ?? {}) as { notifyOwner?: boolean; notifyDirectors?: boolean; notifyManagers?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
+      const actions = (cfg.actions ?? {}) as { autoAct?: boolean; postUpdate?: boolean; setStatus?: string; sendChannel?: string };
+      const cond = str(cfg.condition) || "always";
+      const digest = cfg.digest === true;
+
+      const when = typeof trig.byHour === "number"
+        ? `At ${String(Math.round(trig.byHour)).padStart(2, "0")}:00 daily`
+        : typeof trig.daysBeforeDeadline === "number"
+          ? `${trig.daysBeforeDeadline} day${trig.daysBeforeDeadline === 1 ? "" : "s"} before the deadline`
+          : trig.onOverdue ? "Once overdue" : "Every day";
+
+      const scopeName = num(scope.taskId) != null ? (taskCode(num(scope.taskId)) ?? "one task")
+        : num(scope.personId) != null ? (personName(num(scope.personId)) ?? "one person")
+        : num(scope.companyId) != null ? (companyName(num(scope.companyId)) ?? "one company")
+        : "everything";
+
+      const agingDays = num(cfg.agingDays);
+      const condText: Record<string, string> = {
+        always: "",
+        no_update_today: "if no update was posted today",
+        overdue: "if it's overdue",
+        due_tomorrow: digest ? "list every task due tomorrow" : "if it's due tomorrow",
+        compliance_due_soon: "if a compliance date is approaching",
+        waiting_external_aged: `if it's been Waiting External for ${agingDays ?? 3}+ days`,
+        no_deadline_or_assignee: "if it has no deadline or nobody assigned",
+        under_review_stale: `if it's sat Under Review for ${agingDays ?? 2}+ days`,
+      };
+      const bits = [when.toLowerCase(), condText[cond] ?? ""].filter(Boolean).join(", ");
+      const suffixes: string[] = [];
+      if (cfg.weekdaysOnly === true) suffixes.push("weekdays only");
+      const pausedUntil = str(cfg.pausedUntil);
+      if (pausedUntil && new Date(pausedUntil).getTime() > Date.now()) suffixes.push(`paused until ${pausedUntil.slice(0, 10)}`);
+      const suffix = suffixes.length ? ` (${suffixes.join(", ")})` : "";
+      title = `${bits.charAt(0).toUpperCase()}${bits.slice(1)} — watching ${scopeName}${digest ? " (one combined list)" : ""}${suffix}`;
+
+      const who: string[] = [];
+      if (audience.notifyOwner) who.push("you");
+      if (audience.notifyDirectors) who.push("directors");
+      if (audience.notifyManagers) who.push("managers");
+      if (audience.warnPerson) who.push("the person");
+      const extra = Array.isArray(audience.notifyPersonIds) ? audience.notifyPersonIds.length : 0;
+      if (extra) who.push(`${extra} other${extra === 1 ? "" : "s"}`);
+      const acts: string[] = [];
+      if (actions.autoAct === true) {
+        if (actions.postUpdate) acts.push("posts an update");
+        if (actions.setStatus) acts.push(`sets status to ${actions.setStatus}`);
+        if (actions.sendChannel) acts.push(`sends by ${actions.sendChannel}`);
+      }
+      target = [who.length ? `Notifies ${who.join(" + ")}` : "", acts.length ? `auto: ${acts.join(", ")}` : ""].filter(Boolean).join(" · ") || "Notify-only";
+      break;
+    }
+
+    case "escalation_ladder": {
+      const ladder = (cfg.ladder ?? {}) as {
+        byHour?: number;
+        scope?: { personId?: number; companyId?: number; taskId?: number };
+        steps?: { overdueDays?: number; notifyOwner?: boolean; notifyDirectors?: boolean; notifyManagers?: boolean; warnPerson?: boolean; autoEscalate?: boolean }[];
+      };
+      const steps = Array.isArray(ladder.steps) ? [...ladder.steps].sort((a, b) => (a.overdueDays ?? 0) - (b.overdueDays ?? 0)) : [];
+      const sc = ladder.scope ?? {};
+      const scopeName = num(sc.taskId) != null ? (taskCode(num(sc.taskId)) ?? "one task")
+        : num(sc.personId) != null ? (personName(num(sc.personId)) ?? "one person")
+        : num(sc.companyId) != null ? (companyName(num(sc.companyId)) ?? "one company")
+        : "every open task";
+      const dayList = steps.map((s) => `day ${s.overdueDays ?? 0}`).join(" → ");
+      title = `Escalate overdue tasks in steps${dayList ? ` (${dayList})` : ""} — watching ${scopeName}`;
+      const autoStep = steps.find((s) => s.autoEscalate);
+      target = `${steps.length} step${steps.length === 1 ? "" : "s"}${autoStep ? ` · auto-Escalate at day ${autoStep.overdueDays ?? 0}` : " · notify-only"}`;
+      break;
+    }
+
     default: {
       title = str((cfg as { title?: string }).title) || `Standing rule (${r.kind})`;
       target = code ? `Task ${code}` : companyName(r.company_id) ? `For ${companyName(r.company_id)}` : "Custom";
@@ -214,6 +291,7 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
     active: r.active,
     done: r.done,
     lastFired: relativeTime(r.last_fired_at),
+    lastRun: relativeTime(r.last_run_at),
     createdAt: r.created_at,
   };
 }

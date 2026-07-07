@@ -13,7 +13,8 @@ export type RuleKind =
   | "auto_reassign_on_leave"
   | "recurring_task"
   | "scheduled_macro"
-  | "smart_reminder";
+  | "smart_reminder"
+  | "escalation_ladder";
 
 /* smart_reminder — a conditional, time-of-day rule with an opt-in auto-act.
  * The recipe reads WHEN (trigger), IF (condition), WHOSE (scope), WHO hears
@@ -21,10 +22,39 @@ export type RuleKind =
  * posts and status writes live in the cron (guardrail-gated, auto-act off by
  * default). See tools-smart.ts + api/cron/ori-automations. */
 export type SmartTrigger = { byHour?: number; daysBeforeDeadline?: number; onOverdue?: boolean };
-export type SmartCondition = "no_update_today" | "overdue" | "compliance_due_soon" | "always";
+export type SmartCondition =
+  | "no_update_today"
+  | "overdue"
+  | "compliance_due_soon"
+  | "due_tomorrow"
+  | "always"
+  | "waiting_external_aged"
+  | "no_deadline_or_assignee"
+  | "under_review_stale";
 export type SmartScope = { personId?: number; companyId?: number; taskId?: number };
-export type SmartAudience = { notifyOwner?: boolean; notifyDirectors?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
+export type SmartAudience = { notifyOwner?: boolean; notifyDirectors?: boolean; notifyManagers?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
 export type SmartActions = { autoAct?: boolean; postUpdate?: boolean; updateText?: string; setStatus?: string; sendChannel?: "email" | "whatsapp" };
+
+/* escalation_ladder — a per-task overdue ladder: as a task ages past each step's
+ * overdueDays threshold, the cron notifies the named audience once per step (state
+ * dedupes so a step never re-fires). The PURE layer decides WHICH step is newly due
+ * this tick; the cron notifies + advances state. */
+export type LadderStep = {
+  overdueDays: number;
+  notifyOwner?: boolean;
+  notifyDirectors?: boolean;
+  notifyManagers?: boolean;
+  warnPerson?: boolean;
+  autoEscalate?: boolean;
+};
+export type LadderConfig = {
+  byHour?: number;
+  scope?: SmartScope;
+  steps: LadderStep[];
+  // taskId → highest overdueDays-step already fired (per-task dedupe). The cron
+  // updates this after firing; the pure layer only reads it.
+  state?: Record<string, number>;
+};
 
 export type RuleConfig = {
   daysBefore?: number;
@@ -61,6 +91,19 @@ export type RuleConfig = {
   scope?: SmartScope;
   audience?: SmartAudience;
   actions?: SmartActions;
+  // digest: when the scope matches SEVERAL tasks, aggregate them into ONE
+  // notification per audience member (e.g. "5 tasks due tomorrow: DS-003 …")
+  // instead of firing per-task. Still dedupes to once per Dar-local day.
+  digest?: boolean;
+  // weekdaysOnly: skip Dar-local Saturdays/Sundays (applies to any kind).
+  weekdaysOnly?: boolean;
+  // pausedUntil (ISO date): the rule is not due before this instant, for ANY kind.
+  pausedUntil?: string;
+  // agingDays: threshold for the *_aged / *_stale smart conditions (sensible
+  // defaults 3 for waiting_external_aged, 2 for under_review_stale).
+  agingDays?: number;
+  // escalation_ladder — the per-task overdue ladder. See LadderConfig above.
+  ladder?: LadderConfig;
   // Dedupe: once fired today, we stamp `${ruleId}:${YYYY-MM-DD}` here so the same
   // slot never fires twice — even under frequent (every-15-min) external ticks.
   lastFiredKey?: string;
@@ -85,17 +128,31 @@ export type RuleTask = {
 /** The decision for one rule this tick. `fire` triggers the action; `markDone`
  *  retires a one-shot rule; `deactivate` switches a recurring rule off (task
  *  closed, or the nudge got its update). `note` explains why (for the log). */
-export type RuleEval = { fire: boolean; markDone?: boolean; deactivate?: boolean; note?: string };
+export type RuleEval = {
+  fire: boolean;
+  markDone?: boolean;
+  deactivate?: boolean;
+  note?: string;
+  // escalation_ladder only: the newly-due step the cron should fire. `overdueDays`
+  // doubles as the per-task state key the cron stamps into config.ladder.state.
+  ladderStep?: { index: number; overdueDays: number };
+};
 
 const DAY = 86_400_000;
 const isOpen = (status: string) => status !== "Completed" && status !== "Closed";
 
-/** Local Dar es Salaam (UTC+3) start-of-day for a given instant. */
-function darDayStart(now: Date): number {
+/** Local Dar es Salaam (UTC+3) start-of-day for a given instant. Exported so the
+ *  cron can compute the same "due tomorrow" window for digest queries. */
+export function darDayStart(now: Date): number {
   const shifted = now.getTime() + 3 * 3_600_000; // into UTC+3
   const d = new Date(shifted);
   const midnightUtcPlus3 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   return midnightUtcPlus3 - 3 * 3_600_000; // back to a real UTC instant
+}
+
+/** Dar es Salaam (UTC+3) local weekday for an instant (0=Sun … 6=Sat). */
+function darWeekday(now: Date): number {
+  return new Date(now.getTime() + 3 * 3_600_000).getUTCDay();
 }
 
 /** Parse "HH:MM" into an absolute instant on today's Dar es Salaam date. */
@@ -119,6 +176,17 @@ export function evaluateRule(
   if (!isOpen(task.status)) return { fire: false, deactivate: true, note: "task closed" };
 
   const nowMs = now.getTime();
+
+  // pausedUntil — a snoozed rule is not due before its resume instant (all kinds).
+  if (rule.config.pausedUntil) {
+    const resume = Date.parse(rule.config.pausedUntil);
+    if (!Number.isNaN(resume) && nowMs < resume) return { fire: false, note: "paused" };
+  }
+  // weekdaysOnly — never due on a Dar-local weekend (all kinds).
+  if (rule.config.weekdaysOnly) {
+    const wd = darWeekday(now);
+    if (wd === 0 || wd === 6) return { fire: false, note: "weekend (weekdaysOnly)" };
+  }
 
   switch (rule.kind) {
     case "reminder_before_deadline": {
@@ -258,10 +326,74 @@ export function evaluateRule(
         conditionHolds = !(lastUpdateAt && lastUpdateAt.getTime() >= dayStart);
       } else if (cond === "overdue") {
         conditionHolds = !!task.deadline && nowMs >= task.deadline.getTime();
+      } else if (cond === "due_tomorrow") {
+        // Deadline lands within TOMORROW (Dar es Salaam local day).
+        const tomorrowStart = darDayStart(now) + DAY;
+        const dl = task.deadline?.getTime();
+        conditionHolds = dl != null && dl >= tomorrowStart && dl < tomorrowStart + DAY;
+      } else if (cond === "waiting_external_aged") {
+        // "Waiting External" AND sat there (no update) ≥ agingDays (default 3).
+        const agingDays = Math.max(1, Math.round(cfg.agingDays ?? 3));
+        const anchor = Math.max(
+          lastUpdateAt?.getTime() ?? 0,
+          task.createdDate?.getTime() ?? 0,
+          rule.createdAt.getTime(),
+        );
+        conditionHolds = task.status === "Waiting External" && nowMs >= anchor + agingDays * DAY;
+      } else if (cond === "under_review_stale") {
+        // "Under Review" AND no update ≥ agingDays (default 2).
+        const agingDays = Math.max(1, Math.round(cfg.agingDays ?? 2));
+        const anchor = Math.max(
+          lastUpdateAt?.getTime() ?? 0,
+          task.createdDate?.getTime() ?? 0,
+          rule.createdAt.getTime(),
+        );
+        conditionHolds = task.status === "Under Review" && nowMs >= anchor + agingDays * DAY;
+      } else if (cond === "no_deadline_or_assignee") {
+        // Open task missing a deadline (purely visible here) OR possibly an assignee.
+        // The pure layer can only see the deadline; it passes "needs check" through
+        // when a deadline exists and lets the cron confirm the assignee. When the
+        // deadline is already missing, the condition definitively holds.
+        conditionHolds = true;
       }
       if (!conditionHolds) return { fire: false };
 
       return { fire: true, note: `smart (${cond})` };
+    }
+
+    case "escalation_ladder": {
+      // Per-task overdue ladder. DUE = the byHour window has arrived AND the task is
+      // overdue AND a higher step-threshold has been crossed than we've already fired
+      // for this task. We return the single newly-due step (the highest crossed step
+      // above the already-fired mark); the cron notifies + advances state[taskId].
+      const ladder = rule.config.ladder;
+      if (!ladder || !ladder.steps?.length) return { fire: false };
+      if (!task.deadline) return { fire: false };
+
+      // WHEN — optional daily hour gate (Dar-local).
+      if (typeof ladder.byHour === "number") {
+        const hour = Math.min(23, Math.max(0, Math.round(ladder.byHour)));
+        if (nowMs < darDayStart(now) + hour * 3_600_000) return { fire: false };
+      }
+
+      const overdueMs = nowMs - task.deadline.getTime();
+      if (overdueMs <= 0) return { fire: false }; // not overdue yet
+      const overdueDays = Math.floor(overdueMs / DAY);
+
+      const taskId = ladder.scope?.taskId;
+      const firedMark = (taskId != null ? ladder.state?.[String(taskId)] : undefined) ?? -1;
+
+      // The highest step whose threshold we've now crossed and haven't yet fired.
+      let best: { index: number; overdueDays: number } | null = null;
+      ladder.steps.forEach((step, index) => {
+        const thresh = Math.max(0, Math.round(step.overdueDays));
+        if (overdueDays >= thresh && thresh > firedMark) {
+          if (!best || thresh > best.overdueDays) best = { index, overdueDays: thresh };
+        }
+      });
+      if (!best) return { fire: false };
+      const due: { index: number; overdueDays: number } = best;
+      return { fire: true, note: `ladder step ${due.index} (${due.overdueDays}d overdue)`, ladderStep: due };
     }
 
     default:

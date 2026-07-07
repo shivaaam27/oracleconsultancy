@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { sb } from "@/db/supabase";
 import { describeRule, type RawRule, type NameMaps, type DescribedRule } from "./describe";
-import { AutomationControls } from "./automation-row";
+import { AutomationControls, FiringHistory } from "./automation-row";
+import { RuleBuilder } from "./rule-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,14 @@ function referencedIds(rules: RawRule[]) {
     }
     const assignees = (c as { assigneePersonIds?: unknown }).assigneePersonIds;
     if (Array.isArray(assignees)) for (const v of assignees) if (typeof v === "number") personIds.add(v);
+    // smart_reminder — scope + audience ids live inside nested config objects.
+    const scope = (c as { scope?: { personId?: unknown; taskId?: unknown } }).scope;
+    if (scope) {
+      if (typeof scope.personId === "number") personIds.add(scope.personId);
+      if (typeof scope.taskId === "number") taskIds.add(scope.taskId);
+    }
+    const aud = (c as { audience?: { notifyPersonIds?: unknown } }).audience;
+    if (aud && Array.isArray(aud.notifyPersonIds)) for (const v of aud.notifyPersonIds) if (typeof v === "number") personIds.add(v);
   }
   return { taskIds: [...taskIds], personIds: [...personIds] };
 }
@@ -50,8 +59,14 @@ export default async function OriAutomationsPage() {
     .limit(500);
 
   const rules = (data ?? []) as RawRule[];
-  const maps = await loadNameMaps(rules);
+  const [maps, peopleRes, companiesRes] = await Promise.all([
+    loadNameMaps(rules),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("companies").select("id,name").order("name"),
+  ]);
   const described = rules.map((r) => describeRule(r, maps));
+  const people = (peopleRes.data ?? []) as { id: number; name: string }[];
+  const companies = (companiesRes.data ?? []) as { id: number; name: string }[];
 
   const active = described.filter((r) => r.active);
   const paused = described.filter((r) => !r.active);
@@ -61,8 +76,10 @@ export default async function OriAutomationsPage() {
       <HrmsCrumbs />
       <PageHeader
         title="ORI Automation"
-        sub="Every standing automation ORI holds — pause or cancel any of them. Read-only: this screen never starts a new action."
+        sub="Every standing automation ORI holds — build a new one yourself, or pause and cancel any of them."
       />
+
+      <RuleBuilder people={people} companies={companies} />
 
       {described.length === 0 ? (
         <EmptyState />
@@ -128,9 +145,9 @@ function RuleRow({ r }: { r: DescribedRule }) {
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
           <span className="rounded px-1.5 py-0.5 ring-1 ring-border/60 bg-bg-elev">{r.kindLabel}</span>
           <span className="truncate">{r.target}</span>
-          {r.lastFired && <span className="text-fg-subtle">· last fired {r.lastFired}</span>}
           {r.done && <span className="text-fg-subtle">· completed</span>}
         </div>
+        <FiringHistory id={r.id} lastFired={r.lastFired} />
       </div>
       <div className="shrink-0">
         <AutomationControls id={r.id} active={r.active} />

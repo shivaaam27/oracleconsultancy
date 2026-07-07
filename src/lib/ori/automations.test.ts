@@ -184,9 +184,141 @@ describe("evaluateRule", () => {
       expect(evaluateRule(rule({ kind: "smart_reminder", config: { condition: "overdue" } }), openTask({ deadline: past }), null, now).fire).toBe(true);
       expect(evaluateRule(rule({ kind: "smart_reminder", config: { condition: "overdue" } }), openTask({ deadline: future }), null, now).fire).toBe(false);
     });
+    it("due_tomorrow fires when the deadline lands within tomorrow (Dar local)", () => {
+      // Tomorrow (Sat 11 Jul, Dar local) at 12:00 Dar = 09:00 UTC.
+      const tomorrowNoon = new Date("2026-07-11T09:00:00.000Z");
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "due_tomorrow" } }), openTask({ deadline: tomorrowNoon }), null, now);
+      expect(r).toMatchObject({ fire: true });
+    });
+    it("due_tomorrow does not fire for today's, later or missing deadlines", () => {
+      const todayNoon = new Date("2026-07-10T09:00:00.000Z"); // today Dar-local
+      const dayAfter = new Date("2026-07-12T09:00:00.000Z");  // day AFTER tomorrow
+      const mk = (deadline: Date | null) =>
+        evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "due_tomorrow" } }), openTask({ deadline }), null, now).fire;
+      expect(mk(todayNoon)).toBe(false);
+      expect(mk(dayAfter)).toBe(false);
+      expect(mk(null)).toBe(false);
+    });
+    it("due_tomorrow catches the very start and end of tomorrow's Dar day", () => {
+      const startOfTomorrow = new Date("2026-07-10T21:00:00.000Z"); // 00:00 Sat Dar
+      const endOfTomorrow = new Date("2026-07-11T20:59:00.000Z");   // 23:59 Sat Dar
+      const startOfDayAfter = new Date("2026-07-11T21:00:00.000Z"); // 00:00 Sun Dar
+      const mk = (deadline: Date) =>
+        evaluateRule(rule({ kind: "smart_reminder", config: { condition: "due_tomorrow" } }), openTask({ deadline }), null, now).fire;
+      expect(mk(startOfTomorrow)).toBe(true);
+      expect(mk(endOfTomorrow)).toBe(true);
+      expect(mk(startOfDayAfter)).toBe(false);
+    });
     it("retires when its scoped task is closed", () => {
       const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "always" } }), openTask({ status: "Completed" }), null, now);
       expect(r).toMatchObject({ fire: false, deactivate: true });
+    });
+
+    it("waiting_external_aged fires only when status matches AND aged past agingDays", () => {
+      const created = new Date(now.getTime() - 5 * DAY); // untouched 5 days
+      const cfg = { trigger: { byHour: 9 }, condition: "waiting_external_aged" as const, agingDays: 3 };
+      // right status + aged → fires
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "Waiting External", createdDate: created }), null, now).fire).toBe(true);
+      // right status but not aged yet (2 days) → no
+      const fresh = new Date(now.getTime() - 2 * DAY);
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "Waiting External", createdDate: fresh }), null, now).fire).toBe(false);
+      // aged but wrong status → no
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "In Progress", createdDate: created }), null, now).fire).toBe(false);
+    });
+
+    it("under_review_stale fires only under review with no update past agingDays (default 2)", () => {
+      const created = new Date(now.getTime() - 4 * DAY);
+      const cfg = { trigger: { byHour: 9 }, condition: "under_review_stale" as const };
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "Under Review", createdDate: created }), null, now).fire).toBe(true);
+      // recent update resets the clock → no
+      const recent = new Date(now.getTime() - 1 * DAY);
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "Under Review", createdDate: created }), recent, now).fire).toBe(false);
+      // wrong status → no
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ status: "In Progress", createdDate: created }), null, now).fire).toBe(false);
+    });
+
+    it("no_deadline_or_assignee passes the window through for the cron to confirm", () => {
+      const cfg = { trigger: { byHour: 9 }, condition: "no_deadline_or_assignee" as const };
+      // missing deadline → definitively holds
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ deadline: null }), null, now).fire).toBe(true);
+      // has a deadline → still passes through (cron confirms the assignee)
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask({ deadline: new Date(now.getTime() + 5 * DAY) }), null, now).fire).toBe(true);
+    });
+  });
+
+  describe("weekdaysOnly (any kind)", () => {
+    // now = 2026-07-10 is a Friday. Sat = 2026-07-11, Sun = 2026-07-12.
+    const sat = new Date("2026-07-11T08:00:00.000Z");
+    const sun = new Date("2026-07-12T08:00:00.000Z");
+    it("does not fire on a Dar-local Saturday/Sunday", () => {
+      const r = rule({ kind: "auto_reassign_on_leave", config: { weekdaysOnly: true } });
+      expect(evaluateRule(r, openTask(), null, sat).fire).toBe(false);
+      expect(evaluateRule(r, openTask(), null, sun).fire).toBe(false);
+    });
+    it("fires normally on a weekday", () => {
+      const r = rule({ kind: "auto_reassign_on_leave", config: { weekdaysOnly: true } });
+      expect(evaluateRule(r, openTask(), null, now).fire).toBe(true);
+    });
+  });
+
+  describe("pausedUntil (any kind)", () => {
+    it("does not fire before the resume instant", () => {
+      const future = new Date(now.getTime() + 3 * DAY).toISOString();
+      const r = evaluateRule(rule({ kind: "auto_reassign_on_leave", config: { pausedUntil: future } }), openTask(), null, now);
+      expect(r.fire).toBe(false);
+    });
+    it("fires once the resume instant has passed", () => {
+      const past = new Date(now.getTime() - 1 * DAY).toISOString();
+      const r = evaluateRule(rule({ kind: "auto_reassign_on_leave", config: { pausedUntil: past } }), openTask(), null, now);
+      expect(r.fire).toBe(true);
+    });
+  });
+
+  describe("escalation_ladder", () => {
+    const steps = [
+      { overdueDays: 2, notifyOwner: true },
+      { overdueDays: 5, notifyDirectors: true },
+    ];
+    it("fires the day-2 step at 2 days overdue, not the day-5 step", () => {
+      const deadline = new Date(now.getTime() - 2 * DAY); // exactly 2 days overdue
+      const r = evaluateRule(
+        rule({ kind: "escalation_ladder", config: { ladder: { scope: { taskId: 7 }, steps } } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.fire).toBe(true);
+      expect(r.ladderStep).toMatchObject({ index: 0, overdueDays: 2 });
+    });
+    it("fires the day-5 step once 5 days overdue", () => {
+      const deadline = new Date(now.getTime() - 6 * DAY);
+      const r = evaluateRule(
+        rule({ kind: "escalation_ladder", config: { ladder: { scope: { taskId: 7 }, steps } } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.ladderStep).toMatchObject({ index: 1, overdueDays: 5 });
+    });
+    it("does not re-fire a step already recorded in state", () => {
+      const deadline = new Date(now.getTime() - 3 * DAY); // past the day-2 step
+      const r = evaluateRule(
+        rule({ kind: "escalation_ladder", config: { ladder: { scope: { taskId: 7 }, steps, state: { "7": 2 } } } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.fire).toBe(false);
+    });
+    it("does not fire before the task is overdue", () => {
+      const deadline = new Date(now.getTime() + 1 * DAY);
+      const r = evaluateRule(
+        rule({ kind: "escalation_ladder", config: { ladder: { scope: { taskId: 7 }, steps } } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.fire).toBe(false);
+    });
+    it("respects byHour before firing", () => {
+      const deadline = new Date(now.getTime() - 3 * DAY);
+      const r = evaluateRule(
+        rule({ kind: "escalation_ladder", config: { ladder: { byHour: 14, scope: { taskId: 7 }, steps } } }),
+        openTask({ deadline }), null, now, // now = 11:00 Dar, before 14:00
+      );
+      expect(r.fire).toBe(false);
     });
   });
 });
