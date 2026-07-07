@@ -2,7 +2,8 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, nowIso, resolveTask, resolvePerson, resolveCompany } from "@/lib/ori/tools";
-import type { SmartActions, SmartAudience, SmartCondition, SmartScope, SmartTrigger } from "@/lib/ori/automations";
+import type { SmartActions, SmartAudience, SmartCondition, SmartScope, SmartTrigger, RuleConfig } from "@/lib/ori/automations";
+import { MIN_REPEAT_MINUTES } from "@/lib/ori/automations";
 
 /* create_smart_reminder — the ONE ORI tool for the conditional, time-of-day
  * "smart reminder" recipe (see automations.ts smart_reminder + the cron firing).
@@ -43,12 +44,27 @@ export function parseClockTime(raw: string): { hour: number; minute: number } | 
   return { hour, minute };
 }
 
+/** Parse "every 6 hours" / "15 minutes" / "1h" / "90m" / "2 hrs" → minutes. Null when
+ *  it isn't an interval. Bare numbers are read as minutes. */
+export function parseRepeatInterval(raw: string): number | null {
+  const s = raw.trim().toLowerCase().replace(/^every\s+/, "");
+  if (!s) return null;
+  const m = /^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|d|day|days)?$/.exec(s);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const unit = m[2] ?? "m";
+  if (/^h/.test(unit)) return Math.round(n * 60);
+  if (/^d/.test(unit)) return Math.round(n * 1440);
+  return Math.round(n); // minutes (default)
+}
+
 export const SMART_TOOLS: ToolDef[] = [
   {
     name: "create_smart_reminder",
     tier: 3,
     description:
-      "Set a SMART reminder: WHEN a time-of-day (minute-precise, e.g. '11:45pm'), a days/hours-before-deadline window or overdue is reached, IF a condition holds, notify a chosen audience via portal push (you, directors, the person, named people — the person is the default for 'remind X …'), and OPTIONALLY (opt-in only) auto-act — post an update on the task, change its status, or send email/WhatsApp. A specific clock time or hours-before-deadline is a ONE-OFF by default (retires after firing); daily/every = recurring. Auto-act is OFF unless the owner clearly says to do it automatically. Always confirmed before it's created.",
+      "Set a SMART reminder: WHEN a time-of-day (minute-precise, e.g. '11:45pm'), a days/hours-before-deadline window or overdue is reached, IF a condition holds, notify a chosen audience via portal push (you, directors, the person, named people — the person is the default for 'remind X …'), and OPTIONALLY (opt-in only) auto-act — post an update on the task, change its status, or send email/WhatsApp. A specific clock time or hours-before-deadline is a ONE-OFF by default (retires after firing); daily/every = recurring. For HIGH-FREQUENCY REPEATING nudges that STOP when the person responds ('ping every 6 hours until they post an update', 'every 15 min until they respond', 'from 3h before the deadline, every hour until due or they update'), set repeatEvery (min 15 minutes) plus a stop condition (untilUpdate is the default; untilDeadline; or maxCount). Compose with the WHEN triggers (onOverdue / hoursBeforeDeadline / byHour) to open the nagging window. Auto-act is OFF unless the owner clearly says to do it automatically. Always confirmed before it's created.",
     params: {
       person: { type: "string", required: false, description: "WHOSE tasks — a person by name (scope). Give a person, company or taskCode." },
       company: { type: "string", required: false, description: "WHOSE tasks — a company by name (scope)." },
@@ -59,6 +75,12 @@ export const SMART_TOOLS: ToolDef[] = [
       hoursBeforeDeadline: { type: "number", required: false, description: "WHEN — fire this many hours before the task's deadline (e.g. 1 for 'one hour before it's due'; fractional ok)." },
       onOverdue: { type: "string", required: false, description: "WHEN — 'yes' to fire only once the task is overdue." },
       once: { type: "string", required: false, description: "One-off vs recurring — 'yes' fires ONCE then retires; 'no' repeats. DEFAULTS to yes when a specific clock time or hoursBeforeDeadline is given ('at 11:45pm' means once); say daily/every for recurring." },
+      repeatEvery: { type: "string", required: false, description: "HIGH-FREQUENCY REPEAT — e.g. 'every 6 hours', '15 minutes', '1 hour'. When set, the reminder REPEATS on that interval (minimum 15 minutes) until a stop condition, instead of once a day. Use for 'ping every 6 hours until they update'." },
+      untilUpdate: { type: "string", required: false, description: "STOP — 'yes' to stop repeating the moment the person posts an update on the task. This is the DEFAULT stop when a repeat interval + a task/person scope is given." },
+      untilDeadline: { type: "string", required: false, description: "STOP — 'yes' to stop repeating once the task's deadline passes." },
+      maxCount: { type: "number", required: false, description: "STOP — stop after this many reminders (1–100)." },
+      activeFromHour: { type: "number", required: false, description: "Active-hours start (0–23, Dar es Salaam) — a repeating nudge only fires from this hour, so it never pings overnight. Pair with activeToHour." },
+      activeToHour: { type: "number", required: false, description: "Active-hours end (0–23, Dar es Salaam) — a repeating nudge only fires before this hour." },
       message: { type: "string", required: false, description: "The instruction/message wording — used as the notification text (and the posted update when auto-act posts one)." },
       condition: { type: "string", required: false, description: "IF — no_update_today | overdue | compliance_due_soon | always (default always)." },
       notifyOwner: { type: "string", required: false, description: "WHO — 'yes' to notify you (the owner/admin)." },
@@ -109,12 +131,17 @@ export const SMART_TOOLS: ToolDef[] = [
       if (Number.isFinite(hoursBefore) && hoursBefore > 0) trigger.hoursBeforeDeadline = Math.min(720, hoursBefore);
       if (truthy(args.onOverdue)) trigger.onOverdue = true;
 
+      // ── REPEAT interval (high-frequency nudge that stops on response) ──────────
+      const repeatMin = str(args.repeatEvery) ? parseRepeatInterval(str(args.repeatEvery)) : null;
+      const isInterval = repeatMin != null;
+
       // ONE-OFF vs recurring: an explicit `once` wins; otherwise a specific clock
       // time or an hours-before-deadline window reads as a one-off ("at 11:45pm"
-      // means tonight, not every night).
-      const once = args.once != null && str(args.once) !== ""
-        ? truthy(args.once)
-        : !!clock || trigger.hoursBeforeDeadline != null;
+      // means tonight, not every night). A repeat interval is never a one-off.
+      const once = isInterval ? false
+        : args.once != null && str(args.once) !== ""
+          ? truthy(args.once)
+          : !!clock || trigger.hoursBeforeDeadline != null;
 
       // ── IF (condition) ────────────────────────────────────────────────────────
       const condRaw = str(args.condition) as SmartCondition;
@@ -161,7 +188,30 @@ export const SMART_TOOLS: ToolDef[] = [
         return { ok: false, message: "Who should hear about this — you, the directors, the person, or someone named? (Or should ORI act on it automatically?)" };
       }
 
-      const config = { trigger, condition, scope, audience, actions, ...(once ? { once: true } : {}) };
+      // ── Assemble interval fields + enforce SAFETY: a repeat rule MUST have a stop.
+      const intervalCfg: Partial<RuleConfig> = {};
+      if (isInterval) {
+        intervalCfg.repeatEveryMinutes = Math.max(MIN_REPEAT_MINUTES, repeatMin!);
+        const scoped = typeof scope.taskId === "number" || typeof scope.personId === "number";
+        // untilUpdate is the DEFAULT stop when a repeat + a task/person scope is given.
+        const wantUntilUpdate = args.untilUpdate != null && str(args.untilUpdate) !== ""
+          ? truthy(args.untilUpdate)
+          : scoped && !truthy(args.untilDeadline) && !Number.isFinite(Number(args.maxCount));
+        if (wantUntilUpdate) intervalCfg.untilUpdate = true;
+        if (truthy(args.untilDeadline)) intervalCfg.untilDeadline = true;
+        const maxCount = Number(args.maxCount);
+        if (Number.isFinite(maxCount) && maxCount >= 1) intervalCfg.maxCount = Math.min(100, Math.round(maxCount));
+        // Active-hours window (never nag overnight).
+        const fromH = Number(args.activeFromHour), toH = Number(args.activeToHour);
+        if (Number.isInteger(fromH) && Number.isInteger(toH) && fromH >= 0 && fromH <= 23 && toH >= 0 && toH <= 23 && fromH !== toH) {
+          intervalCfg.window = { fromHour: fromH, toHour: toH };
+        }
+        if (!intervalCfg.untilUpdate && !intervalCfg.untilDeadline && intervalCfg.maxCount == null) {
+          return { ok: false, message: "A repeating reminder needs a stop condition — should it stop when they post an update, when the deadline passes, or after a set number of reminders?" };
+        }
+      }
+
+      const config = { trigger, condition, scope, audience, actions, ...intervalCfg, ...(once ? { once: true } : {}) };
       const { data, error } = await sb.from("automation_rules").insert({
         task_id: scope.taskId ?? null, company_id: companyId, kind: "smart_reminder", config,
         active: true, done: false, created_by: "ai-command", created_at: nowIso(),
@@ -174,7 +224,19 @@ export const SMART_TOOLS: ToolDef[] = [
       if (trigger.daysBeforeDeadline != null) whenBits.push(`${trigger.daysBeforeDeadline}d before deadline`);
       if (trigger.hoursBeforeDeadline != null) whenBits.push(`${trigger.hoursBeforeDeadline}h before deadline`);
       if (trigger.onOverdue) whenBits.push("once overdue");
-      const when = (whenBits.length ? whenBits.join(" · ") : "each day") + (once ? ", once" : "");
+      let when: string;
+      if (isInterval) {
+        const mins = intervalCfg.repeatEveryMinutes!;
+        const everyStr = mins % 60 === 0 ? `every ${mins / 60}h` : `every ${mins} min`;
+        const stops: string[] = [];
+        if (intervalCfg.untilUpdate) stops.push("until they post an update");
+        if (intervalCfg.untilDeadline) stops.push("until the deadline");
+        if (intervalCfg.maxCount != null) stops.push(`up to ${intervalCfg.maxCount} times`);
+        const openBits = whenBits.length ? `from ${whenBits.join(" then ")}, ` : "";
+        when = `${openBits}${everyStr} ${stops.join(", ")}`;
+      } else {
+        when = (whenBits.length ? whenBits.join(" then ") : "each day") + (once ? ", once" : "");
+      }
       const whoBits: string[] = [];
       if (audience.notifyOwner) whoBits.push("you");
       if (audience.notifyDirectors) whoBits.push("directors");

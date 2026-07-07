@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { STATUSES } from "@/lib/constants";
 import { saveAppSettings } from "@/lib/settings";
+import { MIN_REPEAT_MINUTES } from "@/lib/ori/automations";
 import type { RuleConfig, SmartCondition } from "@/lib/ori/automations";
 
 type Res = { ok: boolean; error?: string };
@@ -38,6 +39,15 @@ export type BuilderPayload = {
   weekdaysOnly?: boolean;
   pausedUntil?: string;   // "YYYY-MM-DD" — rule idle before this date
   agingDays?: number;     // threshold for the *_aged / *_stale conditions
+  /** High-frequency repeating nudge that stops on response (INTERVAL mode). When set,
+   *  the smart_reminder repeats every `everyMinutes` (min 15) until a stop condition. */
+  repeat?: {
+    everyMinutes: number;
+    untilUpdate?: boolean;
+    untilDeadline?: boolean;
+    maxCount?: number;
+    window?: { fromHour: number; toHour: number };
+  };
   /** Escalation-ladder path — when set, builds an `escalation_ladder` rule instead. */
   ladder?: { byHour?: number; steps: LadderStepInput[] };
   /** Template hint: use a simpler existing kind when the recipe fits it. Honoured
@@ -69,6 +79,34 @@ function clampAging(v: unknown, cond: SmartCondition): number {
   const n = Math.round(Number(v));
   if (!Number.isFinite(n)) return def;
   return Math.max(1, Math.min(90, n));
+}
+
+/** Validate + normalise a repeat (interval) block. Returns the config fragment, or
+ *  an error string when a repeat rule lacks a stop condition / has bad hours. Enforces
+ *  the 15-minute floor, maxCount 1–100, and window hours 0–23. */
+function buildRepeat(r: NonNullable<BuilderPayload["repeat"]>): { cfg: Partial<RuleConfig> } | { error: string } {
+  const everyMinutes = Math.round(Number(r.everyMinutes));
+  if (!Number.isFinite(everyMinutes) || everyMinutes < MIN_REPEAT_MINUTES) {
+    return { error: `The repeat interval must be at least ${MIN_REPEAT_MINUTES} minutes.` };
+  }
+  const cfg: Partial<RuleConfig> = { repeatEveryMinutes: everyMinutes };
+  if (r.untilUpdate === true) cfg.untilUpdate = true;
+  if (r.untilDeadline === true) cfg.untilDeadline = true;
+  if (r.maxCount != null) {
+    const n = Math.round(Number(r.maxCount));
+    if (!Number.isFinite(n) || n < 1 || n > 100) return { error: "The reminder count must be between 1 and 100." };
+    cfg.maxCount = n;
+  }
+  if (r.window) {
+    const from = Math.round(Number(r.window.fromHour)), to = Math.round(Number(r.window.toHour));
+    if (![from, to].every((h) => Number.isInteger(h) && h >= 0 && h <= 23)) return { error: "Active hours must be between 0 and 23." };
+    if (from !== to) cfg.window = { fromHour: from, toHour: to };
+  }
+  // SAFETY: a repeat rule MUST carry at least one stop condition.
+  if (!cfg.untilUpdate && !cfg.untilDeadline && cfg.maxCount == null) {
+    return { error: "A repeating reminder must have a stop: until they update, until the deadline, or a maximum count." };
+  }
+  return { cfg };
 }
 
 /** Create one automation rule from the self-serve builder. Never trusts the
@@ -206,8 +244,9 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
     const hasAction = autoAct && (postUpdate || !!setStatus || !!sendChannel);
     if (!hasAudience && !hasAction) return { ok: false, error: "The rule must notify someone or (with auto-act on) do something." };
 
-    // Prefer a simpler existing kind when the template recipe fits it exactly.
-    if (p.preferKind === "reminder_before_deadline" && taskId != null && mode === "days_before" && p.condition === "always" && !autoAct) {
+    // Prefer a simpler existing kind when the template recipe fits it exactly (never
+    // for a repeat rule — those need the smart_reminder interval engine).
+    if (!p.repeat && p.preferKind === "reminder_before_deadline" && taskId != null && mode === "days_before" && p.condition === "always" && !autoAct) {
       const { error } = await sb.from("automation_rules").insert({
         kind: "reminder_before_deadline", task_id: taskId, company_id: companyId,
         config: { daysBefore: days ?? 1 }, active: true, done: false, created_at: new Date().toISOString(),
@@ -216,7 +255,7 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
       revalidatePath("/ori-automations");
       return { ok: true };
     }
-    if (p.preferKind === "escalate_if_no_update" && taskId != null && !autoAct) {
+    if (!p.repeat && p.preferKind === "escalate_if_no_update" && taskId != null && !autoAct) {
       const { error } = await sb.from("automation_rules").insert({
         kind: "escalate_if_no_update", task_id: taskId, company_id: companyId,
         config: { afterDays: days ?? 3 }, active: true, done: false, created_at: new Date().toISOString(),
@@ -227,6 +266,13 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
     }
 
     // smart_reminder — the general WHEN/IF/WHO/DO recipe.
+    // Validate the repeat (interval) block if present — a repeat rule MUST have a stop.
+    let repeatCfg: Partial<RuleConfig> = {};
+    if (p.repeat) {
+      const rr = buildRepeat(p.repeat);
+      if ("error" in rr) return { ok: false, error: rr.error };
+      repeatCfg = rr.cfg;
+    }
     const config: RuleConfig = {
       trigger: mode === "at_hour" ? { byHour: hour, ...(minute ? { byMinute: minute } : {}) }
         : mode === "days_before" ? { daysBeforeDeadline: days }
@@ -245,11 +291,13 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
       actions: autoAct
         ? { autoAct: true, postUpdate, ...(updateText ? { updateText } : {}), ...(setStatus ? { setStatus } : {}), ...(sendChannel ? { sendChannel } : {}) }
         : { autoAct: false },
-      ...(once ? { once: true } : {}),
-      ...(p.condition === "due_tomorrow" ? { digest: true } : {}),
+      // Interval mode wins over `once` (a repeat is never a one-off) and over digest.
+      ...(repeatCfg.repeatEveryMinutes ? {} : (once ? { once: true } : {})),
+      ...(repeatCfg.repeatEveryMinutes ? {} : (p.condition === "due_tomorrow" ? { digest: true } : {})),
       ...(p.weekdaysOnly === true ? { weekdaysOnly: true } : {}),
       ...(validDateStr(p.pausedUntil) ? { pausedUntil: validDateStr(p.pausedUntil)! } : {}),
       ...(agingCond(p.condition) ? { agingDays: clampAging(p.agingDays, p.condition) } : {}),
+      ...repeatCfg,
     };
     const { error } = await sb.from("automation_rules").insert({
       kind: "smart_reminder", task_id: taskId, company_id: companyId,

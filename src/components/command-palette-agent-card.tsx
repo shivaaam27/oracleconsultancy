@@ -1,9 +1,98 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowRight, Sparkles, Loader2, Check, X as XIcon, RotateCw, ExternalLink } from "lucide-react";
+import { ArrowRight, Sparkles, Loader2, Check, X as XIcon, RotateCw, ExternalLink, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RichAnswer } from "./rich-answer";
 import { friendlyAIError } from "@/lib/ai-errors";
+import type { ExpectsEntity } from "@/lib/ori/agent";
+
+type PickerKind = ExpectsEntity["kind"];
+type PickerItem = { value: string; label: string; sublabel?: string };
+
+// Infer the entity type from a clarifying question when the planner didn't tag
+// `expects` — a robustness fallback so the picker still appears. Order matters:
+// task/document are more specific than the generic person/company keywords.
+function inferKind(question: string): PickerKind | null {
+  const q = question.toLowerCase();
+  if (!/\bwhich\b|\bwhat\b|\bwho\b|\bthe\b/.test(q)) return null;
+  if (/\btask\b/.test(q)) return "task";
+  if (/\bdocument\b|\bdoc\b|\bfile\b/.test(q)) return "document";
+  if (/\bwho\b|\bperson\b|\bstaff\b|\bemployee\b|\bpeople\b/.test(q)) return "person";
+  if (/\bcompany\b|\bcompanies\b|\bbusiness\b/.test(q)) return "company";
+  return null;
+}
+
+const KIND_PLACEHOLDER: Record<PickerKind, string> = {
+  task: "Search tasks…",
+  person: "Search people…",
+  company: "Search companies…",
+  document: "Search documents…",
+};
+
+/** Searchable entity picker for the ask phase. Debounced fetch to /api/picker;
+ *  shows top items immediately (empty query), filters as you type, selecting one
+ *  submits its `value` as the clarify answer. Falls back gracefully — a failed
+ *  fetch just leaves an empty list; the free-text box below still works. */
+function EntityPicker({ kind, onPick }: { kind: PickerKind; onPick: (value: string) => void }) {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<PickerItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [highlight, setHighlight] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/picker?type=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((d) => { if (!cancelled) { setItems(Array.isArray(d.items) ? d.items : []); setHighlight(0); } })
+        .catch(() => { if (!cancelled) setItems([]); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, q ? 220 : 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [kind, q]);
+
+  return (
+    <div className="rounded-xl bg-bg-elev ring-1 ring-border overflow-hidden">
+      <div className="flex items-center gap-2 px-3 focus-within:ring-2 focus-within:ring-accent/40 rounded-xl">
+        <Search size={14} className="shrink-0 text-fg-subtle" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setHighlight((h) => Math.min(h + 1, items.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)); }
+            else if (e.key === "Enter" && items[highlight]) { e.preventDefault(); onPick(items[highlight].value); }
+          }}
+          placeholder={KIND_PLACEHOLDER[kind]}
+          autoFocus
+          className="flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-fg-subtle"
+        />
+        {loading && <Loader2 size={13} className="shrink-0 animate-spin text-fg-subtle" />}
+      </div>
+      {items.length > 0 && (
+        <ul className="max-h-52 overflow-auto border-t border-border/60 py-1">
+          {items.map((it, i) => (
+            <li key={`${it.value}-${i}`}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onPick(it.value); }}
+                onMouseEnter={() => setHighlight(i)}
+                className={cn("block w-full px-3 py-1.5 text-left transition-colors", i === highlight ? "bg-accent-soft" : "hover:bg-bg-muted/60")}
+              >
+                <span className="block truncate text-sm text-fg">{it.label}</span>
+                {it.sublabel && <span className="block truncate text-[11px] text-fg-subtle">{it.sublabel}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && items.length === 0 && q && (
+        <div className="border-t border-border/60 px-3 py-2 text-[12px] text-fg-subtle">No matches — or type it below.</div>
+      )}
+    </div>
+  );
+}
 
 // The ORI AGENT turn — a self-managed clarify → confirm → execute conversation
 // with /api/ori. ORI asks for missing details (multi-turn), shows a plan for the
@@ -14,7 +103,7 @@ type AgentRunResult = { tool: string; ok: boolean; message: string; redirect?: s
 export function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href: string) => void }) {
   type Phase =
     | { kind: "thinking" }
-    | { kind: "ask"; reply: string }
+    | { kind: "ask"; reply: string; expects?: ExpectsEntity }
     | { kind: "confirm"; reply: string; plan: AgentPlanStep[] }
     | { kind: "running" }
     | { kind: "answer"; reply: string }
@@ -49,7 +138,7 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { setPhase({ kind: "error", message: friendlyAIError(d.error || "server-error").message }); return; }
-      if (d.mode === "ask") { historyRef.current.push({ role: "assistant", content: d.reply }); setPhase({ kind: "ask", reply: d.reply }); }
+      if (d.mode === "ask") { historyRef.current.push({ role: "assistant", content: d.reply }); setPhase({ kind: "ask", reply: d.reply, expects: d.expects as ExpectsEntity | undefined }); }
       else if (d.mode === "confirm") setPhase({ kind: "confirm", reply: d.reply, plan: (d.plan ?? []) as AgentPlanStep[] });
       else setPhase({ kind: "answer", reply: d.reply || "I'm not sure how to action that yet." });
     } catch {
@@ -60,8 +149,8 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
   useEffect(() => { if (!started.current) { started.current = true; void plan(); } }, [plan]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [phase]);
 
-  const sendClarify = () => {
-    const a = reply.trim();
+  const sendClarify = (value?: string) => {
+    const a = (value ?? reply).trim();
     if (!a) return;
     historyRef.current.push({ role: "user", content: a });
     setReply("");
@@ -95,22 +184,29 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
           <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Thinking it through…</div>
         )}
 
-        {phase.kind === "ask" && (
-          <div className="space-y-2">
-            <RichAnswer text={phase.reply} />
-            <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
-              <input
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendClarify(); } }}
-                placeholder="Your answer…"
-                autoFocus
-                className="flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-fg-subtle"
-              />
-              <button type="button" onClick={sendClarify} disabled={!reply.trim()} aria-label="Send" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-white disabled:opacity-40"><ArrowRight size={14} /></button>
+        {phase.kind === "ask" && (() => {
+          // Show a searchable picker when the planner tagged the question with an
+          // entity kind — or, as a fallback, when the question reads like it wants
+          // one. The free-text box always stays available beneath it ("or type it").
+          const pickKind: PickerKind | null = phase.expects?.kind ?? inferKind(phase.reply);
+          return (
+            <div className="space-y-2">
+              <RichAnswer text={phase.reply} />
+              {pickKind && <EntityPicker kind={pickKind} onPick={(v) => sendClarify(v)} />}
+              <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+                <input
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendClarify(); } }}
+                  placeholder={pickKind ? "…or type your answer" : "Your answer…"}
+                  autoFocus={!pickKind}
+                  className="flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-fg-subtle"
+                />
+                <button type="button" onClick={() => sendClarify()} disabled={!reply.trim()} aria-label="Send" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-white disabled:opacity-40"><ArrowRight size={14} /></button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {phase.kind === "confirm" && (
           <div className="space-y-2">

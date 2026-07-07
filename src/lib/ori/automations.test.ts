@@ -389,6 +389,92 @@ describe("evaluateRule", () => {
   });
 });
 
+describe("smart_reminder INTERVAL mode (repeating nudge that stops on response)", () => {
+  // A repeat rule scoped to an overdue task, pinging every 6h until they update.
+  const overdue = () => openTask({ deadline: new Date(now.getTime() - 2 * DAY) });
+  const intervalRule = (cfg: Record<string, unknown> = {}, over: Partial<AutomationRuleRow> = {}) =>
+    rule({ kind: "smart_reminder", config: { trigger: { onOverdue: true }, condition: "always", repeatEveryMinutes: 360, untilUpdate: true, ...cfg }, ...over });
+
+  it("fires immediately once the window is open and it has never fired", () => {
+    const r = evaluateRule(intervalRule(), overdue(), null, now);
+    expect(r.fire).toBe(true);
+  });
+
+  it("does not fire again before the interval has elapsed", () => {
+    const firedAt = new Date(now.getTime() - 2 * 3600_000); // 2h ago, interval is 6h
+    const r = evaluateRule(intervalRule({}, { lastFiredAt: firedAt }), overdue(), null, now);
+    expect(r.fire).toBe(false);
+  });
+
+  it("fires again once the interval has elapsed", () => {
+    const firedAt = new Date(now.getTime() - 7 * 3600_000); // 7h ago > 6h interval
+    const r = evaluateRule(intervalRule({}, { lastFiredAt: firedAt }), overdue(), null, now);
+    expect(r.fire).toBe(true);
+  });
+
+  it("STOPS (deactivates) the moment an update is posted after the rule armed", () => {
+    const armed = new Date(now.getTime() - 10 * 3600_000);
+    const update = new Date(now.getTime() - 1 * 3600_000); // update after arm
+    const r = evaluateRule(intervalRule({ armedAt: armed.toISOString() }), overdue(), update, now);
+    expect(r).toMatchObject({ fire: false, deactivate: true });
+  });
+
+  it("does NOT stop for an update that predates the arm time", () => {
+    const armed = new Date(now.getTime() - 1 * 3600_000);
+    const staleUpdate = new Date(now.getTime() - 5 * 3600_000); // before arm
+    const r = evaluateRule(intervalRule({ armedAt: armed.toISOString() }), overdue(), staleUpdate, now);
+    expect(r.fire).toBe(true);
+  });
+
+  it("retires when maxCount is reached", () => {
+    const r = evaluateRule(intervalRule({ untilUpdate: false, maxCount: 3, firedCount: 3 }), overdue(), null, now);
+    expect(r).toMatchObject({ fire: false, deactivate: true });
+  });
+
+  it("retires when untilDeadline and the deadline has passed", () => {
+    const r = evaluateRule(intervalRule({ untilUpdate: false, untilDeadline: true }), overdue(), null, now);
+    expect(r).toMatchObject({ fire: false, deactivate: true });
+  });
+
+  it("does not stop on untilDeadline while the deadline is still ahead", () => {
+    const ahead = openTask({ deadline: new Date(now.getTime() + 2 * DAY) });
+    // window opened via byHour (any time) since onOverdue would be false here
+    const r = evaluateRule(intervalRule({ trigger: { byHour: 0 }, untilUpdate: false, untilDeadline: true }), ahead, null, now);
+    expect(r).toMatchObject({ fire: true });
+  });
+
+  it("waits until the start trigger opens the window (not overdue yet)", () => {
+    const ahead = openTask({ deadline: new Date(now.getTime() + 2 * DAY) });
+    const r = evaluateRule(intervalRule(), ahead, null, now); // onOverdue, not overdue
+    expect(r.fire).toBe(false);
+  });
+
+  it("does not fire outside the active-hours window", () => {
+    // now is 11:00 Dar; a 20:00–23:00 window excludes it.
+    const r = evaluateRule(intervalRule({ window: { fromHour: 20, toHour: 23 } }), overdue(), null, now);
+    expect(r.fire).toBe(false);
+  });
+
+  it("fires inside the active-hours window", () => {
+    const r = evaluateRule(intervalRule({ window: { fromHour: 8, toHour: 20 } }), overdue(), null, now);
+    expect(r.fire).toBe(true);
+  });
+
+  it("honours the 15-minute floor (10-min config paced as 15)", () => {
+    // Fired 12 min ago: < 15-min floor → must NOT fire despite the 10-min config.
+    const firedAt = new Date(now.getTime() - 12 * 60_000);
+    const r = evaluateRule(intervalRule({ repeatEveryMinutes: 10 }, { lastFiredAt: firedAt }), overdue(), null, now);
+    expect(r.fire).toBe(false);
+  });
+
+  it("skips the weekend when weekdaysOnly is set", () => {
+    // 2026-07-11 is a Saturday.
+    const sat = new Date("2026-07-11T08:00:00.000Z");
+    const r = evaluateRule(intervalRule({ weekdaysOnly: true }), openTask({ deadline: new Date(sat.getTime() - 2 * DAY) }), null, sat);
+    expect(r.fire).toBe(false);
+  });
+});
+
 // today's 09:00 Dar es Salaam as a UTC instant (06:00 UTC)
 function darLocal9(n: Date): number {
   const shifted = n.getTime() + 3 * 3600_000;

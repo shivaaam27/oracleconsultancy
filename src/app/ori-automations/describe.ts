@@ -213,13 +213,32 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
       const hhmm = typeof trig.byHour === "number"
         ? `${String(Math.round(trig.byHour)).padStart(2, "0")}:${String(typeof trig.byMinute === "number" ? Math.round(trig.byMinute) : 0).padStart(2, "0")}`
         : null;
-      const when = hhmm
-        ? (once ? `Today at ${hhmm}, once` : `At ${hhmm} daily`)
-        : typeof trig.hoursBeforeDeadline === "number"
-          ? `${trig.hoursBeforeDeadline} hour${trig.hoursBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
-        : typeof trig.daysBeforeDeadline === "number"
-          ? `${trig.daysBeforeDeadline} day${trig.daysBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
-          : trig.onOverdue ? `Once overdue${once ? ", once" : ""}` : once ? "Once" : "Every day";
+
+      // INTERVAL mode — a repeating nudge that stops on response.
+      const everyMin = num(cfg.repeatEveryMinutes);
+      let when: string;
+      if (everyMin != null) {
+        const everyStr = everyMin % 60 === 0 ? `every ${everyMin / 60}h` : `every ${everyMin} min`;
+        const opener = hhmm ? `from ${hhmm}, ` : trig.onOverdue ? "once overdue, "
+          : typeof trig.hoursBeforeDeadline === "number" ? `from ${trig.hoursBeforeDeadline}h before deadline, ` : "";
+        const stops: string[] = [];
+        if (cfg.untilUpdate === true) stops.push("until they update");
+        if (cfg.untilDeadline === true) stops.push("until the deadline");
+        const maxc = num(cfg.maxCount);
+        if (maxc != null) stops.push(`up to ${maxc}×`);
+        const win = cfg.window as { fromHour?: number; toHour?: number } | undefined;
+        const winStr = win && typeof win.fromHour === "number" && typeof win.toHour === "number"
+          ? ` (${String(win.fromHour).padStart(2, "0")}:00–${String(win.toHour).padStart(2, "0")}:00)` : "";
+        when = `${opener}${everyStr} ${stops.join(", ")}${winStr}`;
+      } else {
+        when = hhmm
+          ? (once ? `Today at ${hhmm}, once` : `At ${hhmm} daily`)
+          : typeof trig.hoursBeforeDeadline === "number"
+            ? `${trig.hoursBeforeDeadline} hour${trig.hoursBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
+          : typeof trig.daysBeforeDeadline === "number"
+            ? `${trig.daysBeforeDeadline} day${trig.daysBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
+            : trig.onOverdue ? `Once overdue${once ? ", once" : ""}` : once ? "Once" : "Every day";
+      }
 
       const scopeName = num(scope.taskId) != null ? (taskCode(num(scope.taskId)) ?? "one task")
         : num(scope.personId) != null ? (personName(num(scope.personId)) ?? "one person")

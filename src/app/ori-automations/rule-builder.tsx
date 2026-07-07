@@ -43,6 +43,17 @@ type Draft = {
   days: number;
   hoursBefore: number;
   once: boolean;
+  // High-frequency repeating nudge that stops on response.
+  repeatOn: boolean;
+  repeatEvery: number;
+  repeatUnit: "minutes" | "hours";
+  stopUntilUpdate: boolean;
+  stopUntilDeadline: boolean;
+  stopMaxOn: boolean;
+  stopMaxCount: number;
+  activeHoursOn: boolean;
+  activeFromHour: number;
+  activeToHour: number;
   condition: BuilderPayload["condition"];
   agingDays: number;
   weekdaysOnly: boolean;
@@ -67,6 +78,9 @@ type Draft = {
 
 const BLANK: Draft = {
   whenMode: "at_hour", hour: 9, minute: 0, days: 2, hoursBefore: 1, once: false, condition: "always", agingDays: 3,
+  repeatOn: false, repeatEvery: 6, repeatUnit: "hours",
+  stopUntilUpdate: true, stopUntilDeadline: false, stopMaxOn: false, stopMaxCount: 10,
+  activeHoursOn: false, activeFromHour: 8, activeToHour: 20,
   weekdaysOnly: false, pausedUntil: "",
   scopeType: "everyone", personName: "", companyName: "", taskCode: "",
   notifyOwner: true, notifyManagers: false, notifyDirectors: false, warnPerson: false, extraNames: [],
@@ -90,6 +104,8 @@ const TEMPLATES: { label: string; hint: string; draft: Partial<Draft> }[] = [
   { label: "Missing-deadline auditor", hint: "No deadline or assignee → me", draft: { whenMode: "at_hour", hour: 9, condition: "no_deadline_or_assignee", scopeType: "everyone", notifyOwner: true } },
   { label: "Under-review nudge", hint: "Sat in review 2+ days → me", draft: { whenMode: "at_hour", hour: 9, condition: "under_review_stale", agingDays: 2, scopeType: "everyone", notifyOwner: true } },
   { label: "Compliance approaching", hint: "Morning compliance check → me", draft: { whenMode: "at_hour", hour: 9, condition: "compliance_due_soon", scopeType: "everyone", notifyOwner: true } },
+  { label: "Nag until they reply", hint: "Overdue → every 6h until they update", draft: { whenMode: "on_overdue", condition: "always", scopeType: "task", notifyOwner: false, warnPerson: true, repeatOn: true, repeatEvery: 6, repeatUnit: "hours", stopUntilUpdate: true, activeHoursOn: true } },
+  { label: "Deadline crunch", hint: "3h before due → hourly until done", draft: { whenMode: "hours_before", hoursBefore: 3, condition: "always", scopeType: "task", notifyOwner: false, warnPerson: true, repeatOn: true, repeatEvery: 1, repeatUnit: "hours", stopUntilUpdate: true, stopUntilDeadline: true } },
   { label: "Escalation watchdog", hint: "One task — escalate on 3d silence", draft: { whenMode: "days_before", days: 3, condition: "no_update_today", scopeType: "task", notifyOwner: true, preferKind: "escalate_if_no_update" } },
   { label: "Remind before deadline", hint: "One task — 2 days ahead", draft: { whenMode: "days_before", days: 2, condition: "always", scopeType: "task", notifyOwner: true, preferKind: "reminder_before_deadline" } },
 ];
@@ -120,6 +136,32 @@ const tail = (d: Draft): string => {
   return bits.length ? ` (${bits.join(", ")})` : "";
 };
 
+const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "from once overdue, " — the WHEN that opens the nagging window for a repeat rule. */
+function repeatPrefix(d: Draft): string {
+  if (!d.repeatOn || d.whenMode === "ladder") return "";
+  const open = d.whenMode === "at_hour" ? `from ${pad(d.hour)}:${pad(d.minute)}, `
+    : d.whenMode === "hours_before" ? `from ${d.hoursBefore}h before the deadline, `
+    : d.whenMode === "on_overdue" ? "once overdue, "
+    : ""; // days_before / daily → no explicit opener
+  return open;
+}
+
+/** "every 6 hours until they post an update" — the repeat cadence + stop. Empty when
+ *  repeat is off (or ladder). */
+function repeatPhrase(d: Draft): string {
+  if (!d.repeatOn || d.whenMode === "ladder") return "";
+  const unit = d.repeatUnit === "hours" ? "hour" : "minute";
+  const every = `every ${d.repeatEvery} ${unit}${d.repeatEvery === 1 ? "" : "s"}`;
+  const stops: string[] = [];
+  if (d.stopUntilUpdate) stops.push("until they post an update");
+  if (d.stopUntilDeadline) stops.push("until the deadline");
+  if (d.stopMaxOn) stops.push(`up to ${d.stopMaxCount} time${d.stopMaxCount === 1 ? "" : "s"}`);
+  const inHours = d.activeHoursOn ? ` (only ${pad(d.activeFromHour)}:00–${pad(d.activeToHour)}:00)` : "";
+  return `${every} ${stops.length ? stops.join(", ") : "with NO stop set"}${inHours}`;
+}
+
 /** The live plain-English sentence for the current draft. */
 function sentence(d: Draft): string {
   if (d.whenMode === "ladder") {
@@ -135,7 +177,9 @@ function sentence(d: Draft): string {
     }).join("; ");
     return `While ${scopePhrase(d)} stay overdue — ${steps || "add a step"}${tail(d)}.`;
   }
-  const when = d.whenMode === "at_hour" ? `At ${pad(d.hour)}:${pad(d.minute)}${d.once ? "" : " daily"}`
+  const repeat = repeatPhrase(d);
+  const when = repeat ? capitalise(repeatPrefix(d) + repeat)
+    : d.whenMode === "at_hour" ? `At ${pad(d.hour)}:${pad(d.minute)}${d.once ? "" : " daily"}`
     : d.whenMode === "days_before" ? `${d.days} day${d.days === 1 ? "" : "s"} before the deadline`
     : d.whenMode === "hours_before" ? `${d.hoursBefore} hour${d.hoursBefore === 1 ? "" : "s"} before the deadline`
     : d.whenMode === "on_overdue" ? "Once a task goes overdue" : "Every day";
@@ -187,6 +231,8 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
       // Every rung must tell someone or auto-escalate; needs at least one.
       return d.ladderSteps.some((s) => s.notifyOwner || s.notifyManagers || s.notifyDirectors || s.warnPerson || s.autoEscalate);
     }
+    // A repeating nudge MUST carry a stop condition.
+    if (d.repeatOn && !d.stopUntilUpdate && !d.stopUntilDeadline && !d.stopMaxOn) return false;
     const hasAudience = d.notifyOwner || d.notifyManagers || d.notifyDirectors || (d.warnPerson && d.scopeType === "person" && !!d.personName) || d.extraNames.length > 0;
     const hasAction = d.autoAct && (d.postUpdate || !!d.setStatus || !!d.sendChannel);
     return hasAudience || hasAction;
@@ -212,6 +258,15 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
       weekdaysOnly: d.weekdaysOnly || undefined,
       pausedUntil: d.pausedUntil || undefined,
       agingDays: AGING_CONDS.has(d.condition) ? d.agingDays : undefined,
+      repeat: d.repeatOn && d.whenMode !== "ladder"
+        ? {
+            everyMinutes: d.repeatUnit === "hours" ? d.repeatEvery * 60 : d.repeatEvery,
+            untilUpdate: d.stopUntilUpdate || undefined,
+            untilDeadline: d.stopUntilDeadline || undefined,
+            maxCount: d.stopMaxOn ? d.stopMaxCount : undefined,
+            window: d.activeHoursOn ? { fromHour: d.activeFromHour, toHour: d.activeToHour } : undefined,
+          }
+        : undefined,
       ladder: d.whenMode === "ladder"
         ? { byHour: d.hour, steps: d.ladderSteps.map((s) => ({ overdueDays: s.overdueDays, notifyOwner: s.notifyOwner, notifyManagers: s.notifyManagers, notifyDirectors: s.notifyDirectors, warnPerson: s.warnPerson, autoEscalate: s.autoEscalate })) }
         : undefined,
@@ -473,6 +528,68 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
               </div>
             </div>
           </Step>
+
+          {/* REPEAT — high-frequency nudge that stops on response (not for ladder). */}
+          {d.whenMode !== "ladder" && (
+          <Step label="Repeat">
+            <SwitchRow
+              label="Keep reminding until they respond"
+              hint="Ping on a set interval; stops the moment they post an update (or a stop below is hit)"
+              on={d.repeatOn}
+              onChange={(v) => set({ repeatOn: v })}
+            />
+            {d.repeatOn && (
+              <div className="mt-2 space-y-2.5 rounded-xl bg-bg-subtle/40 p-2.5 ring-1 ring-border/60">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-fg-muted">Every</span>
+                  <input
+                    type="number" min={1} max={999} value={d.repeatEvery}
+                    onChange={(e) => set({ repeatEvery: Math.max(1, Math.min(999, Number(e.target.value) || 1)) })}
+                    className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                    aria-label="Repeat interval"
+                  />
+                  <FluidSelect
+                    value={d.repeatUnit}
+                    options={[{ value: "minutes", label: "minutes" }, { value: "hours", label: "hours" }]}
+                    onSelect={(v) => set({ repeatUnit: v as Draft["repeatUnit"] })}
+                  />
+                </div>
+                {d.repeatUnit === "minutes" && d.repeatEvery < 15 && (
+                  <p className="text-[11px] text-danger">Minimum interval is 15 minutes — it'll be raised to 15.</p>
+                )}
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">Stop when…</p>
+                  <SwitchRow label="They post an update" hint="Recommended — the nudge ends the instant they respond" on={d.stopUntilUpdate} onChange={(v) => set({ stopUntilUpdate: v })} />
+                  <SwitchRow label="The deadline passes" on={d.stopUntilDeadline} onChange={(v) => set({ stopUntilDeadline: v })} />
+                  <SwitchRow label="A number of reminders is reached" on={d.stopMaxOn} onChange={(v) => set({ stopMaxOn: v })} />
+                  {d.stopMaxOn && (
+                    <div className="flex items-center gap-2 pl-1">
+                      <span className="text-xs text-fg-muted">Stop after</span>
+                      <input
+                        type="number" min={1} max={100} value={d.stopMaxCount}
+                        onChange={(e) => set({ stopMaxCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })}
+                        className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                      />
+                      <span className="text-[11px] text-fg-muted">reminders</span>
+                    </div>
+                  )}
+                  {!d.stopUntilUpdate && !d.stopUntilDeadline && !d.stopMaxOn && (
+                    <p className="text-[11px] text-danger">Pick at least one stop — a repeating reminder can't run forever.</p>
+                  )}
+                </div>
+                <SwitchRow label="Only within active hours" hint="Never ping overnight" on={d.activeHoursOn} onChange={(v) => set({ activeHoursOn: v })} />
+                {d.activeHoursOn && (
+                  <div className="flex items-center gap-2 pl-1">
+                    <span className="text-xs text-fg-muted">From</span>
+                    <FluidSelect value={String(d.activeFromHour)} options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${pad(h)}:00` }))} onSelect={(v) => set({ activeFromHour: Number(v) })} />
+                    <span className="text-xs text-fg-muted">to</span>
+                    <FluidSelect value={String(d.activeToHour)} options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${pad(h)}:00` }))} onSelect={(v) => set({ activeToHour: Number(v) })} />
+                  </div>
+                )}
+              </div>
+            )}
+          </Step>
+          )}
 
           {/* DO — not for the ladder (its steps carry their own actions). */}
           {d.whenMode !== "ladder" && (

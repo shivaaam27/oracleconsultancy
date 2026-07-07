@@ -121,7 +121,41 @@ export type RuleConfig = {
   // For an hoursBeforeDeadline trigger the key embeds the deadline instant instead,
   // so a MOVED deadline re-arms the rule (see smartFiredKeyFor).
   lastFiredKey?: string;
+
+  // ── smart_reminder INTERVAL mode (high-frequency repeating nudge) ──────────
+  // When set (>=15), the rule stops being a once-per-day slot and becomes a
+  // REPEATING nudge: once the start trigger (byHour / hoursBeforeDeadline /
+  // onOverdue / condition) has opened the nagging window, it fires every
+  // `repeatEveryMinutes` minutes until a STOP condition is met. Built for
+  // "a task is due and the assignee hasn't responded → ping every 6 hours; the
+  // moment they post an update, stop". The pure layer decides fire/stop; the cron
+  // does the notify + persists lastFiredAt/firedCount and retires on stop.
+  repeatEveryMinutes?: number;
+  // Stop conditions (a repeat rule MUST carry at least one — enforced by the builder):
+  //   untilUpdate  — retire the moment the scoped task gets an update newer than the
+  //                  rule's arm time (the DEFAULT stop). "responded" = they posted.
+  //   untilDeadline — stop at/after the task's deadline.
+  //   maxCount     — stop after this many fires (firedCount tracks how many so far).
+  untilUpdate?: boolean;
+  untilDeadline?: boolean;
+  maxCount?: number;
+  firedCount?: number;
+  // Active-hours window (Dar-local) so a high-frequency nudge never pings at 3am:
+  // a fire only lands when fromHour <= local hour < toHour. Omit = any hour.
+  window?: { fromHour: number; toHour: number };
+  // lastFiredAt (ISO): the last time the INTERVAL rule fired — the pure layer paces
+  // the next fire to now >= lastFiredAt + repeatEveryMinutes. Distinct from the row's
+  // last_fired_at column (kept in sync) so the pure layer stays self-contained.
+  lastFiredAt?: string;
+  // armedAt (ISO): when the interval nagging window first opened. Stamped on the first
+  // fire so "responded" = an update with created_at > armedAt (falls back to the rule's
+  // created_at until the first fire). Set by the cron; read by the pure layer.
+  armedAt?: string;
 };
+
+/** The minimum interval for a repeating smart_reminder (guards against a runaway
+ *  every-few-seconds nag; the external pinger must tick at least this often). */
+export const MIN_REPEAT_MINUTES = 15;
 
 export type AutomationRuleRow = {
   id: number;
@@ -306,6 +340,15 @@ export function evaluateRule(
       const cfg = rule.config;
       const trig = cfg.trigger ?? {};
       const cond = cfg.condition ?? "always";
+
+      // ── INTERVAL mode — a high-frequency repeating nudge that stops on response.
+      // The existing WHEN (byHour / hoursBeforeDeadline / onOverdue) + IF still gate
+      // when the nagging window OPENS; once open we fire every repeatEveryMinutes
+      // until a stop condition. Handled by a dedicated pure evaluator.
+      if (typeof cfg.repeatEveryMinutes === "number") {
+        return evaluateInterval(rule, task, lastUpdateAt, now);
+      }
+
       const slotKey = smartFiredKeyFor(rule.id, now, trig, task.deadline);
 
       // Already fired for this slot (today, or this deadline-instant for an
@@ -422,6 +465,112 @@ export function evaluateRule(
     default:
       return { fire: false };
   }
+}
+
+/** Dar es Salaam (UTC+3) local hour-of-day (0–23) for an instant. */
+function darHour(now: Date): number {
+  return new Date(now.getTime() + 3 * 3_600_000).getUTCHours();
+}
+
+/** Has the interval rule's START trigger opened the nagging window by `now`?
+ *  Mirrors the once/day WHEN gate: byHour(:byMinute) reached today, or the
+ *  deadline-relative / overdue gate satisfied. A rule with no explicit trigger
+ *  opens immediately (any time). Returns false when a deadline-based trigger has
+ *  no deadline to anchor on. */
+function intervalWindowOpen(cfg: RuleConfig, task: RuleTask, now: Date): boolean {
+  const trig = cfg.trigger ?? {};
+  const nowMs = now.getTime();
+  if (typeof trig.byHour === "number") {
+    const hour = Math.min(23, Math.max(0, Math.round(trig.byHour)));
+    const minute = typeof trig.byMinute === "number" ? Math.min(59, Math.max(0, Math.round(trig.byMinute))) : 0;
+    if (nowMs < darDayStart(now) + hour * 3_600_000 + minute * 60_000) return false;
+  }
+  if (typeof trig.daysBeforeDeadline === "number") {
+    if (!task.deadline) return false;
+    if (nowMs < task.deadline.getTime() - Math.max(0, trig.daysBeforeDeadline) * DAY) return false;
+  }
+  if (typeof trig.hoursBeforeDeadline === "number") {
+    if (!task.deadline) return false;
+    if (nowMs < task.deadline.getTime() - Math.max(0, trig.hoursBeforeDeadline) * 3_600_000) return false;
+  }
+  if (trig.onOverdue) {
+    if (!task.deadline || nowMs < task.deadline.getTime()) return false;
+  }
+  return true;
+}
+
+/**
+ * INTERVAL smart_reminder — the pure decision for a high-frequency repeating nudge
+ * that STOPS when the person responds. Given (now, lastFiredAt, lastUpdateAt,
+ * armedAt, deadline, firedCount, config) it decides fire vs stop:
+ *
+ *   STOP (deactivate) if — untilUpdate and the task got an update AFTER the rule
+ *   armed (they responded); OR untilDeadline and now >= deadline; OR maxCount reached.
+ *   Otherwise FIRE when — the start trigger has opened the window (byHour /
+ *   hoursBeforeDeadline / onOverdue), we're inside the active-hours window + a weekday
+ *   (already gated above), AND now >= lastFiredAt + repeatEveryMinutes (first fire is
+ *   immediate once the window opens). Between ticks it simply doesn't fire.
+ *
+ * The cron persists lastFiredAt/firedCount/armedAt and flips active=false on stop.
+ */
+function evaluateInterval(
+  rule: AutomationRuleRow,
+  task: RuleTask,
+  lastUpdateAt: Date | null,
+  now: Date,
+): RuleEval {
+  const cfg = rule.config;
+  const nowMs = now.getTime();
+  const everyMin = Math.max(MIN_REPEAT_MINUTES, Math.round(cfg.repeatEveryMinutes ?? MIN_REPEAT_MINUTES));
+
+  // armedAt = when the nagging window first opened (stamped on first fire). Until
+  // then, "responded" is measured from the rule's creation, so a stale pre-existing
+  // update never suppresses the first nudge unfairly — but an update since the rule
+  // was set does count as a response.
+  const armedMs = cfg.armedAt ? Date.parse(cfg.armedAt) : rule.createdAt.getTime();
+
+  // ── STOP conditions — checked first; retire the rule. untilUpdate is the DEFAULT
+  // stop, so treat it as on unless the rule explicitly relies only on maxCount/deadline.
+  const wantUntilUpdate = cfg.untilUpdate === true || (cfg.untilUpdate == null && cfg.untilDeadline !== true && cfg.maxCount == null);
+  if (wantUntilUpdate && lastUpdateAt && lastUpdateAt.getTime() > armedMs) {
+    return { fire: false, deactivate: true, note: "update posted — nudge stopped" };
+  }
+  if (cfg.untilDeadline === true && task.deadline && nowMs >= task.deadline.getTime()) {
+    return { fire: false, deactivate: true, note: "deadline reached — nudge stopped" };
+  }
+  if (typeof cfg.maxCount === "number" && (cfg.firedCount ?? 0) >= Math.max(1, Math.round(cfg.maxCount))) {
+    return { fire: false, deactivate: true, note: "reminder count reached" };
+  }
+
+  // ── WHEN — the start trigger must have opened the nagging window.
+  if (!intervalWindowOpen(cfg, task, now)) return { fire: false, note: "waiting for window" };
+
+  // ── active-hours window (never ping at 3am). Weekend/pause already gated above.
+  if (cfg.window) {
+    const from = Math.min(23, Math.max(0, Math.round(cfg.window.fromHour)));
+    const to = Math.min(24, Math.max(0, Math.round(cfg.window.toHour)));
+    const h = darHour(now);
+    const inside = from <= to ? (h >= from && h < to) : (h >= from || h < to); // wrap past midnight
+    if (!inside) return { fire: false, note: "outside active hours" };
+  }
+
+  // ── IF — the condition (only the purely-decidable ones; the cron confirms the rest).
+  const cond = cfg.condition ?? "always";
+  if (cond === "overdue" && !(task.deadline && nowMs >= task.deadline.getTime())) {
+    return { fire: false, note: "not overdue" };
+  }
+
+  // ── INTERVAL pacing — fire when enough time has elapsed since the last fire. The
+  // FIRST fire is immediate (no lastFiredAt yet). lastFiredAt in config OR the row's
+  // column (whichever is later) paces it.
+  const lastFired = Math.max(
+    cfg.lastFiredAt ? Date.parse(cfg.lastFiredAt) : 0,
+    rule.lastFiredAt?.getTime() ?? 0,
+  );
+  if (lastFired && nowMs < lastFired + everyMin * 60_000) {
+    return { fire: false, note: "interval not elapsed" };
+  }
+  return { fire: true, note: `repeating nudge (every ${everyMin}m)` };
 }
 
 /** The once-per-day dedupe key for a smart_reminder: `${ruleId}:${Dar-local date}`.

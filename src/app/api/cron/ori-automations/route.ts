@@ -63,6 +63,20 @@ async function escalationContext(taskId: number, now: Date): Promise<string> {
   }
 }
 
+/** A short " It's overdue / due in Nh." context line for a repeating nudge, so the
+ *  person understands why ORI keeps pinging. Best-effort — empty when no deadline. */
+function intervalContextLine(target: SmartTarget | null, now: Date): string {
+  const dl = target?.deadline ? new Date(target.deadline).getTime() : null;
+  if (dl == null) return " Still awaiting your update.";
+  const diff = dl - now.getTime();
+  if (diff <= 0) {
+    const days = Math.floor(-diff / DAY);
+    return days >= 1 ? ` It's ${days} day(s) overdue.` : " It's overdue.";
+  }
+  const hrs = Math.ceil(diff / 3_600_000);
+  return hrs <= 48 ? ` It's due in about ${hrs}h.` : ` It's due soon.`;
+}
+
 /** Once-per-Dar-local-day dedupe for the always-on signal checks (decision reminder,
  *  quiet-staff). Reads/writes a single settings row; returns true only when today's
  *  key hasn't been stamped yet. Fail-open: any error → allow the check to run. */
@@ -447,12 +461,16 @@ async function fireSmartDigest(cfg: RuleConfig, tasks: DigestTask[], nowIso: str
  *        · sendChannel → external email/WhatsApp ONLY if canAutoSend() (fail-closed).
  *   Never auto-deletes. Each effect is wrapped so one failure never aborts the rest.
  */
-async function fireSmartReminder(cfg: RuleConfig, target: SmartTarget | null, nowIso: string): Promise<void> {
+async function fireSmartReminder(cfg: RuleConfig, target: SmartTarget | null, nowIso: string, opts?: { interval?: boolean; target?: SmartTarget | null }): Promise<void> {
   const actions = cfg.actions ?? {};
   const code = target?.code ?? null;
   const label = "ORI reminder";
-  const body = actions.updateText?.trim()
-    || (code ? `A reminder about ${code} — it's due for an update.` : "A reminder from ORI — this is due for an update.");
+  // For a repeating nudge, add a one-line "due soon / overdue" context so the
+  // recipient sees WHY they're being pinged again.
+  const ctx = opts?.interval ? intervalContextLine(target, new Date(nowIso)) : "";
+  const body = (actions.updateText?.trim()
+    || (code ? `A reminder about ${code} — it's due for an update.` : "A reminder from ORI — this is due for an update."))
+    + ctx;
 
   // 1) AUDIENCE — internal notifications (always allowed). Role-scoped via the shared
   // resolver (owner / scoped person / managers / company directors). Best-effort each.
@@ -774,6 +792,39 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
         const evalRes = evaluateRule(rule, evalTask, lastUpd, now);
         evaluated++;
         const patch: Record<string, unknown> = { last_run_at: nowIso };
+
+        // INTERVAL mode — a repeating nudge that stops on response. The pure layer
+        // decides fire vs stop; here we persist lastFiredAt/firedCount/armedAt and
+        // retire on any stop condition (evalRes.deactivate). The interval + lastFiredAt
+        // is the dedupe, so this is idempotent under frequent ticks.
+        if (typeof cfg.repeatEveryMinutes === "number") {
+          if (evalRes.deactivate) { patch.active = false; patch.done = true; retired++; }
+          if (evalRes.fire) {
+            fired++;
+            patch.last_fired_at = nowIso;
+            // Stamp armedAt on the first fire so "responded" is measured from when the
+            // nagging window opened, not the rule's creation.
+            const nextCfg: RuleConfig = {
+              ...cfg,
+              lastFiredAt: nowIso,
+              firedCount: (cfg.firedCount ?? 0) + 1,
+              ...(cfg.armedAt ? {} : { armedAt: nowIso }),
+            };
+            patch.config = nextCfg;
+            // If this fire hits maxCount, retire now (don't wait for the next tick).
+            if (typeof cfg.maxCount === "number" && (nextCfg.firedCount ?? 0) >= Math.max(1, Math.round(cfg.maxCount))) {
+              patch.active = false; patch.done = true; retired++;
+            }
+            try {
+              await fireSmartReminder(cfg, target, nowIso, { interval: true, target });
+            } catch (actErr) {
+              await reportError(actErr, { route: "cron.ori-automations", ruleId: rule.id, kind: "smart_reminder", interval: true });
+            }
+          }
+          await sb.from("automation_rules").update(patch).eq("id", raw.id as number);
+          continue;
+        }
+
         if (evalRes.fire) {
           fired++;
           patch.last_fired_at = nowIso;

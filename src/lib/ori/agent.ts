@@ -17,8 +17,12 @@ import { toolCatalogue, TOOL_BY_NAME } from "@/lib/ori/tools";
  */
 
 export type PlanStep = { tool: string; args: Record<string, unknown>; summary: string };
+/** Hint the ask phase can carry so the card shows a searchable entity PICKER
+ *  instead of a plain text box (the owner can't remember codes). Optional +
+ *  additive — the ask reply string still works on its own. */
+export type ExpectsEntity = { kind: "task" | "person" | "company" | "document"; param: string };
 export type AgentTurn =
-  | { mode: "ask"; reply: string }
+  | { mode: "ask"; reply: string; expects?: ExpectsEntity }
   | { mode: "answer"; reply: string }
   | { mode: "confirm"; reply: string; plan: PlanStep[] };
 
@@ -48,6 +52,8 @@ STANDING RULES (automations): you CAN set up recurring reminders (remind_before_
 
 SMART REMINDERS (conditional, time-of-day, with an opt-in auto-act): use create_smart_reminder for rules like "if Dhruvi hasn't posted an update by 11am, tell me and the directors, warn her, AND post an update on her task telling her she's due". Gather the RECIPE: WHEN (byHour like 11, or daysBeforeDeadline, or onOverdue), IF (condition: no_update_today / overdue / compliance_due_soon / always), WHOSE tasks (a person, company or taskCode — ASK if unclear), WHO hears (notifyOwner / notifyDirectors / warnPerson / named people — at least one, or an auto-act), and DO. The auto-act (postUpdate / setStatus / sendChannel) is OFF by default — set autoAct=yes ONLY when the owner clearly says to post/change/send it AUTOMATICALLY; if they only ask to be notified, leave it off. This tool is tier 3 (it can act on its own), so ALWAYS CONFIRM before creating it, and in your confirmation NAME the auto-act explicitly (e.g. "and ORI will automatically post an update on her task"). External sends only go out if that channel's auto-send is on; the rule never auto-deletes anything.
 
+REPEATING NUDGES THAT STOP ON RESPONSE ("a task is due soon and the assignee hasn't responded → ping them every 6 hours until they post an update"; "every 15 minutes until they respond"; "from 3 hours before the deadline, every hour until it's due or they update"): still create_smart_reminder — set repeatEvery to the interval ("every 6 hours", "15 minutes"; the floor is 15 minutes, so recommend >= 1 hour unless it's bounded by until-update), and open the nagging window with the normal WHEN triggers (onOverdue for "once it's overdue", hoursBeforeDeadline=N for "from N hours before due", byHour for a time of day). Every repeating nudge MUST have a STOP: untilUpdate (the DEFAULT — stops the moment the person posts an update on the task) is used automatically when you scope to a task/person; untilDeadline stops once the deadline passes; maxCount stops after N reminders. The default channel is the portal push to the person (warnPerson), so scope it to the person/task and it warns them. NEVER leave a high-frequency repeat unbounded — always pair it with until-update (or a deadline/count cap).
+
 TIMED REMINDERS ("remind Shivam at 11:45pm to check his tasks, push notification"): also create_smart_reminder — pass the exact clock time as time (minute precision, e.g. "11:45pm"), the person, and the instruction as message. A specific clock time is a ONE-OFF by default (once=yes — it fires at that time then retires); only make it recurring when the owner says daily/every day. "Push notification" = the in-app portal push the rule already sends — the default; NEVER draft an Outbox/WhatsApp message for a timed reminder. For "post an update 1 hour before the due time and notify the person": scope it to that taskCode, set hoursBeforeDeadline=1, warnPerson=yes, and autoAct=yes + postUpdate=yes with the wording as message (posting was explicitly asked for, so the auto-act is allowed).
 
 WATCHERS ("tell me the moment X happens"): for event-driven alerts — as opposed to the scheduled rules above — use create_watcher. It fires the INSTANT a matching write lands (no schedule): watch for any task reaching a status (e.g. Blocked/Escalated, optionally scoped to one company), a task going overdue, or a tracked document nearing expiry. Manage them with list_watchers / delete_watcher. Use this when the principal says things like "tell me the moment PES raises a blocker" or "alert me if any task goes overdue".
@@ -62,14 +68,17 @@ WIDER REACH — you also operate right across the business, not just tasks. Cons
 - Portal & access: post an update on a task authored honestly as ORI (post_as_ori), and turn a portal ROLE permission on or off (set_role_capability — access-sensitive, always confirm; name the role, the exact permission and on/off).
 Everywhere the same rules hold: resolve the exact company/person/task/document/etc. first, ASK when a reference is ambiguous, never invent data, and treat every tier-3 (send/publish/delete/access/settings) step as significant — name exactly what it will change in your confirmation.
 
+PICKING AN ENTITY: whenever your clarifying question asks the principal to identify a specific TASK, PERSON, COMPANY or DOCUMENT (e.g. "which task?", "who?", "which company?", "which document?"), ALSO set "expects": { "kind": "task"|"person"|"company"|"document", "param": "<the tool arg you're gathering, e.g. taskCode / person / company / document>" }. The system then shows the principal a searchable dropdown of matching records to pick from (they can't always recall exact codes/names). Omit "expects" when the question isn't about identifying one of those four entity types.
+
 OUTPUT — respond with ONLY this JSON object, nothing else:
 {
   "reply": "what you say to the principal (a question if you need info, or a one-line summary of what you're about to do)",
   "need_more_info": true | false,
+  "expects": { "kind": "task", "param": "taskCode" },
   "plan": [ { "tool": "create_task", "args": { "company": "Dar Spices", "title": "..." }, "summary": "Create a task for Dar Spices" } ]
 }
 RULES for the JSON:
-- If you need more information, set need_more_info=true, put your question in "reply", and leave "plan" as [].
+- If you need more information, set need_more_info=true, put your question in "reply", and leave "plan" as []. Add "expects" when the question identifies a task/person/company/document (otherwise omit it).
 - If you are ready to act, set need_more_info=false, put a short confirmation summary in "reply", and fill "plan" with the ordered tool calls (use EXACT tool names + param names above). Only include args you actually know.
 - If there is nothing to do, set need_more_info=false and "plan":[] and answer in "reply".
 - Today's date is ${"${TODAY}"}.`;
@@ -83,7 +92,19 @@ function buildGuide(focus?: string): string {
     .replace("${TODAY}", new Date().toISOString().slice(0, 10));
 }
 
-type PlannerJson = { reply?: string; need_more_info?: boolean; plan?: unknown };
+type PlannerJson = { reply?: string; need_more_info?: boolean; plan?: unknown; expects?: unknown };
+
+const EXPECTS_KINDS = new Set(["task", "person", "company", "document"]);
+/** Validate the optional planner `expects` hint — a bad shape just drops it
+ *  (the ask still shows its free-text box), never breaks the turn. */
+function parseExpects(raw: unknown): ExpectsEntity | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const e = raw as { kind?: unknown; param?: unknown };
+  const kind = typeof e.kind === "string" ? e.kind.trim().toLowerCase() : "";
+  const param = typeof e.param === "string" ? e.param.trim() : "";
+  if (!EXPECTS_KINDS.has(kind) || !param) return undefined;
+  return { kind: kind as ExpectsEntity["kind"], param };
+}
 
 export async function planTurn(messages: ChatMsg[]): Promise<AgentTurn> {
   const apiKey = await getAiKey();
@@ -134,6 +155,6 @@ export async function planTurn(messages: ChatMsg[]): Promise<AgentTurn> {
   }
 
   if (plan.length > 0) return { mode: "confirm", reply: reply || "Here's what I'll do — shall I go ahead?", plan };
-  if (data.need_more_info) return { mode: "ask", reply: reply || "Could you give me a little more detail?" };
+  if (data.need_more_info) return { mode: "ask", reply: reply || "Could you give me a little more detail?", expects: parseExpects(data.expects) };
   return { mode: "answer", reply: reply || "I'm not sure how to action that yet." };
 }
