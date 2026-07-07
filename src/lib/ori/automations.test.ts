@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateRule, type AutomationRuleRow, type RuleTask } from "./automations";
+import { evaluateRule, smartFiredKeyFor, type AutomationRuleRow, type RuleTask } from "./automations";
 
 const DAY = 86_400_000;
 const now = new Date("2026-07-10T08:00:00.000Z"); // 11:00 in Dar es Salaam (UTC+3)
@@ -317,6 +317,72 @@ describe("evaluateRule", () => {
       const r = evaluateRule(
         rule({ kind: "escalation_ladder", config: { ladder: { byHour: 14, scope: { taskId: 7 }, steps } } }),
         openTask({ deadline }), null, now, // now = 11:00 Dar, before 14:00
+      );
+      expect(r.fire).toBe(false);
+    });
+  });
+
+  describe("smart_reminder — minute precision, once, hoursBeforeDeadline", () => {
+    // now = 11:00 Dar es Salaam.
+    it("waits before byHour:byMinute is reached (11:45 not yet at 11:00)", () => {
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { byHour: 11, byMinute: 45 }, condition: "always" } }),
+        openTask(), null, now,
+      );
+      expect(r.fire).toBe(false);
+    });
+    it("fires once byHour:byMinute has passed (10:45 at 11:00)", () => {
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { byHour: 10, byMinute: 45 }, condition: "always" } }),
+        openTask(), null, now,
+      );
+      expect(r.fire).toBe(true);
+    });
+    it("a once rule fires with markDone (the cron also retires it)", () => {
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { byHour: 10, byMinute: 45 }, condition: "always", once: true } }),
+        openTask(), null, now,
+      );
+      expect(r).toMatchObject({ fire: true, markDone: true });
+    });
+    it("hoursBeforeDeadline waits outside the window", () => {
+      const deadline = new Date(now.getTime() + 2 * 3600_000); // due in 2h
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { hoursBeforeDeadline: 1 }, condition: "always" } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.fire).toBe(false);
+    });
+    it("hoursBeforeDeadline fires inside the window", () => {
+      const deadline = new Date(now.getTime() + 30 * 60_000); // due in 30 min
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { hoursBeforeDeadline: 1 }, condition: "always" } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(r.fire).toBe(true);
+    });
+    it("hoursBeforeDeadline dedupes per deadline-instant and re-arms when the deadline moves", () => {
+      const deadline = new Date(now.getTime() + 30 * 60_000);
+      const firedKey = smartFiredKeyFor(1, now, { hoursBeforeDeadline: 1 }, deadline);
+      // Same deadline, already stamped → no re-fire.
+      const same = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { hoursBeforeDeadline: 1 }, condition: "always", lastFiredKey: firedKey } }),
+        openTask({ deadline }), null, now,
+      );
+      expect(same.fire).toBe(false);
+      // Deadline moved to still-inside-the-window → different key → fires again.
+      const moved = new Date(now.getTime() + 45 * 60_000);
+      const rearmed = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { hoursBeforeDeadline: 1 }, condition: "always", lastFiredKey: firedKey } }),
+        openTask({ deadline: moved }), null, now,
+      );
+      expect(rearmed.fire).toBe(true);
+    });
+    it("daily key still dedupes a byHour:byMinute rule for the day", () => {
+      const firedKey = smartFiredKeyFor(1, now, { byHour: 10, byMinute: 45 }, null);
+      const r = evaluateRule(
+        rule({ kind: "smart_reminder", config: { trigger: { byHour: 10, byMinute: 45 }, condition: "always", lastFiredKey: firedKey } }),
+        openTask(), null, now,
       );
       expect(r.fire).toBe(false);
     });

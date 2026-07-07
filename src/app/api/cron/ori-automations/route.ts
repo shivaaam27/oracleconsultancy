@@ -17,8 +17,9 @@ import { createCalendarEvent } from "@/lib/calendar";
 import { reindexEntity } from "@/lib/index-hooks";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { canAutoSend, type SendChannel } from "@/lib/guardrails";
-import { evaluateRule, smartFiredKey, darDayStart, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
+import { evaluateRule, smartFiredKey, smartFiredKeyFor, darDayStart, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
 import { managersOf, directorsOfCompany, allDirectors, allManagers } from "@/lib/ori/audiences";
+import { getAppSettings } from "@/lib/settings";
 
 const DAY = 86_400_000;
 
@@ -471,6 +472,16 @@ async function fireSmartReminder(cfg: RuleConfig, target: SmartTarget | null, no
       await sb.from("task_updates").insert({ task_id: target.id, body: text, created_at: nowIso, created_by: "ori" });
       await sb.from("tasks").update({ latest_update: text, last_updated_at: nowIso }).eq("id", target.id);
       void reindexEntity("task", target.id);
+      // Posting directly here BYPASSES the portal/admin notify-on-update path, so
+      // push the task's assignees ourselves — skipping anyone the audience step
+      // already reached, so nobody hears the same thing twice.
+      for (const pid of await assigneeIds(target.id)) {
+        const r = personRecipient(pid);
+        if (recipients.has(r)) continue;
+        try {
+          await createNotification({ recipient: r, kind: "assigned", taskId: target.id, taskCode: code, title: code ? `ORI posted an update on ${code}` : "ORI posted an update", body: text, actor: "ORI" });
+        } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.postUpdate.notify", personId: pid }); }
+      }
     } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.postUpdate", taskId: target.id }); }
   }
 
@@ -505,8 +516,16 @@ async function fireSmartReminder(cfg: RuleConfig, target: SmartTarget | null, no
  * (default 5) → ONE digest notification to the owner. Once/day dedupe. Notify-only —
  * never acts on a decision. Fail-open. `due` is the only age signal on the table.
  */
-async function checkUndecided(now: Date, agingDays = 5): Promise<number> {
+async function checkUndecided(now: Date, agingDaysFallback = 5): Promise<number> {
   try {
+    // Owner gate + threshold (fail-open: any read error → enabled/default = today's behaviour).
+    let enabled = true, agingDays = agingDaysFallback;
+    try {
+      const s = await getAppSettings();
+      enabled = s.signalDecisionReminderEnabled;
+      agingDays = s.signalDecisionReminderDays;
+    } catch { /* fail-open */ }
+    if (!enabled) return 0;
     if (!(await claimDailySignal("undecided-decisions", now))) return 0;
     const { data } = await sb.from("decisions").select("code,title,due,status").neq("status", "Decided").limit(200);
     const cutoff = now.getTime() - Math.max(0, agingDays) * DAY;
@@ -539,8 +558,16 @@ async function checkUndecided(now: Date, agingDays = 5): Promise<number> {
  * telemetry rule: the manager gets "X has open tasks and has been quiet", NOT the raw
  * activity log. Fail-open.
  */
-async function checkQuietStaff(now: Date, quietDays = 5): Promise<number> {
+async function checkQuietStaff(now: Date, quietDaysFallback = 5): Promise<number> {
   try {
+    // Owner gate + threshold (fail-open: any read error → enabled/default = today's behaviour).
+    let enabled = true, quietDays = quietDaysFallback;
+    try {
+      const s = await getAppSettings();
+      enabled = s.signalQuietStaffEnabled;
+      quietDays = s.signalQuietStaffDays;
+    } catch { /* fail-open */ }
+    if (!enabled) return 0;
     if (!(await claimDailySignal("quiet-staff", now))) return 0;
     const since = new Date(now.getTime() - quietDays * DAY).toISOString();
     // Everyone who HAS opened the portal within the window → the "seen recently" set.
@@ -718,6 +745,7 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
               fired++;
               patch.last_fired_at = nowIso;
               patch.config = { ...cfg, lastFiredKey: smartFiredKey(rule.id, now) };
+              if (cfg.once === true) { patch.active = false; patch.done = true; retired++; }
               try {
                 await fireSmartDigest(cfg, matches, nowIso);
               } catch (actErr) {
@@ -749,7 +777,9 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
         if (evalRes.fire) {
           fired++;
           patch.last_fired_at = nowIso;
-          patch.config = { ...cfg, lastFiredKey: smartFiredKey(rule.id, now) };
+          patch.config = { ...cfg, lastFiredKey: smartFiredKeyFor(rule.id, now, cfg.trigger ?? {}, evalTask.deadline) };
+          // A one-off rule RETIRES after firing — never fires again.
+          if (cfg.once === true) { patch.active = false; patch.done = true; retired++; }
           try {
             await fireSmartReminder(cfg, target, nowIso);
           } catch (actErr) {
@@ -908,8 +938,9 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
 
   }
 
-  // Always-on daily signal checks (own once/day dedupe; notify-only; fail-open).
-  // These run every sweep but the settings day-key stamp gates them to one send/day.
+  // Built-in daily signal checks (own once/day dedupe; notify-only; fail-open). Each
+  // is owner-toggle-able + threshold-configurable on the ORI Automation page; the
+  // enabled flag is read inside the check (fail-open = on/default → today's behaviour).
   await checkUndecided(now);
   await checkQuietStaff(now);
 

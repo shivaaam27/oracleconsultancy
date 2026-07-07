@@ -21,7 +21,16 @@ export type RuleKind =
  * (audience) and DO (actions). The PURE layer here only decides DUE; all sends,
  * posts and status writes live in the cron (guardrail-gated, auto-act off by
  * default). See tools-smart.ts + api/cron/ori-automations. */
-export type SmartTrigger = { byHour?: number; daysBeforeDeadline?: number; onOverdue?: boolean };
+export type SmartTrigger = {
+  byHour?: number;
+  /** Minute-of-hour (0–59) used with byHour — the Dar-local instant is byHour:byMinute (default :00). */
+  byMinute?: number;
+  daysBeforeDeadline?: number;
+  /** Fire once now >= deadline − hours (fractional ok, e.g. 1.5). Dedupes per deadline-instant,
+   *  so a moved deadline re-arms the rule. */
+  hoursBeforeDeadline?: number;
+  onOverdue?: boolean;
+};
 export type SmartCondition =
   | "no_update_today"
   | "overdue"
@@ -104,8 +113,13 @@ export type RuleConfig = {
   agingDays?: number;
   // escalation_ladder — the per-task overdue ladder. See LadderConfig above.
   ladder?: LadderConfig;
+  // once: a ONE-OFF rule — after it fires, the cron RETIRES it (active=false,
+  // done=true). "Remind Shivam at 23:45" means once, not daily.
+  once?: boolean;
   // Dedupe: once fired today, we stamp `${ruleId}:${YYYY-MM-DD}` here so the same
   // slot never fires twice — even under frequent (every-15-min) external ticks.
+  // For an hoursBeforeDeadline trigger the key embeds the deadline instant instead,
+  // so a MOVED deadline re-arms the rule (see smartFiredKeyFor).
   lastFiredKey?: string;
 };
 
@@ -292,23 +306,30 @@ export function evaluateRule(
       const cfg = rule.config;
       const trig = cfg.trigger ?? {};
       const cond = cfg.condition ?? "always";
-      const todayKey = smartFiredKey(rule.id, now);
+      const slotKey = smartFiredKeyFor(rule.id, now, trig, task.deadline);
 
-      // Already fired for today's slot → never fire again today (idempotent under
-      // frequent external ticks).
-      if (cfg.lastFiredKey === todayKey) return { fire: false };
+      // Already fired for this slot (today, or this deadline-instant for an
+      // hoursBeforeDeadline trigger) → never fire again for it (idempotent under
+      // frequent external ticks). A moved deadline changes the key → re-arms.
+      if (cfg.lastFiredKey === slotKey) return { fire: false };
 
-      // WHEN — the trigger window must have arrived. byHour: today's Dar-local hour
-      // must be at/after it. daysBeforeDeadline / onOverdue: gate on the deadline.
+      // WHEN — the trigger window must have arrived. byHour(:byMinute): today's
+      // Dar-local instant must be at/after it. daysBeforeDeadline /
+      // hoursBeforeDeadline / onOverdue: gate on the deadline.
       let windowReached = true;
       if (typeof trig.byHour === "number") {
         const hour = Math.min(23, Math.max(0, Math.round(trig.byHour)));
-        const inst = darDayStart(now) + hour * 3_600_000;
+        const minute = typeof trig.byMinute === "number" ? Math.min(59, Math.max(0, Math.round(trig.byMinute))) : 0;
+        const inst = darDayStart(now) + hour * 3_600_000 + minute * 60_000;
         if (nowMs < inst) windowReached = false;
       }
       if (windowReached && typeof trig.daysBeforeDeadline === "number") {
         if (!task.deadline) windowReached = false;
         else if (nowMs < task.deadline.getTime() - Math.max(0, trig.daysBeforeDeadline) * DAY) windowReached = false;
+      }
+      if (windowReached && typeof trig.hoursBeforeDeadline === "number") {
+        if (!task.deadline) windowReached = false;
+        else if (nowMs < task.deadline.getTime() - Math.max(0, trig.hoursBeforeDeadline) * 3_600_000) windowReached = false;
       }
       if (windowReached && trig.onOverdue) {
         if (!task.deadline || nowMs < task.deadline.getTime()) windowReached = false;
@@ -358,6 +379,8 @@ export function evaluateRule(
       }
       if (!conditionHolds) return { fire: false };
 
+      // A one-off rule fires then RETIRES (the cron also flips active=false).
+      if (cfg.once === true) return { fire: true, markDone: true, note: `smart (${cond}) — once` };
       return { fire: true, note: `smart (${cond})` };
     }
 
@@ -405,6 +428,20 @@ export function evaluateRule(
  *  Stamped into config.lastFiredKey after firing so the same day-slot never fires
  *  twice, even when an external scheduler ticks the engine every few minutes. */
 export function smartFiredKey(ruleId: number, now: Date): string {
+  return smartFiredKeyDay(ruleId, now);
+}
+
+/** The dedupe key for a smart_reminder's CURRENT slot. Daily key by default; for
+ *  an hoursBeforeDeadline trigger the key embeds the deadline instant instead, so
+ *  the rule fires once per deadline — and re-arms when the deadline moves. */
+export function smartFiredKeyFor(ruleId: number, now: Date, trig: SmartTrigger, deadline: Date | null): string {
+  if (typeof trig.hoursBeforeDeadline === "number" && deadline) {
+    return `${ruleId}:dl:${deadline.getTime()}`;
+  }
+  return smartFiredKeyDay(ruleId, now);
+}
+
+function smartFiredKeyDay(ruleId: number, now: Date): string {
   const shifted = new Date(now.getTime() + 3 * 3_600_000); // into UTC+3
   const y = shifted.getUTCFullYear();
   const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");

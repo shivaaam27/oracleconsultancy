@@ -9,6 +9,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { STATUSES } from "@/lib/constants";
+import { saveAppSettings } from "@/lib/settings";
 import type { RuleConfig, SmartCondition } from "@/lib/ori/automations";
 
 type Res = { ok: boolean; error?: string };
@@ -26,7 +27,9 @@ export type LadderStepInput = {
 };
 
 export type BuilderPayload = {
-  when: { mode: "at_hour" | "days_before" | "on_overdue" | "daily"; hour?: number; days?: number };
+  when: { mode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily"; hour?: number; minute?: number; days?: number; hoursBefore?: number };
+  /** One-off — fires a single time then the rule retires itself. */
+  once?: boolean;
   condition: SmartCondition;
   scope: { type: "everyone" | "person" | "company" | "task"; personId?: number; companyId?: number; taskCode?: string };
   audience: { notifyOwner: boolean; notifyDirectors: boolean; notifyManagers?: boolean; warnPerson: boolean; extraPersonIds: number[] };
@@ -75,17 +78,27 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
   try {
     // WHEN
     const mode = p?.when?.mode;
-    if (!["at_hour", "days_before", "on_overdue", "daily"].includes(mode)) return { ok: false, error: "Pick when it should fire." };
+    if (!["at_hour", "days_before", "hours_before", "on_overdue", "daily"].includes(mode)) return { ok: false, error: "Pick when it should fire." };
     let hour: number | undefined;
+    let minute: number | undefined;
     if (mode === "at_hour") {
       hour = Number(p.when.hour);
       if (!Number.isInteger(hour) || hour < 0 || hour > 23) return { ok: false, error: "The hour must be between 0 and 23." };
+      const m = p.when.minute == null ? 0 : Number(p.when.minute);
+      if (!Number.isInteger(m) || m < 0 || m > 59) return { ok: false, error: "The minute must be between 0 and 59." };
+      minute = m;
     }
     let days: number | undefined;
     if (mode === "days_before") {
       days = Number(p.when.days);
       if (!Number.isInteger(days) || days < 0 || days > 365) return { ok: false, error: "Days before the deadline must be 0–365." };
     }
+    let hoursBefore: number | undefined;
+    if (mode === "hours_before") {
+      hoursBefore = Number(p.when.hoursBefore);
+      if (!Number.isFinite(hoursBefore) || hoursBefore <= 0 || hoursBefore > 720) return { ok: false, error: "Hours before the deadline must be 1–720." };
+    }
+    const once = p.once === true;
 
     // IF
     if (!CONDITIONS.includes(p?.condition)) return { ok: false, error: "Pick a valid condition." };
@@ -215,8 +228,9 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
 
     // smart_reminder — the general WHEN/IF/WHO/DO recipe.
     const config: RuleConfig = {
-      trigger: mode === "at_hour" ? { byHour: hour }
+      trigger: mode === "at_hour" ? { byHour: hour, ...(minute ? { byMinute: minute } : {}) }
         : mode === "days_before" ? { daysBeforeDeadline: days }
+        : mode === "hours_before" ? { hoursBeforeDeadline: hoursBefore }
         : mode === "on_overdue" ? { onOverdue: true }
         : {}, // "daily" — fires once per day, any tick
       condition: p.condition,
@@ -231,6 +245,7 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
       actions: autoAct
         ? { autoAct: true, postUpdate, ...(updateText ? { updateText } : {}), ...(setStatus ? { setStatus } : {}), ...(sendChannel ? { sendChannel } : {}) }
         : { autoAct: false },
+      ...(once ? { once: true } : {}),
       ...(p.condition === "due_tomorrow" ? { digest: true } : {}),
       ...(p.weekdaysOnly === true ? { weekdaysOnly: true } : {}),
       ...(validDateStr(p.pausedUntil) ? { pausedUntil: validDateStr(p.pausedUntil)! } : {}),
@@ -245,6 +260,41 @@ export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
     return { ok: true };
   } catch {
     return { ok: false, error: "Could not save the automation." };
+  }
+}
+
+/* ── Built-in signals ─────────────────────────────────────────────────── */
+
+/** The owner's on/off + threshold settings for the three hard-wired cron signals
+ *  (quiet-staff, decision reminder, weekly health digest). Persisted to the same
+ *  `settings` table via saveAppSettings — no migration. Days are clamped 1–120. */
+export type SignalSettingsInput = {
+  quietStaffEnabled: boolean;
+  quietStaffDays: number;
+  decisionReminderEnabled: boolean;
+  decisionReminderDays: number;
+  healthDigestEnabled: boolean;
+};
+
+function clampDays(v: unknown, fallback: number): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(120, n));
+}
+
+export async function saveSignalSettingsAction(p: SignalSettingsInput): Promise<Res> {
+  try {
+    await saveAppSettings({
+      signalQuietStaffEnabled: p.quietStaffEnabled === true,
+      signalQuietStaffDays: clampDays(p.quietStaffDays, 5),
+      signalDecisionReminderEnabled: p.decisionReminderEnabled === true,
+      signalDecisionReminderDays: clampDays(p.decisionReminderDays, 5),
+      signalHealthDigestEnabled: p.healthDigestEnabled === true,
+    });
+    revalidatePath("/ori-automations");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not save the signal settings." };
   }
 }
 

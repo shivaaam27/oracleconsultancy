@@ -5,6 +5,8 @@ import { sb } from "@/db/supabase";
 import { describeRule, type RawRule, type NameMaps, type DescribedRule } from "./describe";
 import { AutomationControls, FiringHistory } from "./automation-row";
 import { RuleBuilder } from "./rule-builder";
+import { BuiltInSignals, type SignalLastFired } from "./built-in-signals";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -59,11 +61,22 @@ export default async function OriAutomationsPage() {
     .limit(500);
 
   const rules = (data ?? []) as RawRule[];
-  const [maps, peopleRes, companiesRes] = await Promise.all([
+  const [maps, peopleRes, companiesRes, settings, signalStamps] = await Promise.all([
     loadNameMaps(rules),
     sb.from("people").select("id,name").eq("active", true).order("name"),
     sb.from("companies").select("id,name").order("name"),
+    getAppSettings(),
+    // Last-fired stamps: the once/day dedupe rows the checks write (date-only strings).
+    sb.from("settings").select("key,value").in("key", [
+      "ori.signal.quiet-staff", "ori.signal.undecided-decisions", "morningRun.lastHealthDigest",
+    ]),
   ]);
+  const stampMap = new Map(((signalStamps.data ?? []) as { key: string; value: string | null }[]).map((r) => [r.key, r.value]));
+  const lastFired: SignalLastFired = {
+    quietStaff: stampMap.get("ori.signal.quiet-staff") ?? null,
+    decisionReminder: stampMap.get("ori.signal.undecided-decisions") ?? null,
+    healthDigest: stampMap.get("morningRun.lastHealthDigest") ?? null,
+  };
   const described = rules.map((r) => describeRule(r, maps));
   const people = (peopleRes.data ?? []) as { id: number; name: string }[];
   const companies = (companiesRes.data ?? []) as { id: number; name: string }[];
@@ -80,6 +93,19 @@ export default async function OriAutomationsPage() {
       />
 
       <RuleBuilder people={people} companies={companies} />
+
+      <div className="mb-6">
+        <BuiltInSignals
+          settings={{
+            quietStaffEnabled: settings.signalQuietStaffEnabled,
+            quietStaffDays: settings.signalQuietStaffDays,
+            decisionReminderEnabled: settings.signalDecisionReminderEnabled,
+            decisionReminderDays: settings.signalDecisionReminderDays,
+            healthDigestEnabled: settings.signalHealthDigestEnabled,
+          }}
+          lastFired={lastFired}
+        />
+      </div>
 
       {described.length === 0 ? (
         <EmptyState />

@@ -202,18 +202,24 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
     }
 
     case "smart_reminder": {
-      const trig = (cfg.trigger ?? {}) as { byHour?: number; daysBeforeDeadline?: number; onOverdue?: boolean };
+      const trig = (cfg.trigger ?? {}) as { byHour?: number; byMinute?: number; daysBeforeDeadline?: number; hoursBeforeDeadline?: number; onOverdue?: boolean };
       const scope = (cfg.scope ?? {}) as { personId?: number; companyId?: number; taskId?: number };
       const audience = (cfg.audience ?? {}) as { notifyOwner?: boolean; notifyDirectors?: boolean; notifyManagers?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
       const actions = (cfg.actions ?? {}) as { autoAct?: boolean; postUpdate?: boolean; setStatus?: string; sendChannel?: string };
       const cond = str(cfg.condition) || "always";
       const digest = cfg.digest === true;
 
-      const when = typeof trig.byHour === "number"
-        ? `At ${String(Math.round(trig.byHour)).padStart(2, "0")}:00 daily`
+      const once = cfg.once === true;
+      const hhmm = typeof trig.byHour === "number"
+        ? `${String(Math.round(trig.byHour)).padStart(2, "0")}:${String(typeof trig.byMinute === "number" ? Math.round(trig.byMinute) : 0).padStart(2, "0")}`
+        : null;
+      const when = hhmm
+        ? (once ? `Today at ${hhmm}, once` : `At ${hhmm} daily`)
+        : typeof trig.hoursBeforeDeadline === "number"
+          ? `${trig.hoursBeforeDeadline} hour${trig.hoursBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
         : typeof trig.daysBeforeDeadline === "number"
-          ? `${trig.daysBeforeDeadline} day${trig.daysBeforeDeadline === 1 ? "" : "s"} before the deadline`
-          : trig.onOverdue ? "Once overdue" : "Every day";
+          ? `${trig.daysBeforeDeadline} day${trig.daysBeforeDeadline === 1 ? "" : "s"} before the deadline${once ? ", once" : ""}`
+          : trig.onOverdue ? `Once overdue${once ? ", once" : ""}` : once ? "Once" : "Every day";
 
       const scopeName = num(scope.taskId) != null ? (taskCode(num(scope.taskId)) ?? "one task")
         : num(scope.personId) != null ? (personName(num(scope.personId)) ?? "one person")

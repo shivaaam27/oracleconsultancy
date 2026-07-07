@@ -26,19 +26,40 @@ function truthy(v: unknown): boolean {
   return v === true || ["1", "true", "yes", "on", "y"].includes(s);
 }
 
+/** Parse a clock-time string into hour+minute (24h, Dar-local). Accepts "11:45pm",
+ *  "23:45", "11pm", "9.30am", "0930". Null when it isn't a time. */
+export function parseClockTime(raw: string): { hour: number; minute: number } | null {
+  const s = raw.trim().toLowerCase().replace(/\s+/g, "");
+  if (!s) return null;
+  const m = /^(\d{1,2})(?:[:.h](\d{2}))?(am|pm)?$/.exec(s) ?? /^(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  const minute = m[2] != null ? Number(m[2]) : 0;
+  const ap = m[3];
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute > 59) return null;
+  if (ap === "pm" && hour < 12) hour += 12;
+  if (ap === "am" && hour === 12) hour = 0;
+  if (hour > 23) return null;
+  return { hour, minute };
+}
+
 export const SMART_TOOLS: ToolDef[] = [
   {
     name: "create_smart_reminder",
     tier: 3,
     description:
-      "Set a SMART conditional reminder: WHEN a time-of-day or deadline window is reached, IF a condition holds (no update today / overdue / compliance due soon), notify a chosen audience (you, directors, the person, named people), and OPTIONALLY (opt-in only) auto-act — post an update on the task, change its status, or send email/WhatsApp. Auto-act is OFF unless the owner clearly says to do it automatically. Always confirmed before it's created.",
+      "Set a SMART reminder: WHEN a time-of-day (minute-precise, e.g. '11:45pm'), a days/hours-before-deadline window or overdue is reached, IF a condition holds, notify a chosen audience via portal push (you, directors, the person, named people — the person is the default for 'remind X …'), and OPTIONALLY (opt-in only) auto-act — post an update on the task, change its status, or send email/WhatsApp. A specific clock time or hours-before-deadline is a ONE-OFF by default (retires after firing); daily/every = recurring. Auto-act is OFF unless the owner clearly says to do it automatically. Always confirmed before it's created.",
     params: {
       person: { type: "string", required: false, description: "WHOSE tasks — a person by name (scope). Give a person, company or taskCode." },
       company: { type: "string", required: false, description: "WHOSE tasks — a company by name (scope)." },
       taskCode: { type: "string", required: false, description: "WHOSE task — a specific task code (scope)." },
       byHour: { type: "number", required: false, description: "WHEN — fire once this hour of day (0–23, Dar es Salaam) is reached, e.g. 11 for 11am." },
+      time: { type: "string", required: false, description: "WHEN — an exact clock time like '11:45pm' or '23:45' (minute precision; preferred over byHour when the owner names a specific time)." },
       daysBeforeDeadline: { type: "number", required: false, description: "WHEN — fire this many days before the task's deadline." },
+      hoursBeforeDeadline: { type: "number", required: false, description: "WHEN — fire this many hours before the task's deadline (e.g. 1 for 'one hour before it's due'; fractional ok)." },
       onOverdue: { type: "string", required: false, description: "WHEN — 'yes' to fire only once the task is overdue." },
+      once: { type: "string", required: false, description: "One-off vs recurring — 'yes' fires ONCE then retires; 'no' repeats. DEFAULTS to yes when a specific clock time or hoursBeforeDeadline is given ('at 11:45pm' means once); say daily/every for recurring." },
+      message: { type: "string", required: false, description: "The instruction/message wording — used as the notification text (and the posted update when auto-act posts one)." },
       condition: { type: "string", required: false, description: "IF — no_update_today | overdue | compliance_due_soon | always (default always)." },
       notifyOwner: { type: "string", required: false, description: "WHO — 'yes' to notify you (the owner/admin)." },
       notifyDirectors: { type: "string", required: false, description: "WHO — 'yes' to notify all directors." },
@@ -76,9 +97,24 @@ export const SMART_TOOLS: ToolDef[] = [
 
       // ── WHEN (trigger) ────────────────────────────────────────────────────────
       const trigger: SmartTrigger = {};
-      if (Number.isFinite(Number(args.byHour))) trigger.byHour = Math.min(23, Math.max(0, Math.round(Number(args.byHour))));
+      const clock = str(args.time) ? parseClockTime(str(args.time)) : null;
+      if (clock) {
+        trigger.byHour = clock.hour;
+        if (clock.minute > 0) trigger.byMinute = clock.minute;
+      } else if (Number.isFinite(Number(args.byHour))) {
+        trigger.byHour = Math.min(23, Math.max(0, Math.round(Number(args.byHour))));
+      }
       if (Number.isFinite(Number(args.daysBeforeDeadline))) trigger.daysBeforeDeadline = Math.max(0, Math.round(Number(args.daysBeforeDeadline)));
+      const hoursBefore = Number(args.hoursBeforeDeadline);
+      if (Number.isFinite(hoursBefore) && hoursBefore > 0) trigger.hoursBeforeDeadline = Math.min(720, hoursBefore);
       if (truthy(args.onOverdue)) trigger.onOverdue = true;
+
+      // ONE-OFF vs recurring: an explicit `once` wins; otherwise a specific clock
+      // time or an hours-before-deadline window reads as a one-off ("at 11:45pm"
+      // means tonight, not every night).
+      const once = args.once != null && str(args.once) !== ""
+        ? truthy(args.once)
+        : !!clock || trigger.hoursBeforeDeadline != null;
 
       // ── IF (condition) ────────────────────────────────────────────────────────
       const condRaw = str(args.condition) as SmartCondition;
@@ -98,7 +134,8 @@ export const SMART_TOOLS: ToolDef[] = [
       // ── DO (actions) — auto-act OPT-IN ONLY (default OFF) ──────────────────────
       const actions: SmartActions = {};
       const wantAuto = truthy(args.autoAct);
-      if (str(args.updateText)) actions.updateText = str(args.updateText);
+      const messageText = str(args.updateText) || str(args.message);
+      if (messageText) actions.updateText = messageText;
       if (wantAuto) {
         actions.autoAct = true;
         if (truthy(args.postUpdate)) actions.postUpdate = true;
@@ -113,12 +150,18 @@ export const SMART_TOOLS: ToolDef[] = [
         actions.postUpdate = true;
       }
 
+      // DEFAULT audience: "remind Shivam at 11:45pm, push notification" means a
+      // portal push to THAT person — so when nobody was named and the rule is
+      // scoped to a person, warn them.
+      if (!audience.notifyOwner && !audience.notifyDirectors && !audience.warnPerson && !extraIds.length && typeof scope.personId === "number") {
+        audience.warnPerson = true;
+      }
       // A rule that neither notifies anyone NOR auto-acts is a no-op — refuse.
       if (!audience.notifyOwner && !audience.notifyDirectors && !audience.warnPerson && !extraIds.length && !actions.autoAct) {
         return { ok: false, message: "Who should hear about this — you, the directors, the person, or someone named? (Or should ORI act on it automatically?)" };
       }
 
-      const config = { trigger, condition, scope, audience, actions };
+      const config = { trigger, condition, scope, audience, actions, ...(once ? { once: true } : {}) };
       const { data, error } = await sb.from("automation_rules").insert({
         task_id: scope.taskId ?? null, company_id: companyId, kind: "smart_reminder", config,
         active: true, done: false, created_by: "ai-command", created_at: nowIso(),
@@ -127,10 +170,11 @@ export const SMART_TOOLS: ToolDef[] = [
 
       // Human-readable confirmation — spell out the auto-act explicitly.
       const whenBits: string[] = [];
-      if (trigger.byHour != null) whenBits.push(`from ${String(trigger.byHour).padStart(2, "0")}:00`);
+      if (trigger.byHour != null) whenBits.push(`at ${String(trigger.byHour).padStart(2, "0")}:${String(trigger.byMinute ?? 0).padStart(2, "0")}`);
       if (trigger.daysBeforeDeadline != null) whenBits.push(`${trigger.daysBeforeDeadline}d before deadline`);
+      if (trigger.hoursBeforeDeadline != null) whenBits.push(`${trigger.hoursBeforeDeadline}h before deadline`);
       if (trigger.onOverdue) whenBits.push("once overdue");
-      const when = whenBits.length ? whenBits.join(" · ") : "each day";
+      const when = (whenBits.length ? whenBits.join(" · ") : "each day") + (once ? ", once" : "");
       const whoBits: string[] = [];
       if (audience.notifyOwner) whoBits.push("you");
       if (audience.notifyDirectors) whoBits.push("directors");

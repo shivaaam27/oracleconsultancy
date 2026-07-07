@@ -177,6 +177,17 @@ export type AppSettings = {
   /** Editable wording. Rendered after the count, e.g. "3 tasks {message}". */
   portalNudgeNotStartedMsg: string;
   portalNudgeNoUpdateMsg: string;
+
+  /* ---- Built-in ORI signals (the always-on daily checks in the automation cron) ---- */
+  /** Quiet-staff check: staff with open tasks not seen in the portal for ≥N days →
+   *  their manager + an owner roll-up. Enabled by default (today's behaviour). */
+  signalQuietStaffEnabled: boolean;
+  signalQuietStaffDays: number;
+  /** Decision reminder: board decisions still undecided ≥N days past due → owner. */
+  signalDecisionReminderEnabled: boolean;
+  signalDecisionReminderDays: number;
+  /** Weekly Monday system health & cost digest → owner (in-app + push). */
+  signalHealthDigestEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -235,6 +246,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // right after both "1 task" and "12 tasks".
   portalNudgeNotStartedMsg: "not started yet. Please take a look.",
   portalNudgeNoUpdateMsg: "you raised with no recent update. Review or send a reminder.",
+  // Built-in signals — defaults preserve today's behaviour (all on, current thresholds).
+  signalQuietStaffEnabled: true,
+  signalQuietStaffDays: 5,
+  signalDecisionReminderEnabled: true,
+  signalDecisionReminderDays: 5,
+  signalHealthDigestEnabled: true,
 };
 
 /** Map of canonical setting field → storage key. */
@@ -282,6 +299,11 @@ const KEY: Record<keyof AppSettings, string> = {
   portalNudgeNoUpdateDays: "v2.portalNudgeNoUpdateDays",
   portalNudgeNotStartedMsg: "v2.portalNudgeNotStartedMsg",
   portalNudgeNoUpdateMsg: "v2.portalNudgeNoUpdateMsg",
+  signalQuietStaffEnabled: "signals.quietStaff.enabled",
+  signalQuietStaffDays: "signals.quietStaff.days",
+  signalDecisionReminderEnabled: "signals.decisionReminder.enabled",
+  signalDecisionReminderDays: "signals.decisionReminder.days",
+  signalHealthDigestEnabled: "signals.healthDigest.enabled",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -353,6 +375,12 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     // `|| default` (not `??`): a blank saved message falls back to the default wording.
     portalNudgeNotStartedMsg: (map.get(KEY.portalNudgeNotStartedMsg) || "").trim() || d.portalNudgeNotStartedMsg,
     portalNudgeNoUpdateMsg: (map.get(KEY.portalNudgeNoUpdateMsg) || "").trim() || d.portalNudgeNoUpdateMsg,
+    // `??`-free bool/num reads: a missing/blank row falls back to the default (= on).
+    signalQuietStaffEnabled: toBool(map.get(KEY.signalQuietStaffEnabled), d.signalQuietStaffEnabled),
+    signalQuietStaffDays: toNum(map.get(KEY.signalQuietStaffDays), d.signalQuietStaffDays),
+    signalDecisionReminderEnabled: toBool(map.get(KEY.signalDecisionReminderEnabled), d.signalDecisionReminderEnabled),
+    signalDecisionReminderDays: toNum(map.get(KEY.signalDecisionReminderDays), d.signalDecisionReminderDays),
+    signalHealthDigestEnabled: toBool(map.get(KEY.signalHealthDigestEnabled), d.signalHealthDigestEnabled),
   };
 });
 

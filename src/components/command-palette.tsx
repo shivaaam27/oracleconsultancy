@@ -120,6 +120,20 @@ function looksLikeAgentCommand(text: string): boolean {
   // "update me / show me / tell me / give me a summary" read as verbs but are
   // QUESTIONS — keep them on the read-only Ask brain.
   if (/^(update|give|show|tell|brief|catch|bring|walk)\s+(me|us)\b/i.test(t)) return false;
+  // TIMED reminders ("remind Shivam at 11:45pm…", "nudge her in 30 minutes",
+  // "chase him 1 hour before the deadline", "…push notification") need the
+  // AGENT's create_smart_reminder — a standing auto-firing rule — not the
+  // one-shot /api/action outbox-draft path. A bare "remind X" with no time
+  // stays on the old path (no regression).
+  if (/^(remind|nudge|chase|ping)\b/i.test(t)) {
+    const hasTime =
+      /\bat\s+\d{1,2}([:.]\d{2})?\s*(am|pm)?\b/i.test(t) ||
+      /\bin\s+\d+(\.\d+)?\s*(minutes?|mins?|hours?|hrs?)\b/i.test(t) ||
+      /\b(tonight|this evening|tomorrow at|today at)\b/i.test(t) ||
+      /\b(\d+(\.\d+)?\s*(hours?|hrs?|minutes?|mins?)|an?\s+hour)\s+before\s+(the\s+)?(deadline|due)\b/i.test(t) ||
+      /\bbefore\s+(the\s+)?(deadline|due)\b/i.test(t);
+    if (hasTime || /\bpush\b/i.test(t)) return true;
+  }
   return /^(create|add|new|make|edit|rename|reword|retitle|recategor(?:ise|ize)?|categoris(?:e)?|categoriz(?:e)?|prioritis(?:e)?|prioritiz(?:e)?|deprioritis(?:e)?|deprioritiz(?:e)?|update|set|change|move|shift|swap|bump|reassign|assign|unassign|delegate|give|schedule|book|reschedule|postpone|defer|snooze|cancel|call off|announce|post|publish|release|issue|broadcast|draft|reopen|re-?open|close|close off|complete|finish|wrap up|kick off|mark|flag|unflag|tag|escalate|block|unblock|pin|unpin|approve|authoris(?:e)?|authoriz(?:e)?|sign off|reject|decline|delete|remove|archive|trash|bin|purge|clear|wipe|restore|undo|revert|duplicate|copy|clone|split|merge|convert|file|link|attach|upload|record|log|note down|jot|capture|enter|input|fill|verify|handover|hand over|bring forward)\b/i.test(t);
 }
 // "who is missing a passport" / "who is on leave" are handled deterministically

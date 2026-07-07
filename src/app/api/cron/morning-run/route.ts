@@ -6,6 +6,7 @@ import { reportError } from "@/lib/sentry";
 import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
 import { runTimeAutomations } from "@/lib/automation-time";
 import { buildMorningBrief } from "@/lib/morning-brief";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +122,10 @@ export async function GET(req: NextRequest) {
     try {
       const eatDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" }); // YYYY-MM-DD
       const eatWeekday = new Date(`${eatDate}T12:00:00+03:00`).getDay(); // 0=Sun … 1=Mon
-      if (eatWeekday === 1) {
+      // Owner gate (fail-open: any read error → enabled = today's behaviour).
+      let healthEnabled = true;
+      try { healthEnabled = (await getAppSettings()).signalHealthDigestEnabled; } catch { /* fail-open */ }
+      if (eatWeekday === 1 && healthEnabled) {
         const { data: last } = await sb.from("settings").select("value").eq("key", HEALTH_KEY).maybeSingle();
         if ((last?.value as string | null) !== eatDate) {
           const { composeHealthDigest } = await import("@/lib/ori/health-digest");

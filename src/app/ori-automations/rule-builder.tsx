@@ -37,9 +37,12 @@ const DEFAULT_LADDER: LadderStep[] = [
 ];
 
 type Draft = {
-  whenMode: "at_hour" | "days_before" | "on_overdue" | "daily" | "ladder";
+  whenMode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily" | "ladder";
   hour: number;
+  minute: number;
   days: number;
+  hoursBefore: number;
+  once: boolean;
   condition: BuilderPayload["condition"];
   agingDays: number;
   weekdaysOnly: boolean;
@@ -63,7 +66,7 @@ type Draft = {
 };
 
 const BLANK: Draft = {
-  whenMode: "at_hour", hour: 9, days: 2, condition: "always", agingDays: 3,
+  whenMode: "at_hour", hour: 9, minute: 0, days: 2, hoursBefore: 1, once: false, condition: "always", agingDays: 3,
   weekdaysOnly: false, pausedUntil: "",
   scopeType: "everyone", personName: "", companyName: "", taskCode: "",
   notifyOwner: true, notifyManagers: false, notifyDirectors: false, warnPerson: false, extraNames: [],
@@ -111,6 +114,7 @@ const scopePhrase = (d: Draft): string =>
 
 const tail = (d: Draft): string => {
   const bits: string[] = [];
+  if (d.once && d.whenMode !== "ladder") bits.push("just once — retires after firing");
   if (d.weekdaysOnly) bits.push("weekdays only");
   if (d.pausedUntil) bits.push(`paused until ${d.pausedUntil}`);
   return bits.length ? ` (${bits.join(", ")})` : "";
@@ -131,8 +135,9 @@ function sentence(d: Draft): string {
     }).join("; ");
     return `While ${scopePhrase(d)} stay overdue — ${steps || "add a step"}${tail(d)}.`;
   }
-  const when = d.whenMode === "at_hour" ? `At ${pad(d.hour)}:00 daily`
+  const when = d.whenMode === "at_hour" ? `At ${pad(d.hour)}:${pad(d.minute)}${d.once ? "" : " daily"}`
     : d.whenMode === "days_before" ? `${d.days} day${d.days === 1 ? "" : "s"} before the deadline`
+    : d.whenMode === "hours_before" ? `${d.hoursBefore} hour${d.hoursBefore === 1 ? "" : "s"} before the deadline`
     : d.whenMode === "on_overdue" ? "Once a task goes overdue" : "Every day";
   const scope = scopePhrase(d);
   const cond = d.condition === "no_update_today" ? "if no update was posted today"
@@ -193,7 +198,8 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
         : d.scopeType === "company" ? { type: "company", companyId: companyByName.get(d.companyName) }
         : d.scopeType === "task" ? { type: "task", taskCode: d.taskCode.trim() } : { type: "everyone" };
     const payload: BuilderPayload = {
-      when: { mode: d.whenMode === "ladder" ? "daily" : d.whenMode, hour: d.hour, days: d.days },
+      when: { mode: d.whenMode === "ladder" ? "daily" : d.whenMode, hour: d.hour, minute: d.minute, days: d.days, hoursBefore: d.hoursBefore },
+      once: d.whenMode !== "ladder" && d.once ? true : undefined,
       condition: d.condition,
       scope,
       audience: {
@@ -285,6 +291,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
               {([
                 ["at_hour", "At a time of day"],
                 ["days_before", "Days before a deadline"],
+                ["hours_before", "Hours before a deadline"],
                 ["on_overdue", "When overdue"],
                 ["daily", "Every day"],
                 ["ladder", "Overdue ladder"],
@@ -306,10 +313,17 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
               <div className="mt-2 flex items-center gap-2">
                 <FluidSelect
                   value={String(d.hour)}
-                  options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${pad(h)}:00` }))}
+                  options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: pad(h) }))}
                   onSelect={(v) => set({ hour: Number(v) })}
                 />
-                <span className="text-[11px] text-fg-muted">fires within ~15 minutes of the hour</span>
+                <span className="text-sm text-fg-muted">:</span>
+                <input
+                  type="number" min={0} max={59} value={d.minute}
+                  onChange={(e) => set({ minute: Math.max(0, Math.min(59, Number(e.target.value) || 0)) })}
+                  className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                  aria-label="Minute (0–59)"
+                />
+                <span className="text-[11px] text-fg-muted">fires within ~15 minutes of that time</span>
               </div>
             )}
             {d.whenMode === "days_before" && (
@@ -320,6 +334,16 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   className="w-20 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                 />
                 <span className="text-[11px] text-fg-muted">days before the deadline</span>
+              </div>
+            )}
+            {d.whenMode === "hours_before" && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number" min={1} max={720} value={d.hoursBefore}
+                  onChange={(e) => set({ hoursBefore: Math.max(1, Math.min(720, Number(e.target.value) || 1)) })}
+                  className="w-20 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                />
+                <span className="text-[11px] text-fg-muted">hours before the deadline (re-arms if the deadline moves)</span>
               </div>
             )}
           </Step>
@@ -432,6 +456,9 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
           {/* SCHEDULE — applies to every mode. */}
           <Step label="Schedule">
             <div className="space-y-2">
+              {d.whenMode !== "ladder" && (
+                <SwitchRow label="Just once" hint="Fires a single time, then the rule retires itself" on={d.once} onChange={(v) => set({ once: v })} />
+              )}
               <SwitchRow label="Weekdays only" hint="Skip Saturdays and Sundays" on={d.weekdaysOnly} onChange={(v) => set({ weekdaysOnly: v })} />
               <div className="flex items-center gap-2">
                 <span className="text-xs text-fg-muted">Pause until</span>
