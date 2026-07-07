@@ -67,3 +67,6 @@ err.log
 # Local scratch/test extraction outputs
 result-*.json
 scratch-result.json
+
+# Stray debug/eval extraction dumps (per-doc JSON) — never commit
+result*.json
