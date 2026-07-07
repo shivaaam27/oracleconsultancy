@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 // exists), then compose + send a single three-band brief. Replaces the separate
 // notify + automations cron pushes, so the owner wakes to one summary, not several.
 const SIG_KEY = "morningRun.lastSignature";
+// Per-EAT-week guard for the weekly health & cost digest (stores the Monday's
+// YYYY-MM-DD so a same-day re-run of the cron never sends it twice).
+const HEALTH_KEY = "morningRun.lastHealthDigest";
 
 export async function GET(req: NextRequest) {
   const auth = authoriseCron(req);
@@ -107,6 +110,31 @@ export async function GET(req: NextRequest) {
       digest = await flushRoutineDigests();
     } catch (e) {
       await recordEvent("cron.morning", "error", { step: "digest", message: e instanceof Error ? e.message : String(e) });
+    }
+
+    // 1f. Weekly system health & cost digest (Mondays, Dar-time). Composed from
+    //     what the app can READ about itself (AI usage, index size, open-task/doc
+    //     counts, Trash) — NOT true Supabase egress, which only the dashboard sees.
+    //     Owner-only, in-app + push. Best-effort: a failure here never breaks the
+    //     morning run. Gated on a per-EAT-week signature so a re-run same Monday
+    //     doesn't send twice.
+    try {
+      const eatDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" }); // YYYY-MM-DD
+      const eatWeekday = new Date(`${eatDate}T12:00:00+03:00`).getDay(); // 0=Sun … 1=Mon
+      if (eatWeekday === 1) {
+        const { data: last } = await sb.from("settings").select("value").eq("key", HEALTH_KEY).maybeSingle();
+        if ((last?.value as string | null) !== eatDate) {
+          const { composeHealthDigest } = await import("@/lib/ori/health-digest");
+          const hd = await composeHealthDigest();
+          await recordEvent("cron.health-digest", "ok", { line: hd.line, ...hd.stats });
+          if (configurePush()) {
+            await sendToRecipient("admin", { title: hd.title, body: hd.line, url: "/insights", tag: "cos-health-digest" });
+          }
+          await sb.from("settings").upsert({ key: HEALTH_KEY, value: eatDate }, { onConflict: "key" });
+        }
+      }
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "health-digest", message: e instanceof Error ? e.message : String(e) });
     }
 
     // 2. Compose the three-band brief from the freshly-updated state.

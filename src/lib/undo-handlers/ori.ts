@@ -35,6 +35,19 @@ registerUndoHandler("ori.automation.create", async (raw) => {
   await sb.from("automation_rules").delete().eq("id", p.ruleId);
 });
 
+// Watcher creation — delete the watch rule (it's a fresh, unfired standing alert).
+registerUndoHandler("ori.watcher.create", async (raw) => {
+  const p = raw as { ruleId: number };
+  await sb.from("automation_rules").delete().eq("id", p.ruleId).eq("kind", "watch");
+});
+
+// Watcher deletion — revive it (deleteWatcher is a soft active=false, so the
+// inverse just flips it back on).
+registerUndoHandler("ori.watcher.delete", async (raw) => {
+  const p = raw as { ruleId: number };
+  await sb.from("automation_rules").update({ active: true }).eq("id", p.ruleId).eq("kind", "watch");
+});
+
 // Person profile edit — restore the whitelisted columns to their prior values.
 registerUndoHandler("ori.person.update", async (raw) => {
   const p = raw as { personId: number; before: Record<string, unknown> };

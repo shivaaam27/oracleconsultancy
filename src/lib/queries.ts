@@ -120,10 +120,11 @@ type SbCompany = { id: number; name: string; accent_color: string | null };
 type SbDept = { id: number; name: string };
 type SbPerson = { id: number; name: string };
 type SbAssignee = { task_id: number; person_id: number; role: string | null; part_done_at: string | null };
+// Light shape for the batched list enrichment: the heavy `body` is NOT fetched
+// here (see buildAllTasks) — the latest body comes from tasks.latest_update.
 type SbUpdate = {
   id: number;
   task_id: number;
-  body: string;
   created_at: string;
   created_by: string | null;
   pinned_at: string | null;
@@ -218,8 +219,13 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
     sb.from("people").select("id,name"),
     sb.from("task_assignees").select("task_id,person_id,role,part_done_at"),
     // One batched read of every live update, newest first, for the rich-row
-    // enrichment (latest update + count + pinned). No per-task query (no N+1).
-    sb.from("task_updates").select("id,task_id,body,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
+    // enrichment (latest update id/time/author + count + pinned). No per-task
+    // query (no N+1). The heavy `body` blob is deliberately OMITTED here — it is
+    // the single biggest egress cost of this all-day read (every historical body
+    // for every task) yet only the LATEST body renders, and that is already held
+    // denormalised on tasks.latest_update. So we source the body from the task
+    // row instead of transferring millions of bytes of stale update text.
+    sb.from("task_updates").select("id,task_id,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
     getAppSettings(),
   ]);
   const thresholds = {
@@ -287,14 +293,18 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
     const derived = { status: t.status, priority: t.priority, createdDate, deadline, closedDate };
 
     const latest = latestByTask.get(t.id) ?? null;
+    // Body of the latest update comes from the denormalised tasks.latest_update
+    // (kept in sync by every update write + the resync admin op), so we don't pay
+    // egress to ship every update body in the batched read above.
+    const latestBody = (t.latest_update ?? "").trim();
     const latestActivity = latest
       ? {
           id: latest.id,
-          body: (latest.body ?? "").trim(),
+          body: latestBody,
           author: resolveUpdateAuthor(latest.created_by),
           by: latest.created_by ?? null,
           atISO: latest.created_at,
-          kind: detectStatusChange(latest.body ?? "") ? ("status" as const) : ("comment" as const),
+          kind: detectStatusChange(latestBody) ? ("status" as const) : ("comment" as const),
         }
       : null;
     // Latest signal of life across the three timestamps we hold.

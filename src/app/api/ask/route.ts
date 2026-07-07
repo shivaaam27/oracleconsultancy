@@ -2,7 +2,7 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { AI_FAST, providerLadder } from "@/lib/ai-models";
+import { AI_FAST, providerLadder, isAiExhausted, AI_RESTING_NOTE } from "@/lib/ai-models";
 import { callAIText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
 import { getActiveProvider } from "@/lib/settings";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
@@ -18,7 +18,8 @@ import { normalizePersonType } from "@/lib/person-types";
 import { getCompanyRelationships, getPersonRelationships } from "@/lib/relationships";
 import { getEntityGraph } from "@/lib/entity-graph";
 import { recallMemories, recordQA } from "@/lib/ai-memory";
-import { resolveSmartAnswer } from "@/lib/smart-answer";
+import { resolveSmartAnswer, type SmartAnswer } from "@/lib/smart-answer";
+import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai-cache";
 import {
   formatSmartAnswer,
   rewriteRetrievalQuery,
@@ -988,6 +989,31 @@ export async function buildContext(question: string, page?: PageCtx) {
   );
   const documentCtxPruned = pruneByBudget(documentCtx, budgetTokens, 3500, 4);
 
+  // #5 — PRUNE THE MEETINGS SLICE. Meetings carry minutes (500c) + rawNotes
+  // (300c) + a passage per row and were previously handed over at a FIXED cap of
+  // 6 with no relevance prune — the single biggest context contributor. Build the
+  // slice first, then relevance-prune it against the (rewritten) query tokens
+  // within a char budget, exactly like tasks + documents. minKeep guarantees a
+  // couple survive a sparse-overlap query; the rows arrive already ranked by
+  // relevance (rankMeeting), so the budget trims the long tail, not the best.
+  const meetingsCtx = pruneByBudget(
+    meetingRows.slice(0, 6).map((m) => ({
+      id: m.id as number,
+      title: m.title as string,
+      company: m.company_id ? cMap.get(m.company_id as number) ?? null : "Group-wide",
+      date: m.meeting_date ? new Date(m.meeting_date as string).toISOString().slice(0, 10) : null,
+      attendees: (m.attendees as string | null) ?? null,
+      minutes: ((m.minutes as string | null) ?? "").slice(0, 500),
+      rawNotes: ((m.raw_notes as string | null) ?? "").slice(0, 300),
+      // Matched excerpt (Capability A) so ORI can quote + cite this meeting.
+      ...(meetingPassageById.has(m.id as number) ? { passage: meetingPassageById.get(m.id as number) } : {}),
+      linkedTaskCodes: tasksByMeeting[m.id as number] ?? [],
+    })),
+    budgetTokens,
+    4500,
+    2,
+  );
+
   return {
     today: new Date().toISOString().slice(0, 10),
     planDay: wantsPlanDay,
@@ -1022,25 +1048,14 @@ export async function buildContext(question: string, page?: PageCtx) {
       body: u.body.slice(0, 130),
       createdAt: u.createdAt.toISOString().slice(0, 10),
     })),
-    meetings: meetingRows.slice(0, 6).map((m) => ({
-      id: m.id as number,
-      title: m.title as string,
-      company: m.company_id ? cMap.get(m.company_id as number) ?? null : "Group-wide",
-      date: m.meeting_date ? new Date(m.meeting_date as string).toISOString().slice(0, 10) : null,
-      attendees: (m.attendees as string | null) ?? null,
-      minutes: ((m.minutes as string | null) ?? "").slice(0, 500),
-      rawNotes: ((m.raw_notes as string | null) ?? "").slice(0, 300),
-      // Matched excerpt (Capability A) so ORI can quote + cite this meeting.
-      ...(meetingPassageById.has(m.id as number) ? { passage: meetingPassageById.get(m.id as number) } : {}),
-      linkedTaskCodes: tasksByMeeting[m.id as number] ?? [],
-    })),
+    meetings: meetingsCtx,
     // Human-readable provenance line the UI can show verbatim — only the
     // non-empty slices that actually fed this answer (governance counts as one
     // record per shareholder/owner/signatory/fact/resolution row surfaced).
     sourceSummary: buildSourceSummary({
       tasks: taskCtx.length,
       documents: documentCtxPruned.length,
-      meetings: Math.min(meetingRows.length, 6),
+      meetings: meetingsCtx.length,
       governance:
         (governance?.shareholders.length ?? 0) +
         (governance?.beneficialOwners.length ?? 0) +
@@ -1090,6 +1105,44 @@ function buildSourceSummary(counts: Record<string, number>): string {
     parts.push(`${n} ${n === 1 ? one : many}`);
   }
   return parts.join(" · ");
+}
+
+/** B3 — GRACEFUL AI-FREE MODE. When the whole model ladder is exhausted, run the
+ *  AI-FREE resolver (resolveSmartAnswer — deterministic, no model call) on the
+ *  question and, if it resolves, return that with a calm "AI is resting" note so
+ *  the principal still gets a native answer instead of a 502/spinner. Returns a
+ *  Response ready to send, or null when even the resolver has nothing — the
+ *  caller then falls back to its existing error. Honours `wantStream` so the wire
+ *  shape matches what the client is reading. Best-effort; never throws. */
+async function degradeToNative(question: string, wantStream: boolean): Promise<Response | null> {
+  let instant: SmartAnswer | null = null;
+  try {
+    instant = await resolveSmartAnswer(question);
+  } catch {
+    instant = null;
+  }
+  // Resolver hit → prefix the calm note, then the native answer.
+  const text = instant
+    ? `${AI_RESTING_NOTE}\n\n${formatSmartAnswer(instant)}`
+    : AI_RESTING_NOTE;
+  const summary = instant && instant.count > 0
+    ? `${instant.count} ${instant.kind === "count" ? "records" : instant.kind}`
+    : "";
+  if (wantStream) {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(enc.encode(text)); controller.close(); },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Source-Summary": encodeURIComponent(summary),
+        "X-Ai-Degraded": "1",
+      },
+    });
+  }
+  return NextResponse.json({ answer: text, sourceSummary: summary, source: "ai-degraded" });
 }
 
 export async function POST(req: NextRequest) {
@@ -1165,6 +1218,22 @@ export async function POST(req: NextRequest) {
 
     const context = await buildContext(retrievalQuery, pageContext);
 
+    // AI ANSWER CACHE (egress/token saver). Key on the ORIGINAL question + a
+    // fingerprint of the RETRIEVED context (its serialised form = the sorted
+    // source data that feeds the answer) + the stream/non-stream mode. Identical
+    // repeat asks over unchanged data skip Gemini entirely. Scope is fixed to the
+    // owner ("admin") here — this route is admin-only — so no cross-user bleed.
+    // Follow-ups (history present) are NOT cached: the answer depends on prior
+    // turns not captured in the key. Fail-open throughout.
+    const cacheable = history.length === 0;
+    const contextFingerprint = JSON.stringify(context);
+    const cacheKey = aiCacheKey({
+      scope: "admin",
+      mode: wantStream ? "ask-stream" : "ask",
+      question,
+      sourceIds: [contextFingerprint],
+    });
+
     const pageNote = context.currentPage
       ? `\n\nThe principal is currently viewing: ${context.currentPage.label}${context.currentPage.taskCode ? ` (task ${context.currentPage.taskCode})` : ""}${context.currentPage.company ? ` (company ${context.currentPage.company})` : ""}. Interpret "this", "here", "this page", or "this task/company" as referring to it.`
       : "";
@@ -1182,6 +1251,20 @@ export async function POST(req: NextRequest) {
 
     // Non-streaming answers go through the shared harness (retry + timeout).
     if (!wantStream) {
+      // Cache hit → return the memoised answer, no model call. (Only the leading
+      // question is cacheable; history-laden follow-ups always recompute.)
+      if (cacheable) {
+        const cached = aiCacheGet(cacheKey);
+        if (cached) {
+          return NextResponse.json({
+            answer: cached.value,
+            taskCount: context.tasks.length,
+            meetingCount: context.meetings.length,
+            sourceSummary: context.sourceSummary,
+            source: "ai-cache",
+          });
+        }
+      }
       let result = await callAIText({
         messages,
         apiKey,
@@ -1194,9 +1277,17 @@ export async function POST(req: NextRequest) {
         result = await callAIText({ messages, apiKey, model: AI_FAST, maxTokens: 600, temperature: 0.2 });
       }
       if (!result.ok || !result.text) {
+        // B3 — whole ladder exhausted (rate-limit / timeout / spend-cap): degrade
+        // to the AI-free resolver with a calm note instead of a raw 502.
+        if (isAiExhausted(result.error)) {
+          const degraded = await degradeToNative(question, false);
+          if (degraded) return degraded;
+        }
         return NextResponse.json({ error: `ai-${result.error}` }, { status: 502 });
       }
       const answer = result.text.trim();
+      // Memoise for the short TTL so an identical repeat ask skips the model.
+      if (cacheable) aiCacheSet(cacheKey, answer);
       // Capability C — ORI MEMORY (record). Remember this successful exchange for
       // the owner so ORI can recall it on a later question. Fire-and-forget +
       // best-effort: recordQA swallows its own errors; never block the response.
@@ -1216,6 +1307,30 @@ export async function POST(req: NextRequest) {
     // the assembled final answer (with the question) to the dedicated record
     // endpoint the action-route agent is adding, which calls recordQA("admin", …).
     // Do NOT try to recordQA from this handler for the streaming case.
+
+    // Cache hit (streaming) → replay the memoised answer as a plain-text stream,
+    // no model call. Same wire shape the client already reads (delta stream).
+    if (cacheable) {
+      const cached = aiCacheGet(cacheKey);
+      if (cached) {
+        const enc = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(enc.encode(cached.value));
+            controller.close();
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Task-Count": String(context.tasks.length),
+            "X-Meeting-Count": String(context.meetings.length),
+            "X-Source-Summary": encodeURIComponent(context.sourceSummary || ""),
+          },
+        });
+      }
+    }
 
     // Streaming keeps a direct fetch (the harness buffers) — but MUST target the
     // ACTIVE provider's endpoint with that provider's model names. This path used
@@ -1285,6 +1400,12 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!res) {
+      // B3 — every candidate model failed (429/timeout/5xx across the ladder):
+      // degrade to the AI-free resolver, streamed with a calm note, so the client
+      // never sees a spinner-then-error. Only when the resolver has nothing do we
+      // surface the underlying status.
+      const degraded = await degradeToNative(question, true);
+      if (degraded) return degraded;
       return NextResponse.json({ error: lastStatus ? `ai-${lastStatus}` : "ai-timeout" }, { status: lastStatus || 504 });
     }
 
@@ -1309,6 +1430,13 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let buffer = "";
+        // Accumulate the full answer as it streams, so an identical repeat ask
+        // can be served from cache without re-calling the model. Only stored on a
+        // clean, non-empty completion (a truncated/errored stream is not cached).
+        let assembled = "";
+        const commit = () => {
+          if (cacheable && assembled.trim()) aiCacheSet(cacheKey, assembled);
+        };
         try {
           for (;;) {
             const { done, value } = await upstream.read();
@@ -1321,14 +1449,15 @@ export async function POST(req: NextRequest) {
               const t = line.trim();
               if (!t.startsWith("data:")) continue;
               const payload = t.slice(5).trim();
-              if (payload === "[DONE]") { controller.close(); return; }
+              if (payload === "[DONE]") { commit(); controller.close(); return; }
               try {
                 const json = JSON.parse(payload);
                 const delta = json?.choices?.[0]?.delta?.content;
-                if (delta) controller.enqueue(encoder.encode(delta));
+                if (delta) { assembled += delta; controller.enqueue(encoder.encode(delta)); }
               } catch { /* partial JSON split across chunks — waits in buffer */ }
             }
           }
+          commit();
           controller.close();
         } catch (e) {
           controller.error(e); // surface a genuine mid-stream failure to the client

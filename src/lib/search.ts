@@ -89,6 +89,9 @@ const URGENT_STATUS = new Set(["escalated", "blocked", "overdue", "waiting exter
 const HOT_PRIORITY = new Set(["critical", "high"]);
 const MAX_URGENCY_BOOST = 10; // status + priority combined ceiling
 const MAX_RECENCY_BOOST = 6; // freshly-touched items ceiling
+const OVERDUE_BOOST = 8; // past-due + still-open items ceiling
+// Statuses that mean "done" — a past deadline on one of these is NOT overdue.
+const DONE_STATUS = new Set(["completed", "closed", "done", "cancelled", "canceled"]);
 
 /**
  * Small additive ranking boost from a raw DB row's own fields — urgency (status
@@ -109,6 +112,15 @@ function rankBoost(row: Record<string, unknown> | null | undefined): number {
   if (row.overdue === true || row.is_overdue === true) urgency += 6;
   if (priority && HOT_PRIORITY.has(priority)) urgency += 5;
   boost += Math.min(MAX_URGENCY_BOOST, urgency);
+
+  // Overdue — a deadline/due date in the PAST while the item is still open (not a
+  // done status). Null-guarded: no date, unparseable date, or a done status all
+  // contribute nothing. Bounded, additive — nudges genuinely-late work upward.
+  const due = row.deadline ?? row.due_date ?? row.due;
+  if (due && !(status && DONE_STATUS.has(status)) && row.archived !== true) {
+    const dt = new Date(due as string).getTime();
+    if (Number.isFinite(dt) && dt < Date.now()) boost += OVERDUE_BOOST;
+  }
 
   // Recency — decays over ~30 days from whatever last-touched timestamp exists.
   const stamp = row.updated_at ?? row.last_updated_at ?? row.created_at;
@@ -241,6 +253,74 @@ function one<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
 }
 
+// ── Light query qualifiers (best-effort, additive pre-filters) ────────────────
+// Parse an optional DATE phrase and an optional COMPANY name out of the query so
+// "invoices from June" or "Terra Green documents 2025" NARROW before scoring.
+// Every branch is best-effort: nothing detected → no constraint (behaves exactly
+// as before); a mis-parse just yields no filter, it NEVER drops everything.
+
+const MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+type DateRange = { from: string; to: string }; // ISO, inclusive-from / exclusive-to
+
+/** Parse a coarse date range from a query. Handles "in June" / "June 2025" /
+ *  "2025" / "last month" / "this month". Returns null when nothing date-like is
+ *  present. Bare month → current year; bare year → whole year. */
+function parseDateRange(q: string, now = new Date()): DateRange | null {
+  const iso = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d)).toISOString();
+
+  if (/\blast month\b/.test(q)) {
+    const y = now.getUTCFullYear(), m = now.getUTCMonth();
+    return { from: iso(y, m - 1, 1), to: iso(y, m, 1) };
+  }
+  if (/\bthis month\b/.test(q)) {
+    const y = now.getUTCFullYear(), m = now.getUTCMonth();
+    return { from: iso(y, m, 1), to: iso(y, m + 1, 1) };
+  }
+
+  const monthIdx = MONTHS.findIndex((name) => new RegExp(`\\b${name}\\b`).test(q));
+  const yearMatch = q.match(/\b(20\d{2})\b/);
+  const year = yearMatch ? Number(yearMatch[1]) : null;
+
+  if (monthIdx !== -1) {
+    const y = year ?? now.getUTCFullYear();
+    return { from: iso(y, monthIdx, 1), to: iso(y, monthIdx + 1, 1) };
+  }
+  if (year) return { from: iso(year, 0, 1), to: iso(year + 1, 0, 1) };
+  return null;
+}
+
+/** Resolve a company id if the query clearly names one. Fetches the small
+ *  companies list once and matches the WHOLE query (collapsed) against each
+ *  name/aliases — so a stray common word never mis-binds. Best-effort: any error
+ *  or no clear match → null (no filter). */
+async function resolveCompanyId(q: string): Promise<number | null> {
+  try {
+    const collapse = (x: string) => x.replace(/[\s\-_/]+/g, "");
+    const qc = collapse(q);
+    const { data } = await sb.from("companies").select("id,name,aliases").limit(200);
+    if (!data) return null;
+    let best: { id: number; len: number } | null = null;
+    for (const row of data as { id: number; name: string; aliases?: unknown }[]) {
+      const names = [row.name, ...(Array.isArray(row.aliases) ? (row.aliases as string[]) : [])]
+        .filter((n): n is string => typeof n === "string" && n.trim().length >= 3);
+      for (const n of names) {
+        const nc = collapse(n.toLowerCase());
+        // Require the company name to appear as a contiguous run in the query
+        // (collapsed both sides) — "terra green" in "terragreendocuments".
+        if (nc.length >= 3 && qc.includes(nc)) {
+          if (!best || nc.length > best.len) best = { id: row.id, len: nc.length };
+        }
+      }
+    }
+    return best?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function unifiedSearch(
   query: string,
   perTypeLimit = 10,
@@ -267,6 +347,18 @@ export async function unifiedSearch(
   } catch {
     expanded = [];
   }
+
+  // Best-effort qualifier pre-filters: a date phrase and/or a named company
+  // narrow the DB fetch BEFORE scoring. Both are additive — undetected → no
+  // constraint (unchanged behaviour); a mis-parse yields no filter, never a
+  // wipe-out. Company resolve is one small query, run alongside the rest.
+  const dateRange = parseDateRange(q);
+  let companyId: number | null = null;
+  try {
+    companyId = await resolveCompanyId(q);
+  } catch {
+    companyId = null;
+  }
   // The fetch net stays WIDE (all literal words + synonyms) so a row that only
   // mentions a soft word in a secondary field is still pulled in to be scored.
   const netTokens = Array.from(new Set([...allTokens, ...expanded]));
@@ -285,6 +377,17 @@ export async function unifiedSearch(
     let qb = sb.from(def.table).select(s.select);
     if (s.ilikeColumns) qb = qb.or(orIlike(s.ilikeColumns, netTokens));
     if (s.currentFilter && !includeHistory) qb = qb.eq(s.currentFilter.column, s.currentFilter.value);
+    // Company qualifier — only when the query named a company AND this def has a
+    // company FK (explicit companyColumn, else "company_id" if the select carries
+    // it). Skipped otherwise, so date-only/global queries are untouched.
+    if (companyId != null) {
+      const col = s.companyColumn ?? (s.select.includes("company_id") ? "company_id" : null);
+      if (col) qb = qb.eq(col, companyId);
+    }
+    // Date qualifier — only when a phrase parsed AND this def declares a date col.
+    if (dateRange && s.dateColumn) {
+      qb = qb.gte(s.dateColumn, dateRange.from).lt(s.dateColumn, dateRange.to);
+    }
     const transformed = s.order ? qb.order(s.order.column, { ascending: s.order.ascending }) : qb;
     return transformed.limit(s.limit);
   };

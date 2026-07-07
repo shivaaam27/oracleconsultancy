@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, type LucideIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, Gauge, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
@@ -69,6 +69,22 @@ export type { Pulse } from "./command-palette-chat";
 
 let msgSeq = 0;
 const newId = () => `m${++msgSeq}`;
+
+// --- C2: client freshness cache -------------------------------------------
+// Reopening the palette re-fetched /api/pulse + /api/briefing every time and
+// repeated identical /api/search calls. These small module-level TTL caches let
+// a reopen reuse the last result instantly and refresh quietly in the
+// background; nothing is ever shown past its TTL. Additive + safe — the render
+// path is unchanged, we just seed it from cache and revalidate.
+const PULSE_TTL = 150_000; // 2.5 min
+const BRIEF_TTL = 150_000; // 2.5 min
+const SEARCH_TTL = 20_000; // 20s — brief memo of identical queries
+type TtlEntry<T> = { at: number; data: T };
+type SearchPayload = { items: SearchItem[]; results: SearchResult[]; directAnswer: DirectAnswer | null; smartAnswer: SmartAnswer | null };
+const pulseCache = { current: null as TtlEntry<PulseItem[]> | null };
+const briefingCache = { current: null as TtlEntry<BriefingData> | null };
+const searchCache = new Map<string, TtlEntry<SearchPayload>>();
+const isFresh = (e: { at: number } | null | undefined, ttl: number) => !!e && Date.now() - e.at < ttl;
 
 // Conversational lead-ins ("can you…", "please…", "I want to…") are stripped so
 // natural requests reach the acting agent — "can you reopen DAR-012" is treated
@@ -158,13 +174,16 @@ export function CommandPaletteProvider({
   // "Today" pulse — the estate's most recent notable events, shown in the empty
   // search state only. Plain fetch (no server import); fetched once per open.
   const [pulse, setPulse] = useState<PulseItem[]>([]);
-  const pulseFetched = useRef(false);
+  // "AI today" — a calm informational stat of today's AI usage from /api/ai-usage.
+  // Plain fetch (no server import); renders nothing on error/empty.
+  type AiUsage = { today: { calls: number; tokens: number }; cap?: number; pct?: number };
+  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
+  const aiUsageFetched = useRef(false);
   // "Your briefing" — radar highlights + suggested actions from /api/briefing,
   // fetched once on select (not eagerly) and shown inline in the empty state.
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [briefingLoading, setBriefingLoading] = useState(false);
-  const briefingFetched = useRef(false);
   const [thread, setThread] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const { pins, toggle } = usePins();
@@ -211,15 +230,35 @@ export function CommandPaletteProvider({
     return () => { killed = true; window.clearTimeout(id); };
   }, [isOpen, mode]);
 
-  // "Today" pulse — fetch the estate's recent-events strip once, the first time
-  // the palette opens on an admin surface. Plain fetch; failures render nothing.
+  // "Today" pulse — on each admin-surface open, seed from the freshness cache
+  // instantly, then revalidate quietly in the background only when the cache is
+  // stale (TTL). Reopening within the TTL costs no fetch and shows no stale data.
   useEffect(() => {
-    if (!isOpen || onPortal || pulseFetched.current) return;
-    pulseFetched.current = true;
+    if (!isOpen || onPortal) return;
+    if (pulseCache.current) setPulse(pulseCache.current.data);
+    if (isFresh(pulseCache.current, PULSE_TTL)) return;
     let cancelled = false;
     fetch("/api/pulse", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d && Array.isArray(d.pulse)) setPulse(d.pulse as PulseItem[]); })
+      .then((d) => {
+        if (d && Array.isArray(d.pulse)) {
+          pulseCache.current = { at: Date.now(), data: d.pulse as PulseItem[] };
+          if (!cancelled) setPulse(d.pulse as PulseItem[]);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen, onPortal]);
+
+  // "AI today" — fetch today's AI usage once, first time the palette opens on an
+  // admin surface. Plain fetch; failures render nothing.
+  useEffect(() => {
+    if (!isOpen || onPortal || aiUsageFetched.current) return;
+    aiUsageFetched.current = true;
+    let cancelled = false;
+    fetch("/api/ai-usage", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && d.today) setAiUsage(d as AiUsage); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isOpen, onPortal]);
@@ -228,13 +267,17 @@ export function CommandPaletteProvider({
   // Plain fetch (no server import); renders nothing on error/empty.
   const loadBriefing = useCallback(async () => {
     setBriefingOpen(true);
-    if (briefingFetched.current) return;
-    briefingFetched.current = true;
+    // Seed from the freshness cache instantly; only fetch when it's stale (TTL).
+    if (briefingCache.current) setBriefing(briefingCache.current.data);
+    if (isFresh(briefingCache.current, BRIEF_TTL)) return;
     setBriefingLoading(true);
     try {
       const r = await fetch("/api/briefing", { cache: "no-store" });
       const d = r.ok ? await r.json() : null;
-      if (d && typeof d === "object") setBriefing(d as BriefingData);
+      if (d && typeof d === "object") {
+        briefingCache.current = { at: Date.now(), data: d as BriefingData };
+        setBriefing(d as BriefingData);
+      }
     } catch {
       // Silent — the entry simply shows nothing to act on.
     } finally {
@@ -325,16 +368,38 @@ export function CommandPaletteProvider({
   useEffect(() => {
     if (!isOpen || mode !== "search") return;
     let cancelled = false;
+    // Brief memo of identical (query + history) lookups: a reopen or a
+    // back-and-forth edit that lands on the same query reuses the last result
+    // instantly and skips the fetch while it's fresh (TTL). Applying it also
+    // seeds the render immediately so there's no flash of the previous results.
+    const key = `${includeHistory ? "h:" : ""}${query}`;
+    const cached = searchCache.get(key);
+    if (cached) {
+      setItems(cached.data.items);
+      setResults(cached.data.results);
+      setDirectAnswer(cached.data.directAnswer);
+      setSmartAnswer(cached.data.smartAnswer);
+      if (isFresh(cached, SEARCH_TTL)) return;
+    }
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}${includeHistory ? "&history=1" : ""}`);
         if (!res.ok) return;
         const data = await res.json();
+        const payload: SearchPayload = {
+          items: data.items || [],
+          results: data.results || [],
+          directAnswer: data.directAnswer ?? null,
+          smartAnswer: data.smartAnswer ?? null,
+        };
+        searchCache.set(key, { at: Date.now(), data: payload });
+        // Bound the memo so it can't grow unbounded over a long session.
+        if (searchCache.size > 40) searchCache.delete(searchCache.keys().next().value as string);
         if (!cancelled) {
-          setItems(data.items || []);
-          setResults(data.results || []);
-          setDirectAnswer(data.directAnswer ?? null);
-          setSmartAnswer(data.smartAnswer ?? null);
+          setItems(payload.items);
+          setResults(payload.results);
+          setDirectAnswer(payload.directAnswer);
+          setSmartAnswer(payload.smartAnswer);
         }
       } catch {}
     }, 80);
@@ -985,6 +1050,32 @@ export function CommandPaletteProvider({
                           ))}
                         </div>
                       </Command.Group>
+                    )}
+
+                    {/* AI today — a calm informational stat of today's AI usage.
+                        §13: rounded-lg, outline icon, quiet. Not selectable. */}
+                    {!trimmed && !onPortal && aiUsage && (aiUsage.today.calls > 0 || aiUsage.cap) && (
+                      <div className="px-2 pt-1 pb-2">
+                        <div className="px-2.5 py-2 rounded-lg border border-border flex items-center gap-2.5 text-sm">
+                          <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-fg-subtle shrink-0">
+                            <Gauge size={13} />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-[12px] uppercase tracking-wider text-fg-subtle">AI today</span>
+                            <span className="block truncate text-fg tabular-nums">
+                              {aiUsage.cap != null && aiUsage.pct != null
+                                ? `${aiUsage.pct}% of cap`
+                                : `${aiUsage.today.calls} ${aiUsage.today.calls === 1 ? "call" : "calls"}${
+                                    aiUsage.today.tokens > 0
+                                      ? ` · ${aiUsage.today.tokens >= 1000
+                                          ? `${(aiUsage.today.tokens / 1000).toFixed(aiUsage.today.tokens >= 100_000 ? 0 : 1)}k`
+                                          : aiUsage.today.tokens} tokens`
+                                      : ""
+                                  }`}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
                     )}
 
                     {/* Your briefing — one tap fetches /api/briefing and expands

@@ -44,8 +44,13 @@ async function allRows(): Promise<Row[]> {
       continue;
     }
 
-    // Page past 1000 rows so large tables are FULLY reindexed nightly.
-    const data = await selectAllPaged<unknown>(() => sb.from(def.table).select(def.selectColumns.join(",")));
+    // Page past 1000 rows so large tables are FULLY reindexed nightly. Use the
+    // HEAVY index select (indexSelectColumns) where present so the body needed to
+    // build the vector (e.g. a document's extracted_text) is fetched HERE — the
+    // one place that blob is pulled. Everywhere else (search, per-write hooks)
+    // uses the light selectColumns.
+    const embedCols = def.indexSelectColumns ?? def.selectColumns;
+    const data = await selectAllPaged<unknown>(() => sb.from(def.table).select(embedCols.join(",")));
     for (const r of data) {
       const row = r as unknown as EntityRow;
       rows.push({

@@ -11,7 +11,8 @@ export type RuleKind =
   | "create_event_after_deadline"
   | "auto_close_stale"
   | "auto_reassign_on_leave"
-  | "recurring_task";
+  | "recurring_task"
+  | "scheduled_macro";
 
 export type RuleConfig = {
   daysBefore?: number;
@@ -36,6 +37,12 @@ export type RuleConfig = {
   companyId?: number;
   priority?: string;
   assigneePersonIds?: number[];
+  // scheduled_macro: run a saved macro (ai_memory kind="macro") on a cadence. At the
+  // due time the cron SURFACES the macro's steps as a confirm-and-run prompt — it
+  // never auto-executes the steps (Tier 3). Weekly on `weekday` @ `hour`, or monthly
+  // on `dayOfMonth` @ `hour`; blank hour → 09:00.
+  macroName?: string;
+  hour?: number;
 };
 
 export type AutomationRuleRow = {
@@ -177,6 +184,19 @@ export function evaluateRule(
       return { fire: true, note: `recurring (${cadence})` };
     }
 
+    case "scheduled_macro": {
+      // Propose a saved macro on a cadence. Like recurring_task, this isn't bound to
+      // a live task (the cron passes a synthetic open task), so only its cadence gates
+      // firing. Weekly when `weekday` is set (default Monday), else monthly on
+      // `dayOfMonth`; both at `hour` (default 09:00). Fires once per occurrence.
+      const cadence = typeof rule.config.dayOfMonth === "number" && rule.config.weekday == null ? "monthly" : "weekly";
+      const due = nextRecurrenceInstant(rule, now, cadence, rule.config.hour);
+      if (due == null) return { fire: false };
+      if (nowMs < due) return { fire: false };
+      if (rule.lastFiredAt && rule.lastFiredAt.getTime() >= due) return { fire: false };
+      return { fire: true, note: `scheduled macro (${cadence})` };
+    }
+
     default:
       return { fire: false };
   }
@@ -186,8 +206,8 @@ export function evaluateRule(
  *  local), or null if none has occurred yet since the rule was created. Weekly fires
  *  on `weekday` (default Monday=1) at 09:00; monthly on `dayOfMonth` (default 1) at
  *  09:00, clamped to the month's length. Used to pace recurring_task firing. */
-function nextRecurrenceInstant(rule: AutomationRuleRow, now: Date, cadence: "weekly" | "monthly"): number | null {
-  const START_HOUR = 9;
+function nextRecurrenceInstant(rule: AutomationRuleRow, now: Date, cadence: "weekly" | "monthly", hourOverride?: number): number | null {
+  const START_HOUR = typeof hourOverride === "number" && hourOverride >= 0 && hourOverride <= 23 ? Math.round(hourOverride) : 9;
   const shifted = new Date(now.getTime() + 3 * 3_600_000); // into UTC+3
   const y = shifted.getUTCFullYear(), mo = shifted.getUTCMonth(), dom = shifted.getUTCDate();
   const localWeekday = shifted.getUTCDay();

@@ -11,6 +11,8 @@ import { TOOL_BY_NAME } from "@/lib/ori/tools";
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
 import { resolveSmartAnswer, type SmartAnswer } from "@/lib/smart-answer";
+import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai-cache";
+import { AI_RESTING_NOTE } from "@/lib/ai-models";
 
 /** Render a SmartAnswer to a short, plain-language line for ORI's chat reply.
  *  Keeps ORI a true superset — a "just answer it" turn returns a real answer,
@@ -124,23 +126,64 @@ export async function POST(req: NextRequest) {
       : [];
     if (messages.length === 0) return NextResponse.json({ error: "messages required" }, { status: 400 });
 
-    const turn = await planTurn(messages);
+    // Memoise the PLAN step (a proposal only — nothing runs here) so an identical
+    // message sequence re-submitted within the short TTL skips the planner's Gemini
+    // call. Keyed on the full serialised conversation. Fail-open: a cache miss/error
+    // just runs the planner. The smart-answer fallback below still runs on the turn
+    // (it's read-only + deterministic), so a cached "answer" turn behaves the same.
+    const planKey = aiCacheKey({ scope: "admin", mode: "ori-plan", question: JSON.stringify(messages) });
+    let turn: Awaited<ReturnType<typeof planTurn>> | null = null;
+    const cachedPlan = aiCacheGet(planKey);
+    if (cachedPlan) {
+      try { turn = JSON.parse(cachedPlan.value) as Awaited<ReturnType<typeof planTurn>>; } catch { turn = null; }
+    }
+    // Did the PLANNER itself degrade because its AI call failed (whole ladder
+    // exhausted / busy)? planTurn maps an AI failure to a fixed mode:"answer"
+    // reply rather than throwing. Detect that so we (a) DON'T memoise a transient
+    // busy message, and (b) prefer the AI-free resolver + a calm note below.
+    let plannerDegraded = false;
+    if (!turn) {
+      turn = await planTurn(messages);
+      plannerDegraded =
+        turn.mode === "answer" &&
+        /ORI'?s AI is busy|couldn'?t work that out just now/i.test(turn.reply);
+      // Cache the proposal for the short window (cheap JSON; no execution state) —
+      // but NOT a degraded/busy turn, so a retry re-attempts the planner instead
+      // of replaying "AI is busy" for the whole TTL.
+      if (!plannerDegraded) aiCacheSet(planKey, JSON.stringify(turn));
+    }
 
     // PHASE 1 — no dead ends. When the planner resolves to a plain "answer" (no
-    // actionable tool plan), try the read-only smart-answer brain FIRST so a
-    // readable question gets a real answer instead of a shrug. ORI is a true
-    // superset: it answers OR acts, never refuses a question it can read.
-    // resolveSmartAnswer fails open (null on any error); wrapped so it can never
-    // break the answer path.
+    // actionable tool plan), OR it degraded because its AI is resting, try the
+    // read-only, AI-FREE smart-answer brain FIRST so a readable question gets a
+    // real answer instead of a shrug. ORI is a true superset: it answers OR acts,
+    // never refuses a question it can read. resolveSmartAnswer fails open (null on
+    // any error); wrapped so it can never break the answer path.
     if (turn.mode === "answer") {
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
       if (lastUser?.content) {
         try {
           const sa = await resolveSmartAnswer(lastUser.content);
-          if (sa) return NextResponse.json({ mode: "answer", reply: renderSmartAnswer(sa) });
+          if (sa) {
+            // When the planner degraded, prefix the calm "AI is resting" note so
+            // the principal knows this is the native (non-AI) answer.
+            const reply = plannerDegraded
+              ? `${AI_RESTING_NOTE}\n\n${renderSmartAnswer(sa)}`
+              : renderSmartAnswer(sa);
+            return NextResponse.json({ mode: "answer", reply });
+          }
         } catch {
           // fall through to the planner's own reply
         }
+      }
+      // B3 — planner AI is down AND the resolver had nothing: return the calm,
+      // friendly note rather than the raw "couldn't work that out" so the user is
+      // never left with a spinner or a bare error.
+      if (plannerDegraded) {
+        return NextResponse.json({
+          mode: "answer",
+          reply: `${AI_RESTING_NOTE} Ask me a factual question (counts, who's overdue, a person's details) and I'll answer it natively, or try again shortly for anything that needs me to act.`,
+        });
       }
     }
 

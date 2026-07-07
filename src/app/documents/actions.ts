@@ -1361,7 +1361,7 @@ export async function selfHealDocuments(limit = 20): Promise<{ ok: boolean; scan
   try {
     const { data } = await supa
       .from("documents")
-      .select("id,storage_path,file_name,file_hash,company_id,person_id")
+      .select("id,storage_path,file_name,file_hash,company_id,person_id,text_source,extracted_text_at")
       .eq("archived", false)
       .not("storage_path", "is", null)
       // Scanner-app watermark layers (real scan never read) OR never-extracted docs.
@@ -1370,13 +1370,31 @@ export async function selfHealDocuments(limit = 20): Promise<{ ok: boolean; scan
       .limit(limit);
     if (!data || data.length === 0) return { ok: true, scanned: 0, healedText: 0, filedOwner: 0 };
     const { companies, people } = await loadEntities();
+    // EGRESS GUARD (read-once): if a row already holds a REAL text read (typed/ocr)
+    // that we captured recently, we hold usable text — do NOT re-download the file
+    // from Storage. The candidate query only re-matches on a lingering watermark
+    // word, which a genuine OCR pass would have already replaced. A cooldown stops
+    // us re-fetching the same big file every single night. Explicit user "Rescan"
+    // uses a different path and is never gated here.
+    const HEAL_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const now = Date.now();
     for (const d of data) {
       scanned++;
       try {
+        const hasRealText = d.text_source === "typed" || d.text_source === "ocr";
+        const healedAt = d.extracted_text_at ? new Date(d.extracted_text_at as string).getTime() : 0;
+        const recentlyHealed = hasRealText && healedAt > 0 && now - healedAt < HEAL_COOLDOWN_MS;
+        const hasOwner = !!d.company_id || !!d.person_id;
+        // Nothing to heal: usable text held recently AND owner already known →
+        // skip BOTH Storage downloads for this row entirely.
+        if (recentlyHealed && hasOwner) continue;
         // Refresh the search text via the dedicated OCR path (now watermark-aware,
         // so it reads the real scan instead of trusting the "CamScanner" layer).
-        const r = await ensureDocumentText(d.id as number, true);
-        if (r === "done") healedText++;
+        // Skip the re-read (download) when we already hold recent real text.
+        if (!recentlyHealed) {
+          const r = await ensureDocumentText(d.id as number, true);
+          if (r === "done") healedText++;
+        }
         // Fill a missing owner now that we can actually read the document.
         if (!d.company_id && !d.person_id) {
           const res = await reExtractStored({ storagePath: d.storage_path as string, fileName: d.file_name as string | null, fileHash: d.file_hash as string | null }, true);

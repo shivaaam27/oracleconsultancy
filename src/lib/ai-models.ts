@@ -186,3 +186,31 @@ export function ladderFor(model: string): string[] {
   if (AI_SMART_MODELS[0] === model) return AI_SMART_MODELS;
   return [model];
 }
+
+/**
+ * B3 — GRACEFUL AI-FREE MODE. The AI call layer (callAIText/callAIJson in
+ * ai-json.ts) walks the WHOLE provider ladder and, when every model fails on a
+ * transient/exhaustion condition, returns `ok:false` with an `error` code. This
+ * predicate names the codes that mean "the AI is resting" — the entire ladder is
+ * out of quota (429), timing out (network), or upstream-broken (5xx), OR the
+ * spend cap has bitten. Callers (/api/ask, /api/ori) use it to DEGRADE to the
+ * AI-free resolver path with a friendly note instead of surfacing a raw 5xx or
+ * hanging on a spinner. `no-key` is deliberately EXCLUDED — a missing key is a
+ * config problem the owner must fix, handled separately (503), not "AI resting".
+ *
+ * Pure lookup — accepts the string error union from either harness result (or
+ * any string/undefined) so it's safe to pass a result.error directly.
+ */
+export function isAiExhausted(error: string | null | undefined): boolean {
+  return (
+    error === "rate-limited" ||
+    error === "network" ||
+    error === "http-error" ||
+    error === "spend-cap"
+  );
+}
+
+/** The friendly, principal-facing line for graceful AI-free mode — one place so
+ *  every degraded surface reads the same. Kept short + calm (never "error"). */
+export const AI_RESTING_NOTE =
+  "ORI's AI is resting for a moment — here's what I can answer natively.";

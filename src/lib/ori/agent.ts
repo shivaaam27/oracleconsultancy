@@ -46,6 +46,8 @@ OUTWARD / DESTRUCTIVE (tier 3 — always double-checked before running): publish
 
 STANDING RULES (automations): you CAN set up recurring reminders (remind_before_deadline, nudge_until_update), auto-escalation (escalate_if_no_update), a post-deadline event (schedule_event_after_deadline), auto-closing a task that goes stale (auto_close_stale — closes it after N days with no update, optionally only while in a given status), covering a task while its assignee is on leave (auto_reassign_on_leave — hands it to a named fallback or their manager for the leave window, then hands it back), and creating a fresh task on a repeating cadence (recurring_task — e.g. every Monday or the 1st of each month; this one is NOT tied to an existing task, it just needs the company, title and cadence). The task-bound rules attach to a task, so create the task first (or reference an existing task code), then add the rule(s) as further steps. For escalate_if_no_update you MUST know who to escalate to — if the principal hasn't said which director/manager, ASK. Reminders/nudges/escalations reach people via in-app notification + phone push, and can ALSO go out by email or WhatsApp when the owner has switched that channel's auto-send ON (otherwise they stay in-app only) — you don't need to do anything special for that; the automation honours the guardrail automatically.
 
+WATCHERS ("tell me the moment X happens"): for event-driven alerts — as opposed to the scheduled rules above — use create_watcher. It fires the INSTANT a matching write lands (no schedule): watch for any task reaching a status (e.g. Blocked/Escalated, optionally scoped to one company), a task going overdue, or a tracked document nearing expiry. Manage them with list_watchers / delete_watcher. Use this when the principal says things like "tell me the moment PES raises a blocker" or "alert me if any task goes overdue".
+
 WIDER REACH — you also operate right across the business, not just tasks. Consult the full TOOLS list above for exact names/params; these are the domains you cover:
 - People & HR: add/archive-and-offboard/restore people, snooze from nudges, probation reviews, primary/dotted-line reporting and department heads, portal access & roles, and the owner↔staff request flow (raise, reply, decide, advance, cancel, convert-to-task). Portal access and role/reporting changes are access-sensitive — always confirm.
 - Documents & intake: create/update/vet/rescan/split/confirm-from-sort documents, capture and file/dismiss inbox bundles, accept/dismiss profile suggestions, and append or verify facts in the (append-only) ledger.
@@ -68,9 +70,12 @@ RULES for the JSON:
 - If there is nothing to do, set need_more_info=false and "plan":[] and answer in "reply".
 - Today's date is ${"${TODAY}"}.`;
 
-function buildGuide(): string {
+function buildGuide(focus?: string): string {
+  // Feed the catalogue builder the user's own words so it ships only the tools
+  // likely relevant (fail-safe to the full list on a weak match) — the biggest
+  // per-call token saving. `focus` = the latest few user turns concatenated.
   return OPERATING_GUIDE
-    .replace("${TOOLS}", toolCatalogue())
+    .replace("${TOOLS}", toolCatalogue(focus))
     .replace("${TODAY}", new Date().toISOString().slice(0, 10));
 }
 
@@ -80,8 +85,18 @@ export async function planTurn(messages: ChatMsg[]): Promise<AgentTurn> {
   const apiKey = await getAiKey();
   if (!apiKey) return { mode: "answer", reply: "ORI's AI isn't switched on — add the AI key in Settings and I can start acting on your instructions." };
 
+  // Relevance-focus the tool catalogue on the recent USER turns (last few, so a
+  // referenced-back instruction like "yes, and remind them" still keeps the
+  // earlier verb's tools in scope). Assistant turns are excluded — they don't
+  // signal which capability the principal wants.
+  const focus = messages
+    .filter((m) => m.role === "user")
+    .slice(-3)
+    .map((m) => m.content)
+    .join(" ");
+
   const payload = [
-    { role: "system", content: buildGuide() },
+    { role: "system", content: buildGuide(focus) },
     ...messages.map((m) => ({ role: m.role, content: m.content })),
   ];
 

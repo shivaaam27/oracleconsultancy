@@ -139,6 +139,58 @@ async function embedText(text: string): Promise<number[] | null> {
   }
 }
 
+/* B2 — QUERY-EMBEDDING CACHE. Every semantic search embeds the QUERY first, an
+ * Edge-Function round-trip (latency + egress). Repeated/near-repeated searches
+ * ("terra green", "brief me", a re-typed ⌘K query, a rewritten follow-up that
+ * lands on the same text) recompute the SAME vector. This is a tiny in-memory,
+ * short-TTL, bounded cache around ONLY the query-embed call, keyed on the
+ * normalised query text. Document/content embeddings are NOT cached (they're
+ * write-once per chunk and already hash-gated). Fail-open: any cache trouble
+ * falls straight through to a normal embed.
+ *
+ * In-memory per server instance — a warm Vercel function reuses it across
+ * requests; a cold start simply starts empty. No cross-request correctness risk:
+ * gte-small is deterministic, so a cached vector equals a fresh one. */
+const QUERY_EMBED_TTL_MS = 5 * 60 * 1000; // 5 min — long enough for a search session, short enough to stay fresh
+const QUERY_EMBED_MAX = 200;              // bound the map so it can't grow unboundedly
+const queryEmbedCache = new Map<string, { vec: number[]; at: number }>();
+
+/** Normalise a query to its cache key: lower-cased, whitespace-collapsed, capped.
+ *  Separator-insensitivity isn't needed — the Edge Function embeds the raw text,
+ *  so only byte-identical (post-normalise) queries may safely share a vector. */
+function queryCacheKey(text: string): string {
+  return text.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 400);
+}
+
+/** Embed a QUERY string, reusing a recent identical embed when possible. Wraps
+ *  embedText; only used by the search path. Fail-open on every branch. */
+async function embedQuery(text: string): Promise<number[] | null> {
+  const key = queryCacheKey(text);
+  if (!key) return embedText(text);
+  const now = Date.now();
+  try {
+    const hit = queryEmbedCache.get(key);
+    if (hit && now - hit.at < QUERY_EMBED_TTL_MS) return hit.vec;
+  } catch {
+    /* cache read trouble → embed normally */
+  }
+  const vec = await embedText(text);
+  if (vec) {
+    try {
+      // Evict the oldest entry when full (Map preserves insertion order, so the
+      // first key is the oldest). Keeps the cache bounded without a heavy LRU.
+      if (queryEmbedCache.size >= QUERY_EMBED_MAX) {
+        const oldest = queryEmbedCache.keys().next().value;
+        if (oldest !== undefined) queryEmbedCache.delete(oldest);
+      }
+      queryEmbedCache.set(key, { vec, at: now });
+    } catch {
+      /* cache write trouble → just skip caching */
+    }
+  }
+  return vec;
+}
+
 /**
  * Index one item's content for hybrid search. Chunks it, embeds each chunk (the
  * English translation when needed), and replaces the parent's rows atomically.
@@ -233,7 +285,8 @@ export async function hybridSearch(
   try {
     if (!query?.trim()) return [];
     if (!(await semanticEnabled())) return [];
-    const vec = await embedText(await maybeTranslate(query));
+    // B2 — reuse a recent identical query embed (short-TTL, bounded cache).
+    const vec = await embedQuery(await maybeTranslate(query));
     if (!vec) return [];
     const lifecycle = opts?.lifecycle ?? "active";
     const { data, error } = await sb.rpc("hybrid_search", {

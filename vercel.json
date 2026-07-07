@@ -46,6 +46,10 @@
     {
       "path": "/api/cron/ori-automations",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/purge-trash",
+      "schedule": "0 4 * * *"
     }
   ]
 }

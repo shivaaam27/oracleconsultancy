@@ -29,6 +29,15 @@ import {
   type EntityType,
   type EntityRow,
 } from "@/lib/entity-registry";
+import { evaluateWatchers, WATCHED_TYPES } from "@/lib/ori/watchers";
+
+/** Fire event-driven ORI watchers for a just-written row. Fully insulated:
+ *  only routes the entity types watchers support, and swallows every error so a
+ *  watcher can never block or break the create/update it piggybacks on. */
+function fireWatchers(type: EntityType, id: number): void {
+  if (!id || !WATCHED_TYPES.has(type)) return; // cheap skip for unwatched types
+  void evaluateWatchers(type, id).catch(() => {});
+}
 
 /**
  * Re-index a single entity row after a create/update/archive. Looks up its def,
@@ -53,9 +62,13 @@ export async function reindexEntity(type: EntityType, id: number): Promise<void>
     const def = getEntityDef(type);
     if (!def) return;
 
+    // Use the HEAVY index select where present (indexSelectColumns) so a single-
+    // entity re-embed still gets the full body (e.g. a document's extracted_text);
+    // it's a single-row read, so the blob cost is bounded. Light selectColumns is
+    // for search / light reads.
     const { data } = await sb
       .from(def.table)
-      .select(def.selectColumns.join(","))
+      .select((def.indexSelectColumns ?? def.selectColumns).join(","))
       .eq(def.idColumn, id)
       .limit(1)
       .maybeSingle();
@@ -63,8 +76,10 @@ export async function reindexEntity(type: EntityType, id: number): Promise<void>
 
     const row = data as unknown as EntityRow;
     const content = def.textFor(row);
-    if (!content.trim()) return;
-    await indexEmbedding(type, id, content, false, def.lifecycleFor(row));
+    // Even when there's no indexable text, still let watchers see the write (a
+    // task's status/deadline change is watchable regardless of its search body).
+    if (content.trim()) await indexEmbedding(type, id, content, false, def.lifecycleFor(row));
+    fireWatchers(type, id);
   } catch {
     /* best-effort: never break the write path */
   }

@@ -215,6 +215,44 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      // scheduled_macro — like recurring_task, cadence-gated and NOT task-bound. When
+      // due we SURFACE the saved macro's steps as a confirm-and-run prompt for the
+      // owner; we NEVER auto-execute the steps (that would be Tier 3 send/spend/delete).
+      if (raw.kind === "scheduled_macro") {
+        const cfg = (raw.config as RuleConfig) ?? {};
+        const rule: AutomationRuleRow = {
+          id: raw.id as number, kind: "scheduled_macro", config: cfg,
+          active: true, done: false, createdAt: d(raw.created_at)!, lastFiredAt: d(raw.last_fired_at),
+        };
+        const evalRes = evaluateRule(rule, { deadline: null, status: "In Progress", createdDate: null }, null, now);
+        evaluated++;
+        const patch: Record<string, unknown> = { last_run_at: nowIso };
+        if (evalRes.fire) {
+          patch.last_fired_at = nowIso;
+          fired++;
+          try {
+            const macroName = (cfg.macroName ?? "").trim();
+            const { findMacro } = await import("@/lib/ai-memory");
+            const macro = macroName ? await findMacro("admin", macroName) : null;
+            const steps = (macro?.steps ?? "").trim();
+            const label = macro?.name || macroName || "Macro";
+            await createNotification({
+              recipient: "admin",
+              kind: "assigned",
+              title: `Scheduled macro ready: ${label}`,
+              body: steps
+                ? `It's time to run “${label}”. Steps: ${steps.slice(0, 300)} — open ORI and say “run macro ${label}” to confirm and execute.`
+                : `“${macroName}” is scheduled to run now, but its steps couldn't be found. Save it again with “save macro ${macroName}: <steps>”.`,
+              actor: "ORI",
+            });
+          } catch (actErr) {
+            await reportError(actErr, { route: "cron.ori-automations", ruleId: rule.id, kind: "scheduled_macro" });
+          }
+        }
+        await sb.from("automation_rules").update(patch).eq("id", raw.id as number);
+        continue;
+      }
+
       if (!taskId) continue;
       const { data: task } = await sb.from("tasks").select("id,code,company_id,deadline,status,created_date,archived").eq("id", taskId).maybeSingle();
       if (!task || (task as { archived?: boolean }).archived) {

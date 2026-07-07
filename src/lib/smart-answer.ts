@@ -1065,6 +1065,86 @@ async function runMacroAnswer(q: string, raw: string): Promise<SmartAnswer | nul
   };
 }
 
+/** SCHEDULE MACRO — "schedule macro <name> every monday [at 9]", "run <name>
+ *  weekly", "schedule <name> monthly on the 1st". Creates a scheduled_macro
+ *  automation_rules row (config = { macroName, weekday|dayOfMonth, hour }) that the
+ *  ori-automations cron surfaces at the due time for the owner to confirm + run.
+ *  It never auto-executes the macro. No AI; reuses the saved-macro read. */
+const WEEKDAYS: Record<string, number> = {
+  sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2, wednesday: 3, wed: 3,
+  thursday: 4, thu: 4, thur: 4, thurs: 4, friday: 5, fri: 5, saturday: 6, sat: 6,
+};
+async function scheduleMacroAnswer(q: string, raw: string): Promise<SmartAnswer | null> {
+  // Must look like a scheduling instruction that mentions a cadence.
+  if (!/\b(schedule|run|do|execute)\b/i.test(raw)) return null;
+  if (!/\b(every|each|weekly|monthly|daily|on\s+(?:the\s+)?\w+)\b/i.test(raw)) return null;
+
+  // Name: between the verb (and optional "macro"/"routine") and the cadence clause.
+  const m = raw.match(
+    /^\s*(?:schedule|run|do|execute)\s+(?:my\s+)?(?:macro\s+|routine\s+)?(.+?)\s+(?:every|each|weekly|monthly|daily|on\b)/i,
+  );
+  let name = (m?.[1] ?? "").trim().replace(/\b(macro|routine)\b/gi, "").trim();
+  if (!name) return null;
+
+  // Cadence + hour.
+  const hourM = raw.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  let hour: number | undefined;
+  if (hourM) {
+    let h = Number(hourM[1]);
+    const ap = (hourM[3] ?? "").toLowerCase();
+    if (ap === "pm" && h < 12) h += 12;
+    if (ap === "am" && h === 12) h = 0;
+    if (h >= 0 && h <= 23) hour = h;
+  }
+
+  const config: Record<string, unknown> = { macroName: name };
+  let cadenceLabel: string;
+  const dayM = raw.match(/\bon\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  const weekdayM = raw.match(/\b(?:every|each|on)\s+(sunday|sun|monday|mon|tuesday|tues?|wednesday|wed|thursday|thur?s?|friday|fri|saturday|sat)\b/i);
+  if (/\bmonthly\b/i.test(raw) || (dayM && !weekdayM)) {
+    const dom = dayM ? Math.min(31, Math.max(1, Number(dayM[1]))) : 1;
+    config.dayOfMonth = dom;
+    cadenceLabel = `on day ${dom} of each month`;
+  } else if (weekdayM) {
+    const wd = WEEKDAYS[weekdayM[1].toLowerCase()] ?? 1;
+    config.weekday = wd;
+    cadenceLabel = `every ${Object.keys(WEEKDAYS).find((k) => WEEKDAYS[k] === wd && k.length > 3) ?? "Monday"}`;
+  } else if (/\b(weekly|daily|every\s+week)\b/i.test(raw)) {
+    config.weekday = 1;
+    cadenceLabel = "every Monday";
+  } else {
+    return null; // no recognisable cadence
+  }
+  if (hour != null) config.hour = hour;
+
+  // Confirm the macro exists before scheduling (best-effort; still schedule if the
+  // read fails, so a transient error doesn't block the owner).
+  let matchedName = name;
+  try {
+    const { findMacro } = await import("@/lib/ai-memory");
+    const macro = await findMacro("admin", name);
+    if (macro) { matchedName = macro.name; config.macroName = macro.name; name = macro.name; }
+    else return { kind: "count", title: `No macro “${name}”`, count: 0, rows: [], note: "Save it first with “save macro <name>: <steps>”, then schedule it." };
+  } catch { /* proceed with the raw name */ }
+
+  const when = `${cadenceLabel}${hour != null ? ` at ${String(hour).padStart(2, "0")}:00` : " at 09:00"}`;
+  try {
+    const { error } = await sb.from("automation_rules").insert({
+      kind: "scheduled_macro", config, active: true, done: false, created_at: new Date().toISOString(),
+    });
+    if (error) return { kind: "count", title: "Couldn't schedule the macro", count: 0, rows: [], note: "Storage failed — try again." };
+  } catch {
+    return { kind: "count", title: "Couldn't schedule the macro", count: 0, rows: [], note: "Storage failed — try again." };
+  }
+  return {
+    kind: "count",
+    title: `Scheduled “${matchedName}”`,
+    count: 1,
+    rows: [{ label: matchedName, sub: when, badge: "scheduled", tone: "success", href: "/" }],
+    note: `ORI will surface these steps ${when} for you to confirm + run — it won't auto-execute them.`,
+  };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
@@ -1073,8 +1153,10 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
   if (q.length < 3) return null;
 
   // Macros need the ORIGINAL casing (name + steps), so run them first with `raw`.
+  // Scheduling ("run X weekly") must beat the plain runMacroAnswer.
   try {
     const saved = await saveMacroAnswer(q, raw); if (saved) return saved;
+    const scheduled = await scheduleMacroAnswer(q, raw); if (scheduled) return scheduled;
     const ran = await runMacroAnswer(q, raw); if (ran) return ran;
   } catch { /* fall through to the standard resolvers */ }
 

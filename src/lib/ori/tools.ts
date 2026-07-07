@@ -23,6 +23,7 @@ import { CALENDAR_TOOLS } from "@/lib/ori/tools-calendar";
 import { GOVERNANCE_TOOLS } from "@/lib/ori/tools-governance";
 import { OPS_TOOLS } from "@/lib/ori/tools-ops";
 import { PORTAL_TOOLS } from "@/lib/ori/tools-portal";
+import { WATCHER_TOOLS } from "@/lib/ori/tools-watchers";
 
 /**
  * ORI tool registry (Phase 0 of the "complete brain" plan). A tool is one typed
@@ -1095,6 +1096,7 @@ export const TOOLS: ToolDef[] = [
   ...GOVERNANCE_TOOLS,
   ...OPS_TOOLS,
   ...PORTAL_TOOLS,
+  ...WATCHER_TOOLS,
 ];
 
 /** Approve/decline a leave request, snapshotting its prior decision for undo. */
@@ -1115,10 +1117,95 @@ export function formHas(args: Record<string, unknown>, key: string): boolean {
 
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
-/** A compact catalogue the planner sees — names, tiers, params. */
-export function toolCatalogue(): string {
-  return TOOLS.map((t) => {
-    const ps = Object.entries(t.params).map(([k, p]) => `${k}${p.required ? "*" : ""}:${p.type}`).join(", ");
-    return `- ${t.name} (tier ${t.tier}) — ${t.description} params: {${ps}}`;
-  }).join("\n");
+/** Render one ToolDef to its catalogue line — name, tier, description, params. */
+function toolLine(t: ToolDef): string {
+  const ps = Object.entries(t.params).map(([k, p]) => `${k}${p.required ? "*" : ""}:${p.type}`).join(", ");
+  return `- ${t.name} (tier ${t.tier}) — ${t.description} params: {${ps}}`;
+}
+
+/** A small, ALWAYS-included spine — the everyday task verbs the planner must never
+ *  be blind to, whatever the message says. Kept tiny so the relevance filter does
+ *  the real work; these just guarantee the common path is always describable. */
+const CORE_TOOL_NAMES = new Set<string>([
+  "create_task", "edit_task", "set_task_status", "add_task_update",
+  "reassign_task", "add_assignees", "create_event", "update_person",
+]);
+
+// Words that carry no routing signal — stripped before matching so "the report on
+// the vendor" keys on "report"/"vendor", not on "the"/"on". Deliberately small.
+const TOOL_STOP = new Set<string>([
+  "the", "and", "for", "with", "from", "this", "that", "have", "has", "will",
+  "please", "can", "you", "make", "add", "set", "get", "put", "our", "his", "her",
+  "them", "then", "into", "over", "who", "what", "when", "where", "which", "how",
+  "about", "any", "all", "one", "new", "now", "out", "off", "are", "was", "were",
+  "not", "but", "its", "it's", "i'd", "i'll", "let", "let's",
+]);
+
+/** Tokenise a natural-language string into meaningful lowercase word stems. */
+function keyTokens(s: string): string[] {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !TOOL_STOP.has(w));
+}
+
+// Per-tool searchable token bag (name split on "_" + description), built once.
+const TOOL_TOKENS: Array<{ tool: ToolDef; nameToks: Set<string>; descToks: Set<string> }> =
+  TOOLS.map((tool) => ({
+    tool,
+    nameToks: new Set(tool.name.toLowerCase().split(/[_\s]+/).filter((w) => w.length > 1)),
+    descToks: new Set(keyTokens(tool.description)),
+  }));
+
+/**
+ * Pick the tools LIKELY relevant to `message`, so the planner's prompt carries a
+ * focused ~25-tool catalogue instead of all ~135 (the biggest hidden per-call
+ * token cost). Scores each tool by keyword overlap of the message against its
+ * name (weighted) + description, always keeps the CORE spine, and caps the rest.
+ *
+ * FAIL-SAFE: if the match is weak or ambiguous (too few tools score at all), it
+ * returns the WHOLE catalogue rather than risk hiding a tool the planner needs.
+ * A short/empty message also returns everything (nothing to match on).
+ */
+export function selectRelevantTools(message: string, cap = 25): ToolDef[] {
+  const toks = keyTokens(message);
+  // Nothing to go on → don't guess, show everything.
+  if (toks.length < 2) return TOOLS;
+
+  const tokSet = new Set(toks);
+  const scored: Array<{ tool: ToolDef; score: number }> = [];
+  for (const { tool, nameToks, descToks } of TOOL_TOKENS) {
+    let score = 0;
+    for (const t of tokSet) {
+      if (nameToks.has(t)) score += 3;           // a name hit is a strong signal
+      else if (descToks.has(t)) score += 1;      // a description hit is a weak one
+    }
+    if (score > 0) scored.push({ tool, score });
+  }
+
+  // Weak/ambiguous match → fail safe to the full catalogue. If very few tools
+  // matched, the planner is better served seeing all of them than a thin slice
+  // that might omit the right one.
+  if (scored.length < 3) return TOOLS;
+
+  scored.sort((a, b) => b.score - a.score);
+  const picked = new Map<string, ToolDef>();
+  // Always include the core spine first.
+  for (const t of TOOLS) if (CORE_TOOL_NAMES.has(t.name)) picked.set(t.name, t);
+  // Then the best-scoring matches up to the cap.
+  for (const { tool } of scored) {
+    if (picked.size >= cap) break;
+    picked.set(tool.name, tool);
+  }
+  return [...picked.values()];
+}
+
+/** A compact catalogue the planner sees — names, tiers, params. When a `message`
+ *  is given, the catalogue is pre-filtered to the tools likely relevant to it
+ *  (fail-safe to the full list on a weak match); with no message, it's the full
+ *  catalogue (back-compat). */
+export function toolCatalogue(message?: string): string {
+  const tools = message ? selectRelevantTools(message) : TOOLS;
+  return tools.map(toolLine).join("\n");
 }

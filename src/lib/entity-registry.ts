@@ -94,6 +94,18 @@ export type EntitySearch = {
   currentFilter?: { column: string; value: unknown };
   /** Optional `.order(column, { ascending })` (meetings order by date desc). */
   order?: { column: string; ascending: boolean };
+  /**
+   * OPTIONAL date column search.ts may range-filter on when the query carries a
+   * date phrase ("invoices from June", "2025"). Best-effort + additive: only
+   * applied when the def declares it AND a phrase parses; otherwise ignored.
+   */
+  dateColumn?: string;
+  /**
+   * OPTIONAL company FK column search.ts may equality-filter on when the query
+   * names a company. Defaults to "company_id" when the select string contains it;
+   * set explicitly to override or disable. Best-effort — no name match = no filter.
+   */
+  companyColumn?: string;
   /** Per-table fetch cap (mirrors search.ts' `.limit(...)`). */
   limit: number;
   /**
@@ -123,9 +135,20 @@ export type EntityDef = {
   table: string;
   /** Primary-key column (default "id"). */
   idColumn: string;
-  /** Columns to SELECT (must cover everything textFor + lifecycleFor read). */
+  /** Columns to SELECT (must cover everything lifecycleFor reads, plus the LIGHT
+   *  fields textFor needs). Kept blob-free so the per-write hooks and the light
+   *  paths don't drag heavy columns (e.g. a document's extracted_text) on every
+   *  read. Anything textFor reads that ISN'T here must live in indexSelectColumns. */
   selectColumns: string[];
-  /** Build the content string to index from a row (mirrors allRows' join). */
+  /** OPTIONAL heavy select used ONLY by the embed/reindex paths (allRows +
+   *  reindexEntity), where the full body is genuinely needed to build the vector.
+   *  Superset of selectColumns; defaults to selectColumns when absent. This is the
+   *  ONE place a large blob (extracted_text) is fetched — the search select stays
+   *  light, so keyword search never pulls it. */
+  indexSelectColumns?: string[];
+  /** Build the content string to index from a row (mirrors allRows' join). Reads
+   *  from indexSelectColumns fields; each read is null-guarded so a light row
+   *  (missing the blob) simply omits it. */
   textFor(row: EntityRow): string;
   /** Decide active vs history for a row (mirrors the existing lifecycle rules). */
   lifecycleFor(row: EntityRow): Lifecycle;
@@ -388,7 +411,9 @@ export const ENTITY_DEFS: EntityDef[] = [
     searchOrder: -1, // not in TYPE_ORDER; sentinel so it never sorts into it
     trace: { mode: "bespoke" },
     search: {
-      select: "id,code,action_item,latest_update,category,priority,status,archived, companies!company_id(name)",
+      // last_updated_at + deadline are selected so search.ts rankBoost can apply
+      // the recency nudge AND a true overdue boost (deadline in the past + open).
+      select: "id,code,action_item,latest_update,category,priority,status,archived,last_updated_at,deadline, companies!company_id(name)",
       limit: 100,
       toResult: (r, ctx) => {
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
@@ -422,6 +447,7 @@ export const ENTITY_DEFS: EntityDef[] = [
       select: "id,title,company_id,meeting_date,attendees, companies(name)",
       ilikeColumns: ["title", "attendees", "minutes", "raw_notes"],
       order: { column: "meeting_date", ascending: false },
+      dateColumn: "meeting_date",
       limit: 20,
       toResult: (r, ctx) => {
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
@@ -442,7 +468,11 @@ export const ENTITY_DEFS: EntityDef[] = [
     type: "document",
     table: "documents",
     idColumn: "id",
-    selectColumns: ["id", "title", "doc_type", "issuer", "category", "reference_no", "notes", "extracted_text", "archived"],
+    // LIGHT default select (no extracted_text) — used by the per-write hook + any
+    // light read. The heavy body is fetched only via indexSelectColumns below.
+    selectColumns: ["id", "title", "doc_type", "issuer", "category", "reference_no", "notes", "archived"],
+    // HEAVY select for the embed path only: pull the full body so vectors stay real.
+    indexSelectColumns: ["id", "title", "doc_type", "issuer", "category", "reference_no", "notes", "extracted_text", "archived"],
     textFor: (r) =>
       join(str(r.title), str(r.doc_type), str(r.issuer), str(r.category), str(r.reference_no), str(r.notes), str(r.extracted_text)),
     lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
@@ -453,6 +483,7 @@ export const ENTITY_DEFS: EntityDef[] = [
       select: "id,title,category,doc_type,issuer,reference_no,file_name,company_id,person_id,archived, companies(name), people(name)",
       ilikeColumns: ["title", "category", "doc_type", "issuer", "reference_no"],
       currentFilter: { column: "archived", value: false },
+      dateColumn: "issue_date",
       limit: 60,
       toResult: (r, ctx) => {
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
