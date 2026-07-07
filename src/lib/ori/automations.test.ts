@@ -156,6 +156,39 @@ describe("evaluateRule", () => {
       expect(r.fire).toBe(false);
     });
   });
+
+  describe("smart_reminder", () => {
+    // now = 2026-07-10 (Friday) 11:00 Dar es Salaam.
+    it("does not fire before the byHour window is reached", () => {
+      // byHour 14 (14:00 Dar) is still ahead of 11:00.
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 14 }, condition: "always" } }), openTask(), null, now);
+      expect(r.fire).toBe(false);
+    });
+    it("fires once the byHour window has passed and the condition holds", () => {
+      // byHour 9 (09:00 Dar) has passed by 11:00; no_update_today with no update.
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "no_update_today" } }), openTask(), null, now);
+      expect(r).toMatchObject({ fire: true });
+    });
+    it("does not fire when it has already fired today (lastFiredKey dedupe)", () => {
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "no_update_today", lastFiredKey: "1:2026-07-10" } }), openTask(), null, now);
+      expect(r.fire).toBe(false);
+    });
+    it("no_update_today does not fire when an update was posted today", () => {
+      const updatedToday = new Date(darLocal9(now) + 3600_000); // 10:00 Dar today
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "no_update_today" } }), openTask(), updatedToday, now);
+      expect(r.fire).toBe(false);
+    });
+    it("overdue condition fires only past the deadline", () => {
+      const past = new Date(now.getTime() - 1 * DAY);
+      const future = new Date(now.getTime() + 1 * DAY);
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: { condition: "overdue" } }), openTask({ deadline: past }), null, now).fire).toBe(true);
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: { condition: "overdue" } }), openTask({ deadline: future }), null, now).fire).toBe(false);
+    });
+    it("retires when its scoped task is closed", () => {
+      const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 9 }, condition: "always" } }), openTask({ status: "Completed" }), null, now);
+      expect(r).toMatchObject({ fire: false, deactivate: true });
+    });
+  });
 });
 
 // today's 09:00 Dar es Salaam as a UTC instant (06:00 UTC)

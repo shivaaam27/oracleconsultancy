@@ -12,7 +12,19 @@ export type RuleKind =
   | "auto_close_stale"
   | "auto_reassign_on_leave"
   | "recurring_task"
-  | "scheduled_macro";
+  | "scheduled_macro"
+  | "smart_reminder";
+
+/* smart_reminder — a conditional, time-of-day rule with an opt-in auto-act.
+ * The recipe reads WHEN (trigger), IF (condition), WHOSE (scope), WHO hears
+ * (audience) and DO (actions). The PURE layer here only decides DUE; all sends,
+ * posts and status writes live in the cron (guardrail-gated, auto-act off by
+ * default). See tools-smart.ts + api/cron/ori-automations. */
+export type SmartTrigger = { byHour?: number; daysBeforeDeadline?: number; onOverdue?: boolean };
+export type SmartCondition = "no_update_today" | "overdue" | "compliance_due_soon" | "always";
+export type SmartScope = { personId?: number; companyId?: number; taskId?: number };
+export type SmartAudience = { notifyOwner?: boolean; notifyDirectors?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
+export type SmartActions = { autoAct?: boolean; postUpdate?: boolean; updateText?: string; setStatus?: string; sendChannel?: "email" | "whatsapp" };
 
 export type RuleConfig = {
   daysBefore?: number;
@@ -43,6 +55,15 @@ export type RuleConfig = {
   // on `dayOfMonth` @ `hour`; blank hour → 09:00.
   macroName?: string;
   hour?: number;
+  // smart_reminder — the WHEN/IF/WHOSE/WHO/DO recipe. See the type aliases above.
+  trigger?: SmartTrigger;
+  condition?: SmartCondition;
+  scope?: SmartScope;
+  audience?: SmartAudience;
+  actions?: SmartActions;
+  // Dedupe: once fired today, we stamp `${ruleId}:${YYYY-MM-DD}` here so the same
+  // slot never fires twice — even under frequent (every-15-min) external ticks.
+  lastFiredKey?: string;
 };
 
 export type AutomationRuleRow = {
@@ -197,9 +218,66 @@ export function evaluateRule(
       return { fire: true, note: `scheduled macro (${cadence})` };
     }
 
+    case "smart_reminder": {
+      // Conditional, time-of-day rule. DUE = the trigger window has arrived today
+      // AND the condition holds AND we haven't already fired for today's slot.
+      const cfg = rule.config;
+      const trig = cfg.trigger ?? {};
+      const cond = cfg.condition ?? "always";
+      const todayKey = smartFiredKey(rule.id, now);
+
+      // Already fired for today's slot → never fire again today (idempotent under
+      // frequent external ticks).
+      if (cfg.lastFiredKey === todayKey) return { fire: false };
+
+      // WHEN — the trigger window must have arrived. byHour: today's Dar-local hour
+      // must be at/after it. daysBeforeDeadline / onOverdue: gate on the deadline.
+      let windowReached = true;
+      if (typeof trig.byHour === "number") {
+        const hour = Math.min(23, Math.max(0, Math.round(trig.byHour)));
+        const inst = darDayStart(now) + hour * 3_600_000;
+        if (nowMs < inst) windowReached = false;
+      }
+      if (windowReached && typeof trig.daysBeforeDeadline === "number") {
+        if (!task.deadline) windowReached = false;
+        else if (nowMs < task.deadline.getTime() - Math.max(0, trig.daysBeforeDeadline) * DAY) windowReached = false;
+      }
+      if (windowReached && trig.onOverdue) {
+        if (!task.deadline || nowMs < task.deadline.getTime()) windowReached = false;
+      }
+      // No explicit trigger at all → treat as "any time today" (fires once/day).
+      if (!windowReached) return { fire: false };
+
+      // IF — the condition. `compliance_due_soon` can't be judged purely (needs the
+      // requirements table); the cron does that check, so the pure layer passes it
+      // through as "window reached" and lets the cron decide.
+      let conditionHolds = true;
+      if (cond === "no_update_today") {
+        // No update since Dar-local start of today.
+        const dayStart = darDayStart(now);
+        conditionHolds = !(lastUpdateAt && lastUpdateAt.getTime() >= dayStart);
+      } else if (cond === "overdue") {
+        conditionHolds = !!task.deadline && nowMs >= task.deadline.getTime();
+      }
+      if (!conditionHolds) return { fire: false };
+
+      return { fire: true, note: `smart (${cond})` };
+    }
+
     default:
       return { fire: false };
   }
+}
+
+/** The once-per-day dedupe key for a smart_reminder: `${ruleId}:${Dar-local date}`.
+ *  Stamped into config.lastFiredKey after firing so the same day-slot never fires
+ *  twice, even when an external scheduler ticks the engine every few minutes. */
+export function smartFiredKey(ruleId: number, now: Date): string {
+  const shifted = new Date(now.getTime() + 3 * 3_600_000); // into UTC+3
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${ruleId}:${y}-${m}-${d}`;
 }
 
 /** The instant of the current cadence occurrence AT OR BEFORE `now` (Dar es Salaam

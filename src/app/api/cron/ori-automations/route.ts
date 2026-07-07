@@ -17,7 +17,7 @@ import { createCalendarEvent } from "@/lib/calendar";
 import { reindexEntity } from "@/lib/index-hooks";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { canAutoSend, type SendChannel } from "@/lib/guardrails";
-import { evaluateRule, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
+import { evaluateRule, smartFiredKey, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -158,15 +158,120 @@ async function coverTaskOnLeave(taskId: number, code: string, companyId: number 
   await sb.from("automation_rules").update({ config: next }).eq("kind", "auto_reassign_on_leave").eq("task_id", taskId);
 }
 
-export async function GET(req: NextRequest) {
-  const auth = authoriseCron(req);
-  if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
+type SmartTarget = { id: number; code: string; company_id: number | null; deadline: string | null; status: string; created_date: string | null };
 
-  const now = new Date();
+/** Resolve the task a smart_reminder acts on: an explicit scope.taskId, else the
+ *  scoped person's / company's most-overdue OPEN task (best effort; null if none). */
+async function resolveSmartTarget(cfg: RuleConfig): Promise<SmartTarget | null> {
+  const sel = "id,code,company_id,deadline,status,created_date";
+  const scope = cfg.scope ?? {};
+  if (typeof scope.taskId === "number") {
+    const { data } = await sb.from("tasks").select(sel).eq("id", scope.taskId).maybeSingle();
+    return (data as SmartTarget) ?? null;
+  }
+  const open = ["Completed", "Closed"];
+  if (typeof scope.personId === "number") {
+    // Their most-overdue open task (owned or assigned). Owner is the simplest signal.
+    const { data } = await sb.from("tasks").select(sel).eq("owner_id", scope.personId).not("status", "in", `(${open.join(",")})`).order("deadline", { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
+    if (data) return data as SmartTarget;
+    const { data: link } = await sb.from("task_assignees").select("task_id").eq("person_id", scope.personId).limit(50);
+    const ids = ((link ?? []) as { task_id: number }[]).map((l) => l.task_id);
+    if (!ids.length) return null;
+    const { data: t } = await sb.from("tasks").select(sel).in("id", ids).not("status", "in", `(${open.join(",")})`).order("deadline", { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
+    return (t as SmartTarget) ?? null;
+  }
+  if (typeof scope.companyId === "number") {
+    const { data } = await sb.from("tasks").select(sel).eq("company_id", scope.companyId).not("status", "in", `(${open.join(",")})`).order("deadline", { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
+    return (data as SmartTarget) ?? null;
+  }
+  return null;
+}
+
+/** Director person ids (portal_role="director") — an audience for smart reminders. */
+async function directorIds(): Promise<number[]> {
+  const { data } = await sb.from("people").select("id").eq("active", true).eq("portal_role", "director");
+  return ((data ?? []) as { id: number }[]).map((r) => r.id);
+}
+
+/**
+ * Perform a fired smart_reminder in SAFE order:
+ *   1) AUDIENCE (always allowed, internal) — owner / directors / the scoped person /
+ *      extra people, via createNotification (honours quiet hours + digest + push).
+ *   2) AUTO-ACT (ONLY if actions.autoAct === true, the opt-in; default OFF):
+ *        · postUpdate → an update authored created_by:"ori" (same shape as post_as_ori);
+ *        · setStatus  → change the task's status;
+ *        · sendChannel → external email/WhatsApp ONLY if canAutoSend() (fail-closed).
+ *   Never auto-deletes. Each effect is wrapped so one failure never aborts the rest.
+ */
+async function fireSmartReminder(cfg: RuleConfig, target: SmartTarget | null, nowIso: string): Promise<void> {
+  const audience = cfg.audience ?? {};
+  const actions = cfg.actions ?? {};
+  const code = target?.code ?? null;
+  const label = "ORI reminder";
+  const body = actions.updateText?.trim()
+    || (code ? `A reminder about ${code} — it's due for an update.` : "A reminder from ORI — this is due for an update.");
+
+  // 1) AUDIENCE — internal notifications (always allowed). Best-effort each.
+  const recipients = new Set<string>();
+  if (audience.notifyOwner) recipients.add("admin");
+  if (audience.warnPerson && typeof cfg.scope?.personId === "number") recipients.add(personRecipient(cfg.scope.personId));
+  for (const id of (audience.notifyPersonIds ?? [])) if (typeof id === "number") recipients.add(personRecipient(id));
+  if (audience.notifyDirectors) for (const id of await directorIds()) recipients.add(personRecipient(id));
+  for (const r of recipients) {
+    try {
+      await createNotification({ recipient: r, kind: "assigned", taskId: target?.id ?? null, taskCode: code, title: code ? `${label}: ${code}` : label, body, actor: "ORI" });
+    } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.audience", recipient: r }); }
+  }
+
+  // 2) AUTO-ACT — opt-in ONLY. Default off = nothing below runs.
+  if (actions.autoAct !== true || !target) return;
+
+  if (actions.postUpdate) {
+    try {
+      const text = actions.updateText?.trim() || "ORI: this task is now due — please post an update.";
+      await sb.from("task_updates").insert({ task_id: target.id, body: text, created_at: nowIso, created_by: "ori" });
+      await sb.from("tasks").update({ latest_update: text, last_updated_at: nowIso }).eq("id", target.id);
+      void reindexEntity("task", target.id);
+    } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.postUpdate", taskId: target.id }); }
+  }
+
+  if (actions.setStatus) {
+    try {
+      const status = actions.setStatus;
+      const patch: Record<string, unknown> = { status, last_updated_at: nowIso };
+      if (status === "Completed" || status === "Closed") patch.closed_date = nowIso;
+      await sb.from("tasks").update(patch).eq("id", target.id);
+      void reindexEntity("task", target.id);
+    } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.setStatus", taskId: target.id }); }
+  }
+
+  if (actions.sendChannel === "email" || actions.sendChannel === "whatsapp") {
+    try {
+      // Send to the scoped person (best target for a "you're due" nudge).
+      const pid = cfg.scope?.personId;
+      if (typeof pid === "number") {
+        if (await canAutoSend(actions.sendChannel as SendChannel)) {
+          await externalNotify({ channel: actions.sendChannel }, [pid], code ? `${label}: ${code}` : label, body);
+        } else {
+          await recordEvent("cron.ori-automations", "ok", { smart: "guardrail off", channel: actions.sendChannel });
+        }
+      }
+    } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.send", channel: actions.sendChannel }); }
+  }
+}
+
+/**
+ * Sweep every active ORI automation rule once and perform the actions for the ones
+ * that FIRE this tick. Shared by the daily Vercel cron (GET below) AND the secured
+ * /api/cron/tick endpoint an external scheduler can hit more often — the same code
+ * fires each rule at most once per day-slot (lastFiredKey/last_fired_at dedupe), so
+ * calling it 100×/day is safe. Fail-open: one rule's failure never aborts the rest.
+ */
+export async function runDueRules(now = new Date()): Promise<{ evaluated: number; fired: number; retired: number }> {
   const nowIso = now.toISOString();
   let fired = 0, retired = 0, evaluated = 0;
 
-  try {
+  {
     const { data: rules } = await sb
       .from("automation_rules")
       .select("id,task_id,company_id,kind,config,active,done,created_at,last_fired_at")
@@ -253,6 +358,43 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      // smart_reminder — a conditional, time-of-day rule with an OPT-IN auto-act.
+      // It scopes to a person / company / task (not a live task row), so it's swept
+      // like recurring_task: the pure evaluator gates WHEN + IF, and this branch
+      // performs the SAFE-ORDERED effects (audience first, opt-in auto-act second).
+      if (raw.kind === "smart_reminder") {
+        const cfg = (raw.config as RuleConfig) ?? {};
+        const scopeTaskId = cfg.scope?.taskId ?? null;
+        // Resolve the target task the rule acts on: an explicit scope.taskId, else
+        // the scoped person/company's most-overdue open task (best effort).
+        const target = await resolveSmartTarget(cfg);
+        // Evaluate against the target task if we have one (so overdue/no-update read
+        // real data), else a synthetic always-open task (byHour/always still work).
+        const evalTask = target
+          ? { deadline: d(target.deadline), status: target.status, createdDate: d(target.created_date) }
+          : { deadline: null, status: "In Progress", createdDate: null };
+        const lastUpd = target ? await lastUpdateAt(target.id) : null;
+        const rule: AutomationRuleRow = {
+          id: raw.id as number, kind: "smart_reminder", config: cfg,
+          active: true, done: false, createdAt: d(raw.created_at)!, lastFiredAt: d(raw.last_fired_at),
+        };
+        const evalRes = evaluateRule(rule, evalTask, lastUpd, now);
+        evaluated++;
+        const patch: Record<string, unknown> = { last_run_at: nowIso };
+        if (evalRes.fire) {
+          fired++;
+          patch.last_fired_at = nowIso;
+          patch.config = { ...cfg, lastFiredKey: smartFiredKey(rule.id, now) };
+          try {
+            await fireSmartReminder(cfg, target, nowIso);
+          } catch (actErr) {
+            await reportError(actErr, { route: "cron.ori-automations", ruleId: rule.id, kind: "smart_reminder" });
+          }
+        }
+        await sb.from("automation_rules").update(patch).eq("id", raw.id as number);
+        continue;
+      }
+
       if (!taskId) continue;
       const { data: task } = await sb.from("tasks").select("id,code,company_id,deadline,status,created_date,archived").eq("id", taskId).maybeSingle();
       if (!task || (task as { archived?: boolean }).archived) {
@@ -328,6 +470,16 @@ export async function GET(req: NextRequest) {
       await sb.from("automation_rules").update(patch).eq("id", raw.id as number);
     }
 
+  }
+
+  return { evaluated, fired, retired };
+}
+
+export async function GET(req: NextRequest) {
+  const auth = authoriseCron(req);
+  if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
+  try {
+    const { evaluated, fired, retired } = await runDueRules();
     await recordEvent("cron.ori-automations", "ok", { evaluated, fired, retired });
     return NextResponse.json({ ok: true, evaluated, fired, retired });
   } catch (err) {
