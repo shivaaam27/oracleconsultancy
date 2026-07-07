@@ -1,9 +1,9 @@
 "use client";
 import { Command } from "cmdk";
-import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
+import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, Building2, CalendarPlus, GitBranch, FileText, ExternalLink, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, type LucideIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
@@ -13,18 +13,14 @@ import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
-import { IntentPreview } from "./intent-preview";
-import { RichAnswer } from "./rich-answer";
-import { VoiceButton } from "./voice-button";
 import { derivePageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
 import { useCurrentView } from "@/lib/current-view";
 import { friendlyAIError } from "@/lib/ai-errors";
 import { TracePanel } from "./trace-panel";
-import dynamic from "next/dynamic";
-
-// Lazy: the WebGL aurora only loads (and only ships) once the palette opens.
-const CommandBackdrop = dynamic(() => import("./command-backdrop").then((m) => m.CommandBackdrop), { ssr: false });
+import { MagneticItem, HighlightSnippet, HighlightBlock, WhyTag } from "./command-palette-bits";
+import { DocReaderPane } from "./command-palette-doc-reader";
+import { ConversationPane, type Msg } from "./command-palette-chat";
 
 type Ctx = { open: () => void; close: () => void; ask: (q: string) => void };
 const CommandCtx = createContext<Ctx>({ open: () => {}, close: () => {}, ask: () => {} });
@@ -41,6 +37,8 @@ function tidyOri(s: string): string {
 }
 
 type SearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };
+/** One "Today" pulse row from /api/pulse (kept in sync with route.ts PulseItem). */
+type PulseItem = { label: string; detail: string; when: string; href?: string };
 
 // Pick a file-type icon + tint from a document's original file name, so a PDF,
 // photo, spreadsheet or slide deck each read at a glance in the results list.
@@ -59,53 +57,48 @@ function fileIconFor(fileName?: string): { Icon: LucideIcon; tint: string } {
   return { Icon: FileText, tint: "text-amber-500" };
 }
 
-// A turn in the conversation thread.
-type Msg =
-  | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; taskCount?: number | null; meetingCount?: number | null; sourceSummary?: string | null; streaming?: boolean }
-  | { id: string; role: "action"; command: string }
-  | { id: string; role: "agent"; command: string }
-  | { id: string; role: "error"; text: string; retry?: string };
-
-export type Pulse = { overdue: number; dueSoon: number; critical: number; escalated: number; open: number; meetingsToday: number };
-
-// Smart next-question chips after an answer — keeps the conversation flowing.
-function followUpsFor(text: string): string[] {
-  const t = text.toLowerCase();
-  const out: string[] = [];
-  const code = text.match(/[A-Z]{2,8}\d{0,3}-\d{2,4}/);
-  if (code) out.push(`Draft a follow-up message for ${code[0]}`);
-  if (/overdue|late|behind|slipping/.test(t)) out.push("Who should I chase first?");
-  if (/risk|blocker|blocked|stuck/.test(t)) out.push("What's the biggest risk right now?");
-  if (/leave|away|off\b/.test(t)) out.push("Who is covering for them?");
-  for (const g of ["What needs my attention today?", "Anything overdue this week?", "Summarise this for the board"]) {
-    if (out.length >= 3) break;
-    if (!out.includes(g)) out.push(g);
-  }
-  return out.slice(0, 3);
-}
+// The conversation thread turn type + live-pulse shape now live with the chat
+// view; re-exported here to keep the public API stable for any external import.
+export type { Pulse } from "./command-palette-chat";
 
 let msgSeq = 0;
 const newId = () => `m${++msgSeq}`;
+
+// Conversational lead-ins ("can you…", "please…", "I want to…") are stripped so
+// natural requests reach the acting agent — "can you reopen DAR-012" is treated
+// as "reopen DAR-012". Applied before command/agent detection below.
+const LEAD_IN =
+  /^(?:hey ori|hey|hi|yo|ok|okay|so|actually|right|please|kindly|now|just|also|quickly|quick|and then|and|then|could you please|can you please|please can you|could you|can you|would you mind|would you|will you|may you|can we|could we|we need to|we should|need to|gotta|i'?d like (?:you )?to|i would like (?:you )?to|i want (?:you )?to|i need (?:you )?to|i wanna|let'?s|lets|let me|go ahead and|go ahead|help me(?: to)?|do me a favou?r(?: and)?|ori|pls)\b[\s,]*/i;
+function stripLeadIns(text: string): string {
+  let s = text.trim();
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(LEAD_IN, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
 
 // Which natural-language inputs are commands (mutations / navigations) vs
 // free-text questions. Commands go to /api/action, questions to /api/ask.
 function looksLikeCommand(text: string): boolean {
   return /^(mark|complete|finish|close|escalate|create|add|update|set|change|edit|rename|reword|retitle|recategor|assign|reassign|give|move|delete|remove|archive|schedule|book|put|announce|post|open|go to|navigate|show me task|remind|chase|nudge|ping|message|tell|notify|let|send|follow[\s-]?up|reach out|draft|prepare|generate|build)\b/i.test(
-    text.trim(),
+    stripLeadIns(text),
   );
 }
-// The ORI AGENT handles the create/edit/schedule/announce family — the actions
-// that benefit from a clarify→confirm→execute conversation (and multi-step). The
-// other command intents (remind, brief, who's-missing, on-leave, navigate,
-// remember) stay on the single-shot /api/action path, so nothing regresses.
+// The ORI AGENT handles the full mutation family — anything that edits, changes
+// status (incl. REOPEN), assigns, approves, publishes, files, links or deletes —
+// through its clarify→confirm→execute loop and the 22 tools. Navigation (open/go
+// to/show/navigate) and pure outreach (remind/send/message/notify) stay on the
+// single-shot /api/action path; questions ("update me…", "show me…") stay on Ask.
+// Verb-anchored (after stripping lead-ins) so natural phrasing reaches the agent;
+// the planner validates against the real tool registry, so it can't invent an action.
 function looksLikeAgentCommand(text: string): boolean {
-  const t = text.trim();
-  if (!/^(create|add|new|make|edit|rename|reword|retitle|recategor|update|set|change|reassign|assign|give|schedule|book|put|announce|post)\b/i.test(t)) return false;
-  // Only route to the agent when it's clearly about a task / event / announcement
-  // (the agent's current tool coverage) — otherwise fall through to /api/action.
-  return /\b(task|tasks|to-?do|event|meeting|announce|announcement|assignee|deadline|status|priority|reassign)\b/i.test(t)
-    || /^(rename|retitle|reassign|reword|recategor)\b/i.test(t);
+  const t = stripLeadIns(text);
+  // "update me / show me / tell me / give me a summary" read as verbs but are
+  // QUESTIONS — keep them on the read-only Ask brain.
+  if (/^(update|give|show|tell|brief|catch|bring|walk)\s+(me|us)\b/i.test(t)) return false;
+  return /^(create|add|new|make|edit|rename|reword|retitle|recategor(?:ise|ize)?|categoris(?:e)?|categoriz(?:e)?|prioritis(?:e)?|prioritiz(?:e)?|deprioritis(?:e)?|deprioritiz(?:e)?|update|set|change|move|shift|swap|bump|reassign|assign|unassign|delegate|give|schedule|book|reschedule|postpone|defer|snooze|cancel|call off|announce|post|publish|release|issue|broadcast|draft|reopen|re-?open|close|close off|complete|finish|wrap up|kick off|mark|flag|unflag|tag|escalate|block|unblock|pin|unpin|approve|authoris(?:e)?|authoriz(?:e)?|sign off|reject|decline|delete|remove|archive|trash|bin|purge|clear|wipe|restore|undo|revert|duplicate|copy|clone|split|merge|convert|file|link|attach|upload|record|log|note down|jot|capture|enter|input|fill|verify|handover|hand over|bring forward)\b/i.test(t);
 }
 // "who is missing a passport" / "who is on leave" are handled deterministically
 // by /api/action, so route them there even though they read as questions.
@@ -126,337 +119,6 @@ function isDeterministicQuery(text: string): boolean {
 // this file. The headings, icons, tints and order are byte-for-byte the same as
 // the old hand-written TYPE_META/TYPE_ORDER.
 const { order: TYPE_ORDER, meta: TYPE_META } = buildPaletteTypeMeta();
-
-// Magnetic hover — the element leans a few px toward the cursor and springs back
-// on leave. No-op on touch (no cursor). The CSS `transition-transform` does the
-// springback. (GSAP targets the group/stagger wrappers, not these elements, so
-// there's no transform conflict.)
-function useMagnetic<T extends HTMLElement>(strength = 0.25) {
-  const ref = useRef<T | null>(null);
-  const frame = useRef(0);
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType === "touch") return;
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const dx = (e.clientX - (r.left + r.width / 2)) * strength;
-    const dy = (e.clientY - (r.top + r.height / 2)) * strength;
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => { if (ref.current) ref.current.style.transform = `translate(${dx}px, ${dy}px)`; });
-  }, [strength]);
-  const onPointerLeave = useCallback(() => { if (ref.current) ref.current.style.transform = ""; }, []);
-  return { ref, onPointerMove, onPointerLeave };
-}
-
-function MagneticItem({ className, children, ...props }: ComponentPropsWithoutRef<typeof Command.Item>) {
-  const m = useMagnetic<HTMLDivElement>(0.08);
-  return (
-    <Command.Item
-      ref={m.ref}
-      onPointerMove={m.onPointerMove}
-      onPointerLeave={m.onPointerLeave}
-      className={cn("transition-transform duration-150 ease-out", className)}
-      {...props}
-    >
-      {children}
-    </Command.Item>
-  );
-}
-
-/** Render a full-text "found inside" excerpt, bolding the «…»-marked hit. */
-function HighlightSnippet({ text }: { text: string }) {
-  const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
-  return (
-    <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
-      <span className="opacity-60">“</span>
-      {parts.map((p, i) =>
-        p.startsWith("«")
-          ? <mark key={i} className="rounded bg-accent/15 px-0.5 text-accent">{p.slice(1, -1)}</mark>
-          : <span key={i}>{p}</span>,
-      )}
-      <span className="opacity-60">”</span>
-    </span>
-  );
-}
-
-/** Tiny "why it matched" tag — so the list is trustworthy at a glance. "name" is
- *  the obvious default (hidden); "meaning" (semantic) and "inside" (found in the
- *  document body) are the interesting ones worth surfacing. */
-function WhyTag({ kind }: { kind?: "name" | "inside" | "meaning" }) {
-  if (kind !== "meaning" && kind !== "inside") return null;
-  const meta = kind === "meaning"
-    ? { label: "meaning", cls: "bg-[#a78bfa]/15 text-[#b9a5fb]" }
-    : { label: "inside", cls: "bg-warn-soft/70 text-warn" };
-  return (
-    <span className={cn("shrink-0 self-start mt-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide hidden sm:inline", meta.cls)}>
-      {meta.label}
-    </span>
-  );
-}
-
-/** Multi-line version of HighlightSnippet — renders a whole passage, bolding
- *  every «…»-marked hit. Used by the in-place document reader. */
-function HighlightBlock({ text }: { text: string }) {
-  const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
-  return (
-    <span className="block text-[13px] leading-relaxed text-fg whitespace-pre-wrap">
-      {parts.map((p, i) =>
-        p.startsWith("«")
-          ? <mark key={i} className="rounded bg-accent/20 px-0.5 text-accent">{p.slice(1, -1)}</mark>
-          : <span key={i}>{p}</span>,
-      )}
-    </span>
-  );
-}
-
-type ReaderPassage = { ord: number; location: string; body: string; snippet: string };
-
-/**
- * In-place document reader — opened when a document search result is chosen.
- * Fetches the document's located passages (AI-free /api/doc-passages), shows the
- * matching ones with their location + highlight so you READ without leaving the
- * palette, lets you ask ORI about THIS file, or open it at the exact spot.
- */
-function DocReaderPane({
-  doc, onBack, onClose, onOpen,
-}: {
-  doc: { id: number; title: string; href: string; query: string };
-  onBack: () => void;
-  onClose: () => void;
-  onOpen: (href: string) => void;
-}) {
-  const [passages, setPassages] = useState<ReaderPassage[] | null>(null);
-  const [ask, setAsk] = useState("");
-  // A mini-conversation scoped to THIS document (RAGs only its passages via
-  // /api/ask-doc). Follow-ups stay in-place — no hand-off to the main chat.
-  const [turns, setTurns] = useState<{ role: "user" | "assistant" | "error"; content: string }[]>([]);
-  const [sending, setSending] = useState(false);
-  // The AI-first answer shown the moment the reader opens — a clean, paraphrased
-  // read of the document (not the raw indexed text). `off` = AI unavailable, so we
-  // fall back to the exact-text passages (the offline experience). `sourceOpen`
-  // toggles the raw "exact words" section, collapsed by default once we have a
-  // clean answer to lead with.
-  const [summary, setSummary] = useState<{ loading: boolean; text: string | null; off: boolean }>({ loading: false, text: null, off: false });
-  const [sourceOpen, setSourceOpen] = useState(false);
-  const convoEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setPassages(null);
-    setTurns([]);
-    setSummary({ loading: false, text: null, off: false });
-    setSourceOpen(false);
-    const url = `/api/doc-passages?id=${doc.id}${doc.query ? `&q=${encodeURIComponent(doc.query)}` : ""}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        const ps = (d.passages ?? []) as ReaderPassage[];
-        setPassages(ps);
-        // AI-first: as soon as we have text, ask ORI to read it cleanly. This is
-        // what makes the reader feel like a real chat rather than an OCR dump.
-        if (ps.length > 0) void runSummary();
-      })
-      .catch(() => { if (alive) setPassages([]); });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.id, doc.query]);
-
-  useEffect(() => { convoEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [turns, sending, summary]);
-
-  // The clean opening read. Fires once per open; falls back silently (off=true)
-  // when AI isn't configured so the exact-text passages carry the offline case.
-  const runSummary = async () => {
-    setSummary({ loading: true, text: null, off: false });
-    const question = doc.query
-      ? `The principal searched for "${doc.query}". In a short, natural paragraph (2–4 sentences), tell them plainly what this document is and exactly what it says about "${doc.query}" — quote the specific names, numbers and dates. If the document doesn't actually cover that, say so briefly and describe what it is instead.`
-      : `In a short, natural paragraph (2–4 sentences), tell the principal plainly what this document is and its key details — who it concerns, its type, and the important numbers or dates.`;
-    try {
-      const res = await fetch("/api/ask-doc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: doc.id, question }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.answer) setSummary({ loading: false, text: d.answer as string, off: false });
-      else if (res.status === 503 || d.source === "no-key") setSummary({ loading: false, text: null, off: true });
-      else setSummary({ loading: false, text: null, off: true });
-    } catch {
-      setSummary({ loading: false, text: null, off: true });
-    }
-  };
-
-  const submitAsk = async () => {
-    const q = ask.trim();
-    if (!q || sending) return;
-    // Seed the doc-scoped history with the opening summary so follow-ups have
-    // context ("and the expiry?") without re-summarising.
-    const seed = summary.text ? [{ role: "assistant" as const, content: summary.text }] : [];
-    const history = [...seed, ...turns.filter((t) => t.role !== "error").map((t) => ({ role: t.role as "user" | "assistant", content: t.content }))];
-    setTurns((t) => [...t, { role: "user", content: q }]);
-    setAsk("");
-    setSending(true);
-    try {
-      const res = await fetch("/api/ask-doc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: doc.id, question: q, history }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.answer) {
-        setTurns((t) => [...t, { role: "assistant", content: d.answer as string }]);
-      } else {
-        setTurns((t) => [...t, { role: "error", content: friendlyAIError(d.error || d.source || "server-error").message }]);
-      }
-    } catch {
-      setTurns((t) => [...t, { role: "error", content: "Couldn't reach ORI just now — try again." }]);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <button type="button" onClick={onBack} aria-label="Back to results" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-elev hover:text-fg"><ArrowLeft size={16} /></button>
-        <FileText size={15} className="shrink-0 text-accent" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{doc.title}</span>
-        <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:text-fg"><XIcon size={15} /></button>
-      </div>
-
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5">
-        {passages === null ? (
-          <div className="py-10 text-center text-sm text-fg-muted">Reading…</div>
-        ) : passages.length === 0 ? (
-          <div className="py-10 text-center text-sm text-fg-muted">
-            {doc.query ? "No matching passages found — open the document to read it in full." : "No readable text captured for this file yet."}
-          </div>
-        ) : (
-          <>
-            {/* AI-FIRST — the clean, paraphrased read. Leads the reader so it feels
-                like a conversation, not an OCR dump. Hidden entirely when AI is off
-                (the exact-text section below then carries the offline case). */}
-            {(summary.loading || summary.text) && (
-              <div className="rounded-2xl bg-accent-soft/60 p-3.5 ring-1 ring-accent/20">
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-accent">
-                  <Sparkles size={12} /> ORI
-                </div>
-                {summary.loading ? (
-                  <div className="space-y-1.5" aria-label="Reading the document">
-                    <span className="block h-2.5 w-[92%] animate-pulse rounded-full bg-accent/15" />
-                    <span className="block h-2.5 w-[80%] animate-pulse rounded-full bg-accent/15" />
-                    <span className="block h-2.5 w-[64%] animate-pulse rounded-full bg-accent/15" />
-                  </div>
-                ) : (
-                  <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap">{summary.text}</p>
-                )}
-              </div>
-            )}
-
-            {/* SOURCE — the exact words from the document (the offline/proof layer).
-                Collapsed once there's a clean answer to lead with; always shown when
-                AI is off so the reader still works with no key. */}
-            {(() => {
-              const showRaw = sourceOpen || summary.off || (!summary.loading && !summary.text);
-              return (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setSourceOpen((v) => !v)}
-                    className="flex w-full items-center gap-1.5 py-1 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle hover:text-fg"
-                  >
-                    <ChevronRight size={12} className={cn("transition-transform", showRaw && "rotate-90")} />
-                    Exact words from the document{doc.query ? " · matches highlighted" : ""}
-                  </button>
-                  {showRaw && (
-                    <div className="mt-1.5 space-y-3">
-                      {passages.map((p) => (
-                        <div key={p.ord} className="flex gap-3">
-                          <span className="mt-1 w-0.5 shrink-0 rounded-full bg-accent/50" aria-hidden />
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-subtle">{p.location}</div>
-                            <HighlightBlock text={p.snippet || p.body.slice(0, 400)} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </>
-        )}
-
-        {/* The doc-scoped mini-conversation — answers RAG only this document. */}
-        {(turns.length > 0 || sending) && (
-          <div className="space-y-2.5 border-t border-border/60 pt-3">
-            {turns.map((t, i) => (
-              <div key={i} className={cn("flex", t.role === "user" ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap",
-                    t.role === "user" && "bg-accent text-accent-fg",
-                    t.role === "assistant" && "bg-bg-elev text-fg ring-1 ring-border",
-                    t.role === "error" && "bg-red-500/10 text-red-600 ring-1 ring-red-500/30",
-                  )}
-                >
-                  {t.content}
-                </div>
-              </div>
-            ))}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="inline-flex items-center gap-2 rounded-2xl bg-bg-elev px-3 py-2 text-sm text-fg-muted ring-1 ring-border">
-                  <Loader2 size={14} className="animate-spin text-accent" /> Reading the document…
-                </div>
-              </div>
-            )}
-            <div ref={convoEndRef} />
-          </div>
-        )}
-      </div>
-
-      {passages && passages.length > 0 && (
-        <div className="flex items-center gap-2 border-t border-border px-3.5 py-2">
-          <button type="button" onClick={() => onOpen(doc.href)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-[12px] font-medium text-accent hover:bg-accent-soft">
-            <ExternalLink size={13} /> Open{passages[0] ? ` at ${passages[0].location.toLowerCase()}` : " document"}
-          </button>
-          <span className="ml-auto text-[10px] text-fg-subtle">works offline-first</span>
-        </div>
-      )}
-
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
-          <MessageSquarePlus size={15} className="shrink-0 text-accent" />
-          <input
-            value={ask}
-            onChange={(e) => setAsk(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitAsk(); } }}
-            placeholder={turns.length ? "Ask a follow-up…" : "Ask ORI about this document…"}
-            className="flex-1 bg-transparent py-2.5 text-sm outline-none placeholder:text-fg-subtle"
-          />
-          <button type="button" onClick={() => void submitAsk()} disabled={!ask.trim() || sending} aria-label="Ask ORI" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40">{sending ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MagneticChip({ onClick, className, children }: { onClick?: () => void; className?: string; children: React.ReactNode }) {
-  const m = useMagnetic<HTMLButtonElement>(0.12);
-  return (
-    <button
-      type="button"
-      ref={m.ref}
-      onClick={onClick}
-      onPointerMove={m.onPointerMove}
-      onPointerLeave={m.onPointerLeave}
-      className={cn("transition-transform duration-150 ease-out", className)}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function CommandPaletteProvider({
   children,
@@ -487,6 +149,10 @@ export function CommandPaletteProvider({
   const [includeHistory, setIncludeHistory] = useState(false);
   const [recents, setRecents] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  // "Today" pulse — the estate's most recent notable events, shown in the empty
+  // search state only. Plain fetch (no server import); fetched once per open.
+  const [pulse, setPulse] = useState<PulseItem[]>([]);
+  const pulseFetched = useRef(false);
   const [thread, setThread] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const { pins, toggle } = usePins();
@@ -503,6 +169,14 @@ export function CommandPaletteProvider({
   threadRef.current = thread;
   const panelRef = useRef<HTMLDivElement>(null);
   const sheenRef = useRef<HTMLSpanElement>(null);
+
+  // Live "glance" for the previewed entity — a small set of KPI stats fetched
+  // from /api/entity-glance (company/person/task/document only). Cached per
+  // type+id so quick hovering never re-fetches; stale requests are aborted.
+  type Glance = { label: string; value: string | number }[];
+  const [glance, setGlance] = useState<{ key: string; stats: Glance } | null>(null);
+  const [glanceLoading, setGlanceLoading] = useState(false);
+  const glanceCache = useRef<Map<string, Glance>>(new Map());
 
   // GSAP open choreography — a sheen sweep + a staggered content reveal. Lazy
   // imports gsap so it costs nothing until the surface is first opened. Skipped
@@ -524,6 +198,19 @@ export function CommandPaletteProvider({
     }, 20);
     return () => { killed = true; window.clearTimeout(id); };
   }, [isOpen, mode]);
+
+  // "Today" pulse — fetch the estate's recent-events strip once, the first time
+  // the palette opens on an admin surface. Plain fetch; failures render nothing.
+  useEffect(() => {
+    if (!isOpen || onPortal || pulseFetched.current) return;
+    pulseFetched.current = true;
+    let cancelled = false;
+    fetch("/api/pulse", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && Array.isArray(d.pulse)) setPulse(d.pulse as PulseItem[]); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen, onPortal]);
 
   // ⌘K / Ctrl+K (and Ctrl+Space) hotkey
   useEffect(() => {
@@ -638,7 +325,8 @@ export function CommandPaletteProvider({
   }, [isOpen]);
 
   const trimmed = query.trim();
-  const routeToAction = looksLikeCommand(trimmed) || isDeterministicQuery(trimmed);
+  const routeToAction =
+    looksLikeAgentCommand(trimmed) || looksLikeCommand(trimmed) || isDeterministicQuery(trimmed);
 
   // Recent searches — last few queries/asks, persisted locally.
   useEffect(() => {
@@ -815,10 +503,37 @@ export function CommandPaletteProvider({
     if (r.type === "document") { setDocReader({ id: r.id, title: r.title, href: r.href, query }); setMode("doc"); }
     else go(r.href);
   };
+  // The entity the preview pane is currently showing (same seed as previewNode).
+  const previewEntity = activeResult ?? heroResult ?? results[0] ?? null;
+  // Types the glance endpoint answers for; anything else renders no KPI strip.
+  const glanceKey = previewEntity && ["company", "person", "task", "document"].includes(previewEntity.type)
+    ? `${previewEntity.type}:${previewEntity.id}` : null;
+
+  // Fetch the live glance for the previewed entity. Cached per type+id; stale
+  // requests aborted so fast hovering can't spam or land out of order.
+  useEffect(() => {
+    if (!glanceKey) { setGlance(null); setGlanceLoading(false); return; }
+    const cached = glanceCache.current.get(glanceKey);
+    if (cached) { setGlance({ key: glanceKey, stats: cached }); setGlanceLoading(false); return; }
+    const [type, id] = glanceKey.split(":");
+    const ctrl = new AbortController();
+    setGlanceLoading(true);
+    fetch(`/api/entity-glance?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { stats?: Glance } | null) => {
+        const stats = Array.isArray(data?.stats) ? data!.stats : [];
+        glanceCache.current.set(glanceKey, stats);
+        setGlance({ key: glanceKey, stats });
+      })
+      .catch(() => { /* aborted or failed → render nothing extra */ })
+      .finally(() => setGlanceLoading(false));
+    return () => ctrl.abort();
+  }, [glanceKey]);
+
   const previewNode = (() => {
     // Seed with the hero / top result so the pane always shows something; hover
     // and arrow-keys refine it.
-    const r = activeResult ?? heroResult ?? results[0] ?? null;
+    const r = previewEntity;
     if (!r) return (
       <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-fg-subtle">
         <Sparkles size={18} className="opacity-50" />
@@ -842,6 +557,27 @@ export function CommandPaletteProvider({
           </div>
         </div>
         {r.badge && <div className="font-mono text-[11px] text-fg-muted">{r.badge}</div>}
+        {/* Live glance — §13 KPI pills (bold tabular number + muted label). */}
+        {glanceKey === `${r.type}:${r.id}` && glanceLoading && !glance && (
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="flex flex-col gap-1">
+                <span className="h-3.5 w-8 animate-pulse rounded bg-bg-muted" />
+                <span className="h-2.5 w-12 animate-pulse rounded bg-bg-muted/70" />
+              </span>
+            ))}
+          </div>
+        )}
+        {glance && glance.key === `${r.type}:${r.id}` && glance.stats.length > 0 && (
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+            {glance.stats.map((s, i) => (
+              <span key={i} className="flex flex-col leading-tight">
+                <b className="tabular text-sm font-semibold text-fg">{s.value}</b>
+                <span className="text-[10.5px] text-fg-subtle">{s.label}</span>
+              </span>
+            ))}
+          </div>
+        )}
         {r.snippet ? <div className="rounded-lg bg-bg-subtle/50 p-2 ring-1 ring-border/50"><HighlightBlock text={r.snippet} /></div>
           : <div className="text-xs leading-relaxed text-fg-muted">{r.subtitle}</div>}
         <div className="mt-1 flex flex-col gap-1.5">
@@ -889,19 +625,16 @@ export function CommandPaletteProvider({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="absolute inset-0"
+              className="absolute inset-0 bg-black/30 backdrop-blur-sm"
               onClick={() => setIsOpen(false)}
-            >
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-xl" />
-              <CommandBackdrop />
-            </motion.div>
+            />
             <motion.div
               ref={panelRef}
               layout
-              initial={{ opacity: 0, y: -10, scale: 0.97, filter: "blur(6px)" }}
-              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -8, scale: 0.98, filter: "blur(4px)" }}
-              transition={{ type: "spring", stiffness: 460, damping: 32 }}
+              initial={{ opacity: 0, y: 8, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.99 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
               className={cn(
                 "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
                 mode === "chat" || mode === "doc" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
@@ -914,10 +647,10 @@ export function CommandPaletteProvider({
               <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={mode}
-                initial={{ opacity: 0, filter: "blur(6px)" }}
-                animate={{ opacity: 1, filter: "blur(0px)" }}
-                exit={{ opacity: 0, filter: "blur(6px)" }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
                 className={cn("flex flex-col min-h-0", (mode === "chat" || mode === "doc") && "flex-1 h-full")}
               >
               {mode === "doc" && docReader ? (
@@ -936,7 +669,7 @@ export function CommandPaletteProvider({
                   voiceLanguage={voiceLanguage}
                   suggestions={suggestionsFor(pageContext)}
                   onSubmit={submitPrompt}
-                  onRetry={(t) => { append({ id: newId(), role: "user", text: t }); if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t); else runAsk(t); }}
+                  onRetry={(t) => { append({ id: newId(), role: "user", text: t }); if (looksLikeAgentCommand(t)) runAgent(t); else if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t); else runAsk(t); }}
                   onBack={() => { setMode("search"); setThread([]); }}
                   onClose={() => setIsOpen(false)}
                   onNavigate={(href) => { setIsOpen(false); router.push(href); }}
@@ -971,11 +704,11 @@ export function CommandPaletteProvider({
                       aria-checked={includeHistory}
                       title="Also search archived / closed records"
                       className={cn(
-                        "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition-colors",
-                        includeHistory ? "border-accent/30 bg-accent-soft text-fg" : "border-border text-fg-muted hover:text-fg",
+                        "shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors",
+                        includeHistory ? "bg-accent text-accent-fg ring-accent" : "ring-border/60 text-fg-muted hover:text-fg",
                       )}
                     >
-                      <Clock size={12} className={includeHistory ? "text-accent" : "text-fg-subtle"} />
+                      <Clock size={12} className={includeHistory ? "text-accent-fg" : "text-fg-subtle"} />
                       <span className="hidden sm:inline">History</span>
                       <Switch on={includeHistory} size="sm" />
                     </button>
@@ -984,7 +717,7 @@ export function CommandPaletteProvider({
                     </kbd>
                   </div>
                   <div className="flex min-h-0">
-                  <Command.List className="flex-1 min-w-0 max-h-[460px] overflow-y-auto p-1.5">
+                  <Command.List className="flex-1 min-w-0 max-h-[460px] overflow-y-auto p-1.5 scroll-fade-y slim-scroll">
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
@@ -1009,6 +742,22 @@ export function CommandPaletteProvider({
                               <WhyTag kind={heroResult.matchKind} />
                             </span>
                             <span className="mt-0.5 block truncate text-[11.5px] text-fg-subtle">{heroResult.subtitle}</span>
+                            {/* Live glance pills for the hero (cache-backed by the preview fetch). */}
+                            {(() => {
+                              const hk = `${heroResult.type}:${heroResult.id}`;
+                              const stats = glance?.key === hk ? glance.stats : glanceCache.current.get(hk);
+                              if (!stats || stats.length === 0) return null;
+                              return (
+                                <span className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                                  {stats.slice(0, 4).map((s, i) => (
+                                    <span key={i} className="flex items-baseline gap-1 leading-none">
+                                      <b className="tabular text-[13px] font-semibold text-fg">{s.value}</b>
+                                      <span className="text-[10px] text-fg-subtle">{s.label}</span>
+                                    </span>
+                                  ))}
+                                </span>
+                              );
+                            })()}
                           </span>
                           <span className="hidden shrink-0 items-center gap-1.5 sm:flex" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                             {scopedLinks(heroResult).slice(1).map((l) => (
@@ -1035,7 +784,7 @@ export function CommandPaletteProvider({
                           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                             <span className="text-sm font-semibold text-fg">{smartAnswer.title}</span>
                             {smartAnswer.count > 0 && (
-                              <span className="text-[11px] font-semibold tabular rounded-full bg-accent/15 text-accent px-2 py-0.5">{smartAnswer.count}</span>
+                              <span className="text-[11px] font-semibold tabular rounded-lg bg-accent/15 text-accent px-2 py-0.5">{smartAnswer.count}</span>
                             )}
                           </div>
                           {smartAnswer.note && <div className="px-3 pb-2 text-xs text-fg-muted">{smartAnswer.note}</div>}
@@ -1054,7 +803,7 @@ export function CommandPaletteProvider({
                                   </span>
                                   {row.badge && (
                                     <span className={cn(
-                                      "shrink-0 text-[10px] font-medium rounded-full px-1.5 py-0.5",
+                                      "shrink-0 text-[10px] font-medium rounded-lg px-1.5 py-0.5",
                                       row.tone === "danger" ? "bg-danger/10 text-danger"
                                         : row.tone === "warn" ? "bg-warn/10 text-warn"
                                         : row.tone === "success" ? "bg-success/10 text-success"
@@ -1162,6 +911,35 @@ export function CommandPaletteProvider({
                       </Command.Group>
                     )}
 
+                    {/* Today — the estate's live pulse (empty query only). §13
+                        icon-badge rows: outline icon, quiet sublabel + "when". */}
+                    {!trimmed && pulse.length > 0 && (
+                      <Command.Group
+                        heading="Today"
+                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      >
+                        <div className="max-h-64 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,#000_10px,#000_calc(100%-10px),transparent)]">
+                          {pulse.map((p, i) => (
+                            <Command.Item
+                              key={`__pulse_${i}`}
+                              value={`__pulse ${i} ${p.label} ${p.detail}`}
+                              onSelect={() => { if (p.href) go(p.href); }}
+                              className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                            >
+                              <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-fg-subtle shrink-0">
+                                <Activity size={13} />
+                              </span>
+                              <span className="flex-1 min-w-0">
+                                <span className="block truncate text-fg">{p.label}</span>
+                                {p.detail && <span className="block truncate text-[12px] text-fg-subtle">{p.detail}</span>}
+                              </span>
+                              {p.when && <span className="text-[11px] text-fg-subtle shrink-0 tabular-nums">{p.when}</span>}
+                            </Command.Item>
+                          ))}
+                        </div>
+                      </Command.Group>
+                    )}
+
                     {/* Recent searches — quick re-run of recent queries/asks. */}
                     {!trimmed && recentSearches.length > 0 && (
                       <Command.Group
@@ -1240,7 +1018,7 @@ export function CommandPaletteProvider({
                         <Command.Group
                           key={type}
                           heading={heading}
-                          className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                          className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:bg-bg-subtle/60 [&_[cmdk-group-heading]]:rounded-lg [&_[cmdk-group-heading]]:mb-0.5"
                         >
                           {group.map((r) => {
                             // Per-document file-type icon (PDF/photo/Excel/slide);
@@ -1277,7 +1055,7 @@ export function CommandPaletteProvider({
                                 {r.snippet && <HighlightSnippet text={r.snippet} />}
                               </span>
                               {r.badge && (
-                                <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 self-start mt-0.5 hidden sm:inline">{r.badge}</span>
+                                <span className="text-[10px] rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 self-start mt-0.5 hidden sm:inline">{r.badge}</span>
                               )}
                               {!r.snippet && (
                                 <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
@@ -1330,7 +1108,7 @@ export function CommandPaletteProvider({
                   </Command.List>
                   {/* Live preview pane — desktop only, when a query has results. */}
                   {trimmed && (results.length > 0 || items.length > 0) && (
-                    <div className="hidden lg:flex w-[260px] shrink-0 flex-col border-l border-border max-h-[460px] overflow-y-auto slim-scroll">
+                    <div className="hidden lg:flex w-[260px] shrink-0 flex-col border-l border-border/60 bg-bg-subtle/30 max-h-[460px] overflow-y-auto scroll-fade-y slim-scroll">
                       {previewNode}
                     </div>
                   )}
@@ -1350,608 +1128,6 @@ export function CommandPaletteProvider({
         )}
       </AnimatePresence>
     </CommandCtx.Provider>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Conversation pane — the expanded "Ask ORI" surface.                   */
-/* --------------------------------------------------------------------- */
-
-function ConversationPane({
-  thread,
-  thinking,
-  pageLabel,
-  operatorName,
-  voiceLanguage,
-  suggestions,
-  onSubmit,
-  onRetry,
-  onBack,
-  onClose,
-  onNavigate,
-  currentView,
-}: {
-  thread: Msg[];
-  thinking: boolean;
-  pageLabel: string;
-  operatorName?: string;
-  voiceLanguage?: string;
-  suggestions: { label: string; q: string; icon: React.ComponentType<{ size?: number; className?: string }> }[];
-  onSubmit: (text: string) => void;
-  onRetry: (text: string) => void;
-  onBack: () => void;
-  onClose: () => void;
-  onNavigate: (href: string) => void;
-  currentView: { codes: string[]; label?: string };
-}) {
-  const [input, setInput] = useState("");
-  const [pulse, setPulse] = useState<Pulse | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const dictatedRef = useRef("");
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-  // Proactive: pull a live snapshot so ORI opens knowing what's happening.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/pulse", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d) setPulse(d as Pulse); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-  // Escape from the conversation: clear a draft first, else step back to search.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      if (inputRef.current?.value) { setInput(""); return; }
-      onBack();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [thread, thinking]);
-
-  function send() {
-    const t = input.trim();
-    if (!t) return;
-    setInput("");
-    onSubmit(t);
-  }
-
-  const greeting = (() => {
-    const name = (operatorName || "").trim().split(/\s+/)[0];
-    const h = new Date().getHours();
-    const part = h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
-    return name ? `Good ${part}, ${name}.` : `Good ${part}.`;
-  })();
-
-  // A one-line "what's happening" summary built from the live pulse.
-  const pulseLine = (() => {
-    if (!pulse) return null;
-    const bits: string[] = [];
-    if (pulse.overdue) bits.push(`${pulse.overdue} overdue`);
-    if (pulse.escalated) bits.push(`${pulse.escalated} escalated`);
-    if (pulse.dueSoon) bits.push(`${pulse.dueSoon} due soon`);
-    if (pulse.meetingsToday) bits.push(`${pulse.meetingsToday} meeting${pulse.meetingsToday !== 1 ? "s" : ""} today`);
-    if (bits.length === 0) return "Everything's on track — nothing overdue or escalated right now.";
-    return `Right now: ${bits.join(" · ")}.`;
-  })();
-
-  // Suggestions: lead with what the pulse says is pressing, then page-aware ones.
-  const dynamicChips = (() => {
-    const out: { label: string; q: string }[] = [];
-    if (pulse?.overdue) out.push({ label: "Show what's overdue", q: "What's overdue this week?" });
-    if (pulse?.escalated) out.push({ label: "Review escalations", q: "What's escalated and why?" });
-    if (pulse?.meetingsToday) out.push({ label: "Today's meetings", q: "What meetings do I have today?" });
-    for (const s of suggestions) {
-      if (out.length >= 4) break;
-      if (!out.some((o) => o.q === s.q)) out.push({ label: s.label, q: s.q });
-    }
-    return out.slice(0, 4);
-  })();
-
-  // Follow-up chips after the latest completed answer.
-  const last = thread[thread.length - 1];
-  const followUps = last && last.role === "assistant" && !last.streaming && !thinking ? followUpsFor(last.text) : [];
-
-  return (
-    <>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border shrink-0">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to search"
-          className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0">
-          <Sparkles size={15} />
-        </span>
-        <div className="flex flex-col leading-tight min-w-0">
-          <span className="font-semibold text-sm tracking-tight">ORI</span>
-          <span className="text-[10px] text-fg-muted truncate">{pageLabel}</span>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="ml-auto inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
-        >
-          <XIcon size={16} />
-        </button>
-      </div>
-
-      {/* Thread */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
-        {thread.length === 0 && (
-          <div className="space-y-4">
-            <div data-stagger className="flex items-start gap-2.5">
-              <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
-                <Sparkles size={15} />
-              </span>
-              <div className="text-sm leading-relaxed text-fg">
-                <p>{greeting} {pulseLine ? <span className="text-fg-muted">{pulseLine}</span> : "Ask me anything about your portfolio, or type a command."}</p>
-                {pulseLine && <p className="text-fg-muted mt-1">What would you like to do?</p>}
-              </div>
-            </div>
-            <div data-stagger className="flex flex-wrap gap-1.5">
-              {dynamicChips.map((s) => (
-                <MagneticChip
-                  key={s.q}
-                  onClick={() => onSubmit(s.q)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-3 py-1.5 text-[13px] text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
-                >
-                  <Sparkles size={13} className="text-accent" />
-                  {s.label}
-                </MagneticChip>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {thread.map((m) => (
-          <MessageBubble key={m.id} msg={m} onRetry={onRetry} onNavigate={onNavigate} currentView={currentView} />
-        ))}
-
-        {thinking && (
-          <div className="flex items-center gap-2 text-sm text-fg-muted">
-            <Loader2 size={14} className="animate-spin text-accent" /> Thinking…
-          </div>
-        )}
-
-        {/* Proactive follow-ups under the latest answer. */}
-        {followUps.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pl-9">
-            {followUps.map((f) => (
-              <MagneticChip
-                key={f}
-                onClick={() => onSubmit(f)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/40 px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
-              >
-                <ArrowRight size={12} className="text-accent" />
-                {f}
-              </MagneticChip>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Composer — one open, soft field (no box-in-box). */}
-      <div className="px-3 pb-3 pt-1 shrink-0">
-        <div className="composer-field flex items-end gap-2 px-4 py-2.5">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={1}
-            placeholder="Ask a question or type a command…"
-            className="flex-1 resize-none !bg-transparent !border-0 !shadow-none !rounded-none px-0 py-1 text-[15px] leading-6 min-h-[2rem] max-h-32 focus:outline-none focus:!ring-0 placeholder:text-fg-subtle"
-          />
-          <VoiceButton
-            lang={voiceLanguage}
-            onInterim={(t) => setInput((dictatedRef.current + " " + t).trim())}
-            onResult={(t) => { dictatedRef.current = (dictatedRef.current + " " + t).trim(); setInput(dictatedRef.current); }}
-            onStop={() => { dictatedRef.current = input; }}
-            className="shrink-0"
-          />
-          <button
-            type="button"
-            onClick={send}
-            disabled={!input.trim()}
-            aria-label="Send"
-            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-full bg-accent text-white disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
-          >
-            <ArrowUp size={17} />
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function MessageBubble({
-  msg,
-  onRetry,
-  onNavigate,
-  currentView,
-}: {
-  msg: Msg;
-  onRetry: (text: string) => void;
-  onNavigate: (href: string) => void;
-  currentView: { codes: string[]; label?: string };
-}) {
-  if (msg.role === "user") {
-    return (
-      <div className="flex items-start gap-2.5 justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-accent text-white px-3.5 py-2 text-sm leading-relaxed">
-          {msg.text}
-        </div>
-        <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-bg-muted text-fg-muted shrink-0 mt-0.5">
-          <User size={14} />
-        </span>
-      </div>
-    );
-  }
-  if (msg.role === "assistant") {
-    return (
-      <div className="flex items-start gap-2.5">
-        <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
-          <Sparkles size={15} />
-        </span>
-        <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-bg-muted/60 px-3.5 py-2.5">
-          <RichAnswer text={msg.text} withActions={!msg.streaming} />
-          {msg.streaming && (
-            <span className="inline-block w-1.5 h-3.5 -mb-0.5 ml-0.5 bg-accent/70 rounded-sm animate-pulse" aria-hidden />
-          )}
-          {!msg.streaming && msg.sourceSummary ? (
-            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.sourceSummary}</div>
-          ) : (!msg.streaming && msg.taskCount != null && (
-            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}{msg.meetingCount ? ` · ${msg.meetingCount} meeting${msg.meetingCount !== 1 ? "s" : ""}` : ""}</div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (msg.role === "error") {
-    return (
-      <div className="flex items-start gap-2.5">
-        <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-danger/10 text-danger shrink-0 mt-0.5">
-          <XIcon size={15} />
-        </span>
-        <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-danger/5 border border-danger/30 px-3.5 py-2.5 text-sm text-danger space-y-2">
-          <p>{msg.text}</p>
-          {msg.retry && (
-            <button
-              type="button"
-              onClick={() => onRetry(msg.retry!)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-fg hover:text-accent transition-colors"
-            >
-              <RotateCw size={12} /> Try again
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-  if (msg.role === "agent") {
-    return <AgentCard command={msg.command} onNavigate={onNavigate} />;
-  }
-  // action
-  return <ActionCard command={msg.command} onNavigate={onNavigate} currentView={currentView} />;
-}
-
-// A command turn: parse (confirm preview) → confirm → run, all self-managed.
-function ActionCard({
-  command,
-  onNavigate,
-  currentView,
-}: {
-  command: string;
-  onNavigate: (href: string) => void;
-  currentView: { codes: string[]; label?: string };
-}) {
-  type State =
-    | { phase: "loading" }
-    | { phase: "preview"; intent: any }
-    | { phase: "running" }
-    | { phase: "done"; message: string; redirect?: string; calendarUrl?: string; googleUrl?: string }
-    | { phase: "error"; message: string; retryable: boolean };
-  const [state, setState] = useState<State>({ phase: "loading" });
-  const ran = useRef(false);
-
-  const activeContext = currentView.codes.length
-    ? { viewCodes: currentView.codes, viewLabel: currentView.label }
-    : undefined;
-
-  const call = useCallback(async (confirm: boolean) => {
-    setState(confirm ? { phase: "running" } : { phase: "loading" });
-    try {
-      const res = await fetch("/api/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, confirm, activeContext }),
-      });
-      const data = await res.json();
-      if (data.needsConfirm) {
-        setState({ phase: "preview", intent: data.intent });
-        return;
-      }
-      if (data.executed || data.ok) {
-        setState({ phase: "done", message: data.message || "Done", redirect: data.redirect, calendarUrl: data.calendarUrl, googleUrl: data.googleUrl });
-        if (data.redirect) setTimeout(() => onNavigate(data.redirect), 900);
-        return;
-      }
-      const fe = friendlyAIError(data.error || data.message);
-      setState({ phase: "error", message: fe.message, retryable: fe.retryable });
-    } catch {
-      const fe = friendlyAIError("network error");
-      setState({ phase: "error", message: fe.message, retryable: fe.retryable });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command]);
-
-  useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
-    call(false);
-  }, [call]);
-
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
-        <Zap size={15} />
-      </span>
-      <div className="max-w-[85%] w-full rounded-2xl rounded-tl-md bg-bg-muted/60 px-3.5 py-2.5 text-sm space-y-2">
-        {state.phase === "loading" && (
-          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Reading the command…</div>
-        )}
-        {state.phase === "preview" && (
-          <>
-            <div className="flex items-center gap-2 text-xs font-medium text-warn"><Zap size={12} /> Confirm action</div>
-            <IntentPreview intent={state.intent} />
-            <div className="flex gap-2 pt-0.5">
-              <button onClick={() => call(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-                <Check size={12} /> Confirm
-              </button>
-              <button onClick={() => setState({ phase: "done", message: "Cancelled." })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors">
-                <XIcon size={12} /> Cancel
-              </button>
-            </div>
-          </>
-        )}
-        {state.phase === "running" && (
-          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Running…</div>
-        )}
-        {state.phase === "done" && (
-          <div className="space-y-2">
-            <div className="flex items-start gap-2 text-fg"><Check size={15} className="text-success mt-0.5 shrink-0" /> <RichAnswer text={state.message} /></div>
-            {(state.calendarUrl || state.googleUrl) && (
-              <div className="flex flex-wrap gap-1.5 pl-7">
-                {state.calendarUrl && (
-                  <a href={state.calendarUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev/60 px-2.5 py-1.5 text-xs font-medium text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors">
-                    <CalendarPlus size={13} className="text-accent" /> Add to calendar
-                  </a>
-                )}
-                {state.googleUrl && (
-                  <a href={state.googleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev/60 px-2.5 py-1.5 text-xs font-medium text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors">
-                    <CalendarPlus size={13} className="text-accent" /> Google Calendar
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {state.phase === "error" && (
-          <div className="space-y-2 text-danger">
-            <p>{state.message}</p>
-            {state.retryable && (
-              <button onClick={() => call(false)} className="inline-flex items-center gap-1.5 text-xs font-medium text-fg hover:text-accent transition-colors">
-                <RotateCw size={12} /> Try again
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-
-// The ORI AGENT turn — a self-managed clarify → confirm → execute conversation
-// with /api/ori. ORI asks for missing details (multi-turn), shows a plan for the
-// owner's yes, then runs it (multi-step). This is the "feels like Claude" surface.
-type AgentPlanStep = { tool: string; args: Record<string, unknown>; summary: string };
-type AgentRunResult = { tool: string; ok: boolean; message: string; redirect?: string; undoToken?: string };
-
-function AgentCard({ command, onNavigate }: { command: string; onNavigate: (href: string) => void }) {
-  type Phase =
-    | { kind: "thinking" }
-    | { kind: "ask"; reply: string }
-    | { kind: "confirm"; reply: string; plan: AgentPlanStep[] }
-    | { kind: "running" }
-    | { kind: "answer"; reply: string }
-    | { kind: "done"; reply: string; results: AgentRunResult[] }
-    | { kind: "error"; message: string };
-  // The agent-visible history (seeded with the opening command). Clarify Q&A is
-  // appended here so the planner always sees the full context.
-  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([{ role: "user", content: command }]);
-  const [phase, setPhase] = useState<Phase>({ kind: "thinking" });
-  const [reply, setReply] = useState(""); // the clarify answer being typed
-  const [undone, setUndone] = useState<Record<number, "pending" | "done" | "error">>({});
-  const started = useRef(false);
-  const endRef = useRef<HTMLDivElement>(null);
-
-  const undoStep = async (i: number, token: string) => {
-    setUndone((u) => ({ ...u, [i]: "pending" }));
-    try {
-      const res = await fetch("/api/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
-      const d = await res.json().catch(() => ({}));
-      setUndone((u) => ({ ...u, [i]: res.ok && d.ok ? "done" : "error" }));
-    } catch {
-      setUndone((u) => ({ ...u, [i]: "error" }));
-    }
-  };
-
-  const plan = useCallback(async () => {
-    setPhase({ kind: "thinking" });
-    try {
-      const res = await fetch("/api/ori", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: historyRef.current }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setPhase({ kind: "error", message: friendlyAIError(d.error || "server-error").message }); return; }
-      if (d.mode === "ask") { historyRef.current.push({ role: "assistant", content: d.reply }); setPhase({ kind: "ask", reply: d.reply }); }
-      else if (d.mode === "confirm") setPhase({ kind: "confirm", reply: d.reply, plan: (d.plan ?? []) as AgentPlanStep[] });
-      else setPhase({ kind: "answer", reply: d.reply || "I'm not sure how to action that yet." });
-    } catch {
-      setPhase({ kind: "error", message: "Couldn't reach ORI just now — try again." });
-    }
-  }, []);
-
-  useEffect(() => { if (!started.current) { started.current = true; void plan(); } }, [plan]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [phase]);
-
-  const sendClarify = () => {
-    const a = reply.trim();
-    if (!a) return;
-    historyRef.current.push({ role: "user", content: a });
-    setReply("");
-    void plan();
-  };
-
-  const runPlan = async (steps: AgentPlanStep[]) => {
-    setPhase({ kind: "running" });
-    try {
-      const res = await fetch("/api/ori", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmPlan: steps }),
-      });
-      const d = await res.json().catch(() => ({}));
-      const results = (d.results ?? []) as AgentRunResult[];
-      setPhase({ kind: "done", reply: d.ok ? "Done." : "Ran with some issues:", results });
-      // No auto-navigate — keep the palette open so Undo stays available. The
-      // owner can open any created item from its result line if they want.
-    } catch {
-      setPhase({ kind: "error", message: "Couldn't run that just now — try again." });
-    }
-  };
-
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
-        <Sparkles size={15} />
-      </span>
-      <div className="max-w-[85%] w-full rounded-2xl rounded-tl-md bg-bg-muted/60 px-3.5 py-2.5 text-sm space-y-2.5">
-        {phase.kind === "thinking" && (
-          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Thinking it through…</div>
-        )}
-
-        {phase.kind === "ask" && (
-          <div className="space-y-2">
-            <RichAnswer text={phase.reply} />
-            <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
-              <input
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendClarify(); } }}
-                placeholder="Your answer…"
-                autoFocus
-                className="flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-fg-subtle"
-              />
-              <button type="button" onClick={sendClarify} disabled={!reply.trim()} aria-label="Send" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-white disabled:opacity-40"><ArrowRight size={14} /></button>
-            </div>
-          </div>
-        )}
-
-        {phase.kind === "confirm" && (
-          <div className="space-y-2">
-            <RichAnswer text={phase.reply} />
-            <div className="rounded-xl border border-border bg-bg-elev/60 divide-y divide-border/60">
-              {phase.plan.map((s, i) => (
-                <div key={i} className="flex items-start gap-2 px-3 py-2">
-                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-[10px] font-semibold text-accent">{i + 1}</span>
-                  <span className="text-[13px] text-fg">{s.summary}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-0.5">
-              <button onClick={() => runPlan(phase.plan)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-                <Check size={12} /> Approve &amp; run
-              </button>
-              <button onClick={() => setPhase({ kind: "answer", reply: "Cancelled — nothing was changed." })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors">
-                <XIcon size={12} /> Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {phase.kind === "running" && (
-          <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Running…</div>
-        )}
-
-        {phase.kind === "answer" && <RichAnswer text={phase.reply} />}
-
-        {phase.kind === "done" && (
-          <div className="space-y-1.5">
-            <div className="font-medium text-fg">{phase.reply}</div>
-            {phase.results.map((r, i) => (
-              <div key={i} className="flex items-start gap-2 text-[13px]">
-                {r.ok ? <Check size={14} className="mt-0.5 shrink-0 text-success" /> : <XIcon size={14} className="mt-0.5 shrink-0 text-danger" />}
-                <span className={cn("flex-1", r.ok ? "text-fg" : "text-danger")}>
-                  {undone[i] === "done" ? <span className="text-fg-muted line-through">{r.message}</span> : r.message}
-                </span>
-                {r.ok && r.redirect && undone[i] !== "done" && (
-                  <button type="button" onClick={() => onNavigate(r.redirect!)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline">
-                    <ExternalLink size={11} /> Open
-                  </button>
-                )}
-                {r.ok && r.undoToken && (
-                  undone[i] === "done" ? (
-                    <span className="shrink-0 text-[11px] text-fg-subtle">Undone</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => undoStep(i, r.undoToken!)}
-                      disabled={undone[i] === "pending"}
-                      className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent disabled:opacity-50 transition-colors"
-                    >
-                      <RotateCw size={11} className={undone[i] === "pending" ? "animate-spin" : ""} />
-                      {undone[i] === "error" ? "Retry undo" : "Undo"}
-                    </button>
-                  )
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {phase.kind === "error" && (
-          <div className="space-y-2 text-danger">
-            <p>{phase.message}</p>
-            <button onClick={() => plan()} className="inline-flex items-center gap-1.5 text-xs font-medium text-fg hover:text-accent transition-colors">
-              <RotateCw size={12} /> Try again
-            </button>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-    </div>
   );
 }
 
@@ -2004,7 +1180,7 @@ function SearchTaskRow({
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
         <span className="font-mono text-xs text-fg-muted w-[68px] shrink-0">{item.code}</span>
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{item.status}</span>
+        <span className="text-[10px] rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{item.status}</span>
         <span className="text-xs text-fg-subtle shrink-0 max-w-[110px] truncate hidden md:inline">{item.sub}</span>
         {/* Actions — revealed on hover / keyboard highlight */}
         <span className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/row:opacity-100 group-data-[selected=true]/row:opacity-100 transition-opacity">

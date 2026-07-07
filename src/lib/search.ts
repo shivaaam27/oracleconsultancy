@@ -73,10 +73,58 @@ const SOFT = new Set([
   "business", "businesses", "document", "documents", "doc", "docs", "file", "files",
   "record", "records", "info", "information", "details", "detail", "data", "stuff",
   "paper", "papers", "paperwork", "thing", "things", "everything",
+  // Generic "show me about X" scope words — carry no signal, so they must not gate.
+  "overview", "summary", "profile", "anything", "all", "about", "general", "misc",
 ]);
 
 // History rows still appear, just below their live equivalents.
 const HISTORY_PENALTY = 18;
+
+// ── Phase 5: relevance boosts ────────────────────────────────────────────────
+// Modest, ADDITIVE, BOUNDED nudges so the list reflects urgency + recency, not
+// just string similarity. They must never dominate an exact-name match (a name
+// hit scores ~120), so the total boost is capped well below that. Applied only
+// where the raw row actually carries the field (all reads null-guarded).
+const URGENT_STATUS = new Set(["escalated", "blocked", "overdue", "waiting external"]);
+const HOT_PRIORITY = new Set(["critical", "high"]);
+const MAX_URGENCY_BOOST = 10; // status + priority combined ceiling
+const MAX_RECENCY_BOOST = 6; // freshly-touched items ceiling
+
+/**
+ * Small additive ranking boost from a raw DB row's own fields — urgency (status
+ * / priority) and recency (last-touched). Bounded so it only nudges. Every field
+ * is optional: a row that doesn't carry it simply contributes nothing, so this is
+ * safe to call for any entity type.
+ */
+function rankBoost(row: Record<string, unknown> | null | undefined): number {
+  if (!row) return 0;
+  let boost = 0;
+
+  // Urgency — overdue/Escalated/Blocked status or Critical/High priority.
+  const status = typeof row.status === "string" ? row.status.toLowerCase() : "";
+  const priority = typeof row.priority === "string" ? row.priority.toLowerCase() : "";
+  let urgency = 0;
+  if (status && URGENT_STATUS.has(status)) urgency += 6;
+  // An explicit past-due flag (some rows carry `overdue`/`is_overdue`) counts too.
+  if (row.overdue === true || row.is_overdue === true) urgency += 6;
+  if (priority && HOT_PRIORITY.has(priority)) urgency += 5;
+  boost += Math.min(MAX_URGENCY_BOOST, urgency);
+
+  // Recency — decays over ~30 days from whatever last-touched timestamp exists.
+  const stamp = row.updated_at ?? row.last_updated_at ?? row.created_at;
+  if (stamp) {
+    const t = new Date(stamp as string).getTime();
+    if (Number.isFinite(t)) {
+      const ageDays = (Date.now() - t) / 86_400_000;
+      if (ageDays >= 0) {
+        // 1.0 today → 0 at 30 days; linear, clamped.
+        const freshness = Math.max(0, 1 - ageDays / 30);
+        boost += Math.round(freshness * MAX_RECENCY_BOOST);
+      }
+    }
+  }
+  return boost;
+}
 
 function tokenize(q: string): string[] {
   return q
@@ -307,7 +355,9 @@ export async function unifiedSearch(
       const { scoreParts: parts, ...rest } = er;
       // `rest.type` is the wide EntityType (includes "task"); searchable defs never
       // include tasks, so it's always a SearchResultType at runtime — assert it.
-      push(HISTORY({ ...rest, score: scoreParts(parts), matchKind: "name" } as SearchResult));
+      // Phase 5: nudge by urgency/recency read off the RAW row (null-guarded).
+      const base = scoreParts(parts);
+      push(HISTORY({ ...rest, score: base > 0 ? base + rankBoost(row as Record<string, unknown>) : base, matchKind: "name" } as SearchResult));
     }
   }
 
@@ -378,10 +428,29 @@ export async function unifiedSearch(
   // ones the word-nets missed (scored by similarity, bypassing the every-word gate).
   try {
     const hits = await hybridSearch(query, { limit: 24, lifecycle: includeHistory ? "all" : "active" });
-    // Group by type (skip tasks — the palette lists those from its own search).
+    // The similarity here is an RRF score (~0.01–0.05 scale), NOT a 0–1 cosine, so
+    // mapping it raw (34 + sim*40 ≈ 35) made every semantic-only hit near-invisible
+    // next to keyword hits (a substring keyword hit alone is ~40, a prefix ~70). Fix:
+    // RANK the semantic hits among themselves and map that rank onto a fair band that
+    // competes with keyword scores — the top meaning-hit lands like a solid
+    // substring/prefix match, the tail settles just above the keyword floor. So the
+    // absolute RRF magnitude (which varies by query) never decides visibility; the
+    // ORDER within this batch does.
+    const SEM_TOP = 66; // top meaning-only hit ≈ a strong prefix keyword match
+    const SEM_FLOOR = 30; // weakest meaning-only hit still clears the noise floor
+    const sims = hits.map((h) => h.similarity).filter((n) => Number.isFinite(n));
+    const simMax = sims.length ? Math.max(...sims) : 0;
+    const simMin = sims.length ? Math.min(...sims) : 0;
+    const simRange = simMax - simMin;
+    // Min-max normalise this batch's RRF into [0,1]; degenerate (all-equal) → 1.
+    const semBand = (sim: number) => {
+      const norm = simRange > 1e-9 ? (sim - simMin) / simRange : 1;
+      return SEM_FLOOR + Math.round(norm * (SEM_TOP - SEM_FLOOR));
+    };
+    // Group by type — tasks now participate in the meaning layer too (resolved
+    // via their EntityDef.search, then boosted-if-present / added-if-new below).
     const byType = new Map<EntityType, Map<number, number>>();
     for (const h of hits) {
-      if (h.sourceType === "task") continue;
       const def = getEntityDef(h.sourceType);
       if (!def?.search?.toResult) continue;
       let m = byType.get(h.sourceType);
@@ -402,7 +471,11 @@ export async function unifiedSearch(
         const sim = idMap.get(rid) ?? 0;
         const existing = out.find((o) => o.type === rest.type && o.id === rest.id);
         if (existing) existing.score += 12; // it also means what you asked — nudge it up
-        else push(HISTORY({ ...rest, score: 34 + Math.round(sim * 40), matchKind: "meaning" } as SearchResult));
+        else {
+          // Phase 5 boost applies to meaning-only hits too (urgency/recency off the raw row).
+          const semScore = semBand(sim) + rankBoost(row as Record<string, unknown>);
+          push(HISTORY({ ...rest, score: semScore, matchKind: "meaning" } as SearchResult));
+        }
       }
     }));
   } catch (e) {

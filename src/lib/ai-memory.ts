@@ -29,8 +29,13 @@ export type MemoryRow = Memory & { id: number; recipient: string; tags: string |
 // Keep stored answers bounded — a memory is a reminder, not a transcript.
 const MAX_ANSWER = 600;
 // How many recent rows we pull into memory to rank against a query. Bounded so
-// recall stays cheap even for a chatty recipient.
-const RECALL_POOL = 200;
+// recall stays cheap even for a chatty recipient. Raised modestly so paraphrased
+// questions can still reach an older-but-relevant preference/fact.
+const RECALL_POOL = 300;
+
+// Half-life (days) for the recency decay applied to a matched row's keyword
+// score — a memory keeps most of its weight for a couple of weeks, then fades.
+const RECENCY_HALFLIFE_DAYS = 21;
 
 const TABLE = "ai_memory";
 
@@ -147,8 +152,8 @@ export async function recallMemories(
       .filter((t) => t.length >= 2);
     const all = Array.from(new Set([...literal, ...tokens]));
 
-    // `now` for the recency component; rank index gives a gentle freshness tilt
-    // even among rows that tie on keyword overlap (rows arrive newest-first).
+    // `now` for the recency component; the row's own timestamp drives a smooth
+    // half-life decay, and rank index adds a gentle tie-break among equals.
     const now = Date.now();
     const scored = rows.map((r, idx) => ({
       row: r,
@@ -160,7 +165,21 @@ export async function recallMemories(
     const hits = scored.filter((s) => s.score > 0);
     const pool = hits.length > 0 ? hits : scored.slice(0, limit);
     pool.sort((a, b) => b.score - a.score);
-    return pool.slice(0, limit).map((s) => toMemory(s.row));
+
+    // Dedup near-identical memories (same preference/fact re-stated over time, or
+    // a repeated Q/A) so the top slots aren't wasted on echoes — keep the highest
+    // scored instance of each. Newest survives ties (pool is score-sorted, and
+    // scoreMemory already tilts fresh rows up).
+    const out: Memory[] = [];
+    const seen = new Set<string>();
+    for (const s of pool) {
+      const sig = dedupSig(s.row);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      out.push(toMemory(s.row));
+      if (out.length >= limit) break;
+    }
+    return out;
   } catch {
     return [];
   }
@@ -228,10 +247,13 @@ function toMemory(r: {
 /**
  * Score one stored row against the (synonym-expanded) recall tokens. Mirrors the
  * additive token-overlap idea in search.ts: exact-word > prefix > substring, with
- * the question weighted above the answer/tags, plus a small recency tilt.
+ * the question weighted above the answer/tags. Overlap is deliberately LOOSE so
+ * paraphrased questions still land: a query token matches a stored word by exact,
+ * either-direction prefix, or shared stem. Matched scores then decay by the row's
+ * age (half-life) so a fresh memory outranks a stale one of equal relevance.
  */
 function scoreMemory(
-  row: { question: string | null; answer: string | null; tags: string | null },
+  row: { question: string | null; answer: string | null; tags: string | null; created_at?: string },
   tokens: string[],
   now: number,
   rankIdx: number,
@@ -246,22 +268,38 @@ function scoreMemory(
 
   let s = 0;
   for (const t of tokens) {
+    if (t.length < 2) continue;
     let best = 0;
     for (const [field, weight] of fields) {
       if (!field) continue;
-      const words = field.split(/[\s\-_/]+/);
+      const words = field.split(/[\s\-_/,]+/).filter(Boolean);
       if (words.some((w) => w === t)) best = Math.max(best, 30 * weight);
-      else if (words.some((w) => w.startsWith(t))) best = Math.max(best, 20 * weight);
+      // Either-direction prefix: token→word ("passport"→"passports") AND
+      // word→token ("visa"→"visas"), so plurals/stems match both ways.
+      else if (words.some((w) => (t.length >= 4 && w.startsWith(t)) || (w.length >= 4 && t.startsWith(w)))) best = Math.max(best, 20 * weight);
+      // Shared stem (first 4 chars) — looser catch for morphological variants.
+      else if (t.length >= 5 && words.some((w) => w.length >= 5 && w.slice(0, 4) === t.slice(0, 4))) best = Math.max(best, 10 * weight);
       else if (field.includes(t)) best = Math.max(best, 12 * weight);
     }
     s += best;
   }
 
-  // Recency tilt: newest rows (low rankIdx, rows arrive newest-first) get a small
-  // additive bonus so fresh memory wins ties. Bounded so it never overrides a
-  // clearly stronger keyword match.
-  if (s > 0) s += Math.max(0, 8 - rankIdx * 0.4);
-  return s;
+  if (s <= 0) return 0;
+
+  // Recency decay: multiply the keyword score by a half-life factor of the row's
+  // age. A same-day memory keeps ~all its weight; one a half-life old keeps half.
+  const ageDays = row.created_at ? Math.max(0, (now - new Date(row.created_at).getTime()) / 86_400_000) : rankIdx * 0.5;
+  const decay = Math.pow(0.5, ageDays / RECENCY_HALFLIFE_DAYS);
+  // Blend: keep most of the raw relevance, let decay tilt it (never zero it out).
+  return s * (0.6 + 0.4 * decay);
+}
+
+/** A stable-ish signature for dedup — a preference/fact keys on its answer text,
+ *  a Q/A on its question. Collapses whitespace + case so re-stated memories fold. */
+function dedupSig(row: { kind: string; question: string | null; answer: string | null }): string {
+  const norm = (v: string | null) => (v ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  const key = row.kind === "qa" ? (norm(row.question) || norm(row.answer)) : norm(row.answer);
+  return `${row.kind}:${key.slice(0, 120)}`;
 }
 
 /**

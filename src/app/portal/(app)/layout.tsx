@@ -6,6 +6,7 @@ import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session"
 import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
+import { PortalCommand, PortalCommandTrigger } from "@/components/portal-command";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { PortalZoom } from "@/components/portal-zoom";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
@@ -89,7 +90,10 @@ export default async function PortalLayout({ children }: { children: React.React
             can't be mis-tapped. */}
         <div className="flex min-w-0 items-center gap-2.5">
           <NotificationBell to="/portal/task" align="left" />
-          <PortalSearchTrigger />
+          {/* ORI is the richer, capability-gated command surface; when the person
+              can't use ORI, they still get the plain scoped search. Exactly one is
+              mounted so the ⌘K / Ctrl+Space hotkey never double-fires. */}
+          {me.caps.oriAsk ? <PortalCommandTrigger /> : <PortalSearchTrigger />}
           <div className="min-w-0">
             {scopedDirector && scopedCompanyName ? (
               <>
@@ -116,12 +120,15 @@ export default async function PortalLayout({ children }: { children: React.React
       <PortalSessionKeeper />
       <PortalInstallPrompt />
       <PortalNotifyPrompt />
-      {/* Scoped portal search overlay — mounted once so it persists across
-          navigation. Opens on ⌘K / Ctrl+K / Ctrl+Space or the header trigger. */}
-      <PortalSearch />
+      {/* Scoped command surface — mounted once so it persists across navigation.
+          Opens on ⌘K / Ctrl+K / Ctrl+Space or the header/pill trigger. ORI (search
+          + ask + optional act) when the person has oriAsk; otherwise the plain
+          scoped search. Exactly one is mounted so the hotkey never double-fires. */}
+      {me.caps.oriAsk ? <PortalCommand canAct={me.caps.oriAct} /> : <PortalSearch />}
       <PageTransition>{children}</PageTransition>
       <PortalPill
         canCreate={me.caps.createTasks || me.caps.createEvents}
+        canOri={me.caps.oriAsk}
         role={me.portalRole}
         tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, requests: me.caps.navRequests }}
       />

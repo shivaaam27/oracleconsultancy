@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, User } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, Sparkles, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -211,8 +211,11 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
   );
 }
 
-export function PortalPill({ canCreate = false, role, tabOverrides }: {
+export function PortalPill({ canCreate = false, canOri = false, role, tabOverrides }: {
   canCreate?: boolean;
+  /** Show the ORI search/ask entry — gated on me.caps.oriAsk (resolved
+   *  server-side). Opens the scoped portal command surface. */
+  canOri?: boolean;
   role?: string;
   /** Owner-configurable tab visibility (Settings → Portals → Roles & permissions),
    *  resolved server-side and passed in. When omitted, the built-in defaults from
@@ -309,6 +312,20 @@ export function PortalPill({ canCreate = false, role, tabOverrides }: {
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
         <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
+        {/* ORI search / ask — opens the scoped portal command surface (⌘K /
+            Ctrl+Space also open it). Shown only when the person has the oriAsk
+            capability. Sits right after the divider, before the create +. */}
+        {canOri && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-ori"))}
+            aria-label="ORI — search & ask"
+            title="ORI — search & ask (Ctrl K)"
+            className="group shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12 rounded-lg text-fg-muted hover:text-accent hover:bg-accent-soft/60 transition-colors"
+          >
+            <Sparkles size={19} className="transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
+          </button>
+        )}
         {/* The create + sits AFTER the divider, next to the theme toggle. Tasks +
             Requests carry their own contextual + FAB, so it steps aside there to
             avoid a duplicate. */}

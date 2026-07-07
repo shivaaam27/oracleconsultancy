@@ -15,7 +15,9 @@ import { sb } from "@/db/supabase";
 import { createNotification, personRecipient } from "@/lib/notifications";
 import { createCalendarEvent } from "@/lib/calendar";
 import { reindexEntity } from "@/lib/index-hooks";
-import { evaluateRule, type AutomationRuleRow, type RuleKind } from "@/lib/ori/automations";
+import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { canAutoSend, type SendChannel } from "@/lib/guardrails";
+import { evaluateRule, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -38,6 +40,124 @@ async function lastUpdateAt(taskId: number): Promise<Date | null> {
   return d((data as { created_at?: string })?.created_at);
 }
 
+type Contact = { name: string; email: string | null; whatsapp: string | null; managerId: number | null };
+async function personContact(id: number): Promise<Contact | null> {
+  const { data } = await sb.from("people").select("name,email,whatsapp,phone,manager_id").eq("id", id).maybeSingle();
+  if (!data) return null;
+  const r = data as Record<string, unknown>;
+  return {
+    name: (r.name as string) ?? "",
+    email: (r.email as string | null) || null,
+    whatsapp: ((r.whatsapp as string | null) || (r.phone as string | null)) || null,
+    managerId: (r.manager_id as number | null) ?? null,
+  };
+}
+
+/**
+ * Phase 6b — OPTIONAL external send, guardrail-gated. A reminder/nudge/escalation
+ * already lands in-app + push; when the rule carries an email/WhatsApp `channel`
+ * AND the owner has switched auto-send ON for it (canAutoSend — FAILS CLOSED), we
+ * also send it out that way. If the channel is off (or "push"/unset), this no-ops
+ * and the caller's behaviour is exactly as before. Best-effort: never throws.
+ */
+async function externalNotify(config: RuleConfig, personIds: number[], subject: string, body: string): Promise<number> {
+  const raw = (config.channel ?? "").toLowerCase();
+  if (raw !== "email" && raw !== "whatsapp" && raw !== "sms") return 0; // in-app only
+  const channel = raw as SendChannel;
+  if (!(await canAutoSend(channel))) return 0; // guardrail off → fail closed, no send
+  let sent = 0;
+  for (const pid of personIds) {
+    try {
+      const c = await personContact(pid);
+      if (!c) continue;
+      if (channel === "email") {
+        if (!c.email) continue;
+        const { sendEmail } = await import("@/lib/email/send");
+        const res = await sendEmail({ to: c.email, subject, text: `${body}`, fromName: "ORI" });
+        if (res.ok) sent++;
+      } else {
+        // whatsapp / sms both go through the WhatsApp helper's free-form text path.
+        if (!c.whatsapp) continue;
+        const { sendWhatsApp } = await import("@/lib/whatsapp");
+        const res = await sendWhatsApp({ to: c.whatsapp, text: `${subject}\n\n${body}` });
+        if (res.ok) sent++;
+      }
+    } catch (e) {
+      await reportError(e, { route: "cron.ori-automations", step: "externalNotify", channel, personId: pid });
+    }
+  }
+  return sent;
+}
+
+/** Is a person on APPROVED leave that covers `day` (a YYYY-MM-DD string)? */
+async function onApprovedLeave(personId: number, day: string): Promise<boolean> {
+  const { data } = await sb
+    .from("leave_requests")
+    .select("id")
+    .eq("person_id", personId)
+    .eq("status", "Approved")
+    .lte("start_date", `${day}T23:59:59Z`)
+    .gte("end_date", `${day}T00:00:00Z`)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
+/**
+ * auto_reassign_on_leave firing. If the task's current owner is on approved leave
+ * today, hand the task to the fallback (or the owner's manager) for the window and
+ * remember whom we displaced in the rule config; once they're back off leave, hand
+ * it straight back. Idempotent — safe to run every day. The daily cadence is set by
+ * the pure evaluator; this does the DB work.
+ */
+async function coverTaskOnLeave(taskId: number, code: string, companyId: number | null, config: RuleConfig, nowIso: string): Promise<void> {
+  const cfg = config as RuleConfig & { _coveredFor?: number; _coveredBy?: number };
+  const day = nowIso.slice(0, 10);
+  const { data: task } = await sb.from("tasks").select("owner_id").eq("id", taskId).maybeSingle();
+  const currentOwner = (task as { owner_id?: number | null })?.owner_id ?? null;
+
+  // Already covering? If the displaced person is back off leave, revert.
+  if (cfg._coveredFor) {
+    const stillOff = await onApprovedLeave(cfg._coveredFor, day);
+    if (!stillOff) {
+      await sb.from("tasks").update({ owner_id: cfg._coveredFor, last_updated_at: nowIso }).eq("id", taskId);
+      await sb.from("task_assignees").delete().eq("task_id", taskId);
+      await sb.from("task_assignees").upsert({ task_id: taskId, person_id: cfg._coveredFor }, { ignoreDuplicates: true });
+      void reindexEntity("task", taskId);
+      const orig = await personContact(cfg._coveredFor);
+      await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI handed ${code} back`, body: `${orig?.name ?? "The assignee"} is back from leave — ${code} returned to them.`, actor: "ORI" });
+      // Clear the cover markers on the rule config.
+      const next = { ...config }; delete (next as Record<string, unknown>)._coveredFor; delete (next as Record<string, unknown>)._coveredBy;
+      await sb.from("automation_rules").update({ config: next }).eq("kind", "auto_reassign_on_leave").eq("task_id", taskId);
+    }
+    return;
+  }
+
+  // Not covering yet. If the current owner is on leave today, hand the task over.
+  if (!currentOwner) return;
+  if (!(await onApprovedLeave(currentOwner, day))) return;
+
+  let coverId = typeof config.fallbackPersonId === "number" ? config.fallbackPersonId : null;
+  if (!coverId) {
+    const owner = await personContact(currentOwner);
+    coverId = owner?.managerId ?? null;
+  }
+  if (!coverId || coverId === currentOwner) return; // nobody to cover → leave as-is
+  // Don't bounce to someone who's also on leave.
+  if (await onApprovedLeave(coverId, day)) return;
+
+  await sb.from("tasks").update({ owner_id: coverId, last_updated_at: nowIso }).eq("id", taskId);
+  await sb.from("task_assignees").delete().eq("task_id", taskId);
+  await sb.from("task_assignees").upsert({ task_id: taskId, person_id: coverId }, { ignoreDuplicates: true });
+  void reindexEntity("task", taskId);
+  const cover = await personContact(coverId);
+  const orig = await personContact(currentOwner);
+  await createNotification({ recipient: personRecipient(coverId), kind: "assigned", taskId, taskCode: code, title: `Covering ${code}`, body: `${orig?.name ?? "A colleague"} is on leave — ORI has handed you ${code} until they're back.`, actor: "ORI" });
+  await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI covered ${code}`, body: `${orig?.name ?? "The assignee"} is on leave — ${code} handed to ${cover?.name ?? "cover"}.`, actor: "ORI" });
+  const next = { ...config, _coveredFor: currentOwner, _coveredBy: coverId };
+  await sb.from("automation_rules").update({ config: next }).eq("kind", "auto_reassign_on_leave").eq("task_id", taskId);
+}
+
 export async function GET(req: NextRequest) {
   const auth = authoriseCron(req);
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
@@ -55,6 +175,46 @@ export async function GET(req: NextRequest) {
 
     for (const raw of (rules ?? []) as Record<string, unknown>[]) {
       const taskId = raw.task_id as number | null;
+
+      // recurring_task isn't bound to a live task — evaluate it against a synthetic
+      // always-open task so only its cadence gates firing, and create a fresh task
+      // when it's due.
+      if (raw.kind === "recurring_task") {
+        const rule: AutomationRuleRow = {
+          id: raw.id as number, kind: "recurring_task", config: (raw.config as RuleConfig) ?? {},
+          active: true, done: false, createdAt: d(raw.created_at)!, lastFiredAt: d(raw.last_fired_at),
+        };
+        const evalRes = evaluateRule(rule, { deadline: null, status: "In Progress", createdDate: null }, null, now);
+        evaluated++;
+        const patch: Record<string, unknown> = { last_run_at: nowIso };
+        if (evalRes.fire) {
+          patch.last_fired_at = nowIso;
+          fired++;
+          try {
+            const cfg = rule.config;
+            const companyId = cfg.companyId as number | undefined;
+            const title = (cfg.title as string | undefined)?.trim();
+            if (companyId && title) {
+              const { data: comp } = await sb.from("companies").select("code").eq("id", companyId).maybeSingle();
+              const priority = ["Critical", "High", "Medium", "Low"].includes(String(cfg.priority)) ? String(cfg.priority) : "Medium";
+              const created = new Date();
+              const task = await insertTaskWithUniqueCodeSb(companyId, (comp?.code as string) ?? "", {
+                actionItem: title, status: "Not Started", priority, escalation: "No",
+                deadline: null, createdDate: created, lastUpdatedAt: created, archived: false, category: "Admin",
+              });
+              const aIds = Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [];
+              for (const pid of aIds) await sb.from("task_assignees").upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
+              await sb.from("audit_log").insert({ task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task", old_value: null, new_value: title, change_reason: "Recurring task (ORI automation)", created_at: nowIso, created_by: "ai-command" });
+              void reindexEntity("task", task.id);
+            }
+          } catch (actErr) {
+            await reportError(actErr, { route: "cron.ori-automations", ruleId: rule.id, kind: "recurring_task" });
+          }
+        }
+        await sb.from("automation_rules").update(patch).eq("id", raw.id as number);
+        continue;
+      }
+
       if (!taskId) continue;
       const { data: task } = await sb.from("tasks").select("id,code,company_id,deadline,status,created_date,archived").eq("id", taskId).maybeSingle();
       if (!task || (task as { archived?: boolean }).archived) {
@@ -86,17 +246,34 @@ export async function GET(req: NextRequest) {
           if (rule.kind === "reminder_before_deadline" || rule.kind === "nudge_until_update") {
             const label = rule.kind === "reminder_before_deadline" ? "Deadline reminder" : "Please post an update";
             const body = rule.kind === "reminder_before_deadline" ? "This task is due soon — please make sure it's on track." : "This task needs a progress update.";
-            for (const pid of await assigneeIds(taskId)) {
+            const targets = await assigneeIds(taskId);
+            for (const pid of targets) {
               await createNotification({ recipient: personRecipient(pid), kind: "assigned", taskId, taskCode: code, title: `${label}: ${code}`, body, actor: "ORI" });
             }
+            // Phase 6b: also send externally when the rule opted into email/WhatsApp
+            // AND the owner has that channel's auto-send ON (guardrail; fails closed).
+            await externalNotify(rule.config, targets, `${label}: ${code}`, body);
           } else if (rule.kind === "escalate_if_no_update") {
             await sb.from("tasks").update({ status: "Escalated", escalation: "Yes", last_updated_at: nowIso }).eq("id", taskId);
             void reindexEntity("task", taskId);
             const toId = rule.config.escalateToPersonId;
+            const escBody = "No update was posted in time, so ORI escalated this to you.";
             if (typeof toId === "number") {
-              await createNotification({ recipient: personRecipient(toId), kind: "assigned", taskId, taskCode: code, title: `Escalated: ${code}`, body: "No update was posted in time, so ORI escalated this to you.", actor: "ORI" });
+              await createNotification({ recipient: personRecipient(toId), kind: "assigned", taskId, taskCode: code, title: `Escalated: ${code}`, body: escBody, actor: "ORI" });
+              await externalNotify(rule.config, [toId], `Escalated: ${code}`, escBody);
             }
             await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI escalated ${code}`, body: "No update in the set window.", actor: "ORI" });
+          } else if (rule.kind === "auto_close_stale") {
+            // Close the stale task. Reversible: we log it to the audit trail with the
+            // prior status so the owner can reopen; never a hard delete.
+            const prevStatus = t.status as string;
+            await sb.from("tasks").update({ status: "Closed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", taskId);
+            await sb.from("task_updates").insert({ task_id: taskId, body: `Auto-closed by ORI — no update in ${rule.config.staleDays ?? 7} day(s). Reopen if still live.`, created_at: nowIso, created_by: "ai-command" });
+            await sb.from("audit_log").insert({ task_id: taskId, task_code: code, company_id: (t.company_id as number) ?? null, entry_type: "UPDATE", field: "Status", old_value: prevStatus, new_value: "Closed", change_reason: "ORI auto-close (stale)", created_at: nowIso, created_by: "ai-command" });
+            void reindexEntity("task", taskId);
+            await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI closed ${code}`, body: `Auto-closed — untouched for ${rule.config.staleDays ?? 7} day(s).`, actor: "ORI" });
+          } else if (rule.kind === "auto_reassign_on_leave") {
+            await coverTaskOnLeave(taskId, code, t.company_id as number | null, rule.config, nowIso);
           } else if (rule.kind === "create_event_after_deadline") {
             const cfg = rule.config;
             const deadline = d(t.deadline) ?? now;

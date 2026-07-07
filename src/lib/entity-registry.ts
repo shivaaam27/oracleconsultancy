@@ -381,10 +381,30 @@ export const ENTITY_DEFS: EntityDef[] = [
     lifecycleFor: (r) =>
       (r.archived as boolean) || CLOSED_TASK_STATUSES.has(lc(r.status)) ? "history" : "active",
     // Tasks keep their rich action rows in the palette (served by /api/search's
-    // own task path), so they are NOT in the deep-index `search` loop.
+    // own task path), so they are excluded from the keyword `SEARCHABLE_DEFS`
+    // loop below. This `search` block exists ONLY so the SEMANTIC (meaning) layer
+    // in search.ts can resolve task hits from hybridSearch via getEntityDef.
     uiLabel: "Tasks",
     searchOrder: -1, // not in TYPE_ORDER; sentinel so it never sorts into it
     trace: { mode: "bespoke" },
+    search: {
+      select: "id,code,action_item,latest_update,category,priority,status,archived, companies!company_id(name)",
+      limit: 100,
+      toResult: (r, ctx) => {
+        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
+        const closed = (r.archived as boolean) || CLOSED_TASK_STATUSES.has(lc(r.status));
+        if (closed && !ctx.includeHistory) return null;
+        return {
+          type: "task", id: r.id as number,
+          title: (r.action_item as string) || (r.code as string),
+          subtitle: [sx(r.code), company, sx(r.status)].filter(Boolean).join(" · ") || "Task",
+          href: `/task/${r.code}`,
+          badge: closed ? "Closed" : undefined,
+          lifecycle: closed ? "history" : "active",
+          scoreParts: [r.action_item as string, sx(r.code), company, sx(r.latest_update), sx(r.category), sx(r.priority), sx(r.status)],
+        };
+      },
+    },
   },
   {
     // Meetings — business memory; all kept active (no archive flag).
@@ -780,7 +800,9 @@ export function isGovernance(type: EntityType): type is "governance" {
  * task rows in the palette, served separately).
  */
 export const SEARCHABLE_DEFS: EntityDef[] = ENTITY_DEFS
-  .filter((d) => d.search || d.searchCustom)
+  // Tasks are served as rich rows by /api/search's own path, so they stay OUT of
+  // the keyword loop (their `search` block is used ONLY by the semantic layer).
+  .filter((d) => (d.search || d.searchCustom) && d.type !== "task")
   .sort((a, b) => a.searchOrder - b.searchOrder);
 
 // The route's old GENERIC_TABLE had a few aliases the registry can't model as

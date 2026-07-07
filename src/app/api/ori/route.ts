@@ -9,6 +9,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { planTurn, type ChatMsg, type PlanStep } from "@/lib/ori/agent";
 import { TOOL_BY_NAME } from "@/lib/ori/tools";
 import { sb } from "@/db/supabase";
+import { recordEvent } from "@/lib/system-events";
+
+/** Short, human-readable digest of a step's args for the ORI action log. */
+function summariseArgs(args: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(args)) {
+    if (v == null || v === "") continue;
+    let val = typeof v === "string" ? v : JSON.stringify(v);
+    if (val.length > 60) val = val.slice(0, 57) + "…";
+    parts.push(`${k}=${val}`);
+    if (parts.length >= 4) break;
+  }
+  return parts.join(" ");
+}
+
+/** One system_events row per executed step ("ori.action"). Never throws. */
+async function logOriAction(entry: {
+  tool: string;
+  ok: boolean;
+  args: Record<string, unknown>;
+  message?: string;
+  undoToken?: string;
+}): Promise<void> {
+  try {
+    await recordEvent("ori.action", entry.ok ? "ok" : "error", {
+      tool: entry.tool,
+      summary: summariseArgs(entry.args),
+      message: entry.message,
+      undoToken: entry.undoToken,
+    });
+  } catch {
+    // Logging must never break execution.
+  }
+}
 
 export const maxDuration = 60;
 
@@ -52,12 +86,15 @@ export async function POST(req: NextRequest) {
           if (m && step.tool === "create_task") lastTaskCode = m[1];
           // Mint an undo token for a reversible write so the owner can one-tap undo.
           const undoToken = r.ok && r.undo ? await createUndoToken(r.undo) : undefined;
+          await logOriAction({ tool: step.tool, ok: r.ok, args, message: r.message, undoToken });
           results.push({ tool: step.tool, ok: r.ok, message: r.message, redirect: r.redirect, undoToken });
           // A step that fails (e.g. a company didn't resolve) stops the chain so a
           // half-built workflow doesn't run on wrong assumptions.
           if (!r.ok) break;
         } catch (e) {
-          results.push({ tool: step.tool, ok: false, message: e instanceof Error ? e.message : "Something went wrong running that step." });
+          const message = e instanceof Error ? e.message : "Something went wrong running that step.";
+          await logOriAction({ tool: step.tool, ok: false, args, message });
+          results.push({ tool: step.tool, ok: false, message });
           break;
         }
       }

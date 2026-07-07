@@ -537,22 +537,222 @@ async function performanceAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title: `${person.name} · performance`, count: rows.length, rows };
 }
 
-/** ENGAGEMENT — "how often does X open the app", "when was X last seen/active". */
+/** ENGAGEMENT — "how often does X open the app", "when was X last seen/active".
+ *  Honours a time qualifier in the question ("...today", "...this week") — the
+ *  opens count + phrasing scope to that window; the 30-day view is the default. */
 async function engagementAnswer(q: string): Promise<SmartAnswer | null> {
   if (!/\b(open|opens|opened|log ?in|logs? in|active|last seen|engage|use the (app|site)|how often)\b/i.test(q)) return null;
   const person = await matchPerson(q.replace(/['’]/g, " "));
   if (!person) return null;
   const { appOpenStats } = await import("@/lib/activity-telemetry");
-  const s = await appOpenStats(person.id, 30);
+  // Scope the window to a qualifier in the literal question, else 30 days.
+  const todayOnly = /\btoday\b/i.test(q);
+  const thisWeek = !todayOnly && /\b(this week|past week|last 7 days|week)\b/i.test(q);
+  const windowDays = todayOnly ? 1 : thisWeek ? 7 : 30;
+  const s = await appOpenStats(person.id, windowDays);
   const last = s.lastSeen ? new Date(s.lastSeen) : null;
   const lastLabel = last ? `${Math.max(0, Math.floor((Date.now() - last.getTime()) / 86400000))}d ago` : "never";
+  // Window-specific labels so we answer the literal question, not a fixed 30d.
+  const winLabel = todayOnly ? "today" : thisWeek ? "this week" : "last 30 days";
+  const opensLabel = todayOnly ? "Opens today" : thisWeek ? "Opens this week" : "Opens (last 30 days)";
   const rows: SmartRow[] = [
-    { label: "Opens (last 30 days)", sub: null, badge: String(s.opens), tone: "accent", href: "#" },
-    { label: "Active days (of 30)", sub: null, badge: String(s.days), tone: (s.days >= 10 ? "success" : "warn") as SmartTone, href: "#" },
-    { label: "Last seen", sub: null, badge: lastLabel, tone: "muted", href: "#" },
+    { label: opensLabel, sub: null, badge: String(s.opens), tone: "accent", href: "#" },
   ];
-  const note = s.opens === 0 ? "No app activity recorded yet (telemetry started recently)." : undefined;
-  return { kind: "count", title: `${person.name} · engagement`, count: rows.length, rows, note };
+  // "Active days" only makes sense for a multi-day window.
+  if (!todayOnly) {
+    rows.push({ label: `Active days (of ${windowDays})`, sub: null, badge: String(s.days), tone: (s.days >= (thisWeek ? 3 : 10) ? "success" : "warn") as SmartTone, href: "#" });
+  }
+  rows.push({ label: "Last seen", sub: null, badge: lastLabel, tone: "muted", href: "#" });
+  const note = s.opens === 0
+    ? (todayOnly ? "No app activity today." : thisWeek ? "No app activity this week." : "No app activity recorded yet (telemetry started recently).")
+    : undefined;
+  return { kind: "count", title: `${person.name} · engagement (${winLabel})`, count: rows.length, rows, note };
+}
+
+/* ---- Portal analytics (owner/admin scope) ------------------------------- *
+ * These read activity_events (app-open telemetry) + announcement receipts to
+ * answer "who's active / least active / most-used pages / who hasn't acked".
+ * Deterministic, no AI. All best-effort: a failed query yields null/[].        */
+
+/** Parse the analytics window from the query (default 30 days). */
+function analyticsWindow(q: string): { days: number; label: string } {
+  if (/\btoday\b/i.test(q)) return { days: 1, label: "today" };
+  if (/\b(this week|past week|last 7 days|week)\b/i.test(q)) return { days: 7, label: "this week" };
+  if (/\b(90|quarter|three months|3 months)\b/i.test(q)) return { days: 90, label: "last 90 days" };
+  return { days: 30, label: "last 30 days" };
+}
+
+/** Bulk per-person open stats across the whole estate over `windowDays`. One
+ *  query over activity_events, aggregated in memory. Returns a map by personId. */
+async function estateOpenStats(windowDays: number): Promise<Map<number, { opens: number; days: number; lastSeen: string | null }>> {
+  const since = new Date(Date.now() - windowDays * day).toISOString();
+  const out = new Map<number, { opens: number; days: number; daySet: Set<string>; lastSeen: string | null }>();
+  const { data } = await sb.from("activity_events")
+    .select("person_id,at").not("person_id", "is", null).gte("at", since)
+    .order("at", { ascending: false }).limit(5000);
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const pid = r.person_id as number;
+    const at = r.at as string;
+    let e = out.get(pid);
+    if (!e) { e = { opens: 0, days: 0, daySet: new Set(), lastSeen: at }; out.set(pid, e); }
+    e.opens += 1;
+    e.daySet.add(at.slice(0, 10));
+    if (!e.lastSeen || at > e.lastSeen) e.lastSeen = at;
+  }
+  const result = new Map<number, { opens: number; days: number; lastSeen: string | null }>();
+  for (const [pid, e] of out) result.set(pid, { opens: e.opens, days: e.daySet.size, lastSeen: e.lastSeen });
+  return result;
+}
+
+/** MOST-USED PAGES — "what pages does X use", "where does X spend time", "most
+ *  used pages" (overall or for a named person). Path counts from activity_events. */
+async function pageUsageAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(page|pages|screen|screens|section|sections|where.*(spend|go|time)|most used|most visited|most viewed)\b/i.test(q)) return null;
+  if (!/\b(use|used|uses|using|visit|visited|spend|spends|go|goes|open|opens|view|views|most)\b/i.test(q)) return null;
+  const { days, label } = analyticsWindow(q);
+  const since = new Date(Date.now() - days * day).toISOString();
+  const person = await matchPerson(q.replace(/['’]/g, " "));
+
+  let qb = sb.from("activity_events").select("path").not("path", "is", null).gte("at", since).limit(8000);
+  if (person) qb = qb.eq("person_id", person.id);
+  const { data } = await qb;
+  const counts = new Map<string, number>();
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const raw = String(r.path ?? "").trim();
+    if (!raw) continue;
+    // Normalise a path to its section (drop query string + trailing ids).
+    const path = raw.split("?")[0].replace(/\/(task|companies|people)\/[^/]+.*$/i, "/$1/…") || "/";
+    counts.set(path, (counts.get(path) ?? 0) + 1);
+  }
+  if (counts.size === 0) {
+    const who = person ? person.name : "the estate";
+    return { kind: "count", title: person ? `${person.name} · most-used pages` : "Most-used pages", count: 0, rows: [], note: `No page activity recorded for ${who} ${label}.` };
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_ROWS);
+  const rows: SmartRow[] = top.map(([path, n], i) => ({
+    label: path,
+    sub: null,
+    badge: `${n} view${n === 1 ? "" : "s"}`,
+    tone: (i === 0 ? "accent" : "muted") as SmartTone,
+    href: path.includes("…") ? "#" : path,
+  }));
+  const title = person ? `${person.name} · most-used pages` : "Most-used pages";
+  return { kind: "count", title, count: rows.length, rows, note: label };
+}
+
+/** WHO HASN'T LOGGED IN / least active — active people with no or low recent
+ *  app opens over the window. "who hasn't logged in", "who never opened the app",
+ *  "least active", "who's inactive". */
+async function inactiveStaffAnswer(q: string): Promise<SmartAnswer | null> {
+  const never = /\b(hasn'?t|haven'?t|not|never|no one|nobody)\b.*\b(log ?in|logged in|open|opened|use|used|active|seen)\b/i.test(q)
+    || /\b(never|not) (logged in|opened|used|active)\b/i.test(q);
+  const least = /\b(least active|inactive|dormant|quiet|low activity|barely|rarely)\b/i.test(q);
+  if (!never && !least) return null;
+  const { days, label } = analyticsWindow(q);
+  const [{ data: people }, stats] = await Promise.all([
+    sb.from("people").select("id,name").eq("active", true),
+    estateOpenStats(days),
+  ]);
+  const list = ((people ?? []) as Record<string, unknown>[])
+    .map((p) => ({ id: p.id as number, name: p.name as string, opens: stats.get(p.id as number)?.opens ?? 0, lastSeen: stats.get(p.id as number)?.lastSeen ?? null }))
+    .sort((a, b) => a.opens - b.opens); // quietest first
+  // "never" → strictly zero opens; "least active" → the bottom of the pack.
+  const filtered = never ? list.filter((p) => p.opens === 0) : list;
+  const rows: SmartRow[] = filtered.slice(0, MAX_ROWS).map((p) => {
+    const lastLabel = p.lastSeen ? `last seen ${Math.max(0, Math.floor((Date.now() - new Date(p.lastSeen).getTime()) / day))}d ago` : "never opened the app";
+    return {
+      label: p.name,
+      sub: lastLabel,
+      badge: p.opens === 0 ? "0 opens" : `${p.opens} open${p.opens === 1 ? "" : "s"}`,
+      tone: (p.opens === 0 ? "warn" : "muted") as SmartTone,
+      href: `/people?person=${p.id}`,
+    };
+  });
+  const title = never ? `Not logged in (${label})` : `Least active (${label})`;
+  if (rows.length === 0) return { kind: "count", title, count: 0, rows: [], note: `Everyone active has opened the app ${label}.`, href: "/people" };
+  return { kind: "count", title, count: never ? filtered.length : rows.length, rows, note: label, href: "/people" };
+}
+
+/** ENGAGEMENT LEADERBOARD — "who's most active", "engagement leaderboard",
+ *  "portal usage", "top users". Opens ranked by person over the window. */
+async function engagementLeaderboardAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(leaderboard|most active|top users?|portal usage|usage|who'?s (the )?most active|busiest (users?|people)|engagement)\b/i.test(q)) return null;
+  // Don't hijack task-leaderboard phrasing ("most tasks") — those resolvers run first.
+  if (/\btasks?\b/i.test(q)) return null;
+  const { days, label } = analyticsWindow(q);
+  const [{ data: people }, stats] = await Promise.all([
+    sb.from("people").select("id,name").eq("active", true),
+    estateOpenStats(days),
+  ]);
+  const nameById = new Map(((people ?? []) as Record<string, unknown>[]).map((p) => [p.id as number, p.name as string]));
+  const ranked = [...stats.entries()]
+    .filter(([id]) => nameById.has(id))
+    .sort((a, b) => b[1].opens - a[1].opens)
+    .slice(0, MAX_ROWS);
+  if (ranked.length === 0) return { kind: "count", title: `Engagement leaderboard (${label})`, count: 0, rows: [], note: `No app activity recorded ${label}.`, href: "/people" };
+  const rows: SmartRow[] = ranked.map(([id, s], i) => ({
+    label: nameById.get(id) ?? `Person #${id}`,
+    sub: `${s.days} active day${s.days === 1 ? "" : "s"}`,
+    badge: `${s.opens} open${s.opens === 1 ? "" : "s"}`,
+    tone: (i === 0 ? "accent" : "muted") as SmartTone,
+    href: `/people?person=${id}`,
+  }));
+  return { kind: "count", title: `Engagement leaderboard (${label})`, count: rows.length, rows, note: label, href: "/people" };
+}
+
+/** WHO HASN'T ACKNOWLEDGED an announcement — for a require-ack live announcement,
+ *  the audience members with no ack_at. "who hasn't seen/acknowledged the
+ *  announcement", "who hasn't read the notice". Reuses the announcements helpers. */
+async function announcementAckAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(announcement|notice|memo|bulletin)\b/i.test(q)) return null;
+  if (!/\b(hasn'?t|haven'?t|not|who|which)\b.*\b(ack|acknowledg|seen|read|open)\b/i.test(q)
+    && !/\b(unacknowledg|unseen|unread)\b/i.test(q)) return null;
+  const wantSeen = /\b(seen|read|open)\b/i.test(q) && !/\back|acknowledg/i.test(q);
+
+  const { listAnnouncements, resolveAudiencePersonIds, unseenPersonIds, isLive } = await import("@/lib/announcements");
+  const all = await listAnnouncements();
+  const live = all.filter((a) => isLive(a));
+  if (live.length === 0) return null;
+  // Prefer a require-ack announcement (that's what "acknowledge" means); else the
+  // most-recent live one. If the query names one by title word, prefer that.
+  const words = q.replace(/[^a-z0-9 ]/gi, " ").split(/\s+/).filter((w) => w.length >= 4);
+  const byTitle = live.find((a) => words.some((w) => a.title.toLowerCase().includes(w)));
+  const target = byTitle ?? live.find((a) => a.requireAck) ?? live[0];
+  if (!target) return null;
+
+  const audience = await resolveAudiencePersonIds(target);
+  if (audience.length === 0) return null;
+
+  let missingIds: number[];
+  if (wantSeen) {
+    missingIds = await unseenPersonIds(target);
+  } else {
+    // Not acknowledged: audience members without an ack_at receipt.
+    const { data } = await sb.from("announcement_receipts").select("recipient").eq("announcement_id", target.id).not("ack_at", "is", null);
+    const acked = new Set(((data ?? []) as Record<string, unknown>[])
+      .map((r) => { const s = String(r.recipient ?? ""); return s.startsWith("person:") ? Number(s.slice(7)) : null; })
+      .filter((v): v is number => v != null));
+    missingIds = audience.filter((id) => !acked.has(id));
+  }
+
+  const verb = wantSeen ? "seen" : "acknowledged";
+  const title = `Not ${verb}: ${truncateTitle(target.title)}`;
+  if (missingIds.length === 0) return { kind: "count", title, count: 0, rows: [], note: `Everyone in the audience has ${verb} it.`, href: "/announcements" };
+  const { data: peopleRows } = await sb.from("people").select("id,name").in("id", missingIds.slice(0, 200));
+  const nameById = new Map(((peopleRows ?? []) as Record<string, unknown>[]).map((p) => [p.id as number, p.name as string]));
+  const rows: SmartRow[] = missingIds.slice(0, MAX_ROWS).map((id) => ({
+    label: nameById.get(id) ?? `Person #${id}`,
+    sub: null,
+    badge: wantSeen ? "unseen" : "not acked",
+    tone: "warn" as SmartTone,
+    href: `/people?person=${id}`,
+  }));
+  return { kind: "count", title, count: missingIds.length, rows, note: `${missingIds.length} of ${audience.length} still outstanding`, href: "/announcements" };
+}
+
+function truncateTitle(t: string): string {
+  const s = (t ?? "").trim();
+  return s.length <= 40 ? s : s.slice(0, 39).trimEnd() + "…";
 }
 
 /** RADAR — "what needs my attention", "anything slipping / wrong", "risks",
@@ -566,14 +766,218 @@ async function radarAnswer(q: string): Promise<SmartAnswer | null> {
   return { kind: "count", title: "On the radar", count: findings.length, rows };
 }
 
+/** WHAT HAS ORI DONE — recent "ori.action" system_events, newest first. Answers
+ *  "what has ORI done", "recent ORI actions", "ORI activity/history/log". */
+async function oriActionsAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(ori)\b.*\b(done|do|actions?|activity|history|log|changes?|executed?|run)\b|\b(what|show|recent|latest)\b.*\bori\b/i.test(q)) return null;
+  const { data } = await sb
+    .from("system_events")
+    .select("id,status,details,created_at")
+    .eq("kind", "ori.action")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const list = (data ?? []) as Record<string, unknown>[];
+  if (list.length === 0) return { kind: "count", title: "ORI hasn't run any actions yet", count: 0, rows: [], note: "No ORI actions have been executed recently." };
+  const rows: SmartRow[] = list.slice(0, MAX_ROWS).map((e) => {
+    let d: Record<string, unknown> = {};
+    try { d = e.details ? JSON.parse(e.details as string) : {}; } catch { /* free-form */ }
+    const tool = String(d.tool ?? "action");
+    const summary = String(d.summary ?? d.message ?? "");
+    const ok = e.status === "ok";
+    const when = new Date(e.created_at as string);
+    const ago = when.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    return {
+      label: tool.replace(/_/g, " "),
+      sub: summary || null,
+      badge: ago,
+      tone: (ok ? "success" : "danger") as SmartTone,
+      href: "/insights",
+    };
+  });
+  return { kind: "count", title: "Recent ORI actions", count: list.length, rows };
+}
+
+/** Short "N minutes/hours/days ago" from an ISO timestamp. */
+function agoLabel(isoTs: string | null): string {
+  if (!isoTs) return "";
+  const ms = Date.now() - new Date(isoTs).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+/** Same author-resolution as the Live activity feed (owner perspective). */
+function authorOf(by: string | null): string {
+  if (!by) return "System";
+  if (by === "ai-command") return "ORI";
+  if (by === "meeting-mode") return "Meeting";
+  if (by === "web-ui") return "You";
+  if (by.startsWith("portal-dir:")) return by.slice(11);
+  if (by.startsWith("portal-mgr:")) return by.slice(11);
+  if (by.startsWith("portal-hr:")) return by.slice(10);
+  if (by.startsWith("portal:")) return by.slice(7);
+  return "Management";
+}
+
+/** WHAT HAPPENED TODAY / THIS WEEK / LATELY — an estate-wide "what just went on"
+ *  digest across every company (owner scope): task updates posted, new tasks
+ *  raised, attendance check-ins, requests raised, announcement acknowledgements.
+ *  Newest-first, grouped, with per-stream counts + a couple of examples. */
+async function whatHappenedAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(what (happened|went on|has happened|is happening|changed)|what'?s (happening|going on|new|been happening)|any(thing)? new|catch me up|bring me up to speed|activity|what did (everyone|people|the team|we) do|whats new)\b/i.test(q)) return null;
+  // Window: today (default), this week, or "lately/recently" (3 days).
+  const todayOnly = /\btoday\b/i.test(q);
+  const thisWeek = /\b(week|last few days|this week)\b/i.test(q);
+  const since = todayOnly ? startOfToday() : new Date(startOfToday().getTime() - (thisWeek ? 7 : 3) * day);
+  const sinceIso = since.toISOString();
+  const sinceDay = iso(since);
+
+  const [updatesR, newTasksR, checkinsR, requestsR, acksR] = await Promise.all([
+    sb.from("task_updates").select("body,created_at,created_by,tasks(code,action_item)").is("deleted_at", null).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(30),
+    sb.from("tasks").select("code,action_item,created_date,companies(name)").eq("archived", false).gte("created_date", sinceIso).order("created_date", { ascending: false }).limit(30),
+    sb.from("attendance").select("status,updated_at,people(name)").gte("date", sinceDay).order("updated_at", { ascending: false }).limit(60),
+    sb.from("requests").select("code,title,created_at,people:requester_id(name)").gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(20),
+    sb.from("announcement_receipts").select("ack_at,announcements(title)").not("ack_at", "is", null).gte("ack_at", sinceIso).order("ack_at", { ascending: false }).limit(20),
+  ]);
+
+  const updates = (updatesR.data ?? []) as Record<string, unknown>[];
+  const newTasks = (newTasksR.data ?? []) as Record<string, unknown>[];
+  const checkins = (checkinsR.data ?? []) as Record<string, unknown>[];
+  const requests = (requestsR.data ?? []) as Record<string, unknown>[];
+  const acks = (acksR.data ?? []) as Record<string, unknown>[];
+  const firstName = (r: Record<string, unknown>, key: string): string | null => {
+    const p = r[key] as { name?: string } | { name?: string }[] | null;
+    return (Array.isArray(p) ? p[0]?.name : p?.name) ?? null;
+  };
+
+  const rows: SmartRow[] = [];
+  // Stream 1 — task updates posted.
+  if (updates.length) {
+    rows.push({ label: `${updates.length} task update${updates.length === 1 ? "" : "s"} posted`, sub: null, badge: null, tone: "accent", href: "/?tab=timeline" });
+    for (const u of updates.slice(0, 2)) {
+      const t = u.tasks as { code?: string; action_item?: string } | { code?: string; action_item?: string }[] | null;
+      const tt = Array.isArray(t) ? t[0] : t;
+      const who = authorOf(u.created_by as string | null);
+      const body = ((u.body as string) ?? "").trim().replace(/\s+/g, " ").slice(0, 70);
+      rows.push({ label: `${who} on [${tt?.code ?? "?"}]`, sub: body || tt?.action_item || null, badge: agoLabel(u.created_at as string), tone: "muted", href: tt?.code ? `/task/${tt.code}` : "/?tab=timeline" });
+    }
+  }
+  // Stream 2 — new tasks raised.
+  if (newTasks.length) {
+    rows.push({ label: `${newTasks.length} new task${newTasks.length === 1 ? "" : "s"} raised`, sub: null, badge: null, tone: "accent", href: "/?tab=tasks" });
+    for (const t of newTasks.slice(0, 2)) {
+      rows.push({ label: `[${t.code}] ${t.action_item}`, sub: firstName(t, "companies"), badge: agoLabel(t.created_date as string), tone: "muted", href: `/task/${t.code}` });
+    }
+  }
+  // Stream 3 — attendance check-ins (Present/Remote/Half-day count as "in").
+  if (checkins.length) {
+    rows.push({ label: `${checkins.length} attendance check-in${checkins.length === 1 ? "" : "s"}`, sub: null, badge: null, tone: "accent", href: "/hrms/leave" });
+    for (const a of checkins.slice(0, 2)) {
+      rows.push({ label: firstName(a, "people") ?? "Someone", sub: (a.status as string) ?? null, badge: agoLabel(a.updated_at as string), tone: "muted", href: "/hrms/leave" });
+    }
+  }
+  // Stream 4 — requests raised.
+  if (requests.length) {
+    rows.push({ label: `${requests.length} request${requests.length === 1 ? "" : "s"} raised`, sub: null, badge: null, tone: "accent", href: "/portal" });
+    for (const r of requests.slice(0, 2)) {
+      rows.push({ label: `[${r.code}] ${r.title}`, sub: firstName(r, "people"), badge: agoLabel(r.created_at as string), tone: "muted", href: "/portal" });
+    }
+  }
+  // Stream 5 — announcement acknowledgements.
+  if (acks.length) {
+    rows.push({ label: `${acks.length} announcement ack${acks.length === 1 ? "" : "s"}`, sub: null, badge: null, tone: "accent", href: "/portal/meetings" });
+  }
+
+  const win = todayOnly ? "today" : thisWeek ? "this week" : "lately";
+  const total = updates.length + newTasks.length + checkins.length + requests.length + acks.length;
+  const title = `What happened ${win}`;
+  if (total === 0) return { kind: "count", title, count: 0, rows: [], note: `Quiet ${win} — nothing recorded across the estate.`, href: "/?tab=timeline" };
+  return { kind: "count", title, count: total, rows: rows.slice(0, MAX_ROWS), note: `${total} event${total === 1 ? "" : "s"} across the portfolio`, href: "/?tab=timeline" };
+}
+
+/** WHAT DID <person|company> DO (recently) — that entity's recent activity:
+ *  updates they posted, tasks they raised/moved, and (for a person) check-ins.
+ *  Deterministic, owner scope. Runs after the estate-wide digest. */
+async function entityActivityAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(what (did|has|have)|activity|been (doing|up to)|recent(ly)?)\b/i.test(q)) return null;
+  if (!/\b(do|did|doing|done|been|activity|working|up to|post|posted|moved?|raised?|created?|updates?)\b/i.test(q)) return null;
+  const since = new Date(startOfToday().getTime() - 14 * day);
+  const sinceIso = since.toISOString();
+
+  // Prefer a named PERSON; else a named COMPANY.
+  const person = await matchPerson(q.replace(/['’]/g, " "));
+  if (person) {
+    const [updatesR, tasksR, checkinsR] = await Promise.all([
+      sb.from("task_updates").select("body,created_at,created_by,tasks(code)").is("deleted_at", null).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(60),
+      sb.from("tasks").select("code,action_item,created_date").eq("archived", false).eq("created_by_person_id", person.id).gte("created_date", sinceIso).order("created_date", { ascending: false }).limit(20),
+      sb.from("attendance").select("status,updated_at").eq("person_id", person.id).gte("date", iso(since)).order("updated_at", { ascending: false }).limit(20),
+    ]);
+    // Updates authored by this person — match the portal stamp "portal*:<Name>".
+    const given = person.name.split(/\s+/).find((w) => w.length >= 3) ?? person.name;
+    const mine = ((updatesR.data ?? []) as Record<string, unknown>[]).filter((u) => authorOf(u.created_by as string | null).toLowerCase().includes(given.toLowerCase()));
+    const tasks = (tasksR.data ?? []) as Record<string, unknown>[];
+    const checkins = (checkinsR.data ?? []) as Record<string, unknown>[];
+    const rows: SmartRow[] = [];
+    for (const u of mine.slice(0, 3)) {
+      const t = u.tasks as { code?: string } | { code?: string }[] | null;
+      const code = (Array.isArray(t) ? t[0]?.code : t?.code) ?? "?";
+      rows.push({ label: `Posted on [${code}]`, sub: ((u.body as string) ?? "").trim().replace(/\s+/g, " ").slice(0, 70) || null, badge: agoLabel(u.created_at as string), tone: "muted", href: code !== "?" ? `/task/${code}` : "/?tab=timeline" });
+    }
+    for (const t of tasks.slice(0, 3)) {
+      rows.push({ label: `Raised [${t.code}]`, sub: (t.action_item as string) ?? null, badge: agoLabel(t.created_date as string), tone: "accent", href: `/task/${t.code}` });
+    }
+    for (const a of checkins.slice(0, 2)) {
+      rows.push({ label: `Checked in · ${(a.status as string) ?? "Present"}`, sub: null, badge: agoLabel(a.updated_at as string), tone: "muted", href: "/hrms/leave" });
+    }
+    const total = mine.length + tasks.length + checkins.length;
+    const title = `${person.name} · recent activity`;
+    if (total === 0) return { kind: "count", title, count: 0, rows: [], note: `Nothing from ${given} in the last two weeks.`, href: "/?tab=timeline" };
+    return { kind: "count", title, count: total, rows: rows.slice(0, MAX_ROWS), note: `${total} event${total === 1 ? "" : "s"} in the last 2 weeks`, href: "/?tab=timeline" };
+  }
+
+  const company = await matchCompany(q);
+  if (company) {
+    const [updatesR, tasksR] = await Promise.all([
+      sb.from("task_updates").select("body,created_at,created_by,tasks!inner(code,company_id)").is("deleted_at", null).gte("created_at", sinceIso).eq("tasks.company_id", company.id).order("created_at", { ascending: false }).limit(20),
+      sb.from("tasks").select("code,action_item,created_date").eq("archived", false).eq("company_id", company.id).gte("created_date", sinceIso).order("created_date", { ascending: false }).limit(20),
+    ]);
+    const updates = (updatesR.data ?? []) as Record<string, unknown>[];
+    const tasks = (tasksR.data ?? []) as Record<string, unknown>[];
+    const rows: SmartRow[] = [];
+    for (const u of updates.slice(0, 4)) {
+      const t = u.tasks as { code?: string } | { code?: string }[] | null;
+      const code = (Array.isArray(t) ? t[0]?.code : t?.code) ?? "?";
+      rows.push({ label: `${authorOf(u.created_by as string | null)} on [${code}]`, sub: ((u.body as string) ?? "").trim().replace(/\s+/g, " ").slice(0, 70) || null, badge: agoLabel(u.created_at as string), tone: "muted", href: code !== "?" ? `/task/${code}` : "/?tab=timeline" });
+    }
+    for (const t of tasks.slice(0, 3)) {
+      rows.push({ label: `New [${t.code}]`, sub: (t.action_item as string) ?? null, badge: agoLabel(t.created_date as string), tone: "accent", href: `/task/${t.code}` });
+    }
+    const total = updates.length + tasks.length;
+    const title = `${company.name} · recent activity`;
+    if (total === 0) return { kind: "count", title, count: 0, rows: [], note: `No activity at ${company.name} in the last two weeks.`, href: `/companies/${company.id}` };
+    return { kind: "count", title, count: total, rows: rows.slice(0, MAX_ROWS), note: `${total} event${total === 1 ? "" : "s"} in the last 2 weeks`, href: `/companies/${company.id}` };
+  }
+  return null;
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
   const q = (query ?? "").toLowerCase().trim();
   if (q.length < 3) return null;
   const resolvers = [
+    oriActionsAnswer,
     radarAnswer,
+    // Oversight — estate-wide "what happened" digest + per-entity activity.
+    // Ahead of the generic count/overdue resolvers so activity phrasing wins.
+    whatHappenedAnswer, entityActivityAnswer,
     compareAnswer, mostOverdueByPersonAnswer, mostTasksByPersonAnswer,
+    // Portal analytics (owner scope) — ahead of the per-person engagement card so
+    // "leaderboard / who hasn't logged in / most-used pages / who hasn't acked" win.
+    announcementAckAnswer, engagementLeaderboardAnswer, inactiveStaffAnswer, pageUsageAnswer,
     performanceAnswer, engagementAnswer,
     leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
     overdueTasksAnswer, dueTasksAnswer, recentlyUpdatedTasksAnswer, probationAnswer, assetsAnswer,

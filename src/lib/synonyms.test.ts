@@ -65,12 +65,12 @@ describe("expandQuery", () => {
     expect(out).toContain("equity"); // accent stripped: équity → equity
   });
 
-  it("caps the result at 24 tokens", () => {
+  it("caps the result at 32 tokens", () => {
     // A query touching several large groups would otherwise blow past the cap.
     const out = expandQuery(
       "owner shareholder vendor supplier salary leave permit document task meeting risk asset letter passport contract application",
     );
-    expect(out.length).toBeLessThanOrEqual(24);
+    expect(out.length).toBeLessThanOrEqual(32);
   });
 
   it("returns an empty list for a stopword-only query", () => {

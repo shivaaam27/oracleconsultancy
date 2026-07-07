@@ -44,7 +44,9 @@ export type CapabilityKey =
   | "navTasks"
   | "navOutbox"
   | "navInsights"
-  | "navRequests";
+  | "navRequests"
+  | "oriAsk"
+  | "oriAct";
 
 /** UI grouping + copy for the Settings matrix. */
 export type CapabilityMeta = { key: CapabilityKey; label: string; desc: string };
@@ -85,6 +87,14 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
       { key: "navRequests", label: "Requests", desc: "Raise and view requests (equipment, HR, admin)." },
     ],
   },
+  {
+    id: "ori",
+    label: "ORI assistant",
+    caps: [
+      { key: "oriAsk", label: "Use ORI (ask & search)", desc: "Search and ask ORI questions, within their permitted scope." },
+      { key: "oriAct", label: "Act with ORI", desc: "Let ORI create or update tasks and take actions, within their scope and other permissions." },
+    ],
+  },
 ];
 
 const ALL_CAP_KEYS: CapabilityKey[] = CAPABILITY_GROUPS.flatMap((g) => g.caps.map((c) => c.key));
@@ -110,6 +120,8 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   navOutbox: { staff: false, manager: true, hr: true, director: true },
   navInsights: { staff: false, manager: true, hr: true, director: true },
   navRequests: { staff: true, manager: true, hr: true, director: false },
+  oriAsk: { staff: true, manager: true, hr: true, director: true },
+  oriAct: { staff: false, manager: true, hr: false, director: true },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */

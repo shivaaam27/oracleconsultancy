@@ -70,6 +70,36 @@ pane always shows the top/hero result immediately; (2) `onMouseEnter`/`onFocus` 
 hero set `setActiveValue("__r_<type>_<id>")` so hover drives the preview precisely; (3) arrow-keys still
 update via `onValueChange`. So: pane shows the hero on open, follows your mouse, and follows ↑↓.
 
+## ✅ PHASE 1+2 BUILT (7 Jul, tsc clean, NOT pushed) — palette reskin + live search
+Owner asked to make ORI match the Command Centre design language (§13, like Home/Tasks/People)
+and feel like "god mode", not a chatbot. Ran a 3-agent workflow (2 parallel implementers + tsc verify).
+**Phase 1 — reskin `src/components/command-palette.tsx` to §13** (RESKIN, all modes preserved):
+- Removed the WebGL `CommandBackdrop` (+ its `next/dynamic` import); overlay now a calm
+  `bg-black/30 backdrop-blur-sm` scrim (no animated canvas).
+- De-sprung the dialog entrance: blur-filter spring → `opacity/y8/scale.99 → 1`, `duration .18 easeOut`;
+  inner mode crossfade → plain opacity. `layout` kept for the calm resize morph.
+- Chips `rounded-full`→`rounded-lg` (History toggle, smartAnswer count/status badges, deep-index badge,
+  suggestion/follow-up chips, TaskRow status; `border`→`ring-border/60`, active=`bg-accent text-accent-fg
+  ring-accent`). Genuine circles (send btn, status dots, skeletons) left alone. Back/close icon-btns → rounded-lg.
+- §13 housing: `Command.List` + preview pane got `scroll-fade-y slim-scroll`; deep-index group headings got a
+  tinted `bg-bg-subtle/60` band; preview pane `border-border/60 bg-bg-subtle/30`.
+**Phase 2 — live search + preview:**
+- NEW `src/app/api/entity-glance/route.ts`: `GET ?type=&id=` → `{ stats:[{label,value}] }`, count-only (head:true),
+  per type — company (Open tasks/People/Documents), person (Open tasks/Documents/Direct reports), task
+  (Updates/Assignees/Days-open), document (Category/Expiry). Each count wrapped so one failure omits its stat.
+  No auth gate (mirrors the open `/api/search`; proxy edge gate covers admin routes).
+- Preview pane + entity hero now FETCH the glance (debounced, abortable, per-`type:id` cache ref) and render
+  §13 KPI pills (bold `tabular` value + muted label) with a skeleton pulse. Client-safe plain `fetch` — no server import.
+- `src/lib/search.ts`: removed the `task` skip in the semantic (hybridSearch) merge → task hits now resolve via
+  `getEntityDef("task").search.toResult` and merge as `matchKind:"meaning"`. Keyword/FTS scoring + caps untouched.
+  Expanded the SOFT scope set (overview/summary/profile/anything/all/about/general/misc) — SOFT lives HERE, not synonyms.ts.
+- `src/lib/entity-registry.ts`: added a `search` block to the **task** EntityDef (for the semantic layer ONLY) +
+  kept `&& d.type !== "task"` in `SEARCHABLE_DEFS` so the keyword loop still skips tasks (NO keyword regression).
+- `src/lib/synonyms.ts`: 7 tight per-company nickname alias groups (dar/coco/terra/oracle/pes/mes/pamoja).
+VERIFY: tsc CLEAN (0 errors); boundary check PASS (palette has no value-import of entity-registry/db-supabase);
+entity-glance GET exists. ⚠️ NOT pushed, NOT live-tested (needs login) — verify the glance pills render + task
+semantic hits surface. **NEXT after this: Phase 3 (ORI tool-library expansion → god mode) per [[ori_brain_master_plan]].**
+
 ## ⭐ NEXT STEP (owner-directed, START HERE next chat): improve ORI search — BOTH native + AI results
 Owner wants the whole ORI search experience levelled up further — native ⌘K AND the AI (/api/ask) answers.
 Native retrieval + the two-pane/hero/tags UI are now in (this file). Directions to explore next:

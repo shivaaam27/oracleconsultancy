@@ -2,7 +2,26 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import { escapeLike, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { reindexEntity } from "@/lib/index-hooks";
-import { createCalendarEvent } from "@/lib/calendar";
+import { createCalendarEvent, updateCalendarEvent } from "@/lib/calendar";
+import { setTaskBlocker, clearTaskBlocker, adminTogglePin } from "@/app/task/actions";
+import { setProbationDateAction } from "@/app/people/actions";
+import { decideLeaveRequestAction, recordAttendanceAction } from "@/app/hrms/leave/actions";
+import { renameDocumentAction, archiveDocumentAction, fileFromQuarantineAction } from "@/app/documents/actions";
+import { saveMeeting, bulkCreateTasks } from "@/app/meeting/actions";
+import { cancelEventAction } from "@/app/calendar/actions";
+import { publishAnnouncementAction } from "@/app/announcements/actions";
+import { adminRemindTask, deleteTaskQuick } from "@/app/task/actions";
+import { sendDraftEmail } from "@/app/outbox/actions";
+import { trashIntakeDocAction } from "@/app/documents/actions";
+import { canAutoSend, type SendChannel } from "@/lib/guardrails";
+// Domain tool arrays — each REUSES existing server actions/helpers and mirrors the
+// ToolDef shape; spread into TOOLS below so they auto-register into TOOL_BY_NAME.
+import { PEOPLE_TOOLS } from "@/lib/ori/tools-people";
+import { DOCUMENT_TOOLS } from "@/lib/ori/tools-documents";
+import { MEETING_LETTER_TOOLS } from "@/lib/ori/tools-meetings-letters";
+import { CALENDAR_TOOLS } from "@/lib/ori/tools-calendar";
+import { GOVERNANCE_TOOLS } from "@/lib/ori/tools-governance";
+import { OPS_TOOLS } from "@/lib/ori/tools-ops";
 
 /**
  * ORI tool registry (Phase 0 of the "complete brain" plan). A tool is one typed
@@ -33,12 +52,15 @@ export type ToolDef = {
   run: (args: Record<string, unknown>) => Promise<ToolResult>;
 };
 
-const nowIso = () => new Date().toISOString();
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+export const nowIso = () => new Date().toISOString();
+export const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+const WEEKDAY_INDEX: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+const WEEKDAY_NAME = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /* ------------------------------- resolvers ------------------------------- */
 
-async function resolveCompany(name: string): Promise<{ id: number; code: string; name: string } | null> {
+export async function resolveCompany(name: string): Promise<{ id: number; code: string; name: string } | null> {
   const token = str(name);
   if (!token) return null;
   const safe = escapeLike(token);
@@ -48,14 +70,14 @@ async function resolveCompany(name: string): Promise<{ id: number; code: string;
   return data ? { id: data.id as number, code: data.code as string, name: data.name as string } : null;
 }
 
-async function resolvePerson(name: string): Promise<{ id: number; name: string } | null> {
+export async function resolvePerson(name: string): Promise<{ id: number; name: string } | null> {
   const token = str(name);
   if (!token) return null;
   const { data } = await sb.from("people").select("id,name").eq("active", true).ilike("name", `%${escapeLike(token)}%`).limit(1).maybeSingle();
   return data ? { id: data.id as number, name: data.name as string } : null;
 }
 
-async function resolveTask(code: string): Promise<{ id: number; code: string; company_id: number; status: string } | null> {
+export async function resolveTask(code: string): Promise<{ id: number; code: string; company_id: number; status: string } | null> {
   const token = str(code);
   if (!token) return null;
   const { data } = await sb.from("tasks").select("id,code,company_id,status").ilike("code", escapeLike(token)).maybeSingle();
@@ -65,7 +87,7 @@ async function resolveTask(code: string): Promise<{ id: number; code: string; co
 /** Snapshot a task's full field set + assignees BEFORE a mutation, shaped for the
  *  existing "task.update" undo handler (undo-handlers/tasks.ts) so a status change
  *  or reassignment is one-tap reversible. */
-async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payload: unknown } | undefined> {
+export async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payload: unknown } | undefined> {
   const { data: t } = await sb.from("tasks")
     .select("id,code,company_id,action_item,department_id,status,priority,risk,escalation,category,deadline,meeting_date,comments,latest_update,last_updated_at,closed_date")
     .eq("id", taskId).maybeSingle();
@@ -103,8 +125,9 @@ async function snapshotAssigneesForUndo(taskId: number): Promise<{ kind: string;
   };
 }
 
-/** Insert an ORI automation rule; returns the new rule id (or null on failure). */
-async function createRule(taskId: number, companyId: number, kind: string, config: Record<string, unknown>): Promise<number | null> {
+/** Insert an ORI automation rule; returns the new rule id (or null on failure).
+ *  taskId may be null for rules that aren't bound to one task (recurring_task). */
+async function createRule(taskId: number | null, companyId: number | null, kind: string, config: Record<string, unknown>): Promise<number | null> {
   const { data, error } = await sb.from("automation_rules").insert({
     task_id: taskId, company_id: companyId, kind, config, active: true, done: false,
     created_by: "ai-command", created_at: nowIso(),
@@ -112,9 +135,32 @@ async function createRule(taskId: number, companyId: number, kind: string, confi
   return error ? null : (data.id as number);
 }
 
+export async function resolveDocument(ref: string): Promise<{ id: number; title: string; archived: boolean } | null> {
+  const token = str(ref);
+  if (!token) return null;
+  // Numeric ref → id; else fuzzy title match on non-archived docs.
+  if (/^\d+$/.test(token)) {
+    const { data } = await sb.from("documents").select("id,title,archived").eq("id", Number(token)).maybeSingle();
+    return data ? { id: data.id as number, title: (data.title as string) ?? "", archived: Boolean(data.archived) } : null;
+  }
+  const { data } = await sb.from("documents").select("id,title,archived").ilike("title", `%${escapeLike(token)}%`).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? { id: data.id as number, title: (data.title as string) ?? "", archived: Boolean(data.archived) } : null;
+}
+
+export async function resolveEvent(ref: string): Promise<{ id: number; title: string } | null> {
+  const token = str(ref);
+  if (!token) return null;
+  if (/^\d+$/.test(token)) {
+    const { data } = await sb.from("calendar_events").select("id,title").eq("id", Number(token)).maybeSingle();
+    return data ? { id: data.id as number, title: (data.title as string) ?? "" } : null;
+  }
+  const { data } = await sb.from("calendar_events").select("id,title").neq("status", "cancelled").ilike("title", `%${escapeLike(token)}%`).order("start_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? { id: data.id as number, title: (data.title as string) ?? "" } : null;
+}
+
 /** Parse a natural deadline the planner passes as an ISO date OR "in N days".
  *  The planner is told today's date, so it should send ISO; this is a backstop. */
-function parseDeadline(v: unknown): Date | null {
+export function parseDeadline(v: unknown): Date | null {
   const s = str(v);
   if (!s) return null;
   const rel = s.match(/in\s+(\d+)\s*days?/i);
@@ -424,7 +470,646 @@ export const TOOLS: ToolDef[] = [
       return { ok: true, message: `Scheduled: once ${t.code}'s deadline passes, I'll create the event "${title}".`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
     },
   },
+
+  {
+    name: "auto_close_stale",
+    tier: 2,
+    description: "Set a STANDING RULE to automatically CLOSE a task if it goes untouched (no update) for N days. Optionally only while it sits in a given status (e.g. 'Waiting External'). Fires automatically once approved; the close is logged and reversible.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      staleDays: { type: "number", required: false, description: "Close after this many days with no update (default 7)." },
+      status: { type: "string", required: false, description: "Only close while the task is in this exact status (omit = any open status)." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const staleDays = Math.max(1, Math.round(Number(args.staleDays) || 7));
+      const statusMatch = str(args.status);
+      const config: Record<string, unknown> = { staleDays };
+      if (statusMatch) config.statusMatch = statusMatch;
+      const rule = await createRule(t.id, t.company_id, "auto_close_stale", config);
+      if (!rule) return { ok: false, message: "Couldn't save that auto-close rule." };
+      const scope = statusMatch ? ` while it's "${statusMatch}"` : "";
+      return { ok: true, message: `Auto-close set: if ${t.code} gets no update in ${staleDays} day${staleDays === 1 ? "" : "s"}${scope}, I'll close it.`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+  {
+    name: "auto_reassign_on_leave",
+    tier: 2,
+    description: "Set a STANDING RULE so that while a task's assignee is on APPROVED leave, the task is handed to a named fallback (or their manager) for the leave window, then handed back when they return. Fires automatically once approved.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      fallback: { type: "string", required: false, description: "Who to cover the task while the assignee is on leave, by name (omit = their manager)." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const config: Record<string, unknown> = {};
+      let coverName = "their manager";
+      if (str(args.fallback)) {
+        const p = await resolvePerson(str(args.fallback));
+        if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.fallback)}" to cover.` };
+        config.fallbackPersonId = p.id; coverName = p.name;
+      }
+      const rule = await createRule(t.id, t.company_id, "auto_reassign_on_leave", config);
+      if (!rule) return { ok: false, message: "Couldn't save that leave-cover rule." };
+      return { ok: true, message: `Leave cover set: while ${t.code}'s assignee is on approved leave, I'll hand it to ${coverName} and hand it back when they return.`, redirect: `/task/${t.code}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+  {
+    name: "recurring_task",
+    tier: 2,
+    description: "Set a STANDING RULE to CREATE a fresh task on a repeating cadence (e.g. every Monday, or the 1st of each month). Each occurrence is a brand-new task for the company. Fires automatically once approved.",
+    params: {
+      company: { type: "string", required: true, description: "Which portfolio company the recurring task is for (name)." },
+      title: { type: "string", required: true, description: "What the task is each time — the action item." },
+      cadence: { type: "string", required: true, description: "weekly | monthly." },
+      weekday: { type: "string", required: false, description: "For weekly: Mon|Tue|Wed|Thu|Fri|Sat|Sun (default Mon)." },
+      dayOfMonth: { type: "number", required: false, description: "For monthly: day of the month 1–31 (default 1)." },
+      priority: { type: "string", required: false, description: "Critical | High | Medium | Low (default Medium)." },
+      assignees: { type: "string[]", required: false, description: "People to assign each occurrence, by name." },
+    },
+    async run(args) {
+      const company = await resolveCompany(str(args.company));
+      if (!company) return { ok: false, message: `Couldn't match a company called "${str(args.company)}".` };
+      const title = str(args.title);
+      if (!title) return { ok: false, message: "The recurring task needs a title." };
+      const cadence = /^month/i.test(str(args.cadence)) ? "monthly" : /^week/i.test(str(args.cadence)) ? "weekly" : "";
+      if (!cadence) return { ok: false, message: "Cadence must be weekly or monthly." };
+      const priority = ["Critical", "High", "Medium", "Low"].includes(str(args.priority)) ? str(args.priority) : "Medium";
+      const config: Record<string, unknown> = { cadence, companyId: company.id, title, priority };
+      let whenLabel: string;
+      if (cadence === "weekly") {
+        const wd = WEEKDAY_INDEX[str(args.weekday).slice(0, 3).toLowerCase()] ?? 1;
+        config.weekday = wd;
+        whenLabel = `every ${WEEKDAY_NAME[wd]}`;
+      } else {
+        const dom = Math.min(31, Math.max(1, Math.round(Number(args.dayOfMonth) || 1)));
+        config.dayOfMonth = dom;
+        whenLabel = `on day ${dom} of each month`;
+      }
+      const list = Array.isArray(args.assignees) ? (args.assignees as unknown[]) : [];
+      const assigneeIds: number[] = [];
+      const names: string[] = [];
+      for (const a of list) { const p = await resolvePerson(str(a)); if (p) { assigneeIds.push(p.id); names.push(p.name); } }
+      if (assigneeIds.length) config.assigneePersonIds = assigneeIds;
+      const rule = await createRule(null, company.id, "recurring_task", config);
+      if (!rule) return { ok: false, message: "Couldn't save that recurring-task rule." };
+      const who = names.length ? `, assigned to ${names.join(", ")}` : "";
+      return { ok: true, message: `Recurring task set: I'll create "${title}" for ${company.name} ${whenLabel}${who}.`, redirect: `/companies/${company.id}`, undo: { kind: "ori.automation.create", payload: { ruleId: rule } } };
+    },
+  },
+
+  /* ============================ WAVE A ============================ */
+  {
+    name: "edit_task",
+    tier: 2,
+    description: "Edit a task's details — title, category, priority and/or risk. Only the fields you pass change.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      title: { type: "string", required: false, description: "New action item / title." },
+      category: { type: "string", required: false, description: "Finance | Operations | Marketing | HR | Legal | Technology | Sales | Admin | Meetings | Strategy | Other." },
+      priority: { type: "string", required: false, description: "Critical | High | Medium | Low." },
+      risk: { type: "string", required: false, description: "Critical | High | Medium | Low." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const patch: Record<string, unknown> = {};
+      const title = str(args.title);
+      if (title) patch.action_item = title;
+      const category = str(args.category);
+      if (category) patch.category = category;
+      const priority = str(args.priority);
+      if (["Critical", "High", "Medium", "Low"].includes(priority)) patch.priority = priority;
+      if (formHas(args, "risk")) { const risk = str(args.risk); patch.risk = risk || null; }
+      if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me what to change (title, category, priority or risk)." };
+      const undo = await snapshotTaskForUndo(t.id);
+      patch.last_updated_at = nowIso();
+      await sb.from("tasks").update(patch).eq("id", t.id);
+      void reindexEntity("task", t.id);
+      const changed = Object.keys(patch).filter((k) => k !== "last_updated_at").join(", ");
+      return { ok: true, message: `Updated ${t.code} (${changed}).`, redirect: `/task/${t.code}`, undo };
+    },
+  },
+  {
+    name: "set_task_blocker",
+    tier: 2,
+    description: "Mark a task as Blocked, waiting on a specific person, with a reason.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      person: { type: "string", required: true, description: "Who the task is blocked on, by name." },
+      reason: { type: "string", required: true, description: "Why it's blocked." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const p = await resolvePerson(str(args.person));
+      if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.person)}".` };
+      const reason = str(args.reason);
+      if (!reason) return { ok: false, message: "A reason is required to raise a blocker." };
+      const undo = await snapshotTaskForUndo(t.id);
+      const res = await setTaskBlocker(t.id, p.id, reason);
+      if (!res.ok) return { ok: false, message: res.error };
+      return { ok: true, message: `${t.code} is now blocked, waiting on ${p.name}.`, redirect: `/task/${t.code}`, undo };
+    },
+  },
+  {
+    name: "clear_task_blocker",
+    tier: 2,
+    description: "Clear a task's blocker — it goes back to In Progress.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      note: { type: "string", required: false, description: "Optional note on clearing it." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const undo = await snapshotTaskForUndo(t.id);
+      await clearTaskBlocker(t.id, str(args.note) || undefined);
+      return { ok: true, message: `Cleared the blocker on ${t.code} — it's live again.`, redirect: `/task/${t.code}`, undo };
+    },
+  },
+  {
+    name: "toggle_task_pin",
+    tier: 2,
+    description: "Pin or unpin a task update (the latest update on a task, or by update id).",
+    params: {
+      taskCode: { type: "string", required: false, description: "The task code (pins/unpins its latest update)." },
+      updateId: { type: "number", required: false, description: "A specific task-update id to toggle." },
+    },
+    async run(args) {
+      let updateId = Number(args.updateId);
+      if (!Number.isFinite(updateId) || updateId <= 0) {
+        const code = str(args.taskCode);
+        if (!code) return { ok: false, message: "Tell me which task (code) or which update id to pin." };
+        const t = await resolveTask(code);
+        if (!t) return { ok: false, message: `Task ${code} not found.` };
+        const { data: last } = await sb.from("task_updates").select("id").eq("task_id", t.id).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (!last) return { ok: false, message: `${t.code} has no updates to pin.` };
+        updateId = last.id as number;
+      }
+      const fd = new FormData();
+      fd.set("updateId", String(updateId));
+      await adminTogglePin(fd);
+      // A pin toggle is its own inverse — re-running the tool flips it back.
+      return { ok: true, message: `Toggled the pin on update #${updateId}.`, undo: { kind: "ori.pin.toggle", payload: { updateId } } };
+    },
+  },
+  {
+    name: "update_person",
+    tier: 2,
+    description: "Edit a person's profile fields (contact details, ID numbers, address, dates, notes). Only the fields you pass change; blanks are never written over existing values.",
+    params: {
+      person: { type: "string", required: true, description: "Whose profile, by name." },
+      email: { type: "string", required: false, description: "Email address." },
+      phone: { type: "string", required: false, description: "Phone number." },
+      whatsapp: { type: "string", required: false, description: "WhatsApp number." },
+      role: { type: "string", required: false, description: "Job role / title." },
+      nationality: { type: "string", required: false, description: "Nationality." },
+      nationalId: { type: "string", required: false, description: "National ID number." },
+      passportNo: { type: "string", required: false, description: "Passport number." },
+      address: { type: "string", required: false, description: "Home address." },
+      emergencyContactName: { type: "string", required: false, description: "Emergency contact name." },
+      emergencyContactPhone: { type: "string", required: false, description: "Emergency contact phone." },
+      dateOfBirth: { type: "date", required: false, description: "Date of birth YYYY-MM-DD." },
+      startDate: { type: "date", required: false, description: "Employment start date YYYY-MM-DD." },
+      notes: { type: "string", required: false, description: "Free-text notes." },
+    },
+    async run(args) {
+      const p = await resolvePerson(str(args.person));
+      if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.person)}".` };
+      // Whitelist: named plain-profile columns only (never manager/company — those
+      // carry loop-guards handled by updatePerson; ORI can't safely bypass them).
+      const map: Record<string, string> = {
+        email: "email", phone: "phone", whatsapp: "whatsapp", role: "role",
+        nationality: "nationality", nationalId: "national_id", passportNo: "passport_no",
+        address: "address", emergencyContactName: "emergency_contact_name",
+        emergencyContactPhone: "emergency_contact_phone", notes: "notes",
+      };
+      const patch: Record<string, unknown> = {};
+      for (const [argKey, col] of Object.entries(map)) {
+        if (formHas(args, argKey)) { const v = str(args[argKey]); if (v) patch[col] = v; }
+      }
+      const dob = str(args.dateOfBirth);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) patch.date_of_birth = new Date(`${dob}T00:00:00Z`).toISOString();
+      const start = str(args.startDate);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(start)) patch.start_date = new Date(`${start}T00:00:00Z`).toISOString();
+      if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me which detail to update." };
+      const cols = Object.keys(patch).join(",");
+      const { data: before } = await sb.from("people").select(cols).eq("id", p.id).maybeSingle();
+      await sb.from("people").update(patch).eq("id", p.id);
+      void reindexEntity("person", p.id);
+      const undo = before ? { kind: "ori.person.update", payload: { personId: p.id, before } } : undefined;
+      return { ok: true, message: `Updated ${p.name}'s profile (${Object.keys(patch).join(", ")}).`, redirect: `/people`, undo };
+    },
+  },
+  {
+    name: "set_probation_date",
+    tier: 2,
+    description: "Set (or clear) a person's probation end date. Clearing it confirms probation passed.",
+    params: {
+      person: { type: "string", required: true, description: "Whose probation, by name." },
+      date: { type: "date", required: false, description: "Probation end date YYYY-MM-DD; omit/blank to confirm passed." },
+    },
+    async run(args) {
+      const p = await resolvePerson(str(args.person));
+      if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.person)}".` };
+      const { data: before } = await sb.from("people").select("probation_end_date").eq("id", p.id).maybeSingle();
+      const dateStr = str(args.date);
+      const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
+      const res = await setProbationDateAction(p.id, dateIso);
+      if (!res.ok) return { ok: false, message: res.error };
+      const undo = { kind: "ori.person.probation", payload: { personId: p.id, before: (before?.probation_end_date as string | null) ?? null } };
+      return { ok: true, message: dateIso ? `${p.name}'s probation now ends ${dateIso}.` : `Confirmed ${p.name} passed probation.`, redirect: `/people`, undo };
+    },
+  },
+  {
+    name: "approve_leave",
+    tier: 2,
+    description: "Approve a pending leave request (by its id).",
+    params: {
+      requestId: { type: "number", required: true, description: "The leave request id." },
+      notes: { type: "string", required: false, description: "Optional decision note." },
+    },
+    async run(args) {
+      return decideLeave(Number(args.requestId), "Approved", str(args.notes));
+    },
+  },
+  {
+    name: "reject_leave",
+    tier: 2,
+    description: "Decline a pending leave request (by its id).",
+    params: {
+      requestId: { type: "number", required: true, description: "The leave request id." },
+      notes: { type: "string", required: false, description: "Optional reason." },
+    },
+    async run(args) {
+      return decideLeave(Number(args.requestId), "Rejected", str(args.notes));
+    },
+  },
+  {
+    name: "record_attendance",
+    tier: 2,
+    description: "Set a person's attendance status for a day (Present, Absent, On leave, Holiday, Remote, Half-day, Sick).",
+    params: {
+      person: { type: "string", required: true, description: "Whose attendance, by name." },
+      date: { type: "date", required: true, description: "The day YYYY-MM-DD." },
+      status: { type: "string", required: true, description: "Present | Absent | On leave | Holiday | Remote | Half-day | Sick." },
+    },
+    async run(args) {
+      const p = await resolvePerson(str(args.person));
+      if (!p) return { ok: false, message: `Couldn't find an active person called "${str(args.person)}".` };
+      const dateStr = str(args.date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return { ok: false, message: "Give a date as YYYY-MM-DD." };
+      const status = str(args.status);
+      if (!status) return { ok: false, message: "What status — Present, Absent, On leave, Holiday, Remote, Half-day or Sick?" };
+      const dateIso = new Date(`${dateStr}T00:00:00Z`).toISOString();
+      const { data: prior } = await sb.from("attendance").select("status").eq("person_id", p.id).eq("date", dateIso).maybeSingle();
+      const res = await recordAttendanceAction(p.id, dateStr, status);
+      if (!res.ok) return { ok: false, message: res.error };
+      const undo = { kind: "ori.attendance.record", payload: { personId: p.id, dateIso, before: (prior?.status as string | null) ?? null } };
+      return { ok: true, message: `Marked ${p.name} as ${status} on ${dateStr}.`, redirect: `/hrms/leave?view=attendance`, undo };
+    },
+  },
+
+  /* ============================ WAVE B ============================ */
+  {
+    name: "file_document",
+    tier: 2,
+    description: "File a document — set its owner (a person or a company) and move it out of quarantine into the library.",
+    params: {
+      document: { type: "string", required: true, description: "The document — its id or a title to match." },
+      person: { type: "string", required: false, description: "Owner person, by name (if it belongs to a person)." },
+      company: { type: "string", required: false, description: "Owner company, by name (if it belongs to a company)." },
+    },
+    async run(args) {
+      const doc = await resolveDocument(str(args.document));
+      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
+      let owner = "";
+      const patch: Record<string, unknown> = {};
+      if (str(args.person)) {
+        const p = await resolvePerson(str(args.person));
+        if (!p) return { ok: false, message: `Couldn't find a person called "${str(args.person)}".` };
+        patch.person_id = p.id; owner = p.name;
+      }
+      if (str(args.company)) {
+        const c = await resolveCompany(str(args.company));
+        if (!c) return { ok: false, message: `Couldn't match a company called "${str(args.company)}".` };
+        patch.company_id = c.id; owner = owner ? `${owner} / ${c.name}` : c.name;
+      }
+      if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me who owns it — a person or a company." };
+      await sb.from("documents").update(patch).eq("id", doc.id);
+      await fileFromQuarantineAction(doc.id);
+      void reindexEntity("document", doc.id);
+      return { ok: true, message: `Filed "${doc.title}" to ${owner}.`, redirect: `/documents` };
+    },
+  },
+  {
+    name: "rename_document",
+    tier: 2,
+    description: "Rename a document.",
+    params: {
+      document: { type: "string", required: true, description: "The document — its id or current title." },
+      title: { type: "string", required: true, description: "The new title." },
+    },
+    async run(args) {
+      const doc = await resolveDocument(str(args.document));
+      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
+      const title = str(args.title);
+      if (!title) return { ok: false, message: "Give the document a new name." };
+      const res = await renameDocumentAction(doc.id, title);
+      if (!res.ok) return { ok: false, message: res.error };
+      return { ok: true, message: `Renamed to "${title}".`, redirect: `/documents`, undo: { kind: "ori.document.rename", payload: { documentId: doc.id, before: doc.title } } };
+    },
+  },
+  {
+    name: "archive_document",
+    tier: 2,
+    description: "Archive a document (moves it out of the live library; restorable).",
+    params: {
+      document: { type: "string", required: true, description: "The document — its id or title." },
+    },
+    async run(args) {
+      const doc = await resolveDocument(str(args.document));
+      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
+      const res = await archiveDocumentAction(doc.id, true);
+      if (!res.ok) return { ok: false, message: res.error };
+      return { ok: true, message: `Archived "${doc.title}".`, redirect: `/documents`, undo: { kind: "ori.document.archive", payload: { documentId: doc.id, before: doc.archived } } };
+    },
+  },
+  {
+    name: "link_document_to_task",
+    tier: 2,
+    description: "Link a document to a task so it shows on the task's record.",
+    params: {
+      document: { type: "string", required: true, description: "The document — its id or title." },
+      taskCode: { type: "string", required: true, description: "The task code." },
+    },
+    async run(args) {
+      const doc = await resolveDocument(str(args.document));
+      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const { error } = await sb.from("document_links").upsert({ document_id: doc.id, task_id: t.id, created_at: nowIso() }, { ignoreDuplicates: true });
+      if (error) return { ok: false, message: error.message };
+      void reindexEntity("task", t.id);
+      return { ok: true, message: `Linked "${doc.title}" to ${t.code}.`, redirect: `/task/${t.code}`, undo: { kind: "ori.document.link", payload: { documentId: doc.id, taskId: t.id } } };
+    },
+  },
+  {
+    name: "save_meeting",
+    tier: 2,
+    description: "Save a meeting record — title, date, company, attendees and raw notes.",
+    params: {
+      title: { type: "string", required: true, description: "Meeting title." },
+      date: { type: "date", required: true, description: "Meeting date YYYY-MM-DD." },
+      company: { type: "string", required: false, description: "Company the meeting relates to." },
+      attendees: { type: "string", required: false, description: "Who attended (free text)." },
+      notes: { type: "string", required: false, description: "Raw meeting notes." },
+    },
+    async run(args) {
+      const title = str(args.title);
+      if (!title) return { ok: false, message: "The meeting needs a title." };
+      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(str(args.date)) ? str(args.date) : new Date().toISOString().slice(0, 10);
+      let companyId: number | null = null;
+      if (str(args.company)) { const c = await resolveCompany(str(args.company)); if (c) companyId = c.id; }
+      const saved = await saveMeeting({ title, companyId, meetingDate: dateStr, attendees: str(args.attendees) || null, rawNotes: str(args.notes) });
+      return { ok: true, message: `Saved the meeting "${saved.title}".`, redirect: `/meeting`, undo: { kind: "ori.meeting.create", payload: { meetingId: saved.id } } };
+    },
+  },
+  {
+    name: "meeting_to_tasks",
+    tier: 2,
+    description: "Create tasks from action items agreed in a meeting (each becomes a task under a company).",
+    params: {
+      company: { type: "string", required: true, description: "Which company the tasks are for." },
+      items: { type: "string[]", required: true, description: "The action items — one task per item." },
+      meetingId: { type: "number", required: false, description: "The saved meeting id to link the tasks to." },
+    },
+    async run(args) {
+      const c = await resolveCompany(str(args.company));
+      if (!c) return { ok: false, message: `Couldn't match a company called "${str(args.company)}".` };
+      const items = (Array.isArray(args.items) ? (args.items as unknown[]).map(str) : []).filter(Boolean);
+      if (!items.length) return { ok: false, message: "List the action items to turn into tasks." };
+      const meetingId = Number.isFinite(Number(args.meetingId)) ? Number(args.meetingId) : null;
+      const res = await bulkCreateTasks(items.map((actionItem) => ({
+        meetingId, companyId: c.id, actionItem, priority: "Medium", status: "Not Started",
+        deadline: null, assigneeNames: [], category: "Meetings", escalation: "No",
+      })));
+      // No tool-level undo: bulkCreateTasks mints its OWN undo token via the mutate
+      // framework (surfaced on /meeting), so the batch is already reversible there;
+      // duplicating it here would risk a double-reverse.
+      const tail = res.failures.length ? ` (${res.failures.length} skipped)` : "";
+      return { ok: true, message: `Created ${res.created} task${res.created === 1 ? "" : "s"} for ${c.name}${tail}.`, redirect: `/meeting` };
+    },
+  },
+  {
+    name: "reschedule_event",
+    tier: 2,
+    description: "Change a calendar event's date/time (and optionally title/location). Note: guests are NOT auto-emailed about the change yet — mention the reschedule to them separately.",
+    params: {
+      event: { type: "string", required: true, description: "The event — its id or title." },
+      date: { type: "date", required: false, description: "New date YYYY-MM-DD." },
+      time: { type: "string", required: false, description: "New start time HH:MM (24h); omit to keep all-day." },
+      title: { type: "string", required: false, description: "New title." },
+      location: { type: "string", required: false, description: "New location." },
+    },
+    async run(args) {
+      const ev = await resolveEvent(str(args.event));
+      if (!ev) return { ok: false, message: `Couldn't find an event matching "${str(args.event)}".` };
+      const { data: cur } = await sb.from("calendar_events").select("title,location,start_at,end_at,all_day").eq("id", ev.id).maybeSingle();
+      if (!cur) return { ok: false, message: "Event not found." };
+      const before = cur as Record<string, unknown>;
+      const dateStr = str(args.date);
+      const time = str(args.time);
+      // Only touch scheduling/title/location — a Partial patch leaves description,
+      // attendees, reminders and recurrence untouched (they aren't in the payload).
+      const patch: Partial<Parameters<typeof updateCalendarEvent>[1]> = {};
+      const title = str(args.title); if (title) patch.title = title;
+      const loc = str(args.location); if (loc) patch.location = loc;
+      if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const allDay = !time;
+        patch.allDay = allDay;
+        patch.startAt = new Date(`${dateStr}T${time || "09:00"}:00+03:00`).toISOString();
+        patch.endAt = new Date(new Date(patch.startAt as string).getTime() + 60 * 60 * 1000).toISOString();
+      } else if (time) {
+        const day = String(before.start_at).slice(0, 10);
+        patch.allDay = false;
+        patch.startAt = new Date(`${day}T${time}:00+03:00`).toISOString();
+        patch.endAt = new Date(new Date(patch.startAt as string).getTime() + 60 * 60 * 1000).toISOString();
+      }
+      if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me the new date, time, title or location." };
+      const undo = { kind: "ori.event.update", payload: { eventId: ev.id, before: { title: before.title, location: before.location, start_at: before.start_at, end_at: before.end_at, all_day: before.all_day } } };
+      const updated = await updateCalendarEvent(ev.id, patch);
+      return { ok: true, message: `Rescheduled "${updated.title}".`, redirect: `/calendar`, undo };
+    },
+  },
+  {
+    name: "cancel_event",
+    tier: 3,
+    description: "Cancel a calendar event. Guests who were invited get a cancellation email and any tasks it spawned are cleared — so this is confirmed like a send and can't be auto-undone.",
+    params: {
+      event: { type: "string", required: true, description: "The event — its id or title." },
+    },
+    async run(args) {
+      const ev = await resolveEvent(str(args.event));
+      if (!ev) return { ok: false, message: `Couldn't find an event matching "${str(args.event)}".` };
+      const res = await cancelEventAction(ev.id);
+      if (!res.ok) return { ok: false, message: res.error };
+      return { ok: true, message: `Cancelled "${ev.title}".`, redirect: `/calendar` };
+    },
+  },
+
+  /* ============================ WAVE C — tier 3 (send/publish/delete) ============================
+   * Confirm ALWAYS (tier 3). Sends route through canAutoSend(channel) — blocked if
+   * the owner hasn't opted the channel in. Deletes trash/archive, never hard-delete
+   * (AUTO_HARD_DELETE_FORBIDDEN); undo restores where a clean inverse exists. */
+  {
+    name: "publish_announcement",
+    tier: 3,
+    description: "PUBLISH an existing draft announcement — it goes live and notifies the audience. (Use draft_announcement to create one first.)",
+    params: {
+      announcement: { type: "string", required: true, description: "The announcement — its id or a title to match a DRAFT." },
+    },
+    async run(args) {
+      const ref = str(args.announcement);
+      if (!ref) return { ok: false, message: "Which announcement — an id or title?" };
+      type AnnRow = { id: number; title: string; status: string };
+      let row: AnnRow | null = null;
+      if (/^\d+$/.test(ref)) {
+        const { data } = await sb.from("announcements").select("id,title,status").eq("id", Number(ref)).maybeSingle();
+        row = (data as unknown as AnnRow) ?? null;
+      } else {
+        // Prefer a draft by title so we don't re-publish a live/archived one.
+        const { data } = await sb.from("announcements").select("id,title,status").eq("status", "draft").ilike("title", `%${escapeLike(ref)}%`).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        row = (data as unknown as AnnRow) ?? null;
+      }
+      if (!row) return { ok: false, message: `Couldn't find a draft announcement matching "${ref}".` };
+      if (row.status === "published") return { ok: false, message: `"${row.title}" is already published.` };
+      const res = await publishAnnouncementAction(row.id);
+      if (!res.ok) return { ok: false, message: res.error };
+      // Undo: pull it back to archived (it was a draft before → the inverse is to
+      // take it off the board; archive is the reversible "not live" state).
+      return { ok: true, message: `Published "${row.title}" — the audience has been notified.`, redirect: `/announcements`, undo: { kind: "ori.announcement.publish", payload: { announcementId: row.id, before: row.status } } };
+    },
+  },
+  {
+    name: "send_task_reminder",
+    tier: 3,
+    description: "Send a reminder to a task's responsible person about the task (or all their open tasks). Only sends on a channel the owner has switched auto-send ON for; otherwise it's blocked.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+      allTasks: { type: "string", required: false, description: "'yes' to remind about ALL their open tasks, not just this one." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      const all = /^(yes|true|all|1)$/i.test(str(args.allTasks));
+      const res = await adminRemindTask(t.id, all);
+      if (!res.ok) return { ok: false, message: res.error };
+      if (res.contactMissing) return { ok: false, message: `${res.name} has no ${res.channel.toLowerCase()} contact on file — can't send the reminder.` };
+      // adminRemindTask returns a compose LINK (it doesn't itself transmit); a Tier-3
+      // send still goes through the guardrail so ORI can't nudge on a channel the
+      // owner hasn't opted into.
+      const channel = res.channel.toLowerCase() as SendChannel;
+      const gated: SendChannel = channel === "email" || channel === "whatsapp" || channel === "sms" ? channel : "whatsapp";
+      if (!(await canAutoSend(gated))) {
+        return { ok: false, message: `Blocked by guardrail: auto-send on ${gated} is switched off. Turn it on in Settings → Automation, or open the ${res.channel.toLowerCase()} draft yourself.` };
+      }
+      return { ok: true, message: `Reminder ready for ${res.name} on ${res.channel.toLowerCase()}${all ? " (all open tasks)" : ""}.`, redirect: res.link ?? `/task/${t.code}` };
+    },
+  },
+  {
+    name: "send_email_draft",
+    tier: 3,
+    description: "Send an email draft from the Outbox (by its id). Only sends if email auto-send is switched on; otherwise blocked.",
+    params: {
+      draftId: { type: "number", required: true, description: "The Outbox draft id (must be an EMAIL draft)." },
+    },
+    async run(args) {
+      const id = Number(args.draftId);
+      if (!Number.isFinite(id) || id <= 0) return { ok: false, message: "Which Outbox draft (id)?" };
+      if (!(await canAutoSend("email"))) {
+        return { ok: false, message: "Blocked by guardrail: email auto-send is switched off. Turn it on in Settings → Automation, or send it from the Outbox yourself." };
+      }
+      const res = await sendDraftEmail(id);
+      if (!res.ok) {
+        if (res.reason === "not-email") return { ok: false, message: "That draft isn't an email." };
+        if (res.reason === "no-email") return { ok: false, message: "That draft has no valid email address." };
+        if (res.reason === "not-configured") return { ok: false, message: "Email sending isn't configured — set up email in Settings first." };
+        return { ok: false, message: res.error ?? "Couldn't send the email." };
+      }
+      // No undo: a sent email can't be recalled.
+      return { ok: true, message: `Sent Outbox draft #${id}.`, redirect: `/outbox` };
+    },
+  },
+  {
+    name: "delete_task",
+    tier: 3,
+    description: "Delete a task. It's recoverable for 10 minutes via the Undo that appears, and its audit history is kept.",
+    params: {
+      taskCode: { type: "string", required: true, description: "The task code." },
+    },
+    async run(args) {
+      const t = await resolveTask(str(args.taskCode));
+      if (!t) return { ok: false, message: `Task ${str(args.taskCode)} not found.` };
+      // deleteTaskQuick is the redirect-free variant (deleteTask itself redirects,
+      // which throws NEXT_REDIRECT server-side); it recoverably deletes (snapshots
+      // the task + conversation + links) and mints its OWN 10-minute Undo token via
+      // the mutate framework. So — like meeting_to_tasks — we DON'T add a second
+      // tool-level undo here; duplicating it would risk a double-restore.
+      const res = await deleteTaskQuick(t.code);
+      if (!res.ok) return { ok: false, message: res.error ?? "Couldn't delete the task." };
+      return { ok: true, message: `Deleted ${t.code}. It's recoverable for 10 minutes.`, redirect: `/registry` };
+    },
+  },
+  {
+    name: "delete_document",
+    tier: 3,
+    description: "Move a document to Trash (recoverable — not a permanent delete).",
+    params: {
+      document: { type: "string", required: true, description: "The document — its id or a title to match." },
+    },
+    async run(args) {
+      const doc = await resolveDocument(str(args.document));
+      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
+      // Soft delete only (Trash), never deleteDocumentForever — respects
+      // AUTO_HARD_DELETE_FORBIDDEN. Undo restores it from Trash.
+      const res = await trashIntakeDocAction(doc.id, "Moved to Trash via ORI");
+      if (!res.ok) return { ok: false, message: `Couldn't move "${doc.title}" to Trash.` };
+      return { ok: true, message: `Moved "${doc.title}" to Trash — restorable from there.`, redirect: `/documents`, undo: { kind: "ori.document.trash", payload: { documentId: doc.id } } };
+    },
+  },
+
+  /* ==================== DOMAIN WAVES (people/HR · documents · meetings &
+   * letters · calendar & announcements · governance/pipeline/commitments ·
+   * assets/ops/reference/settings). Each array lives in its own tools-*.ts and
+   * reuses existing server actions — spread here so they register into
+   * TOOL_BY_NAME with the same shape/order semantics as the core tools. ==== */
+  ...PEOPLE_TOOLS,
+  ...DOCUMENT_TOOLS,
+  ...MEETING_LETTER_TOOLS,
+  ...CALENDAR_TOOLS,
+  ...GOVERNANCE_TOOLS,
+  ...OPS_TOOLS,
 ];
+
+/** Approve/decline a leave request, snapshotting its prior decision for undo. */
+async function decideLeave(id: number, status: "Approved" | "Rejected", notes: string): Promise<ToolResult> {
+  if (!Number.isFinite(id) || id <= 0) return { ok: false, message: "Which leave request (id)?" };
+  const { data: before } = await sb.from("leave_requests").select("status,decided_by,decided_at,notes,updated_at").eq("id", id).maybeSingle();
+  if (!before) return { ok: false, message: `Leave request #${id} not found.` };
+  const res = await decideLeaveRequestAction(id, status, notes || null);
+  if (!res.ok) return { ok: false, message: res.error };
+  const undo = { kind: "ori.leave.decide", payload: { id, before } };
+  return { ok: true, message: `Leave request #${id} ${status.toLowerCase()}.`, redirect: `/hrms/leave`, undo };
+}
+
+/** True if the planner supplied this arg at all (so we don't overwrite with a blank). */
+export function formHas(args: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(args, key) && args[key] != null && str(args[key]) !== "";
+}
 
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 

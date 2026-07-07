@@ -156,7 +156,13 @@ export const SYNONYM_GROUPS: string[][] = [
   [
     "portal", "portals", "staff", "manager", "managers", "director", "directors",
     "admin", "hr", "role", "roles", "access", "permission", "permissions",
-    "login", "signin", "capability", "capabilities", "rights", "allowed",
+    "login", "loggedin", "signin", "signedin", "signed", "capability",
+    "capabilities", "rights", "allowed", "grant", "granted", "revoke", "revoked",
+    "enable", "enabled", "disable", "disabled", "password", "passkey",
+    "opened", "open", "opens", "usage", "used", "using", "use", "visit", "visits",
+    "visited", "session", "sessions", "active", "inactive", "engagement",
+    "engaged", "seen", "lastseen", "online", "interact", "interaction",
+    "interactions", "mostused", "loggingin",
   ],
   // Announcements & notices
   [
@@ -210,6 +216,44 @@ export const SYNONYM_GROUPS: string[][] = [
     "cocozuri", "chocolat", "darspices", "dar", "spices", "terra", "green",
     "oracle", "consultancy", "pes", "mes", "pamoja", "plus",
   ],
+  // Performance, KPI & productivity
+  [
+    "performance", "performing", "productive", "productivity", "efficient",
+    "efficiency", "effective", "output", "throughput", "kpi", "kpis", "target",
+    "targets", "metric", "metrics", "goal", "goals", "objective", "objectives",
+    "score", "scores", "rating", "ontime", "late", "delay", "delayed",
+    "slippage", "slipping", "completion", "turnaround", "responsiveness",
+  ],
+  // Analysis, insight & reporting
+  [
+    "analyse", "analyze", "analysis", "insight", "insights", "summary",
+    "summarise", "summarize", "overview", "report", "reports", "reporting",
+    "breakdown", "trend", "trends", "pattern", "patterns", "anomaly",
+    "anomalies", "explain", "diagnose", "evaluate", "assessment", "assess",
+  ],
+  // Presence, check-in & attendance detail
+  [
+    "present", "absent", "late", "checkin", "checkout", "clockin", "clockout",
+    "here", "away", "remote", "wfh", "workfromhome", "onsite", "halfday",
+    "attendance", "attended", "attend", "unwell", "dayoff", "timeoff",
+  ],
+  // Money, cost & spend
+  [
+    "cost", "costs", "expense", "expenses", "spend", "spending", "budget",
+    "budgets", "invoice", "invoices", "bill", "bills", "billing", "amount",
+    "amounts", "money", "value", "price", "pricing", "fee", "fees", "charge",
+    "charges",
+  ],
+  // Per-company nickname aliases — TIGHT groups so a nickname reaches its own
+  // company's stored name WITHOUT dragging in the other six. (The coarse group
+  // above still lets a bare portfolio word touch every brand.)
+  ["dar", "darspices", "spices"], // Dar Spices
+  ["coco", "cocozuri", "chocolat", "chocolate"], // Cocozuri Chocolat
+  ["terra", "terragreen", "green"], // Terra Green
+  ["oracle", "consultancy", "oc"], // Oracle Consultancy
+  ["pes", "pinnacle"], // PES Ltd
+  ["mes", "mes"], // MES Ltd
+  ["pamoja", "pamojaplus", "plus"], // Pamoja Plus
 ];
 
 // Common words that carry no search signal — dropped from queries before
@@ -257,7 +301,7 @@ export function expandTokens(base: Set<string>): Set<string> {
 
 // Maximum tokens returned from expandQuery — keeps downstream search/RAG
 // prompts bounded even when a query touches several large synonym groups.
-const MAX_TOKENS = 24;
+const MAX_TOKENS = 32;
 
 /**
  * Turn a natural-language query into an expanded, de-duplicated token list:
