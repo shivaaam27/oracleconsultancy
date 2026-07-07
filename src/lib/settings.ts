@@ -103,6 +103,15 @@ export type AppSettings = {
    */
   aiProvider: AiProvider;
   /**
+   * Which model the ORI CHAT / Ask path LEADS with. "auto" (default + recommended)
+   * = the normal smart ladder (best model that still has quota). A specific model
+   * id pins that model as the FIRST candidate — it's tried first, then the normal
+   * ladder still runs as fallback (a 429 on the pinned model never dead-ends). This
+   * affects ONLY the interactive chat/Ask path — never agent tool-calling,
+   * automations or vision. See CHAT_MODELS in lib/ai-models.ts.
+   */
+  chatModel: string;
+  /**
    * In-app Google Gemini API key (free from aistudio.google.com, no card). Used
    * when aiProvider="gemini". Blank = fall back to process.env.GEMINI_API_KEY.
    * Same admin-only, never-echoed-back storage as groqApiKey.
@@ -226,6 +235,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoHardDeleteForbidden: true, // automated paths archive, never hard-delete
   groqApiKey: "", // legacy — everyday AI is Gemini now; only /api/transcribe (voice) may still read a Groq key
   aiProvider: "gemini", // Gemini is the sole everyday-AI provider (Groq removed)
+  chatModel: "auto", // "auto" = normal smart ladder (recommended); else a pinned CHAT_MODELS id
   geminiApiKey: "", // blank = fall back to process.env.GEMINI_API_KEY
   ocrSpaceApiKey: "", // blank = fall back to process.env.OCRSPACE_API_KEY
   quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
@@ -281,6 +291,7 @@ const KEY: Record<keyof AppSettings, string> = {
   autoHardDeleteForbidden: "v2.autoHardDeleteForbidden",
   groqApiKey: "ai.groqApiKey",
   aiProvider: "ai.provider",
+  chatModel: "ai.chatModel",
   geminiApiKey: "ai.geminiApiKey",
   ocrSpaceApiKey: "ai.ocrSpaceApiKey",
   quietHoursStart: "v2.quietHoursStart",
@@ -353,6 +364,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     autoHardDeleteForbidden: toBool(map.get(KEY.autoHardDeleteForbidden), d.autoHardDeleteForbidden),
     groqApiKey: map.get(KEY.groqApiKey) ?? d.groqApiKey,
     aiProvider: "gemini", // Groq removed — the everyday AI is always Gemini now
+    chatModel: (map.get(KEY.chatModel) || "").trim() || d.chatModel,
     geminiApiKey: map.get(KEY.geminiApiKey) ?? d.geminiApiKey,
     ocrSpaceApiKey: map.get(KEY.ocrSpaceApiKey) ?? d.ocrSpaceApiKey,
     quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,

@@ -7,6 +7,7 @@ import { VoiceButton } from "./voice-button";
 import { MagneticChip } from "./command-palette-bits";
 import { ActionCard } from "./command-palette-action-card";
 import { AgentCard } from "./command-palette-agent-card";
+import { ChatModelPicker } from "./chat-model-picker";
 
 // A turn in the conversation thread.
 export type Msg =
@@ -156,11 +157,13 @@ export function ConversationPane({
           <span className="font-semibold text-sm tracking-tight">ORI</span>
           <span className="text-[10px] text-fg-muted truncate">{pageLabel}</span>
         </div>
+        {/* Chat model picker — pins which model ORI chat leads with (fallback intact). */}
+        <div className="ml-auto"><ChatModelPicker /></div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="ml-auto inline-flex items-center justify-center h-7 w-7 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
         >
           <XIcon size={16} />
         </button>

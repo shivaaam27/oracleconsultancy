@@ -1072,7 +1072,11 @@ export function CommandPaletteProvider({
                         §13: rounded-lg, outline icon, quiet. Not selectable. */}
                     {!trimmed && !onPortal && aiUsage && (aiUsage.today.calls > 0 || aiUsage.cap) && (
                       <div className="px-2 pt-1 pb-2">
-                        <div className="px-2.5 py-2 rounded-lg border border-border flex items-center gap-2.5 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => go("/settings#ai-usage")}
+                          className="w-full text-left px-2.5 py-2 rounded-lg border border-border flex items-center gap-2.5 text-sm hover:bg-bg-muted/60 transition-colors"
+                        >
                           <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-fg-subtle shrink-0">
                             <Gauge size={13} />
                           </span>
@@ -1090,7 +1094,8 @@ export function CommandPaletteProvider({
                                   }`}
                             </span>
                           </span>
-                        </div>
+                          <ArrowRight size={13} className="text-fg-subtle shrink-0" />
+                        </button>
                       </div>
                     )}
 

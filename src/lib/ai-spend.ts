@@ -94,6 +94,31 @@ function eatMonthStartISO(now = new Date()): string {
   return new Date(`${ym}-01T00:00:00+03:00`).toISOString();
 }
 
+/** Start-of-today ISO against Google's Gemini free-tier reset boundary, which is
+ *  MIDNIGHT PACIFIC (America/Los_Angeles, DST-aware) — NOT Dar midnight. Used by
+ *  the per-model usage dashboard so "N calls today" matches the quota that Google
+ *  actually resets. Computes the Pacific calendar date, then the UTC instant of
+ *  that date's 00:00 Pacific by finding the offset via the locale formatter. */
+export function pacificDayStartISO(now = new Date()): string {
+  // The Pacific wall-clock components of `now`.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(now);
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  // Seconds elapsed since Pacific midnight today.
+  const elapsed = (g("hour") % 24) * 3600 + g("minute") * 60 + g("second");
+  return new Date(now.getTime() - elapsed * 1000).toISOString();
+}
+
+/** The next Gemini free-tier reset instant (the upcoming midnight Pacific) as an
+ *  ISO string, so the dashboard can show a live "resets in Xh" countdown. */
+export function nextPacificResetISO(now = new Date()): string {
+  const start = new Date(pacificDayStartISO(now)).getTime();
+  return new Date(start + 24 * 3600 * 1000).toISOString();
+}
+
 export interface MonthlySpend {
   cost: number;
   promptTokens: number;

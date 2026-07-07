@@ -2,14 +2,14 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { AI_FAST, providerLadder, isAiExhausted, AI_RESTING_NOTE } from "@/lib/ai-models";
+import { AI_FAST, providerLadder, isAiExhausted, AI_RESTING_NOTE, CHAT_MODELS } from "@/lib/ai-models";
 import { callAIText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
 import { getActiveProvider } from "@/lib/settings";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
 import { hybridSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getAiKey, getQualityTextModel } from "@/lib/settings";
+import { getAiKey, getQualityTextModel, getAppSettings } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
 import { worstComplianceScores } from "@/lib/compliance";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -1166,6 +1166,19 @@ export async function POST(req: NextRequest) {
     // FALLS BACK to the fast model (see both call sites below).
     const smartModel = await getQualityTextModel();
     const canFallback = smartModel !== AI_FAST;
+    // Owner-pinned chat model (Settings → AI usage picker). "auto" = normal ladder.
+    // Honoured SAFELY: it's only PREPENDED as the first candidate (the full smart +
+    // fast ladders still run after it, so a 429 on the pinned model walks the rest
+    // — never removes the fallback). Ignored unless it's an eligible CHAT_MODELS id,
+    // so a stale/invalid value fails open to Auto. Best-effort settings read.
+    const pinnedChatModel = await (async () => {
+      try {
+        const { chatModel } = await getAppSettings();
+        return chatModel && chatModel !== "auto" && CHAT_MODELS.includes(chatModel) ? chatModel : null;
+      } catch {
+        return null;
+      }
+    })();
 
     // PHASE 0 — INSTANT ANSWERS FIRST. Before the RAG/LLM path, try the same
     // deterministic resolver library the ⌘K palette uses (counts, overdue, leave,
@@ -1265,14 +1278,22 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+      // Try the owner-pinned chat model FIRST (if set), else the smart model.
+      // The fast-model retry below stays as the fallback either way, so a busy
+      // pinned model never dead-ends. (callAIText passes a single model but the
+      // smart/fast ids each expand to their full provider ladder internally.)
       let result = await callAIText({
         messages,
         apiKey,
-        model: smartModel,
+        model: pinnedChatModel ?? smartModel,
         maxTokens: 600,
         temperature: 0.2,
       });
-      // Smart model busy → retry once on the fast model automatically.
+      // Pinned/smart model busy → fall through to the smart model, then the fast
+      // model automatically (deduped — don't re-try the same id).
+      if (!result.ok && result.error === "rate-limited" && pinnedChatModel && pinnedChatModel !== smartModel) {
+        result = await callAIText({ messages, apiKey, model: smartModel, maxTokens: 600, temperature: 0.2 });
+      }
       if (!result.ok && result.error === "rate-limited" && canFallback) {
         result = await callAIText({ messages, apiKey, model: AI_FAST, maxTokens: 600, temperature: 0.2 });
       }
@@ -1358,8 +1379,16 @@ export async function POST(req: NextRequest) {
     // deduped and capped. When one model is out of quota (429) or decommissioned
     // (400/404) we move to the NEXT model — a different quota pool — so ORI keeps
     // answering all day instead of dying once the 30 top-quality calls are spent.
+    // Owner-pinned chat model leads (if set + eligible); the full smart+fast
+    // ladders follow, deduped — so a 429 on the pinned model walks the rest and
+    // never removes the fallback. "auto"/invalid → pinnedChatModel is null → the
+    // normal ladder head leads exactly as before.
     const candidateModels = [
-      ...new Set([...providerLadder(provider, smartModel), ...providerLadder(provider, AI_FAST)]),
+      ...new Set([
+        ...(pinnedChatModel ? [pinnedChatModel] : []),
+        ...providerLadder(provider, smartModel),
+        ...providerLadder(provider, AI_FAST),
+      ]),
     ].slice(0, 6);
     let res: Response | null = null;
     let lastStatus = 0;

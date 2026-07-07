@@ -29,8 +29,9 @@ import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
+import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -323,6 +324,13 @@ export default async function SettingsPage({
 
             <SaveBar />
           </form>
+
+          {/* AI usage — live per-model dashboard (own endpoints; no form). The
+              chat model picker in ORI's chat header writes the same `chatModel`
+              setting this reflects. */}
+          <SettingsCard id="ai-usage" icon={<Gauge size={15} />} title="AI usage" desc="Live per-model calls, quota & tokens today." keywords="ai usage model quota calls tokens gemini flash gemma remaining budget spend chat model picker reset pacific">
+            <AiUsageDashboard />
+          </SettingsCard>
         </section>
 
         {/* ───────────────────────── Automation ───────────────────────── */}

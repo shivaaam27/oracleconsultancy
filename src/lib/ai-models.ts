@@ -139,6 +139,71 @@ export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
 export type AiProvider = "groq" | "gemini";
 export type ModelTier = "fast" | "smart" | "vision";
 
+/* ------------------------------------------------------------------------
+ * Free-tier daily QUOTAS (requests/day) — for the AI usage dashboard + the
+ * chat model picker's "remaining today" hints. These are GOOGLE'S STATED
+ * free-tier limits on the owner's key (AI Studio dashboard, see the ladder
+ * comments above) and MAY CHANGE — treat as guidance, not a hard contract.
+ * Keyed by model-id PREFIX so a versioned/dated id still resolves. Gemini free
+ * quotas reset at MIDNIGHT PACIFIC (see nextPacificResetISO in ai-spend.ts).
+ *
+ * Env-overridable as one JSON blob (AI_MODEL_QUOTAS='{"gemini-3.5-flash":30}')
+ * so the owner can retune when Google moves the goalposts — no redeploy.
+ * ---------------------------------------------------------------------- */
+const DEFAULT_MODEL_QUOTAS: Record<string, number> = {
+  "gemma-4-31b-it": 1500,
+  "gemma-4-26b-a4b-it": 1500,
+  "gemini-3.1-flash-lite": 500,
+  "gemini-3.5-flash": 30,
+  "gemini-3-flash-preview": 30,
+  "gemini-3-flash": 30,
+  "gemini-2.5-flash": 30,
+  "gemini-2.5-flash-lite": 30,
+};
+
+function parseQuotaEnv(): Record<string, number> {
+  const raw = process.env.AI_MODEL_QUOTAS;
+  if (!raw) return DEFAULT_MODEL_QUOTAS;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = { ...DEFAULT_MODEL_QUOTAS };
+    for (const [k, v] of Object.entries(parsed)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out[k] = n;
+    }
+    return out;
+  } catch {
+    return DEFAULT_MODEL_QUOTAS;
+  }
+}
+
+export const MODEL_QUOTAS: Record<string, number> = parseQuotaEnv();
+
+/** Known free-tier requests-per-day for a model id (longest-prefix match), or
+ *  undefined when the model isn't in the quota map (unknown → show usage only,
+ *  never a budget bar). Pure lookup. */
+export function dailyQuotaFor(model: string | null | undefined): number | undefined {
+  if (!model) return undefined;
+  let best: number | undefined;
+  let bestLen = -1;
+  for (const [prefix, quota] of Object.entries(MODEL_QUOTAS)) {
+    if (model.startsWith(prefix) && prefix.length > bestLen) {
+      best = quota;
+      bestLen = prefix.length;
+    }
+  }
+  return best;
+}
+
+/** The text/tool-capable models eligible for the CHAT model picker (Ask/ORI chat
+ *  only — NOT agent tool-calling, automations or vision). These are the
+ *  GEMINI_TEXT_QUALITY flashes plus the high-capacity flash-lite: multimodal,
+ *  reason well, and take the same chat-completions shape the ask stream uses.
+ *  Gemma is EXCLUDED — it's the fast/JSON workhorse (text-only, no reasoning
+ *  config) and the smart chat ladder already folds it in as a fallback. Deduped,
+ *  quality-first (mirrors GEMINI_SMART_MODELS' head order). */
+export const CHAT_MODELS: string[] = [...new Set(GEMINI_TEXT_QUALITY)];
+
 /** Which tier a passed model name heads. Call sites pass the Groq head names
  *  (AI_FAST / AI_SMART) or a specific vision model; map those to a tier so the
  *  active provider can substitute its own equivalent ladder. Unknown → null. */
