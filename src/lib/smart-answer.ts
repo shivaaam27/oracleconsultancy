@@ -963,12 +963,123 @@ async function entityActivityAnswer(q: string): Promise<SmartAnswer | null> {
   return null;
 }
 
+/** DAILY BRIEFING — "my briefing / brief me / what should I focus on / daily
+ *  briefing / catch me up fully". Composes the SAME radar + recent-activity +
+ *  derived next-actions the /api/briefing endpoint serves into one SmartAnswer
+ *  card: radar findings first (worst-first), then a couple of suggested actions,
+ *  then a line of recent activity. Deterministic, best-effort. */
+async function briefingAnswer(q: string): Promise<SmartAnswer | null> {
+  if (!/\b(my briefing|daily briefing|brief me|briefing|what should i (focus on|do|prioriti[sz]e|work on)|catch me up fully|full catch[- ]?up|where (are|do) (we|things) (stand|at)|morning briefing|state of play)\b/i.test(q)) return null;
+
+  const { buildRadar } = await import("@/lib/ori/radar");
+  const findings = await buildRadar().catch(() => []);
+
+  // Recent activity (last 3 days), lightweight — mirror the briefing endpoint's
+  // top few notable events so the card shows "what changed" too.
+  const sinceIso = new Date(startOfToday().getTime() - 3 * day).toISOString();
+  let recent: Record<string, unknown>[] = [];
+  let newT: Record<string, unknown>[] = [];
+  try {
+    const [updatesR, newTasksR] = await Promise.all([
+      sb.from("task_updates").select("body,created_at,created_by,tasks(code)").is("deleted_at", null).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(3),
+      sb.from("tasks").select("code,action_item,created_date").eq("archived", false).gte("created_date", sinceIso).order("created_date", { ascending: false }).limit(3),
+    ]);
+    recent = (updatesR.data ?? []) as Record<string, unknown>[];
+    newT = (newTasksR.data ?? []) as Record<string, unknown>[];
+  } catch { /* partial is fine */ }
+
+  const rows: SmartRow[] = [];
+
+  // 1) Radar findings — the concerns, worst-first (buildRadar already sorts).
+  for (const f of findings.slice(0, 4)) {
+    rows.push({ label: f.label, sub: f.detail, badge: null, tone: f.tone as SmartTone, href: f.href });
+  }
+  // 2) Recent activity — a couple of "what changed" lines.
+  for (const u of recent.slice(0, 2)) {
+    const t = u.tasks as { code?: string } | { code?: string }[] | null;
+    const code = (Array.isArray(t) ? t[0]?.code : t?.code) ?? "?";
+    rows.push({ label: `${authorOf(u.created_by as string | null)} updated [${code}]`, sub: ((u.body as string) ?? "").trim().replace(/\s+/g, " ").slice(0, 70) || null, badge: agoLabel(u.created_at as string), tone: "muted", href: code !== "?" ? `/task/${code}` : "/?tab=timeline" });
+  }
+  for (const t of newT.slice(0, 2)) {
+    rows.push({ label: `New [${t.code}]`, sub: (t.action_item as string) ?? null, badge: agoLabel(t.created_date as string), tone: "accent", href: `/task/${t.code}` });
+  }
+
+  const concerns = findings.length;
+  const note = concerns === 0
+    ? "All clear on the radar — nothing overdue, stuck or slipping."
+    : `${concerns} thing${concerns === 1 ? "" : "s"} on the radar · ${recent.length + newT.length} recent change${recent.length + newT.length === 1 ? "" : "s"}`;
+  if (rows.length === 0) return { kind: "count", title: "Your briefing", count: 0, rows: [], note: "Nothing needs you and nothing's changed recently — quiet day.", href: "/" };
+  return { kind: "count", title: "Your briefing", count: concerns, rows: rows.slice(0, MAX_ROWS), note, href: "/" };
+}
+
+/** SAVE MACRO — "save macro <name>: <steps>" (or "save routine …"). Stores a
+ *  named natural-language step list in ai_memory (kind="macro") so it can be
+ *  recalled + confirmed later. No AI. */
+async function saveMacroAnswer(_q: string, raw: string): Promise<SmartAnswer | null> {
+  const m = raw.match(/^\s*(?:save|create|new|define)\s+(?:macro|routine)\s+([^:]+?)\s*[:=]\s*([\s\S]+)$/i);
+  if (!m) return null;
+  const name = m[1].trim().replace(/\s+/g, " ");
+  const steps = m[2].trim().replace(/\s+/g, " ");
+  if (!name || !steps) return null;
+  const { rememberMacro } = await import("@/lib/ai-memory");
+  const ok = await rememberMacro("admin", name, steps);
+  return {
+    kind: "count",
+    title: ok ? `Saved macro “${name}”` : `Couldn't save “${name}”`,
+    count: ok ? 1 : 0,
+    rows: [{ label: name, sub: steps.slice(0, 120), badge: "macro", tone: ok ? "success" : "danger", href: "/" }],
+    note: ok ? "Run it with “run macro " + name + "”. ORI will confirm the steps before executing." : "Storage failed — try again.",
+  };
+}
+
+/** RUN / LIST MACROS — "run macro <name>", "do my <name> routine", "list macros".
+ *  Reads the stored steps back as a card; NOTE the actual execution is the agent's
+ *  job — this surfaces + explains the macro so the owner can confirm it. */
+async function runMacroAnswer(q: string, raw: string): Promise<SmartAnswer | null> {
+  const listing = /\b(list|show|my)\s+macros\b|\bwhat macros\b|\bmacros i('ve| have)\b/i.test(q);
+  const runM = raw.match(/^\s*(?:run|do|execute|play|start)\s+(?:my\s+)?(?:macro\s+)?(.+?)\s*(?:routine|macro)?\s*$/i);
+  if (!listing && !(runM && /\b(macro|routine)\b/i.test(q))) return null;
+
+  const { listMacros, findMacro } = await import("@/lib/ai-memory");
+
+  if (listing) {
+    const all = await listMacros("admin");
+    if (all.length === 0) return { kind: "count", title: "No saved macros", count: 0, rows: [], note: "Save one with “save macro <name>: <steps>”." };
+    const rows: SmartRow[] = all.slice(0, MAX_ROWS).map((m) => ({ label: m.name, sub: (m.steps ?? "").slice(0, 120), badge: "macro", tone: "accent" as SmartTone, href: "/" }));
+    return { kind: "count", title: "Saved macros", count: all.length, rows, note: "Run one with “run macro <name>”." };
+  }
+
+  const name = (runM?.[1] ?? "").trim().replace(/\b(macro|routine)\b/gi, "").trim();
+  if (!name) return null;
+  const macro = await findMacro("admin", name);
+  if (!macro) return { kind: "count", title: `No macro “${name}”`, count: 0, rows: [], note: "List them with “list macros”, or save one with “save macro <name>: <steps>”." };
+  const steps = (macro.steps ?? "").split(/\s*(?:;|→|\d+\.|\n)\s*/).map((s) => s.trim()).filter(Boolean);
+  const rows: SmartRow[] = steps.slice(0, MAX_ROWS).map((s, i) => ({ label: `${i + 1}. ${s}`, sub: null, badge: null, tone: "muted" as SmartTone, href: "/" }));
+  if (rows.length === 0) rows.push({ label: macro.steps ?? "", sub: null, badge: null, tone: "muted", href: "/" });
+  return {
+    kind: "count",
+    title: `Macro “${macro.name}”`,
+    count: rows.length,
+    rows,
+    note: "Ask ORI to “run macro " + macro.name + "” in chat — it'll confirm these steps before executing.",
+  };
+}
+
 /** The one entry point — tries each intent in priority order, returns the first
  *  that answers. Bounded + best-effort: any failure just yields null. */
 export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | null> {
-  const q = (query ?? "").toLowerCase().trim();
+  const raw = (query ?? "").trim();
+  const q = raw.toLowerCase();
   if (q.length < 3) return null;
+
+  // Macros need the ORIGINAL casing (name + steps), so run them first with `raw`.
+  try {
+    const saved = await saveMacroAnswer(q, raw); if (saved) return saved;
+    const ran = await runMacroAnswer(q, raw); if (ran) return ran;
+  } catch { /* fall through to the standard resolvers */ }
+
   const resolvers = [
+    briefingAnswer,
     oriActionsAnswer,
     radarAnswer,
     // Oversight — estate-wide "what happened" digest + per-entity activity.

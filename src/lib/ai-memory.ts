@@ -14,8 +14,10 @@
 import { sb } from "@/db/supabase";
 import { expandQuery } from "@/lib/synonyms";
 
-// One stored memory row in the shape callers consume.
-export type MemoryKind = "qa" | "preference" | "fact";
+// One stored memory row in the shape callers consume. "macro" reuses this table
+// (no migration) — a named, natural-language step list the owner can recall and
+// have ORI's agent execute; name lives in `question`, the steps in `answer`.
+export type MemoryKind = "qa" | "preference" | "fact" | "macro";
 
 export type Memory = {
   kind: MemoryKind;
@@ -213,6 +215,83 @@ export async function listMemories(
   } catch {
     return [];
   }
+}
+
+// ---- saved macros (kind="macro") ----------------------------------------
+// A macro is a NAMED natural-language routine (a step list). It reuses ai_memory
+// with kind="macro": name → `question`, steps → `answer`. Recall + execution is
+// deterministic here (surface the steps); the actual doing is the agent's job.
+
+export type Macro = { name: string; steps: string | null; createdAt: string };
+
+/** Save (or re-save) a named macro. A repeat name is stored as a fresh row;
+ *  findMacro/listMacros keep the NEWEST per name, so re-saving overwrites in
+ *  effect without a delete. Best-effort: never throws. */
+export async function rememberMacro(
+  recipient: string,
+  name: string,
+  steps: string,
+): Promise<boolean> {
+  const n = (name ?? "").trim();
+  const s = (steps ?? "").trim();
+  if (!n || !s) return false;
+  try {
+    const { error } = await sb.from(TABLE).insert({
+      recipient: cleanRecipient(recipient),
+      kind: "macro",
+      question: truncate(n, 120),
+      answer: truncate(s, MAX_ANSWER),
+      tags: deriveTags(`${n} ${s}`),
+      created_at: new Date().toISOString(),
+    });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/** List saved macros for a recipient, newest-per-name first. Best-effort → []. */
+export async function listMacros(recipient: string, limit = 50): Promise<Macro[]> {
+  try {
+    const { data, error } = await sb
+      .from(TABLE)
+      .select("question, answer, created_at")
+      .eq("recipient", cleanRecipient(recipient))
+      .eq("kind", "macro")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error || !data) return [];
+    const seen = new Set<string>();
+    const out: Macro[] = [];
+    for (const r of data as Array<Record<string, unknown>>) {
+      const name = String(r.question ?? "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue; // newest wins (rows are desc by created_at)
+      seen.add(key);
+      out.push({ name, steps: (r.answer as string | null) ?? null, createdAt: String(r.created_at ?? "") });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Find one macro by name — exact (case-insensitive) first, else the closest
+ *  token/substring match so "morning" reaches "Morning routine". Best-effort. */
+export async function findMacro(recipient: string, name: string): Promise<Macro | null> {
+  const wanted = (name ?? "").trim().toLowerCase();
+  if (!wanted) return null;
+  const all = await listMacros(recipient, 200);
+  if (all.length === 0) return null;
+  const exact = all.find((m) => m.name.toLowerCase() === wanted);
+  if (exact) return exact;
+  const contains = all.find((m) => m.name.toLowerCase().includes(wanted) || wanted.includes(m.name.toLowerCase()));
+  if (contains) return contains;
+  // Loose: any shared word ≥3 chars.
+  const words = wanted.split(/\s+/).filter((w) => w.length >= 3);
+  return all.find((m) => { const mn = m.name.toLowerCase(); return words.some((w) => mn.includes(w)); }) ?? null;
 }
 
 /**

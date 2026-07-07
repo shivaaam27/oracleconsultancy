@@ -139,17 +139,28 @@ Document/Event/Company + str/parseDeadline/snapshotTaskForUndo): `tools-people.t
 (reversible), +35 new `ori.*` undo handlers. Wired via spread into TOOLS. VERIFIED: tsc clean, 25/25 ori tests,
 0 duplicate names.
 
-**⏳ NOT DONE — the FINAL workflow (do next, Opus ultracode):**
-- **Phase 1 — one brain / no dead ends:** agent answers when no tool matches (call resolveSmartAnswer + brief
-  RAG) instead of "I can't"; client fallback Ask; carry conversation context so "reopen it" resolves.
-- **Phase 3 — portal control finish:** `post_as_ori` tool (post a task update authored as ORI, `created_by:
-  "ori"`); `set_role_capability` tool (savePortalPermissionsAction, t3); (set_portal_role/access/director
-  already shipped in Phase 2 people domain). Stream indexing of activity/attendance/updates into embeddings is
-  INFRA (backfill) — deferred; direct resolvers + activity slice cover it for now.
-- **Phase 6 — magic:** daily ORI briefing (compose radar + whatHappenedAnswer + slipping into one card + a
-  `/api/briefing` endpoint + palette empty-state surface); saved macros (store in ai_memory kind="macro",
-  "run <macro>" replays a confirm plan); watchers ("tell me when PES raises a blocker" — needs event hooks,
-  bigger). Standing scheduled prompts reuse automation_rules/cron.
+**✅ FINAL workflow (Phase 1/3/6) — DONE (tsc clean, 215/215 tests). Not yet pushed as of writing.**
+- **Phase 1 — one brain / no dead ends:** `/api/ori` route now calls `resolveSmartAnswer` first when the
+  planner returns `answer` mode (renderSmartAnswer helper), so ORI ANSWERS instead of refusing readable
+  questions; agent.ts Operating Guide gained an "ANSWER OR ACT — never a dead end" rule. Client:
+  `command-palette-agent-card.tsx` answer branch shows an "Ask ORI instead" button → dispatches
+  `cos:ori-ask-instead` → `command-palette.tsx` listener re-runs the text through read-only Ask. (Conversation
+  context for "reopen it" pronoun still deferred — the fresh AgentCard doesn't carry prior thread.)
+- **Phase 3 — portal control:** NEW `src/lib/ori/tools-portal.ts` (PORTAL_TOOLS, spread into TOOLS):
+  `post_as_ori` (t2, posts a task update stamped `created_by:"ori"` via the core-update insert shape — NOT
+  adminAddUpdate which hardcodes web-ui; reuses `task.update.add` undo) + `set_role_capability` (t3, toggles
+  ONE role×capability cell via get/savePortalPermissions, validates against real CapabilityKey/PORTAL_ROLES,
+  undo `ori.portal.capability`). ⚠️ SPOTTED: if ORI is later exposed in portals, these two MUST be filtered
+  out for non-owner portal users (tier/`oriAct` gate) — no portal exposure today so no gate added.
+  Stream-embedding still deferred (infra); resolvers + activity slice cover it.
+- **Phase 6 — magic:** NEW `/api/briefing` (radar + last-3-day changes + derived suggestions, fail-open);
+  `briefingAnswer` resolver ("my briefing / what should I focus on / state of play"); palette empty-state
+  "Your briefing" card (fetches /api/briefing, radar highlights + suggestion rows). Saved macros reuse
+  `ai_memory` kind="macro" (rememberMacro/listMacros/findMacro; saveMacroAnswer/runMacroAnswer resolvers use
+  the RAW query so casing survives) — "save macro X: steps" / "run macro X" surfaces the steps for the agent
+  to confirm+execute. NO migration. Watchers/scheduled-prompts still deferred (need event hooks/cron).
+
+Tool count now ~135 (133 + post_as_ori + set_role_capability). tsc CLEAN, 215/215 tests, 0 duplicate names.
 
 **Agent-SPOTTED improvements (for handover):** task `EntityDef.search.select` lacks `updated_at`/`due_date` →
 recency+true-overdue boosts don't fire for tasks (add to registry select); reserve a per-type slot for

@@ -39,6 +39,12 @@ function tidyOri(s: string): string {
 type SearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };
 /** One "Today" pulse row from /api/pulse (kept in sync with route.ts PulseItem). */
 type PulseItem = { label: string; detail: string; when: string; href?: string };
+/** Shape of GET /api/briefing — radar highlights + suggested next actions. Kept
+ *  loose (all optional) so a partial/older payload still renders what it can. */
+type BriefingData = {
+  highlights?: { label: string; detail?: string }[];
+  suggestions?: { label: string; detail?: string; href?: string }[];
+};
 
 // Pick a file-type icon + tint from a document's original file name, so a PDF,
 // photo, spreadsheet or slide deck each read at a glance in the results list.
@@ -153,6 +159,12 @@ export function CommandPaletteProvider({
   // search state only. Plain fetch (no server import); fetched once per open.
   const [pulse, setPulse] = useState<PulseItem[]>([]);
   const pulseFetched = useRef(false);
+  // "Your briefing" — radar highlights + suggested actions from /api/briefing,
+  // fetched once on select (not eagerly) and shown inline in the empty state.
+  const [briefing, setBriefing] = useState<BriefingData | null>(null);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const briefingFetched = useRef(false);
   const [thread, setThread] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const { pins, toggle } = usePins();
@@ -211,6 +223,24 @@ export function CommandPaletteProvider({
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isOpen, onPortal]);
+
+  // "Your briefing" — fetch radar highlights + suggestions once, on first select.
+  // Plain fetch (no server import); renders nothing on error/empty.
+  const loadBriefing = useCallback(async () => {
+    setBriefingOpen(true);
+    if (briefingFetched.current) return;
+    briefingFetched.current = true;
+    setBriefingLoading(true);
+    try {
+      const r = await fetch("/api/briefing", { cache: "no-store" });
+      const d = r.ok ? await r.json() : null;
+      if (d && typeof d === "object") setBriefing(d as BriefingData);
+    } catch {
+      // Silent — the entry simply shows nothing to act on.
+    } finally {
+      setBriefingLoading(false);
+    }
+  }, []);
 
   // ⌘K / Ctrl+K (and Ctrl+Space) hotkey
   useEffect(() => {
@@ -457,6 +487,23 @@ export function CommandPaletteProvider({
     },
     [router],
   );
+
+  // No-dead-end fallback. When an agent turn resolves to nothing actionable (an
+  // "I'm not sure how to action that" answer), the AgentCard offers a one-tap
+  // "Ask ORI instead" that fires this event — we re-run the SAME text through
+  // the read-only Ask path so the user always gets an answer, never a dead end.
+  useEffect(() => {
+    const onAskInstead = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      if (!text) return;
+      append({ id: newId(), role: "user", text });
+      void runAsk(text);
+    };
+    window.addEventListener("cos:ori-ask-instead", onAskInstead as EventListener);
+    return () => window.removeEventListener("cos:ori-ask-instead", onAskInstead as EventListener);
+    // append/runAsk are stable within this component's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Build route groups. Hidden routes (e.g. Tax & Legal when paused) drop out of
   // every group so the page can't be jumped to.
@@ -937,6 +984,82 @@ export function CommandPaletteProvider({
                             </Command.Item>
                           ))}
                         </div>
+                      </Command.Group>
+                    )}
+
+                    {/* Your briefing — one tap fetches /api/briefing and expands
+                        radar highlights + suggestions as §13 icon-badge rows.
+                        Renders nothing on error/empty; calm + additive. */}
+                    {!trimmed && !onPortal && (
+                      <Command.Group
+                        heading="Your briefing"
+                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      >
+                        {!briefingOpen ? (
+                          <Command.Item
+                            value="__briefing open your briefing radar highlights suggestions"
+                            onSelect={loadBriefing}
+                            className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                          >
+                            <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-accent shrink-0">
+                              <Sparkles size={13} />
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block truncate text-fg">Your briefing</span>
+                              <span className="block truncate text-[12px] text-fg-subtle">Radar highlights and what to do next</span>
+                            </span>
+                            <ChevronRight size={14} className="text-fg-subtle shrink-0" />
+                          </Command.Item>
+                        ) : briefingLoading ? (
+                          <div className="px-2 py-2 flex items-center gap-2.5 text-sm text-fg-subtle">
+                            <Loader2 size={14} className="animate-spin text-accent" />
+                            <span>Reading the estate…</span>
+                          </div>
+                        ) : (
+                          (() => {
+                            const highlights = briefing?.highlights ?? [];
+                            const sugg = briefing?.suggestions ?? [];
+                            if (!highlights.length && !sugg.length) return null;
+                            return (
+                              <div className="max-h-72 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,#000_10px,#000_calc(100%-10px),transparent)]">
+                                {highlights.map((h, i) => (
+                                  <div
+                                    key={`__brief_h_${i}`}
+                                    className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm"
+                                  >
+                                    <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-fg-subtle shrink-0">
+                                      <Activity size={13} />
+                                    </span>
+                                    <span className="flex-1 min-w-0">
+                                      <span className="block truncate text-fg">{h.label}</span>
+                                      {h.detail && <span className="block truncate text-[12px] text-fg-subtle">{h.detail}</span>}
+                                    </span>
+                                  </div>
+                                ))}
+                                {sugg.map((s, i) => (
+                                  <Command.Item
+                                    key={`__brief_s_${i}`}
+                                    value={`__briefsugg ${i} ${s.label} ${s.detail ?? ""}`}
+                                    onSelect={() => { if (s.href) go(s.href); }}
+                                    className={cn(
+                                      "px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm aria-selected:bg-bg-muted",
+                                      s.href ? "cursor-pointer" : "cursor-default",
+                                    )}
+                                  >
+                                    <span className="grid place-items-center w-7 h-7 rounded-lg border border-border text-accent shrink-0">
+                                      <Zap size={13} />
+                                    </span>
+                                    <span className="flex-1 min-w-0">
+                                      <span className="block truncate text-fg">{s.label}</span>
+                                      {s.detail && <span className="block truncate text-[12px] text-fg-subtle">{s.detail}</span>}
+                                    </span>
+                                    {s.href && <ArrowRight size={13} className="text-fg-subtle shrink-0" />}
+                                  </Command.Item>
+                                ))}
+                              </div>
+                            );
+                          })()
+                        )}
                       </Command.Group>
                     )}
 

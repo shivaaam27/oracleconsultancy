@@ -167,6 +167,20 @@ registerUndoHandler("ori.portal.access", async (raw) => {
   void reindexEntity("person", p.personId);
 });
 
+// Portal role capability toggle — restore the cell to its prior effective value
+// (written back as an explicit override, which reproduces the same behaviour).
+registerUndoHandler("ori.portal.capability", async (raw) => {
+  const p = raw as { role: string; capability: string; before: boolean };
+  const { getPortalPermissions, savePortalPermissions } = await import("@/lib/portal-permissions-store");
+  const config = await getPortalPermissions();
+  const caps = { ...(config.caps ?? {}) };
+  caps[p.capability as keyof typeof caps] = {
+    ...(config.caps?.[p.capability as keyof typeof caps] ?? {}),
+    [p.role]: p.before,
+  } as never;
+  await savePortalPermissions({ ...config, caps });
+});
+
 // Department head — restore the prior head (or clear it).
 registerUndoHandler("ori.department.head", async (raw) => {
   const p = raw as { companyId: number; departmentId: number; before: number | null };

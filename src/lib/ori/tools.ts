@@ -22,6 +22,7 @@ import { MEETING_LETTER_TOOLS } from "@/lib/ori/tools-meetings-letters";
 import { CALENDAR_TOOLS } from "@/lib/ori/tools-calendar";
 import { GOVERNANCE_TOOLS } from "@/lib/ori/tools-governance";
 import { OPS_TOOLS } from "@/lib/ori/tools-ops";
+import { PORTAL_TOOLS } from "@/lib/ori/tools-portal";
 
 /**
  * ORI tool registry (Phase 0 of the "complete brain" plan). A tool is one typed
@@ -1093,6 +1094,7 @@ export const TOOLS: ToolDef[] = [
   ...CALENDAR_TOOLS,
   ...GOVERNANCE_TOOLS,
   ...OPS_TOOLS,
+  ...PORTAL_TOOLS,
 ];
 
 /** Approve/decline a leave request, snapshotting its prior decision for undo. */

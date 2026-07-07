@@ -10,6 +10,20 @@ import { planTurn, type ChatMsg, type PlanStep } from "@/lib/ori/agent";
 import { TOOL_BY_NAME } from "@/lib/ori/tools";
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
+import { resolveSmartAnswer, type SmartAnswer } from "@/lib/smart-answer";
+
+/** Render a SmartAnswer to a short, plain-language line for ORI's chat reply.
+ *  Keeps ORI a true superset — a "just answer it" turn returns a real answer,
+ *  not a shrug. Best-effort: any shape it doesn't know still reads sensibly. */
+function renderSmartAnswer(a: SmartAnswer): string {
+  const head = a.note ? `${a.title} — ${a.note}` : a.title;
+  const lines = a.rows.slice(0, 6).map((r) => {
+    const bits = [r.label, r.sub, r.badge].filter((x) => x && String(x).trim());
+    return `• ${bits.join(" — ")}`;
+  });
+  const countLine = a.kind === "count" && a.rows.length === 0 ? `${a.count}` : "";
+  return [head, countLine, ...lines].filter(Boolean).join("\n").trim();
+}
 
 /** Short, human-readable digest of a step's args for the ORI action log. */
 function summariseArgs(args: Record<string, unknown>): string {
@@ -111,6 +125,25 @@ export async function POST(req: NextRequest) {
     if (messages.length === 0) return NextResponse.json({ error: "messages required" }, { status: 400 });
 
     const turn = await planTurn(messages);
+
+    // PHASE 1 — no dead ends. When the planner resolves to a plain "answer" (no
+    // actionable tool plan), try the read-only smart-answer brain FIRST so a
+    // readable question gets a real answer instead of a shrug. ORI is a true
+    // superset: it answers OR acts, never refuses a question it can read.
+    // resolveSmartAnswer fails open (null on any error); wrapped so it can never
+    // break the answer path.
+    if (turn.mode === "answer") {
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      if (lastUser?.content) {
+        try {
+          const sa = await resolveSmartAnswer(lastUser.content);
+          if (sa) return NextResponse.json({ mode: "answer", reply: renderSmartAnswer(sa) });
+        } catch {
+          // fall through to the planner's own reply
+        }
+      }
+    }
+
     return NextResponse.json(turn);
   } catch (e) {
     console.error("/api/ori error:", e);

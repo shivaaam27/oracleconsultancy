@@ -138,7 +138,18 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
           <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Running…</div>
         )}
 
-        {phase.kind === "answer" && <RichAnswer text={phase.reply} />}
+        {phase.kind === "answer" && (
+          <div className="space-y-1.5">
+            <RichAnswer text={phase.reply} />
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("cos:ori-ask-instead", { detail: { text: command } }))}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent transition-colors"
+            >
+              <Sparkles size={11} /> Ask ORI instead
+            </button>
+          </div>
+        )}
 
         {phase.kind === "done" && (
           <div className="space-y-1.5">
