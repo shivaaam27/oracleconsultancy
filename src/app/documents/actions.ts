@@ -2331,12 +2331,24 @@ function usableTextLayer(raw: string | null | undefined): string | null {
   return t;
 }
 
-/** Embedded text (no AI) from a typed PDF / Office file. null for scans/images. */
+/** Embedded text (no AI) from a typed PDF / Office / plain-text file. null for scans/images. */
 async function extractTypedTextFromFile(file: File): Promise<string | null> {
   const lower = file.name.toLowerCase();
+  // Plain-text files ARE the text — decode the bytes directly (no OCR, no AI). Without
+  // this a .txt/.eml/.ics/.csv matched neither the typed nor the OCR reader and was
+  // wrongly stamped "couldn't read", so it could never leave the "not searchable" bucket.
+  const isPlainText =
+    file.type.startsWith("text/") ||
+    /\.(txt|text|md|markdown|log|eml|ics|vcf|json|tsv|csv)$/.test(lower);
+  if (isPlainText) {
+    try {
+      const t = new TextDecoder("utf-8").decode(await file.arrayBuffer());
+      return t.trim() ? t : null;
+    } catch { return null; }
+  }
   const isOffice =
-    lower.endsWith(".docx") || lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv") ||
-    file.type.includes("spreadsheet") || file.type === "text/csv" ||
+    lower.endsWith(".docx") || lower.endsWith(".xlsx") || lower.endsWith(".xls") ||
+    file.type.includes("spreadsheet") ||
     file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   if (isOffice) {
     try { const t = await extractOfficeText(file); return t.trim().length >= 20 ? t : null; } catch { return null; }

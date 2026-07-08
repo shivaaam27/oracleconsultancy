@@ -76,15 +76,28 @@ function HealthBody({ onOpenDoc }: { onOpenDoc: () => void }) {
     if (ids.length === 0) return;
     setRereading(true);
     setProgress({ done: 0, total: ids.length });
-    let done = 0;
+    // Report honestly: ensureDocumentText returns "done" only when it actually captured
+    // text. Scans that OCR can't read, or truly-unreadable files, come back "none" — so
+    // we tell the owner exactly how many are now searchable vs still stuck, never a
+    // blanket "success" for documents that didn't change.
+    let read = 0, failed = 0, processed = 0;
     for (const id of ids) {
-      try { await ensureDocumentText(id, true); } catch { /* skip a failed one, keep going */ }
-      done++;
-      setProgress({ done, total: ids.length });
+      try {
+        const r = await ensureDocumentText(id, true);
+        if (r === "done") read++; else failed++;
+      } catch { failed++; }
+      processed++;
+      setProgress({ done: processed, total: ids.length });
     }
     setRereading(false);
     setProgress(null);
-    toast(`Re-read ${done} document${done === 1 ? "" : "s"} — their text is now searchable.`, { tone: "success" });
+    if (read > 0 && failed === 0) {
+      toast(`Re-read ${read} document${read === 1 ? "" : "s"} — now searchable.`, { tone: "success" });
+    } else if (read > 0) {
+      toast(`${read} now searchable · ${failed} still couldn’t be read (likely scans).`, { tone: "warn" });
+    } else {
+      toast(`Couldn’t read ${failed} — likely scans or unsupported files. Nothing changed.`, { tone: "warn" });
+    }
     await load();
     router.refresh();
   }
