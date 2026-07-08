@@ -306,9 +306,14 @@ auto without explicit opt-in**).
   ladders (`GROQ_FAST_MODELS`/`GROQ_SMART_MODELS`); text calls fall through a decommissioned model like
   the vision ladder. **Model migration (Jun 2026):** Groq deprecated `llama-3.1-8b-instant` +
   `llama-3.3-70b-versatile` (shutdown 2026-08-16) → moved to the `openai/gpt-oss-*` models; the old
-  llama names remain as last-resort ladder entries until shutdown. Vision (`GROQ_VISION` =
-  `meta-llama/llama-4-scout-17b-16e-instruct`) also shuts down 2026-07-17 — replacement still to be
-  confirmed; OCR falls back to "rules" meanwhile. Provider-fallback beyond Groq is a scaffold only.
+  llama names remain as last-resort ladder entries until shutdown. **Vision now runs on GEMINI**
+  (`getActiveProvider()` is hardcoded `"gemini"`): document reading/OCR uses `GEMINI_VISION_MODELS`
+  (native multimodal) via `providerVisionModels()`, and every vision call the harness receives is
+  remapped through `providerLadder(gemini, …)`. The retired Groq vision model (`llama-4-scout`,
+  shutdown **2026-07-17**) has been REMOVED from `AI_VISION_MODELS` — its shutdown is a **non-event**;
+  OCR does NOT fall back to "rules" as long as the Gemini key is set. `model-watch` self-silences the
+  Groq-deprecation check while the provider is Gemini. (Groq is retained only for `/api/transcribe`
+  voice.)
 - AI-off must degrade gracefully unless the endpoint explicitly documents 503.
 - Preserve `source` discriminators where routes/components rely on them.
 - British English in prompts.

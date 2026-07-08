@@ -50,16 +50,20 @@ export const AI_SMART_MODELS: string[] = ladder("AI_SMART_MODELS", [
 ]);
 export const AI_SMART = AI_SMART_MODELS[0]; // primary; existing imports keep working
 
-// LEGACY GROQ vision ladder — used ONLY when the active provider is Groq. The app
-// runs on GEMINI (owner-selected), and OCR/extraction on that path uses
-// GEMINI_VISION_MODELS below (native multimodal) via providerVisionModels(), so
-// this ladder is a DORMANT fallback and does NOT read live documents today.
-// scout is deprecated on Groq (shutdown 2026-07-17) — that only matters if you
-// switch the provider back to Groq; the Gemini vision path is unaffected. If you
-// ever do, set AI_VISION_MODELS in the env (comma-separated, best first) to a
-// current multimodal model and the whole app follows — no redeploy of source.
+// Vision "tier head" registry (document reading / OCR). The everyday AI runs on
+// GEMINI (Groq removed — getActiveProvider() is hardcoded "gemini"), so live reads
+// go through GEMINI_VISION_MODELS via providerVisionModels()/providerLadder(). These
+// entries exist so tierOf() RECOGNISES a vision model and expands it to the active
+// provider's full ladder; they now MIRROR the Gemini vision heads (keep in sync with
+// GEMINI_VISION_MODELS below) so AI_VISION_MODELS[0] — used as the scan-crop request
+// model and the usage-ledger label — is always a LIVE model.
+//
+// The retired Groq vision model (meta-llama/llama-4-scout, shutdown 2026-07-17) has
+// been REMOVED: its shutdown is a NON-EVENT for this app. Env-overridable with
+// AI_VISION_MODELS (comma-separated, best first) — no redeploy.
 export const AI_VISION_MODELS: string[] = ladder("AI_VISION_MODELS", [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "gemini-3.5-flash",       // best reader, multimodal
+  "gemini-3.1-flash-lite",  // 500/day multimodal — big-capacity fallback
 ]);
 export const AI_VISION = AI_VISION_MODELS[0]; // primary; existing imports keep working
 
