@@ -1201,6 +1201,15 @@ export async function getDocumentRowAction(id: number): Promise<DocumentRow | nu
   try { return await getDocument(id); } catch { return null; }
 }
 
+/** Document Health Check — a zero-AI, egress-light audit of the whole library so the
+ *  owner can find failed/unread/unverified documents WITHOUT re-uploading everything.
+ *  Reads only structural columns (never extracted_text); runs on demand from the
+ *  To Sort panel button, not on page load. See lib/document-health.ts for the buckets. */
+export async function getDocumentHealthAction() {
+  const { getDocumentHealth } = await import("@/lib/document-health");
+  return getDocumentHealth();
+}
+
 /**
  * One-off cleanup: re-evaluate every quarantined doc that was held as a "Possible
  * duplicate" using the current (fixed) near-duplicate logic. The ones that are NOT

@@ -7,6 +7,7 @@ import { SortingDesk } from "@/components/sorting-desk";
 import { InboxList } from "@/app/inbox/inbox-list";
 import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
+import { DocumentHealthButton } from "@/components/document-health-panel";
 import { SmartAdd } from "@/components/smart-add";
 import { IntakeAccuracy } from "@/components/intake-accuracy";
 import { useToast } from "@/components/toast";
@@ -79,6 +80,7 @@ export function ToSortPanel({
           </button>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <DocumentHealthButton />
           <RescanDocumentsButton />
           <FindDuplicatesButton />
         </div>
