@@ -255,7 +255,7 @@ export type AutoFileResult = {
   ok: boolean;
   id?: number;
   title: string;
-  status: "filed" | "needs_review" | "duplicate";
+  status: "filed" | "needs_review" | "duplicate" | "to_sort";
   owner: string | null; // company/person name, for the summary
   reason?: string; // why it needs review (no company / unclear / unreadable)
   error?: string;
@@ -583,7 +583,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     }
     return {
       ok: true, id, title: input.title,
-      status: needsReview ? "needs_review" : "filed",
+      // Truthful status: under suggest-only (AUTO_FILE=false) a clean read is NOT
+      // filed — it waits in "To Sort" for a one-tap confirm. Only report "filed" when
+      // the doc genuinely went live; a shaky read is "needs_review"; a clean-but-held
+      // read is "to_sort" so Smart Add stops showing a green "Filed" for unconfirmed docs.
+      status: finalState === "filed" ? "filed" : needsReview ? "needs_review" : "to_sort",
       owner: resolvedBy && resolvedBy !== "file" && ownerName ? `${ownerName} (from ${resolvedBy})` : ownerName,
       reason,
       segmentCount: isCompilation ? segCount : undefined,
@@ -1055,6 +1059,8 @@ export async function fileFromQuarantineAction(id: number): Promise<{ ok: boolea
   const doc = await getDocument(id);
   await setDocumentIntakeState(id, "filed", null);
   await setDocumentVetted(id, true);
+  // Clear the review flag so a filed doc doesn't re-surface in "Unsure reads".
+  await updateDocument(id, { reviewStatus: "ok" });
   if (doc) await reconcileOwnerCompliance(doc.personId, doc.companyId);
   await fireDocumentReactions(id);
   revalidateDocs();
@@ -1142,6 +1148,8 @@ export async function confirmSortItemAction(
     if (wasQuarantined) {
       await setDocumentIntakeState(id, "filed", null);
       await setDocumentVetted(id, true);
+      // Clear the review flag too — a confirmed doc must not linger in "Unsure reads".
+      await updateDocument(id, { reviewStatus: "ok" });
     } else {
       await setDocumentVetted(id, true);
       await updateDocument(id, { reviewStatus: "ok" });
@@ -2523,6 +2531,26 @@ export async function rescanDocumentAction(id: number, force = false): Promise<R
       if (filing.expires) f.expiryKind = "yes";
       if (filing.expiry) f.expiryDate = filing.expiry;
     }
+
+    // Owner ladder (parity with a fresh upload): when NEITHER the stored doc nor the
+    // re-read resolved an owner, run the learned-owner + cross-document correlation
+    // steps too — so a re-scan proposes the owner a first upload would have found,
+    // instead of stopping at the (weaker) in-extraction match the old path used.
+    if (!doc.companyId && !doc.personId && !f.companyId && !f.personId) {
+      const { companies, people } = await loadEntities();
+      const learned = await learnedOwnerFor(`${f.title ?? doc.title ?? ""} ${f.issuer ?? doc.issuer ?? ""} ${f.docType ?? doc.docType ?? ""}`);
+      if (learned) {
+        if (learned.ownerType === "company") { f.companyId = learned.ownerId; f.companyName = companies.find((c) => c.id === learned.ownerId)?.name ?? f.companyName; }
+        else { f.personId = learned.ownerId; f.personName = people.find((p) => p.id === learned.ownerId)?.name ?? f.personName; }
+      } else {
+        const corr = await correlateOwnerByIdentifiers(`${f.referenceNo ?? doc.referenceNo ?? ""} ${res.fullText ?? f.notes ?? ""}`, f.referenceNo ?? doc.referenceNo ?? null);
+        if (corr && (corr.companyId || corr.personId)) {
+          if (corr.companyId) { f.companyId = corr.companyId; f.companyName = companies.find((c) => c.id === corr.companyId)?.name ?? f.companyName; }
+          if (corr.personId) { f.personId = corr.personId; f.personName = people.find((p) => p.id === corr.personId)?.name ?? f.personName; }
+        }
+      }
+    }
+
     const changes: RescanChange[] = [];
     const patch: Record<string, unknown> = {};
     const blank = (cur: string | null | undefined) => !cur || !cur.toString().trim();
@@ -2556,6 +2584,39 @@ export async function rescanDocumentAction(id: number, force = false): Promise<R
     if (f.companyId && !doc.companyId) { changes.push({ field: "companyId", label: "Company", old: null, new: f.companyName ?? String(f.companyId) }); patch.companyId = f.companyId; }
     if (f.personId && !doc.personId) { changes.push({ field: "personId", label: "Person", old: null, new: f.personName ?? String(f.personId) }); patch.personId = f.personId; }
     if (f.needsOriginal && !doc.needsOriginal) { changes.push({ field: "needsOriginal", label: "Awaiting original", old: "no", new: "yes" }); patch.needsOriginal = true; }
+
+    // House-format NAME proposal (a fresh upload renames via buildDocTitle; the old
+    // re-scan never did). Compose from the FINAL owner/type/ref/dates — including any
+    // owner just proposed above — and offer it as a change so a re-scan tidies the name too.
+    try {
+      const finalCompanyId = (patch.companyId as number | undefined) ?? doc.companyId ?? null;
+      const finalPersonId = (patch.personId as number | undefined) ?? doc.personId ?? null;
+      let ownerNm: string | null = null;
+      let prefix: string | null = null;
+      if (finalCompanyId) {
+        const { data: co } = await supa.from("companies").select("name,file_prefix").eq("id", finalCompanyId).maybeSingle();
+        ownerNm = (co?.name as string | null) ?? null;
+        prefix = (co?.file_prefix as string | null) ?? null;
+      } else if (finalPersonId) {
+        const { data: pe } = await supa.from("people").select("name").eq("id", finalPersonId).maybeSingle();
+        ownerNm = (pe?.name as string | null) ?? null;
+      }
+      const composed = buildDocTitle({
+        prefix,
+        owner: ownerNm,
+        type: (patch.docType as string | undefined) ?? f.docType ?? doc.docType,
+        ref: (patch.referenceNo as string | undefined) ?? f.referenceNo ?? doc.referenceNo,
+        date: (patch.issueDate as string | undefined) ?? f.issueDate ?? curIssue,
+        expiry: (patch.expiryDate as string | undefined) ?? f.expiryDate ?? curExpiry,
+      });
+      // Only propose a rename when we have a real OWNER to anchor the house name — an
+      // ownerless generic name (Type_Ref_EXP) must never replace a friendlier title a
+      // human may have typed. With an owner, the tidy owned name is the improvement.
+      if (ownerNm && composed && composed !== "Document" && composed !== doc.title) {
+        changes.push({ field: "title", label: "Name", old: doc.title, new: composed });
+        patch.title = composed;
+      }
+    } catch { /* naming is best-effort — never fail the re-scan over a title */ }
 
     return { ok: true, id, title: doc.title, fileName: doc.fileName, changes, patch, segments: f.segments?.length ?? 0, source: res.source };
   } catch (e) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, History, CalendarClock } from "lucide-react";
 import { Badge, Button } from "./ui";
+import { DocLinkPicker } from "./doc-link-picker";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
@@ -325,12 +326,8 @@ export function CompanyRequirementsChecklist({
                         <>
                           {renderAdd("Add")}
                           {linkable.length > 0 && (
-                            <select disabled={busy} defaultValue=""
-                              onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(item.id, () => creqLinkDocument(item.id, v), "Document linked."); }}
-                              className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[8.5rem]">
-                              <option value="" disabled>Link…</option>
-                              {linkable.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                            </select>
+                            <DocLinkPicker docs={linkable} disabled={busy}
+                              onPick={(v) => run(item.id, () => creqLinkDocument(item.id, v), "Document linked.")} />
                           )}
                           {item.effectiveStatus === "missing" && (
                             <button type="button" disabled={busy} onClick={() => run(item.id, () => creqMarkRequested(item.id), "Marked as requested.")} className={subtleBtn}>

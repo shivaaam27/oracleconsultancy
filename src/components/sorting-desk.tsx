@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check, Trash2, Loader2, FileText, Image as ImageIcon, Eye, Pencil,
-  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown, Sparkles,
+  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown, Sparkles, FileX,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect } from "@/components/fluid-select";
@@ -15,10 +15,11 @@ import type { SortItem, SortGroup } from "@/lib/sorting-desk";
 
 const GROUP_META: Record<SortGroup, { label: string; sub: string; Icon: typeof ShieldQuestion; cls: string }> = {
   place: { label: "Ready to confirm", sub: "Read in with a suggested company, category and expiry — check and confirm", Icon: ShieldQuestion, cls: "text-[#a78bfa]" },
-  unsure: { label: "Unsure reads", sub: "Filed but the read was shaky — worth a glance", Icon: ShieldAlert, cls: "text-warn" },
+  unsure: { label: "Unsure reads", sub: "Filed but the read was shaky — newest first, worth a glance", Icon: ShieldAlert, cls: "text-warn" },
+  failed: { label: "Couldn’t read", sub: "OCR + AI came back empty — name and categorise these by hand", Icon: FileX, cls: "text-danger" },
   owner: { label: "No owner yet", sub: "Filed cleanly but not attached to a company or person", Icon: UserX, cls: "text-fg-muted" },
 };
-const ORDER: SortGroup[] = ["place", "unsure", "owner"];
+const ORDER: SortGroup[] = ["place", "unsure", "failed", "owner"];
 
 function daysToExpiry(iso: string | null): number | null {
   if (!iso) return null;
@@ -46,7 +47,9 @@ export function SortingDesk({
 }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [collapsed, setCollapsed] = useState<Set<SortGroup>>(new Set(["unsure", "owner"]));
+  // Unsure reads + failed reads start OPEN (the owner asked to see them, newest first);
+  // only the tidy "no owner yet" pile starts collapsed.
+  const [collapsed, setCollapsed] = useState<Set<SortGroup>>(new Set(["owner"]));
   // Optimistic: a filed/trashed card disappears the instant you tap, then the
   // background refresh reconciles — File and Trash feel immediate.
   const [removed, setRemoved] = useState<Set<number>>(new Set());

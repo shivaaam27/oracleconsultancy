@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Paperclip, ExternalLink, X, Loader2 } from "lucide-react";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
+import { DocLinkPicker } from "./doc-link-picker";
 
 export type LinkDoc = { id: number; title: string; companyId: number | null };
 
@@ -22,7 +23,6 @@ export function DocLinkControl({
   companyId: number | null;
   onLink: (docId: number | null) => Promise<void>;
 }) {
-  const [picking, setPicking] = useState(false);
   const [, start] = useTransition();
   const [busy, setBusy] = useState(false);
 
@@ -51,19 +51,8 @@ export function DocLinkControl({
 
   // Documents relevant to this item: same company, or company-less.
   const choices = documents.filter((d) => companyId == null || d.companyId === companyId || d.companyId == null).slice(0, 200);
-  if (!picking) {
-    return (
-      <button type="button" onClick={() => setPicking(true)} title="Attach a document"
-        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-fg-subtle hover:bg-bg-muted">
-        <Paperclip size={10} /> Attach
-      </button>
-    );
-  }
   return (
-    <select autoFocus defaultValue="" onChange={(e) => { const id = Number(e.target.value); if (id) start(async () => { await onLink(id); setPicking(false); }); else setPicking(false); }}
-      className="rounded-md border border-border bg-bg px-1.5 py-0.5 text-[10px] max-w-[10rem]">
-      <option value="">— pick a document —</option>
-      {choices.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-    </select>
+    <DocLinkPicker docs={choices} label="Attach" placeholder="Search documents…"
+      onPick={(id) => start(async () => { await onLink(id); })} />
   );
 }

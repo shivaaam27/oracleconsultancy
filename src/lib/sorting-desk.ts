@@ -10,7 +10,12 @@
 import { listDocuments, listIntakeDocuments } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 
-export type SortGroup = "place" | "unsure" | "owner";
+export type SortGroup = "place" | "unsure" | "owner" | "failed";
+
+// A quarantine item whose read genuinely FAILED (OCR + AI both gave nothing) — as
+// opposed to one that read fine but just has no owner yet. These get their own
+// "Couldn't read" section so the owner can name/categorise them by hand.
+const FAILED_READ_RE = /couldn'?t read|could not read|can'?t read|unreadable|added for a manual check|AI may be off/i;
 
 export type SortItem = {
   id: number;
@@ -86,10 +91,19 @@ export async function getSortingDeskItems(): Promise<SortItem[]> {
   const items: SortItem[] = [];
 
   // 1) Waiting to confirm — quarantine (the bulk of the desk under suggest-only).
+  //    A genuinely-unreadable read is split into its own "Couldn't read" group so
+  //    the owner can name + categorise it by hand — no upload is ever a dead end.
+  //    listIntakeDocuments("quarantine") already returns newest-first (updated_at DESC).
   for (const q of quarantine) {
+    // A genuine read failure either says so in its reason OR produced no usable body
+    // text at all (empty/near-empty extract with no confidence) — e.g. "Couldn't
+    // render this PDF", "No file provided". A read that worked but just found no owner
+    // HAS text, so it stays in "Ready to confirm".
+    const noText = !q.extractedText || q.extractedText.replace(/\s+/g, "").length < 15;
+    const failed = FAILED_READ_RE.test(q.intakeReason ?? "") || (noText && (q.confidence == null || q.confidence < 0.3));
     items.push({
       id: q.id,
-      group: "place",
+      group: failed ? "failed" : "place",
       title: q.title,
       why: q.intakeReason,
       source: sourceLabel(q.createdBy),
@@ -109,9 +123,16 @@ export async function getSortingDeskItems(): Promise<SortItem[]> {
   }
 
   // 2) Unsure reads + 3) filed with no owner — filed docs only (rare under suggest-only).
-  for (const d of filed) {
+  //    Newest first: listDocuments orders by expiry date, but the desk wants the most
+  //    recently-touched reads at the top, so a fresh unsure read is seen first.
+  const filedRecent = [...filed].sort((a, b) => b.id - a.id);
+  for (const d of filedRecent) {
     if (d.intakeState !== "filed") continue;
-    const lowConf = d.confidence != null && d.confidence < LOW_CONFIDENCE;
+    // Only surface a low-confidence read while it's STILL un-reviewed. Once the owner
+    // has vetted/confirmed it (vettedAt set), a shaky ORIGINAL read must not drag the
+    // doc back into "Unsure reads" on every load — otherwise it becomes a permanent
+    // resident that re-confirming can never clear.
+    const lowConf = d.confidence != null && d.confidence < LOW_CONFIDENCE && !d.vettedAt;
     const base = {
       id: d.id,
       title: d.title,

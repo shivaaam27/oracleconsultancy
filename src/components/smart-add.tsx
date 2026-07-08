@@ -11,7 +11,7 @@ import { autoFileDocumentAction, type AutoFileResult } from "@/app/documents/act
 import { createInboxBundle } from "@/app/inbox/actions";
 import { ScanButton } from "@/components/scan-capture";
 
-type Row = AutoFileResult & { fileName: string };
+type Row = AutoFileResult & { fileName: string; savedToInbox?: boolean };
 type Owner = { kind: "company" | "person"; id: number; name: string };
 type Pick = File & { webkitRelativePath?: string };
 
@@ -81,26 +81,50 @@ export function SmartAdd({
     }
   }
 
+  // Last-resort save: stash the raw file into the Inbox so an upload NEVER dies. If
+  // the read couldn't run (too big for the server action, or a transport failure),
+  // the bytes are still saved and land in the sorter for a manual name/categorise.
+  async function stashToInbox(file: File): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.set("body", "");
+      fd.append("file", file);
+      const res = await createInboxBundle(fd);
+      return res.ok;
+    } catch { return false; }
+  }
+
   async function sortNow() {
     if (!picked.length) return;
     const batchOwner = ctx;
     setRunning(true); setFinished(false); setTotal(picked.length); setDone(0); setRows([]);
     const collected: Row[] = [];
+    // Files near/over the Next server-action body cap (25 MB) can't go through the
+    // read path (they'd be rejected before arriving) — route those straight to the
+    // Inbox instead of letting them fail.
+    const BIG = 22 * 1024 * 1024;
     for (let i = 0; i < picked.length; i++) {
       const file = picked[i];
       setCurrent(file.name);
       try {
         const prepared = await downscaleImage(file);
-        const fd = new FormData();
-        fd.set("file", prepared);
-        const relPath = file.webkitRelativePath ?? "";
-        if (relPath) fd.set("folderHint", relPath);
-        if (batchOwner?.kind === "company") fd.set("contextCompanyId", String(batchOwner.id));
-        if (batchOwner?.kind === "person") fd.set("contextPersonId", String(batchOwner.id));
-        const res = await autoFileDocumentAction(fd);
-        collected.push({ ...res, fileName: file.name });
+        if (prepared.size > BIG) {
+          const saved = await stashToInbox(file);
+          collected.push({ ok: false, title: file.name, status: "needs_review", owner: null, savedToInbox: saved, fileName: file.name, error: saved ? "Large file — saved to Inbox to sort by hand" : "Large file — couldn't save, please retry" });
+        } else {
+          const fd = new FormData();
+          fd.set("file", prepared);
+          const relPath = file.webkitRelativePath ?? "";
+          if (relPath) fd.set("folderHint", relPath);
+          if (batchOwner?.kind === "company") fd.set("contextCompanyId", String(batchOwner.id));
+          if (batchOwner?.kind === "person") fd.set("contextPersonId", String(batchOwner.id));
+          const res = await autoFileDocumentAction(fd);
+          collected.push({ ...res, fileName: file.name });
+        }
       } catch {
-        collected.push({ ok: false, title: file.name, status: "needs_review", owner: null, error: "Upload failed", fileName: file.name });
+        // Transport/server failure — DON'T drop the file. Save it to the Inbox.
+        const saved = await stashToInbox(file);
+        collected.push({ ok: false, title: file.name, status: "needs_review", owner: null, savedToInbox: saved, fileName: file.name, error: saved ? "Couldn't read — saved to Inbox to sort by hand" : "Upload failed — please retry" });
       }
       setDone(i + 1);
       setRows([...collected]);
@@ -124,9 +148,11 @@ export function SmartAdd({
   }
 
   const filedRows = rows.filter((r) => r.ok && r.status === "filed");
+  const toSortRows = rows.filter((r) => r.ok && r.status === "to_sort");
   const reviewRows = rows.filter((r) => r.ok && r.status === "needs_review");
   const dupeRows = rows.filter((r) => r.ok && r.status === "duplicate");
-  const failedRows = rows.filter((r) => !r.ok);
+  const savedRows = rows.filter((r) => !r.ok && r.savedToInbox);
+  const failedRows = rows.filter((r) => !r.ok && !r.savedToInbox);
   const pct = total ? Math.round((done / total) * 100) : 0;
 
   function openRow(r: Row) {
@@ -238,9 +264,11 @@ export function SmartAdd({
 
             {finished && (
               <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success"><Check size={13} /> {filedRows.length} filed</span>
+                {filedRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success"><Check size={13} /> {filedRows.length} filed</span>}
+                {toSortRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent"><FileText size={13} /> {toSortRows.length} to confirm</span>}
                 {reviewRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-3 py-1 text-xs font-medium text-warn"><AlertTriangle size={13} /> {reviewRows.length} need a look</span>}
                 {dupeRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-medium text-fg-muted"><Copy size={13} /> {dupeRows.length} duplicate</span>}
+                {savedRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-medium text-fg-muted"><Paperclip size={13} /> {savedRows.length} saved to Inbox</span>}
                 {failedRows.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1 text-xs font-medium text-danger"><FileX size={13} /> {failedRows.length} couldn’t read</span>}
               </div>
             )}
@@ -248,8 +276,10 @@ export function SmartAdd({
             {finished && (
               <div className="max-h-72 overflow-y-auto space-y-3">
                 <ResultSection title="Filed" rows={filedRows} tone="success" icon={<Check size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => r.owner || "Filed"} />
+                <ResultSection title="Waiting in To Sort — tap to confirm" rows={toSortRows} tone="accent" icon={<FileText size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => [r.owner, "read in — confirm to file"].filter(Boolean).join(" · ")} />
                 <ResultSection title="Needs a quick look" rows={reviewRows} tone="warn" icon={<AlertTriangle size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => [r.owner, r.reason].filter(Boolean).join(" · ") || "Needs a quick look"} />
                 <ResultSection title="Duplicate → Trash" rows={dupeRows} tone="muted" icon={<Copy size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => r.reason || "Already on file"} />
+                <ResultSection title="Saved to Inbox — sort by hand" rows={savedRows} tone="muted" icon={<Paperclip size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => r.error || "Saved to the Inbox"} />
                 <ResultSection title="Couldn’t read" rows={failedRows} tone="danger" icon={<FileX size={12} />} onOpen={openRow} clickable={clickable} subFor={(r) => r.error || r.reason || "Couldn’t read this file"} />
               </div>
             )}
@@ -272,15 +302,15 @@ function ResultSection({
 }: {
   title: string;
   rows: Row[];
-  tone: "success" | "warn" | "muted" | "danger";
+  tone: "success" | "warn" | "muted" | "danger" | "accent";
   icon: React.ReactNode;
   onOpen: (r: Row) => void;
   clickable: (r: Row) => boolean;
   subFor: (r: Row) => string;
 }) {
   if (rows.length === 0) return null;
-  const headTone = tone === "success" ? "text-success" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : "text-fg-muted";
-  const ringTone = tone === "success" ? "ring-success/25" : tone === "warn" ? "ring-warn/30" : tone === "danger" ? "ring-danger/30" : "ring-border/60";
+  const headTone = tone === "success" ? "text-success" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : tone === "accent" ? "text-accent" : "text-fg-muted";
+  const ringTone = tone === "success" ? "ring-success/25" : tone === "warn" ? "ring-warn/30" : tone === "danger" ? "ring-danger/30" : tone === "accent" ? "ring-accent/30" : "ring-border/60";
   return (
     <div>
       <div className={`mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${headTone}`}>

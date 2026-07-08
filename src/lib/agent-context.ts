@@ -150,7 +150,11 @@ async function gatherExtract(job: AiJob): Promise<AgentContext> {
       "RECORDS (match on TIN/VRN/alias/legal name — never invent an owner; leave ids null " +
       "if unsure). If `imageRef` is a URL, it's a scan/photo: download it (e.g. `curl -sL " +
       "\"<url>\" -o /tmp/doc`) and Read that file to transcribe and extract. If `text` is " +
-      "provided, use it. Put a one-line summary of the contents in `notes`.",
+      "provided, use it. Put a one-line summary of the contents in `notes`. Also return a " +
+      "`confidence` from 0 to 1 for how sure you are of the read (owner + key fields): use " +
+      "0.9+ for a clear scan you resolved confidently, and below 0.75 when the scan is " +
+      "unclear, the owner is a guess, or key fields are missing — a low value keeps the " +
+      "document in the owner's 'Unsure reads' queue for a human glance.",
     context: {
       document: doc,
       text: job.payload.text ?? null,
@@ -160,7 +164,8 @@ async function gatherExtract(job: AiJob): Promise<AgentContext> {
     resultShape:
       '{ "title": string, "category": string|null, "docType": string|null, "issuer": string|null, ' +
       '"referenceNo": string|null, "issueDate": "YYYY-MM-DD"|null, "expiryDate": "YYYY-MM-DD"|null, ' +
-      '"companyId": number|null, "personId": number|null, "notes": string|null }',
+      '"companyId": number|null, "personId": number|null, "notes": string|null, ' +
+      '"confidence": number }',
   };
 }
 

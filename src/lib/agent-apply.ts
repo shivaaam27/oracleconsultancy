@@ -59,6 +59,13 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
   const documentId = Number(job.payload.documentId ?? 0) || null;
   const companyId = (result.companyId as number) ?? null;
   const personId = (result.personId as number) ?? null;
+  // Confidence gate — mirror the intake gate (ai-json LOW_CONFIDENCE = 0.75). A
+  // re-read the agent ISN'T confident about must NOT go silently green: it stays
+  // "needs_review" so it lands in "Unsure reads" for a human glance. Only a high-
+  // confidence read clears the flag. (This used to hard-code "ok" unconditionally,
+  // which is why low-confidence docs stopped appearing in the unsure-reads bucket.)
+  const conf = typeof result.confidence === "number" ? (result.confidence as number) : null;
+  const confident = conf != null && conf >= 0.75;
   const fields = {
     title: (result.title as string) ?? null,
     category: (result.category as string) ?? null,
@@ -70,7 +77,7 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
     company_id: companyId,
     person_id: personId,
     notes: (result.notes as string) ?? null,
-    review_status: "ok" as const,
+    review_status: (confident ? "ok" : "needs_review") as "ok" | "needs_review",
   };
   if (documentId) {
     await sb.from("documents").update(fields).eq("id", documentId);

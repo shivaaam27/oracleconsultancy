@@ -149,8 +149,12 @@ export function RescanDocumentsDialog({
       if (stop) break;
       const cand = candidates[i];
       setCurrent(cand.fileName ?? cand.title);
-      // Force a fresh, cache-bypassing read when re-checking confirmed documents.
-      const res = await rescanDocumentAction(cand.id, recheckVetted);
+      // ALWAYS force a fresh, cache-bypassing read. A manual re-scan exists precisely
+      // to re-read the file with the current prompt/RAG — replaying the old cached
+      // extraction (the previous behaviour when "re-check confirmed" was off) is what
+      // made re-scans suggest stale, wrong categories/owners. `recheckVetted` only
+      // decides WHICH docs are in scope, never whether to bypass the cache.
+      const res = await rescanDocumentAction(cand.id, true);
       readCount += 1;
       if (res.ok) {
         // Show it only if it has proposed changes OR looks like a bundle.
@@ -246,7 +250,7 @@ export function RescanDocumentsDialog({
               Pick a company. We&rsquo;ll re-read each of its saved files one at a time and list only the ones where the reader suggests a fix.
             </p>
             <p className="text-[11px] text-fg-subtle">
-              Re-reading the same file again is free and gives the same answer — you won&rsquo;t be asked about a document once you&rsquo;ve confirmed it.
+              Each file is re-read fresh with the latest reader, so suggestions reflect the current AI &mdash; not an older cached read.
             </p>
 
             {/* "Re-check confirmed documents too" toggle. */}
@@ -260,7 +264,7 @@ export function RescanDocumentsDialog({
               <span className="min-w-0">
                 <span className="block text-[12px] font-medium text-fg">Re-check confirmed documents too</span>
                 <span className="block text-[11px] text-fg-subtle">
-                  Off: only review documents you haven&rsquo;t confirmed yet (free — uses saved reads). On: re-read everything from scratch (uses AI credits).
+                  Off: re-read only documents you haven&rsquo;t confirmed yet. On: re-read confirmed ones too. Either way each file is read fresh (uses AI credits).
                 </span>
               </span>
             </label>
