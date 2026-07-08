@@ -57,6 +57,9 @@ export type PortalCapabilities = {
     profile: boolean;
     /** Meetings/events — everyone (scoped server-side). */
     meetings: boolean;
+    /** Office Cleaning Registry — the receptionist (to log) + oversight roles (to
+     *  view). Cap-gated finer server-side via `cleaningLog` / `cleaningOverview`. */
+    cleaning: boolean;
   };
 };
 
@@ -69,15 +72,18 @@ export type PortalCapabilities = {
 export function portalCapabilities(role: PortalRole | string | undefined): PortalCapabilities {
   // Normalise to a known role; anything unexpected → "staff" (least privilege).
   const r: PortalRole =
-    role === "director" || role === "manager" || role === "hr" ? role : "staff";
+    role === "director" || role === "manager" || role === "hr" || role === "receptionist" ? role : "staff";
 
   const isDirector = r === "director";
   const isManager = r === "manager";
   const isManagement = r === "manager" || r === "hr" || r === "director";
+  // Receptionist — a stripped, data-entry-only shell: Home (announcements + to-do),
+  // the Cleaning log, and Profile. Nothing else. She's not board-first, so Home shows.
+  const isReceptionist = r === "receptionist";
   // Board-first operators: directors AND managers (each scoped to their companies).
   const boardFirst = isDirector || isManager;
   const groupWide = r === "hr" || r === "director";
-  const canCreate = r !== "staff";
+  const canCreate = r !== "staff" && !isReceptionist;
 
   return {
     isDirector,
@@ -88,16 +94,18 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
       board: boardFirst,
       home: !boardFirst,
       tasks: isManagement,
-      directory: true,
+      directory: !isReceptionist,
       outbox: isManagement,
       insights: isManagement,
       // Requests are hidden from the director portal for now (directors don't triage
-      // requests here); everyone else keeps them.
-      requests: !isDirector,
-      activity: true,
-      chat: true,
+      // requests here); everyone else keeps them — except the receptionist.
+      requests: !isDirector && !isReceptionist,
+      activity: !isReceptionist,
+      chat: !isReceptionist,
       profile: true,
-      meetings: true,
+      meetings: !isReceptionist,
+      // Cleaning: the receptionist logs it; managers/HR/directors see the overview.
+      cleaning: isReceptionist || isManagement,
     },
   };
 }

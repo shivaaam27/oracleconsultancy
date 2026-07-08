@@ -12,6 +12,7 @@ const HEADER_LABEL: Record<string, string> = {
   hr: "Admin portal",
   director: "Director board",
   staff: "Staff portal",
+  receptionist: "Reception",
 };
 
 const BADGE_LABEL: Record<string, string> = {
@@ -19,6 +20,7 @@ const BADGE_LABEL: Record<string, string> = {
   director: "Director",
   hr: "Admin",
   staff: "Staff",
+  receptionist: "Receptionist",
 };
 
 /** Portal header line ("… · Manager portal"), overridden by a designation. */

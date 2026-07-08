@@ -743,6 +743,7 @@ export default async function SettingsPage({
                         <option value="manager">Manager</option>
                         <option value="hr">Admin</option>
                         <option value="director">Director</option>
+                        <option value="receptionist">Receptionist</option>
                       </Select>
                       {/* Director scope: none = whole portfolio; one or more companies
                           = Company Director. Ignored server-side unless role Director. */}
@@ -779,6 +780,7 @@ export default async function SettingsPage({
                   <option value="manager">Manager — own + direct reports&apos; + own company&apos;s tasks, can complete</option>
                   <option value="hr">Admin — every company&apos;s tasks, can create across all</option>
                   <option value="director">Director — board view + create tasks/events</option>
+                  <option value="receptionist">Receptionist — cleaning log only, no tasks</option>
                 </Select>
               </div>
               <div className="sm:col-span-2 lg:col-span-4">

@@ -45,7 +45,7 @@ export default async function OcrPage({
         <div className="min-w-0">
           <HrmsCrumbs />
           <h1 className="text-lg font-semibold tracking-tight">OCR</h1>
-          <div className="text-xs text-fg-subtle">Office Cleaning Registry</div>
+          <div className="text-xs text-fg-subtle">Office Cleaning Registry — overview &amp; control. The receptionist logs the daily cleaning from her portal; this view reflects her ticks and lets you step in when needed.</div>
         </div>
       </div>
 

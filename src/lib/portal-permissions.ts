@@ -14,13 +14,14 @@
  *   • the Command Centre owner/admin bypasses all of this (not a portal person).
  */
 
-export type PortalRoleKey = "staff" | "manager" | "hr" | "director";
-export const PORTAL_ROLES: PortalRoleKey[] = ["staff", "manager", "hr", "director"];
+export type PortalRoleKey = "staff" | "manager" | "hr" | "director" | "receptionist";
+export const PORTAL_ROLES: PortalRoleKey[] = ["staff", "manager", "hr", "director", "receptionist"];
 export const ROLE_LABEL: Record<PortalRoleKey, string> = {
   staff: "Staff",
   manager: "Manager",
   hr: "Admin",
   director: "Director",
+  receptionist: "Receptionist",
 };
 
 /** Company data-visibility level. "own" = only their own items; "companies" =
@@ -46,7 +47,9 @@ export type CapabilityKey =
   | "navInsights"
   | "navRequests"
   | "oriAsk"
-  | "oriAct";
+  | "oriAct"
+  | "cleaningLog"
+  | "cleaningOverview";
 
 /** UI grouping + copy for the Settings matrix. */
 export type CapabilityMeta = { key: CapabilityKey; label: string; desc: string };
@@ -95,6 +98,14 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
       { key: "oriAct", label: "Act with ORI", desc: "Let ORI create or update tasks and take actions, within their scope and other permissions." },
     ],
   },
+  {
+    id: "cleaning",
+    label: "Office cleaning (OCR)",
+    caps: [
+      { key: "cleaningLog", label: "Log daily cleaning", desc: "Tick rooms cleaned, add per-room comments and sign off the day. This is the receptionist's data-entry surface." },
+      { key: "cleaningOverview", label: "See cleaning overview", desc: "View the cleaning register and history (who cleaned, room status, comments) — read-only oversight." },
+    ],
+  },
 ];
 
 const ALL_CAP_KEYS: CapabilityKey[] = CAPABILITY_GROUPS.flatMap((g) => g.caps.map((c) => c.key));
@@ -105,23 +116,30 @@ export const DEFAULT_SCOPE: Record<PortalRoleKey, ScopeLevel> = {
   manager: "companies",
   hr: "all",
   director: "all",
+  receptionist: "own",
 };
 
+// The receptionist is a data-entry-only role: every task/comms/nav power is OFF —
+// her portal is just Home (announcements + to-do) + the cleaning log. Only the two
+// cleaning caps are on. cleaningOverview is on for the oversight roles (manager/hr/
+// director) so the Command Centre view can be ported to them (e.g. Shivam).
 export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>> = {
-  createTasks: { staff: false, manager: true, hr: true, director: true },
-  manageAnyTask: { staff: false, manager: false, hr: true, director: true },
-  bulkTaskActions: { staff: false, manager: true, hr: true, director: true },
-  crossCompanyTasks: { staff: false, manager: false, hr: true, director: true },
-  messageOnTasks: { staff: false, manager: true, hr: true, director: true },
-  bulkOutreach: { staff: false, manager: false, hr: false, director: true },
-  createEvents: { staff: false, manager: true, hr: true, director: true },
-  approveLeave: { staff: false, manager: true, hr: false, director: false },
-  navTasks: { staff: false, manager: true, hr: true, director: true },
-  navOutbox: { staff: false, manager: true, hr: true, director: true },
-  navInsights: { staff: false, manager: true, hr: true, director: true },
-  navRequests: { staff: true, manager: true, hr: true, director: false },
-  oriAsk: { staff: true, manager: true, hr: true, director: true },
-  oriAct: { staff: false, manager: true, hr: false, director: true },
+  createTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  manageAnyTask: { staff: false, manager: false, hr: true, director: true, receptionist: false },
+  bulkTaskActions: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  crossCompanyTasks: { staff: false, manager: false, hr: true, director: true, receptionist: false },
+  messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  bulkOutreach: { staff: false, manager: false, hr: false, director: true, receptionist: false },
+  createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  approveLeave: { staff: false, manager: true, hr: false, director: false, receptionist: false },
+  navTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  navOutbox: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  navInsights: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  navRequests: { staff: true, manager: true, hr: true, director: false, receptionist: false },
+  oriAsk: { staff: true, manager: true, hr: true, director: true, receptionist: false },
+  oriAct: { staff: false, manager: true, hr: false, director: true, receptionist: false },
+  cleaningLog: { staff: false, manager: false, hr: false, director: false, receptionist: true },
+  cleaningOverview: { staff: false, manager: true, hr: true, director: true, receptionist: true },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */
@@ -131,7 +149,7 @@ export type PortalPermissionsConfig = {
 };
 
 function normaliseRole(role: string | null | undefined): PortalRoleKey {
-  return role === "manager" || role === "hr" || role === "director" ? role : "staff";
+  return role === "manager" || role === "hr" || role === "director" || role === "receptionist" ? role : "staff";
 }
 
 /** The scope level for a role, config merged over defaults. */

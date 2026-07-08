@@ -222,7 +222,7 @@ export async function clearSessionCookie() {
 // "hr" = admin/HR: sees and creates tasks across ALL 7 companies (group-wide
 // task visibility), but uses the ordinary staff home/Tasks surface, not the
 // director board.
-export type PortalRole = "staff" | "manager" | "hr" | "director";
+export type PortalRole = "staff" | "manager" | "hr" | "director" | "receptionist";
 
 // Roles whose powers are group-level (HR or director). NOTE: this is ROLE-only and
 // does NOT account for a company-scoped director — use `seesAllCompanies(person)` for
@@ -387,7 +387,9 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
             ? "hr"
             : data.portal_role === "director"
               ? "director"
-              : "staff";
+              : data.portal_role === "receptionist"
+                ? "receptionist"
+                : "staff";
       const resolved = resolveRolePerms(permsConfig, portalRole);
       return {
         id: data.id as number,

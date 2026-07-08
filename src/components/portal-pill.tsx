@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, Sparkles, User } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -234,6 +234,8 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   const showOutbox = tabOverrides?.outbox ?? caps.tabs.outbox;
   const showInsights = tabOverrides?.insights ?? caps.tabs.insights;
   const showRequests = tabOverrides?.requests ?? caps.tabs.requests;
+  const showCleaning = caps.tabs.cleaning;
+  const onCleaning = pathname.startsWith("/portal/cleaning");
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");
@@ -296,19 +298,21 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
               staff + HR only. The tab icon mirrors each surface's real layout. */}
           {showHome && <PillTab href="/portal" icon={HomeLayoutIcon} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} onTip={setTip} tourTag="nav-home" />}
           {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} onTip={setTip} />}
+          {/* Office cleaning register — the receptionist logs it; oversight roles view it. */}
+          {showCleaning && <PillTab href="/portal/cleaning" icon={SprayCan} label="Cleaning" active={onCleaning} labelled={labelFor(onCleaning)} reduce={reduce} onTip={setTip} />}
           {/* The contact book / company list — scoped per role server-side
               (group-wide for HR/directors, own-company for managers/staff). */}
-          <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} onTip={setTip} />
+          {caps.tabs.directory && <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} onTip={setTip} />}
           {/* Chat sits right after Directory — it's a primary, everyday destination. */}
-          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} onTip={setTip} tourTag="nav-chat" />
+          {caps.tabs.chat && <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} onTip={setTip} tourTag="nav-chat" />}
           {/* Briefings = meetings + announcements — everyone (scoped server-side). */}
-          <PillTab href="/portal/meetings" icon={CalendarClock} label="Briefings" active={onMeetings} labelled={labelFor(onMeetings)} reduce={reduce} onTip={setTip} />
+          {caps.tabs.meetings && <PillTab href="/portal/meetings" icon={CalendarClock} label="Briefings" active={onMeetings} labelled={labelFor(onMeetings)} reduce={reduce} onTip={setTip} />}
           {/* Drafted messages/announcements — management only. */}
           {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} onTip={setTip} />}
           {/* Glanceable portfolio/team Insights — management only. */}
           {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} onTip={setTip} />}
           {showRequests && <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} onTip={setTip} tourTag="nav-requests" />}
-          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />
+          {caps.tabs.activity && <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />}
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
         <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />

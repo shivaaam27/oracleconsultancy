@@ -42,7 +42,7 @@ function catIcon(cat: string | null): LucideIcon {
 type Tab = "waiting" | "to_me" | "raised" | "all";
 
 /** Management roles get "Waiting on me" as the default landing tab. */
-type ViewerRole = "staff" | "manager" | "hr" | "director";
+type ViewerRole = "staff" | "manager" | "hr" | "director" | "receptionist";
 const MANAGEMENT_ROLES: ViewerRole[] = ["manager", "hr", "director"];
 
 /** Shared request list. Portal passes meId (enables To-me / I-raised tabs);

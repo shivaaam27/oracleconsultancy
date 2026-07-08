@@ -88,6 +88,9 @@ export default async function PortalHome() {
   // Home is now staff + HR only (directors/managers are board-first). Staff get
   // the inline task view; HR get a link to the Tasks tab (too many to inline).
   const inlineTasks = me.portalRole === "staff";
+  // Receptionist: a stripped home — announcements + check-in + to-do only. No tasks,
+  // no meetings, no raise-a-request. Her work surface is the Cleaning tab.
+  const isReceptionist = me.portalRole === "receptionist";
   let cmdPeople: PickerPerson[] = [];
   let cmdCompanies: PickerCompany[] = [];
   if (inlineTasks) {
@@ -204,6 +207,7 @@ export default async function PortalHome() {
 
       {/* Your meetings — sits up top, right below the check-in strip, so the day's
           Join links are the first actionable thing after attendance. */}
+      {!isReceptionist && (
       <Reveal delay={0.04} className="flex flex-col gap-2.5">
         <SectionLabel
           icon={<Video size={13} />}
@@ -226,11 +230,12 @@ export default async function PortalHome() {
           );
         })()}
       </Reveal>
+      )}
 
       {/* Tasks — the same Aurora command view as the Tasks tab (portaltaskdesign),
           inline for staff, in a scroll housing so a long list doesn't run the page
-          on. HR keep a link (too many to inline). */}
-      {inlineTasks ? (
+          on. HR keep a link (too many to inline). Hidden for the receptionist. */}
+      {isReceptionist ? null : inlineTasks ? (
         <Reveal delay={0.05} className="flex flex-col gap-2.5">
           <div id="my-tasks" className="scroll-mt-4 flex flex-col gap-2.5">
             <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
@@ -264,7 +269,9 @@ export default async function PortalHome() {
         />
       </Reveal>
 
-      {/* Raise a request — below the to-do list, full width. */}
+      {/* Raise a request — below the to-do list, full width. Gated on the capability
+          (was shown unconditionally); off for the receptionist. */}
+      {me.caps.navRequests && (
       <Reveal delay={0.075} className="flex flex-col gap-2.5">
         <SectionLabel
           icon={<MessageSquareText size={13} />}
@@ -277,6 +284,7 @@ export default async function PortalHome() {
           <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
         </Panel>
       </Reveal>
+      )}
 
       {/* HR keep a shortcut to the team-reminders surface. */}
       {me.portalRole === "hr" && (

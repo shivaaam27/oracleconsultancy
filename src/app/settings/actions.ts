@@ -245,7 +245,7 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
   const password = String(fd.get("password") ?? "");
   const roleRaw = fd.get("portalRole");
-  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : "staff";
+  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : roleRaw === "receptionist" ? "receptionist" : "staff";
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
   if (password.length < 8) redirect("/settings?portal=short");
 
@@ -308,7 +308,7 @@ async function writeDirectorScope(personId: number, companyIds: number[]): Promi
 export async function setPortalRole(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
   const roleRaw = fd.get("portalRole");
-  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : "staff";
+  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : roleRaw === "receptionist" ? "receptionist" : "staff";
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
 
   // Guard: never silently grant access via a role change — the person must
