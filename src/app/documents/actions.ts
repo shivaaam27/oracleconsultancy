@@ -460,8 +460,18 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       // OUTRANKS the catalogue — the learning loop always wins.
       if (filing.category && !learnedCat) f.category = filing.category as typeof f.category;
       f.docType = filing.typeLabel ?? f.docType;
-      if (filing.expires) f.expiryKind = "yes";
-      if (filing.expiry) f.expiryDate = filing.expiry; // the owner's reliable date
+      if (filing.expires) {
+        f.expiryKind = "yes";
+        if (filing.expiry) f.expiryDate = filing.expiry; // the owner's reliable date
+      } else {
+        // Two-way: a KNOWN non-expiring type (bill/control number, receipt, invoice,
+        // incorporation cert, letter…) carries no compliance expiry. Flag it "no" so
+        // deriveDocStatus keeps it off the Expiry Watch. We do NOT wipe f.expiryDate —
+        // if the classifier ever mis-typed a real permit, the read date is PRESERVED
+        // (still visible/recoverable on the doc) rather than silently destroyed; the
+        // "no" flag alone is enough to untrack it.
+        f.expiryKind = "no";
+      }
     }
 
     // (Owner-TYPE mismatch guard considered + deliberately NOT auto-quarantined:
@@ -3400,7 +3410,13 @@ IDENTIFY THE TRUE TYPE — do not confuse a document with the paperwork AROUND i
 - An APPLICATION or acknowledgement (a form you submitted, an "application received" slip) is NOT the issued certificate. Only the ISSUED, signed/sealed certificate/licence/permit with a serial or registration number is the real thing.
 - So: distinguish the real TIN CERTIFICATE (issued by TRA, shows the TIN and "Certificate") from an invoice or control number that merely quotes a TIN; distinguish a real BUSINESS LICENCE (issued by the local authority/BRELA, shows a licence number and validity) from the application fee receipt for it; distinguish an issued PERMIT from the fee paid to apply for it.
 
-TANZANIAN DOCUMENTS — you will often see these; know them so you name them correctly: TRA issues TIN certificates, VRN/VAT certificates, tax clearance certificates, and control numbers/assessments (payment references). BRELA issues certificates of incorporation, business names, and annual returns. Local authorities issue business licences. NIDA issues the National ID (NIDA number). Immigration issues passports, residence permits, work permits (Class A/B/C), and visas — each with its own validity. OSHA, Fire, and sector regulators issue compliance certificates and permits. NSSF/WCF/PAYE/SDL are statutory contributions. Government papers carry official stamps, seals, coats of arms and signatures — their presence supports "issued certificate"; their absence on a plain printout supports "receipt/application/control number".
+TANZANIAN DOCUMENTS — you will often see these; know them so you name them correctly: TRA issues TIN certificates, VRN/VAT certificates, tax clearance certificates, and control numbers/assessments (payment references, often via GePG). BRELA issues certificates of incorporation, business names, and annual returns. Local authorities issue business licences. NIDA issues the National ID (NIDA number). Immigration issues passports, residence permits, work permits (Class A/B/C), visas, special passes, interim passes and dependant passes — each with its own validity. OSHA, Fire, and sector regulators issue compliance certificates and permits. NSSF/WCF/PAYE/SDL are statutory contributions. Government papers carry official stamps, seals, coats of arms and signatures — their presence supports "issued certificate"; their absence on a plain printout supports "receipt/application/control number".
+
+INDIAN DOCUMENTS — directors and expatriate staff often carry these; recognise them: a PAN card (Permanent Account Number, income-tax ID — no expiry); GST registration/GSTIN (a business tax registration — no expiry); Aadhaar (UIDAI national ID — belongs to the PERSON, no expiry); an Indian passport (belongs to the person, expires); an OCI card (Overseas Citizen of India — belongs to the person); and Indian visas / FRRO endorsements (belong to the person, expire). A PAN/passport/Aadhaar/OCI is a PERSONAL document — its owner is the person, never the company, even if the company sponsored them.
+
+BILLS, CONTROL NUMBERS AND FEES ARE NEVER TRACKED FOR EXPIRY. A "government bill", "control number", "GePG bill", "demand note", "assessment", "payment bill" or any fee/invoice is a demand to PAY money, not a licence/permit/certificate — even when it names the licence the fee is for (e.g. an "OSHA bill" or a "business licence fee bill"). Set docType to the payment type ("Control Number" / "Payment Bill" / "Invoice"), category "Banking" or "Tax", and expiryKind "no". Its due/pay-by date is NOT an expiry date — OMIT expiryDate for it.
+
+IMMIGRATION & PERSONAL PAPERS BELONG TO THE PERSON. A passport, national ID (NIDA/Aadhaar), visa, work/residence/special/interim/dependant pass, CTA, PAN, OCI, CV or individual employment contract is owned by the INDIVIDUAL named on it — return "person" and OMIT "company". Name the sponsoring/employing company only in notes; it is never the owner of a personal document.
 
 ${DOC_TYPE_FIELD_GUIDE}
 

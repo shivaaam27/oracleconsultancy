@@ -64,6 +64,15 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "tax-invoice", label: "Tax Invoice", aliases: ["tax invoice", "efd receipt", "fiscal receipt"], shelf: "Tax", category: "Tax", ownerType: "company", expires: false },
   { key: "audited-accounts", label: "Audited Accounts", aliases: ["audited accounts", "audited financial", "income tax return", "financial statements"], shelf: "Tax", category: "Tax", ownerType: "company", expires: false, companyReqKey: "audited-accounts" },
 
+  // ── Payments & bills (a demand to PAY money — NEVER a compliance expiry, even when
+  //    it names the licence/permit the fee is for; the due date is not a validity date) ──
+  { key: "control-number", label: "Payment Bill / Control Number", aliases: ["control number", "control no", "namba ya kumbukumbu", "demand note", "demand notice", "payment demand", "assessment notice", "government bill", "govt bill", "payment bill", "bill for payment", "gepg", "exchequer receipt"], shelf: "Tax", category: "Banking", ownerType: "either", expires: false },
+  { key: "invoice", label: "Invoice", aliases: ["invoice", "proforma invoice", "bill of sale", "fee note"], shelf: "Banking & Finance", category: "Banking", ownerType: "either", expires: false },
+
+  // ── India (directors / expatriate staff often carry these) ──────────────────
+  { key: "pan-card", label: "PAN Card (India)", aliases: ["permanent account number", "pan card", "income tax pan"], shelf: "Tax", category: "Tax", ownerType: "either", expires: false },
+  { key: "gst-registration", label: "GST Registration (India)", aliases: ["gstin", "gst registration", "goods and services tax"], shelf: "Tax", category: "Tax", ownerType: "company", expires: false },
+
   // ── Banking & Finance ───────────────────────────────────────────────────
   { key: "bank-details", label: "Bank Details", aliases: ["bank details", "bank account", "account details", "banking details"], shelf: "Banking & Finance", category: "Banking", ownerType: "either", expires: false, companyReqKey: "bank-account", personReqLabel: "Bank details" },
   // "receipt" alone is DROPPED — a "WCF-Receipt" / "NSSF-Receipt" is a statutory
@@ -81,6 +90,7 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "cv", label: "CV", aliases: ["curriculum vitae", "résumé", "resume", " cv "], shelf: "People & HR", category: "Other", ownerType: "person", expires: false, personReqLabel: "CV / résumé" },
   { key: "academic-certificate", label: "Academic Certificate", aliases: ["degree certificate", "diploma", "academic certificate", "transcript", "bachelor of", "master of"], shelf: "People & HR", category: "Certificate", ownerType: "person", expires: false, personReqLabel: "Academic / professional certificates" },
   { key: "national-id", label: "National ID (NIDA)", aliases: ["national id", "nida", "national identity"], shelf: "People & HR", category: "Other", ownerType: "person", expires: false, personReqLabel: "National ID (NIDA)" },
+  { key: "aadhaar", label: "Aadhaar (India)", aliases: ["aadhaar", "aadhar", "uidai"], shelf: "People & HR", category: "Other", ownerType: "person", expires: false },
 
   // ── Immigration ─────────────────────────────────────────────────────────
   { key: "passport", label: "Passport", aliases: ["passport"], shelf: "Immigration", category: "Passport", ownerType: "person", expires: true, personReqLabel: "Passport" },
@@ -89,6 +99,10 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "residence-permit", label: "Residence Permit", aliases: ["residence permit", "resident permit", "residence-permit"], shelf: "Immigration", category: "Permit", ownerType: "person", expires: true, personReqLabel: "Work / residence permit", pipeline: "permit" },
   { key: "visa", label: "Visa", aliases: ["business visa", "entry visa", "visa"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true, personReqLabel: "Visa" },
   { key: "interim-pass", label: "Interim Pass", aliases: ["interim pass", "interim-pass", "pass endorsement", "passport endorsement"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true, pipeline: "permit" },
+  { key: "special-pass", label: "Special Pass", aliases: ["special pass", "special-pass"], shelf: "Immigration", category: "Permit", ownerType: "person", expires: true, pipeline: "permit" },
+  { key: "dependant-pass", label: "Dependant Pass", aliases: ["dependant pass", "dependent pass", "dependants pass", "dependent's pass"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true },
+  { key: "cta", label: "Certificate of Temporary Assignment (CTA)", aliases: ["certificate of temporary assignment", "temporary assignment permit"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true },
+  { key: "oci-card", label: "OCI Card (India)", aliases: ["overseas citizen of india", "oci card"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: false },
 
   // ── Contracts & Leases ──────────────────────────────────────────────────
   { key: "lease", label: "Lease Agreement", aliases: ["lease agreement", "tenancy agreement", "lease", "godown", "premises lease", "mkataba wa pango", "mkataba wa kupanga"], shelf: "Contracts & Leases", category: "Lease", ownerType: "company", expires: true, companyReqKey: "premises-lease" },
@@ -147,7 +161,24 @@ export function classifyDocText(name: string, body = ""): { type: CatalogType; s
   // Tie-break: on an equal score, prefer a type that satisfies a compliance
   // requirement (a statutory type beats a generic one — e.g. an "…Receipt" that
   // scores level should resolve to the statutory doc, not a plain receipt).
-  return scored.sort((a, b) => b.score - a.score || (b.type.companyReqKey ? 1 : 0) - (a.type.companyReqKey ? 1 : 0));
+  const ranked = scored.sort((a, b) => b.score - a.score || (b.type.companyReqKey ? 1 : 0) - (a.type.companyReqKey ? 1 : 0));
+  // DOMAIN RULE: a document HEADED as a payment demand (a "government bill", "demand
+  // note", "payment bill", "assessment notice"…) IS a payment instruction — never the
+  // licence/permit/certificate whose fee it collects, even though it names one. Force
+  // the bill type to the top so a bill can never inherit a compliance expiry. (A mere
+  // "control number" line is NOT enough — real licences carry one too — so only the
+  // demand-DOCUMENT headers trigger this.)
+  const payHay = bodyScored.length ? bodyHay : nameHay;
+  // ONLY genuine demand-DOCUMENT headers — never mere identifiers. "gepg" (a payment
+  // gateway stamped on many ISSUED govt documents) and "namba ya kumbukumbu" (literally
+  // "reference number", printed on real permits/licences too) are deliberately EXCLUDED
+  // from the force — they stay as scoring aliases so they can't hijack a real licence.
+  const DEMAND_HEADERS = ["government bill", "govt bill", "demand note", "demand notice", "payment bill", "bill for payment", "assessment notice"];
+  if (DEMAND_HEADERS.some((p) => payHay.includes(p))) {
+    const bill = catalogType("control-number");
+    if (bill) return [{ type: bill, score: 999 }, ...ranked.filter((s) => s.type.key !== "control-number")];
+  }
+  return ranked;
 }
 
 /** The single best type, or null if nothing matched. */

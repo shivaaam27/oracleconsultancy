@@ -390,6 +390,11 @@ export type DocStatusInput = {
   // the daily push. Callers passing only {expiryDate,reminderLeadDays} are unchanged.
   category?: string | null;
   docType?: string | null;
+  // "no" = this TYPE does not carry a compliance expiry (a bill, receipt, letter,
+  // incorporation cert…). Such a document is NEVER Expired/Expiring even if a stray
+  // date was read onto it — that's what keeps bills/invoices off the Expiry Watch.
+  // Absent/"yes" behaves exactly as before, so genuine expiries are never hidden.
+  expiryKind?: string | null;
 };
 
 /** Whole days until expiry (negative = already expired). Null if no expiry. */
@@ -401,6 +406,9 @@ export function daysToExpiry(d: DocStatusInput): number | null {
 /** Derived lifecycle status. Mirrors derive.ts conventions for tasks. */
 export function deriveDocStatus(d: DocStatusInput): DocStatus {
   if (d.archived) return "Archived";
+  // A type that does not expire by its nature is never tracked — even if the read
+  // put a (bill due / payment) date on it. Strict "real expiry only".
+  if (d.expiryKind === "no") return "No expiry";
   const dte = daysToExpiry(d);
   if (dte === null) return "No expiry";
   if (dte < 0) return "Expired";

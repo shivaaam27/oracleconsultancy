@@ -1,6 +1,45 @@
 import { describe, it, expect } from "vitest";
 import { bestDocType, deriveFiling, parseConventionalName, subjectCompatible, subjectTokensOf, sameLogicalDocPair } from "./doc-catalog";
 
+describe("compliance knowledge: bills, immigration owner, India (Jul 2026)", () => {
+  it("a government bill / control number is NOT a tracked-expiry document", () => {
+    const t = bestDocType("OSHA Government Bill", "occupational safety and health control number 991510285825 government bill amount due");
+    expect(t?.key).toBe("control-number");
+    expect(t?.expires).toBe(false);
+  });
+  it("a business-licence FEE bill resolves to the bill, not the licence", () => {
+    const t = bestDocType("Government Bill", "government bill business licence fee control number 992041289654 payable");
+    expect(t?.expires).toBe(false);
+    expect(t?.key).not.toBe("business-licence");
+  });
+  it("a plain invoice does not expire", () => {
+    expect(bestDocType("Invoice", "proforma invoice total 1,200,000")?.expires).toBe(false);
+  });
+  it("a visa belongs to the PERSON and expires", () => {
+    const t = bestDocType("Visa Grant Notice", "business visa grant notice valid until 2026");
+    expect(t?.ownerType).toBe("person");
+    expect(t?.expires).toBe(true);
+  });
+  it("special / dependant pass belong to the person", () => {
+    expect(bestDocType("Special Pass", "special pass immigration")?.ownerType).toBe("person");
+    expect(bestDocType("Dependant Pass", "dependant pass")?.ownerType).toBe("person");
+  });
+  it("India PAN is a tax doc that does not expire", () => {
+    const t = bestDocType("PAN Card", "permanent account number income tax department");
+    expect(t?.key).toBe("pan-card");
+    expect(t?.expires).toBe(false);
+  });
+  it("India Aadhaar belongs to the person", () => {
+    expect(bestDocType("Aadhaar", "aadhaar uidai government of india")?.ownerType).toBe("person");
+  });
+  it("India GST registration belongs to the company", () => {
+    expect(bestDocType("GST Certificate", "gstin goods and services tax registration")?.ownerType).toBe("company");
+  });
+  it("deriveFiling reports expires=false for a control number so intake can force expiryKind no", () => {
+    expect(deriveFiling(null, "Government payment bill (control number)", "control number 992 government bill").expires).toBe(false);
+  });
+});
+
 describe("doc catalogue classifier", () => {
   it("shelves NSSF under People & HR (not Immigration)", () => {
     const t = bestDocType("DarSpices_NSSF-Document.pdf");

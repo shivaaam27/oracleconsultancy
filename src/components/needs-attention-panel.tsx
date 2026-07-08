@@ -311,16 +311,22 @@ export function NeedsAttentionPanel({
               <span className="h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: item.accent ?? (item.kind === "expired" ? "hsl(var(--danger))" : "hsl(var(--warn))") }} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{item.title}</div>
-                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-fg-subtle">
-                  {item.ownerName && (
-                    <span className="inline-flex items-center gap-1 truncate">
-                      {item.ownerType === "company" ? <Building2 size={11} /> : <UserIcon size={11} />}
-                      {item.ownerName}
+                {/* The countdown is the headline — a prominent colour-coded "heat" pill
+                    below the title (mirrors the home company-health cards), owner quieter. */}
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  {item.caption && (
+                    <span className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold tabular",
+                      item.kind === "expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn",
+                    )}>
+                      {item.kind === "expired" ? <AlertTriangle size={12} /> : <Clock size={12} />}
+                      {item.caption}
                     </span>
                   )}
-                  {item.caption && (
-                    <span className={cn(item.kind === "expired" ? "text-danger" : item.kind === "expiring" ? "text-warn" : "text-fg-subtle")}>
-                      {item.caption}
+                  {item.ownerName && (
+                    <span className="inline-flex items-center gap-1 truncate text-[11px] text-fg-subtle">
+                      {item.ownerType === "company" ? <Building2 size={11} /> : <UserIcon size={11} />}
+                      {item.ownerName}
                     </span>
                   )}
                 </div>

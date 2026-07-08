@@ -15,6 +15,7 @@
 // and runs on demand (a button), never on every page load.
 
 import { sb } from "@/db/supabase";
+import { deriveFiling } from "./doc-catalog";
 
 export type HealthItem = {
   id: number;
@@ -35,6 +36,8 @@ export type DocumentHealth = {
   noFile: HealthItem[];
   noText: HealthItem[];
   needsReview: HealthItem[];
+  /** Personal papers (passport/visa/permit/ID…) tagged to a COMPANY — should be a person. */
+  personMistagged: HealthItem[];
   duplicates: Array<{ hash: string; items: HealthItem[] }>;
 };
 
@@ -107,6 +110,7 @@ export async function getDocumentHealth(): Promise<DocumentHealth> {
   const noFile: HealthItem[] = [];
   const noText: HealthItem[] = [];
   const needsReview: HealthItem[] = [];
+  const personMistagged: HealthItem[] = [];
   const byHash = new Map<string, Row[]>();
   let healthy = 0;
 
@@ -115,6 +119,16 @@ export async function getDocumentHealth(): Promise<DocumentHealth> {
     const hasStored = !!r.storage_path;
     const unread = !r.text_source || r.text_source === "ocr-empty";
     const flagged = r.review_status === "needs_review" || (r.confidence != null && r.confidence < 0.75);
+
+    // A personal-paper TYPE (passport/visa/permit/ID/CV…) tagged to a company but no
+    // person → the owner is wrong (name-based catalogue lookup, no AI). Surfaced so a
+    // visa filed under "PES Ltd" can be re-pointed to the individual it belongs to.
+    if (r.company_id && !r.person_id) {
+      const filing = deriveFiling(r.file_name, r.title);
+      if (filing.ownerType === "person") {
+        personMistagged.push(toItem(r, `Looks like a personal ${filing.typeLabel ?? "document"} — tag the person`));
+      }
+    }
 
     if (!hasFile) {
       noFile.push(
@@ -148,5 +162,5 @@ export async function getDocumentHealth(): Promise<DocumentHealth> {
     .filter(([, g]) => g.length > 1)
     .map(([hash, g]) => ({ hash, items: g.map((r) => toItem(r, "Byte-identical copy")) }));
 
-  return { total: active.length, healthy, noFile, noText, needsReview, duplicates };
+  return { total: active.length, healthy, noFile, noText, needsReview, personMistagged, duplicates };
 }

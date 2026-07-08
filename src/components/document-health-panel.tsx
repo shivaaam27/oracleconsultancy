@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity, Loader2, FileX, FileSearch, ShieldAlert, Copy, CheckCircle2, ChevronDown, ExternalLink, Sparkles,
+  Activity, Loader2, FileX, FileSearch, ShieldAlert, Copy, CheckCircle2, ChevronDown, ExternalLink, Sparkles, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
@@ -114,7 +114,7 @@ function HealthBody({ onOpenDoc }: { onOpenDoc: () => void }) {
   // Company filter — build the option list from the owners that actually appear in
   // any bucket (so the dropdown only offers companies that have something to fix),
   // then scope every bucket + the re-read to the selection.
-  const allItems = [...data.noFile, ...data.noText, ...data.needsReview, ...data.duplicates.flatMap((g) => g.items)];
+  const allItems = [...data.noFile, ...data.noText, ...data.needsReview, ...data.personMistagged, ...data.duplicates.flatMap((g) => g.items)];
   const companyMap = new Map<number, string>();
   let hasNoOwner = false;
   for (const it of allItems) {
@@ -132,11 +132,12 @@ function HealthBody({ onOpenDoc }: { onOpenDoc: () => void }) {
   const noFile = data.noFile.filter(match);
   const noText = data.noText.filter(match);
   const needsReview = data.needsReview.filter(match);
+  const personMistagged = data.personMistagged.filter(match);
   const duplicates = data.duplicates
     .map((g) => ({ hash: g.hash, items: g.items.filter(match) }))
     .filter((g) => g.items.length > 0);
 
-  const attention = noFile.length + noText.length + needsReview.length + duplicates.length;
+  const attention = noFile.length + noText.length + needsReview.length + personMistagged.length + duplicates.length;
 
   return (
     <div className="space-y-3">
@@ -208,6 +209,17 @@ function HealthBody({ onOpenDoc }: { onOpenDoc: () => void }) {
         items={needsReview}
         emptyHidden
         sub="These read fine but were flagged or low-confidence — a quick glance, no AI needed."
+        onOpen={openDoc}
+      />
+
+      {/* Personal papers filed under a company */}
+      <HealthSection
+        icon={<UserCog size={14} className="text-warn" />}
+        title="Should be tagged to a person"
+        tone="warn"
+        items={personMistagged}
+        emptyHidden
+        sub="A passport, visa, permit or ID filed under a company — open it and set the person it belongs to."
         onOpen={openDoc}
       />
 
