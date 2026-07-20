@@ -942,8 +942,24 @@ export async function portalDirectorCreateTask(
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
   // "Only I can close it" is a director-composer feature only.
   const creatorCloseOnly = isDir && (formData.get("creatorCloseOnly") === "on" || formData.get("creatorCloseOnly") === "1");
+  // Starting status — the portal composer never allows creating straight into a
+  // terminal state (Completed/Closed): everything else is fine, default Not Started.
+  const statusRaw = String(formData.get("status") ?? "Not Started").trim();
+  const status = OPEN_STATUSES.includes(statusRaw) ? statusRaw : "Not Started";
   if (!actionItem) return { error: "Give the task a title." };
   if (leadIds.length === 0) return { error: "Choose who is responsible." };
+
+  // Optional "Repeat" recipe — cap-gated (recurringTasks). Alongside today's task,
+  // save a standing recurring_task automation so future copies auto-create on the
+  // chosen days/date. Invalid/empty selections just skip the rule (the one-off
+  // task creation above always succeeds regardless).
+  const repeatWanted = me.caps.recurringTasks && (formData.get("repeatOn") === "1" || formData.get("repeatOn") === "on");
+  const repeatCadence: "weekly" | "monthly" = String(formData.get("repeatCadence") ?? "weekly") === "monthly" ? "monthly" : "weekly";
+  const repeatWeekdays = String(formData.get("repeatWeekdays") ?? "")
+    .split(",").map((s) => Math.round(Number(s.trim()))).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  const repeatDayOfMonthRaw = Math.round(Number(formData.get("repeatDayOfMonth")));
+  const repeatDayOfMonth = Number.isInteger(repeatDayOfMonthRaw) ? Math.min(31, Math.max(1, repeatDayOfMonthRaw)) : 1;
+  const willRepeat = repeatWanted && (repeatCadence === "monthly" || repeatWeekdays.length > 0);
 
   // Multi-company fan-out: parse the comma-separated companyIds → unique valid
   // ids; fall back to a single companyId field if companyIds is absent/empty.
@@ -999,7 +1015,7 @@ export async function portalDirectorCreateTask(
     if (!company) continue; // skip an unknown company id rather than fail the whole fan-out
 
     const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
-      actionItem, ownerId: leads[0], status: "Not Started", priority,
+      actionItem, ownerId: leads[0], status, priority,
       deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
       createdDate: now, lastUpdatedAt: now, latestUpdate: instruction || null, archived: false,
       createdByPersonId: me.id,
@@ -1028,6 +1044,24 @@ export async function portalDirectorCreateTask(
       entry_type: "CREATE", field: "Task", old_value: null, new_value: actionItem,
       change_reason: "Created by director", created_at: now.toISOString(), created_by: createdBy,
     });
+
+    // Standing repeat rule — one recurring_task automation per company, mirroring
+    // this task's template so future copies auto-create complete (title, company,
+    // assignees, priority, status, description). Never bound to today's task row —
+    // the cron evaluates it against a synthetic open task on its own cadence.
+    if (willRepeat) {
+      await sb.from("automation_rules").insert({
+        task_id: null, company_id: companyId, kind: "recurring_task",
+        config: {
+          cadence: repeatCadence,
+          ...(repeatCadence === "weekly" ? { weekdays: repeatWeekdays } : { dayOfMonth: repeatDayOfMonth }),
+          title: actionItem, companyId, priority, status,
+          assigneePersonIds: [...leads, ...workings],
+          ...(instruction ? { description: instruction } : {}),
+        },
+        active: true, done: false, created_by: createdBy, created_at: now.toISOString(),
+      });
+    }
 
     const recipients = [...leads, ...workings].map(personRecipient);
     recipients.push("admin");

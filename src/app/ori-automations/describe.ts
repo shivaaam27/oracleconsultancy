@@ -44,6 +44,19 @@ export type DescribedRule = {
 };
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "every Mon, Wed, Fri" (or the single-day legacy phrasing) for a recurring_task /
+ *  scheduled_macro weekly config — `weekdays` (multi-day) wins over `weekday`. */
+function weeklyWhenPhrase(cfg: Record<string, unknown>): string {
+  const raw = Array.isArray(cfg.weekdays) ? (cfg.weekdays as unknown[]).map(num).filter((n): n is number => n != null) : [];
+  if (raw.length) {
+    const days = [...new Set(raw.map((n) => Math.min(6, Math.max(0, n))))].sort((a, b) => a - b);
+    return `every ${days.map((d) => WEEKDAYS_SHORT[d]).join(", ")}`;
+  }
+  const wd = num(cfg.weekday);
+  return `every ${wd != null ? WEEKDAYS[Math.min(6, Math.max(0, wd))] : "Monday"}`;
+}
 
 const KIND_META: Record<string, { label: string; icon: LucideIcon }> = {
   watch: { label: "Watcher", icon: Eye },
@@ -173,8 +186,7 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
       const cadence = cfg.cadence === "monthly" ? "monthly" : "weekly";
       let when = "";
       if (cadence === "weekly") {
-        const wd = num(cfg.weekday);
-        when = `every ${wd != null ? WEEKDAYS[Math.min(6, Math.max(0, wd))] : "Monday"}`;
+        when = weeklyWhenPhrase(cfg);
       } else {
         const dom = num(cfg.dayOfMonth) ?? 1;
         when = `on the ${ordinal(dom)} of each month`;

@@ -130,7 +130,7 @@ export default async function PortalLayout({ children }: { children: React.React
         canCreate={me.caps.createTasks || me.caps.createEvents}
         canOri={me.caps.oriAsk}
         role={me.portalRole}
-        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, requests: me.caps.navRequests }}
+        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, requests: me.caps.navRequests, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview }}
       />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
       <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />

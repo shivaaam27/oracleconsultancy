@@ -51,11 +51,14 @@ export function NewTaskForm({
   people,
   companies,
   isDirector = false,
+  canRepeat,
 }: {
   me: { id: number; name: string };
   people: Person[];
   companies: Company[];
   isDirector?: boolean;
+  /** me.caps.recurringTasks — shows the composer's "Repeat" section. */
+  canRepeat?: boolean;
 }) {
   // The pill "New task" page renders the SAME composer as the board and the
   // Tasks page — auto-opened. Directors assign group-wide (multi-company
@@ -147,6 +150,7 @@ export function NewTaskForm({
             role={isDirector ? "director" : "manager"}
             open={open}
             onOpenChange={onOpenChange}
+            canRepeat={canRepeat}
           />
         </>
       )}

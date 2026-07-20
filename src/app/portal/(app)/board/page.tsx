@@ -271,6 +271,7 @@ async function Board({ me, scope, boardLabel, composerModes, todos }: { me: Port
         suggestions={suggestions}
         boardLabel={boardLabel}
         composerModes={composerModes}
+        canRepeat={me.caps.recurringTasks}
         todos={todos}
         todosInColumn={!!todos}
       />

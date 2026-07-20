@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { BellRing, Building2, Check, ChevronDown, Ellipsis, Search, User, X } from "lucide-react";
+import { BellRing, Building2, Check, ChevronDown, Ellipsis, ListChecks, Search, User, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { CompanyAvatar } from "@/components/company-avatar";
@@ -216,6 +216,8 @@ export function TaskFilterBar({
   companyOptions,
   personLabel,
   personOptions,
+  statusLabel,
+  statusOptions,
   moreItems,
   moreActiveCount,
   groupLabel,
@@ -230,6 +232,11 @@ export function TaskFilterBar({
   companyOptions: FilterOption[];
   personLabel: string | null;
   personOptions: FilterOption[];
+  /** Full 8-status set (CLAUDE.md) — covers Under Review / Waiting External /
+   *  Blocked / Escalated / Completed / Closed, none of which have their own
+   *  quick chip. */
+  statusLabel: string | null;
+  statusOptions: FilterOption[];
   moreItems: FilterChip[];
   moreActiveCount: number;
   groupLabel: string;
@@ -344,6 +351,9 @@ export function TaskFilterBar({
         </Popover>
         <Popover label="Filter by person" trigger={(o) => ddChip(o, <User size={13} />, personLabel ?? "Person", !!personLabel)}>
           {(close) => <OptionList options={personOptions} close={close} searchable emptyLabel="No people." />}
+        </Popover>
+        <Popover label="Filter by status" trigger={(o) => ddChip(o, <ListChecks size={13} />, statusLabel ?? "Status", !!statusLabel)}>
+          {(close) => <OptionList options={statusOptions} close={close} />}
         </Popover>
         <Popover
           label="More filters"

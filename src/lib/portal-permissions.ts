@@ -38,6 +38,7 @@ export type CapabilityKey =
   | "manageAnyTask"
   | "bulkTaskActions"
   | "crossCompanyTasks"
+  | "recurringTasks"
   | "messageOnTasks"
   | "bulkOutreach"
   | "createEvents"
@@ -62,6 +63,7 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
       { key: "manageAnyTask", label: "Manage any task", desc: "Edit, complete, close or delete any task in their scope (not just ones they raised)." },
       { key: "bulkTaskActions", label: "Bulk actions", desc: "Select many tasks to postpone or delete at once." },
       { key: "crossCompanyTasks", label: "Copy / move across companies", desc: "Copy a task to, or move it between, companies. Needs all-company scope." },
+      { key: "recurringTasks", label: "Recurring tasks", desc: "Add a repeat schedule (weekly days or monthly) when creating a task, and manage their standing repeat rules." },
     ],
   },
   {
@@ -128,6 +130,7 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   manageAnyTask: { staff: false, manager: false, hr: true, director: true, receptionist: false },
   bulkTaskActions: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   crossCompanyTasks: { staff: false, manager: false, hr: true, director: true, receptionist: false },
+  recurringTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   bulkOutreach: { staff: false, manager: false, hr: false, director: true, receptionist: false },
   createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
@@ -139,7 +142,9 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   oriAsk: { staff: true, manager: true, hr: true, director: true, receptionist: false },
   oriAct: { staff: false, manager: true, hr: false, director: true, receptionist: false },
   cleaningLog: { staff: false, manager: false, hr: false, director: false, receptionist: true },
-  cleaningOverview: { staff: false, manager: true, hr: true, director: true, receptionist: true },
+  // Overview is the manager/receptionist working view (e.g. Shivam) — directors and
+  // HR don't need the cleaning register on their portal (flipped off Jul 2026).
+  cleaningOverview: { staff: false, manager: true, hr: false, director: false, receptionist: true },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */

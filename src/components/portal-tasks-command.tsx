@@ -123,7 +123,7 @@ function statusDot(s: string): string {
 const initials = getInitials; // honorific-stripped (Mr Pulin Manek → PM)
 
 export function PortalTasksCommand({
-  tasks, people, companies, role, viewerId, canCreate, canManageAny, initialFilter = "all", houseList = false,
+  tasks, people, companies, role, viewerId, canCreate, canManageAny, canRepeat, initialFilter = "all", houseList = false,
 }: {
   tasks: CommandTask[];
   people: BoardPerson[];
@@ -132,6 +132,8 @@ export function PortalTasksCommand({
   /** The signed-in person's id — for the creator-only edit/complete rule. */
   viewerId: number;
   canCreate: boolean;
+  /** `recurringTasks` capability — shows/hides the Repeat section in Quick add. */
+  canRepeat?: boolean;
   /** Owner-configurable "manage any task" grant for this role (Settings → Portals).
    *  Drives the Edit/Complete affordances so the UI matches the server. Omitted =
    *  fall back to the built-in default (director/HR). */
@@ -144,6 +146,11 @@ export function PortalTasksCommand({
 }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>(initialFilter);
+  // Status dropdown — covers the exact statuses that don't have their own quick
+  // chip (Under Review / Waiting External / Blocked / Escalated), plus the full
+  // set for completeness. Mutually exclusive with the chip filter: picking a
+  // status here resets the chip to "all", and vice versa.
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   // "Company wise" view: group the list by company instead of by status.
   const [groupByCompany, setGroupByCompany] = useState(false);
@@ -185,6 +192,9 @@ export function PortalTasksCommand({
         const hay = `${t.actionItem} ${t.code} ${t.companyName} ${t.accountableName ?? ""} ${t.assignees.join(" ")}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
+      // Status dropdown wins over the chip filter when set — an exact-status
+      // pick (e.g. Blocked) shouldn't also be hidden by the chip's isDone rule.
+      if (statusFilter !== "all") return t.status === statusFilter;
       if (filter === "inprogress") return t.status === "In Progress" && !t.isDone;
       if (filter === "overdue") return t.overdue && !t.isDone;
       if (filter === "soon") return t.withinSoon && !t.overdue && !t.isDone;
@@ -196,11 +206,18 @@ export function PortalTasksCommand({
       // the director explicitly selects the Done chip.
       return !t.isDone;
     });
-  }, [byCompany, q, filter, viewerId]);
+  }, [byCompany, q, filter, statusFilter, viewerId]);
 
   const companyFilterOptions: FluidOption[] = [
     { value: "all", label: "All companies" },
     ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ];
+
+  // "All statuses" + every status in CLAUDE.md's canonical order, dotted to
+  // match the status colour used elsewhere on the row (STATUS_COLOR/statusDot).
+  const statusFilterOptions: FluidOption[] = [
+    { value: "all", label: "All statuses" },
+    ...ALL_STATUSES.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] })),
   ];
 
   type Group = { key: string; label: string; dot?: string; dotColor?: string | null; logoUrl?: string | null; items: CommandTask[] };
@@ -232,8 +249,8 @@ export function PortalTasksCommand({
     if (groupByCompany) {
       // One section per company (alphabetical); within each, most-recent first.
       // Completed/closed tasks are hidden here (clutter) UNLESS the Done filter
-      // is on — then the director is explicitly looking at finished work.
-      const source = filter === "done" ? filtered : filtered.filter((t) => !t.isDone);
+      // — or an explicit status pick (e.g. "Completed") — is on.
+      const source = (filter === "done" || statusFilter !== "all") ? filtered : filtered.filter((t) => !t.isDone);
       const byCo = new Map<string, CommandTask[]>();
       for (const t of source) {
         const key = t.companyName || "No company";
@@ -248,6 +265,13 @@ export function PortalTasksCommand({
           logoUrl: items[0]?.companyLogoUrl ?? null,
           items: items.slice().sort(filter === "done" ? byClosed : byUrgencyThenRecent),
         }));
+    }
+    // An explicit status pick (dropdown) → a single flat list of just that
+    // status, newest first.
+    if (statusFilter !== "all") {
+      const items = filtered.slice().sort(statusFilter === "Completed" || statusFilter === "Closed" ? byClosed : byRecent);
+      if (items.length === 0) return [];
+      return [{ key: `status:${statusFilter}`, label: statusFilter, dot: statusDot(statusFilter), items }];
     }
     // A specific filter chip → a single flat list of just those tasks, newest
     // first (no urgency sub-sections). "All" keeps the urgency sections.
@@ -284,7 +308,7 @@ export function PortalTasksCommand({
       { key: "open", label: "In progress", dot: "bg-info", items: open },
       { key: "done", label: "Done", dot: "bg-fg-subtle", items: done },
     ].filter((g) => g.items.length > 0);
-  }, [filtered, groupByCompany, filter]);
+  }, [filtered, groupByCompany, filter, statusFilter]);
 
   // Staff get a stripped-down bar — just All (their open count) + Not Started.
   // The management roles get the full set: Not Started sits right after All, and
@@ -319,6 +343,19 @@ export function PortalTasksCommand({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search tasks, people, companies…"
             className="py-3 text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2.5">
+          {/* Status dropdown — the full 8-status set, incl. Under Review /
+              Waiting External / Blocked / Escalated, which don't have their own
+              quick chip. Available to every role (staff included). Picking one
+              clears the chip row (mutually exclusive). */}
+          <FluidSelect
+            value={statusFilter}
+            options={statusFilterOptions}
+            onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
+            align="right"
+            buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[10.5rem]"
           />
         </div>
         {(companies.length > 1 || isManagement) && (
@@ -363,13 +400,13 @@ export function PortalTasksCommand({
             {isManagement && (
               <button
                 type="button"
-                onClick={() => setFilter("done")}
+                onClick={() => { setStatusFilter("all"); setFilter("done"); }}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 sm:hidden",
-                  filter === "done" ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
+                  statusFilter === "all" && filter === "done" ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
                 )}
               >
-                <span className={cn("text-[15px] font-semibold leading-none tabular", filter === "done" ? "" : "text-success")}>{counts.done}</span>
+                <span className={cn("text-[15px] font-semibold leading-none tabular", statusFilter === "all" && filter === "done" ? "" : "text-success")}>{counts.done}</span>
                 <span className="text-[12.5px]">Done</span>
               </button>
             )}
@@ -381,13 +418,13 @@ export function PortalTasksCommand({
           separately); desktop WRAPS so every filter is visible with no scroll. */}
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
         {FILTERS.map((f) => {
-          const active = filter === f.key;
+          const active = statusFilter === "all" && filter === f.key;
           const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : f.key === "notstarted" ? "text-fg-subtle" : "text-accent";
           return (
             <button
               key={f.key}
               type="button"
-              onClick={() => setFilter(f.key)}
+              onClick={() => { setStatusFilter("all"); setFilter(f.key); }}
               className={cn(
                 "shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95",
                 active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
@@ -403,13 +440,14 @@ export function PortalTasksCommand({
         })}
       </div>
 
-      {canCreate && <QuickAdd people={people} companies={companies} role={role} />}
+      {canCreate && <QuickAdd people={people} companies={companies} role={role} canRepeat={canRepeat} />}
 
       {groups.length === 0 ? (
         <div className="flex items-center gap-3 rounded-2xl bg-bg-elev p-5 text-sm text-fg-muted ring-1 ring-border">
           <ListTodo size={16} className="text-fg-subtle" />
           {q.trim()
             ? "No tasks match your search."
+            : statusFilter !== "all" ? `No tasks with status "${statusFilter}".`
             : filter === "overdue" ? "Nothing overdue — you're on top of it."
             : filter === "soon" ? "Nothing due in the next week."
             : filter === "inprogress" ? "Nothing in progress right now."
@@ -1605,7 +1643,7 @@ export function TaskDeleteFooter({ taskId, code, onDeleted }: { taskId: number; 
  *  multi-company fan-out + "Only I can close it"; managers keep their single
  *  company + team scope. The composer owns the form, the notify step and the
  *  submit action. */
-function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companies: BoardCompany[]; role: string }) {
+function QuickAdd({ people, companies, role, canRepeat }: { people: BoardPerson[]; companies: BoardCompany[]; role: string; canRepeat?: boolean }) {
   const [open, setOpen] = useState(false);
   const composerRole: ComposerRole = role === "director" ? "director" : "manager";
 
@@ -1632,6 +1670,7 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
         people={people}
         companies={companies}
         role={composerRole}
+        canRepeat={canRepeat}
         open={open}
         onOpenChange={setOpen}
       />

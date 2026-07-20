@@ -239,7 +239,7 @@ export default async function PortalHome() {
         <Reveal delay={0.05} className="flex flex-col gap-2.5">
           <div id="my-tasks" className="scroll-mt-4 flex flex-col gap-2.5">
             <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-            <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={me.caps.createTasks} canManageAny={me.caps.manageAnyTask} houseList />
+            <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={me.caps.createTasks} canManageAny={me.caps.manageAnyTask} canRepeat={me.caps.recurringTasks} houseList />
           </div>
         </Reveal>
       ) : (

@@ -4,7 +4,7 @@ import { Button, FieldLabel, Input, Select } from "@/components/ui";
 import { SubmitTextarea, EnterHint } from "@/components/form-keys";
 import { ActionItemField } from "@/components/action-item-field";
 import { PersonPicker, type PickerPerson } from "@/components/person-picker";
-import { PrioritySegment, DeadlineQuickPick, CompanySelectField } from "@/components/task-form-fields";
+import { PrioritySegment, DeadlineQuickPick, CompanySelectField, RepeatSection } from "@/components/task-form-fields";
 import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
 
@@ -86,6 +86,10 @@ export function NewTaskForm({
         <div className="relative">
           <FieldLabel>Accountable</FieldLabel>
           <PersonPicker people={people} defaultNames={defaultAccountable} placeholder="Search people, or type a new name…" />
+        </div>
+
+        <div className="relative">
+          <RepeatSection />
         </div>
 
         {/* Description (stored as the task's comments). */}

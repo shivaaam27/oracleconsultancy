@@ -41,13 +41,15 @@ function detectMode(s: string): Mode {
 }
 
 export function SmartCaptureBar({
-  people, companies, modes = ["Task", "Event", "Message"],
+  people, companies, modes = ["Task", "Event", "Message"], canRepeat,
 }: {
   people: Person[];
   companies: Company[];
   /** Which capture modes this operator may use. Managers get Task-only; the
    *  full board (directors) gets all three. */
   modes?: Mode[];
+  /** me.caps.recurringTasks — shows the task composer's "Repeat" section. */
+  canRepeat?: boolean;
 }) {
   const [text, setText] = useState("");
   const [choosing, setChoosing] = useState(false);
@@ -140,7 +142,7 @@ export function SmartCaptureBar({
 
       {/* Controlled sheets, pre-filled with what was typed. Only the allowed
           modes are mounted, so a Task-only operator can never open Event/Message. */}
-      {modes.includes("Task") && <DirectorTaskForm people={people} companies={companies} open={sheet === "Task"} onOpenChange={onSheetToggle} seedTitle={seed} />}
+      {modes.includes("Task") && <DirectorTaskForm people={people} companies={companies} open={sheet === "Task"} onOpenChange={onSheetToggle} seedTitle={seed} canRepeat={canRepeat} />}
       {modes.includes("Event") && <DirectorEventForm people={people} companies={companies} open={sheet === "Event"} onOpenChange={onSheetToggle} seedTitle={seed} />}
       {modes.includes("Message") && <DirectorMessage people={people} open={sheet === "Message"} onOpenChange={onSheetToggle} seedBody={seed} />}
     </div>

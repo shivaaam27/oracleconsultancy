@@ -83,11 +83,15 @@ export type RuleConfig = {
   fallbackPersonId?: number;
   // recurring_task: recreate a standing task on a cadence.
   cadence?: "weekly" | "monthly";
-  weekday?: number; // 0=Sun … 6=Sat (weekly)
+  weekday?: number; // 0=Sun … 6=Sat (weekly) — single-day, kept for back-compat
+  weekdays?: number[]; // 0=Sun … 6=Sat (weekly) — multi-day; when set, wins over `weekday`
   dayOfMonth?: number; // 1–31 (monthly)
   companyId?: number;
   priority?: string;
   assigneePersonIds?: number[];
+  // recurring_task: the rest of the task template so the created copy is complete.
+  status?: string; // defaults to "Not Started"
+  description?: string; // → the created task's `comments`
   // scheduled_macro: run a saved macro (ai_memory kind="macro") on a cadence. At the
   // due time the cron SURFACES the macro's steps as a confirm-and-run prompt — it
   // never auto-executes the steps (Tier 3). Weekly on `weekday` @ `hour`, or monthly
@@ -609,11 +613,23 @@ function nextRecurrenceInstant(rule: AutomationRuleRow, now: Date, cadence: "wee
   const localWeekday = shifted.getUTCDay();
 
   if (cadence === "weekly") {
-    const target = Math.min(6, Math.max(0, Math.round(rule.config.weekday ?? 1)));
-    // How many days back to the most recent target weekday (0 = today).
-    const back = (localWeekday - target + 7) % 7;
-    const occDom = dom - back;
-    const occ = Date.UTC(y, mo, occDom, START_HOUR) - 3 * 3_600_000;
+    // Multi-day config wins when present; otherwise fall back to the single `weekday`
+    // (default Monday=1) for back-compat with rules saved before weekdays[] existed.
+    const rawTargets = Array.isArray(rule.config.weekdays) && rule.config.weekdays.length
+      ? rule.config.weekdays
+      : [rule.config.weekday ?? 1];
+    const targets = new Set(rawTargets.map((w) => Math.min(6, Math.max(0, Math.round(w)))));
+    // Walk back from today (0 = today) to the most recent day that matches ANY
+    // target weekday — at most a week back covers every case.
+    let occ: number | null = null;
+    for (let back = 0; back < 7; back++) {
+      const wd = (localWeekday - back + 7) % 7;
+      if (!targets.has(wd)) continue;
+      const occDom = dom - back;
+      occ = Date.UTC(y, mo, occDom, START_HOUR) - 3 * 3_600_000;
+      break;
+    }
+    if (occ == null) return null;
     return occ >= rule.createdAt.getTime() ? occ : null;
   }
   // monthly

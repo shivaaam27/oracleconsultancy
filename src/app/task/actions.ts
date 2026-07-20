@@ -450,6 +450,17 @@ export async function createTask(formData: FormData) {
   // first assignee as the accountable lead so only they carry an overdue hit.
   const accountability = str(formData.get("accountability")) === "lead" ? "lead" : "shared";
 
+  // Optional "Repeat" recipe (RepeatSection on the New Task form). Alongside
+  // today's task, save a standing recurring_task automation so future copies
+  // auto-create on the chosen days/date — never blocks today's task if invalid.
+  const repeatOn = formData.get("repeatOn") === "1";
+  const repeatCadence: "weekly" | "monthly" = str(formData.get("repeatCadence")) === "monthly" ? "monthly" : "weekly";
+  const repeatWeekdays = String(formData.get("repeatWeekdays") ?? "")
+    .split(",").map((s) => Math.round(Number(s.trim()))).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  const repeatDayOfMonthRaw = Math.round(Number(formData.get("repeatDayOfMonth")));
+  const repeatDayOfMonth = Number.isInteger(repeatDayOfMonthRaw) ? Math.min(31, Math.max(1, repeatDayOfMonthRaw)) : 1;
+  const willRepeat = repeatOn && (repeatCadence === "monthly" || repeatWeekdays.length > 0);
+
   const result = await mutate({
     kind: "task.create",
     run: async () => {
@@ -563,6 +574,26 @@ export async function createTask(formData: FormData) {
 
       // Best-effort semantic index (no-op unless semantic search is enabled).
       void reindexEntity("task", task.id);
+
+      // Standing repeat rule — mirrors this task's template (title, company,
+      // assignees, priority, status, description) so future copies auto-create
+      // complete. Never bound to today's task row; best-effort (never blocks
+      // today's task creation if it fails).
+      if (willRepeat) {
+        try {
+          await sb.from("automation_rules").insert({
+            task_id: null, company_id: companyId, kind: "recurring_task",
+            config: {
+              cadence: repeatCadence,
+              ...(repeatCadence === "weekly" ? { weekdays: repeatWeekdays } : { dayOfMonth: repeatDayOfMonth }),
+              title: actionItem, companyId, priority, status,
+              assigneePersonIds: assigneeIds,
+              ...(comments ? { description: comments } : {}),
+            },
+            active: true, done: false, created_by: "web-ui", created_at: nowIso,
+          });
+        } catch { /* best-effort — today's task is created regardless */ }
+      }
 
       return {
         result: { code: task.code },

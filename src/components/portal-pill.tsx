@@ -220,7 +220,7 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   /** Owner-configurable tab visibility (Settings → Portals → Roles & permissions),
    *  resolved server-side and passed in. When omitted, the built-in defaults from
    *  portalCapabilities apply. */
-  tabOverrides?: Partial<{ tasks: boolean; outbox: boolean; insights: boolean; requests: boolean }>;
+  tabOverrides?: Partial<{ tasks: boolean; outbox: boolean; insights: boolean; requests: boolean; cleaning: boolean }>;
 }) {
   const pathname = usePathname() || "/portal";
   // Role capabilities come from the single registry (src/lib/portal-capabilities.ts)
@@ -234,7 +234,9 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   const showOutbox = tabOverrides?.outbox ?? caps.tabs.outbox;
   const showInsights = tabOverrides?.insights ?? caps.tabs.insights;
   const showRequests = tabOverrides?.requests ?? caps.tabs.requests;
-  const showCleaning = caps.tabs.cleaning;
+  // Cleaning also honours the owner's per-role cap (cleaningLog / cleaningOverview)
+  // when provided — the raw isReceptionist||isManagement default is just the fallback.
+  const showCleaning = tabOverrides?.cleaning ?? caps.tabs.cleaning;
   const onCleaning = pathname.startsWith("/portal/cleaning");
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");

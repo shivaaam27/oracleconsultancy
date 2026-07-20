@@ -652,7 +652,7 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
   {
     const { data: rules } = await sb
       .from("automation_rules")
-      .select("id,task_id,company_id,kind,config,active,done,created_at,last_fired_at")
+      .select("id,task_id,company_id,kind,config,active,done,created_at,last_fired_at,created_by")
       .eq("active", true).eq("done", false)
       .limit(500);
 
@@ -680,14 +680,24 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
             if (companyId && title) {
               const { data: comp } = await sb.from("companies").select("code").eq("id", companyId).maybeSingle();
               const priority = ["Critical", "High", "Medium", "Low"].includes(String(cfg.priority)) ? String(cfg.priority) : "Medium";
+              // The owner's chosen starting status (never Completed/Closed — a
+              // freshly recreated occurrence is always open); default Not Started.
+              const OPEN = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
+              const status = OPEN.includes(String(cfg.status)) ? String(cfg.status) : "Not Started";
+              const description = (cfg.description as string | undefined)?.trim() || null;
               const created = new Date();
               const task = await insertTaskWithUniqueCodeSb(companyId, (comp?.code as string) ?? "", {
-                actionItem: title, status: "Not Started", priority, escalation: "No",
+                actionItem: title, status, priority, escalation: "No",
                 deadline: null, createdDate: created, lastUpdatedAt: created, archived: false, category: "Admin",
+                comments: description,
               });
               const aIds = Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [];
               for (const pid of aIds) await sb.from("task_assignees").upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
-              await sb.from("audit_log").insert({ task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task", old_value: null, new_value: title, change_reason: "Recurring task (ORI automation)", created_at: nowIso, created_by: "ai-command" });
+              // Attribute the audit entry to whoever owns the standing rule (portal
+              // rules stamp "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>";
+              // the AI chat path stamps "ai-command"; the Command Centre builder "web-ui").
+              const ruleCreatedBy = (raw.created_by as string | null) || "ai-command";
+              await sb.from("audit_log").insert({ task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task", old_value: null, new_value: title, change_reason: "Recurring task (ORI automation)", created_at: nowIso, created_by: ruleCreatedBy });
               void reindexEntity("task", task.id);
             }
           } catch (actErr) {

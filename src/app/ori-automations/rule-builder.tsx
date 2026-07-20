@@ -37,7 +37,7 @@ const DEFAULT_LADDER: LadderStep[] = [
 ];
 
 type Draft = {
-  whenMode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily" | "ladder";
+  whenMode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily" | "ladder" | "recurring";
   hour: number;
   minute: number;
   days: number;
@@ -54,7 +54,9 @@ type Draft = {
   activeHoursOn: boolean;
   activeFromHour: number;
   activeToHour: number;
-  condition: BuilderPayload["condition"];
+  // The builder always initialises a condition ("always"); only the PAYLOAD may omit it
+  // (recurring tasks carry no condition).
+  condition: NonNullable<BuilderPayload["condition"]>;
   agingDays: number;
   weekdaysOnly: boolean;
   pausedUntil: string;
@@ -74,6 +76,16 @@ type Draft = {
   setStatus: string;
   sendChannel: "" | "email" | "whatsapp";
   preferKind?: BuilderPayload["preferKind"];
+  // ── Recurring task (a new task created on a cadence, not a reminder) ───────
+  recurTitle: string;
+  recurCompanyName: string;
+  recurCadence: "weekly" | "monthly";
+  recurWeekdays: number[]; // 0=Sun … 6=Sat, multi-select
+  recurDayOfMonth: number;
+  recurPriority: string;
+  recurStatus: string;
+  recurAssigneeNames: string[];
+  recurDescription: string;
 };
 
 const BLANK: Draft = {
@@ -86,7 +98,18 @@ const BLANK: Draft = {
   notifyOwner: true, notifyManagers: false, notifyDirectors: false, warnPerson: false, extraNames: [],
   ladderSteps: DEFAULT_LADDER,
   autoAct: false, postUpdate: false, updateText: "", setStatus: "", sendChannel: "",
+  recurTitle: "", recurCompanyName: "", recurCadence: "weekly", recurWeekdays: [1],
+  recurDayOfMonth: 1, recurPriority: "Medium", recurStatus: "Not Started",
+  recurAssigneeNames: [], recurDescription: "",
 };
+
+const RECUR_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+// Open statuses only — a recurring task is never created straight into Completed/Closed.
+const RECUR_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
+const DAY_CHIPS = [
+  { v: 1, l: "Mon" }, { v: 2, l: "Tue" }, { v: 3, l: "Wed" }, { v: 4, l: "Thu" },
+  { v: 5, l: "Fri" }, { v: 6, l: "Sat" }, { v: 0, l: "Sun" },
+];
 
 /** Which conditions read the aging-days threshold. */
 const AGING_CONDS = new Set(["waiting_external_aged", "under_review_stale"]);
@@ -162,8 +185,19 @@ function repeatPhrase(d: Draft): string {
   return `${every} ${stops.length ? stops.join(", ") : "with NO stop set"}${inHours}`;
 }
 
+const DAY_LABEL: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
+
 /** The live plain-English sentence for the current draft. */
 function sentence(d: Draft): string {
+  if (d.whenMode === "recurring") {
+    const title = d.recurTitle.trim() || "…";
+    const co = d.recurCompanyName || "a company";
+    const when = d.recurCadence === "monthly"
+      ? `on the ${d.recurDayOfMonth}${d.recurDayOfMonth === 1 ? "st" : d.recurDayOfMonth === 2 ? "nd" : d.recurDayOfMonth === 3 ? "rd" : "th"} of each month`
+      : d.recurWeekdays.length ? `every ${[...d.recurWeekdays].sort().map((w) => DAY_LABEL[w]).join(", ")}` : "…pick at least one day";
+    const who = d.recurAssigneeNames.length ? `, assigned to ${d.recurAssigneeNames.join(", ")}` : "";
+    return `Create "${title}" for ${co} ${when}${who}.`;
+  }
   if (d.whenMode === "ladder") {
     const rungs = [...d.ladderSteps].sort((a, b) => a.overdueDays - b.overdueDays);
     const steps = rungs.map((s) => {
@@ -224,6 +258,10 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
   const companyByName = useMemo(() => new Map(companies.map((c) => [c.name, c.id])), [companies]);
 
   const coherent = useMemo(() => {
+    if (d.whenMode === "recurring") {
+      if (!d.recurTitle.trim() || !companyByName.has(d.recurCompanyName)) return false;
+      return d.recurCadence === "monthly" || d.recurWeekdays.length > 0;
+    }
     if (d.scopeType === "person" && !personByName.has(d.personName)) return false;
     if (d.scopeType === "company" && !companyByName.has(d.companyName)) return false;
     if (d.scopeType === "task" && !d.taskCode.trim()) return false;
@@ -239,6 +277,29 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
   }, [d, personByName, companyByName]);
 
   function save() {
+    if (d.whenMode === "recurring") {
+      const payload: BuilderPayload = {
+        recurring: {
+          cadence: d.recurCadence,
+          weekdays: d.recurCadence === "weekly" ? d.recurWeekdays : undefined,
+          dayOfMonth: d.recurCadence === "monthly" ? d.recurDayOfMonth : undefined,
+          companyId: companyByName.get(d.recurCompanyName) ?? 0,
+          title: d.recurTitle.trim(),
+          priority: d.recurPriority,
+          status: d.recurStatus,
+          description: d.recurDescription.trim() || undefined,
+          assigneePersonIds: d.recurAssigneeNames.map((n) => personByName.get(n)).filter((x): x is number => typeof x === "number"),
+        },
+      };
+      start(async () => {
+        const res = await createAutomationAction(payload);
+        if (!res.ok) { toast(res.error ?? "Could not save the automation.", { tone: "danger" }); return; }
+        toast("Recurring task saved — it's live.", { tone: "success" });
+        setOpen(false);
+        router.refresh();
+      });
+      return;
+    }
     const scope: BuilderPayload["scope"] =
       d.scopeType === "person" ? { type: "person", personId: personByName.get(d.personName) }
         : d.scopeType === "company" ? { type: "company", companyId: companyByName.get(d.companyName) }
@@ -350,6 +411,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                 ["on_overdue", "When overdue"],
                 ["daily", "Every day"],
                 ["ladder", "Overdue ladder"],
+                ["recurring", "Recurring task"],
               ] as const).map(([v, l]) => (
                 <Chip key={v} on={d.whenMode === v} onClick={() => set({ whenMode: v })}>{l}</Chip>
               ))}
@@ -401,10 +463,87 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                 <span className="text-[11px] text-fg-muted">hours before the deadline (re-arms if the deadline moves)</span>
               </div>
             )}
+            {d.whenMode === "recurring" && (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip on={d.recurCadence === "weekly"} onClick={() => set({ recurCadence: "weekly" })}>Weekly</Chip>
+                  <Chip on={d.recurCadence === "monthly"} onClick={() => set({ recurCadence: "monthly" })}>Monthly</Chip>
+                </div>
+                {d.recurCadence === "weekly" ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {DAY_CHIPS.map(({ v, l }) => (
+                      <Chip
+                        key={v}
+                        on={d.recurWeekdays.includes(v)}
+                        onClick={() => set({ recurWeekdays: d.recurWeekdays.includes(v) ? d.recurWeekdays.filter((x) => x !== v) : [...d.recurWeekdays, v] })}
+                      >
+                        {l}
+                      </Chip>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-fg-muted">Day of month</span>
+                    <input
+                      type="number" min={1} max={31} value={d.recurDayOfMonth}
+                      onChange={(e) => set({ recurDayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
+                      className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                    />
+                  </div>
+                )}
+                <p className="text-[11px] text-fg-muted">Each occurrence at 09:00 Dar es Salaam time.</p>
+              </div>
+            )}
           </Step>
 
-          {/* IF — not shown for the ladder (it has its own step conditions). */}
-          {d.whenMode !== "ladder" && (
+          {/* TASK TEMPLATE — recurring task mode only. What the created task looks
+              like each time it fires. */}
+          {d.whenMode === "recurring" && (
+            <Step label="Task template">
+              <div className="space-y-2.5">
+                <input
+                  value={d.recurTitle}
+                  onChange={(e) => set({ recurTitle: e.target.value })}
+                  placeholder="What needs to be done, e.g. Open the shop"
+                  className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border placeholder:text-fg-subtle"
+                />
+                <Combobox options={companies.map((c) => c.name)} defaultValue={d.recurCompanyName} placeholder="Pick a company…" onCommit={(v) => set({ recurCompanyName: v })} onInput={(v) => set({ recurCompanyName: v })} />
+                <div className="flex flex-wrap gap-2">
+                  <FluidSelect value={d.recurPriority} options={RECUR_PRIORITIES.map((p) => ({ value: p, label: p }))} onSelect={(v) => set({ recurPriority: v })} />
+                  <FluidSelect value={d.recurStatus} options={RECUR_STATUSES.map((s) => ({ value: s, label: s }))} onSelect={(v) => set({ recurStatus: v })} />
+                </div>
+                <div>
+                  <Combobox
+                    options={people.filter((p) => !d.recurAssigneeNames.includes(p.name)).map((p) => p.name)}
+                    placeholder="Assign to… (add people)"
+                    clearOnCommit
+                    onCommit={(v) => { if (personByName.has(v) && !d.recurAssigneeNames.includes(v)) set({ recurAssigneeNames: [...d.recurAssigneeNames, v] }); }}
+                  />
+                  {d.recurAssigneeNames.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {d.recurAssigneeNames.map((n) => (
+                        <button key={n} type="button" onClick={() => set({ recurAssigneeNames: d.recurAssigneeNames.filter((x) => x !== n) })}
+                          className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[11px] ring-1 ring-border hover:bg-danger/10 hover:text-danger">
+                          {n} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <textarea
+                  value={d.recurDescription}
+                  onChange={(e) => set({ recurDescription: e.target.value })}
+                  rows={2}
+                  placeholder="Description (optional) — becomes the task's comments"
+                  className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border placeholder:text-fg-subtle"
+                />
+              </div>
+            </Step>
+          )}
+
+          {/* IF — not shown for the ladder (it has its own step conditions), or for
+              a recurring task (it's not a reminder about an existing task). */}
+          {d.whenMode !== "ladder" && d.whenMode !== "recurring" && (
             <Step label="If">
               <FluidSelect value={d.condition} options={COND_OPTIONS} onSelect={(v) => set({ condition: v as Draft["condition"] })} />
               {d.condition === "due_tomorrow" && (
@@ -428,7 +567,8 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             </Step>
           )}
 
-          {/* WHO */}
+          {/* WHO — not for a recurring task (it has its own company/assignees above). */}
+          {d.whenMode !== "recurring" && (
           <Step label="Who">
             <div className="flex flex-wrap gap-1.5">
               {([["everyone", "Everyone"], ["person", "A person"], ["company", "A company"], ["task", "One task"]] as const).map(([v, l]) => (
@@ -478,6 +618,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             </div>
             )}
           </Step>
+          )}
 
           {/* LADDER STEPS — only in ladder mode. */}
           {d.whenMode === "ladder" && (
@@ -508,7 +649,9 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             </Step>
           )}
 
-          {/* SCHEDULE — applies to every mode. */}
+          {/* SCHEDULE — applies to every mode except recurring (its cadence is set above,
+              and weekdays-only/pause don't apply to a standing task-creation rule). */}
+          {d.whenMode !== "recurring" && (
           <Step label="Schedule">
             <div className="space-y-2">
               {d.whenMode !== "ladder" && (
@@ -528,9 +671,11 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
               </div>
             </div>
           </Step>
+          )}
 
-          {/* REPEAT — high-frequency nudge that stops on response (not for ladder). */}
-          {d.whenMode !== "ladder" && (
+          {/* REPEAT — high-frequency nudge that stops on response (not for ladder or a
+              recurring task — those aren't a reminder about an existing task). */}
+          {d.whenMode !== "ladder" && d.whenMode !== "recurring" && (
           <Step label="Repeat">
             <SwitchRow
               label="Keep reminding until they respond"
@@ -591,8 +736,9 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
           </Step>
           )}
 
-          {/* DO — not for the ladder (its steps carry their own actions). */}
-          {d.whenMode !== "ladder" && (
+          {/* DO — not for the ladder (its steps carry their own actions) or a recurring
+              task (it always just creates the task — no separate act step). */}
+          {d.whenMode !== "ladder" && d.whenMode !== "recurring" && (
           <Step label="Do">
             <p className="mb-2 text-[11px] text-fg-muted">By default this rule only notifies — it never changes anything itself.</p>
             <SwitchRow

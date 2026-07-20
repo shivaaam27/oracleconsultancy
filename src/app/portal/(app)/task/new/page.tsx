@@ -20,5 +20,5 @@ export default async function PortalNewTaskPage() {
   const { companies, people } = await getScopedPickerData(me);
   const sortedPeople = [...people].sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
 
-  return <NewTaskForm me={{ id: me.id, name: me.name }} people={sortedPeople} companies={companies} isDirector={isDirector} />;
+  return <NewTaskForm me={{ id: me.id, name: me.name }} people={sortedPeople} companies={companies} isDirector={isDirector} canRepeat={me.caps.recurringTasks} />;
 }

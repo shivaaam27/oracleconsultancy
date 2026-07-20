@@ -28,13 +28,13 @@ export type LadderStepInput = {
 };
 
 export type BuilderPayload = {
-  when: { mode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily"; hour?: number; minute?: number; days?: number; hoursBefore?: number };
+  when?: { mode: "at_hour" | "days_before" | "hours_before" | "on_overdue" | "daily"; hour?: number; minute?: number; days?: number; hoursBefore?: number };
   /** One-off — fires a single time then the rule retires itself. */
   once?: boolean;
-  condition: SmartCondition;
-  scope: { type: "everyone" | "person" | "company" | "task"; personId?: number; companyId?: number; taskCode?: string };
-  audience: { notifyOwner: boolean; notifyDirectors: boolean; notifyManagers?: boolean; warnPerson: boolean; extraPersonIds: number[] };
-  actions: { autoAct: boolean; postUpdate?: boolean; updateText?: string; setStatus?: string; sendChannel?: "email" | "whatsapp" };
+  condition?: SmartCondition;
+  scope?: { type: "everyone" | "person" | "company" | "task"; personId?: number; companyId?: number; taskCode?: string };
+  audience?: { notifyOwner: boolean; notifyDirectors: boolean; notifyManagers?: boolean; warnPerson: boolean; extraPersonIds: number[] };
+  actions?: { autoAct: boolean; postUpdate?: boolean; updateText?: string; setStatus?: string; sendChannel?: "email" | "whatsapp" };
   /** Extra scheduling controls (all optional). */
   weekdaysOnly?: boolean;
   pausedUntil?: string;   // "YYYY-MM-DD" — rule idle before this date
@@ -50,10 +50,28 @@ export type BuilderPayload = {
   };
   /** Escalation-ladder path — when set, builds an `escalation_ladder` rule instead. */
   ladder?: { byHour?: number; steps: LadderStepInput[] };
+  /** Recurring-task path — when set, builds a `recurring_task` rule instead (a fresh
+   *  task created on a cadence, complete with its own template — not tied to WHEN/IF/
+   *  WHO/DO, which describe reminders about an EXISTING task). */
+  recurring?: {
+    cadence: "weekly" | "monthly";
+    weekdays?: number[]; // 0=Sun … 6=Sat — weekly only, at least one required
+    dayOfMonth?: number; // 1–31 — monthly only
+    companyId: number;
+    title: string;
+    priority?: string;
+    status?: string; // open statuses only — never Completed/Closed on creation
+    description?: string;
+    assigneePersonIds?: number[];
+  };
   /** Template hint: use a simpler existing kind when the recipe fits it. Honoured
    *  only when its requirements are met; otherwise falls back to smart_reminder. */
   preferKind?: "reminder_before_deadline" | "escalate_if_no_update";
 };
+
+// Open (non-terminal) statuses — a recurring task is never created straight into
+// Completed/Closed; a fresh occurrence is always open work.
+const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
 
 const CONDITIONS: SmartCondition[] = [
   "always", "no_update_today", "overdue", "due_tomorrow", "compliance_due_soon",
@@ -114,32 +132,73 @@ function buildRepeat(r: NonNullable<BuilderPayload["repeat"]>): { cfg: Partial<R
  *  recipe must carry an audience or an (opt-in) auto-action to be saved. */
 export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
   try {
+    // ── RECURRING TASK path ───────────────────────────────────────────────
+    // A distinct recipe: create a brand-new task on a cadence, complete with its
+    // own template. Not a WHEN/IF/WHO/DO reminder about an existing task, so it
+    // skips that validation entirely.
+    if (p.recurring) {
+      const rc = p.recurring;
+      const title = (rc.title ?? "").trim().slice(0, 300);
+      if (!title) return { ok: false, error: "Give the recurring task a title." };
+      const companyId = Number(rc.companyId);
+      if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Pick a company." };
+      const { data: comp } = await sb.from("companies").select("id").eq("id", companyId).maybeSingle();
+      if (!comp) return { ok: false, error: "That company couldn't be found." };
+      const cadence = rc.cadence === "monthly" ? "monthly" : "weekly";
+      const config: RuleConfig = { cadence, companyId, title };
+      if (cadence === "weekly") {
+        const weekdays = [...new Set((rc.weekdays ?? []).map((n) => Math.round(Number(n))).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))];
+        if (weekdays.length === 0) return { ok: false, error: "Pick at least one day of the week." };
+        config.weekdays = weekdays;
+      } else {
+        const dom = Math.round(Number(rc.dayOfMonth));
+        config.dayOfMonth = Number.isInteger(dom) ? Math.min(31, Math.max(1, dom)) : 1;
+      }
+      config.priority = ["Critical", "High", "Medium", "Low"].includes(String(rc.priority)) ? String(rc.priority) : "Medium";
+      config.status = OPEN_STATUSES.includes(String(rc.status)) ? String(rc.status) : "Not Started";
+      const description = (rc.description ?? "").trim();
+      if (description) config.description = description.slice(0, 2000);
+      const assigneeIds = [...new Set((rc.assigneePersonIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 50);
+      if (assigneeIds.length) {
+        const { data } = await sb.from("people").select("id").in("id", assigneeIds);
+        if ((data ?? []).length !== assigneeIds.length) return { ok: false, error: "One of the assignees couldn't be found." };
+        config.assigneePersonIds = assigneeIds;
+      }
+      const { error } = await sb.from("automation_rules").insert({
+        kind: "recurring_task", task_id: null, company_id: companyId,
+        config, active: true, done: false, created_by: "web-ui", created_at: new Date().toISOString(),
+      });
+      if (error) return { ok: false, error: "Could not save the automation." };
+      revalidatePath("/ori-automations");
+      return { ok: true };
+    }
+
     // WHEN
     const mode = p?.when?.mode;
-    if (!["at_hour", "days_before", "hours_before", "on_overdue", "daily"].includes(mode)) return { ok: false, error: "Pick when it should fire." };
+    if (!mode || !["at_hour", "days_before", "hours_before", "on_overdue", "daily"].includes(mode)) return { ok: false, error: "Pick when it should fire." };
     let hour: number | undefined;
     let minute: number | undefined;
     if (mode === "at_hour") {
-      hour = Number(p.when.hour);
+      hour = Number(p.when?.hour);
       if (!Number.isInteger(hour) || hour < 0 || hour > 23) return { ok: false, error: "The hour must be between 0 and 23." };
-      const m = p.when.minute == null ? 0 : Number(p.when.minute);
+      const m = p.when?.minute == null ? 0 : Number(p.when.minute);
       if (!Number.isInteger(m) || m < 0 || m > 59) return { ok: false, error: "The minute must be between 0 and 59." };
       minute = m;
     }
     let days: number | undefined;
     if (mode === "days_before") {
-      days = Number(p.when.days);
+      days = Number(p.when?.days);
       if (!Number.isInteger(days) || days < 0 || days > 365) return { ok: false, error: "Days before the deadline must be 0–365." };
     }
     let hoursBefore: number | undefined;
     if (mode === "hours_before") {
-      hoursBefore = Number(p.when.hoursBefore);
+      hoursBefore = Number(p.when?.hoursBefore);
       if (!Number.isFinite(hoursBefore) || hoursBefore <= 0 || hoursBefore > 720) return { ok: false, error: "Hours before the deadline must be 1–720." };
     }
     const once = p.once === true;
 
     // IF
-    if (!CONDITIONS.includes(p?.condition)) return { ok: false, error: "Pick a valid condition." };
+    if (!p.condition || !CONDITIONS.includes(p.condition)) return { ok: false, error: "Pick a valid condition." };
 
     // DO
     const act = p?.actions ?? { autoAct: false };

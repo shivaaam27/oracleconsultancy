@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ClipboardCheck, Plus, Loader2, CheckCircle2, Star,
+  ClipboardCheck, Plus, Loader2, CheckCircle2, Star, RefreshCw, ChevronDown,
 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { SwitchRow } from "@/components/ui";
@@ -48,6 +48,14 @@ function initials(name: string): string {
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_OPTIONS: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p }));
+// Open statuses only — the portal composer never creates a task straight into
+// Completed/Closed (that's a status MOVE, done later, not a creation choice).
+const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
+const STATUS_OPTIONS: FluidOption[] = OPEN_STATUSES.map((s) => ({ value: s, label: s }));
+const DAY_CHIPS = [
+  { v: 1, l: "Mon" }, { v: 2, l: "Tue" }, { v: 3, l: "Wed" }, { v: 4, l: "Thu" },
+  { v: 5, l: "Fri" }, { v: 6, l: "Sat" }, { v: 0, l: "Sun" },
+];
 // Every field is a defined, filled box (matching the Responsible-people picker)
 // so none of them read as "invisible" on the sheet.
 const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
@@ -72,13 +80,17 @@ const FORM_ID = "director-task-form";
 export function DirectorTaskForm({
   people, companies, role = "director",
   open: controlledOpen, onOpenChange, seedTitle,
-  trigger,
+  trigger, canRepeat = true,
 }: {
   people: Person[]; companies: Company[];
   role?: ComposerRole;
   open?: boolean; onOpenChange?: (v: boolean) => void; seedTitle?: string;
   /** Custom open trigger (uncontrolled only). Defaults to a "New task" pill. */
   trigger?: (open: () => void) => React.ReactNode;
+  /** me.caps.recurringTasks — shows the "Repeat" section. Defaults to true so
+   *  callers that haven't threaded the cap through yet keep today's behaviour;
+   *  the server re-checks the cap regardless of what this shows. */
+  canRepeat?: boolean;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -95,12 +107,22 @@ export function DirectorTaskForm({
   const [responsibleIds, setResponsibleIds] = useState<number[]>([]);
   const [leadIds, setLeadIds] = useState<number[]>([]);
   const [priority, setPriority] = useState("Medium");
+  const [status, setStatus] = useState("Not Started"); // open statuses only — never Completed/Closed on creation
   const [deadline, setDeadline] = useState(""); // "yyyy-mm-dd" or "" — mirrored to a hidden input
   const [requiresProof, setRequiresProof] = useState(false);
   const [creatorCloseOnly, setCreatorCloseOnly] = useState(isDirector); // default ON for directors
   const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createAction, null);
+
+  // "Repeat" — cap-gated (recurringTasks). Alongside today's task, saves a
+  // standing recurring_task rule so future copies auto-create on the chosen
+  // days/date (server-side in portalDirectorCreateTask).
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [repeatOn, setRepeatOn] = useState(false);
+  const [repeatCadence, setRepeatCadence] = useState<"weekly" | "monthly">("weekly");
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([1]);
+  const [repeatDayOfMonth, setRepeatDayOfMonth] = useState(1);
 
   // Everyone can fan out across the companies they're allowed. Auto-select the
   // only company when a person has just one (nothing to choose).
@@ -140,10 +162,16 @@ export function DirectorTaskForm({
     setResponsibleIds([]);
     setLeadIds([]);
     setPriority("Medium");
+    setStatus("Not Started");
     setDeadline("");
     setRequiresProof(false);
     setCreatorCloseOnly(isDirector);
     setFormError(null);
+    setRepeatOpen(false);
+    setRepeatOn(false);
+    setRepeatCadence("weekly");
+    setRepeatWeekdays([1]);
+    setRepeatDayOfMonth(1);
   }
 
   // Responsible-people list is scoped to the SELECTED companies (for BOTH roles)
@@ -229,9 +257,18 @@ export function DirectorTaskForm({
       <input type="hidden" name="companyIds" value={companyIds.join(",")} />
       <input type="hidden" name="leadIds" value={leadIds.join(",")} />
       <input type="hidden" name="priority" value={priority} />
+      <input type="hidden" name="status" value={status} />
       {workingIds.map((id) => <input key={id} type="hidden" name="workingIds" value={id} />)}
       <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
       {isDirector && <input type="hidden" name="creatorCloseOnly" value={creatorCloseOnly ? "1" : ""} />}
+      {canRepeat && (
+        <>
+          <input type="hidden" name="repeatOn" value={repeatOn ? "1" : ""} />
+          <input type="hidden" name="repeatCadence" value={repeatCadence} />
+          <input type="hidden" name="repeatWeekdays" value={repeatWeekdays.join(",")} />
+          <input type="hidden" name="repeatDayOfMonth" value={String(repeatDayOfMonth)} />
+        </>
+      )}
 
       <div>
         <label className={fieldLabel}>What needs to be done?</label>
@@ -299,12 +336,19 @@ export function DirectorTaskForm({
           <FluidSelect value={priority} options={PRIORITY_OPTIONS} onSelect={setPriority} buttonClassName={selectBtn} />
         </div>
         <div>
-          <label className={fieldLabel}>Deadline</label>
-          {/* Aurora calendar (matches the edit views). It mirrors its value into a
-              hidden input so the existing server action still reads `deadline`. */}
-          <input type="hidden" name="deadline" value={deadline} />
-          <DatePopover value={deadline || null} onChange={setDeadline} block triggerClassName={FIELD_TRIGGER} />
+          <label className={fieldLabel}>Status</label>
+          {/* Open statuses only — a task can never be created straight into
+              Completed/Closed from the portal. */}
+          <FluidSelect value={status} options={STATUS_OPTIONS} onSelect={setStatus} buttonClassName={selectBtn} />
         </div>
+      </div>
+
+      <div>
+        <label className={fieldLabel}>Deadline</label>
+        {/* Aurora calendar (matches the edit views). It mirrors its value into a
+            hidden input so the existing server action still reads `deadline`. */}
+        <input type="hidden" name="deadline" value={deadline} />
+        <DatePopover value={deadline || null} onChange={setDeadline} block triggerClassName={FIELD_TRIGGER} />
       </div>
 
       <div>
@@ -315,6 +359,70 @@ export function DirectorTaskForm({
       <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
       {isDirector && (
         <SwitchRow label="Only I can close it" hint="Locks completion to you — others can't close it." on={creatorCloseOnly} onChange={setCreatorCloseOnly} />
+      )}
+
+      {canRepeat && (
+        <div className="rounded-xl bg-bg-subtle/50 ring-1 ring-border/70 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setRepeatOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-fg">
+              <RefreshCw size={14} className="text-fg-muted" /> Repeat
+            </span>
+            <span className="flex items-center gap-2 text-fg-subtle">
+              {repeatOn && <span className="text-[11px] text-accent">On</span>}
+              <ChevronDown size={14} className={`transition-transform ${repeatOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+          {repeatOpen && (
+            <div className="px-3.5 pb-3.5 space-y-2.5">
+              <SwitchRow label="Recreate this task automatically" hint="Saves a standing rule alongside today's task" on={repeatOn} onChange={setRepeatOn} />
+              {repeatOn && (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["weekly", "monthly"] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setRepeatCadence(c)}
+                        aria-pressed={repeatCadence === c}
+                        className={`rounded-lg px-2.5 py-1.5 text-xs capitalize ring-1 transition-colors ${repeatCadence === c ? "bg-accent/12 text-accent ring-accent/40 font-medium" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  {repeatCadence === "weekly" ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAY_CHIPS.map(({ v, l }) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setRepeatWeekdays((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]))}
+                          aria-pressed={repeatWeekdays.includes(v)}
+                          className={`rounded-lg px-2.5 py-1.5 text-xs ring-1 transition-colors ${repeatWeekdays.includes(v) ? "bg-accent/12 text-accent ring-accent/40 font-medium" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+                        >
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-fg-muted">Day of month</span>
+                      <input
+                        type="number" min={1} max={31} value={repeatDayOfMonth}
+                        onChange={(e) => setRepeatDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+                        className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {(formError || state?.error) && <p className="text-xs text-danger">{formError ?? state?.error}</p>}

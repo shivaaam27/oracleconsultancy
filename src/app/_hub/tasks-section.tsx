@@ -294,6 +294,22 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       })),
   ];
 
+  // Status dropdown — full canonical set (CLAUDE.md), including the four that
+  // don't have their own quick chip (Under Review / Waiting External / Blocked
+  // as a plain status / Escalated). Counts are scoped to company/person only
+  // (NOT open-only) since Completed/Closed are themselves statuses here.
+  const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
+  const statusOptions: FilterOption[] = [
+    { key: "all", label: "All statuses", count: scoped.length, href: buildHref(sp, clearStatus), active: !sp.status },
+    ...ALL_STATUSES.map((s) => ({
+      key: s,
+      label: s,
+      count: scoped.filter((r) => r.status === s).length,
+      href: buildHref(sp, { ...clearStatus, status: s }),
+      active: sp.status === s,
+    })),
+  ];
+
   const moreItems: FilterChip[] = [
     chip("critical", "Critical priority", counts.critical, sp.priority === "Critical", { priority: "Critical" }),
     chip("escalated", "Escalated", counts.escalated, sp.flag === "escalated", { flag: "escalated" }),
@@ -472,6 +488,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         companyOptions={companyOptions}
         personLabel={person?.name ?? null}
         personOptions={personOptions}
+        statusLabel={sp.status ?? null}
+        statusOptions={statusOptions}
         moreItems={moreItems}
         moreActiveCount={moreActiveCount}
         groupLabel={groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1)}

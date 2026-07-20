@@ -67,6 +67,8 @@ type Props = {
   boardLabel?: string;
   /** Capture modes the composer offers — managers get Task-only. */
   composerModes?: ("Task" | "Event" | "Message")[];
+  /** me.caps.recurringTasks — shows the composer's "Repeat" section. */
+  canRepeat?: boolean;
   /** Personal to-dos node — when `todosInColumn` is set, it's placed in the RIGHT
    *  column under Company health (managers with few companies, so the space isn't
    *  empty); otherwise it lives as a full-width footer rendered by the page. */
@@ -110,7 +112,7 @@ export function DirectorBoardClient(p: Props) {
   return (
     <div className="flex flex-col gap-5">
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} companyCount={p.companies.length} label={p.boardLabel ?? "Director board"} />
-      <SmartCaptureBar people={p.people} companies={p.companies} modes={p.composerModes} />
+      <SmartCaptureBar people={p.people} companies={p.companies} modes={p.composerModes} canRepeat={p.canRepeat} />
 
       {/* Outbox — your team's open work, per person (chase / remind). Contacts live
           on the Directory tab; the standalone Team page was folded into these. */}

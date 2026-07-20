@@ -155,6 +155,36 @@ describe("evaluateRule", () => {
       const r = evaluateRule(rule({ kind: "recurring_task", createdAt: created, config: { cadence: "monthly", dayOfMonth: 20 } }), openTask(), null, now);
       expect(r.fire).toBe(false);
     });
+
+    describe("multi-day weekdays[]", () => {
+      // now = Friday 2026-07-10, 11:00 Dar es Salaam.
+      it("fires when today is one of several selected weekdays", () => {
+        // Mon(1)/Wed(3)/Fri(5) — today is Friday.
+        const r = evaluateRule(rule({ kind: "recurring_task", createdAt: created, config: { cadence: "weekly", weekdays: [1, 3, 5] } }), openTask(), null, now);
+        expect(r.fire).toBe(true);
+      });
+      it("does not fire when today isn't one of the selected weekdays", () => {
+        // Mon(1)/Wed(3) only — today (Friday) isn't in the list, so the most recent
+        // occurrence is Wednesday, which already had its own fire (simulated via lastFiredAt).
+        const wed = new Date(now.getTime() - 2 * DAY); // Wed 09:00-ish Dar
+        const r = evaluateRule(rule({ kind: "recurring_task", lastFiredAt: new Date(darLocal9(wed)), createdAt: created, config: { cadence: "weekly", weekdays: [1, 3] } }), openTask(), null, now);
+        expect(r.fire).toBe(false);
+      });
+      it("does not fire twice for the same day among several selected weekdays", () => {
+        const firedToday = new Date(darLocal9(now));
+        const r = evaluateRule(rule({ kind: "recurring_task", lastFiredAt: firedToday, createdAt: created, config: { cadence: "weekly", weekdays: [2, 4, 5] } }), openTask(), null, now);
+        expect(r.fire).toBe(false);
+      });
+      it("weekdays[] wins over the legacy single weekday when both are present", () => {
+        // Legacy weekday=1 (Monday, would not be due today) but weekdays=[5] (Friday, due today).
+        const r = evaluateRule(rule({ kind: "recurring_task", createdAt: created, config: { cadence: "weekly", weekday: 1, weekdays: [5] } }), openTask(), null, now);
+        expect(r.fire).toBe(true);
+      });
+      it("an empty weekdays[] falls back to the legacy weekday", () => {
+        const r = evaluateRule(rule({ kind: "recurring_task", createdAt: created, config: { cadence: "weekly", weekday: 5, weekdays: [] } }), openTask(), null, now);
+        expect(r.fire).toBe(true);
+      });
+    });
   });
 
   describe("smart_reminder", () => {
