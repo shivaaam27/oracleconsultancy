@@ -35,8 +35,16 @@ export type RecurringTaskRule = {
   description: string;
   assigneePersonIds: number[];
   active: boolean;
+  /** Switched off (config.pausedUntil in the future) — the rule keeps its settings
+   *  but creates nothing until switched back on. */
+  paused: boolean;
   lastFiredAt: string | null;
 };
+
+/** Far-future sentinel for the on/off switch — "paused indefinitely". The engine's
+ *  pausedUntil gate (evaluateRule) treats any future instant as not-due, so no
+ *  cron/engine change is needed. */
+const PAUSED_FOREVER = "2999-01-01";
 
 export type RecurringTaskInput = {
   title: string;
@@ -110,6 +118,7 @@ export async function portalListRecurringTasks(): Promise<RecurringTaskRule[]> {
       description: (cfg.description as string | undefined) ?? "",
       assigneePersonIds: Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [],
       active: r.active,
+      paused: !!cfg.pausedUntil && Date.parse(cfg.pausedUntil) > Date.now(),
       lastFiredAt: r.last_fired_at,
     };
   });
@@ -197,7 +206,32 @@ export async function portalUpdateRecurringTask(id: number, input: RecurringTask
     cfg.assigneePersonIds = assigneeIds;
   }
 
+  // Preserve the on/off switch across edits — buildConfig starts fresh and would
+  // otherwise silently re-enable a paused rule.
+  const { data: existing } = await sb.from("automation_rules").select("config").eq("id", id).maybeSingle();
+  const prevPaused = (existing?.config as RuleConfig | null)?.pausedUntil;
+  if (prevPaused) cfg.pausedUntil = prevPaused;
+
   const { error } = await sb.from("automation_rules").update({ company_id: companyId, config: cfg }).eq("id", id);
+  if (error) return { ok: false, error: "Could not update the recurring task." };
+  revalidate();
+  return { ok: true };
+}
+
+/** The on/off switch: pause (indefinitely) or resume one of the caller's own
+ *  recurring-task rules without losing its settings. */
+export async function portalSetRecurringTaskPaused(id: number, paused: boolean): Promise<Result> {
+  const ctx = await requireCap();
+  if (!ctx) return { ok: false, error: "You don't have permission to manage recurring tasks." };
+  const owned = await ownRule(id, ctx.tag);
+  if (!owned) return { ok: false, error: "That recurring task couldn't be found." };
+
+  const { data } = await sb.from("automation_rules").select("config").eq("id", id).maybeSingle();
+  const cfg = { ...((data?.config as RuleConfig | null) ?? {}) };
+  if (paused) cfg.pausedUntil = PAUSED_FOREVER;
+  else delete cfg.pausedUntil;
+
+  const { error } = await sb.from("automation_rules").update({ config: cfg }).eq("id", id);
   if (error) return { ok: false, error: "Could not update the recurring task." };
   revalidate();
   return { ok: true };

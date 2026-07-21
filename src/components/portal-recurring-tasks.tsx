@@ -16,8 +16,9 @@ import { FluidSelect } from "@/components/fluid-select";
 import { Combobox } from "@/components/combobox";
 import { useToast } from "@/components/toast";
 import type { PickerCompany, PickerPerson } from "@/lib/portal-picker";
+import { Switch } from "@/components/ui";
 import {
-  portalCreateRecurringTask, portalUpdateRecurringTask, portalDeleteRecurringTask,
+  portalCreateRecurringTask, portalUpdateRecurringTask, portalDeleteRecurringTask, portalSetRecurringTaskPaused,
   type RecurringTaskRule, type RecurringTaskInput,
 } from "@/app/portal/(app)/tasks/automations-actions";
 
@@ -132,6 +133,19 @@ export function PortalRecurringTasks({
     });
   }
 
+  // The on/off switch — pauses the rule (settings kept) rather than deleting it.
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  function togglePaused(r: RecurringTaskRule) {
+    setTogglingId(r.id);
+    start(async () => {
+      const res = await portalSetRecurringTaskPaused(r.id, !r.paused);
+      setTogglingId(null);
+      if (!res.ok) { toast(res.error ?? "Could not update it.", { tone: "danger" }); return; }
+      toast(r.paused ? "Recurring task switched on." : "Recurring task switched off.", { tone: "success" });
+      router.refresh();
+    });
+  }
+
   return (
     <Panel className="p-4">
       <SectionLabel
@@ -157,13 +171,24 @@ export function PortalRecurringTasks({
         <div className="mt-3 space-y-2">
           {rules.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-2 rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border/60">
-              <div className="min-w-0">
+              <div className={`min-w-0 ${r.paused ? "opacity-50" : ""}`}>
                 <p className="truncate text-sm font-medium text-fg">{r.title}</p>
                 <p className="mt-0.5 text-[11px] text-fg-muted">
-                  {scheduleLabel(r)} · {r.companyName || "—"}
+                  {scheduleLabel(r)} · {r.companyName || "—"}{r.paused ? " · Off" : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => togglePaused(r)}
+                  disabled={busy && togglingId === r.id}
+                  role="switch"
+                  aria-checked={!r.paused}
+                  aria-label={r.paused ? "Switch on" : "Switch off"}
+                  className="mr-1"
+                >
+                  <Switch on={!r.paused} size="sm" busy={busy && togglingId === r.id} />
+                </button>
                 <button type="button" onClick={() => openEdit(r)} className="grid h-7 w-7 place-items-center rounded-lg text-fg-muted hover:bg-bg-elev hover:text-fg" aria-label="Edit">
                   <Pencil size={14} />
                 </button>

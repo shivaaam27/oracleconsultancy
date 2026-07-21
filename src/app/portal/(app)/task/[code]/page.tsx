@@ -301,7 +301,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   return (
     <div className="flex flex-col gap-4">
-      <LiveSync taskId={task.id as number} seconds={5} />
+      <LiveSync taskId={task.id as number} seconds={12} />
       <PortalTrace />
 
       <div className="flex items-center justify-between gap-3">

@@ -142,9 +142,11 @@ export function NotificationBell({
   // refresh immediately when the service worker reports an incoming push.
   useEffect(() => {
     refresh();
+    // 60s (was 15s): pushes + the focus/visibility handlers below carry the
+    // real-time feel, so a fast poll only burned server CPU on idle tabs.
     const id = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
-    }, 15000);
+    }, 60000);
     const onVisible = () => document.visibilityState === "visible" && refresh();
     const onFocus = () => refresh();
     const onSwMessage = (e: MessageEvent) => {

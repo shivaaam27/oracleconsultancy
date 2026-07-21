@@ -200,9 +200,11 @@ export function ChatSurface(props: Props) {
   // list would look stale until a manual refresh.
   useEffect(() => {
     if (selected != null) return;
+    // 20s (was 8s): this is the inbox LIST only — an open thread has its own
+    // realtime socket, so a slower list poll costs nothing you can feel.
     const id = setInterval(() => {
       if (document.visibilityState === "visible") reloadList();
-    }, 8000);
+    }, 20000);
     return () => clearInterval(id);
   }, [selected, reloadList]);
   useEffect(() => {
