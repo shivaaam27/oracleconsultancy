@@ -49,6 +49,41 @@ Do not recreate these as standalone pages:
 - `/escalations` - folded into Needs Attention.
 - `/audit` - standalone page removed; audit data remains and powers timelines. `src/app/audit/actions.ts` remains.
 
+### Slim-down to pure task management (Jul 2026)
+
+Removed at the owner's request to cut unused surface area. **All DB tables were KEPT** —
+the data is intact, just unreachable — so any of these can be revived by restoring the
+route. Nothing was dropped or migrated.
+
+- `/workbook` (+ its Meetings / Notes / To-do tabs) and `/meeting` (which only redirected
+  to `/workbook`). Tables `meetings` / `meeting_tasks` retained. `src/app/todos/actions.ts`
+  SURVIVES — Home, the staff portal to-do list and onboarding/offboarding journeys all
+  still use the `todos` table.
+- `/hrms/org` (Organogram) — the standalone page and the ELK flowchart entry point only.
+  The per-company **Org tab on `/companies/[id]` still works**: `components/org-chart.tsx`,
+  `components/org-web.tsx`, `lib/org-chart.ts` and `components/org-flow.tsx` are all
+  retained, and the reporting server actions moved from `src/app/hrms/org/actions.ts` to
+  **`src/lib/org-actions.ts`**. `reporting_lines` / `department_heads` / `people.manager_id`
+  are untouched.
+- `/letters`, `/letters/[id]`, `/letters/[id]/print`, `/letterheads`. `letters` table and
+  the 6 letterhead-only `companies` columns retained. **`logo_path`, `signatory_name` and
+  `signatory_title` are still live** — used by Director Brief, Home, Documents and the
+  company profile.
+- `/requests` and `/portal/requests` (the staff Request Desk). Tables `requests` /
+  `request_recipients` / `request_updates` retained. NOT to be confused with
+  `leave_requests`.
+- `/people/form` (printable staff data-collection form).
+- The **Leave** half of `/hrms/leave`. That route is now **Attendance** with
+  `Register | Holidays` tabs. `public_holidays` MUST stay — `lib/attendance.ts` reads it
+  (and `leave_requests`) in 4 places to auto-fill "Holiday"/"On leave". Leave types,
+  requests, approvals, balances and the portal leave self-service are gone; mark
+  "On leave" directly on the attendance register instead.
+
+Also removed with them: the `letter` and `meeting` entity types from the ORI search index
+(`lib/entity-registry.ts` + `lib/entity-meta.ts` + `lib/embeddings.ts` `SourceType`), their
+ORI tools and undo handlers, the `navRequests` / `approveLeave` portal capabilities, and the
+`request` notification kind.
+
 ## Server Actions
 
 - `src/app/task/actions.ts` - create/update/delete tasks, add task updates, audit logging.

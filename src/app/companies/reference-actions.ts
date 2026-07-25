@@ -21,7 +21,7 @@ function roleMatches(name: string) {
 function revalidate() {
   revalidatePath("/companies");
   revalidatePath("/people");
-  revalidatePath("/hrms/org");
+
   revalidatePath("/hrms/assets");
 }
 

@@ -86,7 +86,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         />
       </Suspense>
 
-      {/* Managers keep their team tools (attendance, leave approvals) here — Home
+      {/* Managers keep their team tools (attendance) here — Home
           is retired for them. */}
       {isManager && (
         <Suspense fallback={null}>

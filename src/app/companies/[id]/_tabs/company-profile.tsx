@@ -2,10 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { FactsPanel } from "@/components/facts-panel";
 import { GovernancePanel } from "@/components/governance-panel";
-import { Save, Loader2, Building2, FileSignature, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
+import { Save, Loader2, Building2, FileSignature, ImagePlus, Trash2 } from "lucide-react";
 import { saveCompanyProfileAction } from "../actions";
 import { useToast } from "@/components/toast";
 import { CompanyAvatar } from "@/components/company-avatar";
@@ -85,8 +84,7 @@ export function CompanyProfile({
     <div className="space-y-4">
     <form onSubmit={onSubmit} onChange={() => setDirty(true)} className="space-y-4">
       <p className="text-xs text-fg-muted">
-        These details are this company&apos;s record and the source for{" "}
-        <Link href="/letters" className="text-accent hover:underline">Letters</Link>. Editing here updates both.
+        These details are this company&apos;s official record.
       </p>
 
       {/* Identity */}
@@ -197,13 +195,7 @@ export function CompanyProfile({
         </div>
       </section>
 
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/letters?view=letterheads"
-          className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-        >
-          <ExternalLink size={12} /> Branding &amp; letterhead
-        </Link>
+      <div className="flex items-center justify-end gap-3">
         <button
           type="submit"
           disabled={saving || !dirty}

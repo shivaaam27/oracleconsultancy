@@ -1,7 +1,7 @@
 // Unified "deep index" search across the whole COS system.
 //
 // One pass over the high-value entities — people, companies, documents,
-// letters, meetings, vendors, assets — plus the board/governance/process data
+// vendors, assets — plus the board/governance/process data
 // (cap table, beneficial owners, signatories, key persons, risk register,
 // pipeline applications, commitments) with typo-tolerant, relevance-ranked
 // matching. Tasks are handled separately (they keep their rich action rows in
@@ -36,7 +36,7 @@ import {
 } from "@/lib/entity-registry";
 
 export type SearchResultType =
-  | "person" | "company" | "document" | "letter" | "meeting" | "vendor" | "asset"
+  | "person" | "company" | "document" | "vendor" | "asset"
   | "governance" | "risk" | "pipeline" | "commitment";
 
 export type SearchResult = {
@@ -434,7 +434,7 @@ export async function unifiedSearch(
   // order (not searchOrder). Any future type the legacy order doesn't name simply
   // falls to the end (by searchOrder), so a new EntityDef still surfaces.
   const LEGACY_PUSH_ORDER = [
-    "person", "company", "document", "letter", "meeting", "vendor", "asset",
+    "person", "company", "document", "vendor", "asset",
     "governance", "risk", "pipeline", "commitment",
   ];
   const pushRank = (type: string) => {

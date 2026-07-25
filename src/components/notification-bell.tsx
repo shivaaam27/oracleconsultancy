@@ -12,7 +12,6 @@ import {
   Megaphone,
   MessageCircle,
   MessageSquarePlus,
-  MessageSquareText,
   Pin,
   Trash2,
   UserPlus,
@@ -30,7 +29,6 @@ type NotifKind =
   | "chat_mention"
   | "leave"
   | "announcement"
-  | "request"
   | "meeting";
 
 type Notif = {
@@ -56,7 +54,6 @@ const ICON: Record<NotifKind, typeof Bell> = {
   chat_mention: AtSign,
   leave: CalendarClock,
   announcement: Megaphone,
-  request: MessageSquareText,
   meeting: CalendarClock,
 };
 
@@ -65,7 +62,7 @@ const ICON: Record<NotifKind, typeof Bell> = {
 const CATEGORIES: { key: string; label: string; kinds: NotifKind[]; icon: typeof Bell }[] = [
   { key: "messages", label: "Messages", kinds: ["chat", "chat_mention", "mention", "reply"], icon: MessageCircle },
   { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned", "update"], icon: UserPlus },
-  { key: "requests", label: "Requests & leave", kinds: ["request", "leave"], icon: MessageSquareText },
+  { key: "leave", label: "Leave", kinds: ["leave"], icon: CalendarClock },
   { key: "meetings", label: "Meetings", kinds: ["meeting"], icon: CalendarClock },
   { key: "announcements", label: "Announcements", kinds: ["announcement"], icon: Megaphone },
 ];
@@ -197,9 +194,6 @@ export function NotificationBell({
     if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
       const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
       router.push(`${chatBase}/${n.threadId}`);
-    } else if (n.kind === "request" && n.requestId) {
-      const base = to.startsWith("/portal") ? "/portal/requests" : "/requests";
-      router.push(`${base}/${n.requestId}`);
     } else if (n.kind === "meeting") {
       router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {

@@ -4,11 +4,11 @@ import { sb } from "@/db/supabase";
 import { revalidatePath, updateTag } from "next/cache";
 import { wouldCreateReportingCycle } from "@/lib/org-chart";
 
-/** Reporting changes touch the organogram, the People directory + drawer, the
+/** Reporting changes touch the People directory + drawer, the
  *  per-company Org tab and the home dashboard — revalidate them all so none
  *  shows stale hierarchy after a one-tap change. */
 function invalidateReporting() {
-  revalidatePath("/hrms/org");
+  
   revalidatePath("/people");
   revalidatePath("/companies", "layout");
   revalidatePath("/");
@@ -31,7 +31,7 @@ export async function setDepartmentHead(companyId: number, departmentId: number,
       { company_id: companyId, department_id: departmentId, head_person_id: headPersonId, updated_at: new Date().toISOString() },
       { onConflict: "company_id,department_id" }
     );
-  revalidatePath("/hrms/org");
+  
   revalidatePath(`/companies/${companyId}`);
 }
 

@@ -92,7 +92,7 @@ export type EntitySearch = {
    * did, so the two stay in lockstep regardless of the pre-filter.
    */
   currentFilter?: { column: string; value: unknown };
-  /** Optional `.order(column, { ascending })` (meetings order by date desc). */
+  /** Optional `.order(column, { ascending })` for a per-type default ordering. */
   order?: { column: string; ascending: boolean };
   /**
    * OPTIONAL date column search.ts may range-filter on when the query carries a
@@ -432,38 +432,6 @@ export const ENTITY_DEFS: EntityDef[] = [
     },
   },
   {
-    // Meetings — business memory; all kept active (no archive flag).
-    type: "meeting",
-    table: "meetings",
-    idColumn: "id",
-    selectColumns: ["id", "title", "attendees", "raw_notes", "minutes"],
-    textFor: (r) => join(str(r.title), str(r.attendees), str(r.raw_notes), str(r.minutes)),
-    lifecycleFor: () => "active",
-    uiLabel: "Meetings",
-    searchOrder: 6,
-    // Meetings are in GENERIC_TABLE (trace route falls through to traceGeneric).
-    trace: { mode: "generic", table: "meetings" },
-    search: {
-      select: "id,title,company_id,meeting_date,attendees, companies(name)",
-      ilikeColumns: ["title", "attendees", "minutes", "raw_notes"],
-      order: { column: "meeting_date", ascending: false },
-      dateColumn: "meeting_date",
-      limit: 20,
-      toResult: (r, ctx) => {
-        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
-        const date = fmtDate(r.meeting_date);
-        return {
-          type: "meeting", id: r.id as number,
-          title: r.title as string,
-          subtitle: [company, date].filter(Boolean).join(" · ") || "Meeting",
-          href: `/workbook?tab=meetings&open=${r.id}`,
-          lifecycle: "active",
-          scoreParts: [r.title as string, company, sx(r.attendees)],
-        };
-      },
-    },
-  },
-  {
     // Documents — archived = history.
     type: "document",
     table: "documents",
@@ -575,38 +543,6 @@ export const ENTITY_DEFS: EntityDef[] = [
         lifecycle: "active",
         scoreParts: [r.name as string, sx(r.code), sx(r.code_prefix), sx(r.file_prefix), sx(r.legal_name), sx(r.tin), sx(r.vrn), sx(r.registration_no), sx(r.address), sx(r.phone), sx(r.email)],
       }),
-    },
-  },
-  {
-    // Letters — Issued letters are the permanent record (still active/searchable);
-    // keep all letters active.
-    type: "letter",
-    table: "letters",
-    idColumn: "id",
-    selectColumns: ["id", "title", "type", "ref", "subject", "status"],
-    textFor: (r) => join(str(r.title), str(r.type), str(r.ref), str(r.subject), str(r.status)),
-    lifecycleFor: () => "active",
-    uiLabel: "Letters",
-    searchOrder: 5,
-    // letter → letters is in GENERIC_TABLE (trace falls through to traceGeneric).
-    trace: { mode: "generic", table: "letters" },
-    search: {
-      select: "id,title,type,ref,status,company_id, companies(name), people(name)",
-      ilikeColumns: ["title", "type", "ref", "addressee", "subject"],
-      limit: 20,
-      toResult: (r, ctx) => {
-        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
-        const person = ctx.one<{ name?: string }>(r.people as never)?.name ?? null;
-        return {
-          type: "letter", id: r.id as number,
-          title: (r.title as string) || (r.type as string) || "Letter",
-          subtitle: [sx(r.ref), person || company].filter(Boolean).join(" · ") || "Letter",
-          href: `/letters/${r.id}`,
-          badge: sx(r.status) ?? undefined,
-          lifecycle: "active",
-          scoreParts: [sx(r.title), sx(r.type), sx(r.ref), person, company],
-        };
-      },
     },
   },
   {

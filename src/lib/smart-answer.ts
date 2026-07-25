@@ -868,7 +868,7 @@ function authorOf(by: string | null): string {
 
 /** WHAT HAPPENED TODAY / THIS WEEK / LATELY — an estate-wide "what just went on"
  *  digest across every company (owner scope): task updates posted, new tasks
- *  raised, attendance check-ins, requests raised, announcement acknowledgements.
+ *  raised, attendance check-ins, announcement acknowledgements.
  *  Newest-first, grouped, with per-stream counts + a couple of examples. */
 async function whatHappenedAnswer(q: string): Promise<SmartAnswer | null> {
   if (!/\b(what (happened|went on|has happened|is happening|changed)|what'?s (happening|going on|new|been happening)|any(thing)? new|catch me up|bring me up to speed|activity|what did (everyone|people|the team|we) do|whats new)\b/i.test(q)) return null;
@@ -879,18 +879,16 @@ async function whatHappenedAnswer(q: string): Promise<SmartAnswer | null> {
   const sinceIso = since.toISOString();
   const sinceDay = iso(since);
 
-  const [updatesR, newTasksR, checkinsR, requestsR, acksR] = await Promise.all([
+  const [updatesR, newTasksR, checkinsR, acksR] = await Promise.all([
     sb.from("task_updates").select("body,created_at,created_by,tasks(code,action_item)").is("deleted_at", null).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(30),
     sb.from("tasks").select("code,action_item,created_date,companies(name)").eq("archived", false).gte("created_date", sinceIso).order("created_date", { ascending: false }).limit(30),
     sb.from("attendance").select("status,updated_at,people(name)").gte("date", sinceDay).order("updated_at", { ascending: false }).limit(60),
-    sb.from("requests").select("code,title,created_at,people:requester_id(name)").gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(20),
     sb.from("announcement_receipts").select("ack_at,announcements(title)").not("ack_at", "is", null).gte("ack_at", sinceIso).order("ack_at", { ascending: false }).limit(20),
   ]);
 
   const updates = (updatesR.data ?? []) as Record<string, unknown>[];
   const newTasks = (newTasksR.data ?? []) as Record<string, unknown>[];
   const checkins = (checkinsR.data ?? []) as Record<string, unknown>[];
-  const requests = (requestsR.data ?? []) as Record<string, unknown>[];
   const acks = (acksR.data ?? []) as Record<string, unknown>[];
   const firstName = (r: Record<string, unknown>, key: string): string | null => {
     const p = r[key] as { name?: string } | { name?: string }[] | null;
@@ -923,20 +921,13 @@ async function whatHappenedAnswer(q: string): Promise<SmartAnswer | null> {
       rows.push({ label: firstName(a, "people") ?? "Someone", sub: (a.status as string) ?? null, badge: agoLabel(a.updated_at as string), tone: "muted", href: "/hrms/leave" });
     }
   }
-  // Stream 4 — requests raised.
-  if (requests.length) {
-    rows.push({ label: `${requests.length} request${requests.length === 1 ? "" : "s"} raised`, sub: null, badge: null, tone: "accent", href: "/portal" });
-    for (const r of requests.slice(0, 2)) {
-      rows.push({ label: `[${r.code}] ${r.title}`, sub: firstName(r, "people"), badge: agoLabel(r.created_at as string), tone: "muted", href: "/portal" });
-    }
-  }
-  // Stream 5 — announcement acknowledgements.
+  // Stream 4 — announcement acknowledgements.
   if (acks.length) {
     rows.push({ label: `${acks.length} announcement ack${acks.length === 1 ? "" : "s"}`, sub: null, badge: null, tone: "accent", href: "/portal/meetings" });
   }
 
   const win = todayOnly ? "today" : thisWeek ? "this week" : "lately";
-  const total = updates.length + newTasks.length + checkins.length + requests.length + acks.length;
+  const total = updates.length + newTasks.length + checkins.length + acks.length;
   const title = `What happened ${win}`;
   if (total === 0) return { kind: "count", title, count: 0, rows: [], note: `Quiet ${win} — nothing recorded across the estate.`, href: "/?tab=timeline" };
   return { kind: "count", title, count: total, rows: rows.slice(0, MAX_ROWS), note: `${total} event${total === 1 ? "" : "s"} across the portfolio`, href: "/?tab=timeline" };

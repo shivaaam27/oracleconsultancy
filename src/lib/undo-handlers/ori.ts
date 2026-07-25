@@ -84,12 +84,6 @@ registerUndoHandler("ori.document.rename", async (raw) => {
   void reindexEntity("document", p.documentId);
 });
 
-// Meeting save (create) — delete the newly-created meeting.
-registerUndoHandler("ori.meeting.create", async (raw) => {
-  const p = raw as { meetingId: number };
-  await sb.from("meetings").delete().eq("id", p.meetingId);
-});
-
 // Event edit — restore the event's prior fields.
 registerUndoHandler("ori.event.update", async (raw) => {
   const p = raw as { eventId: number; before: Record<string, unknown> };
@@ -197,7 +191,7 @@ registerUndoHandler("ori.portal.capability", async (raw) => {
 // Department head — restore the prior head (or clear it).
 registerUndoHandler("ori.department.head", async (raw) => {
   const p = raw as { companyId: number; departmentId: number; before: number | null };
-  const { setDepartmentHead } = await import("@/app/hrms/org/actions");
+  const { setDepartmentHead } = await import("@/lib/org-actions");
   await setDepartmentHead(p.companyId, p.departmentId, p.before);
 });
 
@@ -220,70 +214,6 @@ registerUndoHandler("ori.document.update", async (raw) => {
   const p = raw as { documentId: number; before: Record<string, unknown> };
   await sb.from("documents").update({ ...p.before, updated_at: nowIso() }).eq("id", p.documentId);
   void reindexEntity("document", p.documentId);
-});
-
-/* ------------------------------ meetings / notes / letters ---------- */
-
-// Meeting delete — re-insert the captured row.
-registerUndoHandler("ori.meeting.restore", async (raw) => {
-  const p = raw as { row: Record<string, unknown> | null };
-  if (!p.row) return;
-  await sb.from("meetings").insert(p.row);
-  if (typeof p.row.id === "number") void reindexEntity("meeting", p.row.id);
-});
-
-// Note create — delete the freshly-created note.
-registerUndoHandler("ori.note.delete", async (raw) => {
-  const p = raw as { noteId: number };
-  await sb.from("meetings").delete().eq("id", p.noteId);
-});
-
-// Note edit — restore prior title/body/company/folder.
-registerUndoHandler("ori.note.update", async (raw) => {
-  const p = raw as { noteId: number; before: { title: string; body: string; companyId: number | null; folder: string | null } };
-  await sb
-    .from("meetings")
-    .update({ title: p.before.title, raw_notes: p.before.body, company_id: p.before.companyId, folder: p.before.folder, updated_at: nowIso() })
-    .eq("id", p.noteId);
-});
-
-// Note delete — re-insert the captured row.
-registerUndoHandler("ori.note.restore", async (raw) => {
-  const p = raw as { row: Record<string, unknown> | null };
-  if (!p.row) return;
-  await sb.from("meetings").insert(p.row);
-});
-
-// Note pin toggle — restore the prior pinned state.
-registerUndoHandler("ori.note.pin", async (raw) => {
-  const p = raw as { noteId: number; before: boolean };
-  const { setNotePinned } = await import("@/app/notes/actions");
-  await setNotePinned(p.noteId, p.before);
-});
-
-// Letter create/duplicate — delete the freshly-created draft.
-registerUndoHandler("ori.letter.delete", async (raw) => {
-  const p = raw as { letterId: number };
-  const { deleteLetterAction } = await import("@/app/letters/actions");
-  await deleteLetterAction(p.letterId);
-});
-
-// Letter draft save — restore the prior draft fields.
-registerUndoHandler("ori.letter.save", async (raw) => {
-  const p = raw as { letterId: number; before: Record<string, unknown> | null };
-  if (!p.before) return;
-  const b = p.before;
-  await sb
-    .from("letters")
-    .update({ title: b.title, subject: b.subject, body: b.body, addressee: b.addressee, company_id: b.company_id, updated_at: nowIso() })
-    .eq("id", p.letterId);
-});
-
-// Letter delete — re-insert the captured draft row.
-registerUndoHandler("ori.letter.restore", async (raw) => {
-  const p = raw as { row: Record<string, unknown> | null };
-  if (!p.row) return;
-  await sb.from("letters").insert(p.row);
 });
 
 /* ---------------------------- calendar / announcements -------------- */

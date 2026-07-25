@@ -186,7 +186,7 @@ function invalidate() {
   // Reporting lines (Director / "also reports to") feed the organogram and the
   // per-company Org tab, so a person edit must refresh those too — otherwise the
   // chart shows stale hierarchy until a hard reload.
-  revalidatePath("/hrms/org");
+
   revalidatePath("/companies", "layout");
   updateTag("people");
 }

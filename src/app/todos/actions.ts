@@ -68,7 +68,6 @@ export async function createTodo(input: { title: string; dueAt?: string | null; 
     done: false,
   }).select(SELECT).single();
   if (error) throw new Error(error.message);
-  revalidatePath("/workbook");
   revalidatePath("/");
   return map(data as Row);
 }
@@ -85,14 +84,12 @@ export async function updateTodo(input: { id: number; title?: string; dueAt?: st
   if (Object.keys(patch).length === 0) return;
   const { error } = await sb.from("todos").update(patch).eq("id", input.id);
   if (error) throw new Error(error.message);
-  revalidatePath("/workbook");
   revalidatePath("/");
 }
 
 export async function toggleTodo(id: number, done: boolean): Promise<void> {
   const { error } = await sb.from("todos").update({ done, completed_at: done ? new Date().toISOString() : null }).eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/workbook");
   revalidatePath("/");
   // Phase 4 cascade: ticking the last onboarding step schedules the probation
   // review. Best-effort + dynamic import so it never blocks the toggle.
@@ -110,7 +107,6 @@ export async function toggleTodo(id: number, done: boolean): Promise<void> {
 export async function deleteTodo(id: number): Promise<void> {
   const { error } = await sb.from("todos").delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/workbook");
   revalidatePath("/");
 }
 
@@ -180,7 +176,6 @@ export async function promoteTodoToTask(todoId: number): Promise<{ ok: true; cod
   });
   await sb.from("todos").update({ task_id: task.id, done: true, completed_at: now.toISOString() }).eq("id", todoId);
 
-  revalidatePath("/workbook");
   revalidatePath("/");
   return { ok: true, code: task.code };
 }

@@ -248,7 +248,6 @@ export default async function DirectorBriefPage({
               <span className="tabular"><b>{b.hr.headcount}</b> <span className="text-fg-subtle text-xs">active</span></span>
               {b.hr.joiners ? <span className="tabular"><b className="text-success">{b.hr.joiners}</b> <span className="text-fg-subtle text-xs">joined</span></span> : null}
               {b.hr.onLeaveToday ? <span className="tabular"><b className="text-info">{b.hr.onLeaveToday}</b> <span className="text-fg-subtle text-xs">on leave</span></span> : null}
-              {b.hr.pendingLeave.length ? <span className="tabular"><b className="text-warn">{b.hr.pendingLeave.length}</b> <span className="text-fg-subtle text-xs">leave to approve</span></span> : null}
               {b.hr.belowFullCount ? <span className="tabular"><b className={b.hr.belowFullCount ? "text-warn" : ""}>{b.hr.belowFullCount}</b> <span className="text-fg-subtle text-xs">below full compliance</span></span> : null}
               {b.hr.expiringDocs.length ? <span className="tabular"><b className="text-danger">{b.hr.expiringDocs.length}</b> <span className="text-fg-subtle text-xs">docs expiring</span></span> : null}
             </div>

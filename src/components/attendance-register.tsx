@@ -12,7 +12,10 @@ import type { AttendanceMonth } from "@/lib/attendance";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 type Brush = AttendanceStatus | "Clear";
-const BRUSHES: Brush[] = ["Present", "Absent", "Remote", "Half-day", "Sick", "Clear"];
+// "On leave" is painted by hand now that the Leave module is retired (it used to
+// be derived from an approved leave request). "Holiday" stays derived-only — it
+// comes from the public-holidays list on the Holidays tab.
+const BRUSHES: Brush[] = ["Present", "Absent", "On leave", "Remote", "Half-day", "Sick", "Clear"];
 
 export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" }: {
   month: AttendanceMonth;
@@ -81,7 +84,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
   }
 
   function paint(personId: number, day: string, derived: boolean) {
-    if (derived) { toast("That day is set by leave or a holiday.", { tone: "warn" }); return; }
+    if (derived) { toast("That day fills in automatically — it's a public holiday.", { tone: "warn" }); return; }
     start(async () => {
       const res = await recordAttendanceAction(personId, day, brush === "Clear" ? null : brush);
       if (!res.ok) toast(res.error || "Couldn't save", { tone: "warn" });
@@ -281,7 +284,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
           <span key={s} className="inline-flex items-center gap-1"><span className={cn("h-3 w-3 rounded-sm inline-flex items-center justify-center font-bold text-[8px]", ATTENDANCE_CELL[s])}>{ATTENDANCE_ABBR[s]}</span>{s}</span>
         ))}
         <span className="inline-flex items-center gap-1"><span className="relative h-3 w-3 rounded-sm bg-bg-muted inline-flex"><span className="absolute top-0 right-0 h-1.5 w-1.5 rounded-full bg-fg-muted opacity-70" /></span>Staff self check-in</span>
-        <span className="text-fg-subtle/80">· On leave &amp; Holiday fill automatically.</span>
+        <span className="text-fg-subtle/80">· Holidays fill in automatically — manage them on the Holidays tab.</span>
       </div>
     </div>
   );

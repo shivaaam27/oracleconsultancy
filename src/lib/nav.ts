@@ -2,12 +2,10 @@ import {
   Users,
   Send,
   Settings,
-  NotebookPen,
   Inbox,
   FileText,
   CalendarClock,
   Scale,
-  Network,
   Package,
   Laptop,
   CalendarDays,
@@ -16,7 +14,6 @@ import {
   BarChart3,
   FileWarning,
   Megaphone,
-  MessageSquareText,
   ListChecks,
   Activity,
   Zap,
@@ -41,21 +38,17 @@ export type NavRoute = {
  */
 export const NAV_ROUTES: NavRoute[] = [
   { id: "approvals",   href: "/approvals",           label: "Approvals",           icon: ListChecks },
-  { id: "requests",    href: "/requests",            label: "Requests",            icon: MessageSquareText },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
   { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: Scale },
-  { id: "org",         href: "/hrms/org",            label: "Organogram",          icon: Network },
   { id: "oecr",        href: "/hrms/oecr",           label: "OECR",                icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },
-  { id: "leave",       href: "/hrms/leave",          label: "Leave & Attendance",  icon: CalendarDays },
+  { id: "leave",       href: "/hrms/leave",          label: "Attendance",          icon: CalendarDays },
   { id: "registers",   href: "/hrms/registers",      label: "Commitments register", icon: FileWarning },
   { id: "calendar",    href: "/calendar",            label: "Brief",               icon: CalendarClock },
   { id: "ocr",         href: "/hrms/ocr",            label: "OCR",                 icon: Sparkles },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
-  { id: "meeting",     href: "/workbook",            label: "Workbook",            icon: NotebookPen },
-  { id: "letters",     href: "/letters",             label: "Letters",             icon: FileText },
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
   { id: "inbox",       href: "/documents?tab=sort",  label: "To Sort",             icon: Inbox },
   { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },
@@ -68,4 +61,4 @@ export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
   NAV_ROUTES.map((r) => [r.id, r])
 );
 
-export const DEFAULT_PINS = ["inbox", "meeting", "outbox"];
+export const DEFAULT_PINS = ["inbox", "approvals", "outbox"];

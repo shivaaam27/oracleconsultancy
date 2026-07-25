@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Home, ListTodo, MessageCircle, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -220,20 +220,19 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   /** Owner-configurable tab visibility (Settings → Portals → Roles & permissions),
    *  resolved server-side and passed in. When omitted, the built-in defaults from
    *  portalCapabilities apply. */
-  tabOverrides?: Partial<{ tasks: boolean; outbox: boolean; insights: boolean; requests: boolean; cleaning: boolean }>;
+  tabOverrides?: Partial<{ tasks: boolean; outbox: boolean; insights: boolean; cleaning: boolean }>;
 }) {
   const pathname = usePathname() || "/portal";
   // Role capabilities come from the single registry (src/lib/portal-capabilities.ts)
-  // for the STRUCTURAL tabs (board/home/directory/chat/…). The four configurable
-  // tabs (tasks/outbox/insights/requests) honour the owner's per-role toggles when
-  // provided via tabOverrides.
+  // for the STRUCTURAL tabs (board/home/directory/chat/…). The three configurable
+  // tabs (tasks/outbox/insights) honour the owner's per-role toggles when provided
+  // via tabOverrides.
   const caps = portalCapabilities(role);
   const showBoard = caps.tabs.board;
   const showHome = caps.tabs.home;
   const showTasks = tabOverrides?.tasks ?? caps.tabs.tasks;
   const showOutbox = tabOverrides?.outbox ?? caps.tabs.outbox;
   const showInsights = tabOverrides?.insights ?? caps.tabs.insights;
-  const showRequests = tabOverrides?.requests ?? caps.tabs.requests;
   // Cleaning also honours the owner's per-role cap (cleaningLog / cleaningOverview)
   // when provided — the raw isReceptionist||isManagement default is just the fallback.
   const showCleaning = tabOverrides?.cleaning ?? caps.tabs.cleaning;
@@ -246,7 +245,6 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onMeetings = pathname.startsWith("/portal/meetings");
   const onActivity = pathname.startsWith("/portal/activity");
-  const onRequests = pathname.startsWith("/portal/requests");
   const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
 
@@ -313,7 +311,6 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
           {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} onTip={setTip} />}
           {/* Glanceable portfolio/team Insights — management only. */}
           {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} onTip={setTip} />}
-          {showRequests && <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} onTip={setTip} tourTag="nav-requests" />}
           {caps.tabs.activity && <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />}
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
@@ -332,10 +329,10 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
             <Sparkles size={19} className="transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
           </button>
         )}
-        {/* The create + sits AFTER the divider, next to the theme toggle. Tasks +
-            Requests carry their own contextual + FAB, so it steps aside there to
-            avoid a duplicate. */}
-        {canCreate && !onTasks && !onRequests && (
+        {/* The create + sits AFTER the divider, next to the theme toggle. Tasks
+            carries its own contextual + FAB, so it steps aside there to avoid a
+            duplicate. */}
+        {canCreate && !onTasks && (
           <Link
             href="/portal/task/new"
             aria-label="New task"

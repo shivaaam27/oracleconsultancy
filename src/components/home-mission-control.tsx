@@ -774,14 +774,7 @@ export function HomeMissionControl({
 
         {/* Top to-dos — fills the rest of column 1 with what's next by hand. */}
         <Panel className="p-4 sm:p-5">
-          <SectionLabel
-            icon={<ClipboardList size={13} />}
-            action={
-              <Link href="/workbook?tab=todo" className="text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
-                Open
-              </Link>
-            }
-          >
+          <SectionLabel icon={<ClipboardList size={13} />}>
             Top to-dos
             {topTodos.length > 0 && <span className="ml-1 text-fg-subtle/70">· {topTodos.length}</span>}
           </SectionLabel>
@@ -794,13 +787,10 @@ export function HomeMissionControl({
             <ul className="mt-3 space-y-1.5">
               {topTodos.map((t) => (
                 <li key={t.id}>
-                  <Link
-                    href="/workbook?tab=todo"
-                    className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-3 py-2 ring-1 ring-border/50 transition-all hover:-translate-y-0.5 hover:ring-accent/25"
-                  >
+                  <div className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-3 py-2 ring-1 ring-border/50">
                     <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.important ? "bg-danger" : "bg-accent/70")} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium leading-snug group-hover:text-accent">{t.title}</span>
+                      <span className="block truncate text-sm font-medium leading-snug">{t.title}</span>
                       {(t.context || t.dueAt) && (
                         <span className="mt-0.5 block truncate text-[11px] text-fg-muted">
                           {t.context}
@@ -810,7 +800,7 @@ export function HomeMissionControl({
                       )}
                     </span>
                     {t.important && <span className="shrink-0 rounded-full bg-danger-soft/60 px-1.5 py-0.5 text-[10px] font-semibold text-danger">!</span>}
-                  </Link>
+                  </div>
                 </li>
               ))}
             </ul>

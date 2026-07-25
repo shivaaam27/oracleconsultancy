@@ -22,9 +22,6 @@ import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { TodoCard } from "@/components/todo-card";
 import { listSelfTodos } from "@/lib/todo-reminders";
 import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo, portalUpdateTodo } from "@/app/portal/actions";
-import { RequestComposer } from "@/components/request-composer";
-import { requestRecipientsFor, getRequestCategories } from "@/lib/requests";
-import { portalRaiseRequest } from "./requests/actions";
 import { scopedUpcomingMeetings, nearestSoon } from "@/lib/portal-meetings-data";
 import { PortalMeetings } from "@/components/portal-meetings";
 
@@ -54,13 +51,11 @@ export default async function PortalHome() {
   // genuinely depend on the audience attrs, so that pair stays sequential inside
   // its own closure; everything else fans out.
   const [
-    today, week, myTodos, { people: requestPeople }, requestCategories, myMeetings, { announcements }, ids,
+    today, week, myTodos, myMeetings, { announcements }, ids,
   ] = await Promise.all([
     personAttendanceToday(me.id),
     personAttendanceWeek(me.id),
     listSelfTodos(me.id),
-    requestRecipientsFor(me.id),
-    getRequestCategories(),
     // Upcoming meetings this person may see (scoped). The home widget shows only
     // the single nearest one within 2 days — the full list lives on /portal/meetings.
     scopedUpcomingMeetings(me),
@@ -268,23 +263,6 @@ export default async function PortalHome() {
           title="To-Do List"
         />
       </Reveal>
-
-      {/* Raise a request — below the to-do list, full width. Gated on the capability
-          (was shown unconditionally); off for the receptionist. */}
-      {me.caps.navRequests && (
-      <Reveal delay={0.075} className="flex flex-col gap-2.5">
-        <SectionLabel
-          icon={<MessageSquareText size={13} />}
-          action={<Link href="/portal/requests" className="text-[11px] text-accent hover:underline">View all</Link>}
-        >
-          Raise a request
-        </SectionLabel>
-        <Panel className="flex flex-col gap-3 p-4">
-          <p className="text-xs text-fg-muted">Need equipment, HR help or admin support? Send a request without leaving home — track replies on the Requests tab.</p>
-          <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
-        </Panel>
-      </Reveal>
-      )}
 
       {/* HR keep a shortcut to the team-reminders surface. */}
       {me.portalRole === "hr" && (

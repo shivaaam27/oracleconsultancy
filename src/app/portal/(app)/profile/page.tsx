@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
 import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-documents";
-import { PortalLeave } from "@/components/portal-leave";
 import { PortalAttendance } from "@/components/portal-attendance";
 import { personAttendanceWeek } from "@/lib/attendance";
 import { PasskeyManager } from "@/components/passkey-manager";
@@ -23,7 +22,6 @@ import { audienceForRole, firstRunTourFor, spotlightsFor } from "@/lib/tours";
 import { TourReplay } from "@/components/tour-replay";
 import { portalRestartTour } from "../../tour-actions";
 import { getPersonChecklist } from "@/lib/requirements";
-import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
 import { getJourney } from "@/lib/onboarding";
 import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
@@ -75,9 +73,7 @@ export default async function PortalProfile() {
     expiryLabel: it.expiryLabel,
   }));
 
-  const [leaveBalances, leaveRequests, journey, equipment, attendance] = await Promise.all([
-    personLeaveBalances(me.id),
-    listLeaveRequests({ personId: me.id }),
+  const [journey, equipment, attendance] = await Promise.all([
     getJourney(me.id, "onboarding"),
     assetsForPerson(me.id),
     personAttendanceWeek(me.id),
@@ -126,14 +122,9 @@ export default async function PortalProfile() {
   // Glance rail — the three numbers that tell a staff member where they stand
   // before any scrolling. Each tile only appears when there's data behind it.
   const compScore = checklist ? checklist.score : null;
-  const annual =
-    leaveBalances.find((b) => /annual/i.test(b.typeName) && b.remaining != null) ??
-    leaveBalances.find((b) => b.remaining != null);
-  const leaveLeft = annual?.remaining ?? null;
   const presentDays = attendance.days.filter((d) => d.status === "Present" || d.status === "Remote" || d.status === "Half-day").length;
   const glance: Array<{ label: string; value: string; tone: keyof typeof TONE }> = [
     ...(compScore != null ? [{ label: "Compliance", value: `${compScore}%`, tone: (compScore >= 80 ? "success" : compScore >= 50 ? "warn" : "danger") as keyof typeof TONE }] : []),
-    ...(leaveLeft != null ? [{ label: "Leave left", value: `${leaveLeft}d`, tone: "accent" as keyof typeof TONE }] : []),
     { label: "Present wk", value: `${presentDays}/6`, tone: "muted" as keyof typeof TONE },
   ];
 
@@ -224,14 +215,6 @@ export default async function PortalProfile() {
           <SectionLabel icon={<Clock size={13} />}>Your attendance</SectionLabel>
           <PortalAttendance days={attendance.days} todayEditable={attendance.todayEditable} lockReason={attendance.lockReason} />
           <p className="px-1 text-[11px] text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
-        </Reveal>
-      )}
-
-      {!isDirector && leaveBalances.length > 0 && (
-        <Reveal delay={0.09} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<CalendarDays size={13} />}>Your leave</SectionLabel>
-          <PortalLeave balances={leaveBalances} requests={leaveRequests} />
-          <p className="px-1 text-[11px] text-fg-subtle">Request leave here — your manager reviews and approves it.</p>
         </Reveal>
       )}
 

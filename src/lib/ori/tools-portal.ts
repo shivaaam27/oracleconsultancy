@@ -75,7 +75,7 @@ export const PORTAL_TOOLS: ToolDef[] = [
     description: "Turn a portal ROLE permission on or off (access-sensitive — always confirmed). E.g. let managers create events, or stop staff from acting with ORI.",
     params: {
       role: { type: "string", required: true, description: "Which portal role: staff | manager | hr | director." },
-      capability: { type: "string", required: true, description: "The permission key to toggle (e.g. createTasks, approveLeave, oriAct, navOutbox)." },
+      capability: { type: "string", required: true, description: "The permission key to toggle (e.g. createTasks, oriAct, navOutbox)." },
       on: { type: "string", required: true, description: "on to grant the permission, off to remove it." },
     },
     async run(args) {

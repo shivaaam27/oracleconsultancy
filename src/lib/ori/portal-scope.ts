@@ -12,7 +12,7 @@ import type { SearchResult, SearchResultType } from "@/lib/search";
 /* ------------------------------------------------------------------ *
  * Portal ORI — scope enforcement for the wider `unifiedSearch` result
  * set (documents, vendors, assets, governance, risk, pipeline,
- * commitments, letters, meetings, people, companies).
+ * commitments, people, companies).
  *
  * SECURITY MODEL (deliberately COARSE, always SAFE):
  *   • seesAllCompanies(p)  → no filtering (HR / portfolio director).
@@ -47,10 +47,6 @@ async function ownerCompanyId(type: SearchResultType, id: number): Promise<numbe
       return pick("people");
     case "document":
       return pick("documents");
-    case "letter":
-      return pick("letters");
-    case "meeting":
-      return pick("meetings");
     case "vendor":
       return pick("vendors");
     case "commitment":

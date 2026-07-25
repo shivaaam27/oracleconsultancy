@@ -14,7 +14,7 @@ Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (th
 - CO06 MES Ltd
 - CO07 Pamoja Plus
 
-Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/proxy.ts` — the Next-16 `proxy` convention, renamed from `src/middleware.ts` in June 2026; cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Command Centre** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Command Centre tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; Meeting Workspace task creation uses `"meeting-mode"`; staff-portal posts use `"portal:<Name>"`.
+Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/proxy.ts` — the Next-16 `proxy` convention, renamed from `src/middleware.ts` in June 2026; cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Command Centre** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Command Centre tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; staff-portal posts use `"portal:<Name>"`.
 
 The system replaces an Excel workbook with:
 
@@ -114,24 +114,18 @@ See `memory/database_schema.md`.
 - `/task/new`
 - `/task/[code]`
 - `/registry` - redirects to hub Tasks table
-- `/meeting` - Meeting Workspace
-- `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
 - `/hrms` - redirects to `/hrms/command-centre`. **`/hrms/command-centre` is labelled "Tax & Legal"** in the UI (launcher + page header; route path unchanged) — recurring tax/statutory/legal obligations. See `memory/hrms.md`.
-- `/hrms/org` - **Organogram**. The **Portfolio view is an ELK layered flowchart** (`lib/org-flow.ts` + `components/org-flow.tsx`, `elkjs`): multi-parent, role/seniority tiers, primary boss = solid line, extra bosses = dashed, company as colour, shared-service roles in-flow. Per-company trees + By-department + "Everyone" web view remain. See `memory/organogram.md`.
 - `/hrms/oecr` - OECR (Office Equipment Control Registry) — consumable stock control
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
-- `/hrms/leave` - **Leave & Attendance** — segmented **Leave | Attendance** tabs. Leave: types/requests/approvals (ELR Act-accurate), balances, holidays. **Attendance register (built June 2026)**: month grid, brush-to-paint status, company filter, "mark all Present today"; On-leave/Holiday auto-filled. See `memory/hrms.md`.
+- `/hrms/leave` - **Attendance** — segmented **Register | Holidays** tabs. Month grid, brush-to-paint status, company filter, "mark all Present today"; Holiday auto-filled from `public_holidays` (editable on the Holidays tab). The wider Leave module (types/requests/approvals/balances) was REMOVED Jul 2026 — mark "On leave" directly on the register. See `memory/hrms.md`.
 - `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
 - `/hrms/pipeline` - **Applications in progress** (transfer-pack) — kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued; attach a supporting document. See `memory/localsystemautomationtooracle.md`.
 - `/hrms/registers` - **Commitments register** (transfer-pack) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
-- `/people/form` - **Staff data-collection form** (transfer-pack) — printable bilingual EN/Swahili form for staff with no system access; `?person=<id>` pre-fills, `?missing=1` shows only blanks, QR to the record, signature/thumbprint + on-behalf field-agent line; outsider type hides employment/payroll. Fill by hand → photograph → upload → intake builds the profile.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
 - `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
-- `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
-- `/letterheads` - redirects to `/letters?view=letterheads` — letterhead setup (typed / designed header+footer images / full-page background) is now a tab on `/letters`; server actions remain in `src/app/letterheads/actions.ts`
-- `/portal`, `/portal/login`, `/portal/board`, `/portal/meetings` (**Briefings**), `/portal/task/[code]`, `/portal/profile` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Profile carries: Your documents, **Your attendance** (self check-in + week strip), Your leave, onboarding, equipment, **passkeys** ("Sign in faster"). A minimal **attendance check-in pop-up** auto-opens once/day on landing. Admin chrome hidden on portal routes. See `memory/portal.md` + `memory/portal_scope_and_event_cascade_jul2026.md`.
+- `/portal`, `/portal/login`, `/portal/board`, `/portal/meetings` (**Briefings**), `/portal/task/[code]`, `/portal/profile` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Profile carries: Your documents, **Your attendance** (self check-in + week strip), onboarding, equipment, **passkeys** ("Sign in faster"). A minimal **attendance check-in pop-up** auto-opens once/day on landing. Admin chrome hidden on portal routes. See `memory/portal.md` + `memory/portal_scope_and_event_cascade_jul2026.md`.
   - **Home vs board (Jul 2026):** `/portal` **home is staff + HR only** — hero unified with the board hero (`portal-home-hero.tsx`, slim stats pill), tasks in a **scroll housing**, full-width To-Do List, Raise-a-request below it, announcements as a dismissible header banner (`announcement-banner.tsx`). **Directors AND managers are board-first** (`/portal/board`, redirected from `/portal`); managers' team tools fold onto the board (team-attendance glance moved to the Directory's **Attendance** tab, leave-to-approve, personal To-Do List).
   - `/portal/meetings` = **Briefings** (nav label "Briefings", `portal-briefings.tsx`): tabbed **Meetings** (agenda, badge = starts within 3 days) + **Announcements** (feed, badge = unacknowledged). Announcements no longer inline on home/board — banner + this tab.
   - **Board** (`director-board-client.tsx`, managers + directors): greeting hero · task composer (managers Task-only, directors Task/Event/Message) · Outbox link · Next meeting · then two **scroll-housed** columns — **Needs you** (overdue-first cards, tap opens the task, swipe = remind) + **Company health** (heat tiles, worst-overdue-first, "No open tasks" when a company is empty). List ordering = worst-first everywhere (DESIGN_SYSTEM.md §12). Managers with <6 companies get the To-Do List in the right column instead of a footer.
@@ -142,9 +136,9 @@ See `memory/database_schema.md`.
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], Organogram, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters & Letterheads**, Outbox, Inbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], OECR, **Assets & Vendors, Attendance**, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, standalone `/letterheads`, and the standalone `/hrms/departments` (departments now a Companies-hub tab). The desktop sidebar and the dedicated Companies nav tab were removed.
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed.
 
 ## Design language — "Aurora" (DEFAULT for everything)
 
@@ -181,25 +175,6 @@ per person. Adding a guide = inserting a DB row, no engine change.
 - **`CaretInput` / `CaretTextarea`** (in `components/ui.tsx`) — transparent compose fields with a blinking-caret + placeholder overlay while empty; the bordered ROW owns the ring. Use the `.bare-field` class (in `globals.css`) on any field that should drop the global inset well + focus chrome. **Name must NOT start with `caret-`** — `cn()`/tailwind-merge folds `caret-*` together and drops it.
 - **`lib/use-swipe-row.ts`** — `useSwipeRow({ leftWidth, rightWidth })` → `{ swiped, offset, dragging, bind, reset }`: the one swipe gesture for action rows. Axis-locked (a vertical scroll never engages), finger-following, settles past ~40% else snaps back. Put `{...bind}` + Tailwind `touch-pan-y` on the moving element. Adopters: board `AttentionCard`, `PortalTaskCard`, tasks-command `TaskRow`. **Reuse it — never hand-roll touch handlers.**
 
-## Meeting Workspace
-
-`/meeting` is now first-class saved business memory:
-
-- save title, company, date, attendees, raw notes, minutes;
-- voice dictation into notes;
-- Clean notes;
-- Generate minutes;
-- Extract decisions;
-- Extract risks;
-- Draft follow-up;
-- Extract action items;
-- bulk-create tasks;
-- link created tasks back to meetings;
-- search/filter meeting history.
-- compact mobile layout with reduced vertical drag.
-
-Ask COS can use saved meeting minutes/raw notes in its RAG context.
-
 ## Voice Intelligence
 
 Voice is now a shared product layer, not only a microphone button:
@@ -209,7 +184,6 @@ Voice is now a shared product layer, not only a microphone button:
 - Settings stores `v2.voiceLanguage` and `v2.voiceDictionary`.
 - Supported starting languages: English (`en-GB`), Swahili (`sw-TZ`), Hindi (`hi-IN`), Gujarati (`gu-IN`).
 - Meeting notes, Quick Capture, and task updates use "speak rough, save polished" behaviour.
-- Meeting Workspace includes a small quality loop to teach COS names/phrases into the voice dictionary.
 - Ask COS dictation now follows the browser language instead of a hardcoded speech locale.
 
 ## HR & Admin Operating System (V3 — in progress)
@@ -222,7 +196,7 @@ Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks
 - **Assets & Vendors** (`src/lib/assets.ts`, `src/lib/vendors.ts`): durable assets assigned to person or team+custodian; vendor register with contracts reusing documents.
 - **Leave & Attendance** (`src/lib/leave.ts`, `src/lib/attendance.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section. **Attendance now fully wired** (June 2026): admin register grid + staff self-check-in (trusted, manager can override; status-per-day, no clock in/out).
 - **People locations** (`src/lib/sites.ts`): a shared `sites` list (work site / residence per person) — places staff live or work, not company branches. Managed on the Companies hub Sites tab.
-- **Organogram** (`src/lib/org-flow.ts`): portfolio = ELK multi-parent layered flowchart; reporting surfaced across People (cards, drawer Direct-reports, bulk also-reports-to).
+- **Reporting structure** (`src/lib/org-chart.ts`, `src/lib/org-actions.ts`): manager / "also reports to" / department heads, surfaced on the company Org tab and across People (cards, drawer Direct-reports, bulk also-reports-to). The standalone Organogram page was removed Jul 2026.
 - **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). NOTE: wage fields, the pay/final-pay/severance calculator, and all money figures (leave liability, sick-leave cost) were removed June 2026 along with the board pack — leave day-tracking remains; the ELR rules are kept here for reference only.
 
 ## Smart Intake (V3)
@@ -240,10 +214,6 @@ The intake is **self-learning, correlating and self-healing**, all deterministic
 
 Other intelligence: **consistent naming** `buildDocTitle` ("Owner · Type · Ref/Year") on every path + a one-time **rename sweep**; **content-based duplicate detection** (Jaccard ≥0.7 of body words, any name/format → quarantine "duplicate of #X"); **auto-expiry renewal chaining** (`findRenewalTarget`: a renewal supersedes the older same-type doc → `-EXP` to Trash for review); **CamScanner/scanner-watermark detection** (`usableTextLayer` → OCR the real scan); **self-heal** (`selfHealDocuments`, nightly via morning-run, re-reads watermark/never-read docs); **relationship inference** (`lib/relationships.ts` — directors/shareholders from facts → people); **entity knowledge graph** (`lib/entity-graph.ts`, `/graph?type=&id=`, traversable, links companies sharing a director); **learning loops** `routing_corrections` (category) + dismissal suppression. New tables: `profile_suggestions`, `routing_corrections`, `custom_shelves`, `owner_corrections` (migrations 0090–0092).
 
-## Letters (V3)
-
-System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters/[id]/print` route. Per-company letterhead (Letterheads tab on `/letters`): typed fields, or a designed **header+footer image** (repeats each page), or a **full-page A4 background**. **Draft → Issue** freezes a letterhead snapshot + stamps a ref (`PREFIX/INV/YYYY/NNN`); reprints are identical. **Full body editing**; PDF (in-place iframe print) + optional Outbox draft; no auto-send. Letter font matches the Director Brief (system sans-serif). New types = add to `LETTER_TEMPLATES` + a `buildBody` fn in `src/lib/letters.ts`. First type = Invitation (auto-pulls invitee name/nationality/passport/DOB/role). See `memory/letters.md`.
-
 ## ORI Search Brain — universal search / find / trace (V3 — Jun 2026, LIVE)
 
 ORI is the brain of the system: everything from a task to a board-level shareholding can be
@@ -251,7 +221,7 @@ searched, found and **traced** from one place. Built across 7 verified waves (fu
 `memory/ori_brain.md`); DEPLOYED to master (commit 415ef46); migrations 0094/0095/0096 applied.
 
 - **Entity registry = single source of truth** (`src/lib/entity-registry.ts`): one `EntityDef`
-  per the 12 indexable types (task/meeting/document/person/company/letter/vendor/asset/
+  per the 10 indexable types (task/document/person/company/vendor/asset/
   governance/risk/pipeline/commitment) — table, columns, indexable text, lifecycle rule, search
   mapping, trace mode. **FORWARD RULE: to make a new entity (incl. future ERP modules)
   searchable/traceable/answerable, add ONE `EntityDef`** — indexing, deep search, the command

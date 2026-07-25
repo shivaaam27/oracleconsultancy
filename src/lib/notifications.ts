@@ -10,7 +10,7 @@ import { isQuietHoursNow, getAppSettings } from "./settings";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "update" | "chat" | "chat_mention" | "leave" | "announcement" | "request" | "meeting";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "update" | "chat" | "chat_mention" | "leave" | "announcement" | "meeting";
 
 export type Notification = {
   id: number;
@@ -76,7 +76,7 @@ export async function createNotification(input: {
   // leave these null and deep-link to the surface below.
   taskId?: number | null;
   taskCode?: string | null;
-  // Request deep-link target (kind "request").
+  // Retained for the legacy `request_id` column; no current kind deep-links here.
   requestId?: number | null;
   title: string;
   body?: string | null;
@@ -102,22 +102,16 @@ export async function createNotification(input: {
       ? isAdmin
         ? `/task/${input.taskCode}`
         : `/portal/task/${input.taskCode}`
-      : input.requestId
+      : input.kind === "meeting"
         ? isAdmin
-          ? `/requests/${input.requestId}`
-          : `/portal/requests/${input.requestId}`
-        : input.kind === "meeting"
-          ? isAdmin
-            ? `/calendar`
-            : `/portal/meetings`
-          : isAdmin
-            ? `/hrms/leave`
-            : `/portal/profile`;
+          ? `/calendar`
+          : `/portal/meetings`
+        : isAdmin
+          ? `/hrms/leave`
+          : `/portal/profile`;
     const tag = input.taskCode
       ? `task-${input.taskCode}`
-      : input.requestId
-        ? `request-${input.requestId}`
-        : `notif-${input.kind}`;
+      : `notif-${input.kind}`;
 
     // Smart, calm delivery (the in-app row above is already written — the bell
     // never misses anything; here we only shape the DEVICE BUZZ):

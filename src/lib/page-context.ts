@@ -7,7 +7,7 @@
  */
 export type PageSection =
   | "overview" | "tasks" | "company" | "companies" | "task"
-  | "workbook" | "people" | "meeting" | "outbox" | "settings" | "other";
+  | "people" | "outbox" | "settings" | "other";
 
 export type PageContext = {
   label: string;
@@ -83,14 +83,7 @@ export function derivePageContext(pathname: string, params?: Params): PageContex
     return { label: `Company${tabLabel}`, companyId, section: "company", tab };
   }
 
-  if (p === "/workbook") {
-    const tab = sp.get("tab") || "meetings";
-    const tl = tab === "notes" ? "Notes" : tab === "todo" ? "To-do" : "Meetings";
-    return { label: `Workbook · ${tl}`, section: "workbook", tab };
-  }
-
   if (p === "/people") return { label: "People directory", section: "people" };
-  if (p === "/meeting") return { label: "Meeting Workspace", section: "meeting" };
   if (p === "/outbox") return { label: "Outbox (reminder drafts)", section: "outbox" };
   if (p === "/settings") return { label: "Settings", section: "settings" };
   if (p === "/registry") return { label: "Tasks registry table", section: "tasks", tab: "tasks" };

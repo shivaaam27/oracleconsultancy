@@ -36,7 +36,6 @@ import type { TaskRow } from "@/lib/queries";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
-import { PersonLeave } from "./person-leave";
 import { PersonProbation } from "./person-probation";
 import { FactsPanel } from "./facts-panel";
 import { SuggestionTray } from "./suggestion-tray";
@@ -582,8 +581,6 @@ export function PersonDrawer() {
     );
     if (compSum && compSum.missing > 0)
       attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => openView("compliance") });
-    if (pendingLeave > 0)
-      attention.push({ key: "leave", icon: <Plane size={14} className="text-warn" />, label: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending`, sub: "Review in Leave", onClick: () => openView("leave") });
     if (person?.active && anniversary)
       attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("profile") });
   }
@@ -896,10 +893,6 @@ export function PersonDrawer() {
 
       <SectionCard className="p-3.5 space-y-2">
         <GroupLabel>Tools</GroupLabel>
-        <a href={`/people/form?person=${person.id}`} target="_blank" rel="noopener"
-          className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
-          <FileText size={14} className="shrink-0" /> Data form (PDF) — for staff with no system access
-        </a>
         <Link href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
           className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
           <ExternalLink size={14} className="shrink-0" /> View all of their tasks
@@ -955,7 +948,6 @@ export function PersonDrawer() {
   const moreItems = person && data ? [
     { id: "compliance", icon: <ShieldCheck size={15} />, label: "Compliance", meta: compSum ? `${compSum.score}%` : undefined },
     { id: "journey", icon: <RouteIcon size={15} />, label: person.active ? "Journey" : "Exit", meta: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : undefined },
-    { id: "leave", icon: <CalendarDays size={15} />, label: "Leave", meta: pendingLeave ? `${pendingLeave} pending` : undefined },
     { id: "tasks", icon: <ListTodo size={15} />, label: "Tasks", meta: openTasks ? `${openTasks} open` : undefined },
     { id: "history", icon: <Clock size={15} />, label: "History", meta: data.events.length ? String(data.events.length) : undefined },
     { id: "manage", icon: <Wrench size={15} />, label: "Manage", meta: undefined },
@@ -1014,8 +1006,6 @@ export function PersonDrawer() {
         { id: "compliance", label: "Compliance", hidden: true,
           content: <><BackBar label="Back" onBack={goBack} /><RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /></> },
         { id: "journey", label: "Journey", hidden: true, content: journeyView },
-        { id: "leave", label: "Leave", hidden: true,
-          content: <><BackBar label="Back" onBack={goBack} /><PersonLeave personId={person.id} balances={data.leave.balances} requests={data.leave.requests} attendance={data.leave.attendance} onChanged={refresh} /></> },
         { id: "tasks", label: "Tasks", hidden: true, content: <><BackBar label="Back" onBack={goBack} />{tasksContent}</> },
         { id: "manage", label: "Manage", hidden: true, content: manageContent },
         { id: "history", label: "History", hidden: true, content: historyContent },

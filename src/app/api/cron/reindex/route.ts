@@ -19,8 +19,8 @@ export const maxDuration = 60;
 // busiest tables for any row changed since our last successful run. If nothing has
 // moved, skip the whole sweep (no PostgREST reads, no re-embed). `?full=1` forces it.
 const WATERMARK_TABLES = [
-  "tasks", "documents", "meetings", "people", "companies",
-  "letters", "vendors", "assets", "pipeline", "commitments",
+  "tasks", "documents", "people", "companies",
+  "vendors", "assets", "pipeline", "commitments",
 ] as const;
 
 /** True if any watermark table has a row with updated_at > since. One 1-row probe

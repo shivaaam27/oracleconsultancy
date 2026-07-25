@@ -19,7 +19,7 @@ function safeName(name: string): string {
 /**
  * Save a company's core profile (the same `companies` columns Letters and
  * Letterheads read). One edit point for both — keep the field names in sync with
- * saveCompanyLetterheadAction in /letterheads/actions.ts.
+ * company branding fields used across the app.
  */
 export async function saveCompanyProfileAction(companyId: number, fd: FormData): Promise<Result> {
   const incDate = str(fd, "incorporationDate");
@@ -72,7 +72,7 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
   void reindexEntity("company", companyId);
   revalidatePath(`/companies/${companyId}`);
   revalidatePath("/companies");
-  revalidatePath("/letters");
+
   revalidatePath("/brief");
   revalidatePath("/");
   return { ok: true };
@@ -134,7 +134,7 @@ export async function enrichCompanyProfile(
     // Best-effort semantic re-index (no-op unless semantic search is enabled).
     void reindexEntity("company", companyId);
     revalidatePath(`/companies/${companyId}`);
-    revalidatePath("/letters");
+
     // Parity with the person enrich path so the Documents centre + Home reflect
     // the updated company profile without a manual reload.
     revalidatePath("/documents");

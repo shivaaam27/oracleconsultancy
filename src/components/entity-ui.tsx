@@ -10,7 +10,7 @@
 // here; the palette then groups + renders it without further edits.
 
 import {
-  Users, Building2, FileText, Mail, NotebookPen, Truck, Laptop, Landmark,
+  Users, Building2, FileText, Truck, Laptop, Landmark,
   AlertTriangle, Workflow, ScrollText, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
@@ -21,8 +21,6 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   person:     { icon: Users,         tint: "text-sky-500" },
   company:    { icon: Building2,     tint: "text-violet-500" },
   document:   { icon: FileText,      tint: "text-amber-500" },
-  letter:     { icon: Mail,          tint: "text-emerald-500" },
-  meeting:    { icon: NotebookPen,   tint: "text-rose-500" },
   vendor:     { icon: Truck,         tint: "text-teal-500" },
   asset:      { icon: Laptop,        tint: "text-indigo-500" },
   governance: { icon: Landmark,      tint: "text-amber-600" },

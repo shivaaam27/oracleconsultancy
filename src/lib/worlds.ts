@@ -19,14 +19,12 @@ export const WORLDS: World[] = [
   {
     slug: "people",
     name: "People",
-    blurb: "Staff directory, profiles, org structure and leave.",
+    blurb: "Staff directory, profiles and attendance.",
     icon: "Users",
     color: "#7F77DD",
     pages: [
       { label: "Directory",      href: "/people",                icon: "Users" },
-      { label: "Organogram",     href: "/hrms/org",              icon: "Network" },
-      { label: "Leave & Attendance", href: "/hrms/leave",        icon: "CalendarDays" },
-      { label: "Data-collection form", href: "/people/form",     icon: "ClipboardList" },
+      { label: "Attendance",     href: "/hrms/leave",            icon: "CalendarDays" },
     ],
   },
   {
@@ -37,21 +35,18 @@ export const WORLDS: World[] = [
     color: "#378ADD",
     pages: [
       { label: "Companies hub",  href: "/companies",             icon: "Building2" },
-      { label: "Organogram",     href: "/hrms/org",              icon: "Network" },
       { label: "Insights",       href: "/insights",              icon: "BarChart3" },
     ],
   },
   {
     slug: "work",
     name: "Work",
-    blurb: "Tasks, meetings, notes and to-dos.",
+    blurb: "Tasks, brief and automation.",
     icon: "ClipboardCheck",
     color: "#1D9E75",
     pages: [
       { label: "Task Management", href: "/?tab=tasks",           icon: "ClipboardCheck" },
-      { label: "Workbook",        href: "/workbook",             icon: "NotebookPen" },
       { label: "Brief",           href: "/calendar",             icon: "CalendarClock" },
-      { label: "Requests",        href: "/requests",             icon: "MessageSquareText" },
       { label: "ORI Automation",  href: "/ori-automations",      icon: "Zap" },
     ],
   },
@@ -94,13 +89,12 @@ export const WORLDS: World[] = [
   {
     slug: "comms",
     name: "Comms",
-    blurb: "Chat, outbox drafts, letters and announcements.",
+    blurb: "Chat, outbox drafts and announcements.",
     icon: "MessageSquare",
     color: "#1D9E75",
     pages: [
       { label: "Chat",            href: "/chat",                 icon: "MessageSquare" },
       { label: "Outbox",          href: "/outbox",               icon: "Send" },
-      { label: "Letters",         href: "/letters",              icon: "FileText" },
       { label: "Announcements",   href: "/announcements",        icon: "Megaphone" },
     ],
   },

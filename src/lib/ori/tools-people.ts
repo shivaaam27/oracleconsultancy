@@ -4,7 +4,7 @@ import { escapeLike } from "@/lib/db-helpers";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, resolveCompany, resolvePerson } from "@/lib/ori/tools";
 
-/* ORI people / HR / requests / org domain tools.
+/* ORI people / HR / org domain tools.
  *
  * Every tool REUSES an existing server action or core helper — it never
  * reimplements a DB write. Tiers: 1 read · 2 internal write · 3
@@ -23,19 +23,8 @@ import {
   enablePortalAccessQuick,
   revokePortalAccessQuick,
 } from "@/app/people/actions";
-// ── Org actions (src/app/hrms/org/actions.ts) ───────────────────────────────
-import { setPersonDirector, addPersonManager, setDepartmentHead } from "@/app/hrms/org/actions";
-// ── Requests: core helpers (the admin wrappers redirect / gate on the admin
-//    cookie; the core helpers ARE the real writes and are safe server-side). ──
-import {
-  raiseRequest,
-  addRequestMessage,
-  decideRequest,
-  advanceRequest,
-  cancelRequest,
-  convertRequestToTask,
-  type RaiseRecipient,
-} from "@/lib/requests";
+// ── Org actions (src/lib/org-actions.ts) ────────────────────────────────────
+import { setPersonDirector, addPersonManager, setDepartmentHead } from "@/lib/org-actions";
 
 const OWNER = "Owner";
 
@@ -57,24 +46,6 @@ async function resolveDepartment(name: string, companyId?: number) {
   if (companyId != null) q = q.eq("company_id", companyId);
   const { data } = await q.limit(1).maybeSingle();
   return data ? { id: data.id as number, name: data.name as string, companyId: data.company_id as number | null } : null;
-}
-
-/** Resolve a request by its numeric id or code (e.g. "REQ-012"). */
-async function resolveRequest(ref: string) {
-  const token = str(ref);
-  if (!token) return null;
-  const asNum = Number(token);
-  if (Number.isFinite(asNum) && asNum > 0) {
-    const { data } = await sb.from("requests").select("id,code,title,status,converted_task_id").eq("id", asNum).maybeSingle();
-    if (data) return data as { id: number; code: string; title: string; status: string; converted_task_id: number | null };
-  }
-  const { data } = await sb
-    .from("requests")
-    .select("id,code,title,status,converted_task_id")
-    .ilike("code", escapeLike(token))
-    .limit(1)
-    .maybeSingle();
-  return (data as { id: number; code: string; title: string; status: string; converted_task_id: number | null } | null) ?? null;
 }
 
 const QUICK_ROLES = ["staff", "manager", "hr", "director"];
@@ -294,7 +265,7 @@ export const PEOPLE_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: managerId ? `Set ${person.name}'s primary manager.` : `Cleared ${person.name}'s primary manager.`,
-        redirect: "/hrms/org",
+        redirect: "/people",
         undo: { kind: "ori.person.manager", payload: { personId: person.id, before: beforeManager } },
       };
     },
@@ -319,7 +290,7 @@ export const PEOPLE_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `${person.name} now also reports to ${m.name}.`,
-        redirect: "/hrms/org",
+        redirect: "/people",
         undo: { kind: "ori.person.dotted", payload: { personId: person.id, managerId: m.id } },
       };
     },
@@ -359,179 +330,6 @@ export const PEOPLE_TOOLS: ToolDef[] = [
         redirect: `/companies/${c.id}`,
         undo: { kind: "ori.department.head", payload: { companyId: c.id, departmentId: dept.id, before } },
       };
-    },
-  },
-
-  // ── Requests (wrap the core helpers in src/lib/requests.ts) ─────────────────
-  {
-    name: "raise_request",
-    tier: 2,
-    description: "Raise a request from the owner to one or more staff (an ask/approval flow, not a task).",
-    params: {
-      title: { type: "string", required: true, description: "What the request is, in a few words." },
-      recipients: { type: "string[]", required: true, description: "The people it is for, by name." },
-      body: { type: "string", required: false, description: "Details of the request." },
-      category: { type: "string", required: false, description: "A category label." },
-    },
-    async run(args) {
-      const title = str(args.title);
-      if (!title) return { ok: false, message: "Say what the request is in a few words." };
-      const names = Array.isArray(args.recipients) ? (args.recipients as unknown[]).map((x) => str(x)).filter(Boolean) : [];
-      if (!names.length) return { ok: false, message: "Choose who this request is for." };
-      const recipients: RaiseRecipient[] = [];
-      const unresolved: string[] = [];
-      for (const nm of names) {
-        const p = await resolvePerson(nm);
-        if (p) recipients.push({ personId: p.id, isOwner: false });
-        else unresolved.push(nm);
-      }
-      if (!recipients.length) return { ok: false, message: `Couldn't find any recipient matching: ${unresolved.join(", ")}.` };
-      const r = await raiseRequest({
-        requesterId: null,
-        fromOwner: true,
-        recipients,
-        companyId: null,
-        category: str(args.category) || null,
-        title,
-        body: str(args.body) || null,
-        createdBy: "web-ui",
-        actorName: OWNER,
-      });
-      const note = unresolved.length ? ` (couldn't match: ${unresolved.join(", ")})` : "";
-      return {
-        ok: true,
-        message: `Raised request ${r.code} to ${recipients.length} ${recipients.length === 1 ? "person" : "people"}.${note}`,
-        redirect: `/requests/${r.id}`,
-        undo: { kind: "ori.request.raise", payload: { requestId: r.id } },
-      };
-    },
-  },
-  {
-    name: "reply_request",
-    tier: 2,
-    description: "Post a reply message on a request thread.",
-    params: {
-      request: { type: "string", required: true, description: "Which request, by id or code (e.g. REQ-012)." },
-      body: { type: "string", required: true, description: "The message to post." },
-    },
-    async run(args) {
-      const req = await resolveRequest(str(args.request));
-      if (!req) return { ok: false, message: `Couldn't find a request matching "${str(args.request)}".` };
-      const text = str(args.body);
-      if (!text) return { ok: false, message: "Write a message to post." };
-      await addRequestMessage(req.id, text, "web-ui", "admin", OWNER);
-      // A posted message has no clean single-step inverse — no undo.
-      return { ok: true, message: `Replied on ${req.code}.`, redirect: `/requests/${req.id}` };
-    },
-  },
-  {
-    name: "decide_request",
-    tier: 2,
-    description: "Decide a request: approve, decline or note it, with an optional reason.",
-    params: {
-      request: { type: "string", required: true, description: "Which request, by id or code." },
-      verdict: { type: "string", required: true, description: "One of: approved, declined, noted." },
-      reason: { type: "string", required: false, description: "An optional reason shown to the requester." },
-    },
-    async run(args) {
-      const req = await resolveRequest(str(args.request));
-      if (!req) return { ok: false, message: `Couldn't find a request matching "${str(args.request)}".` };
-      const verdict = str(args.verdict).toLowerCase();
-      if (verdict !== "approved" && verdict !== "declined" && verdict !== "noted") {
-        return { ok: false, message: "Verdict must be approved, declined or noted." };
-      }
-      const before = { status: req.status };
-      await decideRequest(req.id, verdict, str(args.reason) || null, "web-ui", OWNER, "admin");
-      return {
-        ok: true,
-        message: `Marked ${req.code} ${verdict}.`,
-        redirect: `/requests/${req.id}`,
-        undo: { kind: "ori.request.status", payload: { requestId: req.id, before } },
-      };
-    },
-  },
-  {
-    name: "advance_request",
-    tier: 2,
-    description: "Move a request along its workflow: open, in_progress, done or needs_info.",
-    params: {
-      request: { type: "string", required: true, description: "Which request, by id or code." },
-      status: { type: "string", required: true, description: "One of: open, in_progress, done, needs_info." },
-    },
-    async run(args) {
-      const req = await resolveRequest(str(args.request));
-      if (!req) return { ok: false, message: `Couldn't find a request matching "${str(args.request)}".` };
-      const status = str(args.status).toLowerCase();
-      if (status !== "open" && status !== "in_progress" && status !== "done" && status !== "needs_info") {
-        return { ok: false, message: "Status must be open, in_progress, done or needs_info." };
-      }
-      const before = { status: req.status };
-      await advanceRequest(req.id, status, "web-ui", OWNER, "admin");
-      return {
-        ok: true,
-        message: `Moved ${req.code} to ${status.replace("_", " ")}.`,
-        redirect: `/requests/${req.id}`,
-        undo: { kind: "ori.request.status", payload: { requestId: req.id, before } },
-      };
-    },
-  },
-  {
-    name: "cancel_request",
-    tier: 3,
-    description: "Withdraw (cancel) a request. Reversible — the request is marked cancelled, not deleted.",
-    params: {
-      request: { type: "string", required: true, description: "Which request, by id or code." },
-    },
-    async run(args) {
-      const req = await resolveRequest(str(args.request));
-      if (!req) return { ok: false, message: `Couldn't find a request matching "${str(args.request)}".` };
-      if (req.status === "cancelled") return { ok: false, message: `${req.code} is already cancelled.` };
-      const before = { status: req.status };
-      await cancelRequest(req.id, "web-ui");
-      return {
-        ok: true,
-        message: `Withdrew ${req.code}.`,
-        redirect: `/requests/${req.id}`,
-        undo: { kind: "ori.request.status", payload: { requestId: req.id, before } },
-      };
-    },
-  },
-  {
-    name: "convert_request_to_task",
-    tier: 2,
-    description: "Turn a request into a real task, linked both ways, for a company and an accountable person.",
-    params: {
-      request: { type: "string", required: true, description: "Which request, by id or code." },
-      company: { type: "string", required: true, description: "The company for the new task, by name." },
-      accountable: { type: "string", required: true, description: "Who is responsible for the task, by name." },
-      priority: { type: "string", required: false, description: "Critical, High, Medium (default) or Low." },
-      deadline: { type: "date", required: false, description: "A due date (YYYY-MM-DD)." },
-    },
-    async run(args) {
-      const req = await resolveRequest(str(args.request));
-      if (!req) return { ok: false, message: `Couldn't find a request matching "${str(args.request)}".` };
-      if (req.converted_task_id != null) return { ok: false, message: `${req.code} has already been turned into a task.` };
-      const c = await resolveCompany(str(args.company));
-      if (!c) return { ok: false, message: `Couldn't find a company matching "${str(args.company)}".` };
-      const acc = await resolvePerson(str(args.accountable));
-      if (!acc) return { ok: false, message: `Couldn't find a person matching "${str(args.accountable)}".` };
-      const deadlineRaw = str(args.deadline);
-      const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
-      if (deadline && Number.isNaN(deadline.getTime())) return { ok: false, message: "That deadline isn't a valid date." };
-      const r = await convertRequestToTask({
-        requestId: req.id,
-        companyId: c.id,
-        accountableId: acc.id,
-        workingIds: [],
-        priority: str(args.priority) || "Medium",
-        deadline,
-        by: "web-ui",
-        actorName: OWNER,
-        actorRecipient: "admin",
-      });
-      // No undo: the conversion mints a task + links; unwind deliberately via
-      // delete_task, which has its own reversal.
-      return { ok: true, message: `Created task ${r.taskCode} from ${req.code}.`, redirect: `/task/${r.taskCode}` };
     },
   },
 ];

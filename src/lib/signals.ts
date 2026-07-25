@@ -22,7 +22,6 @@ import { computeGlobalKpis } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
-import { listMeetings } from "@/app/meeting/actions";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
 import { worstComplianceScores } from "@/lib/compliance";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -32,7 +31,6 @@ import { sb } from "@/db/supabase";
 import { getPortfolioTrends } from "@/lib/trends";
 import { listObligations, outstandingDeadlines } from "@/lib/recurring";
 import { getAppSettings } from "@/lib/settings";
-import { ownerPendingRequestCount } from "@/lib/requests";
 import type { Todo } from "@/app/todos/actions";
 import type {
   CommandAction,
@@ -121,10 +119,9 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
 
-  const [documents, drafts, meetings, obligations, trends, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [documents, drafts, obligations, trends, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments(),
     listOutboxDrafts(),
-    listMeetings(),
     listObligations(),
     getPortfolioTrends(),
     sb.from("companies").select("id,name,accent_color"),
@@ -184,13 +181,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
     });
   const expatPackNeeds = personPackNeeds.filter((score) => personTypeById.get(score.ownerId) === "expat");
 
-  const recentMeetings = meetings
-    .filter((m) => {
-      const updated = new Date(m.updatedAt).getTime();
-      return updated >= todayStart - 3 * 86400000 && m.taskCount > 0;
-    })
-    .slice(0, 3);
-
   // Statutory deadlines coming up — per-company aware: only obligations inside
   // their warning window that still have an applicable company not done this
   // period (see Command Centre). Shared definition via outstandingDeadlines.
@@ -202,9 +192,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
   const nextDeadline = upcomingDeadlines[0];
 
   const overdueDraftSuggestion = automationSuggestions.find((s) => s.id === "overdue-reminder-drafts");
-
-  // Staff service requests addressed to the owner that still need a decision.
-  const pendingRequests = await ownerPendingRequestCount();
 
   const command: CommandAction[] = [
     overdueDraftSuggestion && {
@@ -234,15 +221,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       actionLabel: "Review critical",
       tone: "danger",
       count: critical.length,
-    },
-    pendingRequests > 0 && {
-      id: "requests",
-      title: `${pendingRequests} request${pendingRequests === 1 ? "" : "s"} awaiting you`,
-      detail: "Staff have asked you for something — review and approve or decline.",
-      href: "/requests",
-      actionLabel: "Open Requests",
-      tone: "accent",
-      count: pendingRequests,
     },
     drafts.length > 0 && {
       id: "drafts",
@@ -307,8 +285,8 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       id: "todos",
       title: `Clear ${todayTodos.length} personal to-do${todayTodos.length === 1 ? "" : "s"}`,
       detail: overdueTodos.length ? `${overdueTodos.length} are already overdue.` : "These are due today or earlier.",
-      href: "/workbook?tab=todo",
-      actionLabel: "Open To-do",
+      href: "/",
+      actionLabel: "Open Home",
       tone: overdueTodos.length ? "warn" : "accent",
       count: todayTodos.length,
     },
@@ -329,15 +307,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       actionLabel: "Open tasks",
       tone: "warn",
       count: staleTasks.length,
-    },
-    recentMeetings.length > 0 && {
-      id: "meetings",
-      title: "Review meeting follow-ups",
-      detail: "Recent meetings have linked tasks; check whether the next steps are moving.",
-      href: "/workbook?tab=meetings",
-      actionLabel: "Open Workbook",
-      tone: "accent",
-      count: recentMeetings.length,
     },
   ].filter(Boolean) as CommandAction[];
 
@@ -374,7 +343,7 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       id: `todo-${t.id}`,
       title: t.title,
       meta: [t.companyName, t.personName, "Personal to-do"].filter(Boolean).join(" · "),
-      href: "/workbook?tab=todo",
+      href: "/",
       group: "task",
       tone: due && due.getTime() < todayStart ? "warn" : "accent",
       due: due ? due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
