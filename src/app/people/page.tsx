@@ -1,4 +1,3 @@
-import { FileText } from "lucide-react";
 import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
@@ -83,10 +82,6 @@ export default async function PeoplePage({
         totalSites={siteCount}
         createSlot={
           <div className="flex items-center gap-2">
-            <a href="/people/form" target="_blank" rel="noopener" title="Printable data-collection form for staff with no system access"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-bg-elev ring-1 ring-border px-3 py-2 text-xs font-medium hover:ring-accent/40 transition">
-              <FileText size={13} /> Blank data form
-            </a>
             <NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />
           </div>
         }

@@ -20,11 +20,9 @@ import { AI_FAST } from "@/lib/ai-models";
 
 export type SourceType =
   | "task"
-  | "meeting"
   | "document"
   | "person"
   | "company"
-  | "letter"
   | "vendor"
   | "asset"
   | "governance"

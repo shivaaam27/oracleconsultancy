@@ -211,7 +211,6 @@ export function isCritical(kind: string): boolean {
     case "assigned":
     case "leave":
     case "announcement":
-    case "request":
       return false;
     // Unknown kinds: treat as routine (calmer default — never over-buzz).
     default:
@@ -309,7 +308,6 @@ export function summariseDigest(items: DigestItem[]): { title: string; body: str
     assigned: ["task assigned", "tasks assigned"],
     leave: ["leave update", "leave updates"],
     announcement: ["announcement", "announcements"],
-    request: ["request", "requests"],
   };
   const counts = new Map<string, number>();
   for (const it of items) counts.set(it.kind, (counts.get(it.kind) ?? 0) + 1);

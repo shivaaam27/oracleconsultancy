@@ -19,7 +19,6 @@ type SyncResult = { ok: true; added: number } | { ok: false; error: string };
 
 function invalidate() {
   revalidatePath("/people");
-  revalidatePath("/workbook");
 }
 
 export async function startJourneyAction(personId: number, kind: JourneyKind): Promise<Result> {

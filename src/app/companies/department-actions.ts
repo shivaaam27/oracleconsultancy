@@ -10,7 +10,7 @@ type Result = { ok: true } | { ok: false; error: string };
 
 function revalidate() {
   revalidatePath("/companies");
-  revalidatePath("/hrms/org");
+
   revalidatePath("/people");
 }
 

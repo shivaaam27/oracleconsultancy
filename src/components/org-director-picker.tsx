@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, Loader2 } from "lucide-react";
-import { setPersonDirector, addPersonManager, type ReportingResult } from "@/app/hrms/org/actions";
+import { setPersonDirector, addPersonManager, type ReportingResult } from "@/lib/org-actions";
 import { useToast } from "./toast";
 
 export type PickPerson = { id: number; name: string; companyName: string | null };

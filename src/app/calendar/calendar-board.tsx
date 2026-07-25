@@ -1111,9 +1111,6 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
             {event.recurrence && event.recurrence !== "none" && (
               <span className="inline-flex items-center gap-1 capitalize"><Repeat size={12} />{event.recurrence}</span>
             )}
-            {event.meetingId && (
-              <a href={`/workbook?tab=meetings&open=${event.meetingId}`} className="inline-flex items-center gap-1 text-accent hover:underline"><ExternalLink size={12} />Meeting</a>
-            )}
             {event.taskId && (
               <a href="/?tab=tasks" className="inline-flex items-center gap-1 text-accent hover:underline"><ExternalLink size={12} />Task</a>
             )}

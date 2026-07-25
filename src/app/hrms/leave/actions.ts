@@ -2,16 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { withTx } from "@/lib/tx";
-import { leaveRequests } from "@/db/schema";
-import { computeLeaveDays, leaveBalanceForBooking } from "@/lib/leave";
-import type { LeaveStatus } from "@/lib/leave-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
-
-/** Sentinel thrown to roll back the booking transaction when the request would
- *  exceed the leave-type entitlement; the human message is set alongside it. */
-class OverBookedError extends Error {}
 
 function str(fd: FormData, key: string): string | null {
   const v = (fd.get(key) ?? "").toString().trim();
@@ -36,132 +28,6 @@ function invalidate() {
   revalidatePath("/people");
 }
 
-/* ---- Leave requests ---- */
-export async function createLeaveRequestAction(fd: FormData): Promise<Result> {
-  const personId = numOrNull(fd, "personId");
-  const leaveTypeId = numOrNull(fd, "leaveTypeId");
-  const start = dateIso(fd, "startDate");
-  const end = dateIso(fd, "endDate");
-  const halfDay = fd.get("halfDay") === "1" || fd.get("halfDay") === "on";
-  if (!personId) return { ok: false, error: "Choose a person." };
-  if (!leaveTypeId) return { ok: false, error: "Choose a leave type." };
-  if (!start || !end) return { ok: false, error: "Pick start and end dates." };
-  if (end < start) return { ok: false, error: "End date can't be before the start date." };
-
-  const endIso = halfDay ? start : end;
-  const days = await computeLeaveDays(start, endIso, halfDay);
-  if (days <= 0) return { ok: false, error: "That range has no working days (Sundays/holidays only)." };
-
-  const reason = str(fd, "reason");
-  const startDate = new Date(start);
-
-  // Validate the over-booking guard and insert atomically (ACTHRMS-02): a capped
-  // leave type can't go beyond its entitlement, and the entitlement window is
-  // anchored to the leave-year the request actually STARTS in (ACTHRMS-03), not
-  // whatever calendar year it happens to be today. Reading the existing requests
-  // and writing the new one inside one transaction stops two concurrent requests
-  // from each seeing the same balance and both slipping past the cap.
-  let overBooked: string | null = null;
-  let newId: number | undefined;
-  try {
-    newId = await withTx(async (tx) => {
-      const bal = await leaveBalanceForBooking(tx, personId, leaveTypeId, startDate);
-      if (bal && bal.entitlement > 0) {
-        const left = bal.entitlement - bal.taken - bal.pending;
-        if (days > left) {
-          overBooked = `That's ${days} day(s), but only ${Math.max(0, left)} ${bal.typeName} day(s) remain in that leave year (${bal.entitlement} a year − ${bal.taken} taken − ${bal.pending} pending). Adjust the dates or their entitlement.`;
-          // Abort the transaction without booking; the message is returned below.
-          throw new OverBookedError();
-        }
-      }
-      const now = new Date();
-      const [row] = await tx
-        .insert(leaveRequests)
-        .values({
-          personId,
-          leaveTypeId,
-          startDate,
-          endDate: new Date(endIso),
-          halfDay,
-          days,
-          reason,
-          status: "Pending",
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning({ id: leaveRequests.id });
-      return row.id;
-    });
-  } catch (e) {
-    if (overBooked) return { ok: false, error: overBooked };
-    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save the leave request." };
-  }
-  invalidate();
-  return { ok: true, id: newId };
-}
-
-export async function decideLeaveRequestAction(id: number, status: LeaveStatus, notes?: string | null): Promise<Result> {
-  const { error } = await sb
-    .from("leave_requests")
-    .update({ status, decided_by: "web-ui", decided_at: new Date().toISOString(), notes: notes ?? null, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  invalidate();
-  return { ok: true, id };
-}
-
-export async function deleteLeaveRequestAction(id: number): Promise<Result> {
-  // Never silently destroy an APPROVED leave record — that quietly changes the
-  // person's remaining balance and the calendar/attendance auto-fill. Cancel it
-  // instead (keeps the record for audit, drops it from balances because only
-  // "Approved" days are counted). Drafts/declined requests can be removed outright.
-  const { data: existing } = await sb.from("leave_requests").select("status").eq("id", id).maybeSingle();
-  if (existing && existing.status === "Approved") {
-    const { error } = await sb
-      .from("leave_requests")
-      .update({ status: "Cancelled", updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) return { ok: false, error: error.message };
-    invalidate();
-    return { ok: true, id };
-  }
-  const { error } = await sb.from("leave_requests").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  invalidate();
-  return { ok: true, id };
-}
-
-/* ---- Leave types ---- */
-export async function saveLeaveTypeAction(fd: FormData, id?: number): Promise<Result> {
-  const name = str(fd, "name");
-  if (!name) return { ok: false, error: "Name is required." };
-  const payload = {
-    name,
-    color: str(fd, "color"),
-    paid: fd.get("paid") === "1" || fd.get("paid") === "on",
-    default_days: numOrNull(fd, "defaultDays") ?? 0,
-    cycle_months: numOrNull(fd, "cycleMonths") ?? 12,
-    half_pay_days: numOrNull(fd, "halfPayDays") ?? 0,
-  };
-  if (id) {
-    const { error } = await sb.from("leave_types").update(payload).eq("id", id);
-    if (error) return { ok: false, error: error.message };
-  } else {
-    const { error } = await sb.from("leave_types").insert({ ...payload, active: true, sort_order: 99, created_at: new Date().toISOString() });
-    if (error) return { ok: false, error: error.message };
-  }
-  invalidate();
-  return { ok: true };
-}
-
-export async function archiveLeaveTypeAction(id: number): Promise<Result> {
-  const { error } = await sb.from("leave_types").update({ active: false }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  invalidate();
-  return { ok: true };
-}
-
-/* ---- Holidays ---- */
 export async function addHolidayAction(fd: FormData): Promise<Result> {
   const date = dateIso(fd, "date");
   const name = str(fd, "name");

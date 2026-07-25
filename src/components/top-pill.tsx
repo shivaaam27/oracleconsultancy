@@ -109,9 +109,9 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
 
 // The launcher grid is derived from the one shared NAV_ROUTES list (lib/nav.ts),
 // so the "Go to" menu, the ⌘K page-jump and the Settings pin list can never
-// drift apart. Workbook lives on its own pill tab, so it's excluded here.
+// drift apart.
 const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> =
-  NAV_ROUTES.filter((r) => r.href !== "/workbook").map((r) => ({
+  NAV_ROUTES.map((r) => ({
     href: r.href,
     label: r.label,
     icon: r.icon,

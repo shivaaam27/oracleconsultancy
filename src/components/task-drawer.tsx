@@ -8,7 +8,7 @@ import { SectionCard } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
 import { TimelineEntry } from "./timeline-entry";
 import {
-  ExternalLink, FileText, History, LayoutDashboard, MessageSquare, Pencil, Save,
+  History, LayoutDashboard, MessageSquare, Pencil, Save,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
   ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell,
 } from "lucide-react";
@@ -55,7 +55,6 @@ type DrawerData = {
   companies: { id: number; name: string }[];
 };
 
-function fmtDate(d: Date) { return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
 function dateInput(d: Date | string | null | undefined) {
   if (!d) return "";
   const dt = new Date(d);
@@ -538,19 +537,6 @@ export function TaskDrawer() {
             </Button>
           </div>
         </form>
-      )}
-
-      {data!.sourceMeeting && (
-        <Link href={`/workbook?tab=meetings&open=${data!.sourceMeeting.id}`} onClick={close}
-          className="group glass elevated rounded-2xl px-3 py-2.5 flex items-start gap-2.5 hover:ring-1 hover:ring-accent/40 transition-all">
-          <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0"><FileText size={13} /></div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Source meeting</div>
-            <p className="truncate text-sm font-medium group-hover:text-accent transition-colors">{data!.sourceMeeting.title}</p>
-            <p className="text-xs text-fg-muted">{fmtDate(new Date(data!.sourceMeeting.meeting_date))}</p>
-          </div>
-          <ExternalLink size={12} className="text-fg-subtle group-hover:text-accent shrink-0 mt-0.5" />
-        </Link>
       )}
 
       <SimilarTasks query={t.actionItem} excludeId={t.id} />

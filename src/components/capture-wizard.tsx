@@ -4,28 +4,24 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import {
-  Sparkles, X, Loader2, ListTodo, NotebookPen, CheckCircle2, ArrowRight,
+  Sparkles, X, Loader2, ListTodo, CheckCircle2, ArrowRight,
   ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink, CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PersonPicker, type PickerPerson } from "@/components/person-picker";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
-import { createNote } from "@/app/notes/actions";
 import { createTodo } from "@/app/todos/actions";
-import { saveMeeting } from "@/app/meeting/actions";
 import { markInboxFiled } from "@/app/inbox/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 
 type Company = { id: number; name: string };
-type Kind = "task" | "note" | "meeting" | "todo";
-type Step = "intake" | "capture" | "task" | "note" | "meeting" | "todo" | "done";
+type Kind = "task" | "todo";
+type Step = "intake" | "capture" | "task" | "todo" | "done";
 
 const STEP_TITLES: Record<Step, string> = {
   intake: "Create",
   capture: "Capture",
   task: "New task",
-  note: "New note",
-  meeting: "New meeting",
   todo: "New to-do",
   done: "Create",
 };
@@ -54,7 +50,7 @@ function tidyAction(s: string): string {
 
 function firstLineTitle(text: string): string {
   const line = text.split(/\n/)[0].trim();
-  return line.length > 60 ? `${line.slice(0, 57)}…` : line || "Captured note";
+  return line.length > 60 ? `${line.slice(0, 57)}…` : line || "Captured item";
 }
 
 function ymd(d: Date): string {
@@ -81,7 +77,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
   const open = searchParams.get("capture") === "open";
   const dragControls = useDragControls();
   const inboxId = searchParams.get("inbox");
-  const noteId = searchParams.get("noteId");
 
   const [step, setStep] = useState<Step>("intake");
   const [raw, setRaw] = useState("");
@@ -98,15 +93,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
   const [priority, setPriority] = useState("Low");
   const [deadline, setDeadline] = useState("");
   const [assignees, setAssignees] = useState("");
-  // Note fields
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteCompanyId, setNoteCompanyId] = useState("");
-  // Meeting fields
-  const [mtgTitle, setMtgTitle] = useState("");
-  const [mtgCompanyId, setMtgCompanyId] = useState("");
-  const [mtgDate, setMtgDate] = useState(ymd(new Date()));
-  const [mtgAttendees, setMtgAttendees] = useState("");
-  const [mtgNotes, setMtgNotes] = useState("");
   // To-do fields
   const [todoTitle, setTodoTitle] = useState("");
   const [todoDate, setTodoDate] = useState("");
@@ -139,12 +125,12 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
     setRaw(seed);
     setParsed(null);
 
-    // ?create=task|note|meeting|todo jumps straight to that form (with optional
+    // ?create=task|todo jumps straight to that form (with optional
     // ?companyId=). Otherwise land on the chooser/intake.
     const create = searchParams.get("create");
     const cid = searchParams.get("companyId") || "";
-    if (cid) { setCompanyId(cid); setNoteCompanyId(cid); setMtgCompanyId(cid); setTodoCompanyId(cid); }
-    if (create === "task" || create === "note" || create === "meeting" || create === "todo") {
+    if (cid) { setCompanyId(cid); setTodoCompanyId(cid); }
+    if (create === "task" || create === "todo") {
       setStep(create);
     } else if (seed) {
       setStep("capture"); // share / inbox deep-link with text → AI capture
@@ -168,26 +154,25 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
       const p = await parseRawCapture(text);
       setParsed(p);
       setCompanyId(p.companyId ? String(p.companyId) : "");
-      setNoteCompanyId(p.companyId ? String(p.companyId) : "");
+      setTodoCompanyId(p.companyId ? String(p.companyId) : "");
       setActionItem(tidyAction(p.actionItem || text));
       setPriority(p.priority);
       setDeadline(p.deadline ? ymd(p.deadline) : "");
       setAssignees(p.assigneeNames.join(", "));
-      setNoteTitle(firstLineTitle(text));
+      setTodoTitle(firstLineTitle(text));
     } catch {
       setActionItem(text);
-      setNoteTitle(firstLineTitle(text));
+      setTodoTitle(firstLineTitle(text));
     } finally {
       setParsing(false);
     }
   }
 
-  // Heuristic: does this look more like a task or a note?
+  // Heuristic: does this look more like a task or a quick to-do?
   const suggestion: Kind = (() => {
     if (!parsed) return "task";
     if (parsed.deadline || parsed.priority !== "Low" || parsed.escalation === "Yes") return "task";
-    if (raw.length > 280) return "note";
-    return "task";
+    return "todo";
   })();
 
   function chooseKind(kind: Kind) {
@@ -209,7 +194,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
       deadline: deadline || null,
       assignees,
       comments: description.trim() || null,
-      sourceMeetingId: noteId ? parseInt(noteId, 10) : null,
     });
     setSaving(false);
     if (res.ok && res.code) {
@@ -222,25 +206,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
     }
   }
 
-  async function saveMeetingNow() {
-    if (!mtgTitle.trim()) { setError("Give the meeting a title."); return; }
-    setSaving(true); setError(null);
-    try {
-      const m = await saveMeeting({
-        title: mtgTitle.trim(),
-        companyId: mtgCompanyId ? parseInt(mtgCompanyId, 10) : null,
-        meetingDate: mtgDate,
-        attendees: mtgAttendees.trim() || null,
-        rawNotes: mtgNotes,
-      });
-      setResult({ kind: "meeting", label: m.title, href: `/workbook?tab=meetings&open=${m.id}` });
-      setStep("done");
-      router.refresh();
-    } catch {
-      setError("Could not create the meeting.");
-    } finally { setSaving(false); }
-  }
-
   async function saveTodoNow() {
     if (!todoTitle.trim()) { setError("What needs doing?"); return; }
     setSaving(true); setError(null);
@@ -250,36 +215,12 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
         dueAt: todoDate ? new Date(`${todoDate}T00:00:00`).toISOString() : null,
         companyId: todoCompanyId ? parseInt(todoCompanyId, 10) : null,
       });
-      setResult({ kind: "todo", label: todoTitle.trim(), href: "/workbook?tab=todo" });
+      setResult({ kind: "todo", label: todoTitle.trim(), href: "/" });
       setStep("done");
       router.refresh();
     } catch {
       setError("Could not create the to-do.");
     } finally { setSaving(false); }
-  }
-
-  async function saveNote() {
-    if (!raw.trim()) {
-      setError("There's nothing to save.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const m = await createNote({
-        title: noteTitle.trim() || firstLineTitle(raw),
-        companyId: noteCompanyId ? parseInt(noteCompanyId, 10) : null,
-        body: raw,
-      });
-      if (inboxId) await markInboxFiled(parseInt(inboxId, 10), "note", String(m.id)).catch(() => {});
-      setResult({ kind: "note", label: m.title, href: "/workbook?tab=notes" });
-      setStep("done");
-      router.refresh();
-    } catch {
-      setError("Could not save the note.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -374,19 +315,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
                   />
                 )}
 
-                {step === "meeting" && (
-                  <MeetingStep
-                    companies={companies}
-                    people={people}
-                    title={mtgTitle} setTitle={setMtgTitle}
-                    companyId={mtgCompanyId} setCompanyId={setMtgCompanyId}
-                    date={mtgDate} setDate={setMtgDate}
-                    attendees={mtgAttendees} setAttendees={setMtgAttendees}
-                    notes={mtgNotes} setNotes={setMtgNotes}
-                    onBack={() => setStep("intake")} onSave={saveMeetingNow} saving={saving} error={error}
-                  />
-                )}
-
                 {step === "todo" && (
                   <TodoStep
                     companies={companies}
@@ -394,19 +322,6 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
                     date={todoDate} setDate={setTodoDate}
                     companyId={todoCompanyId} setCompanyId={setTodoCompanyId}
                     onBack={() => setStep("intake")} onSave={saveTodoNow} saving={saving} error={error}
-                  />
-                )}
-
-                {step === "note" && (
-                  <NoteStep
-                    companies={companies}
-                    title={noteTitle} setTitle={setNoteTitle}
-                    companyId={noteCompanyId} setCompanyId={setNoteCompanyId}
-                    body={raw} setBody={setRaw}
-                    onBack={() => setStep("intake")}
-                    onSave={saveNote}
-                    saving={saving}
-                    error={error}
                   />
                 )}
 
@@ -424,7 +339,7 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
   );
 }
 
-/* ── Intake — the Create chooser (four tiles) ─────────────────────────── */
+/* ── Intake — the Create chooser (Task / To-do) ────────────────────────── */
 
 function IntakeStep({ onChoose }: { onChoose: (k: Kind) => void }) {
   return (
@@ -432,9 +347,7 @@ function IntakeStep({ onChoose }: { onChoose: (k: Kind) => void }) {
       <p className="text-xs font-medium text-fg-muted">Create something new</p>
       <div className="grid grid-cols-2 gap-2.5">
         <CreateTile icon={ListTodo} title="Task" sub="An action to track" onClick={() => onChoose("task")} />
-        <CreateTile icon={NotebookPen} title="Meeting" sub="Notes & minutes" onClick={() => onChoose("meeting")} />
         <CreateTile icon={CheckSquare} title="To-do" sub="A quick reminder" onClick={() => onChoose("todo")} />
-        <CreateTile icon={Sparkles} title="Note" sub="Business memory" onClick={() => onChoose("note")} />
       </div>
     </div>
   );
@@ -487,7 +400,7 @@ function CaptureStep({
         <p className="text-xs font-medium text-fg-muted mb-2">What would you like to do with it?</p>
         <div className="grid grid-cols-2 gap-2.5">
           <KindCard icon={ListTodo} title="Make a task" sub="Track it as an action" suggested={suggestion === "task"} disabled={!raw.trim()} onClick={() => onChoose("task")} />
-          <KindCard icon={NotebookPen} title="Save as note" sub="Keep it as memory" suggested={suggestion === "note"} disabled={!raw.trim()} onClick={() => onChoose("note")} />
+          <KindCard icon={CheckSquare} title="Make a to-do" sub="A quick reminder" suggested={suggestion === "todo"} disabled={!raw.trim()} onClick={() => onChoose("todo")} />
         </div>
       </div>
     </div>
@@ -655,112 +568,6 @@ function TaskStep({
   );
 }
 
-/* ── Note step ────────────────────────────────────────────────────────── */
-
-function NoteStep({
-  companies, title, setTitle, companyId, setCompanyId, body, setBody,
-  onBack, onSave, saving, error,
-}: {
-  companies: Company[];
-  title: string; setTitle: (v: string) => void;
-  companyId: string; setCompanyId: (v: string) => void;
-  body: string; setBody: (v: string) => void;
-  onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Title</label>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Which company? (optional)</label>
-        <select
-          value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
-          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
-        >
-          <option value="">No company</option>
-          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Note</label>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={5}
-          className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40"
-        />
-        <p className="text-[11px] text-fg-subtle">Saved to Meeting Workspace as business memory.</p>
-      </div>
-
-      {error && <p className="text-xs text-danger">{error}</p>}
-
-      <StepFooter onSave={onSave} saving={saving} saveLabel="Save note" />
-    </div>
-  );
-}
-
-/* ── Meeting step ─────────────────────────────────────────────────────── */
-
-function MeetingStep({
-  companies, people, title, setTitle, companyId, setCompanyId, date, setDate, attendees, setAttendees, notes, setNotes,
-  onBack, onSave, saving, error,
-}: {
-  companies: Company[];
-  people: PickerPerson[];
-  title: string; setTitle: (v: string) => void;
-  companyId: string; setCompanyId: (v: string) => void;
-  date: string; setDate: (v: string) => void;
-  attendees: string; setAttendees: (v: string) => void;
-  notes: string; setNotes: (v: string) => void;
-  onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Meeting title</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly ops review" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-fg-muted">Company</label>
-          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40">
-            <option value="">Group-wide</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-fg-muted">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Attendees (optional)</label>
-        <PersonPicker
-          people={people}
-          defaultNames={attendees ? attendees.split(",").map((s) => s.trim()).filter(Boolean) : []}
-          onChange={setAttendees}
-          placeholder="Search people, or type a name…"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Notes (optional)</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Jot the raw notes — polish & minutes come later in the Workbook." className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40" />
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      <StepFooter onSave={onSave} saving={saving} saveLabel="Create meeting" />
-    </div>
-  );
-}
-
 /* ── To-do step ───────────────────────────────────────────────────────── */
 
 function TodoStep({
@@ -838,10 +645,7 @@ function DoneStep({
       </div>
       <div>
         <p className="text-sm font-medium">
-          {result.kind === "task" ? "Task created"
-            : result.kind === "meeting" ? "Meeting created"
-            : result.kind === "todo" ? "To-do created"
-            : "Note saved"}
+          {result.kind === "task" ? "Task created" : "To-do created"}
         </p>
         <p className="text-xs text-fg-muted mt-0.5">{result.label}</p>
       </div>

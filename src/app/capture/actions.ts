@@ -94,7 +94,6 @@ export async function createCaptureTask(input: {
         { meeting_id: input.sourceMeetingId, task_id: task.id, created_at: now.toISOString() },
         { ignoreDuplicates: true }
       );
-      revalidatePath("/workbook");
     }
 
     revalidatePath("/registry");

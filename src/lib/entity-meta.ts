@@ -25,8 +25,6 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   governance: { uiLabel: "Governance",   searchOrder: 2 },
   risk:       { uiLabel: "Risks",        searchOrder: 3 },
   document:   { uiLabel: "Documents",    searchOrder: 4 },
-  letter:     { uiLabel: "Letters",      searchOrder: 5 },
-  meeting:    { uiLabel: "Meetings",     searchOrder: 6 },
   vendor:     { uiLabel: "Vendors",      searchOrder: 7 },
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },

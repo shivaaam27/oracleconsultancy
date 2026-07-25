@@ -1,4 +1,4 @@
-import { FileText, Clock, Ban, Flame, User, Sparkles, StickyNote, type LucideIcon } from "lucide-react";
+import { FileText, Clock, Ban, Flame, User, Sparkles, type LucideIcon } from "lucide-react";
 import type { PageContext } from "./page-context";
 
 export type Suggestion = { label: string; q: string; icon: LucideIcon };
@@ -43,27 +43,6 @@ export function suggestionsFor(pageContext?: PageContext): Suggestion[] {
       { label: "Who has the most critical tasks?", q: "Who has the most critical tasks?", icon: Flame },
       { label: "What's blocking us?", q: "What's blocking us right now?", icon: Ban },
       { label: "Weekly digest", q: "Weekly digest for the group", icon: FileText },
-    ];
-  }
-  // Workbook — prompts for the active workspace.
-  if (pageContext?.section === "workbook") {
-    if (pageContext.tab === "notes") return [
-      { label: "Summarise my notes", q: "Summarise my recent notes", icon: FileText },
-      { label: "Turn a note into tasks", q: "Turn my latest note into action items", icon: Sparkles },
-      { label: "What did we decide?", q: "What decisions are recorded in my notes?", icon: StickyNote },
-      { label: "Weekly digest", q: "Weekly digest for the group", icon: Clock },
-    ];
-    if (pageContext.tab === "todo") return [
-      { label: "What's due today?", q: "What to-dos are due today?", icon: Clock },
-      { label: "What's overdue?", q: "What's overdue across my to-dos and tasks?", icon: Flame },
-      { label: "Plan my day", q: "Help me plan my day from my to-dos", icon: Sparkles },
-      { label: "Weekly digest", q: "Weekly digest for the group", icon: FileText },
-    ];
-    return [
-      { label: "Summarise the last meeting", q: "Summarise my most recent meeting", icon: FileText },
-      { label: "Extract action items", q: "Extract action items from my latest meeting", icon: Sparkles },
-      { label: "Any risks raised?", q: "What risks were raised in recent meetings?", icon: Ban },
-      { label: "Draft a follow-up", q: "Draft a follow-up from the last meeting", icon: Clock },
     ];
   }
   return DEFAULT_SUGGESTIONS;

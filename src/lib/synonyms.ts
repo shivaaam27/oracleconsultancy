@@ -67,11 +67,6 @@ export const SYNONYM_GROUPS: string[][] = [
     "assignment", "assignments", "work", "deadline", "deadlines", "due",
     "overdue", "outstanding", "pending",
   ],
-  // Meetings
-  [
-    "meeting", "meetings", "minutes", "minute", "note", "notes", "decision",
-    "decisions", "agenda", "agendas", "attendee", "attendees", "discussion",
-  ],
   // Risk
   [
     "risk", "risks", "threat", "threats", "exposure", "blocker", "blockers",
@@ -100,11 +95,6 @@ export const SYNONYM_GROUPS: string[][] = [
     "asset", "assets", "equipment", "device", "devices", "laptop", "laptops",
     "phone", "phones", "vehicle", "vehicles", "hardware", "machine",
     "machines", "tool", "tools",
-  ],
-  // Letters & correspondence
-  [
-    "letter", "letters", "invitation", "invitations", "correspondence",
-    "notice", "notices", "memo", "memos",
   ],
   // Identity documents
   [
@@ -190,11 +180,6 @@ export const SYNONYM_GROUPS: string[][] = [
     "joiners", "joined", "leaver", "leavers", "left", "probation", "probationary",
     "startdate", "start", "newhire", "newstaff", "resign", "resignation",
     "termination", "terminated", "dismissal",
-  ],
-  // Requests
-  [
-    "request", "requests", "requested", "ask", "asked", "asking", "ticket",
-    "tickets", "raise", "raised", "query", "queries", "enquiry", "enquiries",
   ],
   // Time windows
   [

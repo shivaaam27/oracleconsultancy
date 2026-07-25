@@ -15,7 +15,6 @@ import {
   portalAddUpdate,
   portalCompleteTask,
 } from "@/app/portal/actions";
-import { portalRaiseRequest } from "@/app/portal/(app)/requests/actions";
 import { sb } from "@/db/supabase";
 
 /* ------------------------------------------------------------------ *
@@ -63,11 +62,6 @@ const PORTAL_TOOLS = [
     name: "complete_task",
     desc: "Mark an existing task the user can see as complete, with a short note of what was done.",
     params: "taskCode*, note*",
-  },
-  {
-    name: "raise_request",
-    desc: "Raise a request (equipment/HR/admin) to the owner or a person. Just needs a short title; optional detail/category.",
-    params: "title*, detail, category",
   },
 ] as const;
 
@@ -230,39 +224,11 @@ async function execCompleteTask(me: PortalPerson, args: Record<string, unknown>)
   return { ok: true, message: `${task.code} marked complete.` };
 }
 
-/** True if the thrown value is Next's redirect signal (portalRaiseRequest
- *  redirect()s to the new request on SUCCESS, which throws NEXT_REDIRECT). */
-function isNextRedirect(e: unknown): boolean {
-  return typeof (e as { digest?: unknown })?.digest === "string"
-    && ((e as { digest: string }).digest).startsWith("NEXT_REDIRECT");
-}
-
-async function execRaiseRequest(me: PortalPerson, args: Record<string, unknown>) {
-  const title = String(args.title ?? "").trim();
-  if (!title) return { ok: false, message: "Say what you need in a few words." };
-  // Default to the owner (Command Centre) — the safe, always-permitted recipient.
-  try {
-    const res = await portalRaiseRequest(null, fd({
-      title,
-      body: String(args.detail ?? ""),
-      category: String(args.category ?? ""),
-      toOwner: "1",
-    }));
-    // Reaching here means it returned an error object (success path redirects → throws).
-    if (res && "error" in res) return { ok: false, message: res.error };
-    return { ok: true, message: "Request raised." };
-  } catch (e) {
-    if (isNextRedirect(e)) return { ok: true, message: "Request raised." };
-    throw e;
-  }
-}
-
 async function runStep(me: PortalPerson, step: PlanStep) {
   switch (step.tool) {
     case "create_task": return execCreateTask(me, step.args);
     case "add_update": return execAddUpdate(me, step.args);
     case "complete_task": return execCompleteTask(me, step.args);
-    case "raise_request": return execRaiseRequest(me, step.args);
     default: return { ok: false, message: `Unknown action "${step.tool}".` };
   }
 }

@@ -42,11 +42,9 @@ export type CapabilityKey =
   | "messageOnTasks"
   | "bulkOutreach"
   | "createEvents"
-  | "approveLeave"
   | "navTasks"
   | "navOutbox"
   | "navInsights"
-  | "navRequests"
   | "oriAsk"
   | "oriAct"
   | "cleaningLog"
@@ -79,7 +77,6 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
     label: "Scheduling & leave",
     caps: [
       { key: "createEvents", label: "Create events / meetings", desc: "Schedule calendar events and meetings." },
-      { key: "approveLeave", label: "Approve leave", desc: "Approve or reject their team's leave requests." },
     ],
   },
   {
@@ -89,7 +86,6 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
       { key: "navTasks", label: "Tasks tab", desc: "The filterable Tasks list in the nav pill." },
       { key: "navOutbox", label: "Outbox", desc: "Drafted messages / reminders surface." },
       { key: "navInsights", label: "Insights", desc: "Glanceable portfolio / team insights." },
-      { key: "navRequests", label: "Requests", desc: "Raise and view requests (equipment, HR, admin)." },
     ],
   },
   {
@@ -134,11 +130,9 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   bulkOutreach: { staff: false, manager: false, hr: false, director: true, receptionist: false },
   createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  approveLeave: { staff: false, manager: true, hr: false, director: false, receptionist: false },
   navTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   navOutbox: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   navInsights: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  navRequests: { staff: true, manager: true, hr: true, director: false, receptionist: false },
   oriAsk: { staff: true, manager: true, hr: true, director: true, receptionist: false },
   oriAct: { staff: false, manager: true, hr: false, director: true, receptionist: false },
   cleaningLog: { staff: false, manager: false, hr: false, director: false, receptionist: true },

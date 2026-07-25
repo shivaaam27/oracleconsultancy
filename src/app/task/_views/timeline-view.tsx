@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { NotebookPen, StickyNote, CalendarOff, Activity, CalendarRange } from "lucide-react";
+import { CalendarOff, Activity, CalendarRange } from "lucide-react";
 import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
 import { Badge, EmptyState } from "@/components/ui";
 import { Panel } from "@/components/surface-kit";
@@ -234,23 +234,6 @@ export function TimelineView({
   const months = [...byMonth.values()].sort((a, b) => b.sortD - a.sortD);
   for (const m of months) m.items.sort((a, b) => b.d.getTime() - a.d.getTime());
 
-  function SourceChip({ r }: { r: TaskRow }) {
-    const s = sources[r.id];
-    if (!s) return null;
-    const isNote = s.kind === "note";
-    return (
-      <Link
-        href={`/workbook?tab=${isNote ? "notes" : "meetings"}&open=${s.meetingId}`}
-        onClick={(e) => e.stopPropagation()}
-        className="inline-flex items-center gap-1 max-w-[200px] text-[11px] text-fg-muted hover:text-accent transition-colors"
-        title={`${isNote ? "From note" : "From meeting"}: ${s.title}`}
-      >
-        {isNote ? <StickyNote size={11} className="shrink-0" /> : <NotebookPen size={11} className="shrink-0" />}
-        <span className="truncate">{s.title}</span>
-      </Link>
-    );
-  }
-
   function Entry({ r, d }: { r: TaskRow; d: Date | null }) {
     return (
       <div className="relative pl-6">
@@ -270,7 +253,6 @@ export function TimelineView({
           <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-fg-muted">
             {r.deadline && <span className="inline-flex items-center gap-1">Due <Deadline date={r.deadline} /></span>}
             {r.assignees.length > 0 && <span className="truncate max-w-[180px]">{r.assignees.join(", ")}</span>}
-            <SourceChip r={r} />
           </div>
         </button>
       </div>

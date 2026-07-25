@@ -5,9 +5,8 @@ import { reindexEntity } from "@/lib/index-hooks";
 import { createCalendarEvent, updateCalendarEvent } from "@/lib/calendar";
 import { setTaskBlocker, clearTaskBlocker, adminTogglePin } from "@/app/task/actions";
 import { setProbationDateAction } from "@/app/people/actions";
-import { decideLeaveRequestAction, recordAttendanceAction } from "@/app/hrms/leave/actions";
+import { recordAttendanceAction } from "@/app/hrms/leave/actions";
 import { renameDocumentAction, archiveDocumentAction, fileFromQuarantineAction } from "@/app/documents/actions";
-import { saveMeeting, bulkCreateTasks } from "@/app/meeting/actions";
 import { cancelEventAction } from "@/app/calendar/actions";
 import { publishAnnouncementAction } from "@/app/announcements/actions";
 import { adminRemindTask, deleteTaskQuick } from "@/app/task/actions";
@@ -18,7 +17,6 @@ import { canAutoSend, type SendChannel } from "@/lib/guardrails";
 // ToolDef shape; spread into TOOLS below so they auto-register into TOOL_BY_NAME.
 import { PEOPLE_TOOLS } from "@/lib/ori/tools-people";
 import { DOCUMENT_TOOLS } from "@/lib/ori/tools-documents";
-import { MEETING_LETTER_TOOLS } from "@/lib/ori/tools-meetings-letters";
 import { CALENDAR_TOOLS } from "@/lib/ori/tools-calendar";
 import { GOVERNANCE_TOOLS } from "@/lib/ori/tools-governance";
 import { OPS_TOOLS } from "@/lib/ori/tools-ops";
@@ -728,30 +726,6 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: "approve_leave",
-    tier: 2,
-    description: "Approve a pending leave request (by its id).",
-    params: {
-      requestId: { type: "number", required: true, description: "The leave request id." },
-      notes: { type: "string", required: false, description: "Optional decision note." },
-    },
-    async run(args) {
-      return decideLeave(Number(args.requestId), "Approved", str(args.notes));
-    },
-  },
-  {
-    name: "reject_leave",
-    tier: 2,
-    description: "Decline a pending leave request (by its id).",
-    params: {
-      requestId: { type: "number", required: true, description: "The leave request id." },
-      notes: { type: "string", required: false, description: "Optional reason." },
-    },
-    async run(args) {
-      return decideLeave(Number(args.requestId), "Rejected", str(args.notes));
-    },
-  },
-  {
     name: "record_attendance",
     tier: 2,
     description: "Set a person's attendance status for a day (Present, Absent, On leave, Holiday, Remote, Half-day, Sick).",
@@ -858,53 +832,6 @@ export const TOOLS: ToolDef[] = [
       if (error) return { ok: false, message: error.message };
       void reindexEntity("task", t.id);
       return { ok: true, message: `Linked "${doc.title}" to ${t.code}.`, redirect: `/task/${t.code}`, undo: { kind: "ori.document.link", payload: { documentId: doc.id, taskId: t.id } } };
-    },
-  },
-  {
-    name: "save_meeting",
-    tier: 2,
-    description: "Save a meeting record — title, date, company, attendees and raw notes.",
-    params: {
-      title: { type: "string", required: true, description: "Meeting title." },
-      date: { type: "date", required: true, description: "Meeting date YYYY-MM-DD." },
-      company: { type: "string", required: false, description: "Company the meeting relates to." },
-      attendees: { type: "string", required: false, description: "Who attended (free text)." },
-      notes: { type: "string", required: false, description: "Raw meeting notes." },
-    },
-    async run(args) {
-      const title = str(args.title);
-      if (!title) return { ok: false, message: "The meeting needs a title." };
-      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(str(args.date)) ? str(args.date) : new Date().toISOString().slice(0, 10);
-      let companyId: number | null = null;
-      if (str(args.company)) { const c = await resolveCompany(str(args.company)); if (c) companyId = c.id; }
-      const saved = await saveMeeting({ title, companyId, meetingDate: dateStr, attendees: str(args.attendees) || null, rawNotes: str(args.notes) });
-      return { ok: true, message: `Saved the meeting "${saved.title}".`, redirect: `/meeting`, undo: { kind: "ori.meeting.create", payload: { meetingId: saved.id } } };
-    },
-  },
-  {
-    name: "meeting_to_tasks",
-    tier: 2,
-    description: "Create tasks from action items agreed in a meeting (each becomes a task under a company).",
-    params: {
-      company: { type: "string", required: true, description: "Which company the tasks are for." },
-      items: { type: "string[]", required: true, description: "The action items — one task per item." },
-      meetingId: { type: "number", required: false, description: "The saved meeting id to link the tasks to." },
-    },
-    async run(args) {
-      const c = await resolveCompany(str(args.company));
-      if (!c) return { ok: false, message: `Couldn't match a company called "${str(args.company)}".` };
-      const items = (Array.isArray(args.items) ? (args.items as unknown[]).map(str) : []).filter(Boolean);
-      if (!items.length) return { ok: false, message: "List the action items to turn into tasks." };
-      const meetingId = Number.isFinite(Number(args.meetingId)) ? Number(args.meetingId) : null;
-      const res = await bulkCreateTasks(items.map((actionItem) => ({
-        meetingId, companyId: c.id, actionItem, priority: "Medium", status: "Not Started",
-        deadline: null, assigneeNames: [], category: "Meetings", escalation: "No",
-      })));
-      // No tool-level undo: bulkCreateTasks mints its OWN undo token via the mutate
-      // framework (surfaced on /meeting), so the batch is already reversible there;
-      // duplicating it here would risk a double-reverse.
-      const tail = res.failures.length ? ` (${res.failures.length} skipped)` : "";
-      return { ok: true, message: `Created ${res.created} task${res.created === 1 ? "" : "s"} for ${c.name}${tail}.`, redirect: `/meeting` };
     },
   },
   {
@@ -1092,7 +1019,6 @@ export const TOOLS: ToolDef[] = [
    * TOOL_BY_NAME with the same shape/order semantics as the core tools. ==== */
   ...PEOPLE_TOOLS,
   ...DOCUMENT_TOOLS,
-  ...MEETING_LETTER_TOOLS,
   ...CALENDAR_TOOLS,
   ...GOVERNANCE_TOOLS,
   ...OPS_TOOLS,
@@ -1100,17 +1026,6 @@ export const TOOLS: ToolDef[] = [
   ...WATCHER_TOOLS,
   ...SMART_TOOLS,
 ];
-
-/** Approve/decline a leave request, snapshotting its prior decision for undo. */
-async function decideLeave(id: number, status: "Approved" | "Rejected", notes: string): Promise<ToolResult> {
-  if (!Number.isFinite(id) || id <= 0) return { ok: false, message: "Which leave request (id)?" };
-  const { data: before } = await sb.from("leave_requests").select("status,decided_by,decided_at,notes,updated_at").eq("id", id).maybeSingle();
-  if (!before) return { ok: false, message: `Leave request #${id} not found.` };
-  const res = await decideLeaveRequestAction(id, status, notes || null);
-  if (!res.ok) return { ok: false, message: res.error };
-  const undo = { kind: "ori.leave.decide", payload: { id, before } };
-  return { ok: true, message: `Leave request #${id} ${status.toLowerCase()}.`, redirect: `/hrms/leave`, undo };
-}
 
 /** True if the planner supplied this arg at all (so we don't overwrite with a blank). */
 export function formHas(args: Record<string, unknown>, key: string): boolean {
