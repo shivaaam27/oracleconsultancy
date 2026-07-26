@@ -9,6 +9,7 @@
 - [Repo Layout](repo_layout.md) - current directory map and key files.
 - [Database Schema](database_schema.md) - current tables, including meetings, meeting_tasks, person_companies, system_events, and undo_tokens.
 - [Domain Model](domain_model.md) - companies, task codes, statuses, priorities, flags, and risk rules.
+- **[Session 26 Jul 2026](session_26jul2026.md)** - slim-down to task management, Next.js 16.2.11 security patch, and the document-intake confidence work: the `AUTO_FILE = false` handbrake, the agent's ungated second filing door, and the accuracy metric that counted the owner's own work as automation.
 - [Routes and Pages](routes_and_pages.md) - current page routes, removed routes, server actions, and API routes.
 - [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, compact mobile layout, voice polish, and meeting intelligence.
 - [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, voice intelligence, fallbacks, and AI master switch.

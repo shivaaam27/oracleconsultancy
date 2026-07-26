@@ -77,3 +77,23 @@ The 7-wave "ORI as the self-sustaining brain" build shipped (commit `415ef46`; m
 - Do not alter `src/db/index.ts` pooler settings.
 - Do not add real message dispatch without choosing and configuring a provider.
 - Do not add web search into app answers without explicit source handling and user-visible control.
+
+## Added 26 Jul 2026 (see `session_26jul2026.md`)
+
+- **The document filing ladder has never met a real document.** Verifying it means
+  putting real files into live storage. First run: drop one document with a TIN
+  printed on it (should file itself) and one vague (should wait and explain).
+- **Expect the auto-file rate to FALL before it rises.** The 25% shown all came
+  through the agent's previously-ungated door, now gated. If nothing auto-files
+  after a week, the "hard signal" bar is too high for how documents actually
+  arrive — tune the ladder, don't rebuild it.
+- **No on-screen link from a document to the version it replaced.** The
+  `supersedes_id` link exists in the data and is never surfaced. Superseded copies
+  deliberately stay in Trash (21 files compute expiry and all honour `archived`;
+  keeping them "filed" risks a permanent false "expired" alert).
+- **`brace-expansion` 2.1.2 under `minimatch` stays unpatched** — the only fix
+  (5.0.8) breaks the build. Monthly scheduled task re-checks it. Do not add an
+  override; see `CLAUDE.md`.
+- **`saveSettings` builds an explicit patch object.** A new Settings field that is
+  rendered but not added there will silently discard the owner's choice with no
+  error. This happened on 26 Jul; check the database, not the screen.
