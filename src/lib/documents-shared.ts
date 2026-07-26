@@ -17,6 +17,7 @@ export const DOC_CATEGORIES = [
   "HR",
   "Legal",
   "Operations",
+  "Travel",
   "Attachment",
   "Other",
 ] as const;
@@ -32,7 +33,10 @@ export type DocCategory = (typeof DOC_CATEGORIES)[number];
 export function categoryExpiryDefault(category?: string | null): "yes" | "no" | null {
   if (!category) return null;
   const YES = new Set(["Licence", "Permit", "Insurance", "Lease", "Immigration", "Passport", "Registration"]);
-  const NO = new Set(["Attachment"]);
+  // Travel documents carry a travel DATE, not a renewable expiry — a flown ticket
+  // is spent, not overdue. Treating them as expiring would fire a renewal alert
+  // for every past trip.
+  const NO = new Set(["Attachment", "Travel"]);
   if (YES.has(category)) return "yes";
   if (NO.has(category)) return "no";
   return null; // Certificate / Contract / Tax / Banking / Legal / Other → trust the AI
@@ -87,6 +91,7 @@ export const DOC_SHELVES = [
   "Immigration",
   "Contracts & Leases",
   "Operations & Branding",
+  "Travel",
 ] as const;
 export type DocShelf = (typeof DOC_SHELVES)[number];
 
@@ -101,6 +106,7 @@ export const SHELF_CODE: Record<DocShelf, string> = {
   Immigration: "06",
   "Contracts & Leases": "07",
   "Operations & Branding": "08",
+  Travel: "09",
 };
 
 // Which shelf a document category belongs to. Categories not listed here (and any
@@ -121,6 +127,10 @@ const CATEGORY_SHELF: Partial<Record<DocCategory, DocShelf>> = {
   Contract: "Contracts & Leases",
   Lease: "Contracts & Leases",
   Operations: "Operations & Branding",
+  // Business travel only. A "dummy" flight booking attached to a visa or permit
+  // application is immigration paperwork, not travel — it belongs on the
+  // Immigration shelf with the rest of that application.
+  Travel: "Travel",
   Attachment: "Operations & Branding",
   Other: "Operations & Branding",
 };

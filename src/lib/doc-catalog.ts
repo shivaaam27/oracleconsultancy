@@ -115,6 +115,14 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "product-label", label: "Product Label", aliases: ["product label", "label", "packaging"], shelf: "Operations & Branding", category: "Operations", ownerType: "company", expires: false },
   { key: "packing-list", label: "Packing List", aliases: ["packing list", "commercial invoice", "bill of lading", "b/l"], shelf: "Operations & Branding", category: "Operations", ownerType: "company", expires: false },
   { key: "letter", label: "Letter", aliases: ["letter", "correspondence", "notice"], shelf: "Operations & Branding", category: "Operations", ownerType: "either", expires: false },
+
+  // ── Travel ──────────────────────────────────────────────────────────────
+  // BUSINESS travel only. A speculative "dummy" booking bought to satisfy a visa
+  // or work-permit application is immigration paperwork and belongs with that
+  // application on the Immigration shelf — keep the two apart.
+  { key: "flight-ticket", label: "Flight Ticket", aliases: ["flight ticket", "e-ticket", "eticket", "air ticket", "boarding pass", "flight itinerary", "airline booking"], shelf: "Travel", category: "Travel", ownerType: "person", expires: false },
+  { key: "hotel-booking", label: "Hotel Booking", aliases: ["hotel booking", "hotel confirmation", "accommodation", "booking confirmation", "reservation confirmation"], shelf: "Travel", category: "Travel", ownerType: "person", expires: false },
+  { key: "travel-itinerary", label: "Travel Itinerary", aliases: ["itinerary", "travel itinerary", "trip plan", "travel plan"], shelf: "Travel", category: "Travel", ownerType: "person", expires: false },
 ];
 
 const BY_KEY = new Map(DOC_CATALOG.map((t) => [t.key, t]));

@@ -82,7 +82,19 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
   if (documentId) {
     await sb.from("documents").update(fields).eq("id", documentId);
     let filed = false;
-    if (companyId || personId) {
+    // THE SECOND DOOR. This path — the cloud agent re-reading a held document —
+    // used to file on `companyId || personId` alone, with no confidence gate: an
+    // unconfident read was still filed, merely labelled "needs_review". So while
+    // the rules/vision intake sat behind the suggest-only handbrake, the agent
+    // was quietly auto-filing anyway. Both doors now obey the SAME rule, or the
+    // owner's setting means nothing.
+    const { getAppSettings } = await import("@/lib/settings");
+    const autoFileMode = (await getAppSettings()).documentAutoFile ?? "high";
+    const mayFile =
+      (companyId || personId) &&
+      autoFileMode !== "off" &&
+      (autoFileMode === "all" || confident);
+    if (mayFile) {
       // The agent resolved the owner → release the doc from quarantine and run
       // the post-file steps the normal intake would (all lib-level, worker-safe).
       try {
@@ -100,6 +112,18 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
         const { reindexEntity } = await import("@/lib/index-hooks");
         void reindexEntity("document", documentId);
       } catch { /* index is best-effort */ }
+    } else {
+      // Still held. Say WHY in the document's own reason, so the sort queue shows
+      // what the deeper re-read concluded instead of leaving the owner to guess
+      // whether the agent ever looked at it.
+      const why = !(companyId || personId)
+        ? "Re-read by ORI — still no company or person could be identified"
+        : autoFileMode === "off"
+          ? `Re-read by ORI as ${fields.title ?? "this document"} — waiting on you because auto-filing is switched off`
+          : `Re-read by ORI at ${conf != null ? `${Math.round(conf * 100)}%` : "low"} confidence — owner looks right but confirm before it counts`;
+      try {
+        await sb.from("documents").update({ intake_reason: why, updated_at: new Date().toISOString() }).eq("id", documentId);
+      } catch { /* reason is best-effort — never blocks the re-read */ }
     }
     await logApply(job, "extract", { documentId, filed });
     return { applied: true, detail: { updatedDocument: documentId, filed } };

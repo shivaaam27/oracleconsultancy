@@ -35,7 +35,7 @@ import { extractPhones, extractEmails, extractBankAccounts, extractAddresses, no
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
-import { getAiKey, getQualityTextModel, getActiveProvider } from "@/lib/settings";
+import { getAiKey, getQualityTextModel, getActiveProvider, getAppSettings } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState, type DocumentRow } from "@/lib/documents-shared";
 import { deriveFiling, subjectTokensOf, subjectCompatible, sameLogicalDocPair, type LogicalDocLite } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
@@ -323,6 +323,15 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     let ownerName: string | null = f.companyName ?? f.personName ?? null;
     // Plain-language "why this owner" for transparency (shown on the filed document).
     let resolutionReason: string | null = companyId || personId ? "read the owner from the document" : null;
+    // How STRONGLY the owner was identified — this, not the raw AI confidence, is
+    // what decides file-vs-stage-vs-hold below (see FILING LADDER).
+    //   "high"   = a hard signal: an identifier read off the document (TIN/VRN/
+    //              email domain), the folder it was dropped in, or the batch owner
+    //              the operator declared. Safe to file on its own.
+    //   "medium" = a soft signal: a fuzzy name/alias match, a learned owner, or a
+    //              shared identifier correlation. Right often enough to suggest,
+    //              not often enough to act on unattended.
+    let ownerStrength: "high" | "medium" = "high";
     if (!companyId && !personId && (folderHint || ctxCompanyId || ctxPersonId)) {
       const { companies, people } = await loadEntities();
       // Folder path segments (deepest-first), matched against people then companies.
@@ -343,8 +352,8 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // contains-either-way) before giving up and quarantining as "no owner".
     if (!companyId && !personId && (f.companyName || f.personName)) {
       const { companies, people } = await loadEntities();
-      if (f.personName) { const p = resolveEntity(f.personName, people, "person"); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.personName}" matched ${p.name}`; } }
-      if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.companyName}" matched ${c.name}`; } }
+      if (f.personName) { const p = resolveEntity(f.personName, people, "person"); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.personName}" matched ${p.name}`; ownerStrength = "medium"; } }
+      if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.companyName}" matched ${c.name}`; ownerStrength = "medium"; } }
     }
 
     // Learned owner (self-learning): if the owner has previously assigned documents
@@ -357,6 +366,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         else { personId = learned.ownerId; ownerName = people.find((p) => p.id === personId)?.name ?? ownerName; }
         resolvedBy = resolvedBy ?? "file";
         resolutionReason = "learned from a past document you filed like this";
+        ownerStrength = "medium";
       }
     }
 
@@ -371,6 +381,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         ownerName = (personId ? people.find((p) => p.id === personId)?.name : companies.find((c) => c.id === companyId)?.name) ?? ownerName;
         resolvedBy = resolvedBy ?? "file";
         resolutionReason = "shares an identifier (reference/phone/email/account/address) with a record on file";
+        ownerStrength = "medium";
       }
     }
 
@@ -436,14 +447,21 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const NAME_CONFIDENCE = 0.95;
     const lowNameConfidence = res.ok && typeof res.confidence === "number" && res.confidence < NAME_CONFIDENCE;
     const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation || !!nearDupOf || lowNameConfidence;
+    // THE REASON IS THE DELIVERABLE. Whatever lands in To Sort must say what the
+    // system could not settle, specifically enough to act on without opening the
+    // file — a bare "held for review" makes the owner re-do the work the intake
+    // already did. Mirrors the Dropbox agent's rule that a quarantined file with
+    // no reason is an unfinished job.
     const reason = !res.ok
       ? (res.note ?? "Couldn't read the file — AI may be off")
-      : isCompilation ? `Looks like ${segCount} documents — open to split`
-      : !hasOwner ? "No company or person matched"
-      : nearDupOf ? `Possible duplicate of #${nearDupOf.id} ${nearDupOf.title}`
-      : res.needsReview ? "Scan was unclear"
-      : lowNameConfidence ? "Check the name — read below 95% confidence"
-      : undefined;
+      : isCompilation ? `Looks like ${segCount} documents bundled together — open it to split them`
+      : !hasOwner ? "No company or person matched — nothing in the text, the filename or the folder identified an owner"
+      : nearDupOf ? `Looks like a copy of #${nearDupOf.id} ${nearDupOf.title} — same content, different file`
+      : res.needsReview ? "The scan was too unclear to read confidently — check what was picked up"
+      : lowNameConfidence ? `Read at ${Math.round((res.confidence ?? 0) * 100)}% confidence (below ${Math.round(NAME_CONFIDENCE * 100)}%) — check the name and category`
+      : ownerStrength === "medium"
+        ? `Owner suggested, not proven — ${resolutionReason ?? "matched loosely"}. Confirm it's ${ownerName ?? "this owner"}.`
+        : undefined;
 
     const partsNote = isCompilation
       ? `\n\n[Bundle of ${segCount} documents detected]\n` + f.segments!.map((s, i) => `${i + 1}. ${s.title ?? s.category ?? "Document"}${s.pageRange ? ` (p.${s.pageRange})` : ""}`).join("\n")
@@ -479,18 +497,32 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // contract legitimately files company-only. Quarantining those would add the
     // very friction we're reducing. Revisit once intake can propose a person.)
 
-    // (3) Build + create the document, then route it into its bucket. A file the
-    // owner tagged `-OLD`/`-VOID` is a superseded copy → straight to Trash.
-    // SUGGEST-ONLY (Jul 2026): the system no longer files auto-pulled documents on
-    // its own. Everything the auto-sorter/attachment intake reads waits in "To Sort"
-    // (quarantine) carrying its guessed company/category/expiry, for the owner to
-    // confirm. Only a copy the owner already tagged -OLD/-VOID skips to Trash.
-    // Confirming in To Sort (fileFromQuarantineAction) is what actually files a doc
-    // and runs the compliance/enrich side-effects. Flip AUTO_FILE to restore the old
-    // fully-automatic filing. (Manual "Add document" is a separate, owner-driven path
-    // — createDocumentAction — and still files directly with the owner's chosen owner.)
-    const AUTO_FILE = false;
-    const finalState: IntakeState = filing.isOld ? "trash" : (needsReview || !AUTO_FILE) ? "quarantine" : "filed";
+    // (3) Build + create the document, then route it into its bucket.
+    //
+    // ── THE FILING LADDER (Jul 2026) ──────────────────────────────────────────
+    // Replaces the blanket SUGGEST-ONLY switch (`AUTO_FILE = false`, Jul 5) that
+    // sent EVERY read — however certain — to the confirm queue. That made the
+    // intake read a document perfectly and then still hand it back, so the queue
+    // only ever grew and the reads were never trusted. Modelled on the Dropbox
+    // Companies agent, which files on a hard signal and reserves the human queue
+    // for genuine ambiguity.
+    //
+    //   TRASH     superseded copy the owner tagged -OLD/-VOID, or a duplicate.
+    //   FILED     hard owner signal + a clean read + nothing ambiguous.
+    //   QUARANTINE everything else — carrying a SPECIFIC reason (never a generic
+    //             "held for review"), because the reason is what the owner acts on.
+    //
+    // `documentAutoFile` in Settings governs it, so the owner can change their mind
+    // without a code change: "high" (default, ladder above) | "off" (suggest-only,
+    // the Jul-5 behaviour) | "all" (file anything with an owner — not recommended).
+    // Manual "Add document" (createDocumentAction) is unaffected: an owner-driven
+    // upload always files directly.
+    const autoFileMode = (await getAppSettings()).documentAutoFile ?? "high";
+    const canAutoFile =
+      autoFileMode !== "off" &&
+      !needsReview &&
+      (autoFileMode === "all" || ownerStrength === "high");
+    const finalState: IntakeState = filing.isOld ? "trash" : canAutoFile ? "filed" : "quarantine";
     // One consistent name on EVERY auto path (Dropbox + manual auto-sort + quarantine):
     // the house format `Prefix_DocType[_Ref][_EXP-date]`. Falls back to the AI
     // title/filename only if there's nothing to compose from. The original read
@@ -539,7 +571,13 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       // Held for a glance — no profile/compliance side-effects until it's filed.
       // A clean, owner-resolved read is simply "ready to confirm"; a shaky one keeps
       // its specific reason (no owner / unreadable / possible duplicate).
-      const holdReason = reason ?? (needsReview ? "Held for review" : "Ready to file — confirm company & category");
+      // Every branch above sets a specific `reason`; this fallback only fires when
+      // auto-filing is switched OFF in Settings, where "nothing was wrong, the
+      // owner just wants the last word" IS the honest reason.
+      const holdReason = reason
+        ?? (autoFileMode === "off"
+          ? `Read cleanly as ${ownerName ?? "an owner"} — waiting on you because auto-filing is switched off`
+          : "Ready to file — confirm company & category");
       await setDocumentIntakeState(id, "quarantine", holdReason);
       try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: holdReason }); } catch { /* best-effort */ }
       // Hand the hard ones to ORI (the cloud agent on the owner's Max plan): a
