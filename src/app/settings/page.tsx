@@ -25,13 +25,15 @@ import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
 import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
 import { getOwnerIdentity } from "@/lib/admin-auth";
+import { WipeDocuments } from "@/components/wipe-documents";
+import { getWipePreviewAction } from "@/app/documents/wipe-actions";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, ShieldAlert } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
-  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal"] },
+  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal", "danger"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
 ];
 
@@ -77,6 +79,8 @@ export default async function SettingsPage({
   ]);
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
+  // Live counts for the Danger-zone confirmation screen.
+  const wipePreview = await getWipePreviewAction();
   const geminiKey = await getGeminiKeyPreview();
   const ocrKey = await getOcrSpaceKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
@@ -826,6 +830,12 @@ export default async function SettingsPage({
                 {directorPaused ? "Resume" : "Pause"}
               </Button>
             </form>
+          </SettingsCard>
+
+          {/* Danger zone — the one irreversible action in the app. Last card in
+              the last group, so it can't be stumbled into. */}
+          <SettingsCard id="danger" icon={<ShieldAlert size={15} />} title="Danger zone" desc="Permanently erase every document and start fresh." keywords="danger wipe delete all documents erase reset fresh start permanent">
+            <WipeDocuments preview={wipePreview} />
           </SettingsCard>
         </section>
 
