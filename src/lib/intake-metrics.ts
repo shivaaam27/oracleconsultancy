@@ -13,8 +13,10 @@
 import { sb } from "@/db/supabase";
 
 export type IntakeWindow = {
-  /** Documents the system filed on its own this period (intake_state = filed). */
+  /** Documents that ended up filed this period, however they got there. */
   filed: number;
+  /** Of those, the ones a HUMAN confirmed (vetted_at stamped). Not automation. */
+  filedByYou: number;
   /** Documents held for a glance (intake_state = quarantine). */
   quarantined: number;
   /** Filed documents the system flagged for a human check (review_status). */
@@ -42,20 +44,20 @@ export type IntakeMetrics = {
   prev: IntakeWindow;
   /**
    * Headline auto-file success: of the documents that arrived this period, the
-   * share that filed cleanly on their own (filed AND not flagged for review),
-   * 0–100. Null when nothing arrived (no honest rate to show).
+   * share the system placed WITHOUT you — filed, not confirmed by your hand, and
+   * not flagged for review. 0–100. Null when nothing arrived.
    */
   autoFileRate: number | null;
   /** The same rate for the previous period, for the up/down arrow. Null if none. */
   prevAutoFileRate: number | null;
-  /** filed − (needsReview), i.e. documents that needed no human at all. */
+  /** Documents that needed no human at all — filed, not vetted by you, not flagged. */
   cleanFiled: number;
-  /** Documents that needed the owner this period (quarantined + needsReview). */
+  /** Documents that took your time — held, flagged, or filed by your own hand. */
   neededYou: number;
 };
 
 const ZERO: IntakeWindow = {
-  filed: 0, quarantined: 0, needsReview: 0, documents: 0,
+  filed: 0, filedByYou: 0, quarantined: 0, needsReview: 0, documents: 0,
   reads: 0, readsClean: 0, corrections: 0, discrepancies: 0, autoMoves: 0,
 };
 
@@ -73,7 +75,7 @@ const ZERO: IntakeWindow = {
 async function countDocs(
   fromIso: string,
   toIso: string,
-  opts: { intakeState?: string; reviewStatus?: string } = {},
+  opts: { intakeState?: string; reviewStatus?: string; vetted?: boolean } = {},
 ): Promise<number> {
   try {
     let q = sb
@@ -83,6 +85,11 @@ async function countDocs(
       .lt("created_at", toIso);
     if (opts.intakeState) q = q.eq("intake_state", opts.intakeState);
     if (opts.reviewStatus) q = q.eq("review_status", opts.reviewStatus);
+    // vetted_at is stamped by EVERY human confirm path (fileFromQuarantine, the
+    // bulk confirms, the sort desk) and by none of the automatic ones — so it is
+    // the honest divider between "the system filed this" and "you filed this".
+    if (opts.vetted === true) q = q.not("vetted_at", "is", null);
+    if (opts.vetted === false) q = q.is("vetted_at", null);
     const { count } = await q;
     return count ?? 0;
   } catch {
@@ -154,10 +161,11 @@ async function countAutoMoves(fromIso: string, toIso: string): Promise<number> {
 async function computeWindow(fromIso: string, toIso: string): Promise<IntakeWindow> {
   try {
     const [
-      filed, quarantined, needsReview,
+      filed, filedByYou, quarantined, needsReview,
       reads, readsClean, corrections, discrepancies, autoMoves,
     ] = await Promise.all([
       countDocs(fromIso, toIso, { intakeState: "filed" }),
+      countDocs(fromIso, toIso, { intakeState: "filed", vetted: true }),
       countDocs(fromIso, toIso, { intakeState: "quarantine" }),
       countDocs(fromIso, toIso, { intakeState: "filed", reviewStatus: "needs_review" }),
       countEvents("doc-extraction", fromIso, toIso),
@@ -170,7 +178,7 @@ async function computeWindow(fromIso: string, toIso: string): Promise<IntakeWind
     // duplicates the brain auto-removed) is deliberately EXCLUDED from the
     // denominator so successful de-duplication doesn't drag the rate down.
     const documents = filed + quarantined;
-    return { documents, filed, quarantined, needsReview, reads, readsClean, corrections, discrepancies, autoMoves };
+    return { documents, filed, filedByYou, quarantined, needsReview, reads, readsClean, corrections, discrepancies, autoMoves };
   } catch {
     return { ...ZERO };
   }
@@ -183,7 +191,13 @@ async function computeWindow(fromIso: string, toIso: string): Promise<IntakeWind
  */
 function rate(w: IntakeWindow): number | null {
   if (w.documents <= 0) return null;
-  const clean = Math.max(0, w.filed - w.needsReview);
+  // "Auto-filed" must mean the system did it WITHOUT you. Subtracting the
+  // human-confirmed ones matters: for three weeks from 5 Jul the intake filed
+  // nothing on its own, yet this read 62% — because a document you confirmed by
+  // hand ends in the same `filed` state as one the system placed, and the rate
+  // could not tell them apart. It was measuring how much work YOU had done and
+  // calling it automation.
+  const clean = Math.max(0, w.filed - w.filedByYou - w.needsReview);
   return Math.round((clean / w.documents) * 100);
 }
 
@@ -211,8 +225,8 @@ export async function computeIntakeMetrics(days = 30): Promise<IntakeMetrics> {
       prev,
       autoFileRate: rate(cur),
       prevAutoFileRate: rate(prev),
-      cleanFiled: Math.max(0, cur.filed - cur.needsReview),
-      neededYou: cur.quarantined + cur.needsReview,
+      cleanFiled: Math.max(0, cur.filed - cur.filedByYou - cur.needsReview),
+      neededYou: cur.quarantined + cur.needsReview + cur.filedByYou,
     };
   } catch {
     return {
