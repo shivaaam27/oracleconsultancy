@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check, Trash2, Loader2, FileText, Image as ImageIcon, Eye, Pencil,
-  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown, Sparkles, FileX,
+  ShieldQuestion, ShieldAlert, UserX, CheckCircle2, CalendarClock, Quote, ChevronDown, Sparkles, FileX, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect } from "@/components/fluid-select";
@@ -65,7 +65,25 @@ export function SortingDesk({
   );
 
   const groups = useMemo(
-    () => ORDER.map((g) => ({ group: g, rows: items.filter((i) => i.group === g && !removed.has(i.id)) })).filter((g) => g.rows.length),
+    () => ORDER.map((g) => ({
+      group: g,
+      // Cluster each section by the guessed owner so the same company's documents
+      // sit together and can be confirmed in one pass, instead of the owner
+      // context-switching between companies down a flat list. Unknown owners sink
+      // to the bottom (they need the most thought). Within an owner, newest first
+      // is preserved by the incoming order, so ties keep their original sequence.
+      rows: items
+        .filter((i) => i.group === g && !removed.has(i.id))
+        .map((i, idx) => ({ i, idx }))
+        .sort((a, b) => {
+          const an = a.i.ownerName, bn = b.i.ownerName;
+          if (an && bn && an !== bn) return an.localeCompare(bn);
+          if (an && !bn) return -1;
+          if (!an && bn) return 1;
+          return a.idx - b.idx;
+        })
+        .map((x) => x.i),
+    })).filter((g) => g.rows.length),
     [items, removed],
   );
 
@@ -104,9 +122,30 @@ export function SortingDesk({
             {!isCollapsed && (
               // Cap the section at ~5 cards; the rest scroll inside (portal housing).
               <div className={cn("divide-y divide-border/50", rows.length > 5 && "scroll-fade-y slim-scroll max-h-[38rem] overflow-y-auto overscroll-contain")}>
-                {rows.map((it) => (
-                  <SortCard key={it.id} item={it} ownerOptions={ownerOptions} onDone={() => handleDone(it.id)} toast={toast} />
-                ))}
+                {rows.map((it, idx) => {
+                  // A quiet divider whenever the owner changes, so a run of the
+                  // same company reads as one batch. Only shown when the section
+                  // actually spans more than one owner — a single-company section
+                  // needs no headings.
+                  const prev = idx > 0 ? rows[idx - 1] : null;
+                  const showOwnerHead = idx === 0
+                    ? rows.some((r) => r.ownerName !== rows[0].ownerName)
+                    : it.ownerName !== prev!.ownerName;
+                  return (
+                    <div key={it.id}>
+                      {showOwnerHead && (
+                        <div className="flex items-center gap-1.5 bg-bg-subtle/40 px-4 py-1.5 text-[11px] font-medium text-fg-muted">
+                          <Building2 size={11} className="shrink-0 opacity-70" />
+                          {it.ownerName ?? "No owner matched"}
+                          <span className="text-fg-subtle">
+                            · {rows.filter((r) => r.ownerName === it.ownerName).length}
+                          </span>
+                        </div>
+                      )}
+                      <SortCard item={it} ownerOptions={ownerOptions} onDone={() => handleDone(it.id)} toast={toast} />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

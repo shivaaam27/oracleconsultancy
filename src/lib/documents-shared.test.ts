@@ -22,6 +22,7 @@ describe("shelfForCategory", () => {
     expect(shelfForCategory("Lease")).toBe("Contracts & Leases");
     expect(shelfForCategory("Contract")).toBe("Contracts & Leases");
     expect(shelfForCategory("Operations")).toBe("Operations & Branding");
+    expect(shelfForCategory("Travel")).toBe("Travel");
   });
 
   it("never loses an unknown or blank category", () => {
@@ -30,7 +31,13 @@ describe("shelfForCategory", () => {
   });
 
   it("has a code for every shelf", () => {
-    for (const shelf of DOC_SHELVES) expect(SHELF_CODE[shelf]).toMatch(/^0[1-8]$/);
+    // 01–09, mirroring the on-disk folder names (09_Travel added Jul 2026).
+    for (const shelf of DOC_SHELVES) expect(SHELF_CODE[shelf]).toMatch(/^0[1-9]$/);
+  });
+
+  it("gives every shelf a distinct code", () => {
+    const codes = DOC_SHELVES.map((s) => SHELF_CODE[s]);
+    expect(new Set(codes).size).toBe(codes.length);
   });
 });
 
