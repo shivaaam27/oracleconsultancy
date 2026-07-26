@@ -147,6 +147,10 @@ export async function saveSettings(fd: FormData): Promise<void> {
     aiEnabled: fd.get("aiEnabled") === "on",
     aiHighQuality: fd.get("aiHighQuality") === "on",
     semanticSearch: fd.get("semanticSearch") === "on",
+    documentAutoFile: (() => {
+      const v = String(fd.get("documentAutoFile") ?? "");
+      return v === "high" || v === "off" || v === "all" ? v : undefined;
+    })(),
     voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
     voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
     swipeRightAction: swipe(fd, "swipeRightAction"),

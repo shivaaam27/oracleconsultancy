@@ -214,7 +214,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── AI & Voice ───────────────────────── */}
         <section data-group="ai" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,semanticSearch,geminiApiKey,ocrSpaceApiKey,voiceLanguage,voiceDictionary" />
+            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,documentAutoFile,semanticSearch,geminiApiKey,ocrSpaceApiKey,voiceLanguage,voiceDictionary" />
             <input type="hidden" name="__section" value="ai" />
 
             <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features." keywords="ai groq ask polish drafting meeting semantic search key model">
@@ -222,6 +222,25 @@ export default async function SettingsPage({
                 <FormSwitch name="aiEnabled" defaultChecked={s.aiEnabled} label="Enable AI features" hint="Off runs the whole system manually — nothing breaks." />
                 <FormSwitch name="aiHighQuality" defaultChecked={s.aiHighQuality} label="Higher-quality reading" hint="Stronger model for documents & minutes — more accurate, a little slower." />
                 <FormSwitch name="semanticSearch" defaultChecked={s.semanticSearch} label="Semantic search (ORI)" hint="Find by meaning, not just words. Needs the one-time setup (SEMANTIC_SEARCH.md)." />
+              </div>
+
+              {/* How far the document intake may act on its own. Lives here rather
+                  than in code so the owner can tighten or loosen it themselves. */}
+              <div className="mt-1 max-w-xl space-y-2 border-t border-border/60 pt-3.5">
+                <FieldLabel>Filing documents automatically</FieldLabel>
+                <Select name="documentAutoFile" defaultValue={s.documentAutoFile} className="w-full">
+                  <option value="high">File when certain (recommended)</option>
+                  <option value="off">Never file — I confirm everything</option>
+                  <option value="all">File whenever an owner is found</option>
+                </Select>
+                <p className="text-xs text-fg-muted">
+                  <b>File when certain</b> files a document only when the company was proved by something
+                  solid — an ID number read off the page, the folder you dropped it in, or the batch you
+                  uploaded it with — and the scan read cleanly. Anything softer waits in To&nbsp;Sort with the
+                  reason why. <b>Never file</b> sends everything to To&nbsp;Sort, even perfect reads.
+                  <b> Whenever an owner is found</b> also acts on loose name matches — faster, but it will
+                  file to the wrong company sometimes.
+                </p>
               </div>
 
               {/* Google Gemini is the sole everyday-AI provider (Groq removed). It

@@ -32,6 +32,15 @@ export type AppSettings = {
   /** Use the stronger (slower) model for high-stakes reads — document extraction
    *  and meeting minutes. Owner can switch off if the 70B model is rate-limited. */
   aiHighQuality: boolean;
+  /** How much the document intake is trusted to file on its own.
+   *   "high" — file when the owner came from a HARD signal (an identifier read off
+   *            the document, the folder it was dropped in, or the batch owner you
+   *            declared) AND the read was clean. Everything softer waits in To Sort
+   *            with a specific reason. This is the default.
+   *   "off"  — suggest-only: nothing is ever filed automatically (Jul-5 behaviour).
+   *   "all"  — file anything that resolved an owner, however weakly. Not advised;
+   *            a fuzzy name match is right often enough to suggest, not to act on. */
+  documentAutoFile: "high" | "off" | "all";
   /** Phase 3b: use in-region pgvector semantic search in Ask COS. Off until the
    *  owner has deployed the `embed` Edge Function + run the backfill. When off,
    *  Ask COS uses the keyword + synonym ranker. */
@@ -208,6 +217,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   weatherLon: 39.2083,
   aiEnabled: true,
   aiHighQuality: true,
+  documentAutoFile: "high",
   semanticSearch: false,
   voiceLanguage: "en-GB",
   voiceDictionary: [
@@ -274,6 +284,7 @@ const KEY: Record<keyof AppSettings, string> = {
   weatherLon: "v2.weatherLon",
   aiEnabled: "v2.aiEnabled",
   aiHighQuality: "v2.aiHighQuality",
+  documentAutoFile: "v2.documentAutoFile",
   semanticSearch: "v2.semanticSearch",
   voiceLanguage: "v2.voiceLanguage",
   voiceDictionary: "v2.voiceDictionary",
@@ -347,6 +358,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     weatherLon: toNum(map.get(KEY.weatherLon), d.weatherLon),
     aiEnabled: toBool(map.get(KEY.aiEnabled), d.aiEnabled),
     aiHighQuality: toBool(map.get(KEY.aiHighQuality), d.aiHighQuality),
+    documentAutoFile: (map.get(KEY.documentAutoFile) as AppSettings["documentAutoFile"]) ?? d.documentAutoFile,
     semanticSearch: toBool(map.get(KEY.semanticSearch), d.semanticSearch),
     voiceLanguage: map.get(KEY.voiceLanguage) ?? d.voiceLanguage,
     voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
