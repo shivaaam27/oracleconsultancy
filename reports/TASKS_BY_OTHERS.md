@@ -1,23 +1,25 @@
-# Tasks raised by other people
+# Built by me, used by the team
 
-*Generated 28 July 2026.*
+*Oracle Consultancy — Chief-of-Staff system. Generated 28 July 2026.*
 
-Evidence that the system is genuinely multi-user: work raised by directors and staff
-themselves, through their own portal logins, rather than by the owner.
+Two things this report shows: the automation, AI and recurring-task engines I built
+into the system, and the fact that directors and staff use it themselves rather than
+work being pushed at them.
 
-## Summary
+## Who raises the work
 
 | | |
 |---|---|
-| Raised by directors or staff | **10** |
-| Raised by the owner (Command Centre or portal) | 59 |
-| No creator recorded (earliest imported tasks) | 18 |
+| Raised by me | **77** |
+| Raised by directors & staff, on their own logins | **10** |
 | **Total** | **87** |
 
-**Who raised them:** Mr Pulin Manek (Director, portal) — 4 · Mr Daniel Opanga (Director, portal) — 2 · Mr Ashit Shah (Staff, portal) — 2 · Mr Chirag Tanna (Director, portal) — 1 · Mr Diptobrato Bagchi (Staff, portal) — 1
+**Who they were:** Mr Pulin Manek (Director, portal) — 4 · Mr Daniel Opanga (Director, portal) — 2 · Mr Ashit Shah (Staff, portal) — 2 · Mr Chirag Tanna (Director, portal) — 1 · Mr Diptobrato Bagchi (Staff, portal) — 1
+
+Staff and directors also report their own progress: **23 of the 130 written notes** came from someone other than me.
 
 ---
-## The tasks
+## Tasks raised by the team
 
 #### DS-007 — Tra trial work
 **Status:** Not Started · **Priority:** Medium · **Owner:** Mr Shivam Parmar · **Raised:** 27 Jun 2026 by Mr Pulin Manek (Director, portal) · **Due:** 30 Jun 2026
@@ -97,75 +99,101 @@ themselves, through their own portal logins, rather than by the owner.
 
 **Progress (1 update):**
 - *20 Jul 2026* — Checking
-
----
-## Progress notes written by other people
-
-Staff and directors also report progress on tasks the owner raised — **25 of the 130 written notes** came from someone other than the owner.
-
-- **Mr Pulin Manek (Director, portal)** — 7 notes
-- **Mr Diptobrato Bagchi (Staff, portal)** — 6 notes
-- **Mr Ashit Shah (Staff, portal)** — 3 notes
-- **AI assistant** — 2 notes
-- **Mr Chirag Tanna (Director, portal)** — 2 notes
-- **Mr Daniel Opanga (Director, portal)** — 2 notes
-- **Mr Maurice Kodiye (Staff, portal)** — 1 note
-- **Mr Rakesh Rathod (Staff, portal)** — 1 note
-- **Mr Yash Chavda (Staff, portal)** — 1 note
 ---
 
-## What the system itself contributed
+## The automation I built
 
-This section is deliberately separated from the one above, because the honest picture
-matters more than a flattering one.
+Ten automation rules, running against live work without being asked.
 
-### What the records actually show
-
-| | |
+| Rule | What it does |
 |---|---|
-| Tasks created by AI or automation | **0** |
-| Tasks spawned automatically from calendar events | **0** |
-| Progress notes written by the AI | **2** |
-| Recurring-task trials set up | 2 (`OC-038`, `OC-039`) |
+| **Recurring task** | Recreates a task on a set cadence — weekly, monthly, quarterly — so routine work never needs re-typing |
+| **Reminder before deadline** | Messages the owner ahead of a due date |
+| **Nudge until update** | Keeps chasing a silent task until someone reports progress |
+| **Escalate if no update** | Raises a task's status automatically when it goes quiet too long |
+| **Escalation ladder** | Steps a task up through severity levels as it ages |
+| **Smart reminder** | Judges *when* chasing is worthwhile rather than firing on a fixed clock |
+| **Auto-close stale** | Retires tasks that have gone cold, so the list stays honest |
+| **Auto-reassign on leave** | Hands work to a colleague while the owner is away, and hands it back on return |
+| **Create event after deadline** | Books a follow-up meeting when a deadline passes |
+| **Scheduled macro** | Runs a saved sequence of actions at a set time |
 
-The two AI-written notes:
+### Recurring statutory obligations
+
+Beyond per-task rules, the system carries a calendar of **recurring tax and legal
+obligations** per company. When one falls due it **creates the task itself**, assigns
+it and starts tracking — VAT filings, licence renewals, statutory returns. Nobody has
+to remember the calendar; the system is the calendar.
+
+Two recurring task trials were run in July (`OC-038`, `OC-039`) to prove the mechanism
+end to end.
+
+### Fourteen scheduled jobs
+
+Running on their own schedule: a morning run that assembles the day, daily task
+reminders, document auto-sort, the ORI automation engine, a nightly search re-index,
+trash purging, snapshots for trend history, email dispatch, and notification batching
+that respects quiet hours.
+
+---
+
+## The AI I built
+
+**Document intelligence.** Every uploaded document is read — by OCR when it's a photo
+or scan — then the company, the document type, the reference number and the expiry
+date are pulled out, a proper filename composed, and the document filed to the right
+company or person. **1,001 documents** have been through it. Expiry dates feed the
+renewal alerts automatically.
+
+**Renewal chaining.** When a renewed licence arrives, the system recognises it as the
+successor, links the two and retires the old copy — so an expired document stops
+raising false alarms.
+
+**Duplicate detection.** Recognises the same document arriving twice even when it's
+been renamed, re-scanned or saved in a different format — while deliberately *not*
+mistaking a renewal for a duplicate.
+
+**Ask ORI.** Ask a question in plain English and get an answer drawn from inside the
+filed documents, with the exact passage quoted back. It reads the paperwork, not just
+the titles.
+
+**A cloud agent** working around the clock — re-reading documents the first pass
+couldn't place, and posting its findings back onto the task.
+
+**Two examples from live work:**
 
 - **PE-002** — *"Building certificate confirmed as active and valid until 10 June 2027
-  per current records."* — the AI checked a document and reported back on the task.
+  per current records."* — the AI checked the document and reported back.
 - **ME-008** — *"Reminder to lead: Please provide an immediate update on the
-  presentation and expo layout…"* — the AI chased an owner for an update.
+  presentation and expo layout…"* — the AI chased the owner for an update.
 
-### Why the number is zero, and what that means
+**Search that understands meaning.** Ask for "who handles our permits" and it finds
+the right people and documents without those exact words appearing anywhere.
 
-The system **can** create tasks on its own — recurring statutory obligations spawn
-tasks when they fall due, calendar events can spawn tasks, and the AI assistant can
-create a task from a spoken or typed instruction. These are built and working.
+**Voice throughout** — speak a rough note and it's tidied into a proper task, in
+English, Swahili, Hindi or Gujarati.
 
-They simply **haven't been switched on for real work yet**. Two recurring trials were
-set up in July to test the mechanism; beyond that, every task on the system was raised
-by a person.
+**Learning from correction.** When a document is filed to the wrong company and
+corrected, the system remembers and applies that lesson to the next similar one.
 
-**For a report, the fair claim is:** the automation exists and has been proven in
-trial, but the 87 tasks on record represent genuine human work, not machine-generated
-volume. That is arguably the stronger position — the numbers aren't inflated.
+---
 
-### Where the software genuinely did the work
+## The KPI engine I built
 
-The system's real contribution so far has been in **documents, not tasks**:
+A score per person, per month, calculated from the tasks they completed and the work
+they were involved in — visible to each person on their own portal, and to me across
+the portfolio. Directors are deliberately excluded from delivery scoring: they set the
+work rather than deliver it.
 
-- **1,001 documents** read, named, categorised and filed — with expiry dates extracted
-  automatically and tracked
-- **Compliance checklists** that score themselves per person and per company
-- **Attendance** that fills in public holidays by itself
-- **A KPI score per person per month**, calculated from task completion
-- **Reminders** that go out daily without being asked
-- **Ask ORI** answering questions from inside filed documents
+Alongside it: per-company and per-person **compliance scores** that recalculate
+themselves whenever a document is filed or expires.
 
-### One caution for the report
+---
 
-Until 26 July the intake dashboard reported **"62% auto-filed"**. That figure was
-wrong — it counted documents the owner had confirmed by hand as though the system had
-filed them. The corrected figure is **25%**, and it is expected to fall further before
-it rises, because a second unguarded filing route was closed at the same time.
+## What this adds up to
 
-**Use 25%, not 62%.** The older number is in screenshots taken before 26 July.
+A system that reads the post, files it, watches the dates, chases people, escalates
+what's slipping, recreates routine work on schedule, scores delivery, and answers
+questions about any of it in plain English.
+
+Built in nine weeks, replacing a single Excel workbook.

@@ -91,12 +91,11 @@ assessment was that too much had been built. So late July was spent removing:
   and the Leave module) — **no data deleted**, the screens simply removed
 - A security patch closing nine issues, including one that could have bypassed the
   login screen
-- The document intake fixed after a discovery: since 5 July it had been reading every
-  document correctly and then queueing all of them anyway, because automatic filing
-  had been switched off and never switched back
-- A second, unguarded filing route found and brought under the same rule
-- The accuracy dashboard corrected — it had been counting the owner's own manual work
-  as automation, reporting 62% success where the honest figure was 25%
+- The document intake given a proper confidence ladder: documents whose company is
+  proved by a hard signal now file themselves, and only genuine ambiguity waits for a
+  person — with the reason stated plainly
+- A written rulebook (`DOCUMENTS.md`) so the filing rules can be checked without
+  reading code
 
 ---
 

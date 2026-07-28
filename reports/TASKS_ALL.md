@@ -14,6 +14,8 @@ All 87 tasks raised since the system went live, with their written progress note
 | Finished (Completed or Closed) | **49** |
 | Still open | **38** |
 | Written progress notes | **130** |
+| Raised by Shivam | 77 |
+| Raised by directors & staff | 10 |
 | Companies involved | 6 |
 
 **Where they stand:** Closed 49 · In Progress 18 · Not Started 9 · Under Review 7 · Escalated 3 · Waiting External 1
@@ -113,12 +115,12 @@ All 87 tasks raised since the system went live, with their written progress note
 - *31 May 2026* — Missing yellow-fever cards identified and actioned.
 
 #### OC-001 — TRA accounts finalization
-**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026
+**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026
 
 *No written updates recorded.*
 
 #### OC-002 — Dividents and profit sharing
-**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026
+**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026
 
 *No written updates recorded.*
 
@@ -189,7 +191,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *8 Jul 2026* — Interim Pass for Sanjay and Ganga Received. Waiting for their applied work permits. Closing this task and opening Work Visa Task next for both. Regarding Abinash, his under 1 month observation before we apply his work permit
 
 #### OC-010 — Money Recovery From Jatin
-**Status:** Under Review · **Priority:** High · **Owner:** Mr Pulin Manek · **Raised:** 4 Jun 2026 by not recorded · **Due:** 15 Jun 2026
+**Status:** Under Review · **Priority:** High · **Owner:** Mr Pulin Manek · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 15 Jun 2026
 
 > No valid explanation
 
@@ -240,7 +242,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *4 Jun 2026* — Received some documents to understand structure but alot is pending. I will discuss more with Dhruva and create documents, pricing and more
 
 #### OC-016 — Withholding Tax Certificate and Rent Payment for OC and PES
-**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 15 Jun 2026 by not recorded · **Due:** 21 Jun 2026 · **Closed:** 26 Jun 2026
+**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 15 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 21 Jun 2026 · **Closed:** 26 Jun 2026
 
 > To get the withholding tax certficate from portal for PES and Oracle and send rent payment to Sahel
 
@@ -315,7 +317,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *20 Jul 2026* — Checking
 
 #### OC-039 — Recuring Monday Task Trial
-**Status:** Under Review · **Priority:** Medium · **Area:** Admin · **Owner:** unassigned · **Raised:** 27 Jul 2026 by not recorded
+**Status:** Under Review · **Priority:** Medium · **Area:** Admin · **Owner:** unassigned · **Raised:** 27 Jul 2026 by Shivam — Command Centre (imported)
 
 > Checking
 
@@ -336,7 +338,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *31 May 2026* — Cocozuri stock/issues reviewed; BD and photography completed.
 
 #### CC-001 — Finalize TRA Accounts
-**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026
+**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026
 
 *No written updates recorded.*
 
@@ -357,14 +359,14 @@ All 87 tasks raised since the system went live, with their written progress note
 - *13 Jun 2026* — Done
 
 #### CC-004 — Lease Agreement
-**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 15 Jun 2026 · **Closed:** 5 Jun 2026
+**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 15 Jun 2026 · **Closed:** 5 Jun 2026
 
 > Its still active until 2027
 
 *No written updates recorded.*
 
 #### CC-005 — Management Information System
-**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 15 Jun 2026
+**Status:** In Progress · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 15 Jun 2026
 
 > Everything from loan, raw materials, finished products, packaging, general stock etc, has to be completed and upto date.
 
@@ -449,17 +451,17 @@ All 87 tasks raised since the system went live, with their written progress note
 - *31 May 2026* — Expat employment contract prepared.
 
 #### DS-001 — TRA Accounts
-**Status:** Closed · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026 · **Closed:** 24 Jun 2026
+**Status:** Closed · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026 · **Closed:** 24 Jun 2026
 
 *No written updates recorded.*
 
 #### DS-002 — TRA Tax Reconciliation
-**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026 · **Closed:** 24 Jun 2026
+**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026 · **Closed:** 24 Jun 2026
 
 *No written updates recorded.*
 
 #### DS-003 — Update Dar Spice Employment Contract
-**Status:** Closed · **Priority:** Low · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026 · **Closed:** 12 Jun 2026
+**Status:** Closed · **Priority:** Low · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026 · **Closed:** 12 Jun 2026
 
 > Update all DSC contracts and make full contract after Sanjay's permit
 
@@ -476,7 +478,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *8 Jun 2026* — Signed and stamped, sent back to service provider Samfrost
 
 #### DS-005 — Final TRA Accounts to be signed
-**Status:** Escalated · **Priority:** Critical · **Owner:** Mr Pulin Manek · **Raised:** 27 Jun 2026 by not recorded · **Due:** 8 Jul 2026
+**Status:** Escalated · **Priority:** Critical · **Owner:** Mr Pulin Manek · **Raised:** 27 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 8 Jul 2026
 
 *No written updates recorded.*
 
@@ -510,12 +512,12 @@ All 87 tasks raised since the system went live, with their written progress note
 *10 tasks — 5 still open.*
 
 #### TG-001 — 6 Months Projection Plan
-**Status:** Not Started · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026
+**Status:** Not Started · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026
 
 *No written updates recorded.*
 
 #### TG-002 — TRA Sales And Reconciliation
-**Status:** Not Started · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Due:** 13 Jun 2026
+**Status:** Not Started · **Priority:** Medium · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Due:** 13 Jun 2026
 
 *No written updates recorded.*
 
@@ -557,7 +559,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *22 Jun 2026* — Received all, pending efd machine and bank account
 
 #### TG-007 — Stickers, Artwork and Product Illustration
-**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by not recorded · **Closed:** 17 Jul 2026
+**Status:** Closed · **Priority:** High · **Owner:** unassigned · **Raised:** 4 Jun 2026 by Shivam — Command Centre (imported) · **Closed:** 17 Jul 2026
 
 > WhatsApp group created, Amal and Juned are under constant conversation to complete this task
 
@@ -637,14 +639,14 @@ All 87 tasks raised since the system went live, with their written progress note
 - *24 Jun 2026* — Received Labour CN, and handed over to Nayan Vinmart
 
 #### ME-004 — MES Tax Clearance
-**Status:** Closed · **Priority:** Medium · **Owner:** unassigned · **Raised:** 26 Jun 2026 by not recorded · **Closed:** 26 Jun 2026
+**Status:** Closed · **Priority:** Medium · **Owner:** unassigned · **Raised:** 26 Jun 2026 by Shivam — Command Centre (imported) · **Closed:** 26 Jun 2026
 
 > Received
 
 *No written updates recorded.*
 
 #### ME-005 — Formal letter formats to be send via MES and for LCP
-**Status:** In Progress · **Priority:** Medium · **Owner:** unassigned · **Raised:** 26 Jun 2026 by not recorded
+**Status:** In Progress · **Priority:** Medium · **Owner:** unassigned · **Raised:** 26 Jun 2026 by Shivam — Command Centre (imported)
 
 *No written updates recorded.*
 
@@ -688,7 +690,7 @@ All 87 tasks raised since the system went live, with their written progress note
 - *7 Jul 2026* — Building certificate confirmed as active and valid until 10 June 2027 per current records. Civil certificate previously received. All requirements for this task are now satisfied.
 
 #### PE-003 — PES
-**Status:** Not Started · **Priority:** Medium · **Owner:** Mr Yash Chavda · **Raised:** 3 Jul 2026 by not recorded
+**Status:** Not Started · **Priority:** Medium · **Owner:** Mr Yash Chavda · **Raised:** 3 Jul 2026 by Shivam — Command Centre (imported)
 
 *No written updates recorded.*
 
