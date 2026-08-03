@@ -26,7 +26,9 @@ import { getJourney } from "@/lib/onboarding";
 import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
-import { BriefPdfButton } from "@/components/brief-pdf-button";
+import { PortalBriefFilters } from "@/components/portal-brief-filters";
+import { portalBriefOptions } from "@/lib/portal-brief-scope";
+import { briefMonthOptions } from "@/lib/brief-links";
 import { Contact } from "lucide-react";
 import { PortalContactDetails, type ContactDetails } from "./portal-contact-details";
 import { getAllTasks } from "@/lib/queries";
@@ -107,6 +109,11 @@ export default async function PortalProfile() {
   // else.
   const isDirector = me.portalRole === "director";
 
+  // Director Brief filters — gated by the owner-configurable `directorBrief`
+  // capability, not the role. Both lists are scoped to what this person may see,
+  // so a company-locked director never sees other companies' staff names.
+  const briefOptions = me.caps.directorBrief ? await portalBriefOptions(me) : null;
+
   // Self-KPI (staff/managers only) — last 4 months of their own scorecard.
   let kpiMonths: React.ComponentProps<typeof PortalKpiCard>["months"] = [];
   if (!isDirector) {
@@ -149,12 +156,19 @@ export default async function PortalProfile() {
                 {staffId}
               </span>
             )}
-            {isDirector && (
-              <BriefPdfButton href="/api/portal/brief-pdf" label="Download PDF" size="xs" />
-            )}
           </div>
         </Hero>
       </Reveal>
+
+      {briefOptions && (
+        <Reveal delay={0.02}>
+          <PortalBriefFilters
+            months={briefMonthOptions(new Date())}
+            companies={briefOptions.companies}
+            people={briefOptions.people}
+          />
+        </Reveal>
+      )}
 
       {!isDirector && glance.length > 1 && (
         <Reveal delay={0.03}>

@@ -48,7 +48,8 @@ export type CapabilityKey =
   | "oriAsk"
   | "oriAct"
   | "cleaningLog"
-  | "cleaningOverview";
+  | "cleaningOverview"
+  | "directorBrief";
 
 /** UI grouping + copy for the Settings matrix. */
 export type CapabilityMeta = { key: CapabilityKey; label: string; desc: string };
@@ -86,6 +87,7 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
       { key: "navTasks", label: "Tasks tab", desc: "The filterable Tasks list in the nav pill." },
       { key: "navOutbox", label: "Outbox", desc: "Drafted messages / reminders surface." },
       { key: "navInsights", label: "Insights", desc: "Glanceable portfolio / team insights." },
+      { key: "directorBrief", label: "Director Brief download", desc: "Download the Director Brief PDF from their profile, with month / company / person filters. Always limited to the companies they may see." },
     ],
   },
   {
@@ -139,6 +141,8 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   // Overview is the manager/receptionist working view (e.g. Shivam) — directors and
   // HR don't need the cleaning register on their portal (flipped off Jul 2026).
   cleaningOverview: { staff: false, manager: true, hr: false, director: false, receptionist: true },
+  // Mirrors today's rule exactly: the brief download was directors-only.
+  directorBrief: { staff: false, manager: false, hr: false, director: true, receptionist: false },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */

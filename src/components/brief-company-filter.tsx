@@ -1,51 +1,57 @@
-import Link from "next/link";
-import { cn } from "@/lib/cn";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { MultiSelect } from "@/components/multi-select";
+import { briefHref, type BriefPersonRole } from "@/lib/brief-links";
 import type { BriefPeriod } from "@/lib/director-brief";
 
-function href(period: BriefPeriod, companyId: number | null) {
-  const params = new URLSearchParams();
-  if (period !== "month") params.set("period", period);
-  if (companyId) params.set("company", String(companyId));
-  const q = params.toString();
-  return q ? `/brief?${q}` : "/brief";
-}
-
+/**
+ * The Brief's company filter — tick any number of companies.
+ *
+ * Navigates with the brief's own `?co=` parameter — never `?company=`, which
+ * would open the global CompanyDrawer preview over the report (see
+ * `BRIEF_COMPANY_PARAM`).
+ */
 export function BriefCompanyFilter({
   period,
-  selectedCompanyId,
+  selectedCompanyIds,
+  selectedPersonIds,
+  selectedPersonRole,
   companies,
 }: {
   period: BriefPeriod;
-  selectedCompanyId: number | null;
-  companies: Array<{ id: number; name: string }>;
+  selectedCompanyIds: number[];
+  selectedPersonIds: number[];
+  selectedPersonRole: BriefPersonRole | null;
+  companies: Array<{ id: number; name: string; accent?: string | null }>;
 }) {
+  const router = useRouter();
+
   return (
-    <div className="flex flex-wrap gap-1.5 print-hidden">
-      <Link
-        href={href(period, null)}
-        className={cn(
-          "rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors",
-          selectedCompanyId == null
-            ? "bg-accent text-accent-fg ring-accent"
-            : "bg-bg-elev text-fg-muted ring-border hover:bg-bg-muted/70 hover:text-fg"
-        )}
-      >
-        Portfolio
-      </Link>
-      {companies.map((company) => (
-        <Link
-          key={company.id}
-          href={href(period, company.id)}
-          className={cn(
-            "rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors",
-            selectedCompanyId === company.id
-              ? "bg-accent text-accent-fg ring-accent"
-              : "bg-bg-elev text-fg-muted ring-border hover:bg-bg-muted/70 hover:text-fg"
-          )}
-        >
-          {company.name}
-        </Link>
-      ))}
-    </div>
+    <MultiSelect
+      value={selectedCompanyIds.map(String)}
+      // Every row carries a dot so the names stay aligned — companies with no
+      // brand colour set fall back to the app accent, matching the "By company"
+      // cards on this same page.
+      options={companies.map((c) => ({
+        value: String(c.id),
+        label: c.name,
+        dot: c.accent || "hsl(var(--accent))",
+      }))}
+      allLabel="All companies"
+      noun="companies"
+      onApply={(next) =>
+        router.push(
+          briefHref(period, {
+            companyIds: next.map(Number),
+            // Changing companies can strand people who have no work there; the
+            // report simply comes back empty rather than silently dropping them.
+            personIds: selectedPersonIds,
+            personRole: selectedPersonRole,
+          })
+        )
+      }
+      className="h-8 px-2.5 text-xs font-medium"
+    />
   );
 }

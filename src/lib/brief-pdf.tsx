@@ -236,11 +236,14 @@ function Section({ title, note, count, children }: { title: string; note?: strin
 }
 
 export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<Buffer> {
-  const title = b.selectedCompanyName ?? BRAND_NAME;
+  // Whoever the report is ABOUT: a person is the most specific selection, then a
+  // company, else the parent brand. With nothing filtered this is BRAND_NAME, so
+  // the portfolio-wide PDF is byte-for-byte what it always was.
+  const title = b.selectedPersonName ?? b.selectedCompanyName ?? BRAND_NAME;
   const inProgressTotal = b.companies.reduce((n, c) => n + c.inProgress, 0);
 
   const summary =
-    `In ${b.monthLabel}, ${BRAND_NAME} delivered ${b.deliveredCount} item${b.deliveredCount === 1 ? "" : "s"} across ${b.companyCount} portfolio companies. ` +
+    `In ${b.monthLabel}, ${title} delivered ${b.deliveredCount} item${b.deliveredCount === 1 ? "" : "s"} across ${b.companyCount} portfolio companies. ` +
     `${b.openCount} item${b.openCount === 1 ? "" : "s"} remain open (${inProgressTotal} in progress)` +
     `${b.overdueCount ? `, with ${b.overdueCount} overdue requiring attention` : ", with nothing overdue"}.` +
     `${b.watch.length ? ` ${b.watch.length} item${b.watch.length === 1 ? " is" : "s are"} flagged for attention.` : ""}` +
@@ -329,7 +332,11 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
             <View>
               <Text style={s.eyebrow}>Director Brief</Text>
               <Text style={s.title}>{title}</Text>
-              <Text style={s.sub}>{b.monthLabel} · Tasks by company</Text>
+              <Text style={s.sub}>
+                {b.monthLabel} · {b.selectedPersonName
+                  ? (b.selectedCompanyName ?? "Across all companies")
+                  : "Tasks by company"}
+              </Text>
             </View>
           </View>
           <View style={s.headerRight}>
@@ -348,7 +355,7 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
         {/* KPI tiles — command-centre metric cards */}
         <View style={s.kpiRow} wrap={false}>
           {([
-            [b.deliveredCount, "Delivered", "in June", "success"],
+            [b.deliveredCount, "Delivered", `in ${b.monthLabel}`, "success"],
             [b.openCount, "Open", `${inProgressTotal} in progress`, "info"],
             [b.overdueCount, "Overdue", b.overdueCount ? "need attention" : "all on time", b.overdueCount ? "danger" : "success"],
             [b.companyCount, "Companies", b.atRiskCount ? `${b.atRiskCount} at risk` : "all healthy", "ink"],

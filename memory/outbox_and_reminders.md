@@ -312,3 +312,258 @@ Everything in the three sections above — director/manager reminders + WhatsApp
 
 ### PUSHED (2026-06-18, commit e440bc7)
 The **entire WhatsApp non-provider overhaul** above (gate fix + short envelope + light landing + announcements + live refresh + "from who") is now on **master/origin** — the "NOT pushed" notes in the earlier subsections are superseded. **Owner OPS still outstanding:** set `NEXT_PUBLIC_APP_URL` in Vercel (so WhatsApp's crawler fetches the og:image on the live host) + device-test a `/r/...` link in a real WhatsApp chat. Twilio go-live still shelved.
+
+### Director Brief company filter — `?co=` rename + dropdown (2026-08-02)
+
+**The bug (owner-reported, reproduced live).** Picking a company on `/brief` opened a
+**company preview drawer** over the report, and dismissing that preview **wiped the
+filter** (back to Portfolio). The filter was effectively unusable.
+
+**Root cause — a parameter-name collision, not a Brief bug.** `CompanyDrawer` is mounted
+globally in `src/app/layout.tsx` and opens on **any** `?company=<id>` outside
+`/companies/[id]` (`company-drawer.tsx`: `open = !!searchParams.get("company") && !onCompanyPage`);
+its `close()` **deletes** that param. The Brief's filter happened to use the same word.
+One click therefore filtered the brief *and* popped the drawer; closing the drawer
+stripped the param and reset the brief. (Escape closed the drawer *without* stripping —
+which is why the filter sometimes appeared to stick.) Any `/brief?company=N` link — a
+bookmark, anything already shared — hit the same thing.
+
+**Fix.**
+- New `src/lib/brief-links.ts` — `BRIEF_COMPANY_PARAM = "co"`, `briefHref()`,
+  `briefPdfHref()`, `parseBriefCompanyId()`. One place builds every /brief link so the
+  screen, the PDF button and the share links can't drift.
+- `/brief` reads `?co=`; a legacy `?company=` **server-redirects** onto `?co=` (so old
+  links land on a clean filtered report and never trigger the drawer). `/brief/pdf`
+  accepts `co` first, `company` as a fallback.
+- `brief-company-filter.tsx` rewritten: 13 wrapping pills → ONE Aurora `FluidSelect`
+  (`Portfolio · all companies` + company accent dots). Client component, `router.push`.
+- `brief-period-filter.tsx` now carries the selected company across — changing period
+  used to silently drop it.
+- `BriefData.companyOptions` gained `accent` (for the dropdown dots).
+
+**FORWARD RULE: `?company=` is RESERVED app-wide for the global CompanyDrawer preview.**
+Never use it as a page's own filter parameter — pick a page-specific name.
+
+**Unfiltered PDF is byte-for-byte unchanged** — no filter → identical code path. Verified
+live: `?co=3` and legacy `?company=3` both render the Terra Green PDF; no params renders
+the portfolio PDF. tsc clean, 278 tests pass. Person filter + a portal picker are still
+open (owner questions outstanding). NOT pushed.
+
+### Director Brief — person filter + dot fallback + compliance link (2026-08-02, same batch)
+
+- **Person filter (`?who=`)** — `getBrief(..., { personId })`. "Theirs" = **owns OR leads
+  (accountable) OR is assigned** (`r.ownerId === pid || assigneeIds.includes || leadIds.includes`).
+  Everything downstream derives from the filtered `rows`, so delivered / open work / watch-list
+  / per-company figures all narrow together. Per-company KPIs are **recomputed**
+  (`computeCompanyKpis(rows)`) because the portfolio-wide ones count everyone. Company-level
+  sections (compliance, statutory, HR, week ahead) deliberately stay company-scoped — they
+  aren't about a person. `peopleOptions` is derived from the tasks in the CURRENT company
+  scope (no extra DB read, no dead-end names). New `brief-person-filter.tsx`.
+- Filters **compose**: `?co=` + `?who=` together. `brief-links.ts` now takes a
+  `BriefSelection {companyId, personId}`; every /brief + PDF link is built there.
+- Naming precedence everywhere (hero, PDF title, PDF filename, share text, email subject):
+  **person → company → BRAND_NAME**. With a person selected the company drops to the subtitle.
+- **PDF exec summary** now says "<subject> delivered N…" instead of always BRAND_NAME — a
+  company/person-filtered PDF used to claim "Oracle Consultancy delivered…". Unfiltered output
+  is unchanged (subject === BRAND_NAME).
+- **Dropdown dots**: companies with no `accent_color` (e.g. Akasaki) rendered NO dot, so their
+  names sat out of line. Fall back to `hsl(var(--accent))` — same fallback the "By company"
+  cards already use.
+- **Compliance recommendation link** was `/documents?company=<id>` → now `/companies/<id>`.
+  `/documents` never read `company` (its searchParams are only `from`/`tab`), so it filtered
+  nothing AND popped the CompanyDrawer preview. The company page's `ComplianceSummaryCard` is
+  the real destination.
+- **STILL OPEN**: the PDF's Delivered KPI tile has a hardcoded `"in June"` subtitle
+  (`brief-pdf.tsx`) — wrong in every month/period. Left alone on purpose (owner said don't
+  change the default PDF); needs his go-ahead. Portal person/company picker not built.
+
+Verified live on `npm run dev` (port 3000): `?who=11` → hero "Mr Amal Somaiya", 2 companies,
+no preview drawer; all four PDF combinations render 200 with the right filenames; **unfiltered
+PDF still "Director-Brief-Oracle-Consultancy-Limited-…"**. tsc clean, 278 tests pass. NOT pushed.
+
+### Brief person list — staff register, not task assignees (2026-08-02, same batch)
+
+Owner spotted odd single-word names (Aryan, Hitesh, Joemar, Rashmit) in the person filter.
+**Cause:** `peopleOptions` was derived from task owners/leads/assignees. All four are
+**ARCHIVED leavers** (`people.active = false`, ids 14/45/43/40) whose old tasks are still
+attached, so an assignee-derived list resurrected them — and simultaneously OMITTED any
+active person with no tasks yet. (DB at the time: 43 people rows, 30 active, 13 inactive;
+8 single-word names, all inactive.)
+
+**Fix:** `peopleOptions` now comes from `people` where `active = true` (added to getBrief's
+opening `Promise.all`). Result: 30 active people listed, leavers gone, and staff with zero
+tasks are selectable — "who has nothing assigned" is a legitimate question, and the report
+answers it honestly (0/0/0). A `?who=<archived id>` still FILTERS correctly (only the list
+changed), so old links keep working. `selectedPersonName` prefers the register, falling back
+to the task-derived name map for archived ids.
+
+Verified: dropdown = 31 options (Everyone + 30), none archived; `?who=72` (no tasks) renders
+a clean zero brief + an 18KB PDF; `?who=14` (archived) still renders; unfiltered PDF unchanged
+at 4MB "Director-Brief-Oracle-Consultancy-Limited-…". tsc clean, 278 tests pass. NOT pushed.
+
+### Brief — "in June" fix + pick-any-month period (2026-08-02, same batch)
+
+- **"in June" fixed.** The PDF's Delivered KPI tile carried a HARDCODED `"in June"` sub-label
+  (`brief-pdf.tsx`) — wrong in every month and every period. Now `in ${b.monthLabel}`. Owner
+  confirmed the sighting first; note it only ever appeared in the DOWNLOADED PDF (the tile row
+  on page 1), never on screen and never in a browser Ctrl+P of the page — those are separate
+  renderers, which is why he couldn't find it at first.
+- **Any-month period.** `BriefPeriod` gained `BriefMonthPeriod = \`on:${string}\`` (e.g.
+  `?period=on:2026-06`). The `on:` prefix keeps it clear of the preset names. `parseBriefPeriod`
+  validates `/^on:\d{4}-(0[1-9]|1[0-2])$/` before casting; `periodRange` returns
+  [1st of month, 1st of next month) with a "June 2026" label — same shape as "last-month".
+  New `brief-month-filter.tsx` (FluidSelect, "Any month" + last 12 months); options built
+  SERVER-side via `briefMonthOptions(now)` in `brief-links.ts` so labels can't drift between
+  server and browser. Picking a month deselects all four preset pills automatically (none
+  matches an `on:` period); "Any month" hands control back.
+- Composes with the company + person filters and flows into the PDF, share text and email.
+
+Verified: `?period=on:2026-06` → "June 2026", 19 delivered (vs 11 in August), all preset pills
+off; PDF filenames `…-June-2026.pdf` and `…-Mr-Amal-Somaiya-June-2026.pdf`. tsc clean, 278
+tests pass. NOT pushed.
+
+### Brief — multi-month (tick several, merged) (2026-08-02, same batch)
+
+Owner wanted to tick MORE THAN ONE month, non-adjacent allowed, MERGED into one report
+(he explicitly chose merged over side-by-side comparison).
+
+- `BriefMonthPeriod` now carries a comma list: `?period=on:2026-05,2026-06,2026-08`.
+- `periodRange` returns **`ranges[]`** alongside start/end. Delivered is tested against
+  `ranges.some(...)` — NOT the outer span — so skipping a month with data really skips it.
+  Every preset returns a single-element `ranges` so nothing else changed.
+  `start`/`end` stay the outer SPAN and still feed the two span-based secondary signals
+  (staff joiners, brief notes); with a gap those cover the whole stretch. Noted, accepted.
+- Label: `monthListLabel` → "June 2026" · "June & July 2026" · "May, June & August 2026" ·
+  cross-year keeps the year on each ("December 2025 & March 2026").
+- `brief-month-filter.tsx` rewritten as a Radix DropdownMenu of CheckboxItems (FluidSelect is
+  single-select). `onSelect={e => e.preventDefault()}` keeps the menu OPEN while ticking; the
+  picks are held in local state and applied on CLOSE — so three ticks rebuild the brief once,
+  not three times. Trigger reads "Any month" / the month name / "N months". `briefMonthOptions`
+  now emits bare "YYYY-MM"; `briefSelectedMonths` + `briefMonthsToPeriod` convert.
+
+**Verified arithmetic (live):** June alone 19 delivered · July alone 14 · June+July **33**
+(=19+14) · June+**August** **30** (=19+11, correctly SKIPPING July's 14) · May+June+August 46.
+Open stayed 38 throughout — as designed, open work is always "as at today", never historical.
+UI: ticking keeps the menu open, Escape applies once → `?period=on:2026-05,2026-06,2026-08`,
+PDF `Director-Brief-…-May-June-August-2026.pdf`. tsc clean, 278 tests pass. NOT pushed.
+
+**Owner briefed on the key limitation:** a month only scopes DELIVERED (+ joiners). Open /
+overdue are live. "What was open at the end of June" would need historical state
+reconstruction — not built, quoted as a separate piece of work.
+
+### Brief — a picked month now scopes EVERYTHING, not just delivered (2026-08-03)
+
+Owner: "why is April showing tasks when there was no system then?" Data check: tasks only
+exist from **31 May 2026**; closed-per-month = May 16 / Jun 19 / Jul 14 / Aug 11; April had 0.
+The 38 "open" he saw were TODAY's open work, which used to render on every period.
+
+**Now:** an `on:` month selection also filters the task set — a task belongs to month M if it
+EXISTED by end of M and had not already been closed before M began (computed from
+created_date + closed_date; no history reconstruction). Per-company figures are recomputed
+from that set. `historicOnly` (no selected month reaches today) additionally drops
+**compliance, statutory deadlines and the week ahead** — all "as things stand now" figures
+that would imply they were true back then.
+
+**Presets are untouched** (`monthScoped` gates everything), so This month / Last month /
+Quarter / Year and the default PDF behave exactly as before. Verified: default still
+11/38/2/13 with the compliance section present; April 2026 → 0/0/0/0 and those three sections
+gone; June 2026 → 19 delivered / 18 open / 6 companies (was 19/38/13).
+
+**KNOWN GAP, disclosed to owner:** a task live in June but closed in JULY sits in June's scope
+yet appears in neither June bucket (not delivered-in-June, not open-today). June: 47 tasks were
+live, 19+18=37 shown, 10 fall through. The fix is to define the open bucket as "not closed by
+month END" instead of "open today" — rejected for now because those rows would display their
+CURRENT status ("Completed") under a heading that says Open work, which reads as a bug.
+Awaiting his call.
+
+**Testing note:** section headings use CSS `uppercase`, so `innerText` returns them
+UPPERCASED — case-sensitive regex checks against the rendered page give false negatives. One
+earlier verification pass was wrong because of this; always match case-insensitively.
+
+tsc clean, 278 tests pass. NOT pushed.
+
+### Brief — Lead / Working toggles on the person filter (2026-08-03)
+
+Data check first: `task_assignees.role` holds exactly two values — **accountable** (70 rows)
+and **working** (91) across 98 live tasks. 59 tasks have an explicit accountable person;
+**39 tasks have NO lead at all** and 3 have nobody attached (flagged to the owner — "Lead"
+will look emptier than expected until those are tagged). Owner is ALWAYS also an assignee
+row in this data, so the `leadIds` owner-fallback never fires today.
+
+- `?role=lead` / `?role=working` (`BRIEF_ROLE_PARAM`), only emitted alongside `?who=`.
+- Mapping: **lead** = `leadIds.includes(pid)` (the accountable set, which already falls back
+  to the owner); **working** = `assigneeIds.includes(pid) && !leadIds.includes(pid)`. Clean
+  split — verified on Amal Somaiya: both = 1 delivered/3 open, lead = 0/1, working = 1/2, so
+  lead + working exactly equals both. No double counting.
+- UI: owner rejected a 3-way All/Lead/Working segmented control as "a lot of noise" — it's
+  **two independent toggle buttons** after the person dropdown instead. Neither pressed =
+  both (today's behaviour); pressing the active one again clears it; hidden entirely until a
+  person is picked.
+- **PDF: owner's explicit choice (a)** — the lens narrows the PDF's CONTENTS (818KB vs 821KB
+  for lead vs both) but is deliberately ABSENT from the title and filename, both still
+  "Director-Brief-Mr-Amal-Somaiya-August-2026.pdf". Do not "fix" this.
+- `BriefSelection` now carries `personRole`, so the period/month/company filters all preserve
+  it as you switch.
+
+**Dev-server gotcha hit again:** the toggles appeared absent on first check — a stale cached
+render. A cache-busting query param forced the real page. When a just-added element seems
+missing in the preview, force-reload before debugging the code.
+
+tsc clean, 278 tests pass. NOT pushed.
+
+### Portal Director Brief — filters under the hero, permission-gated (2026-08-03)
+
+**Who actually uses it (checked):** FIVE portal directors, not just Pulin —
+Pulin Manek (id 13, `director_company_id` NULL = whole portfolio), Kishan Suchak + Chirag
+Tanna (both company 6), Daniel Opanga (company 5), Parin Manek (company 2). So FOUR of five
+are locked to one company; scope is the whole design constraint. Also 4 managers + 1
+receptionist on the portal.
+
+**Before:** one bare "Download PDF" button in the profile hero, `isDirector` hard-coded, no
+parameters at all — always this month, whole scope.
+
+**Now:** owner asked for the toggles under the hero card, explicitly NOT a full portal brief
+page. New `portal-brief-filters.tsx` — a card below the hero with the same four controls
+(multi-month checkboxes · company · person · Lead/Working) plus Download + Preview. Choices
+live in LOCAL state and only assemble the download URL, so changing a filter never reloads the
+profile behind you. Company picker hides itself when they govern only one company.
+
+**Permission-gated, not role-gated** (CLAUDE.md forward rule): new `directorBrief`
+CapabilityKey in `portal-permissions.ts`, defaulting `director: true` and everyone else false
+— an exact mirror of the old behaviour. The owner can now grant it to managers in
+Settings → Portals without a deploy.
+
+**Scope enforcement — the security half.** New `src/lib/portal-brief-scope.ts`:
+- `portalBriefOptions(me)` builds the company + people lists from `companyScope(me)`. People
+  are matched via BOTH `person_companies` and `people.company_id`, so someone attached to a
+  scoped company but based elsewhere still appears. A company-locked director therefore never
+  sees other companies' staff NAMES in the picker — the leak the admin version would have had.
+- `resolvePortalBriefFilters(me, params)` re-resolves EVERY query value against their scope in
+  the route. Anything outside is DROPPED (falls back to their full scope) rather than honoured
+  or errored, so a hand-edited link cannot widen the report. A `role` without a valid `who` is
+  dropped too.
+
+**Verified as Pulin (portfolio director):** card renders; company list 13 + "All"; people list
+30 + "Everyone"; `?co=3` → Terra Green PDF; `?who=11` → Amal PDF; `?period=on:2026-06,2026-07`
+→ June-July PDF; **`?co=99999` → silently falls back to the full portfolio, 200 not 500**.
+NOT verified end-to-end: the company-locked path (couldn't sign in as Kishan/Parin) — it runs
+through the same `companyScope` helper as every other portal read, but flag it if he tests.
+
+tsc clean, 278 tests pass. NOT pushed.
+
+### Portal brief filters — one aligned row (2026-08-03)
+
+Owner: buttons were on two rows with mismatched heights. All seven controls now share ONE
+class matching Button `sm` secondary (`h-8 px-2.5 text-xs rounded-lg border border-border
+bg-bg-elev`) and sit in a single `flex flex-wrap items-center gap-2` row — filters AND the
+Download/Preview actions together. Preview became a proper button (Eye icon) instead of a
+text link. `cn()`/tailwind-merge lets the h-8/px-2.5/text-xs override FluidSelect's built-in
+px-3 py-1.5 text-sm.
+
+Verified: desktop = all 7 on one line, identical height, same top. Mobile 375px = wraps to 3
+tidy lines, still 32px each, **no horizontal overflow**. (Desktop measured 26px not 32px —
+that's the portal's accessibility text-size setting scaling rem, not a bug.)
+
+**Preview vs Download is NOT duplication** — confirmed from the response headers:
+Preview → `Content-Disposition: inline` (opens in the PDF viewer), Download → `attachment`
+(saves). Same file, two intents.

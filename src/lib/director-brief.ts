@@ -19,18 +19,64 @@ import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
 import { appBaseUrl } from "@/lib/app-url";
 import type { EmailDoc, EmailTone } from "@/lib/email/layout";
+import type { BriefPersonRole } from "@/lib/brief-links";
 
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
 
-export type BriefPeriod = "month" | "last-month" | "quarter" | "year";
+/** One or more specific calendar months, e.g. "on:2026-03" or
+ *  "on:2026-01,2026-03,2026-07". Months need not be adjacent — they are merged
+ *  into one report. The `on:` prefix keeps them clear of the preset names. */
+export type BriefMonthPeriod = `on:${string}`;
+export type BriefPeriod = "month" | "last-month" | "quarter" | "year" | BriefMonthPeriod;
+
+/** Real year-months, not just anything starting with `on:`. */
+const YM = String.raw`\d{4}-(?:0[1-9]|1[0-2])`;
+const MONTH_PERIOD = new RegExp(`^on:${YM}(?:,${YM})*$`);
 
 export function parseBriefPeriod(value: string | null | undefined): BriefPeriod {
   if (value === "last-month" || value === "quarter" || value === "year") return value;
+  // Validated above, so the cast only widens a checked string.
+  if (typeof value === "string" && MONTH_PERIOD.test(value)) return value as BriefMonthPeriod;
   return "month";
 }
 
+/** "June 2026" · "January, March & July 2026" · "December 2025 & March 2026". */
+function monthListLabel(starts: Date[]): string {
+  const years = new Set(starts.map((d) => d.getFullYear()));
+  const names = starts.map((d) =>
+    d.toLocaleDateString("en-GB", years.size === 1 ? { month: "long" } : { month: "long", year: "numeric" })
+  );
+  const joined = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+  return years.size === 1 ? `${joined} ${[...years][0]}` : joined;
+}
+
 function periodRange(now: Date, period: BriefPeriod) {
+  // One or more specific months from the month dropdown. Each runs to the first
+  // instant of the following month, exactly like "last-month" does. Non-adjacent
+  // months are allowed, so `ranges` — not the outer span — decides what counts
+  // as delivered.
+  if (MONTH_PERIOD.test(period)) {
+    const starts = [...new Set(period.slice(3).split(","))]
+      .map((ym) => {
+        const [year, month] = ym.split("-").map(Number);
+        return new Date(year, month - 1, 1);
+      })
+      .sort((a, b) => a.getTime() - b.getTime());
+    const ranges = starts.map((start) => ({
+      start,
+      end: new Date(start.getFullYear(), start.getMonth() + 1, 1),
+    }));
+    return {
+      // Outer span — used only by the secondary, span-based signals (staff who
+      // joined, brief notes). With a gap in the selection those cover the whole
+      // stretch; the delivered list stays exact.
+      start: ranges[0].start,
+      end: ranges[ranges.length - 1].end,
+      label: monthListLabel(starts),
+      ranges,
+    };
+  }
   if (period === "last-month") {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -38,6 +84,7 @@ function periodRange(now: Date, period: BriefPeriod) {
       start,
       end,
       label: start.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+      ranges: [{ start, end }],
     };
   }
   if (period === "quarter") {
@@ -47,17 +94,19 @@ function periodRange(now: Date, period: BriefPeriod) {
       start,
       end: now,
       label: `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`,
+      ranges: [{ start, end: now }],
     };
   }
   if (period === "year") {
     const start = new Date(now.getFullYear(), 0, 1);
-    return { start, end: now, label: `${now.getFullYear()} year to date` };
+    return { start, end: now, label: `${now.getFullYear()} year to date`, ranges: [{ start, end: now }] };
   }
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   return {
     start,
     end: now,
     label: now.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+    ranges: [{ start, end: now }],
   };
 }
 
@@ -127,9 +176,25 @@ export type BriefStatutory = {
 
 export type BriefData = {
   period: BriefPeriod;
+  /** Set only when EXACTLY one company is selected (drives the header logo and
+   *  the calendar read, both of which need a single company). */
   selectedCompanyId: number | null;
+  /** Every selected company (empty = the whole portfolio / their whole scope). */
+  selectedCompanyIds: number[];
+  /** Display subject: one company by name, several as "N companies". */
   selectedCompanyName: string | null;
-  companyOptions: Array<{ id: number; name: string }>;
+  companyOptions: Array<{ id: number; name: string; accent: string | null }>;
+  /** Person filter (empty = everyone). Narrows the brief to the tasks these
+   *  people lead, own or are assigned to — the UNION, so a shared task counts
+   *  once. See `getBrief`'s `personId` option. */
+  selectedPersonId: number | null;
+  selectedPersonIds: number[];
+  selectedPersonName: string | null;
+  /** Role qualifier on the person filter (null = both). Deliberately NOT shown
+   *  in the PDF title — it still narrows the PDF's contents. */
+  selectedPersonRole: BriefPersonRole | null;
+  /** Every ACTIVE person, for the filter — including those holding no tasks. */
+  peopleOptions: Array<{ id: number; name: string }>;
   monthLabel: string;
   periodStart: Date;
   periodEnd: Date;
@@ -285,8 +350,25 @@ async function buildHrBrief(
   };
 }
 
-export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | number[] | null, opts?: { skipDocuments?: boolean }): Promise<BriefData> {
-  const [allRows, documents, activeCompaniesRes] = await Promise.all([
+export async function getBrief(
+  now: Date = new Date(),
+  period: BriefPeriod = "month",
+  companyId?: number | number[] | null,
+  opts?: {
+    skipDocuments?: boolean;
+    /** Narrow the brief to ONE person's work. A task counts as theirs when they
+     *  own it, lead it (accountable) or are assigned to it — the broad reading,
+     *  so nothing they are answerable for is hidden. Company-level sections
+     *  (compliance, statutory, HR, week ahead) stay company-scoped: they aren't
+     *  about a person. */
+    personId?: number | number[] | null;
+    /** Narrows the person filter to ONE of their roles on a task: "lead" (they
+     *  are accountable) or "working" (they are on it, but not the lead). Null =
+     *  both, the default. Ignored without a `personId`. */
+    personRole?: BriefPersonRole | null;
+  }
+): Promise<BriefData> {
+  const [allRows, documents, activeCompaniesRes, activePeopleRes] = await Promise.all([
     getAllTasks(),
     // `documents` only feeds the HR "expiring people documents" signal, which the
     // director board does NOT render. The board passes skipDocuments to drop this
@@ -297,6 +379,10 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     // no tasks yet still appears (figures all zero → "On track / All clear") and fills
     // in the moment it gets its first task. Mirrors the Companies hub's active list.
     sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
+    // The person filter's list. Read from the STAFF REGISTER, not from task
+    // assignees: assignee-derived lists both omit anyone without tasks yet and
+    // resurrect archived leavers who still have old tasks attached.
+    sb.from("people").select("id,name").eq("active", true).order("name"),
   ]);
   const taskKpis = computeCompanyKpis(allRows);
   const presentIds = new Set(taskKpis.map((k) => k.id));
@@ -310,7 +396,9 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // Task-bearing companies keep their real (already-verified) figures; the rest are
   // appended with zero figures. Strict company_id grouping is preserved.
   const allKpis: CompanyKpi[] = [...taskKpis, ...zeroKpis];
-  const companyOptions = allKpis.map((k) => ({ id: k.id, name: k.name })).sort((a, b) => a.name.localeCompare(b.name));
+  const companyOptions = allKpis
+    .map((k) => ({ id: k.id, name: k.name, accent: k.accent }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   // Company scope: undefined/null = whole portfolio; a number or an array limits
   // the brief to that company set (a multi-company scoped director). Only ids that
   // actually exist are honoured.
@@ -321,12 +409,91 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // A single-company id (for the returned field + the single-id calendar filter),
   // only when the scope is exactly one company.
   const selectedCompanyId = scope && scope.length === 1 ? scope[0] : null;
-  const selectedCompanyName = selectedCompanyId ? allKpis.find((k) => k.id === selectedCompanyId)?.name ?? null : null;
-  const rows = scopeSet ? allRows.filter((r) => scopeSet.has(r.companyId)) : allRows;
-  const kpis = scopeSet ? allKpis.filter((k) => scopeSet.has(k.id)) : allKpis;
+  const selectedCompanyIds = scope ?? [];
+  // The report's SUBJECT for titles: one company by name, several as a count.
+  const selectedCompanyName = selectedCompanyId
+    ? allKpis.find((k) => k.id === selectedCompanyId)?.name ?? null
+    : selectedCompanyIds.length > 1
+      ? `${selectedCompanyIds.length} companies`
+      : null;
+  const companyRows = scopeSet ? allRows.filter((r) => scopeSet.has(r.companyId)) : allRows;
 
-  const range = periodRange(now, period);
+  // Person scope. A task is "theirs" if they own it, lead it, or are assigned to
+  // it. Everything downstream (delivered, open work, watch-list, per-company
+  // figures) derives from `rows`, so filtering here is enough.
+  const personIds = (Array.isArray(opts?.personId) ? opts.personId : opts?.personId != null ? [opts.personId] : [])
+    .filter((id) => Number.isFinite(id));
+  const nameByPersonId = new Map<number, string>();
+  for (const r of allRows) {
+    if (r.ownerId && r.owner) nameByPersonId.set(r.ownerId, r.owner);
+    r.assigneeIds.forEach((id, i) => {
+      const n = r.assignees[i];
+      if (id && n) nameByPersonId.set(id, n);
+    });
+  }
+  // `leadIds` is the accountable set (already falling back to the owner when a
+  // task has no accountable row). "Working" is therefore everyone else attached
+  // to the task — which is exactly how task_assignees.role splits: every row is
+  // either "accountable" or "working".
+  const personRole = personIds.length ? opts?.personRole ?? null : null;
+  const isTheirs = (r: TaskRow, pid: number) => {
+    if (personRole === "lead") return r.leadIds.includes(pid);
+    if (personRole === "working") return r.assigneeIds.includes(pid) && !r.leadIds.includes(pid);
+    return r.ownerId === pid || r.assigneeIds.includes(pid) || r.leadIds.includes(pid);
+  };
+  // Several people = the UNION of their work, so one task shared by two of them
+  // is counted once, not twice.
+  const personRows = personIds.length
+    ? companyRows.filter((r) => personIds.some((pid) => isTheirs(r, pid)))
+    : companyRows;
+
+  // MONTH SCOPING. Picking specific months means "show me those months", not just
+  // what closed in them — otherwise every month showed today's open work, so a
+  // month before the system existed still listed 38 open tasks.
+  //
+  // A task belongs to month M if it EXISTED by the end of M and had not already
+  // been closed before M began. Computed from the dates already held, so no
+  // history reconstruction is needed. Caveat: status/priority/overdue still read
+  // as they are TODAY, not as they were then.
+  //
+  // Only `on:` month selections get this. The presets (incl. the default "this
+  // month") keep their long-standing behaviour, so the standard brief and its
+  // PDF are untouched.
+  const monthScoped = MONTH_PERIOD.test(period);
+  const monthRange = periodRange(now, period);
+  const liveInMonths = (r: TaskRow) =>
+    monthRange.ranges.some(
+      (w) => (r.createdDate == null || r.createdDate <= w.end) && (r.closedDate == null || r.closedDate >= w.start)
+    );
+  const rows = monthScoped ? personRows.filter(liveInMonths) : personRows;
+
+  // EVERY active person, whether or not they hold tasks — someone with nothing
+  // assigned is exactly who you'd want to check on, and an empty report is a
+  // real answer. Archived leavers are excluded from the LIST, but a `?who=` for
+  // one still filters normally, so old links keep working.
+  const peopleOptions = ((activePeopleRes.data ?? []) as Array<{ id: number; name: string | null }>)
+    .filter((p) => p.name)
+    .map((p) => ({ id: p.id, name: p.name as string }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const personName = (id: number) => peopleOptions.find((p) => p.id === id)?.name ?? nameByPersonId.get(id) ?? null;
+  // Titles name ONE person; several show as a count, matching the company rule.
+  const selectedPersonName =
+    personIds.length === 1 ? personName(personIds[0]) : personIds.length > 1 ? `${personIds.length} people` : null;
+
+  // Per-company figures. With a person filter the portfolio-wide KPIs are wrong
+  // (they count everyone), so recompute from that person's rows — which also
+  // drops companies where they have no work at all.
+  const kpis = personIds.length || monthScoped
+    ? computeCompanyKpis(rows)
+    : scopeSet ? allKpis.filter((k) => scopeSet.has(k.id)) : allKpis;
+
+  const range = monthRange; // computed above for the month scoping
   const monthLabel = range.label;
+  // Wholly-historical selection: no chosen month reaches today. Compliance,
+  // statutory deadlines and the week ahead are all "as things stand now"
+  // figures with no history behind them, so showing them beside a past month
+  // would imply they were true then. They're dropped instead.
+  const historicOnly = monthScoped && !range.ranges.some((w) => w.end > now);
   const asAt = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const companyNameById = new Map(allKpis.map((k) => [k.id, k.name]));
 
@@ -349,8 +516,11 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     listCalendarEvents({ from: weekFrom, to: weekTo, ...(selectedCompanyId ? { companyId: selectedCompanyId } : {}) }),
   ]);
 
+  // Tested against each selected month, NOT the outer span — so picking January
+  // and July doesn't quietly drag in everything between them.
+  const inPeriod = (d: Date) => range.ranges.some((w) => d >= w.start && d <= w.end);
   const deliveredThisMonth = rows
-    .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= range.start && r.closedDate <= range.end)
+    .filter((r) => isClosed(r) && r.closedDate && inPeriod(r.closedDate))
     .sort((a, b) => (b.closedDate?.getTime() ?? 0) - (a.closedDate?.getTime() ?? 0));
 
   const openTasks = rows.filter((r) => isOpen(r.status));
@@ -402,7 +572,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .slice(0, 40)
     .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyId: r.companyId, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
-  const compliance: BriefCompliance[] = companyReqScores
+  const compliance: BriefCompliance[] = (historicOnly ? [] : companyReqScores)
     .filter((score) => score.status !== "Good")
     .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)
     .map((score) => ({
@@ -421,7 +591,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // with an applicable company still outstanding this period (see Command Centre).
   // Dropped entirely when the Tax & Legal area is paused (master switch).
   const { commandCentrePaused } = appSettings;
-  const statutory: BriefStatutory[] = commandCentrePaused
+  const statutory: BriefStatutory[] = commandCentrePaused || historicOnly
     ? []
     : (await outstandingDeadlines(obligations, now))
         .slice(0, 6)
@@ -458,7 +628,11 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
         headline: `${c.companyName}: compliance score ${c.score}%`,
         detail: `${detail || c.status}${c.gaps[0] ? ` · next: ${c.gaps[0]}` : ""}`,
         urgency: (c.status === "Risk" || c.expired > 0 ? "High" : "Medium") as "High" | "Medium",
-        link: `/documents?company=${c.companyId}`,
+        // The company file, where the compliance card + its gaps live. NOT
+        // `/documents?company=` — /documents never read that parameter (so it
+        // filtered nothing), and `?company=` pops the global CompanyDrawer
+        // preview over whatever page it lands on. See lib/brief-links.ts.
+        link: `/companies/${c.companyId}`,
       };
     }),
   ]
@@ -467,7 +641,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 
   // Next 7 days of calendar events (fetched above). For a multi-company scope the
   // fetch isn't company-filtered, so keep only the scoped companies' events.
-  const weekAhead: BriefWeekEvent[] = calEvents
+  const weekAhead: BriefWeekEvent[] = (historicOnly ? [] : calEvents)
     .filter((e) => !scopeSet || (e.companyId != null && scopeSet.has(e.companyId)))
     .slice(0, 12)
     .map((e) => ({
@@ -485,6 +659,12 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     selectedCompanyId,
     selectedCompanyName,
     companyOptions,
+    selectedCompanyIds,
+    selectedPersonId: personIds.length === 1 ? personIds[0] : null,
+    selectedPersonIds: personIds,
+    selectedPersonName,
+    selectedPersonRole: personRole,
+    peopleOptions,
     monthLabel, asAt,
     periodStart: range.start,
     periodEnd: range.end,
@@ -502,7 +682,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 export function briefShareText(b: BriefData): string {
   const L: string[] = [];
   L.push(`*${BRAND_NAME} — Director Brief*`);
-  L.push(`${b.selectedCompanyName ? `${b.selectedCompanyName} · ` : ""}${b.monthLabel} · as at ${b.asAt}`);
+  L.push(`${[b.selectedPersonName, b.selectedCompanyName].filter(Boolean).map((x) => `${x} · `).join("")}${b.monthLabel} · as at ${b.asAt}`);
   L.push("");
   L.push(`✅ ${b.deliveredCount} delivered in ${b.monthLabel} · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
   L.push("");
@@ -577,7 +757,7 @@ export function briefShareText(b: BriefData): string {
 /** Email subject + plain-text body (no markdown bold). */
 export function briefEmail(b: BriefData): { subject: string; body: string } {
   return {
-    subject: `${BRAND_NAME} — Director Brief${b.selectedCompanyName ? ` · ${b.selectedCompanyName}` : ""} (${b.monthLabel})`,
+    subject: `${BRAND_NAME} — Director Brief${[b.selectedPersonName, b.selectedCompanyName].filter(Boolean).map((x) => ` · ${x}`).join("")} (${b.monthLabel})`,
     body: briefShareText(b).replace(/\*/g, ""),
   };
 }
@@ -667,7 +847,7 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
   return {
     preheader: `${b.deliveredCount} delivered · ${b.openCount} open · ${b.overdueCount} overdue this ${b.monthLabel}.`,
     title: "Director brief",
-    subtitle: `${b.selectedCompanyName ? `${b.selectedCompanyName} · ` : "Portfolio · "}${b.monthLabel} · as at ${b.asAt}`,
+    subtitle: `${[b.selectedPersonName, b.selectedCompanyName].filter(Boolean).map((x) => `${x} · `).join("") || "Portfolio · "}${b.monthLabel} · as at ${b.asAt}`,
     blocks,
     cta: { label: "Open the full brief", url: `${appBaseUrl()}/brief` },
     footerNote: "You're receiving this because the weekly Director Brief automation is on. Manage in Settings → Email automation.",

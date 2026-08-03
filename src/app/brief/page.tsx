@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { CheckCircle2, AlertTriangle, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Badge } from "@/components/ui";
 import { Hero, TONE } from "@/components/surface-kit";
@@ -5,9 +6,12 @@ import { CountUp } from "@/components/arc-gauge";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
 import { BriefCompanyFilter } from "@/components/brief-company-filter";
+import { BriefPersonFilter } from "@/components/brief-person-filter";
+import { BriefMonthFilter } from "@/components/brief-month-filter";
 import { BriefDraftButton } from "@/components/brief-draft-button";
 import { BriefNotesSection } from "@/components/brief-notes-section";
 import { getBrief, briefShareText, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
+import { briefHref, briefPdfHref, briefMonthOptions, parseBriefIdList, parseBriefPersonRole } from "@/lib/brief-links";
 import { BRAND_NAME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
@@ -24,11 +28,20 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
 export default async function DirectorBriefPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; company?: string }>;
+  searchParams: Promise<{ period?: string; company?: string; co?: string; who?: string; role?: string }>;
 }) {
   const sp = await searchParams;
-  const companyId = sp.company && /^\d+$/.test(sp.company) ? parseInt(sp.company, 10) : null;
-  const b = await getBrief(new Date(), parseBriefPeriod(sp.period), companyId);
+  const period = parseBriefPeriod(sp.period);
+  // `?co=` / `?who=` are this page's own filters. `?company=` is the GLOBAL
+  // CompanyDrawer's parameter — left on this URL it pops a company preview over
+  // the report and wipes the filter when dismissed. Older links (bookmarks,
+  // anything already shared) are rewritten onto `?co=` so they land on a clean
+  // filtered brief.
+  const companyIds = parseBriefIdList(sp.co ?? sp.company);
+  const personIds = parseBriefIdList(sp.who);
+  const personRole = parseBriefPersonRole(sp.role);
+  if (sp.company !== undefined) redirect(briefHref(period, { companyIds, personIds, personRole }));
+  const b = await getBrief(new Date(), period, companyIds, { personId: personIds, personRole });
   const email = briefEmail(b);
 
   return (
@@ -36,8 +49,14 @@ export default async function DirectorBriefPage({
       {/* Hero — screen only; the PDF keeps its own header + stat overview. */}
       <div className="space-y-2">
         <Hero
-          title={b.selectedCompanyName ?? BRAND_NAME}
-          subtitle={`Director Brief · ${b.monthLabel} · as at ${b.asAt}`}
+          title={b.selectedPersonName ?? b.selectedCompanyName ?? BRAND_NAME}
+          subtitle={[
+            "Director Brief",
+            // With a person selected the company becomes context, not the title.
+            ...(b.selectedPersonName && b.selectedCompanyName ? [b.selectedCompanyName] : []),
+            b.monthLabel,
+            `as at ${b.asAt}`,
+          ].join(" · ")}
           actions={
             <div className="flex items-center gap-2 flex-wrap">
               <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
@@ -45,7 +64,11 @@ export default async function DirectorBriefPage({
                 text={briefShareText(b)}
                 emailSubject={email.subject}
                 emailBody={email.body}
-                pdfHref={`/brief/pdf?period=${b.period}${b.selectedCompanyId ? `&company=${b.selectedCompanyId}` : ""}`}
+                pdfHref={briefPdfHref(b.period, {
+                  companyIds: b.selectedCompanyIds,
+                  personIds: b.selectedPersonIds,
+                  personRole: b.selectedPersonRole,
+                })}
               />
             </div>
           }
@@ -65,8 +88,35 @@ export default async function DirectorBriefPage({
             ))}
           </div>
         </Hero>
-        <BriefPeriodFilter period={b.period} />
-        <BriefCompanyFilter period={b.period} selectedCompanyId={b.selectedCompanyId} companies={b.companyOptions} />
+        <div className="flex flex-wrap items-center gap-2">
+          <BriefPeriodFilter
+            period={b.period}
+            selectedCompanyIds={b.selectedCompanyIds}
+            selectedPersonIds={b.selectedPersonIds}
+            selectedPersonRole={b.selectedPersonRole}
+          />
+          <BriefMonthFilter
+            period={b.period}
+            selectedCompanyIds={b.selectedCompanyIds}
+            selectedPersonIds={b.selectedPersonIds}
+            selectedPersonRole={b.selectedPersonRole}
+            months={briefMonthOptions(new Date())}
+          />
+          <BriefCompanyFilter
+            period={b.period}
+            selectedCompanyIds={b.selectedCompanyIds}
+            selectedPersonIds={b.selectedPersonIds}
+            selectedPersonRole={b.selectedPersonRole}
+            companies={b.companyOptions}
+          />
+          <BriefPersonFilter
+            period={b.period}
+            selectedCompanyIds={b.selectedCompanyIds}
+            selectedPersonIds={b.selectedPersonIds}
+            selectedPersonRole={b.selectedPersonRole}
+            people={b.peopleOptions}
+          />
+        </div>
       </div>
 
       {/* Per-company strip */}
