@@ -4,6 +4,7 @@ import { authoriseCron } from "@/lib/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
+import { purgeOldRead, purgeSupersededRecurring } from "@/lib/notifications";
 import { runTimeAutomations } from "@/lib/automation-time";
 import { buildMorningBrief } from "@/lib/morning-brief";
 import { getAppSettings } from "@/lib/settings";
@@ -111,6 +112,21 @@ export async function GET(req: NextRequest) {
       digest = await flushRoutineDigests();
     } catch (e) {
       await recordEvent("cron.morning", "error", { step: "digest", message: e instanceof Error ? e.message : String(e) });
+    }
+
+    // 1f. Tidy the bell: drop notifications already READ and older than the
+    //     retention window. Nothing ever expired them before, so half of every
+    //     bell was over a fortnight old. Unread rows are always kept.
+    try {
+      const purged = await purgeOldRead();
+      // Recurring items keep only their newest copy — today's reminder/digest
+      // replaces yesterday's rather than stacking.
+      const superseded = await purgeSupersededRecurring();
+      if (purged > 0 || superseded > 0) {
+        await recordEvent("cron.morning", "ok", { step: "notifications-purge", purged, superseded });
+      }
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "notifications-purge", message: e instanceof Error ? e.message : String(e) });
     }
 
     // 1f. Weekly system health & cost digest (Mondays, Dar-time). Composed from

@@ -606,28 +606,45 @@ async function checkQuietStaff(now: Date, quietDaysFallback = 5): Promise<number
 
     let notified = 0;
     const ownerLines: string[] = [];
+    // Collect per manager first. Sending one notification PER QUIET PERSON gave
+    // a director four near-identical rows ("X has been quiet", "Y has been
+    // quiet"…) every single day — the owner's "that's noise". Managers now get
+    // the same single roll-up the owner already got.
+    const managerLines = new Map<number, string[]>();
     for (const p of active) {
       const n = openCount.get(p.id) ?? 0;
       const name = (p.name ?? "").trim() || `#${p.id}`;
-      ownerLines.push(`${name} — ${n} open task${n === 1 ? "" : "s"}, quiet ≥${quietDays}d`);
+      const line = `${name} — ${n} open task${n === 1 ? "" : "s"}, quiet ≥${quietDays}d`;
+      ownerLines.push(line);
       // Manager-facing message: no raw telemetry, just the signal.
       for (const mgrId of await managersOf(p.id)) {
         if (mgrId === p.id) continue;
-        await createNotification({
-          recipient: personRecipient(mgrId), kind: "assigned",
-          title: `${name} has been quiet`,
-          body: `${name} has ${n} open task${n === 1 ? "" : "s"} and hasn't been active in the portal for ${quietDays}+ days — worth a nudge.`,
-          actor: "ORI",
-        });
-        notified++;
+        managerLines.set(mgrId, [...(managerLines.get(mgrId) ?? []), line]);
       }
     }
-    // Owner gets the roll-up (owner may see the aggregate signal).
+
+    // ONE line per recipient. The title deliberately keeps the same wording
+    // whatever the count ("staff" reads as both singular and plural) so the
+    // daily supersede in createNotification recognises today's as replacing
+    // yesterday's — see recurringKey in lib/notification-view.
+    const rollUp = (lines: string[]) =>
+      `Quiet ${quietDays}+ days but still holding open tasks:\n${lines.slice(0, 15).join("\n")}`;
+
+    for (const [mgrId, lines] of managerLines) {
+      await createNotification({
+        recipient: personRecipient(mgrId), kind: "assigned",
+        title: `${lines.length} staff quiet with open work`,
+        body: rollUp(lines),
+        actor: "ORI",
+      });
+      notified++;
+    }
+    // Owner gets the same roll-up across everyone.
     if (ownerLines.length) {
       await createNotification({
         recipient: "admin", kind: "assigned",
         title: `${active.length} staff quiet with open work`,
-        body: `Quiet ${quietDays}+ days but still holding open tasks:\n${ownerLines.slice(0, 15).join("\n")}`,
+        body: rollUp(ownerLines),
         actor: "ORI",
       });
     }

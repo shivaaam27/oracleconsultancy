@@ -567,3 +567,131 @@ that's the portal's accessibility text-size setting scaling rem, not a bug.)
 **Preview vs Download is NOT duplication** — confirmed from the response headers:
 Preview → `Content-Disposition: inline` (opens in the PDF viewer), Download → `attachment`
 (saves). Same file, two intents.
+
+### Notification bell — complete rebuild (2026-08-03)
+
+Owner: "a total mess … the way information is displayed is wrong". Measured first —
+admin bell held **136 rows**, 1,000 across everyone.
+
+**What was wrong (all evidenced from live data):**
+- **41% mis-filed.** 56 of 136 admin rows were ORI daily digests ("11 staff quiet with open
+  work") written with `kind: "assigned"` and no task → rendered under Tasks with an
+  "assigned you" icon, as if a person handed you a job.
+- **Duplicates.** 6 bursts / 8 redundant rows; the same DS-012 update stored 4× in one minute.
+- **Nothing expired.** 69 of 136 older than 14 days, oldest 37d.
+- **List lied.** `listNotifications` capped at 30 while the badge counted all 136.
+- **One glance wiped the signal** — opening called `markAllRead`.
+- **Portal flood.** 581/1000 rows `chat`; "Your tasks · <Company>" repeated ~30× per person.
+- **Dead groups.** UI built for Messages/Tasks/Leave/Meetings/Announcements, but kinds
+  mention/reply/pinned/leave have NEVER occurred.
+- **Inverted hierarchy.** `title` = boilerplate ("Mr Pulin Manek assigned you a task"),
+  `body` = the actual task name, code on a third line. Every row opened identically.
+
+**Fix — `src/lib/notification-view.ts` (pure, client-safe, 14 unit tests).** Corrections are
+applied at READ time, so all ~1,000 existing rows file correctly with **no migration** and
+**no edits to the ~17 cron call sites** that write `kind: "assigned"`.
+- `isSystemDigest` = actor ORI && no taskCode; `isDailyReminder` = chat && title starts
+  "Your tasks". Both → Activity lane.
+- **Two lanes** replace five categories: `needs-you` (assigned/mention/chat_mention/reply/
+  pinned) vs `activity` (everything else).
+- `notifSubject` promotes `body` to the headline and demotes actor+verb+code+time to the meta
+  line, shortening the actor via `getGivenName` ("Mr Pulin Manek" → "Pulin").
+- `groupNotifications` collapses repeats. **Window is per-type:** 12h for ordinary bursts, but
+  INFINITE for digests/reminders — they repeat daily by design, so a 12h window never folded
+  them (caught this in live testing, not in the unit tests; added a 30-day reminder test).
+
+**Other changes:** list limit 30 → 80; `markRead(recipient, ids)` so only what you open is
+marked (opening the panel no longer clears anything, explicit "Mark all read" button added);
+`purgeOldRead()` drops READ rows older than 14 days, wired into the morning-run cron (unread
+is always kept).
+
+**Verified live in Pulin's portal:** 80 rows → "Needs you 5" / "Activity 5" (was 75 unfiltered
+activity rows). Headlines now read "ISO Certification - Full details and execution" with
+"Pulin assigned you · ME-023 · 12h" beneath. The 22 daily reminders fold into one row showing
+"Show all 22". tsc clean, 292 tests pass. NOT pushed.
+
+**Owner's two calls:** keep the daily "Your tasks" reminder in the bell, and keep ORI digests
+in the bell — so both were re-filed, not removed.
+
+### Bell — panel-closes bug, portal single list, recurring supersede (2026-08-03)
+
+**Bug: clicking anything in the panel closed it.** The panel is `createPortal`'d to
+`<body>`, so it is NOT inside the trigger's `ref`. The outside-click handler tested only
+`ref.current.contains(target)` on `mousedown`, so every click INSIDE the panel read as
+outside. Pre-dated the rebuild (the old collapsible section headers had it too) — it only
+became obvious once tabs existed, because rows navigate away anyway. Fix: a second
+`panelRef` on the dialog; the handler now checks both.
+
+**Lanes are command-centre only.** Owner: "activity isn't needed for directors, managers or
+staff". Measured first — Activity would hold **94% of a staff bell** (355 of 453 rows are the
+daily reminder), 93% for managers/directors, 69% for admin. So hiding it behind a tab would
+bury their work, not tidy it. Portals now render ONE plain list (`lanes` prop, default off);
+`top-pill.tsx` passes `lanes`, the portal layout doesn't. Surface-based, not capability-based
+— the owner asked about permissions but didn't ask for a switch; easy to add later.
+
+**Recurring items supersede instead of piling up** (owner: "everyday its new and the previous
+ones gone"). `isRecurring`/`recurringKey` in `notification-view.ts` (ORI digest = actor ORI +
+no task; daily reminder = chat + title starts "Your tasks"). `createNotification` DELETES
+prior rows with the same recipient+title before inserting, so today's replaces yesterday's.
+`purgeSupersededRecurring()` (nightly, morning-run) keeps only the newest per recipient+key —
+clears the backlog that built up before this existed and self-heals any slip. Chunked deletes
+(200/batch) so a large backlog can't blow the REST URL length.
+
+**Verified live (Pulin's portal):** no tabs; **10 rows, down from 75**. Expanding a collapsed
+group ("Show all 22") no longer closes the panel — mousedown and click both survive. tsc
+clean, 292 tests pass. **NOT verified:** the admin two-lane UI — the portal session takes
+precedence in the preview browser, so `/` redirects to `/portal/board`; the lane code is the
+same component and type-checks, but he should eyeball the command-centre bell. NOT pushed.
+
+### Notification backlog swept (2026-08-03) — DESTRUCTIVE, done with owner's yes
+
+`npm run db:backup` taken first (backups/2026-08-03T07-38-16Z, 97 tables / 21,114 rows), per
+the CLAUDE.md rule for bulk DB changes. Dry run before applying.
+
+Rule applied = the same one in `notification-view.ts`: recurring (ORI digest = actor ORI + no
+task_code; daily reminder = kind chat + title starts "Your tasks"), keep the NEWEST per
+recipient+title. **1,110 → 304 rows: 806 redundant copies deleted, 41 recurring groups kept,
+263 non-recurring rows untouched.** Worst piles: person:13 (Pulin) −99, person:2 −99,
+person:71 −59, admin −51.
+
+Pulin verified after: **113 rows → 14**, 9 distinct titles, "has been quiet" down from 71
+copies to 4 (one per person).
+
+**STILL WRONG, flagged to owner, NOT yet built:** directors receive the quiet-staff nudge as
+ONE ROW PER PERSON, while admin gets it correctly aggregated ("11 staff quiet with open
+work"). The sweep can't fix that — it's per-person at the point ORI writes it, in
+`src/app/api/cron/ori-automations/route.ts`. Advice given: aggregate it for directors too,
+and probably drop it from the director BELL altogether (it's oversight, not a request
+addressed to them — their board already carries a nudge banner). Also noted: two rows whose
+entire title is a person's name ("Mr Shivam Parmar", "Admin Shivam") are chat messages and
+should read "Shivam messaged you".
+
+### Quiet-staff nudge aggregated for managers/directors (2026-08-03)
+
+`checkQuietStaff` in `src/app/api/cron/ori-automations/route.ts` sent ONE notification PER
+QUIET PERSON to each manager — a director woke to four near-identical rows ("Mr Yash Chavda
+has been quiet", "Mr Ashit Shah has been quiet"…) every day, while the OWNER already got a
+single roll-up. Now managers get the same single roll-up: lines are collected into a
+`managerLines` map and one notification is emitted per manager after the loop.
+
+**Title must stay count-stable for the supersede to work.** "4 staff quiet with open work"
+today vs "3 staff…" tomorrow are different strings, so an exact-title supersede would let
+every day's variant survive (that is exactly why admin had "11 staff…", "6 staff…" and
+"8 staff…" all coexisting). So `recurringKey` now STRIPS a leading count, and a new
+`recurringTitleMatch` returns `{op:"like", value:"%staff quiet with open work"}` for those;
+`createNotification` uses `.like()` instead of `.eq()` when the op is "like". Wording is
+deliberately "N staff" for both singular and plural so the stem never changes. 5 new tests.
+
+**Chat titles: NO change needed** — investigated and the concern was unfounded. A DM's title
+is the bare sender name ("Mr Shivam Parmar"), but the bell's `notifSubject` promotes the BODY
+to the headline, so it already renders "Hello" / "Shivam messaged · 2d". The bare name is only
+the phone-push title, which is the correct WhatsApp-style convention there.
+
+**One-off cleanup:** deleted 13 old-format "X has been quiet" rows (9 of them unread) across 6
+recipients — they can't be superseded by the new aggregate (different title stem) and the
+signal regenerates daily. Pulin: 14 → 10 rows.
+
+`.next` had to be cleared to get a clean tsc: `.next/dev/types/routes.d.ts` was genuinely
+truncated (`api/portal/ori/ask": {}` — missing its opening quote), which produced ~10 phantom
+errors in an otherwise clean codebase. Stop the dev server, `rm -rf .next`, restart. tsc clean,
+**297 tests pass**. NOT pushed.

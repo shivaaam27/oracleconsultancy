@@ -7,44 +7,34 @@ import {
   AtSign,
   Bell,
   CalendarClock,
+  Check,
+  CheckCheck,
   ChevronDown,
   CornerUpLeft,
   Megaphone,
   MessageCircle,
   MessageSquarePlus,
   Pin,
+  RefreshCw,
+  Sparkles,
   Trash2,
   UserPlus,
+  X,
 } from "lucide-react";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { useAnchored } from "@/lib/use-anchored";
+import {
+  groupNotifications,
+  isDailyReminder,
+  isSystemDigest,
+  notifBucket,
+  notifLane,
+  notifSubject,
+  type NotifGroup,
+  type NotifRow,
+} from "@/lib/notification-view";
 
-type NotifKind =
-  | "mention"
-  | "reply"
-  | "pinned"
-  | "assigned"
-  | "update"
-  | "chat"
-  | "chat_mention"
-  | "leave"
-  | "announcement"
-  | "meeting";
-
-type Notif = {
-  id: number;
-  kind: NotifKind;
-  taskCode: string | null;
-  threadId: number | null;
-  requestId: number | null;
-  title: string;
-  body: string | null;
-  actor: string | null;
-  createdAt: string;
-  readAt: string | null;
-};
-
-const ICON: Record<NotifKind, typeof Bell> = {
+const ICON: Record<string, typeof Bell> = {
   mention: AtSign,
   reply: CornerUpLeft,
   pinned: Pin,
@@ -57,23 +47,13 @@ const ICON: Record<NotifKind, typeof Bell> = {
   meeting: CalendarClock,
 };
 
-/** Notifications are grouped into a few human categories (iPhone-style stacks).
- *  Order here is the display order. */
-const CATEGORIES: { key: string; label: string; kinds: NotifKind[]; icon: typeof Bell }[] = [
-  { key: "messages", label: "Messages", kinds: ["chat", "chat_mention", "mention", "reply"], icon: MessageCircle },
-  { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned", "update"], icon: UserPlus },
-  { key: "leave", label: "Leave", kinds: ["leave"], icon: CalendarClock },
-  { key: "meetings", label: "Meetings", kinds: ["meeting"], icon: CalendarClock },
-  { key: "announcements", label: "Announcements", kinds: ["announcement"], icon: Megaphone },
-];
-
-function categoryOf(kind: NotifKind): string {
-  return CATEGORIES.find((c) => c.kinds.includes(kind))?.key ?? "messages";
+function iconFor(n: NotifRow): typeof Bell {
+  if (isSystemDigest(n)) return Sparkles;
+  if (isDailyReminder(n)) return RefreshCw;
+  return ICON[n.kind] ?? Bell;
 }
 
-/** Reflect the unread count onto the installed-app (home-screen) icon badge.
- *  Works on Android (Chrome), desktop PWAs, and iOS 16.4+ when installed to the
- *  Home Screen; a silent no-op everywhere else. */
+/** Reflect the unread count onto the installed-app (home-screen) icon badge. */
 function setAppBadge(n: number) {
   try {
     const nav = navigator as Navigator & {
@@ -87,46 +67,46 @@ function setAppBadge(n: number) {
   }
 }
 
-function ago(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
+type Lane = "needs-you" | "activity";
 
-/** The notifications bell — keeps the count in near real-time (poll + tab focus
- *  + a service-worker ping when a push lands), opens a grouped list, and lets
- *  you clear items (swipe on mobile, hover ✕ on desktop) or clear all. Used in
- *  both pills; `to` is the base path for task links. */
+/**
+ * The notifications bell. Rebuilt (Aug 2026) around two lanes rather than five
+ * mostly-empty categories, with the task name leading each row instead of the
+ * boilerplate sentence. Filing, hierarchy and repeat-collapsing all live in the
+ * pure `lib/notification-view` module, which is unit-tested.
+ */
 export function NotificationBell({
   to,
   align = "right",
+  lanes: showLanes = false,
 }: {
   to: "/portal/task" | "/task";
-  /** Which edge the desktop dropdown anchors to (the bell now lives at the top
-   *  of the page: top-left in the portal header → "left", top-right floating on
-   *  the admin side → "right"). */
   align?: "left" | "right";
+  /** Split into "Needs you" / "Activity". Command centre only — for portal
+   *  users 90%+ of rows are activity, so tabs just hide their work behind a
+   *  click. They get one plain list instead. */
+  lanes?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
-  const [items, setItems] = useState<Notif[]>([]);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [items, setItems] = useState<NotifRow[]>([]);
+  const [lane, setLane] = useState<Lane>("needs-you");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const ref = useRef<HTMLDivElement>(null);
-  // Viewport-aware placement: the panel is portalled to <body> as a fixed box so
-  // it never clips below the screen (it flips ABOVE the bell when room is tight —
-  // crucial for the admin bottom pill, where downward = off-screen).
-  const anchor = useAnchored(ref, open, 420);
+  // The panel is PORTALLED to <body>, so it isn't inside `ref`. Without its own
+  // ref, the outside-click handler treated every click in the panel — tabs,
+  // "Mark all read", expanding a group — as an outside click and shut it.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const anchor = useAnchored(ref, open, 460);
 
   async function refresh() {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
       if (!res.ok) return;
-      const data = (await res.json()) as { count: number; items: Notif[] };
+      const data = (await res.json()) as { count: number; items: NotifRow[] };
       setCount(data.count);
       setItems(data.items);
       setAppBadge(data.count);
@@ -135,12 +115,8 @@ export function NotificationBell({
     }
   }
 
-  // Near real-time: poll while visible, refresh on focus/visibility regain, and
-  // refresh immediately when the service worker reports an incoming push.
   useEffect(() => {
     refresh();
-    // 60s (was 15s): pushes + the focus/visibility handlers below carry the
-    // real-time feel, so a fast poll only burned server CPU on idle tabs.
     const id = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
     }, 60000);
@@ -160,11 +136,13 @@ export function NotificationBell({
     };
   }, []);
 
-  // Close on outside click.
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      const insideTrigger = ref.current?.contains(t);
+      const insidePanel = panelRef.current?.contains(t);
+      if (!insideTrigger && !insidePanel) setOpen(false);
     };
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDoc);
@@ -175,21 +153,55 @@ export function NotificationBell({
     };
   }, [open]);
 
-  async function toggle() {
+  const lanes = useMemo(() => {
+    const needs = items.filter((n) => notifLane(n) === "needs-you");
+    const activity = items.filter((n) => notifLane(n) === "activity");
+    return {
+      "needs-you": groupNotifications(needs),
+      activity: groupNotifications(activity),
+      all: groupNotifications(items),
+      needsUnread: needs.filter((n) => !n.readAt).length,
+      activityUnread: activity.filter((n) => !n.readAt).length,
+    };
+  }, [items]);
+
+  // Open on whichever lane actually wants attention.
+  function toggle() {
     const next = !open;
+    if (next && showLanes) {
+      setLane(lanes.needsUnread > 0 || lanes["needs-you"].length > 0 ? "needs-you" : "activity");
+    }
     setOpen(next);
-    if (next && count > 0) {
-      setCount(0);
-      setAppBadge(0);
-      try {
-        await fetch("/api/notifications?action=read", { method: "POST" });
-      } catch {
-        /* best effort */
-      }
+  }
+
+  /** Mark just this group read — glancing at the panel no longer clears everything. */
+  async function markGroupRead(g: NotifGroup) {
+    const ids = g.items.filter((n) => !n.readAt).map((n) => n.id);
+    if (ids.length === 0) return;
+    const stamp = new Date().toISOString();
+    setItems((prev) => prev.map((n) => (ids.includes(n.id) ? { ...n, readAt: stamp } : n)));
+    setCount((c) => Math.max(0, c - ids.length));
+    setAppBadge(Math.max(0, count - ids.length));
+    try {
+      await fetch(`/api/notifications?action=read&ids=${ids.join(",")}`, { method: "POST" });
+    } catch {
+      /* best effort */
     }
   }
 
-  function navigateTo(n: Notif) {
+  async function markAllRead() {
+    const stamp = new Date().toISOString();
+    setItems((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: stamp })));
+    setCount(0);
+    setAppBadge(0);
+    try {
+      await fetch("/api/notifications?action=read", { method: "POST" });
+    } catch {
+      /* best effort */
+    }
+  }
+
+  function navigateTo(n: NotifRow) {
     setOpen(false);
     if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
       const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
@@ -197,8 +209,6 @@ export function NotificationBell({
     } else if (n.kind === "meeting") {
       router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {
-      // On the admin side, open the task in place via the `?task=CODE` drawer
-      // rather than the `/task/[code]` redirect stub. The portal keeps its page.
       if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
         const params = new URLSearchParams(searchParams?.toString() ?? "");
         params.set("task", n.taskCode);
@@ -210,10 +220,18 @@ export function NotificationBell({
     }
   }
 
-  async function dismiss(id: number) {
-    setItems((prev) => prev.filter((n) => n.id !== id));
+  async function openGroup(g: NotifGroup) {
+    await markGroupRead(g);
+    navigateTo(g.lead);
+  }
+
+  async function dismissGroup(g: NotifGroup) {
+    const ids = g.items.map((n) => n.id);
+    setItems((prev) => prev.filter((n) => !ids.includes(n.id)));
     try {
-      await fetch(`/api/notifications?action=dismiss&id=${id}`, { method: "POST" });
+      await Promise.all(
+        ids.map((id) => fetch(`/api/notifications?action=dismiss&id=${id}`, { method: "POST" }))
+      );
     } catch {
       /* best effort */
     }
@@ -222,6 +240,7 @@ export function NotificationBell({
   async function clearAll() {
     setItems([]);
     setCount(0);
+    setAppBadge(0);
     try {
       await fetch("/api/notifications?action=clear", { method: "POST" });
     } catch {
@@ -229,25 +248,13 @@ export function NotificationBell({
     }
   }
 
-  // Group items into the categories that actually have content, preserving order.
-  const groups = useMemo(() => {
-    return CATEGORIES.map((c) => ({
-      ...c,
-      items: items.filter((n) => categoryOf(n.kind) === c.key),
-    })).filter((g) => g.items.length > 0);
-  }, [items]);
-
-  // Turn the anchor box into a fixed-position style: align the panel's left/right
-  // edge to the matching trigger edge (clamped into the viewport), and anchor by
-  // `top` when opening down or `bottom` when flipping up.
   const anchorStyle: React.CSSProperties = (() => {
     if (!anchor) return { top: "-9999px", left: "-9999px" };
     const GAP = 8;
     const margin = 12;
     const vw = typeof window !== "undefined" ? window.innerWidth : 0;
     const vh = typeof window !== "undefined" ? window.innerHeight : 0;
-    const panelW = Math.min(336, vw - margin * 2); // 21rem, capped to the viewport
-    // Anchor the chosen edge to the bell, then clamp so the panel stays on-screen.
+    const panelW = Math.min(360, vw - margin * 2);
     let left = align === "left" ? anchor.left : anchor.left + anchor.width - panelW;
     left = Math.max(margin, Math.min(left, vw - panelW - margin));
     const style: React.CSSProperties = { left };
@@ -255,6 +262,10 @@ export function NotificationBell({
     else style.top = anchor.top + GAP;
     return style;
   })();
+
+  // Portals get one plain list; only the command centre splits into lanes.
+  const groups = showLanes ? lanes[lane] : lanes.all;
+  const laneUnread = showLanes ? (lane === "needs-you" ? lanes.needsUnread : lanes.activityUnread) : count;
 
   return (
     <div ref={ref} className="relative">
@@ -276,7 +287,6 @@ export function NotificationBell({
       {open &&
         createPortal(
           <>
-            {/* Scrim — tap-to-close target; also dims behind the floating panel. */}
             <button
               type="button"
               aria-label="Close notifications"
@@ -284,75 +294,107 @@ export function NotificationBell({
               className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-[1px]"
             />
             <div
+              ref={panelRef}
               role="dialog"
               aria-label="Notifications"
               style={anchorStyle}
-              className={
-                // Portalled, viewport-aware fixed box (never clips below the screen;
-                // flips above the bell when there isn't room below — see useAnchored).
-                "fixed w-[21rem] max-w-[calc(100vw-1.5rem)] " +
-                // glass-menu = firmer (less see-through) fill than chrome glass.
-                "rounded-3xl glass-menu elevated ring-1 ring-border shadow-pill overflow-hidden z-[60]"
-              }
+              className="fixed w-[22.5rem] max-w-[calc(100vw-1.5rem)] rounded-3xl glass-menu elevated ring-1 ring-border shadow-pill overflow-hidden z-[60]"
             >
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">Notifications</span>
-              {items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
-                >
-                  <Trash2 size={12} /> Clear all
-                </button>
-              )}
-            </div>
-
-            <div
-              className="overflow-y-auto overscroll-contain"
-              style={{ maxHeight: anchor ? Math.max(160, anchor.maxHeight - 44) : undefined }}
-            >
-              {groups.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                  <span className="h-10 w-10 rounded-full bg-bg-muted flex items-center justify-center text-fg-subtle">
-                    <Bell size={18} />
-                  </span>
-                  <p className="text-sm text-fg-muted">You&apos;re all caught up.</p>
+              <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                <span className="text-sm font-medium">Notifications</span>
+                <div className="flex items-center gap-1">
+                  {laneUnread > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-accent-soft/60 transition-colors"
+                    >
+                      <CheckCheck size={12} /> Mark all read
+                    </button>
+                  )}
+                  {items.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      aria-label="Clear all notifications"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-full text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </div>
-              ) : (
-                groups.map((g) => {
-                  const isCollapsed = collapsed[g.key];
-                  const unread = g.items.filter((n) => !n.readAt).length;
-                  return (
-                    <section key={g.key}>
-                      <button
-                        type="button"
-                        onClick={() => setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))}
-                        className="sticky top-0 z-10 flex w-full items-center gap-2 bg-bg-subtle/80 backdrop-blur px-4 py-1.5 text-left border-b border-border/60"
-                      >
-                        <g.icon size={12} className="text-fg-subtle shrink-0" />
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">
-                          {g.label}
-                        </span>
-                        {unread > 0 && (
-                          <span className="rounded-full bg-accent-soft text-accent text-[10px] font-semibold px-1.5 leading-[16px]">
-                            {unread}
-                          </span>
-                        )}
-                        <ChevronDown
-                          size={14}
-                          className={`ml-auto text-fg-subtle transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
-                        />
-                      </button>
-                      {!isCollapsed &&
-                        g.items.map((n) => (
-                          <NotifRow key={n.id} n={n} onOpen={() => navigateTo(n)} onDismiss={() => dismiss(n.id)} />
-                        ))}
-                    </section>
-                  );
-                })
+              </div>
+
+              {/* Two lanes: what wants something from you, and what's just news. */}
+              {showLanes && (
+              <div className="flex gap-1.5 px-4 pb-2.5">
+                {(
+                  [
+                    ["needs-you", "Needs you", lanes["needs-you"].length, lanes.needsUnread],
+                    ["activity", "Activity", lanes.activity.length, lanes.activityUnread],
+                  ] as const
+                ).map(([key, label, total, unread]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLane(key)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      lane === key ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-bg-muted/70 hover:text-fg"
+                    }`}
+                  >
+                    {label}
+                    {(unread || total) > 0 && (
+                      <span className={`tabular ${lane === key ? "opacity-80" : "text-fg-subtle"}`}>
+                        {unread > 0 ? unread : total}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
               )}
-            </div>
+
+              <div
+                className={`overflow-y-auto overscroll-contain border-t border-border/70 ${showLanes ? "" : "mt-1"}`}
+                style={{ maxHeight: anchor ? Math.max(180, anchor.maxHeight - 96) : undefined }}
+              >
+                {groups.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                    <span className="h-10 w-10 rounded-full bg-bg-muted flex items-center justify-center text-fg-subtle">
+                      <Check size={18} />
+                    </span>
+                    <p className="text-sm text-fg-muted">
+                      {!showLanes ? "You're all caught up." : lane === "needs-you" ? "Nothing needs you." : "No recent activity."}
+                    </p>
+                  </div>
+                ) : (
+                  groups.map((g, i) => {
+                    const bucket = notifBucket(g.lead.createdAt);
+                    const prevBucket = i > 0 ? notifBucket(groups[i - 1].lead.createdAt) : null;
+                    return (
+                      <div key={g.key}>
+                        {bucket !== prevBucket && (
+                          <div className="px-4 pt-2.5 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+                            {bucket}
+                          </div>
+                        )}
+                        <NotifGroupRow
+                          g={g}
+                          expanded={!!expanded[g.key]}
+                          onToggleExpand={() => setExpanded((e) => ({ ...e, [g.key]: !e[g.key] }))}
+                          onOpen={() => openGroup(g)}
+                          onDismiss={() => dismissGroup(g)}
+                        />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {items.length > 0 && (
+                <div className="border-t border-border/70 px-4 py-2 text-center text-[11px] text-fg-subtle">
+                  Read notifications clear themselves after 14 days
+                </div>
+              )}
             </div>
           </>,
           document.body
@@ -361,20 +403,28 @@ export function NotificationBell({
   );
 }
 
-/** One notification row. On mobile it swipes left to reveal a red Clear action
- *  (iPhone-style); on desktop a ✕ appears on hover. */
-function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDismiss: () => void }) {
+/** One row — a single notification, or a collapsed burst of identical ones. */
+function NotifGroupRow({
+  g,
+  expanded,
+  onToggleExpand,
+  onOpen,
+  onDismiss,
+}: {
+  g: NotifGroup;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
   const CLEAR_W = 76;
   const { offset, dragging, bind, reset } = useSwipeRow({ rightWidth: CLEAR_W });
-  const Icon = ICON[n.kind] ?? Bell;
-
-  // Rows rest at translate 0 (no half-open peek). The Clear action is revealed
-  // only by an actual finger swipe; desktop keeps its hover-✕ instead.
-  const tx = offset;
+  const Icon = iconFor(g.lead);
+  const { headline, meta } = notifSubject(g.lead);
+  const unread = g.unread > 0;
 
   return (
     <div className="relative overflow-hidden border-b border-border/50 last:border-b-0">
-      {/* Revealed action behind the row */}
       <button
         type="button"
         aria-label="Clear notification"
@@ -386,52 +436,72 @@ function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDi
         Clear
       </button>
 
-      <button
-        type="button"
-        {...bind}
-        onClick={() => {
-          if (offset !== 0) {
-            reset();
-            return;
-          }
-          onOpen();
-        }}
-        style={{ transform: `translateX(${tx}px)`, transition: dragging ? "none" : "transform .2s ease" }}
-        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left transition-colors group hover:bg-bg-muted active:bg-bg-muted ${
-          // Unread tint MUST be opaque — a translucent row lets the red "Clear"
-          // action behind it bleed through at rest (it looked half-swiped). Use the
-          // solid accent-soft, and make it the row's only base bg (no class clash).
-          n.readAt ? "bg-[hsl(var(--bg-elev))]" : "bg-accent-soft"
-        }`}
+      <div
+        style={{ transform: `translateX(${offset}px)`, transition: dragging ? "none" : "transform .2s ease" }}
+        className={`relative group ${unread ? "bg-accent-soft" : "bg-[hsl(var(--bg-elev))]"}`}
       >
-        {!n.readAt && (
-          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-        )}
-        <span className="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-          <Icon size={13} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium leading-snug">{n.title}</span>
-          {n.body && <span className="block text-xs text-fg-muted truncate">{n.body}</span>}
-          <span className="block text-[11px] text-fg-subtle mt-0.5">
-            {n.taskCode ? `${n.taskCode} · ` : ""}
-            {ago(n.createdAt)}
-          </span>
-        </span>
-        {/* Desktop hover-to-dismiss */}
-        <span
-          role="button"
-          tabIndex={-1}
-          aria-label="Clear notification"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDismiss();
+        <button
+          type="button"
+          {...bind}
+          onClick={() => {
+            if (offset !== 0) {
+              reset();
+              return;
+            }
+            onOpen();
           }}
-          className="hidden md:flex shrink-0 h-6 w-6 items-center justify-center rounded-full text-fg-subtle opacity-0 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger transition"
+          className="flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-muted/60 active:bg-bg-muted"
         >
-          <Trash2 size={13} />
-        </span>
-      </button>
+          {unread && (
+            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+          )}
+          <span className="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+            <Icon size={13} />
+          </span>
+          <span className="min-w-0 flex-1">
+            {/* The subject leads; who did what is the quiet line beneath. */}
+            <span className="block text-[13px] font-medium leading-snug line-clamp-2">{headline}</span>
+            <span className="block text-[11px] text-fg-muted mt-0.5">
+              {g.count > 1 ? `${g.count} updates · ` : ""}
+              {meta}
+            </span>
+          </span>
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label="Clear notification"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDismiss();
+            }}
+            className="hidden md:flex shrink-0 h-6 w-6 items-center justify-center rounded-full text-fg-subtle opacity-0 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger transition"
+          >
+            <X size={13} />
+          </span>
+        </button>
+
+        {/* A collapsed burst can be opened out rather than hidden entirely. */}
+        {g.count > 1 && (
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex w-full items-center gap-1 px-4 pb-2 pl-[3.4rem] text-[11px] font-medium text-fg-subtle hover:text-fg transition-colors"
+          >
+            <ChevronDown size={12} className={expanded ? "rotate-180 transition-transform" : "transition-transform"} />
+            {expanded ? "Hide" : `Show all ${g.count}`}
+          </button>
+        )}
+        {expanded &&
+          g.items.slice(1).map((n) => {
+            const s = notifSubject(n);
+            return (
+              <div key={n.id} className="px-4 pb-2 pl-[3.4rem] text-[11px] text-fg-muted">
+                <span className="block truncate">{s.headline}</span>
+                <span className="block text-fg-subtle">{s.meta}</span>
+              </div>
+            );
+          })}
+      </div>
     </div>
   );
 }

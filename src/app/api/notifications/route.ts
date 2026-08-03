@@ -5,6 +5,7 @@ import {
   listNotifications,
   unreadCount,
   markAllRead,
+  markRead,
   deleteNotification,
   deleteAllNotifications,
   personRecipient,
@@ -32,7 +33,14 @@ export async function POST(req: NextRequest) {
   if (!recipient) return NextResponse.json({ ok: false }, { status: 401 });
   const action = req.nextUrl.searchParams.get("action");
   if (action === "read") {
-    await markAllRead(recipient);
+    // `ids` marks just what was opened; no ids = the explicit "Mark all read"
+    // button. Opening the panel no longer marks anything.
+    const ids = (req.nextUrl.searchParams.get("ids") ?? "")
+      .split(",")
+      .map((v) => Number(v.trim()))
+      .filter((n) => Number.isFinite(n));
+    if (ids.length) await markRead(recipient, ids);
+    else await markAllRead(recipient);
   } else if (action === "clear") {
     await deleteAllNotifications(recipient);
   } else if (action === "dismiss") {

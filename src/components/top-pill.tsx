@@ -785,7 +785,7 @@ export function TopPill({ overdue = 0 }: { overdue?: number }) {
             corner button on phones. At xl+ the vertical SidePill takes over and the
             bell returns to the top-right (see below). */}
         <div className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12">
-          <NotificationBell to="/task" align="right" />
+          <NotificationBell to="/task" align="right" lanes />
         </div>
 
         {/* The page-action + sits at the end, next to the theme toggle. */}
@@ -801,7 +801,7 @@ export function TopPill({ overdue = 0 }: { overdue?: number }) {
         sits top-right. Below lg it lives in the pill above, so hide it here. */}
     {!chatActive && (
       <div className="hidden lg:block fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
-        <NotificationBell to="/task" align="right" />
+        <NotificationBell to="/task" align="right" lanes />
       </div>
     )}
     {/* When chat hides the pill on mobile, keep a way home. */}
