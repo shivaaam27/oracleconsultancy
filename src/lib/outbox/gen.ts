@@ -74,8 +74,11 @@ function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => stri
       lines.push(`• ${flag}${bold(t.actionItem)} — ${taskMeta(t)}${shared}`);
       if (t.comments && t.comments.trim()) lines.push(`  ${oneLine(t.comments)}`);
       if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`  Latest: ${oneLine(t.latestUpdate)}`);
+      // Breathe between tasks — a task can run to three lines, so back-to-back
+      // items read as one wall. The \n{3,} collapse below keeps this from
+      // doubling up against the company break.
+      lines.push("");
     }
-    lines.push("");
   }
   lines.push("Please update the tracker when you can. Thanks.");
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -118,8 +121,8 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: stri
       const others = t.assignees.filter((a) => a && a !== name);
       const shared = others.length ? ` _(with ${others.join(", ")})_` : "";
       lines.push(`${statusDot(t)} ${t.actionItem} — _${taskMeta(t)}_${shared}`);
+      lines.push(""); // one blank line after each task, not just each company
     }
-    lines.push("");
   }
   lines.push(`📊 ${tasks.length} open${overdueCount ? ` · ${overdueCount} overdue` : ""}`);
   lines.push("Please update your tasks when you can. Thank you.");
@@ -217,8 +220,9 @@ export function buildPortalTaskReminder(name: string, tasks: ReminderTask[], lin
     `Hello ${first}, this is your task reminder - Oracle Consultancy Limited.`,
     "",
   ];
-  for (const t of tasks) lines.push(`${t.companyName} - ${t.actionItem}`);
-  lines.push("");
+  // A blank line after each task — back-to-back lines read as one block in
+  // WhatsApp, which is what the owner was seeing.
+  for (const t of tasks) lines.push(`${t.companyName} - ${t.actionItem}`, "");
   if (from) lines.push(`From ${from}`);
   lines.push(link);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
