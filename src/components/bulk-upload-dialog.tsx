@@ -229,7 +229,7 @@ export function BulkUploadDialog({
                 initialCompanyId={ownerMode === "company" ? Number(companyId) : null}
                 initialPersonId={ownerMode === "person" ? Number(personId) : null}
                 initialCategory={category}
-                initialTitle={fields.title ?? current.name.replace(/\.[^.]+$/, "")}
+                initialTitle={current.name.replace(/\.[^.]+$/, "")}
                 initialFields={fields}
                 submitLabel={index + 1 === files.length ? "Save & finish" : "Save & next"}
                 cancelLabel="Skip this one"

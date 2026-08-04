@@ -19,7 +19,6 @@ import { AI_SMART, providerVisionModels } from "@/lib/ai-models";
 import { getAiKey, getActiveProvider } from "@/lib/settings";
 
 export type ReadFields = {
-  title?: string | null;
   docType?: string | null;
   issuer?: string | null;
   referenceNo?: string | null;
@@ -199,9 +198,11 @@ async function renderPdfPages(base: Buffer, maxPages = MAX_VISION_PAGES): Promis
 const PROMPT = [
   "You are reading ONE business document to fill in a filing form. British English.",
   "",
+  "Do NOT name the document — the owner keeps their own file name. Read what is",
+  "printed on it, nothing more.",
+  "",
   "Return ONLY this JSON object, no prose:",
   "{",
-  '  "title": "a short, human name for this document, e.g. \\"Business Licence 2026\\"",',
   '  "docType": "the kind of document, e.g. \\"Trade Licence\\", \\"Work Permit\\", \\"TIN Certificate\\"",',
   '  "issuer": "the authority or organisation that issued it, e.g. \\"BRELA\\", \\"TRA\\"",',
   '  "referenceNo": "the licence/certificate/permit/registration number printed on it",',
@@ -252,7 +253,6 @@ const isoDate = (v: unknown): string | null => {
 function toFields(data: Record<string, unknown> | null): ReadFields {
   if (!data) return {};
   return {
-    title: str(data.title),
     docType: str(data.docType),
     issuer: str(data.issuer),
     referenceNo: str(data.referenceNo),
