@@ -462,15 +462,18 @@ export function DocumentsTable({
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
       </div>
 
-      {documents.length > 0 && (
-        <div className="flex justify-end -mt-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 -mt-1.5">
+        <button type="button" onClick={() => setBulkOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-accent ring-1 ring-accent/30 transition-colors hover:bg-accent-soft/40">
+          <UploadCloud size={13} /> Add several at once
+        </button>
+        {documents.length > 0 && (
           <button type="button" onClick={() => setDeleteTarget({ scope: { kind: "all" }, label: `ALL ${documents.length} documents` })}
             className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-danger transition-colors">
             <Trash2 size={12} /> Delete all documents
           </button>
-        </div>
-      )}
-
+        )}
+      </div>
       {/* Bulk action bar */}
       {selectMode && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl glass-menu ring-1 ring-border/70 px-3 py-2 text-sm">
@@ -612,9 +615,14 @@ export function DocumentsTable({
           </div>
           <div className="text-sm font-medium">No documents yet</div>
           <div className="text-xs text-fg-muted mt-1 max-w-sm mx-auto">Track licences, contracts, certificates, insurance, leases and visas — with expiry dates and reminders.</div>
-          <Button type="button" onClick={() => setCreateOpen(true)} className="mt-5">
-            <FilePlus size={15} /> Add your first document
-          </Button>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <FilePlus size={15} /> Add your first document
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setBulkOpen(true)}>
+              <UploadCloud size={15} /> Add several at once
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated text-center py-12 text-fg-muted text-sm">
