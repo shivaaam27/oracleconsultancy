@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui";
 import { Segmented } from "@/components/macos";
 import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
+import { uploadDirect } from "@/lib/upload-direct";
 
 type CaptureMode = "upload" | "link";
 type OwnerMode = "company" | "person";
@@ -54,6 +55,7 @@ export function DocumentForm({
   initialTitle,
   initialVendorId,
   initialFile,
+  initialStoragePath,
   initialFields,
   submitLabel,
   cancelLabel,
@@ -72,6 +74,9 @@ export function DocumentForm({
   initialVendorId?: number | null;
   /** A file to attach on mount (used by the bulk-add queue). */
   initialFile?: File;
+  /** The bulk queue has ALREADY uploaded this file to storage — reuse that
+   *  object instead of sending the bytes up a second time. */
+  initialStoragePath?: string;
   /** Values read off the file by the AI, pre-filled for the owner to check.
    *  Suggestions only — nothing is saved until the owner presses save. */
   initialFields?: {
@@ -87,6 +92,7 @@ export function DocumentForm({
   cancelLabel?: string;
 }) {
   const [pending, start] = useTransition();
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,10 +134,23 @@ export function DocumentForm({
     // company OR a person, never both.
     if (owner === "company") fd.set("personId", "");
     else fd.set("companyId", "");
-    if (file) fd.set("file", file);
-    else fd.delete("file");
+    fd.delete("file"); // bytes never travel in the action — see upload-direct.ts
 
     start(async () => {
+      // Put the file in storage FIRST, straight from the browser, then hand the
+      // action only its path. A 20 MB scan is fine; the old way died at 4.5 MB.
+      if (file && !initialStoragePath) {
+        setUploading(true);
+        const up = await uploadDirect(file);
+        setUploading(false);
+        if (!up.ok) { setError(up.error); return; }
+        fd.set("storagePath", up.file.path);
+        fd.set("storageFileName", up.file.fileName);
+      } else if (initialStoragePath && file) {
+        fd.set("storagePath", initialStoragePath);
+        fd.set("storageFileName", file.name);
+      }
+
       const res = mode === "edit" && doc
         ? await updateDocumentAction(doc.id, fd)
         : await createDocumentAction(fd);
@@ -337,7 +356,7 @@ export function DocumentForm({
         )}
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 size={13} className="animate-spin" /> : mode === "create" ? <FilePlus size={13} /> : <Save size={13} />}
-          {pending ? "Saving…" : submitLabel ?? (mode === "create" ? "Add document" : "Save changes")}
+          {uploading ? "Uploading…" : pending ? "Saving…" : submitLabel ?? (mode === "create" ? "Add document" : "Save changes")}
         </Button>
       </div>
     </form>

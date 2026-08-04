@@ -19,6 +19,7 @@ import {
   setDocumentArchived,
   deleteDocumentForever,
   uploadDocumentFile,
+  attachUploadedFile,
   removeDocumentFile,
   signDocumentFile,
   linkDocumentTask,
@@ -32,10 +33,14 @@ type Result = { ok: true; id?: number; code?: string } | { ok: false; error: str
 /* Form parsing                                                        */
 /* ------------------------------------------------------------------ */
 
-// Pull an uploaded file out of the form (if the user picked one).
-function fileFromForm(fd: FormData): File | null {
-  const f = fd.get("file");
-  return f instanceof File && f.size > 0 ? f : null;
+// A file the BROWSER already uploaded straight to storage — the form carries its
+// path, never its bytes. (Vercel caps a serverless request body at 4.5 MB, which
+// used to reject any decent scan before our code ran; see upload-actions.ts.)
+function uploadedFromForm(fd: FormData): { path: string; fileName: string } | null {
+  const path = (fd.get("storagePath") ?? "").toString().trim();
+  if (!path) return null;
+  const fileName = (fd.get("storageFileName") ?? "").toString().trim() || path.split("/").pop() || "file";
+  return { path, fileName };
 }
 
 // "YYYY-MM-DD" → a Date at UTC midnight (all-day, matching task deadline convention).
@@ -98,8 +103,8 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
     const id = await createDocument(parsed);
-    const file = fileFromForm(fd);
-    if (file) await uploadDocumentFile(id, file);
+    const uploaded = uploadedFromForm(fd);
+    if (uploaded) await attachUploadedFile(id, uploaded.path, uploaded.fileName);
     if (parsed.companyId) revalidatePath(`/companies/${parsed.companyId}`);
     revalidateDocs();
     return { ok: true, id };
@@ -113,8 +118,8 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
     await updateDocument(id, parsed);
-    const file = fileFromForm(fd);
-    if (file) await uploadDocumentFile(id, file);
+    const uploaded = uploadedFromForm(fd);
+    if (uploaded) await attachUploadedFile(id, uploaded.path, uploaded.fileName);
     if (parsed.companyId) revalidatePath(`/companies/${parsed.companyId}`);
     revalidateDocs();
     return { ok: true, id };

@@ -206,6 +206,42 @@ export async function uploadDocumentFile(documentId: number, file: File): Promis
   return path;
 }
 
+/**
+ * Point a document at a file the BROWSER already uploaded (see
+ * upload-actions.ts). Moves it out of `uploads/` under the document's own id so
+ * the bucket stays tidy and anything left staged is a cancelled upload; if the
+ * move fails the staged path is kept, because a filed document with a slightly
+ * untidy key beats a lost file. Replaces any file the document had.
+ */
+export async function attachUploadedFile(
+  documentId: number,
+  stagedPath: string,
+  fileName: string
+): Promise<void> {
+  await removeDocumentFile(documentId);
+
+  let finalPath = stagedPath;
+  const leaf = stagedPath.split("/").pop() ?? safeFileName(fileName);
+  const target = `${documentId}/${leaf}`;
+  const { error: moveErr } = await sb.storage.from(DOCUMENTS_BUCKET).move(stagedPath, target);
+  if (!moveErr) finalPath = target;
+
+  const { error } = await sb
+    .from("documents")
+    .update({ storage_path: finalPath, file_name: fileName, updated_at: new Date().toISOString() })
+    .eq("id", documentId);
+  if (error) throw new Error(error.message);
+}
+
+/** Read a stored object back as a File — so the server can pass it to the
+ *  document reader without the bytes ever crossing a request body. */
+export async function downloadStoredFile(path: string, fileName: string, mimeType?: string): Promise<File | null> {
+  const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).download(path);
+  if (error || !data) return null;
+  const buf = Buffer.from(await data.arrayBuffer());
+  return new File([new Uint8Array(buf)], fileName, { type: mimeType || data.type || "application/octet-stream" });
+}
+
 /** Remove the stored file (if any) for a document and clear its columns. */
 export async function removeDocumentFile(documentId: number): Promise<void> {
   const { data } = await sb.from("documents").select("storage_path").eq("id", documentId).maybeSingle();

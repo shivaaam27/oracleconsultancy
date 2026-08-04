@@ -11,6 +11,7 @@ import { Upload, Loader2, FileText } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "./toast";
 import { portalUploadDocument } from "@/app/portal/actions";
+import { uploadDirect } from "@/lib/upload-direct";
 
 export type PortalDocumentItem = {
   id: number;
@@ -37,10 +38,11 @@ export function PortalDocuments({ items }: { items: PortalDocumentItem[] }) {
   function onPick(file: File | null) {
     if (!file) return;
     setBusy(true);
-    const fd = new FormData();
-    fd.set("file", file);
     startTransition(async () => {
-      const res = await portalUploadDocument(fd);
+      // Straight to storage, then hand the server just the path.
+      const up = await uploadDirect(file);
+      if (!up.ok) { setBusy(false); toast(up.error, { tone: "danger" }); return; }
+      const res = await portalUploadDocument({ path: up.file.path, fileName: up.file.fileName });
       setBusy(false);
       if (input.current) input.current.value = "";
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }

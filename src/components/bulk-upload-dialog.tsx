@@ -17,6 +17,8 @@ import { Segmented } from "./macos";
 import { cn } from "@/lib/cn";
 import { DocumentForm } from "./document-form";
 import { readDocumentFileAction } from "@/app/documents/read-actions";
+import { discardUploadAction } from "@/app/documents/upload-actions";
+import { uploadDirect } from "@/lib/upload-direct";
 import { DOC_CATEGORIES, MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
 import type { ReadFields } from "@/lib/doc-read";
 
@@ -53,6 +55,10 @@ export function BulkUploadDialog({
 
   // The current file's read.
   const [reading, setReading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  /** Storage path of the file currently on screen (uploaded before it's read). */
+  const [stagedPath, setStagedPath] = useState<string | null>(null);
+  const [uploadFailed, setUploadFailed] = useState<string | null>(null);
   const [fields, setFields] = useState<ReadFields>({});
   const [readNote, setReadNote] = useState<string | null>(null);
   const [readSource, setReadSource] = useState<"typed" | "scan" | "none">("none");
@@ -62,23 +68,45 @@ export function BulkUploadDialog({
   const ownerReady = ownerMode === "company" ? !!companyId : !!personId;
 
   function reset() {
+    // Closing mid-queue leaves the file on screen staged in `uploads/` — bin it.
+    if (stagedPath) void discardUploadAction(stagedPath);
     setPhase("setup");
     setFiles([]); setIndex(0); setOutcomes({});
     setFields({}); setReadNote(null); setReadSource("none"); setUnsure(false);
+    setStagedPath(null); setUploading(false); setUploadFailed(null);
   }
 
   useEffect(() => { if (!open) reset(); }, [open]);
 
-  /** Read the file at `i` and fill the form. Never throws. */
+  /**
+   * Upload the file at `i` straight to storage, then have the server read it
+   * from there. Two steps on purpose: the bytes never cross a serverless
+   * request body, so a big scan works. Never throws — a failed READ still
+   * leaves the file uploaded and saveable, which is the important part.
+   */
   const readAt = useCallback(async (i: number, list: File[]) => {
     const file = list[i];
     if (!file) return;
+    setFields({}); setReadNote(null); setUnsure(false); setStagedPath(null); setUploadFailed(null);
+
+    setUploading(true);
+    const up = await uploadDirect(file);
+    setUploading(false);
+    if (!up.ok) {
+      // The file never reached storage, so there is nothing to save. Show the
+      // error instead of a form that would file an empty document.
+      setUploadFailed(up.error);
+      return;
+    }
+    setStagedPath(up.file.path);
+
     setReading(true);
-    setFields({}); setReadNote(null); setUnsure(false);
     try {
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await readDocumentFileAction(fd);
+      const res = await readDocumentFileAction({
+        path: up.file.path,
+        fileName: up.file.fileName,
+        mimeType: up.file.mimeType,
+      });
       setFields(res.ok ? res.fields : {});
       setReadSource(res.source);
       setUnsure(res.ok && res.confidence != null && res.confidence < 0.75);
@@ -107,6 +135,9 @@ export function BulkUploadDialog({
   }
 
   function advance(outcome: Outcome) {
+    // A skipped/failed file leaves an orphan in `uploads/` — bin it.
+    if (outcome !== "saved" && stagedPath) void discardUploadAction(stagedPath);
+    setStagedPath(null);
     setOutcomes((o) => ({ ...o, [index]: outcome }));
     const next = index + 1;
     if (next >= files.length) { setPhase("summary"); return; }
@@ -199,11 +230,22 @@ export function BulkUploadDialog({
             <span className="shrink-0 text-fg-subtle">→ {ownerLabel} · {category}</span>
           </div>
 
-          {reading ? (
+          {uploading || reading ? (
             <div className="flex flex-col items-center gap-2 py-12 text-sm text-fg-muted">
               <Loader2 size={20} className="animate-spin text-accent" />
-              Reading this document…
-              <span className="text-xs text-fg-subtle">A scan takes a little longer than a typed file.</span>
+              {uploading ? "Uploading…" : "Reading this document…"}
+              <span className="text-xs text-fg-subtle">
+                {uploading ? "Large scans take a moment to send." : "A scan takes a little longer than a typed file."}
+              </span>
+            </div>
+          ) : uploadFailed ? (
+            <div className="space-y-3 py-8 text-center">
+              <AlertTriangle size={20} className="mx-auto text-danger" />
+              <p className="text-sm text-danger">{uploadFailed}</p>
+              <p className="text-xs text-fg-muted">This file wasn&apos;t uploaded, so there is nothing to save.</p>
+              <Button type="button" variant="ghost" onClick={() => advance("failed")}>
+                Skip and carry on
+              </Button>
             </div>
           ) : (
             <>
@@ -226,6 +268,7 @@ export function BulkUploadDialog({
                 companies={companies}
                 people={people}
                 initialFile={current}
+                initialStoragePath={stagedPath ?? undefined}
                 initialCompanyId={ownerMode === "company" ? Number(companyId) : null}
                 initialPersonId={ownerMode === "person" ? Number(personId) : null}
                 initialCategory={category}

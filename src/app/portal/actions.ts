@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
-import { createDocument, uploadDocumentFile } from "@/lib/documents";
+import { createDocument, attachUploadedFile } from "@/lib/documents";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction, sendEventInviteAction, ensureEventMeetLink } from "@/app/calendar/actions";
@@ -2181,32 +2181,30 @@ export async function portalCompleteTask(
  * "received"; verification stays with the administrator. We re-verify the
  * requirement belongs to the signed-in person — never trust the form.
  * ---------------------------------------------------------------------- */
-const MAX_PORTAL_DOC_BYTES = 20 * 1024 * 1024; // 20 MB (matches the admin upload)
 
 export async function portalUploadDocument(
-  formData: FormData
+  input: { path: string; fileName: string }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  const fileEntry = formData.get("file");
-  const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
-  if (!file) return { ok: false, error: "Choose a file to upload." };
-  if (file.size > MAX_PORTAL_DOC_BYTES) return { ok: false, error: "That file is too large (max 20 MB)." };
+  const { path, fileName } = input;
+  if (!path) return { ok: false, error: "Choose a file to upload." };
 
-  // Filed against the person under its own file name. Nothing is read, typed or
-  // classified here — the administrator gives it a proper title and category on
-  // /documents. (This used to run the AI intake; that layer was removed.)
+  // The browser already put the file in storage (see lib/upload-direct.ts), so a
+  // big scan from a phone works — sending the bytes through this action capped
+  // staff at Vercel's 4.5 MB request-body limit. Filed against the person under
+  // its own file name; the administrator titles and categorises it on /documents.
   try {
     const docId = await createDocument(
       {
-        title: file.name,
+        title: fileName.replace(/\.[^.]+$/, ""),
         personId: me.id,
         notes: `Uploaded by ${me.name} via the staff portal.`,
       },
       `portal:${me.name}`
     );
-    await uploadDocumentFile(docId, file);
+    await attachUploadedFile(docId, path, fileName);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not upload the document." };
   }

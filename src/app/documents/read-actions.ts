@@ -2,26 +2,41 @@
 
 // The one door from the browser to the document reader.
 //
-// It reads and returns. It writes nothing — the fields come back to the form and
-// the owner presses save. See src/lib/doc-read.ts for why that separation matters.
+// It takes a STORAGE PATH, not the file's bytes. The browser has already put the
+// file in the bucket (upload-actions.ts), so a 30 MB scan reads fine — nothing
+// large travels through a serverless request body. It reads and returns; it
+// writes nothing. See src/lib/doc-read.ts for why that separation matters.
 
 import { readDocumentFile } from "@/lib/doc-read";
+import { downloadStoredFile } from "@/lib/documents";
 import { recordEvent } from "@/lib/system-events";
 import type { ReadResult } from "@/lib/doc-read";
 
-export async function readDocumentFileAction(fd: FormData): Promise<ReadResult> {
-  const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) {
+export async function readDocumentFileAction(input: {
+  path: string;
+  fileName: string;
+  mimeType?: string;
+}): Promise<ReadResult> {
+  const { path, fileName, mimeType } = input;
+  if (!path) {
     return { ok: false, fields: {}, source: "none", confidence: null, note: "No file provided." };
   }
 
-  const result = await readDocumentFile(file);
+  let result: ReadResult;
+  const file = await downloadStoredFile(path, fileName, mimeType);
+  if (!file) {
+    result = {
+      ok: false, fields: {}, source: "none", confidence: null,
+      note: "Couldn't fetch the uploaded file to read it. It's still saved — fill the details in yourself.",
+    };
+  } else {
+    result = await readDocumentFile(file);
+  }
 
   // One line per read, so "why did this come back blank" is answerable later.
-  // Telemetry never blocks the read.
   try {
     await recordEvent("doc-read", result.ok ? "ok" : "error", {
-      file: file.name,
+      file: fileName,
       source: result.source,
       confidence: result.confidence,
       note: result.note ?? null,
