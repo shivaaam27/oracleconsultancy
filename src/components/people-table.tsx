@@ -55,21 +55,16 @@ function daysUntilProbation(p: PersonRow, now: Date): number {
   return Math.ceil((p.probationEndDate.getTime() - now.getTime()) / 86400000);
 }
 
-type Compliance = { score: number; status: "Good" | "Watch" | "Risk" };
 type AttnReason = { text: string; tone: "red" | "amb" };
 
 /**
  * Worst-first score for the Attention ritual — the same deterministic-score
  * idea the Tasks Focus queue uses, pointed at people-hygiene. Higher = needier.
  */
-function attentionScore(p: PersonRow, comp: Compliance | null, now: Date): { score: number; reasons: AttnReason[] } {
+function attentionScore(p: PersonRow, now: Date): { score: number; reasons: AttnReason[] } {
   const reasons: AttnReason[] = [];
   let score = 0;
   if (!p.hasContact) { score += 3; reasons.push({ text: "No contact info", tone: "red" }); }
-  if (comp) {
-    if (comp.status === "Risk") { score += 3; reasons.push({ text: `Compliance ${comp.score}% — at risk`, tone: "red" }); }
-    else if (comp.status === "Watch") { score += 1; reasons.push({ text: `Compliance ${comp.score}%`, tone: "amb" }); }
-  }
   if (probationEndingSoon(p, now)) {
     const d = daysUntilProbation(p, now);
     score += 2; reasons.push({ text: `Probation ends in ${d}d`, tone: "amb" });
@@ -79,10 +74,9 @@ function attentionScore(p: PersonRow, comp: Compliance | null, now: Date): { sco
   return { score, reasons };
 }
 
-export function PeopleTable({ people, companies, complianceById, directoryHints, createSlot, totalCompanies, totalSites }: {
+export function PeopleTable({ people, companies, directoryHints, createSlot, totalCompanies, totalSites }: {
   people: PersonRow[];
   companies: Array<{ id: number; name: string; accentColor?: string | null; logoUrl?: string | null }>;
-  complianceById?: Record<number, Compliance>;
   directoryHints?: Record<number, { onLeave: boolean; present: number; absent: number }>;
   /** Create actions (New person / blank form) — rendered above the search, per CC rules. */
   createSlot?: React.ReactNode;
@@ -283,10 +277,10 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
     const now = new Date();
     return scoped
       .filter((p) => p.active && !skipped.has(p.id))
-      .map((p) => ({ p, ...attentionScore(p, complianceById?.[p.id] ?? null, now) }))
+      .map((p) => ({ p, ...attentionScore(p, now) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name));
-  }, [scoped, complianceById, skipped]);
+  }, [scoped, skipped]);
 
   const siteOptions = useMemo(() => {
     const s = new Set<string>();
@@ -333,11 +327,8 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
 
   const stats = useMemo(() => {
     const active = people.filter((p) => p.active);
-    const scores = active.map((p) => complianceById?.[p.id]).filter(Boolean) as Compliance[];
-    const avg = scores.length ? Math.round(scores.reduce((s, x) => s + x.score, 0) / scores.length) : null;
-    const needsAttention = scores.filter((x) => x.status !== "Good").length;
-    return { active: active.length, portal: counts.portal, avg, needsAttention };
-  }, [people, complianceById, counts.portal]);
+    return { active: active.length, portal: counts.portal };
+  }, [people, counts.portal]);
 
   // Group the filtered rows into housings (Browse mode).
   const groups = useMemo(() => {
@@ -450,14 +441,6 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
           <span><b className="font-semibold text-fg tabular">{stats.active}</b> active</span>
           <span aria-hidden className="text-border">·</span>
           <span className="text-info"><b className="font-semibold tabular">{stats.portal}</b> portal</span>
-          <span aria-hidden className="text-border">·</span>
-          <span className={stats.avg == null ? "" : stats.avg < 70 ? "text-warn" : "text-success"}>
-            <b className="font-semibold tabular">{stats.avg == null ? "—" : `${stats.avg}%`}</b> compliance
-          </span>
-          <span aria-hidden className="text-border">·</span>
-          <span className={stats.needsAttention > 0 ? "text-warn" : ""}>
-            <b className="font-semibold tabular">{stats.needsAttention}</b> need{stats.needsAttention === 1 ? "s" : ""} attention
-          </span>
         </div>
       </section>
 
@@ -570,7 +553,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
         attention.length > 0 ? (
           <div className="flex flex-col gap-2.5">
             <p className="text-xs text-fg-subtle px-1">
-              Worst-first by hygiene — no contact, compliance risk, probation ending, overdue load. Clear or skip each one.
+              Worst-first by hygiene — no contact, probation ending, overdue load. Clear or skip each one.
               {skipped.size > 0 && <button type="button" onClick={() => setSkipped(new Set())} className="ml-2 text-accent hover:underline">Reset {skipped.size} skipped</button>}
             </p>
             {attention.map(({ p, reasons }) => (
@@ -588,7 +571,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
         ) : (
           <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated text-center py-12 text-fg-muted text-sm">
             <Check size={22} className="mx-auto mb-2 text-success" />
-            Nothing needs attention — every active person has contact details, healthy compliance and no overdue load.
+            Nothing needs attention — every active person has contact details and no overdue load.
           </div>
         )
       )}
@@ -608,7 +591,6 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
                     <CompactRow
                       key={p.id}
                       p={p}
-                      compliance={complianceById?.[p.id] ?? null}
                       hint={directoryHints?.[p.id] ?? null}
                       selectMode={selectMode}
                       selected={selected.has(p.id)}
@@ -623,7 +605,6 @@ export function PeopleTable({ people, companies, complianceById, directoryHints,
                       person={p}
                       accentColor={p.companyId != null ? accentById[p.companyId] ?? null : null}
                       directReports={reportsCountById[p.id] ?? 0}
-                      compliance={complianceById?.[p.id] ?? null}
                       hint={directoryHints?.[p.id] ?? null}
                       selectMode={selectMode}
                       selected={selected.has(p.id)}
@@ -830,9 +811,8 @@ type ManagerPicker = { labels: string[]; labelToId: Map<string, number>; labelBy
  * inline cells (manager combobox, portal-role cycle) on sm+; on mobile it's a
  * tap-to-open row. Reuses the same pointer handlers as the comfortable card.
  */
-function CompactRow({ p, compliance, hint, selectMode, selected, managerPicker, onSetManager, onSetRole, onOpen, onPointerDown, onPointerMove, onPointerUp, onPointerLeave, onPointerCancel }: {
+function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager, onSetRole, onOpen, onPointerDown, onPointerMove, onPointerUp, onPointerLeave, onPointerCancel }: {
   p: PersonRow;
-  compliance: Compliance | null;
   hint: { onLeave: boolean; present: number; absent: number } | null;
   selectMode: boolean;
   selected: boolean;
@@ -849,7 +829,6 @@ function CompactRow({ p, compliance, hint, selectMode, selected, managerPicker, 
   const onLeave = !!hint?.onLeave;
   const wl = p.workload;
   const role: string = p.portalRole ?? "staff";
-  const compTone = !compliance ? "text-fg-subtle" : compliance.status === "Risk" ? "text-danger" : compliance.status === "Watch" ? "text-warn" : "text-success";
   const wlTone = wl.overdue > 0 ? "text-danger" : wl.open >= 5 ? "text-warn" : wl.open === 0 ? "text-fg-subtle" : "text-info";
   const cycleRole = () => onSetRole(role === "staff" ? "manager" : role === "manager" ? "director" : "staff");
 
@@ -910,9 +889,6 @@ function CompactRow({ p, compliance, hint, selectMode, selected, managerPicker, 
         <ShieldCheck size={11} /> {p.portalEnabled ? role : "none"}
       </button>
 
-      <span className={cn("hidden sm:block w-[42px] shrink-0 text-right text-[11px] font-semibold tabular", compTone)}>
-        {compliance ? `${compliance.score}%` : "—"}
-      </span>
       <span className={cn("w-[54px] shrink-0 text-right text-[11px] font-semibold tabular", wlTone)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
       </span>

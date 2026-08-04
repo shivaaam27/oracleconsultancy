@@ -3,7 +3,6 @@ import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { listDocuments } from "@/lib/documents";
 import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +49,6 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, 50);
 
-  const score = (await buildCompanyRequirementScores([{ id: companyId, name }]))[0] ?? null;
   const logoUrl = await getCompanyLogoUrl(companyId);
 
   return NextResponse.json({
@@ -64,7 +62,6 @@ export async function GET(req: NextRequest) {
       phone: (companyRaw?.phone as string | null) ?? null,
       email: (companyRaw?.email as string | null) ?? null,
     },
-    compliance: score ? { score: score.score, status: score.status, missing: score.missing, expired: score.expired, expiring: score.expiring } : null,
     tasks: {
       open: open.length,
       overdue,

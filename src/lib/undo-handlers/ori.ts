@@ -81,7 +81,6 @@ registerUndoHandler("ori.attendance.record", async (raw) => {
 registerUndoHandler("ori.document.rename", async (raw) => {
   const p = raw as { documentId: number; before: string };
   await sb.from("documents").update({ title: p.before, updated_at: new Date().toISOString() }).eq("id", p.documentId);
-  void reindexEntity("document", p.documentId);
 });
 
 // Event edit — restore the event's prior fields.
@@ -94,7 +93,6 @@ registerUndoHandler("ori.event.update", async (raw) => {
 registerUndoHandler("ori.document.archive", async (raw) => {
   const p = raw as { documentId: number; before: boolean };
   await sb.from("documents").update({ archived: p.before, updated_at: new Date().toISOString() }).eq("id", p.documentId);
-  void reindexEntity("document", p.documentId);
 });
 
 // Document→task link — drop the link that was just created.
@@ -117,14 +115,6 @@ registerUndoHandler("ori.announcement.publish", async (raw) => {
   const p = raw as { announcementId: number; before: string };
   if (p.before === "published") return; // already live before we touched it
   await sb.from("announcements").update({ status: "archived", published_at: null }).eq("id", p.announcementId);
-});
-
-// Document trash (Wave C) — restore it from Trash back to the library/quarantine.
-registerUndoHandler("ori.document.trash", async (raw) => {
-  const p = raw as { documentId: number };
-  const { restoreFromTrashAction } = await import("@/app/documents/actions");
-  await restoreFromTrashAction(p.documentId);
-  void reindexEntity("document", p.documentId);
 });
 
 /* ==================================================================== *
@@ -213,7 +203,6 @@ registerUndoHandler("ori.request.raise", async (raw) => {
 registerUndoHandler("ori.document.update", async (raw) => {
   const p = raw as { documentId: number; before: Record<string, unknown> };
   await sb.from("documents").update({ ...p.before, updated_at: nowIso() }).eq("id", p.documentId);
-  void reindexEntity("document", p.documentId);
 });
 
 /* ---------------------------- calendar / announcements -------------- */

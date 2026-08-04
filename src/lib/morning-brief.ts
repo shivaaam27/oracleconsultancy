@@ -9,8 +9,6 @@ import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { isReminderDueToday } from "@/lib/documents-shared";
-import { buildPersonRequirementScores } from "@/lib/requirements";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
 
 export type UrgentSignals = {
@@ -20,7 +18,6 @@ export type UrgentSignals = {
   docsExpired: number;
   docsExpiring: number;
   remindersDue: number;
-  complianceGaps: number;
   total: number;
   parts: string[];
 };
@@ -28,7 +25,7 @@ export type UrgentSignals = {
 /** The "Needs you" band — things only the owner can resolve, today. Mirrors the
  *  notify cron's signals so the cockpit and the morning brief agree. */
 export async function gatherUrgent(): Promise<UrgentSignals> {
-  const empty: UrgentSignals = { overdue: 0, escalated: 0, dueToday: 0, docsExpired: 0, docsExpiring: 0, remindersDue: 0, complianceGaps: 0, total: 0, parts: [] };
+  const empty: UrgentSignals = { overdue: 0, escalated: 0, dueToday: 0, docsExpired: 0, docsExpiring: 0, remindersDue: 0, total: 0, parts: [] };
   try {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
@@ -44,14 +41,6 @@ export async function gatherUrgent(): Promise<UrgentSignals> {
     const remindersSet = new Set(remindersDue.map((d) => d.id));
     const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring" && !remindersSet.has(d.id)).length;
 
-    const { data: companyRows } = await sb.from("companies").select("id,name");
-    const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-    const [personScores, companyScores] = await Promise.all([
-      buildPersonRequirementScores(),
-      buildCompanyRequirementScores(companies),
-    ]);
-    const complianceGaps = [...personScores, ...companyScores].reduce((sum, s) => sum + s.missing + s.expired, 0);
-
     const parts: string[] = [];
     if (overdue) parts.push(`${overdue} overdue`);
     if (escalated) parts.push(`${escalated} escalated`);
@@ -59,10 +48,9 @@ export async function gatherUrgent(): Promise<UrgentSignals> {
     if (docsExpired) parts.push(`${docsExpired} doc${docsExpired === 1 ? "" : "s"} expired`);
     if (docsExpiring) parts.push(`${docsExpiring} doc${docsExpiring === 1 ? "" : "s"} expiring`);
     if (remindersDue.length) parts.push(`${remindersDue.length} renewal reminder${remindersDue.length === 1 ? "" : "s"}`);
-    if (complianceGaps) parts.push(`${complianceGaps} compliance gap${complianceGaps === 1 ? "" : "s"}`);
 
-    const total = overdue + escalated + dueToday + docsExpired + docsExpiring + remindersDue.length + complianceGaps;
-    return { overdue, escalated, dueToday, docsExpired, docsExpiring, remindersDue: remindersDue.length, complianceGaps, total, parts };
+    const total = overdue + escalated + dueToday + docsExpired + docsExpiring + remindersDue.length;
+    return { overdue, escalated, dueToday, docsExpired, docsExpiring, remindersDue: remindersDue.length, total, parts };
   } catch {
     return empty;
   }

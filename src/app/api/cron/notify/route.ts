@@ -9,8 +9,6 @@ import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push"
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { isReminderDueToday } from "@/lib/documents-shared";
 import { gatherSafetyFindings } from "@/lib/safety-net";
-import { buildPersonRequirementScores } from "@/lib/requirements";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { listApprovals } from "@/lib/cockpit";
 
 export const dynamic = "force-dynamic";
@@ -56,20 +54,6 @@ export async function GET(req: NextRequest) {
     const remindersSet = new Set(remindersDue.map((d) => d.id));
     const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring" && !remindersSet.has(d.id));
 
-    // Compliance gaps: missing or expired MANDATORY requirements across people and
-    // companies. Catches requirement review-date lapses + missing docs that aren't
-    // visible as document rows. (expired counts the verified-but-lapsed items too.)
-    const { data: companyRows } = await sb.from("companies").select("id,name");
-    const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-    const [personScores, companyScores] = await Promise.all([
-      buildPersonRequirementScores(),
-      buildCompanyRequirementScores(companies),
-    ]);
-    const complianceGaps = [...personScores, ...companyScores].reduce(
-      (sum, s) => sum + s.missing + s.expired,
-      0
-    );
-
     // Safety-net data-quality issues (high/medium only — low items are FYI and
     // shouldn't ping the owner daily).
     const findings = await gatherSafetyFindings();
@@ -86,7 +70,6 @@ export async function GET(req: NextRequest) {
     if (docsExpired.length) parts.push(`${docsExpired.length} doc${docsExpired.length === 1 ? "" : "s"} expired`);
     if (docsExpiring.length) parts.push(`${docsExpiring.length} doc${docsExpiring.length === 1 ? "" : "s"} expiring`);
     if (remindersDue.length) parts.push(`${remindersDue.length} renewal reminder${remindersDue.length === 1 ? "" : "s"} due`);
-    if (complianceGaps) parts.push(`${complianceGaps} compliance gap${complianceGaps === 1 ? "" : "s"}`);
     if (dataIssues) parts.push(`${dataIssues} data issue${dataIssues === 1 ? "" : "s"}`);
     if (approvalsWaiting) parts.push(`${approvalsWaiting} waiting for approval`);
 
@@ -97,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     // De-dupe: only push when the situation changes from the last run.
-    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${complianceGaps}|${dataIssues}|${approvalsWaiting}`;
+    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${dataIssues}|${approvalsWaiting}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
       await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged", digest });

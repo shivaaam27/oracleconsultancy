@@ -7,9 +7,6 @@ import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { CompanyDocuments } from "./_tabs/company-documents";
 import { CompanyProfile } from "./_tabs/company-profile";
-import { SuggestionTray } from "@/components/suggestion-tray";
-import { listProfileSuggestions } from "@/lib/profile-suggestions";
-import { listCustomShelves } from "@/lib/shelves";
 import { getCompanyRelationships } from "@/lib/relationships";
 import { CompanyRelationships } from "@/components/company-relationships";
 import { MomentumStrip } from "./_tabs/momentum-strip";
@@ -22,8 +19,6 @@ import { buildCompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
 import { getDepartmentHeads } from "@/lib/departments";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { listDocuments } from "@/lib/documents";
 import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { listAssets } from "@/lib/assets";
@@ -103,10 +98,6 @@ export default async function CompanyPage({
   if (!companyRaw) return notFound();
   const name = (companyRaw.name as string | null) ?? rows[0]?.companyName ?? "Company";
   const accent = (companyRaw.accent_color as string | null) || rows[0]?.companyAccent || "hsl(var(--accent))";
-  const complianceScore = (
-    await buildCompanyRequirementScores([{ id: companyId, name: (companyRaw?.name as string | undefined) ?? name }])
-  )[0];
-
   const openRows = rows
     .filter((r) => r.status !== "Completed" && r.status !== "Closed")
     .sort((a, b) => DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
@@ -140,17 +131,14 @@ export default async function CompanyPage({
       .sort((a, b) => a.personName.localeCompare(b.personName));
   })();
 
-  // Profile-only: pending + auto-applied "Suggested additions" + custom shelves +
-  // the pipeline stage of any document (so the Documents list shows it at a glance).
-  const [profileSuggestions, appliedSuggestions, customShelves, pipelineRows, relationships] = tab === "profile"
+  // Profile-only: the pipeline stage of any document (so the Documents list shows
+  // it at a glance) plus the company's relationships.
+  const [pipelineRows, relationships] = tab === "profile"
     ? await Promise.all([
-        listProfileSuggestions({ companyId, status: "pending" }),
-        listProfileSuggestions({ companyId, status: "applied" }),
-        listCustomShelves(),
         sb.from("pipeline").select("document_id,stage").eq("company_id", companyId).eq("archived", false),
         getCompanyRelationships(companyId),
       ])
-    : [[], [], [], { data: [] as Array<{ document_id: number | null; stage: string }> }, []];
+    : [{ data: [] as Array<{ document_id: number | null; stage: string }> }, []];
   const stageByDoc: Record<number, string> = {};
   for (const r of (pipelineRows as { data: Array<{ document_id: number | null; stage: string }> }).data ?? []) {
     if (r.document_id != null) stageByDoc[r.document_id] = r.stage;
@@ -213,9 +201,7 @@ export default async function CompanyPage({
           {/* Publish this company's open tasks so the assistant can bulk-act on "these". */}
           <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
 
-          {/* At-a-glance tiles — the company file health in one row. Compliance is
-              NOT a tile here: the richer ComplianceSummaryCard below owns it (it
-              was shown three times on this page). */}
+          {/* At-a-glance tiles — the company file health in one row. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             <StatTile label="Open tasks" value={openRows.length} Icon={Clock} tone="info" href={`/companies/${companyId}?tab=tasks`} />
             <StatTile
@@ -235,8 +221,6 @@ export default async function CompanyPage({
               href={`/documents?company=${companyId}`}
             />
           </div>
-
-          {complianceScore && <ComplianceSummaryCard score={complianceScore} />}
 
           {/* Documents needing attention — expired / expiring company files. */}
           {attentionDocs.length > 0 && (
@@ -386,7 +370,6 @@ export default async function CompanyPage({
 
       {tab === "profile" && (
         <div className="space-y-3.5">
-          <SuggestionTray suggestions={profileSuggestions} applied={appliedSuggestions} companyId={companyId} />
           <CompanyRelationships relationships={relationships} />
           <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60">
             <Network size={13} /> Explore all connections
@@ -423,7 +406,6 @@ export default async function CompanyPage({
             staffGroups={staffGroups}
             companies={companiesList}
             people={peopleList}
-            customShelves={customShelves}
             stageByDoc={stageByDoc}
           />
         </div>

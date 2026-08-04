@@ -4,7 +4,6 @@ import { CommandCentreView } from "@/components/command-centre-view";
 import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/recurring";
 import { listDocuments } from "@/lib/documents";
 import { permitFlag, daysUntil, type CcFlag } from "@/lib/command-centre";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { getAppSettings } from "@/lib/settings";
 import { PauseCircle } from "lucide-react";
 import { sb } from "@/db/supabase";
@@ -87,23 +86,6 @@ export default async function CommandCentrePage({
     }))
     .sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
 
-  // Registrations & Renewals — per-company statutory checklist scores.
-  const companyScores = await buildCompanyRequirementScores(companies);
-  const registrations = companyScores
-    .map((s) => ({
-      ownerId: s.ownerId,
-      ownerName: s.ownerName,
-      accent: companyAccent(s.ownerId),
-      score: s.score,
-      required: s.required,
-      missing: s.missing,
-      expired: s.expired,
-      expiring: s.expiring,
-      gaps: s.gaps.map((g) => g.label),
-      flag: (s.expired ? "overdue" : s.expiring ? "soon" : s.missing ? "dueNow" : "later") as CcFlag,
-    }))
-    .sort((a, b) => a.score - b.score);
-
   // Serialise deadline dates for the client component (with per-company status).
   const deadlineRows = deadlinesWithCompanies.map((d) => ({
     ...d,
@@ -122,9 +104,6 @@ export default async function CommandCentrePage({
     .filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
     .reduce((sum, d) => sum + Math.max(0, d.applicableCount - d.doneCount), 0);
   const permitAlerts = permits.filter((p) => p.flag === "overdue" || p.flag === "dueNow" || p.flag === "soon").length;
-  const avgRegistration = registrations.length
-    ? Math.round(registrations.reduce((s, r) => s + r.score, 0) / registrations.length)
-    : 100;
   const heroTone: Tone = overdue ? "danger" : dueNow ? "warn" : "accent";
 
   const metrics: Array<{ label: string; value: string | number; tone: Tone }> = [
@@ -133,7 +112,6 @@ export default async function CommandCentrePage({
     { label: "Coming up", value: soon, tone: soon ? "accent" : "muted" },
     { label: "Outstanding", value: outstanding, tone: outstanding ? "warn" : "success" },
     { label: "Permit alerts", value: permitAlerts, tone: permitAlerts ? "danger" : "success" },
-    { label: "Avg registration", value: `${avgRegistration}%`, tone: avgRegistration >= 80 ? "success" : avgRegistration >= 50 ? "warn" : "danger" },
   ];
 
   return (
@@ -154,11 +132,10 @@ export default async function CommandCentrePage({
         </div>
       </Hero>
       <CommandCentreView
-        initial={view === "permits" ? "permits" : view === "registrations" ? "registrations" : "deadlines"}
+        initial={view === "permits" ? "permits" : "deadlines"}
         habits={habitRows}
         deadlines={deadlineRows}
         permits={permits}
-        registrations={registrations}
         companies={companies.map((c) => ({ id: c.id, name: c.name, accent: c.accentColor }))}
       />
     </div>

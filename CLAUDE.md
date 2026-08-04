@@ -33,7 +33,7 @@ The system replaces an Excel workbook with:
 - Drizzle ORM 0.45 plus postgres.js
 - Supabase Postgres through the pooler on port `6543`
 - Tailwind v4 tokens from `globals.css`
-- Groq Cloud `openai/gpt-oss-20b` (fast) / `openai/gpt-oss-120b` (smart) — migrated from `llama-3.1-8b-instant` + `llama-3.3-70b-versatile`, which Groq deprecated 2026-06-17 (shutdown 2026-08-16). Models are env-overridable ladders in `src/lib/ai-models.ts`.
+- **AI runs on GEMINI. One pair for every lane (Aug 2026): `gemini-3.1-flash-lite` primary → `gemini-3.5-flash-lite` fallback** — fast, smart, vision and the chat picker all use it. The work is indexing and backend chores (high volume, no need for a top model) and the Flash Lites carry the largest daily allowance; both are multimodal, so the same pair reads documents. Env-overridable ladders in `src/lib/ai-models.ts` (`GEMINI_FAST_MODELS`/`GEMINI_SMART_MODELS`/`GEMINI_VISION_MODELS`). Groq is retained ONLY for voice (`whisper-large-v3-turbo`); its `openai/gpt-oss-*` text ladder is dormant unless the provider is switched back.
 - next-themes, framer-motion, lucide-react, cmdk, Radix primitives
 
 ## Critical Config
@@ -74,10 +74,6 @@ To-dos:
 
 - todos (now also `kind` ["onboarding"/"offboarding"] + `sort_order` — onboarding/offboarding journey steps live here as person-tagged todos; see `memory/todos.md`)
 
-HR compliance (per-person required documents):
-
-- requirement_profiles, requirement_items, person_requirements (auto checklist per person type; see `memory/hrms.md`)
-
 HRMS — Assets & Vendors:
 
 - assets, asset_assignments (durable equipment assigned to a person, or shared to a company+custodian; auto-returned on offboarding)
@@ -87,10 +83,13 @@ HRMS — Leave & Attendance (grounded in Tanzania ELR Act 2004):
 
 - leave_types (`default_days`/`cycle_months`/`half_pay_days` — e.g. Sick 126/36mo = 63 full+63 half), public_holidays, leave_requests, **attendance** (one row per person/day; status Present/Absent/On leave/Holiday/Remote/Half-day/Sick — **now writable**: admin register grid + staff portal self-check-in, June 2026; see `memory/hrms.md`)
 
-Documents & intake:
+Documents (manual filing only — Aug 2026):
 
-- documents (now also `vendor_id`, plus intake-rewire cols `review_status` ["ok"/"needs_review"] + `needs_original` [`_NEEDORIG`]), document_links
-- inbox (manual bundles too: pasted text + uploaded files stored in `attachments` JSON under `inbox/` storage prefix)
+- documents (`title`/`company_id`/`person_id`/`vendor_id`/`category`/`doc_type`/`issuer`/
+  `reference_no`/`issue_date`/`expiry_date`/`reminder_lead_days`/`file_url`/`storage_path`/
+  `file_name`/`notes`/`archived`), document_links. Every intake column — quarantine state,
+  confidence, dedup hash, renewal lineage, OCR body — was DROPPED in migration 0114.
+- inbox (rows kept, unreachable — the intake page and its ingest route were removed)
 
 Letters:
 
@@ -105,7 +104,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index over all 12 entity types, driven by `src/lib/entity-registry.ts`; **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0096**.
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0114**.
 
 See `memory/database_schema.md`.
 
@@ -125,7 +124,7 @@ See `memory/database_schema.md`.
 - `/hrms/registers` - **Commitments register** (transfer-pack) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
-- `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
+- `/documents` - **the document library — one view, filed by hand** (Aug 2026). Search + company/category/status filters, grouped by company then category, row actions Edit · Open file · Archive · Delete. Nothing is read, named, classified or de-duplicated for you.
 - `/portal`, `/portal/login`, `/portal/board`, `/portal/meetings` (**Briefings**), `/portal/task/[code]`, `/portal/profile` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Profile carries: Your documents, **Your attendance** (self check-in + week strip), onboarding, equipment, **passkeys** ("Sign in faster"). A minimal **attendance check-in pop-up** auto-opens once/day on landing. Admin chrome hidden on portal routes. See `memory/portal.md` + `memory/portal_scope_and_event_cascade_jul2026.md`.
   - **Home vs board (Jul 2026):** `/portal` **home is staff + HR only** — hero unified with the board hero (`portal-home-hero.tsx`, slim stats pill), tasks in a **scroll housing**, full-width To-Do List, Raise-a-request below it, announcements as a dismissible header banner (`announcement-banner.tsx`). **Directors AND managers are board-first** (`/portal/board`, redirected from `/portal`); managers' team tools fold onto the board (team-attendance glance moved to the Directory's **Attendance** tab, leave-to-approve, personal To-Do List).
   - `/portal/meetings` = **Briefings** (nav label "Briefings", `portal-briefings.tsx`): tabbed **Meetings** (agenda, badge = starts within 3 days) + **Announcements** (feed, badge = unacknowledged). Announcements no longer inline on home/board — banner + this tab.
@@ -133,13 +132,12 @@ See `memory/database_schema.md`.
   - **Portal roles** (`people.portal_role`): staff | manager | hr | director. **Company-scoped director** ("Company Director", `people.director_company_id` set, migration 0097): full director board + powers but STRICT to ONE company — set it in Settings → Staff portal access. Scope is enforced through ONE place: the helpers in `src/lib/portal-auth.ts` (`seesAllCompanies`/`companyScope`/`isScopedDirector`) — the data-side twin of `src/lib/portal-capabilities.ts` (UI). **FORWARD RULE:** route every new data-visibility decision through those scope helpers (not a raw `=== "director"`). **Portal permissions are owner-configurable** (Settings → Portals → "Roles & permissions"): per-role capabilities + data-scope (own/companies/all) in `src/lib/portal-permissions.ts` (pure; defaults = old behaviour), stored as one settings row, resolved ONCE onto `PortalPerson` as `scopeLevel` + `caps`. Scope helpers read `p.scopeLevel`; every portal action gate + UI affordance reads `me.caps.<key>`; `canManageTask` takes `viewer.canManageAny`. **To gate a new portal ability by config, add a `CapabilityKey` + default and read `me.caps.<key>` — don't hard-code the role.** See `memory/portal_permissions_engine.md`. Directors: NO Directory Attendance tab. Shared task list = `portal-tasks-command.tsx` (Home inlines it via its `houseList` scroll-housing prop). Nav pill (`portal-pill.tsx`): frosted for legibility, hover shows a floating name label + icon bounce, create `+` sits after the divider next to the theme toggle, Board/Home tabs use layout-preview icons. Full reference: `memory/company_scoped_roles.md`. **⚠️ adding a 2nd FK from a table to `companies` breaks PostgREST `companies(name)` embeds on that table — disambiguate with `companies!company_id(name)`.**
 - `/chat`, `/chat/[threadId]` - **Chat**: free-standing messaging (DMs + ad-hoc groups), separate from task updates. Portal twin at `/portal/chat`. WhatsApp-style messenger UI: full-screen app on mobile (page header + nav pill hidden on chat routes), two-pane glass card on desktop; optimistic send, read receipts, typing indicator, inline image previews. Supabase Realtime broadcast (anon key set) with polling fallback. Primary tab on both nav pills. Plus per-person **read-only `kind="system"` channels** (Jun 2026): **Task reminders** (daily 9am cron + pushes) and **Announcements** (published announcements mirror in, silent). See `memory/chat_system.md` + `memory/reminders_outbox_chat_jun2026.md`.
 - `/outbox` - **live, per-person** (Jun 2026): generated fresh from open tasks each load (one card per person, full task list + WhatsApp/Email send); reminders are NOT stored as drafts anymore. Per-task vs all-tasks toggle under each task. See `memory/reminders_outbox_chat_jun2026.md`.
-- `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], OECR, **Assets & Vendors, Attendance**, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], OECR, **Assets & Vendors, Attendance**, OCR, Companies, People, Documents, Outbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed.
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed. **Removed Aug 2026 (documents back to manual):** `/inbox` + `/api/inbox`, `/suggestions`, `/api/dropbox/*`, `/api/cron/auto-sort`, `/api/ask-doc`, `/api/doc-passages`, `/api/company-requirements`, `/api/person-requirements`, `/api/requirement-templates`, and the Registrations tab on Tax & Legal. Their tables WERE dropped (migration 0114) — see "Documents — manual filing".
 
 ## Design language — "Aurora" (DEFAULT for everything)
 
@@ -189,10 +187,9 @@ Voice is now a shared product layer, not only a microphone button:
 
 ## HR & Admin Operating System (V3 — in progress)
 
-Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks/todos→checklists, OECR→assets, Outbox→messages, Home/Brief→signals). Master plan in `memory/v3_plan.md`.
+Built on the principle **reuse, don't duplicate** (tasks/todos→checklists, OECR→assets, Outbox→messages, Home/Brief→signals). Master plan in `memory/v3_plan.md`. NOTE: the document-compliance half of V3 was removed in Aug 2026 — see "Documents — manual filing".
 
 - **Person types** (`src/lib/person-types.ts`): `local_staff` | `expat` | `outsider` | `candidate` (+ legacy normalisation).
-- **Document compliance**: per-type requirement profiles → per-person checklist (auto-links saved docs by category, manual verify loop, score to 100%). `src/lib/requirements.ts`.
 - **Onboarding/Offboarding journeys**: a checklist of `todos` tagged `kind`; auto-created for new staff (and offboarding on archive); shown in the person drawer.
 - **Assets & Vendors** (`src/lib/assets.ts`, `src/lib/vendors.ts`): durable assets assigned to person or team+custodian; vendor register with contracts reusing documents.
 - **Leave & Attendance** (`src/lib/leave.ts`, `src/lib/attendance.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section. **Attendance now fully wired** (June 2026): admin register grid + staff self-check-in (trusted, manager can override; status-per-day, no clock in/out).
@@ -200,20 +197,41 @@ Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks
 - **Reporting structure** (`src/lib/org-chart.ts`, `src/lib/org-actions.ts`): manager / "also reports to" / department heads, surfaced on the company Org tab and across People (cards, drawer Direct-reports, bulk also-reports-to). The standalone Organogram page was removed Jul 2026.
 - **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). NOTE: wage fields, the pay/final-pay/severance calculator, and all money figures (leave liability, sick-leave cost) were removed June 2026 along with the board pack — leave day-tracking remains; the ELR rules are kept here for reference only.
 
-## Smart Intake (V3)
+## Documents — manual filing (Aug 2026)
 
-One extraction brain across Inbox/People/Documents. Dropping text or files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several") reviews each file in the full doc form. Recency-aware duplicate detection (Keep both / Replace+archive). See `memory/v3_plan.md`.
+The document intelligence layer was **removed** at the owner's request: it was getting in the
+way of the work. What went: Dropbox sync + the auto-sort cron, the sorting desk / quarantine /
+Trash queues, automatic naming, AI owner-guessing and its learning loops, duplicate detection,
+renewal chaining, self-heal, re-scan, split-document, OCR/vision reading, RAG passages, document
+embeddings, and the whole required-document compliance engine (per-person and per-company
+checklists, scores, the Needs-attention panel, CSV export). Migration **0114** dropped nine
+tables and fifteen `documents` columns.
 
-## Document Intelligence (Jun 2026) — see `memory/document_intelligence.md` for the full reference
+What the Documents page is now: you add a document, choose the company **or** person, pick a
+category and type, and type the dates. Expiry tracking survives (status, countdown, the daily
+renewal reminder, the "Renew" task) because you type the date yourself — nothing is inferred.
+Chat and task attachments still land in the library automatically, under the file's own name
+and the "Attachment" category, with no owner until you edit them.
 
-The intake is **self-learning, correlating and self-healing**, all deterministic on the free Groq models (a stronger model is an optional later upgrade behind the `aiHighQuality` toggle). Owner-resolution order in `autoFileDocumentAction` (each falls through to the next, quarantine is the LAST resort):
-1. **ID match** — TIN/VRN/email-domain (`matchCompanyByIdentifiers`).
-2. **AI read with RAG context** — `extractPrompt` is fed the KNOWN RECORDS (companies with aliases + legal name + TIN/VRN/code/email-domain; people with role + company) so it resolves from sparse docs and never invents an owner.
-3. **Fuzzy/legal-name match** — `resolveEntity` (alias + legal_name folded in + suffix-agnostic token overlap, so "PINNACLE ENGINEERING SOLUTIONS LTD" → "PES Ltd").
-4. **Learned owners** — `owner_corrections` (a manual owner assignment teaches the next similar doc; `lib/owner-corrections.ts`).
-5. **Cross-document correlation** — a TIN/VRN/reference with no name inherits the owner of another filed doc/fact that shares it (`correlateOwnerByIdentifiers`).
+### Bulk add + AI read (Aug 2026, the assistive half back)
 
-Other intelligence: **consistent naming** `buildDocTitle` ("Owner · Type · Ref/Year") on every path + a one-time **rename sweep**; **content-based duplicate detection** (Jaccard ≥0.7 of body words, any name/format → quarantine "duplicate of #X"); **auto-expiry renewal chaining** (`findRenewalTarget`: a renewal supersedes the older same-type doc → `-EXP` to Trash for review); **CamScanner/scanner-watermark detection** (`usableTextLayer` → OCR the real scan); **self-heal** (`selfHealDocuments`, nightly via morning-run, re-reads watermark/never-read docs); **relationship inference** (`lib/relationships.ts` — directors/shareholders from facts → people); **entity knowledge graph** (`lib/entity-graph.ts`, `/graph?type=&id=`, traversable, links companies sharing a director); **learning loops** `routing_corrections` (category) + dismissal suppression. New tables: `profile_suggestions`, `routing_corrections`, `custom_shelves`, `owner_corrections` (migrations 0090–0092).
+The owner asked for the *reading* back, not the deciding. `/documents` → **Add several**:
+
+1. Pick the **company (or person) and category for the whole batch** — before anything is read.
+2. Drop the files.
+3. Each is read in turn (`src/lib/doc-read.ts` → `readDocumentFileAction`) and the form arrives
+   pre-filled with **title, type, issuer, reference no., issue/expiry dates and notes**.
+4. You check it and press **Save & next**, or **Skip**.
+
+`doc-read.ts` ONLY reads. It never touches the database, never picks an owner (it isn't even
+told who the companies are, so it cannot misfile), never renames, de-duplicates, archives or
+learns. Word/Excel/PowerPoint/text read their embedded text; a typed PDF uses its text layer;
+scans, photos and HEIC go to Gemini vision (`providerVisionModels`), with scanner-watermark
+detection so a CamScanner layer doesn't defeat OCR. Dates are accepted only as real ISO dates
+in a sane year range, and a payment due-date is explicitly NOT an expiry.
+
+**Forward rule:** intelligence may READ and SUGGEST. It must never move, rename, archive, hide
+or file a document on its own. Anything that writes needs the owner to press a button.
 
 ## ORI Search Brain — universal search / find / trace (V3 — Jun 2026, LIVE)
 
@@ -222,8 +240,8 @@ searched, found and **traced** from one place. Built across 7 verified waves (fu
 `memory/ori_brain.md`); DEPLOYED to master (commit 415ef46); migrations 0094/0095/0096 applied.
 
 - **Entity registry = single source of truth** (`src/lib/entity-registry.ts`): one `EntityDef`
-  per the 10 indexable types (task/document/person/company/vendor/asset/
-  governance/risk/pipeline/commitment) — table, columns, indexable text, lifecycle rule, search
+  per the indexable types (task/person/company/vendor/asset/governance/risk/pipeline/
+  commitment; documents are searched but NOT embedded) — table, columns, indexable text, lifecycle rule, search
   mapping, trace mode. **FORWARD RULE: to make a new entity (incl. future ERP modules)
   searchable/traceable/answerable, add ONE `EntityDef`** — indexing, deep search, the command
   palette and trace all derive from it automatically.
@@ -246,8 +264,7 @@ searched, found and **traced** from one place. Built across 7 verified waves (fu
 - **Trace** (`/api/trace` + `src/components/trace-panel.tsx`): any entity → its full timeline
   (updates, person/company events, facts history, renewal chains, automation events). Triggered by
   the "Trace history" button on search results (window `cos:trace` event).
-- **Surfaces**: `/inbox` = System status card + Intake accuracy card (`intake-metrics.ts` +
-  `intake-accuracy.tsx`) + Automations feed; `/approvals` = cockpit; home = CONTROLS HELD levers;
+- **Surfaces**: `/approvals` = cockpit (+ the automations feed); home = CONTROLS HELD levers;
   Settings = in-app Groq key + spend cap + quiet hours + digest.
 
 ## Autonomy & safety tiers (V3 — Jun 2026)
@@ -329,7 +346,7 @@ The owner's #1 complaint is wasted usage, and the waste is TOOL-OUTPUT VOLUME, n
 ## Workflow
 
 - Verify code with `npm exec tsc -- --noEmit`. A full type-check needs a bigger heap locally: `NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit`.
-- Run unit tests with `npm test` (Vitest). Pure-logic tests live next to the module as `src/lib/*.test.ts` (pay, leave, derive, requirement-match, staff-id). Add tests when you change money/leave/compliance/status maths.
+- Run unit tests with `npm test` (Vitest). Pure-logic tests live next to the module as `src/lib/*.test.ts` (pay, leave, derive, staff-id). Add tests when you change money/leave/status maths.
 - For schema work: edit `schema.ts`, generate/review migration, apply with `npm run db:migrate`. **Take `npm run db:backup` first.** drizzle-kit diffs the `drizzle/meta` snapshot, NOT the live DB — if the live DB has drift, generated `CREATE`s can collide; use `IF NOT EXISTS` or reconcile.
 - Do NOT clear `.next` while the dev server is running (it corrupts the live build cache → ENOENT 500s). Stop the server first, then `rm -rf .next`, then restart.
 - Update `memory/*.md` after meaningful changes.

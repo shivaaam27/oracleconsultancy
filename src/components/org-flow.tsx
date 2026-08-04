@@ -315,9 +315,6 @@ function FlowCard({ p, x, isHead }: { p: FlowPerson; x?: OrgPersonExtras; isHead
         ) : null}
         <div className="flex items-center gap-1">
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
-          {x?.compliancePct != null && (
-            <span title={`Compliance ${x.compliancePct}%`} className={cn("w-2 h-2 rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-success")} />
-          )}
         </div>
       </div>
     </div>

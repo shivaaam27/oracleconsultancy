@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2, User, FileText, Hash, ShieldCheck, ClipboardList, Network, ArrowLeft } from "lucide-react";
+import { Building2, User, FileText, Hash, ClipboardList, Network, ArrowLeft } from "lucide-react";
 import { getEntityGraph, type GraphNode } from "@/lib/entity-graph";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Connections · COS" };
 
 const ICON: Record<GraphNode["kind"], React.ComponentType<{ size?: number; className?: string }>> = {
-  company: Building2, person: User, document: FileText, fact: Hash, compliance: ShieldCheck, pipeline: ClipboardList,
+  company: Building2, person: User, document: FileText, fact: Hash, pipeline: ClipboardList,
 };
 
 export default async function GraphPage({ searchParams }: { searchParams: Promise<{ type?: string; id?: string }> }) {

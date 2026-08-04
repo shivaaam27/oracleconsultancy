@@ -62,8 +62,8 @@ export const AI_SMART = AI_SMART_MODELS[0]; // primary; existing imports keep wo
 // been REMOVED: its shutdown is a NON-EVENT for this app. Env-overridable with
 // AI_VISION_MODELS (comma-separated, best first) — no redeploy.
 export const AI_VISION_MODELS: string[] = ladder("AI_VISION_MODELS", [
-  "gemini-3.5-flash",       // best reader, multimodal
-  "gemini-3.1-flash-lite",  // 500/day multimodal — big-capacity fallback
+  "gemini-3.1-flash-lite",  // primary  — multimodal, most day-limit headroom
+  "gemini-3.5-flash-lite",  // fallback — multimodal, same 500/day pool
 ]);
 export const AI_VISION = AI_VISION_MODELS[0]; // primary; existing imports keep working
 
@@ -89,56 +89,32 @@ export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
 // robotics products, wrong call shape for chat/JSON); `-preview` duplicates of
 // a model already GA'd below. Re-run `npx tsx scripts/list-gemini-models.ts`
 // after a key change to confirm what's actually enabled before editing these.
-// ── Ladders tuned to THIS key's ACTUAL free-tier quotas (AI Studio dashboard) ──
-// Ground-truth RPD (requests/day) on the owner's key:
-//   gemma-4-31b-it / gemma-4-26b-a4b-it = 1,500/day (text only, no vision)
-//   gemini-3.1-flash-lite               = 500/day (multimodal)
-//   gemini-3.5-flash / 3-flash / 2.5-flash = 30/day each (multimodal, best quality)
-//   gemini-2.5-flash-lite               = 30/day
-//   gemini-2.5-pro / 3.1-pro / 3-pro / 2.0-* = 0/day — NOT free, NEVER list them.
-// The harness auto-cascades to the next entry on any 429 (separate quota pools),
-// so ordering = "best model that still has quota". Env-overridable per lane.
+// ── Flash-Lite only (Aug 2026, owner's decision) ──────────────────────────────
+// One pair for every lane: gemini-3.1-flash-lite primary, gemini-3.5-flash-lite
+// fallback. The work this app does is indexing and backend chores — high volume,
+// no need for a top-tier model — and the Flash Lites carry far the largest daily
+// request allowance. Both are multimodal, so the SAME pair serves vision too.
+//
+// NEVER list: `gemini-*-latest` aliases (same quota bucket as the pinned model,
+// so a retry after a 429 gains nothing), the pro models (not on the free tier),
+// and `*-image`/`*-tts`/`*-computer-use`/`*-robotics-er` (wrong call shape).
+// Re-run `npx tsx scripts/list-gemini-models.ts` after a key change to confirm
+// what's enabled. Every lane is env-overridable, so a change needs no redeploy.
 
-// Text-quality order (best reasoning first) — used to build the SMART lane.
-const GEMINI_TEXT_QUALITY = [
-  "gemini-3.5-flash",        // best available (no pro on free tier), 30/day
-  "gemini-3-flash-preview",  // 30/day
-  "gemini-2.5-flash",        // 30/day
-  "gemini-3.1-flash-lite",   // 500/day — big capacity, still capable
-];
-const GEMMA_LADDER = [
-  "gemma-4-31b-it",          // 1,500/day, text only
-  "gemma-4-26b-a4b-it",      // 1,500/day, text only
+const FLASH_LITE = [
+  "gemini-3.1-flash-lite",   // primary  — most headroom on the day limit
+  "gemini-3.5-flash-lite",   // fallback — same 500/day pool, separate bucket
 ];
 
-// FAST lane — agent planning, automation, simple/high-frequency work. QUOTA-FIRST:
-// lead with the 1,500/day Gemma pool + 500/day flash-lite so it effectively never
-// rate-limits (~3,590/day). JSON/tool planning doesn't need the top model.
-export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
-  "gemma-4-31b-it",          // 1,500/day ⭐ workhorse
-  "gemma-4-26b-a4b-it",      // 1,500/day
-  "gemini-3.1-flash-lite",   // 500/day
-  ...GEMINI_TEXT_QUALITY.slice(0, 3), // 30/day flashes as a quality top-up
-  "gemini-2.5-flash-lite",   // 30/day
-]);
+// FAST lane — agent planning, automation, simple/high-frequency work.
+export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", FLASH_LITE);
 
-// SMART lane — deep thinking / analysis. QUALITY-FIRST: the 3 best flashes (90/day
-// combined) then the big-capacity fallbacks so a hard question never dead-ends.
-export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
-  ...GEMINI_TEXT_QUALITY,    // 3.5-flash → 3-flash → 2.5-flash → 3.1-flash-lite
-  ...GEMMA_LADDER,           // 1,500/day each
-  "gemini-2.5-flash-lite",
-]);
+// SMART lane — deep thinking / analysis, and the text half of a document read.
+export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", FLASH_LITE);
 
-// VISION lane — document reading / OCR. MUST be multimodal, so Gemma is EXCLUDED
-// (text only). Best readers first, then the 500/day flash-lite for capacity.
-export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
-  "gemini-3.5-flash",        // best reader, 30/day
-  "gemini-3-flash-preview",  // 30/day
-  "gemini-2.5-flash",        // 30/day
-  "gemini-3.1-flash-lite",   // 500/day — multimodal, big capacity
-  "gemini-2.5-flash-lite",   // 30/day
-]);
+// VISION lane — document reading / OCR. Both entries are multimodal (Gemma never
+// belonged here: text only).
+export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", FLASH_LITE);
 
 export type AiProvider = "groq" | "gemini";
 export type ModelTier = "fast" | "smart" | "vision";
@@ -158,6 +134,7 @@ const DEFAULT_MODEL_QUOTAS: Record<string, number> = {
   "gemma-4-31b-it": 1500,
   "gemma-4-26b-a4b-it": 1500,
   "gemini-3.1-flash-lite": 500,
+  "gemini-3.5-flash-lite": 500,
   "gemini-3.5-flash": 30,
   "gemini-3-flash-preview": 30,
   "gemini-3-flash": 30,
@@ -199,14 +176,12 @@ export function dailyQuotaFor(model: string | null | undefined): number | undefi
   return best;
 }
 
-/** The text/tool-capable models eligible for the CHAT model picker (Ask/ORI chat
- *  only — NOT agent tool-calling, automations or vision). These are the
- *  GEMINI_TEXT_QUALITY flashes plus the high-capacity flash-lite: multimodal,
- *  reason well, and take the same chat-completions shape the ask stream uses.
- *  Gemma is EXCLUDED — it's the fast/JSON workhorse (text-only, no reasoning
- *  config) and the smart chat ladder already folds it in as a fallback. Deduped,
- *  quality-first (mirrors GEMINI_SMART_MODELS' head order). */
-export const CHAT_MODELS: string[] = [...new Set(GEMINI_TEXT_QUALITY)];
+/** The models offered in the CHAT model picker (Ask/ORI chat only — NOT agent
+ *  tool-calling, automations or vision). Mirrors the live SMART ladder, so the
+ *  picker can never offer a model the backend won't actually run. Since Aug 2026
+ *  that's the two Flash Lites — the only ones with day-limit headroom on this
+ *  key; every full Flash was over its 20/day cap. */
+export const CHAT_MODELS: string[] = [...new Set(GEMINI_SMART_MODELS)];
 
 /** Which tier a passed model name heads. Call sites pass the Groq head names
  *  (AI_FAST / AI_SMART) or a specific vision model; map those to a tier so the

@@ -23,9 +23,6 @@ import { isOpen } from "@/lib/derive";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
-import { worstComplianceScores } from "@/lib/compliance";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
-import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { getPortfolioTrends } from "@/lib/trends";
@@ -162,24 +159,7 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
     name: p.name as string,
     personType: normalizePersonType(p.person_type as string | null),
   }));
-  const companyComplianceScores = await buildCompanyRequirementScores(companies);
-  const personComplianceScores = await buildPersonRequirementScores();
-  const allComplianceScores = [...companyComplianceScores, ...personComplianceScores];
-  // `complianceRisks` is the worst-6 truncation used only for the queue/list
-  // display below. The "Compliance issues" headline must count the FULL score
-  // set, otherwise it under-reports once more than 6 owners have gaps and
-  // disagrees with the Director Brief (which lists every non-Good owner).
-  const complianceRisks = worstComplianceScores(allComplianceScores, 6);
-  const complianceIssues = allComplianceScores.reduce((sum, score) => sum + score.missing + score.expired + score.expiring, 0);
   const personTypeById = new Map(people.map((person) => [person.id, person.personType]));
-  const personPackNeeds = personComplianceScores
-    .filter((score) => score.status !== "Good" && (score.required > 0 || score.monitoredDocuments > 0))
-    .sort((a, b) => {
-      const expatA = personTypeById.get(a.ownerId) === "expat" ? 1 : 0;
-      const expatB = personTypeById.get(b.ownerId) === "expat" ? 1 : 0;
-      return expatB - expatA || a.score - b.score || b.expired - a.expired || b.missing - a.missing;
-    });
-  const expatPackNeeds = personPackNeeds.filter((score) => personTypeById.get(score.ownerId) === "expat");
 
   // Statutory deadlines coming up — per-company aware: only obligations inside
   // their warning window that still have an applicable company not done this
@@ -250,17 +230,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       tone: expiredDocs.length ? "danger" : "warn",
       count: expiringDocs.length,
     },
-    personPackNeeds.length > 0 && {
-      id: "person-pack-needs",
-      title: `Prepare ${personPackNeeds.length} person pack${personPackNeeds.length === 1 ? "" : "s"}`,
-      detail: expatPackNeeds.length
-        ? `${expatPackNeeds.length} expat file${expatPackNeeds.length === 1 ? "" : "s"} need document follow-up.`
-        : "People have personal document issues; prepare a focused pack before chasing.",
-      href: personPackNeeds[0] ? `/people?person=${personPackNeeds[0].ownerId}&pack=1` : "/people",
-      actionLabel: "Open People",
-      tone: personPackNeeds.some((score) => score.status === "Risk") ? "danger" : "warn",
-      count: personPackNeeds.length,
-    },
     upcomingDeadlines.length > 0 && {
       id: "statutory-deadlines",
       title: `${upcomingDeadlines.length} statutory deadline${upcomingDeadlines.length === 1 ? "" : "s"} coming up`,
@@ -271,15 +240,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       actionLabel: "Open Tax & Legal",
       tone: overdueDeadlines.length ? "danger" : dueNowDeadlines.length ? "warn" : "accent",
       count: upcomingDeadlines.length,
-    },
-    complianceRisks.length > 0 && {
-      id: "compliance-gaps",
-      title: `Review ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`,
-      detail: "Required document checklists found missing or risky records.",
-      href: "/documents",
-      actionLabel: "Open compliance",
-      tone: complianceRisks.some((score) => score.status === "Risk") ? "danger" : "warn",
-      count: complianceIssues,
     },
     todayTodos.length > 0 && {
       id: "todos",
@@ -370,29 +330,6 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
     due: d.dueDate ? d.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
   }));
 
-  const personPackQueue: QueueItem[] = personPackNeeds.slice(0, 4).map((score) => {
-    const firstIssue = score.gaps[0]?.label ?? score.documentIssues[0]?.title ?? "Personal document follow-up";
-    return {
-      id: `person-pack-${score.ownerId}`,
-      title: `Person pack: ${score.ownerName}`,
-      meta: `${firstIssue} · ${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
-      href: `/people?person=${score.ownerId}&pack=1`,
-      group: "people",
-      tone: score.status === "Risk" ? "danger" : "warn",
-      due: personTypeById.get(score.ownerId) === "expat" ? "Expat" : score.documentIssues[0]?.expiryLabel ?? null,
-    };
-  });
-
-  const complianceQueue: QueueItem[] = complianceRisks.filter((score) => score.ownerType === "company").slice(0, 4).map((score) => ({
-    id: `compliance-${score.ownerType}-${score.ownerId}`,
-    title: `${score.ownerName}: ${score.score}% compliance`,
-    meta: `${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
-    href: `/documents?company=${score.ownerId}`,
-    group: "document",
-    tone: score.status === "Risk" ? "danger" : "warn",
-    due: score.gaps[0]?.label ?? null,
-  }));
-
   const draftQueue: QueueItem[] = drafts.slice(0, 3).map((d) => ({
     id: `draft-${d.id}`,
     title: d.recipientName ? `Draft for ${d.recipientName}` : "Draft waiting to send",
@@ -404,8 +341,8 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
   }));
 
   const queue: QueueItem[] = [
-    ...taskQueue, ...deadlineQueue, ...docQueue, ...personPackQueue,
-    ...complianceQueue, ...todoQueue, ...draftQueue, ...staleQueue,
+    ...taskQueue, ...deadlineQueue, ...docQueue,
+    ...todoQueue, ...draftQueue, ...staleQueue,
   ];
 
   const prev = (current: number, t: { delta: number } | null) => (t ? current - t.delta : undefined);
@@ -433,43 +370,49 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
     },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success", hint: "Documents expired or expiring soon.", rows: [{ label: "Expired", value: expiredDocs.length, tone: "danger" }] },
     { label: "Statutory due", value: upcomingDeadlines.length, tone: overdueDeadlines.length ? "danger" : upcomingDeadlines.length ? "warn" : "success", hint: "Tax & statutory filings inside their warning window.", rows: [{ label: "Overdue", value: overdueDeadlines.length, tone: "danger" }] },
-    { label: "Compliance", value: complianceIssues, tone: complianceIssues ? "warn" : "success", hint: "Open issues across required-document checklists." },
-    { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success", hint: "People with personal-document follow-ups." },
     { label: "Stale", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success", hint: "Open tasks with no recent update." },
   ];
 
-  // Portfolio health — overall average of every compliance score, plus a
-  // per-company gauge set so the operator can compare at a glance.
-  const allScores = [...companyComplianceScores, ...personComplianceScores].filter(
-    (s) => s.required > 0 || s.monitoredDocuments > 0
-  );
-  const health = allScores.length
-    ? Math.round(allScores.reduce((sum, s) => sum + s.score, 0) / allScores.length)
-    : 100;
-  const healthStats = allScores.reduce(
-    (a, s) => ({
-      missing: a.missing + s.missing,
-      inProgress: a.inProgress + s.inProgress,
-      expiring: a.expiring + s.expiring,
-      expired: a.expired + s.expired,
-    }),
-    { missing: 0, inProgress: 0, expiring: 0, expired: 0 }
-  );
-
-  const companyScoreById = new Map(companyComplianceScores.map((s) => [s.ownerId, s]));
+  // Portfolio health — a plain document-expiry read. The required-document
+  // compliance engine was removed, so a company is "healthy" when nothing it
+  // holds has expired or is about to: each expiring document costs a little,
+  // each expired one twice as much, both measured against what it holds.
+  // A company with no documents scores 100 (nothing to be wrong about).
+  const expiryByCompany = new Map<number, { expiring: number; expired: number; total: number }>();
+  for (const d of documents) {
+    if (d.archived || !d.companyId) continue;
+    const bucket = expiryByCompany.get(d.companyId) ?? { expiring: 0, expired: 0, total: 0 };
+    bucket.total++;
+    const status = deriveDocStatus(d);
+    if (status === "Expired") bucket.expired++;
+    else if (status === "Expiring") bucket.expiring++;
+    expiryByCompany.set(d.companyId, bucket);
+  }
   const companyGauges: CompanyGauge[] = companies.map((c) => {
-    const score = companyScoreById.get(c.id);
+    const b = expiryByCompany.get(c.id);
+    const score = !b || b.total === 0
+      ? 100
+      : Math.max(0, 100 - Math.round(((b.expired * 2 + b.expiring) / b.total) * 100));
     return {
       id: c.id,
       name: c.name,
       accentColor: c.accentColor,
-      score: score?.score ?? 100,
-      status: score?.status ?? "Good",
-      missing: score?.missing ?? 0,
-      expiring: score?.expiring ?? 0,
-      expired: score?.expired ?? 0,
+      score,
+      status: score >= 80 ? "Good" : score >= 50 ? "Watch" : "Risk",
+      missing: 0,
+      expiring: b?.expiring ?? 0,
+      expired: b?.expired ?? 0,
     };
   });
+  const health = companyGauges.length
+    ? Math.round(companyGauges.reduce((sum, g) => sum + g.score, 0) / companyGauges.length)
+    : 100;
+  const healthStats = {
+    missing: 0,
+    inProgress: 0,
+    expiring: expiringDocs.length - expiredDocs.length,
+    expired: expiredDocs.length,
+  };
 
   return { command, pulse, queue, health, healthStats, companyGauges, clearedToday, completedThisMonth };
 }

@@ -206,107 +206,6 @@ export const reportingLines = pgTable(
   ]
 );
 
-// HR compliance — requirement profiles (one per person type) and their items.
-// A profile lists the documents a person of that type must (or may) provide.
-// Per-person checklists are snapshotted into person_requirements.
-export const requirementProfiles = pgTable("requirement_profiles", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  // Canonical person type this profile applies to (lib/person-types.ts):
-  // "local_staff" | "expat" | "outsider" | "candidate".
-  appliesToType: text("applies_to_type").notNull(),
-  description: text("description"),
-  active: boolean("active").notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
-});
-
-// The documents a profile requires. category maps to DOC_CATEGORIES so a saved
-// document can satisfy the item. mandatory items count toward the 100% score.
-export const requirementItems = pgTable("requirement_items", {
-  id: serial("id").primaryKey(),
-  profileId: integer("profile_id").notNull().references(() => requirementProfiles.id, { onDelete: "cascade" }),
-  label: text("label").notNull(),
-  category: text("category"),
-  mandatory: boolean("mandatory").notNull().default(true),
-  expiryTracked: boolean("expiry_tracked").notNull().default(true),
-  defaultLeadDays: integer("default_lead_days").notNull().default(30),
-  helpText: text("help_text"),
-  sortOrder: integer("sort_order").notNull().default(0),
-});
-
-// A person's actual checklist — one row per required document, snapshotted from
-// requirement_items so later profile edits don't silently rewrite history.
-// status: missing | requested | received | verified | waived. The linked
-// document satisfies the item; verification is a deliberate manual step.
-export const personRequirements = pgTable(
-  "person_requirements",
-  {
-    id: serial("id").primaryKey(),
-    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
-    itemId: integer("item_id").references(() => requirementItems.id, { onDelete: "set null" }),
-    label: text("label").notNull(),
-    category: text("category"),
-    mandatory: boolean("mandatory").notNull().default(true),
-    expiryTracked: boolean("expiry_tracked").notNull().default(true),
-    status: text("status").notNull().default("missing"),
-    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
-    // Set false once the operator manually unlinks a document, so the auto-linker
-    // stops re-attaching a matching doc on every load. Manual linking still works.
-    autoLink: boolean("auto_link").notNull().default(true),
-    // Optional "valid until / review by" date for the requirement itself. Lets a
-    // manually-verified item (no linked file) still lapse, so it can't count as
-    // compliant forever. Derived expiring/expired folds into the effective status.
-    reviewDate: timestamp("review_date", { mode: "date", withTimezone: true }),
-    requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
-    receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
-    verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
-    verifiedBy: text("verified_by"),
-    waivedReason: text("waived_reason"),
-    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
-  },
-  (t) => [
-    uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId),
-    index("person_requirements_document_idx").on(t.documentId),
-  ]
-);
-
-// Per-company document compliance checklist. Mirrors person_requirements, but
-// companies have no shared template profiles — each company's list is its own.
-// sourceKey identifies a seeded default item (e.g. "company-registration") so it
-// can be reconciled/hidden without resurrection; custom items have sourceKey null
-// and hard-delete on remove. category maps to DOC_CATEGORIES for doc auto-link.
-export const companyRequirements = pgTable(
-  "company_requirements",
-  {
-    id: serial("id").primaryKey(),
-    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
-    sourceKey: text("source_key"),
-    label: text("label").notNull(),
-    category: text("category"),
-    mandatory: boolean("mandatory").notNull().default(true),
-    expiryTracked: boolean("expiry_tracked").notNull().default(true),
-    status: text("status").notNull().default("missing"),
-    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
-    autoLink: boolean("auto_link").notNull().default(true),
-    // Optional "valid until / review by" date — see person_requirements.reviewDate.
-    reviewDate: timestamp("review_date", { mode: "date", withTimezone: true }),
-    requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
-    receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
-    verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
-    verifiedBy: text("verified_by"),
-    waivedReason: text("waived_reason"),
-    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
-  },
-  (t) => [
-    uniqueIndex("company_requirements_company_source_idx").on(t.companyId, t.sourceKey),
-    index("company_requirements_document_idx").on(t.documentId),
-  ]
-);
-
 // Append-only audit trail for document-compliance actions (verify, waive, link,
 // etc.) on a person's OR a company's checklist. Keyed to the owner (person_id /
 // company_id) so each record's history is queryable; `label` is snapshotted so
@@ -1136,48 +1035,6 @@ export const documents = pgTable("documents", {
   // contract or a service agreement). Lets vendor contracts reuse the
   // documents expiry/compliance engine.
   vendorId: integer("vendor_id").references((): AnyPgColumn => vendors.id, { onDelete: "set null" }),
-  // Renewal lineage: the (now-archived) document this one replaces. Lets the UI
-  // show "Replaces …" / "Replaced by …" so a renewable document's history is clear.
-  supersedesId: integer("supersedes_id").references((): AnyPgColumn => documents.id, { onDelete: "set null" }),
-  // Intake confidence gate (transfer-pack 08): "ok" once auto-filled or human
-  // -confirmed; "needs_review" when the AI scan was low-confidence / unmatched
-  // company — those sit in the Needs-review queue until a one-tap confirm.
-  reviewStatus: text("review_status").notNull().default("ok"),
-  // `_NEEDORIG` (transfer-pack 02 §6): set when the file is only a photo/scan
-  // standing in for an official original still to be collected. The Safety Net
-  // raises an "Awaiting original" finding while this is true.
-  needsOriginal: boolean("needs_original").notNull().default(false),
-  // SHA-256 of the uploaded file's bytes — lets dedup catch the SAME file
-  // re-uploaded even under a different name/owner (not just same owner+category).
-  fileHash: text("file_hash"),
-  // When a human has reviewed/confirmed this document (saved it, confirmed it out
-  // of the review queue, or approved/skipped a re-scan). The re-scan tool SKIPS
-  // vetted documents by default — so the AI only re-reads what you haven't settled,
-  // which is what makes re-scanning converge instead of churning new "discoveries".
-  vettedAt: timestamp("vetted_at", { mode: "date", withTimezone: true }),
-  // When one uploaded file (e.g. a recruit's scanned bundle) is split into
-  // several documents, every split shares one compilationId and stores the page
-  // range it covers ("1-3"). The original file is stored once and shared.
-  compilationId: text("compilation_id"),
-  pageRange: text("page_range"),
-  // Expiry intelligence: "yes" = this document type genuinely expires (renew on
-  // expiryDate); "no" = it has no expiry by nature (CV, invoice, analytical) —
-  // so a blank expiry is correct, not missing; null = not yet determined.
-  expiryKind: text("expiry_kind"),
-  // Intake bucket (auto-sorter): "filed" = in the live library; "quarantine" =
-  // the sorter couldn't settle it (no owner / unreadable / suspected duplicate),
-  // held for a glance; "trash" = a certain duplicate or a copy superseded by a
-  // better one (e.g. a photo replaced by a PDF). Quarantine/trash rows also carry
-  // archived=true so every active query/compliance scorer already hides them.
-  intakeState: text("intake_state").notNull().default("filed"),
-  // Plain-language reason a row sits in quarantine/trash (shown in those views).
-  intakeReason: text("intake_reason"),
-  // How sure the AI read was (0–1), from the extraction. Drives the confidence
-  // badge + the "unsure, please check" lane; null = no AI read (manual entry).
-  confidence: doublePrecision("confidence"),
-  // When the row was moved to trash — the Trash view sorts by it. Trash is never
-  // emptied automatically (owner empties it); this is just for ordering/age.
-  trashedAt: timestamp("trashed_at", { mode: "date", withTimezone: true }),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1186,7 +1043,6 @@ export const documents = pgTable("documents", {
   index("documents_company_idx").on(t.companyId),
   index("documents_person_idx").on(t.personId),
   index("documents_vendor_idx").on(t.vendorId),
-  index("documents_file_hash_idx").on(t.fileHash),
 ]);
 
 // Automation reaction log (V3 "the system moves on its own"). When a document is
@@ -1221,94 +1077,6 @@ export const automationEvents = pgTable("automation_events", {
   index("automation_events_status_idx").on(t.status),
   index("automation_events_document_idx").on(t.documentId),
 ]);
-
-// Profile suggestions ("the system tells you what to add"). When a document is
-// filed, the AI's structured read (profile fields, ledger facts) is proposed here
-// rather than written silently — the owner accepts/dismisses on the company or
-// person profile. Always-ask-first sibling of automation_events (which moves
-// processes); this one fills RECORDS. Accept writes through to the real table.
-export const profileSuggestions = pgTable("profile_suggestions", {
-  id: serial("id").primaryKey(),
-  // What to add: company-field | person-field | fact.
-  kind: text("kind").notNull(),
-  // pending → accepted | dismissed.
-  status: text("status").notNull().default("pending"),
-  // The document whose filing produced this suggestion.
-  documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
-  personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }),
-  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
-  // The target field. For company-field/person-field this is the profile key
-  // (e.g. "registrationNo"); for fact it is the ledger field (e.g. "Directors").
-  field: text("field").notNull(),
-  // Proposed value (string/number/array/object — facts can be lists).
-  value: jsonb("value").notNull(),
-  display: text("display"),        // human rendering of value
-  summary: text("summary").notNull(), // "Add Registration no. 12345 to Dar Spices"
-  detail: text("detail"),             // where it came from, e.g. the file title
-  effectiveDate: timestamp("effective_date", { mode: "date", withTimezone: true }), // for facts
-  source: text("source"),             // proving source label (for facts)
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  actedAt: timestamp("acted_at", { mode: "date", withTimezone: true }),
-  createdBy: text("created_by").notNull().default("ai-intake"),
-}, (t) => [
-  index("profile_suggestions_status_idx").on(t.status),
-  index("profile_suggestions_company_idx").on(t.companyId),
-  index("profile_suggestions_person_idx").on(t.personId),
-  index("profile_suggestions_document_idx").on(t.documentId),
-]);
-
-// Learning loop (Part C): when the owner corrects a filed document's category
-// (the intake guessed the wrong shelf), the fix is remembered here so the next
-// similar document follows the correction. Keyed by a small set of distinctive
-// keywords read off the title/issuer; `hits` grows each time the same fix recurs.
-export const routingCorrections = pgTable("routing_corrections", {
-  id: serial("id").primaryKey(),
-  keywords: text("keywords").notNull(),       // comma-joined distinctive tokens
-  toCategory: text("to_category").notNull(),  // the category the owner chose
-  sampleTitle: text("sample_title"),          // an example, for transparency
-  hits: integer("hits").notNull().default(1),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
-}, (t) => [index("routing_corrections_keywords_idx").on(t.keywords)]);
-
-// Owner-correction memory (self-learning): when the owner assigns/corrects a
-// document's owner, remember it keyed by the document's distinctive words, so the
-// next similar document resolves to that company/person on its own. Sibling of
-// routing_corrections (which learns category); this learns the OWNER.
-export const ownerCorrections = pgTable("owner_corrections", {
-  id: serial("id").primaryKey(),
-  keywords: text("keywords").notNull(),      // comma-joined distinctive tokens
-  ownerType: text("owner_type").notNull(),   // "company" | "person"
-  ownerId: integer("owner_id").notNull(),
-  sampleTitle: text("sample_title"),
-  hits: integer("hits").notNull().default(1),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
-}, (t) => [index("owner_corrections_keywords_idx").on(t.keywords)]);
-
-// Custom shelves (Part D): the owner's eight built-in folders can be extended.
-// A genuinely new kind of document (e.g. a Trademark certificate) is PROPOSED as
-// a new shelf (a profile_suggestions row, kind "new-shelf"); accepting inserts a
-// row here. Documents route to a custom shelf when their text matches `keywords`.
-export const customShelves = pgTable("custom_shelves", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  code: text("code").notNull(),               // display prefix, e.g. "09"
-  keywords: text("keywords").notNull(),       // comma-joined match terms
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  createdBy: text("created_by").notNull().default("web-ui"),
-});
-
-// Extraction memory: the AI's structured read of a file, keyed by the file's
-// CONTENT hash. Reading the same bytes again returns this cached result with no
-// Groq call — so re-scanning an unchanged document is free AND deterministic
-// (the same answer every time), instead of the LLM inventing fresh diffs each run.
-export const extractionCache = pgTable("extraction_cache", {
-  fileHash: text("file_hash").primaryKey(),
-  result: text("result").notNull(), // JSON of the ExtractResult (minus the hash)
-  model: text("model"),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-});
 
 // HRMS — Vendor / Supplier register. The outside companies we buy from or
 // rely on (suppliers, contractors, landlords, utilities, professionals).

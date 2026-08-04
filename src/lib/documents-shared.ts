@@ -1,6 +1,11 @@
 // Client-safe pure helpers/types for the Documents centre. No server imports
 // (no `sb`), so this can be used from client components. DB access lives in
 // src/lib/documents.ts, which re-exports from here.
+//
+// Documents are filed BY HAND (Aug 2026). The owner picks the company/person,
+// the category and the type; nothing here classifies, names or shelves a
+// document on its own. What survives is expiry maths — dates the owner typed,
+// turned into a status and a countdown.
 
 export const DOC_CATEGORIES = [
   "Licence",
@@ -24,209 +29,15 @@ export const DOC_CATEGORIES = [
 export type DocCategory = (typeof DOC_CATEGORIES)[number];
 
 /**
- * Deterministic anchor for "does this category expire?" — so expiry classification
- * doesn't ride entirely on the AI's mood (which made it flip run-to-run). Clear
- * cases are decided in code; genuinely ambiguous categories return null and defer
- * to the AI's read. "yes" = renewable (a blank expiry means the date wasn't read
- * → review); "no" = no expiry by nature (a blank expiry is correct, not missing).
- */
-export function categoryExpiryDefault(category?: string | null): "yes" | "no" | null {
-  if (!category) return null;
-  const YES = new Set(["Licence", "Permit", "Insurance", "Lease", "Immigration", "Passport", "Registration"]);
-  // Travel documents carry a travel DATE, not a renewable expiry — a flown ticket
-  // is spent, not overdue. Treating them as expiring would fire a renewal alert
-  // for every past trip.
-  const NO = new Set(["Attachment", "Travel"]);
-  if (YES.has(category)) return "yes";
-  if (NO.has(category)) return "no";
-  return null; // Certificate / Contract / Tax / Banking / Legal / Other → trust the AI
-}
-
-// The owner files documents under a fixed set of category folders inside each
-// company (01_Legal-and-Registration … 08_Operations-and-Branding). When a file
-// is auto-sorted from one of these folders, the folder name is a strong category
-// hint — especially for unreadable scans or when AI is off. Used as a FALLBACK
-// only (the file's own content wins when it yields a category). People-and-HR is
-// intentionally absent: the document type there varies (contract / certificate /
-// ID), so it's left to the content. Returns null when no folder matches.
-const FOLDER_CATEGORY: Array<{ test: RegExp; cat: DocCategory }> = [
-  { test: /immigration|visa|residence|work[\s_-]?permit|passport/i, cat: "Immigration" },
-  { test: /legal|registration|incorporat|memart|brela|annual[\s_-]?return/i, cat: "Registration" },
-  { test: /licen[cs]e|permit/i, cat: "Licence" },
-  { test: /\btax\b|vat|tin|paye|\btra\b|statutory/i, cat: "Tax" },
-  { test: /bank|finance|financial|loan/i, cat: "Banking" },
-  { test: /contract|lease|tenanc|agreement/i, cat: "Contract" },
-  { test: /operation|branding|\bbrand\b|marketing|\blogo\b/i, cat: "Operations" },
-];
-
-/** Map an upload's folder path (e.g. "Dar Spices/03_Tax/vat.pdf") to a document
- *  category from the owner's standard category folders. Only FOLDER segments count
- *  — the filename (last segment, has an extension) is excluded, since the filename
- *  is already read by the content classifier; this is purely the folder signal.
- *  Immigration is tested first so a "work permit" folder isn't read as a Licence. */
-export function categoryFromFolder(folderHint?: string | null): DocCategory | null {
-  const segs = (folderHint ?? "")
-    .split(/[\\/]/)
-    .filter((s) => s.trim() && !/\.[a-z0-9]{1,5}$/i.test(s.trim())) // drop the filename
-    // Normalise separators/numeric prefixes to spaces so "03_Tax" → " Tax " and a
-    // \b word boundary fires (underscore is a word char, so \btax\b fails on "_Tax").
-    .map((s) => ` ${s.replace(/[_\-\d]+/g, " ")} `);
-  for (const seg of segs) {
-    for (const { test, cat } of FOLDER_CATEGORY) if (test.test(seg)) return cat;
-  }
-  return null;
-}
-
-// ── Shelves ──────────────────────────────────────────────────────────────
-// The owner thinks in the eight folders kept on their computer, not the 15 flat
-// document categories. A "shelf" is the owner-facing drawer; several categories
-// map into one shelf. This is PRESENTATION only — routing/extraction still work
-// on `category`; we just group the company's filed documents the owner's way.
-export const DOC_SHELVES = [
-  "Legal & Registration",
-  "Licences & Permits",
-  "Tax",
-  "Banking & Finance",
-  "People & HR",
-  "Immigration",
-  "Contracts & Leases",
-  "Operations & Branding",
-  "Travel",
-] as const;
-export type DocShelf = (typeof DOC_SHELVES)[number];
-
-// Each shelf's matching short code (mirrors the on-disk 01_…–08_ folder names),
-// shown as a quiet prefix so the screen reads like the owner's file explorer.
-export const SHELF_CODE: Record<DocShelf, string> = {
-  "Legal & Registration": "01",
-  "Licences & Permits": "02",
-  Tax: "03",
-  "Banking & Finance": "04",
-  "People & HR": "05",
-  Immigration: "06",
-  "Contracts & Leases": "07",
-  "Operations & Branding": "08",
-  Travel: "09",
-};
-
-// Which shelf a document category belongs to. Categories not listed here (and any
-// future/unknown one) fall to "Operations & Branding" via shelfForCategory's
-// default — never lost, just shelved with the general business papers.
-const CATEGORY_SHELF: Partial<Record<DocCategory, DocShelf>> = {
-  Registration: "Legal & Registration",
-  Certificate: "Legal & Registration",
-  Legal: "Legal & Registration",
-  Licence: "Licences & Permits",
-  Permit: "Licences & Permits",
-  Tax: "Tax",
-  Banking: "Banking & Finance",
-  Insurance: "Banking & Finance",
-  HR: "People & HR",
-  Immigration: "Immigration",
-  Passport: "Immigration",
-  Contract: "Contracts & Leases",
-  Lease: "Contracts & Leases",
-  Operations: "Operations & Branding",
-  // Business travel only. A "dummy" flight booking attached to a visa or permit
-  // application is immigration paperwork, not travel — it belongs on the
-  // Immigration shelf with the rest of that application.
-  Travel: "Travel",
-  Attachment: "Operations & Branding",
-  Other: "Operations & Branding",
-};
-
-/** The owner-facing shelf for a document, from its category. Unknown/blank →
- *  "Operations & Branding" (the general business-papers drawer). */
-export function shelfForCategory(category?: string | null): DocShelf {
-  if (category && category in CATEGORY_SHELF) return CATEGORY_SHELF[category as DocCategory]!;
-  return "Operations & Branding";
-}
-
-/**
- * The one document-naming convention, used by every file path so names are
- * consistent: "Owner · Type · Ref-or-Year". Any part that's missing is dropped;
- * an empty result falls back to "Document". The AI's free-text read still lives in
- * the document's notes/extracted text for search — this is purely the title.
- */
-/**
- * Build a document title in the owner's house format:
- *   `Prefix_DocType-Hyphenated[_Ref][_EXP-YYYY-MM-DD]`
- * e.g. `DarSpices_TIN-Certificate`, `PES_Business-License_EXP-2026-11-06`.
- * `prefix` is the company brand short-name (companies.file_prefix); if absent it
- * falls back to the owner name. `expiry` (a date) appends the `_EXP-…` suffix that
- * documents-with-an-expiry carry. Hyphenates each token so the whole title is a
- * clean, space-free filename.
- */
-export function buildDocTitle(p: {
-  prefix?: string | null;
-  owner?: string | null;
-  type?: string | null;
-  ref?: string | null;
-  date?: string | Date | null;
-  expiry?: string | Date | null;
-}): string {
-  // Turn free text into a hyphenated, filename-safe token.
-  const hy = (s?: string | null) =>
-    (s ?? "").toString().trim().replace(/\s+/g, "-").replace(/[^A-Za-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  const iso = (d?: string | Date | null) =>
-    d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : "";
-
-  const prefix = hy(p.prefix) || hy(p.owner);
-  const type = hy(p.type);
-  const ref = hy(p.ref);
-  const exp = iso(p.expiry);
-
-  let year = "";
-  if (!ref && p.date) {
-    const y = iso(p.date).slice(0, 4);
-    if (/^\d{4}$/.test(y)) year = y;
-  }
-
-  const core = [prefix, type].filter(Boolean).join("_");
-  let title = core || "Document";
-  if (ref) title += `_${ref}`;
-  else if (year && !exp) title += `_${year}`;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(exp)) title += `_EXP-${exp}`;
-  return title.slice(0, 120);
-}
-
-// A custom shelf the owner has accepted (Part D) — extends the built-in eight.
-export type CustomShelf = { name: string; code: string; keywords: string[] };
-
-/** Common document words that are too generic to define a new shelf or a routing
- *  signature (every business has letters and reports). */
-const SHELF_STOPWORDS = new Set([
-  "the", "and", "for", "ltd", "limited", "company", "document", "documents", "file", "copy",
-  "letter", "report", "form", "notice", "statement", "memo", "memorandum", "scan", "page",
-  "certificate", "certificates", "official", "final", "draft", "signed", "dated",
-]);
-
-/**
- * A clean, human display name for a document — the DOCUMENT, not its owner (the
- * company/person is shown separately in every list). Turns the house-format stored
- * title `Prefix_Doc-Type[_Ref][_EXP-date]` into `Doc Type (Ref)`:
- *   `Mr-Sanjay-Kaushik_Indian-Passport_U5515682_EXP-2021-03-22` → `Indian Passport (U5515682)`
- *   `OracleConsultancy_Tax-Clearance-Certificate_131-…_EXP-…`    → `Tax Clearance Certificate (131-…)`
- * Non-house titles fall back to the doc type, then the raw title. Refs keep their
- * own punctuation (a NIDA/licence number isn't hyphen-cleaned); a bare year is dropped.
+ * The name to show for a document. The owner types the title, so that IS the
+ * name; docType/category only stand in when a row has no title of its own
+ * (e.g. a chat attachment filed under its raw file name).
  */
 export function displayDocName(d: {
   title?: string | null; docType?: string | null; referenceNo?: string | null; category?: string | null;
 }): string {
-  const clean = (s?: string | null) => (s ?? "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-  const title = (d.title ?? "").trim();
-  const parts = title.split("_").filter(Boolean);
-  let base: string, ref: string;
-  if (parts.length >= 2) {
-    const body = parts.slice(1).filter((p) => !/^EXP-\d{4}-\d{2}-\d{2}$/i.test(p)); // drop owner prefix + EXP suffix
-    base = clean(body[0]) || clean(d.docType) || clean(d.category) || "Document";
-    ref = (d.referenceNo ?? "").trim() || body.slice(1).join(" ").trim();
-  } else {
-    base = clean(d.docType) || title || clean(d.category) || "Document";
-    ref = (d.referenceNo ?? "").trim();
-  }
-  const refOk = !!ref && !/^\d{4}$/.test(ref) && !base.toLowerCase().includes(ref.toLowerCase());
-  return refOk ? `${base} (${ref})` : base || "Document";
+  const clean = (s?: string | null) => (s ?? "").replace(/\s+/g, " ").trim();
+  return clean(d.title) || clean(d.docType) || clean(d.category) || "Document";
 }
 
 /** Keep only safe filename characters; collapse the rest to underscores. The one
@@ -238,43 +49,8 @@ export function safeFileName(name: string): string {
 /** Per-file upload ceiling (20 MB) — shared by the admin, portal and chat paths. */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-/** Distinctive lowercase tokens from a blob of document text (title + issuer +
- *  type). Used by both the learning loop's signature and new-shelf detection. */
-export function distinctiveTokens(text: string, max = 6): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of (text ?? "").toLowerCase().split(/[^a-z0-9]+/)) {
-    if (raw.length < 4 || SHELF_STOPWORDS.has(raw) || seen.has(raw)) continue;
-    seen.add(raw);
-    out.push(raw);
-    if (out.length >= max) break;
-  }
-  return out;
-}
-
-/** All shelves to render: the eight built-ins followed by any custom ones. */
-export function allShelves(custom: CustomShelf[]): Array<{ name: string; code: string }> {
-  return [
-    ...DOC_SHELVES.map((name) => ({ name, code: SHELF_CODE[name] })),
-    ...custom.map((c) => ({ name: c.name, code: c.code })),
-  ];
-}
-
-/** The shelf a document belongs to, honouring custom shelves first (keyword match
- *  on title/category/type), then the built-in category mapping. */
-export function pickShelf(
-  doc: { category?: string | null; title?: string | null; docType?: string | null },
-  custom: CustomShelf[]
-): { name: string; code: string } {
-  const hay = `${doc.category ?? ""} ${doc.title ?? ""} ${doc.docType ?? ""}`.toLowerCase();
-  for (const c of custom) {
-    if (c.keywords.some((k) => k && hay.includes(k.toLowerCase()))) return { name: c.name, code: c.code };
-  }
-  const shelf = shelfForCategory(doc.category);
-  return { name: shelf, code: SHELF_CODE[shelf] };
-}
-
-// Sensible default reminder lead times (days before expiry) by category.
+// Sensible default reminder lead times (days before expiry) by category. Only a
+// starting value for the form — the owner can change it per document.
 export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Immigration: 90,
   Passport: 180,
@@ -296,15 +72,15 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
 // Alert cadence (transfer-pack 02 §4). Two early one-off heads-ups for
 // immigration cases (their renewals take months), then a RECURRING nag that
 // starts 30 days out and keeps repeating — every 5 days for immigration, every
-// 10 days for ordinary compliance — right through the expiry date and ONWARD
-// past expiry until the document is renewed.
+// 10 days for everything else — right through the expiry date and ONWARD past
+// expiry until the document is renewed.
 export const ALERT_CONFIG = {
   immigration: { earlyHeadsUp: [120, 90], window: 30, interval: 5 },
   compliance: { earlyHeadsUp: [] as number[], window: 30, interval: 10 },
 } as const;
 
 // Categories whose renewals behave like immigration cases (long lead, keep
-// nudging past expiry). Matches the blueprint's passport|visa|permit|… rule.
+// nudging past expiry).
 const IMMIGRATION_CLASS = /immigration|passport|permit|visa|residence|interim|work[- ]?permit|nida/i;
 
 export type AlertClass = "immigration" | "compliance";
@@ -319,8 +95,8 @@ export function alertClassFor(category?: string | null, docType?: string | null)
  * Is a reminder DUE today for this document?
  *  - Immigration: on the 120- and 90-day heads-ups, then every 5 days from 30
  *    days out — 30, 25, …, 5, 0 — and every 5 days AFTER expiry (−5, −10…).
- *  - Compliance: every 10 days from 30 days out — 30, 20, 10, 0 — and every 10
- *    days AFTER expiry (−10, −20…).
+ *  - Everything else: every 10 days from 30 days out — 30, 20, 10, 0 — and
+ *    every 10 days AFTER expiry (−10, −20…).
  * The recurring nag never stops until the document is renewed (which replaces it
  * with a fresh expiry, dropping the old one off the scan).
  */
@@ -339,47 +115,20 @@ export function isReminderDueToday(d: DocStatusInput & { category?: string | nul
  *  early enough for immigration cases (120d) without per-document tuning. */
 export function widestLeadFor(category?: string | null, docType?: string | null): number {
   const cfg = ALERT_CONFIG[alertClassFor(category, docType)];
-  return cfg.earlyHeadsUp[0] ?? cfg.window; // 120 for immigration, 30 for compliance
+  return cfg.earlyHeadsUp[0] ?? cfg.window; // 120 for immigration, 30 otherwise
 }
 
-// Intake bucket (auto-sorter). "filed" = live library; "quarantine" = held for a
-// glance (no owner / unreadable / suspected duplicate); "trash" = certain
-// duplicate or a copy superseded by a better one (photo → PDF). Quarantine/trash
-// rows are also archived=true so active queries already hide them.
-export const INTAKE_STATES = ["filed", "quarantine", "trash"] as const;
-export type IntakeState = (typeof INTAKE_STATES)[number];
-
-// Format priority for "same document, different file" dedup. The owner's rule:
-// a PDF beats a photo. Lower rank = better/more authoritative copy.
+// File-kind helpers — used for icons and for choosing a preview renderer.
 export function isPdfFile(nameOrType?: string | null): boolean {
   return /\.pdf$|application\/pdf/i.test(nameOrType ?? "");
 }
 export function isImageFile(nameOrType?: string | null): boolean {
   return /\.(jpe?g|png|heic|heif|webp|gif|bmp|tiff?)$|^image\//i.test(nameOrType ?? "");
 }
-/**
- * Given an incoming file and an existing one (by name/MIME), decide a format
- * supersede ONLY for the clear photo↔PDF case the owner described — never for
- * two PDFs, two photos, or office files (those fall to exact-hash dedup or
- * quarantine, so a genuinely different document is never auto-binned).
- *   "incoming-wins" → the new PDF replaces the old photo (bin the old one).
- *   "existing-wins" → a better PDF is already on file (bin the incoming photo).
- */
 /** A Word document (the editable source; a PDF export is the canonical copy). */
 export function isDocFile(nameOrType?: string | null): boolean {
   const s = (nameOrType ?? "").toLowerCase();
   return /\.docx?$/.test(s) || s.includes("msword") || s.includes("officedocument.wordprocessing");
-}
-
-export function formatSupersede(
-  incoming: string | null | undefined,
-  existing: string | null | undefined
-): "incoming-wins" | "existing-wins" | null {
-  // A PDF is the canonical copy; it supersedes a photo/scan OR a Word source of the
-  // same document (so a .docx + .pdf pair collapse to one, not a quarantined dup).
-  if (isPdfFile(incoming) && (isImageFile(existing) || isDocFile(existing))) return "incoming-wins";
-  if ((isImageFile(incoming) || isDocFile(incoming)) && isPdfFile(existing)) return "existing-wins";
-  return null;
 }
 
 export type DocStatus = "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
@@ -400,11 +149,6 @@ export type DocStatusInput = {
   // the daily push. Callers passing only {expiryDate,reminderLeadDays} are unchanged.
   category?: string | null;
   docType?: string | null;
-  // "no" = this TYPE does not carry a compliance expiry (a bill, receipt, letter,
-  // incorporation cert…). Such a document is NEVER Expired/Expiring even if a stray
-  // date was read onto it — that's what keeps bills/invoices off the Expiry Watch.
-  // Absent/"yes" behaves exactly as before, so genuine expiries are never hidden.
-  expiryKind?: string | null;
 };
 
 /** Whole days until expiry (negative = already expired). Null if no expiry. */
@@ -413,12 +157,10 @@ export function daysToExpiry(d: DocStatusInput): number | null {
   return Math.floor((d.expiryDate.getTime() - today().getTime()) / DAY);
 }
 
-/** Derived lifecycle status. Mirrors derive.ts conventions for tasks. */
+/** Derived lifecycle status. Mirrors derive.ts conventions for tasks. A document
+ *  with no expiry date is simply "No expiry" — nothing is inferred. */
 export function deriveDocStatus(d: DocStatusInput): DocStatus {
   if (d.archived) return "Archived";
-  // A type that does not expire by its nature is never tracked — even if the read
-  // put a (bill due / payment) date on it. Strict "real expiry only".
-  if (d.expiryKind === "no") return "No expiry";
   const dte = daysToExpiry(d);
   if (dte === null) return "No expiry";
   if (dte < 0) return "Expired";
@@ -472,34 +214,7 @@ export type DocumentRow = {
   storagePath: string | null;
   fileName: string | null;
   notes: string | null;
-  /** Full extracted body text (typed/OCR) so ORI can search inside the file. */
-  extractedText: string | null;
-  /** How the text was read: "typed" | "ocr" | "none" | "ocr-empty" (or null). */
-  textSource: string | null;
-  /** Renewal lineage: the (archived) document this one replaces, if any. */
-  supersedesId: number | null;
-  /** Intake confidence gate: "ok" | "needs_review". */
-  reviewStatus: string;
-  /** `_NEEDORIG`: a photo standing in for an official original still to collect. */
-  needsOriginal: boolean;
-  /** SHA-256 of the stored file's bytes (dedup of identical re-uploads). */
-  fileHash: string | null;
-  /** Groups documents split from one uploaded file; they share one stored file. */
-  compilationId: string | null;
-  /** Which pages of the shared source file this document covers, e.g. "1-3". */
-  pageRange: string | null;
-  /** "yes" (genuinely expires) | "no" (no expiry by nature) | null (undetermined). */
-  expiryKind: string | null;
-  /** When a human confirmed this document — re-scan skips vetted docs. */
-  vettedAt: Date | null;
-  /** Intake bucket: "filed" | "quarantine" | "trash". */
-  intakeState: IntakeState;
-  /** Plain-language reason a row is in quarantine/trash. */
-  intakeReason: string | null;
-  /** How sure the AI read was (0–1); null = manual entry, no AI read. */
-  confidence: number | null;
-  /** When the row was moved to trash (for ordering the Trash view). */
-  trashedAt: Date | null;
+  vendorId: number | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;

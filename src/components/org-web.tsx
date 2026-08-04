@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Search, X, ShieldCheck, UserRound, Building2, ArrowRight } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Search, X, UserRound, Building2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/names";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
@@ -371,7 +371,6 @@ export function OrgWeb({
                   {(reportsCount.get(selPerson.id) ?? 0) > 0 && <span className="rounded bg-accent-soft text-accent px-1.5 py-0.5 font-medium">{reportsCount.get(selPerson.id)} report{reportsCount.get(selPerson.id) === 1 ? "" : "s"}</span>}
                   {selX?.open ? <span className="rounded bg-info-soft text-info px-1.5 py-0.5 font-medium">{selX.open} open</span> : null}
                   {selX?.overdue ? <span className="rounded bg-danger-soft text-danger px-1.5 py-0.5 font-medium">{selX.overdue} overdue</span> : null}
-                  {selX?.compliancePct != null && <span className="inline-flex items-center gap-0.5 rounded bg-bg-muted text-fg-muted px-1.5 py-0.5 font-medium"><ShieldCheck size={9} />{selX.compliancePct}%</span>}
                 </div>
                 <button type="button" onClick={() => openPerson(selPerson.id)} className="mt-2 w-full h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-[11px] font-medium hover:bg-accent-hover transition-colors"><UserRound size={12} /> Open profile</button>
               </>

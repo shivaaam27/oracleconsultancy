@@ -7,7 +7,6 @@ import { sb } from "@/db/supabase";
 import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
 import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
 import { getAiKey } from "@/lib/settings";
@@ -488,8 +487,6 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   await syncReportingLines(data.id as number, parseSecondaryManagers(formData), n(formData, "managerId"));
   const newType = normalizePersonType(personType(formData));
   await logPersonEvent(data.id as number, "created", { newValue: name, detail: personTypeLabel(newType) });
-  // Auto-generate this person's document checklist for their type.
-  try { await ensurePersonRequirements(data.id as number, newType); } catch {}
   // Auto-start an onboarding checklist for actual hires (local staff / expat).
   if (AUTO_ONBOARD_TYPES.includes(newType)) {
     try { await startJourney(data.id as number, "onboarding"); } catch {}
@@ -600,9 +597,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const lineRes = await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
   if (!lineRes.ok) return { ok: false, error: lineRes.error };
 
-  // Reconcile the checklist to the (possibly changed) type.
   const newType = normalizePersonType(personType(formData));
-  try { await ensurePersonRequirements(id, newType); } catch {}
 
   // Recruit → hire: a Candidate (or other non-onboarding type) changing INTO a
   // staff type starts their onboarding journey, the same as a fresh hire. Without

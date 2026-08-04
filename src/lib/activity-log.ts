@@ -45,8 +45,8 @@ export function classifyActor(createdBy: string | null | undefined): { actor: Ac
     const name = by.split(":").slice(1).join(":").trim();
     return { actor: "staff", label: name || "Staff" };
   }
-  if (by === "" || /^(ai-|automation|cron|dropbox|system|meeting-mode$|capture$)/i.test(by)) {
-    // ai-intake/ai-command/automation/cron/dropbox and unstamped = the system itself.
+  if (by === "" || /^(ai-|automation|cron|system|meeting-mode$|capture$)/i.test(by)) {
+    // ai-command/automation/cron and unstamped = the system itself.
     // (capture = quick-capture wizard, owner-driven but logged as a system assist.)
     return /^capture$/i.test(by) ? { actor: "you", label: "You" } : { actor: "system", label: "System" };
   }
@@ -63,11 +63,9 @@ function systemEventSummary(kind: string, d: Record<string, unknown>): { summary
     case "documents.filed":
       return { summary: `Filed "${s(d.title) ?? "a document"}"${d.owner ? ` to ${s(d.owner)}` : ""}`, detail: s(d.reason), href: d.docId ? `/documents?doc=${d.docId}` : "/documents" };
     case "documents.quarantine":
-      return { summary: `Held "${s(d.title) ?? "a document"}" for review`, detail: s(d.reason), href: "/inbox" };
+      return { summary: `Held "${s(d.title) ?? "a document"}" for review`, detail: s(d.reason), href: "/approvals" };
     case "documents.selfheal":
       return { summary: `Self-healed documents`, detail: `re-read ${s(d.healedText) ?? 0}, re-owned ${s(d.filedOwner) ?? 0}`, href: "/documents" };
-    case "dropbox.sync":
-      return { summary: `Pulled new files from Dropbox`, detail: d.pulled ? `${s(d.pulled)} file(s)` : null, href: "/inbox" };
     case "cron.morning":
       return { summary: `Ran the morning routine`, detail: null };
     case "cron.notify":
@@ -84,12 +82,12 @@ function systemEventSummary(kind: string, d: Record<string, unknown>): { summary
       // are a flagged problem. (The "— failed" suffix is added by the caller for
       // error rows, so keep the summary status-neutral here.)
       return Array.isArray(d.down) && (d.down as string[]).length
-        ? { summary: `Flagged a system-health problem`, detail: (d.down as string[]).join("; "), href: "/inbox" }
-        : { summary: `Checked system health — all ${s(d.healthy) ?? "jobs"} healthy`, detail: d.repaired ? `auto-fixed ${s(d.repaired)}` : null, href: "/inbox" };
+        ? { summary: `Flagged a system-health problem`, detail: (d.down as string[]).join("; "), href: "/approvals" }
+        : { summary: `Checked system health — all ${s(d.healthy) ?? "jobs"} healthy`, detail: d.repaired ? `auto-fixed ${s(d.repaired)}` : null, href: "/approvals" };
     case "system.repair":
-      return { summary: `Self-repaired a stalled job (${s(d.job) ?? "a job"})`, detail: s(d.message), href: "/inbox" };
+      return { summary: `Self-repaired a stalled job (${s(d.job) ?? "a job"})`, detail: s(d.message), href: "/approvals" };
     case "system.repaired":
-      return { summary: `Auto-fixed ${Array.isArray(d.jobs) ? (d.jobs as string[]).join(", ") : "a job"}`, detail: null, href: "/inbox" };
+      return { summary: `Auto-fixed ${Array.isArray(d.jobs) ? (d.jobs as string[]).join(", ") : "a job"}`, detail: null, href: "/approvals" };
     case "automation.time":
       return { summary: `Created scheduled work that came due`, detail: s(d.summary), href: "/" };
     case "portal.access.granted":

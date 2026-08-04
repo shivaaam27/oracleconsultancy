@@ -134,16 +134,6 @@ const REPAIRABLE: Record<string, { label: string; run: () => Promise<string> }> 
       return `${checked} checked, ${orphansRemoved} orphans removed`;
     },
   },
-  "cron.auto-sort": {
-    label: "Inbox auto-sort",
-    run: async () => {
-      const { autoSortInboxAction } = await import("@/app/inbox/actions");
-      const res = await autoSortInboxAction();
-      await recordEvent("cron.auto-sort", res.ok ? "ok" : "error", { repaired: true, ...res });
-      if (!res.ok) throw new Error("auto-sort returned not-ok");
-      return `inbox sorted`;
-    },
-  },
 };
 
 /** Is this job kind one we know how to re-run? */

@@ -72,7 +72,6 @@ export async function getWorldData(slug: WorldSlug): Promise<WorldData> {
 async function peopleData(): Promise<WorldData> {
   const [brief, leave] = await Promise.all([getBrief(new Date()), leaveMetrics()]);
   const hr = brief.hr;
-  const complianceGaps = hr.compliancePeople.filter((p) => p.missing > 0).length;
 
   const stats: WorldStat[] = [
     { label: "Headcount", value: hr.headcount, href: "/people" },
@@ -89,9 +88,9 @@ async function peopleData(): Promise<WorldData> {
       href: "/hrms/leave",
     },
     {
-      label: "Compliance gaps",
-      value: complianceGaps,
-      tone: complianceGaps > 0 ? "warn" : "success",
+      label: "Document alerts",
+      value: hr.expiringDocs.length,
+      tone: hr.expiringDocs.length > 0 ? "warn" : "success",
       href: "/documents",
     },
   ];
@@ -130,7 +129,6 @@ async function peopleData(): Promise<WorldData> {
 async function companiesData(): Promise<WorldData> {
   const [brief, tasks] = await Promise.all([getBrief(new Date()), getAllTasks()]);
   const kpis = computeGlobalKpis(tasks);
-  const companyGaps = brief.compliance.filter((c) => c.score < 80).length;
 
   const stats: WorldStat[] = [
     { label: "Companies", value: brief.companyCount, href: "/companies" },
@@ -139,12 +137,6 @@ async function companiesData(): Promise<WorldData> {
       value: brief.atRiskCount,
       tone: brief.atRiskCount > 0 ? "danger" : "success",
       href: "/companies",
-    },
-    {
-      label: "Compliance gaps",
-      value: companyGaps,
-      tone: companyGaps > 0 ? "warn" : "success",
-      href: "/documents",
     },
     { label: "Open tasks", value: kpis.open, href: "/?tab=tasks" },
   ];
@@ -156,14 +148,6 @@ async function companiesData(): Promise<WorldData> {
       meta: `risk ${c.riskScore}`,
       href: `/companies/${c.id}`,
       tone: "danger",
-    });
-  }
-  for (const c of brief.compliance.filter((x) => x.missing > 0).slice(0, 2)) {
-    needsYou.push({
-      title: `Close ${c.companyName} compliance gaps`,
-      meta: `${c.missing} missing`,
-      href: `/documents?company=${c.companyId}`,
-      tone: "warn",
     });
   }
 
@@ -228,7 +212,6 @@ async function complianceData(): Promise<WorldData> {
   // Tax & Legal paused → drop all statutory figures + the tile from this world.
   const deadlines = commandCentrePaused ? [] : deadlinesRaw;
   const stats0 = signals.healthStats;
-  const companyGaps = brief.compliance.filter((c) => c.missing > 0).length;
   const overdueDeadlines = deadlines.filter((d) => d.flag === "overdue");
 
   const stats: WorldStat[] = [
@@ -242,12 +225,6 @@ async function complianceData(): Promise<WorldData> {
       label: "Expiring",
       value: stats0.expiring,
       tone: stats0.expiring > 0 ? "warn" : "muted",
-      href: "/documents",
-    },
-    {
-      label: "Company gaps",
-      value: companyGaps,
-      tone: companyGaps > 0 ? "warn" : "success",
       href: "/documents",
     },
     ...(commandCentrePaused
@@ -269,22 +246,6 @@ async function complianceData(): Promise<WorldData> {
       meta: d.daysLeft != null ? `${Math.abs(d.daysLeft)}d overdue` : undefined,
       href: "/hrms/command-centre",
       tone: "danger",
-    });
-  }
-  for (const c of brief.compliance.filter((x) => x.expired > 0).slice(0, 1)) {
-    needsYou.push({
-      title: `Renew ${c.companyName} expired docs`,
-      meta: `${c.expired} expired`,
-      href: `/documents?company=${c.companyId}`,
-      tone: "danger",
-    });
-  }
-  for (const c of brief.compliance.filter((x) => x.missing > 0).slice(0, 1)) {
-    needsYou.push({
-      title: `Add missing docs — ${c.companyName}`,
-      meta: `${c.missing} missing`,
-      href: `/documents?company=${c.companyId}`,
-      tone: "warn",
     });
   }
 

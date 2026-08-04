@@ -436,13 +436,13 @@ export const ENTITY_DEFS: EntityDef[] = [
     type: "document",
     table: "documents",
     idColumn: "id",
-    // LIGHT default select (no extracted_text) — used by the per-write hook + any
-    // light read. The heavy body is fetched only via indexSelectColumns below.
+    // Documents are filed by hand and no longer carry an extracted body, so the
+    // index (when semantic search is on) sees only what the owner typed. Nothing
+    // re-indexes a document on write any more — the ⌘K hit comes from the plain
+    // `search` block below, which is a straight SQL ilike.
     selectColumns: ["id", "title", "doc_type", "issuer", "category", "reference_no", "notes", "archived"],
-    // HEAVY select for the embed path only: pull the full body so vectors stay real.
-    indexSelectColumns: ["id", "title", "doc_type", "issuer", "category", "reference_no", "notes", "extracted_text", "archived"],
     textFor: (r) =>
-      join(str(r.title), str(r.doc_type), str(r.issuer), str(r.category), str(r.reference_no), str(r.notes), str(r.extracted_text)),
+      join(str(r.title), str(r.doc_type), str(r.issuer), str(r.category), str(r.reference_no), str(r.notes)),
     lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
     uiLabel: "Documents",
     searchOrder: 4,

@@ -24,7 +24,6 @@ export function isPersonPackPurpose(value: string | null | undefined): value is 
 }
 
 export type PersonPackSectionKey =
-  | "missingDocuments"
   | "documentIssues"
   | "linkedDocuments"
   | "openTasks"
@@ -34,11 +33,9 @@ export type PersonPackSectionKey =
   | "contactDetails"
   | "companyContext"
   | "fileLinks"
-  | "complianceScore"
   | "internalNotes";
 
 export const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
-  "missingDocuments",
   "documentIssues",
   "linkedDocuments",
   "openTasks",
@@ -48,7 +45,6 @@ export const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
   "contactDetails",
   "companyContext",
   "fileLinks",
-  "complianceScore",
   "internalNotes",
 ];
 
@@ -56,7 +52,6 @@ export type PersonPackSectionSelection = Record<PersonPackSectionKey, boolean>;
 
 export function blankPersonPackSelection(): PersonPackSectionSelection {
   return {
-    missingDocuments: false,
     documentIssues: false,
     linkedDocuments: false,
     openTasks: false,
@@ -66,7 +61,6 @@ export function blankPersonPackSelection(): PersonPackSectionSelection {
     contactDetails: false,
     companyContext: false,
     fileLinks: false,
-    complianceScore: false,
     internalNotes: false,
   };
 }

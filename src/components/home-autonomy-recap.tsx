@@ -6,7 +6,7 @@ import type { CockpitItem } from "@/lib/cockpit-shared";
  * A slim "what ORI did for you" strip for the home — makes the system's autonomy
  * (auto-filed / renamed / verified / advanced) visible and trusted at a glance,
  * without a heavy panel. Reuses listCockpitActivity (automation_events +
- * profile_suggestions); the full, undoable feed lives on /inbox. Renders nothing
+ * automation_events); the full, undoable feed lives on /approvals. Renders nothing
  * when the system has been quiet, so it never adds noise on a clear day.
  */
 export function HomeAutonomyRecap({ items }: { items: CockpitItem[] }) {
@@ -15,7 +15,7 @@ export function HomeAutonomyRecap({ items }: { items: CockpitItem[] }) {
 
   return (
     <Link
-      href="/inbox"
+      href="/approvals"
       className="group flex items-center gap-3 rounded-2xl bg-bg-elev/60 ring-1 ring-border px-3.5 py-2.5 transition hover:ring-accent/40"
     >
       <div className="grid h-8 w-8 place-items-center rounded-xl bg-accent/10 text-accent shrink-0">

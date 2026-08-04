@@ -22,7 +22,6 @@ import { ContextActionsProvider } from "@/components/context-actions";
 import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
-import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
@@ -118,7 +117,6 @@ export default async function RootLayout({ children, modal }: { children: React.
               <LiquidGlassDefs />
               <HideOnPortal>
                 <Suspense>
-                  <CaptureWizardMount />
                 </Suspense>
               </HideOnPortal>
               </NavVisibilityProvider>

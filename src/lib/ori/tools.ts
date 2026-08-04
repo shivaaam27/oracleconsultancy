@@ -6,12 +6,11 @@ import { createCalendarEvent, updateCalendarEvent } from "@/lib/calendar";
 import { setTaskBlocker, clearTaskBlocker, adminTogglePin } from "@/app/task/actions";
 import { setProbationDateAction } from "@/app/people/actions";
 import { recordAttendanceAction } from "@/app/hrms/leave/actions";
-import { renameDocumentAction, archiveDocumentAction, fileFromQuarantineAction } from "@/app/documents/actions";
+import { renameDocumentAction, archiveDocumentAction } from "@/app/documents/actions";
 import { cancelEventAction } from "@/app/calendar/actions";
 import { publishAnnouncementAction } from "@/app/announcements/actions";
 import { adminRemindTask, deleteTaskQuick } from "@/app/task/actions";
 import { sendDraftEmail } from "@/app/outbox/actions";
-import { trashIntakeDocAction } from "@/app/documents/actions";
 import { canAutoSend, type SendChannel } from "@/lib/guardrails";
 // Domain tool arrays — each REUSES existing server actions/helpers and mirrors the
 // ToolDef shape; spread into TOOLS below so they auto-register into TOOL_BY_NAME.
@@ -777,8 +776,6 @@ export const TOOLS: ToolDef[] = [
       }
       if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me who owns it — a person or a company." };
       await sb.from("documents").update(patch).eq("id", doc.id);
-      await fileFromQuarantineAction(doc.id);
-      void reindexEntity("document", doc.id);
       return { ok: true, message: `Filed "${doc.title}" to ${owner}.`, redirect: `/documents` };
     },
   },
@@ -992,23 +989,6 @@ export const TOOLS: ToolDef[] = [
       const res = await deleteTaskQuick(t.code);
       if (!res.ok) return { ok: false, message: res.error ?? "Couldn't delete the task." };
       return { ok: true, message: `Deleted ${t.code}. It's recoverable for 10 minutes.`, redirect: `/registry` };
-    },
-  },
-  {
-    name: "delete_document",
-    tier: 3,
-    description: "Move a document to Trash (recoverable — not a permanent delete).",
-    params: {
-      document: { type: "string", required: true, description: "The document — its id or a title to match." },
-    },
-    async run(args) {
-      const doc = await resolveDocument(str(args.document));
-      if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
-      // Soft delete only (Trash), never deleteDocumentForever — respects
-      // AUTO_HARD_DELETE_FORBIDDEN. Undo restores it from Trash.
-      const res = await trashIntakeDocAction(doc.id, "Moved to Trash via ORI");
-      if (!res.ok) return { ok: false, message: `Couldn't move "${doc.title}" to Trash.` };
-      return { ok: true, message: `Moved "${doc.title}" to Trash — restorable from there.`, redirect: `/documents`, undo: { kind: "ori.document.trash", payload: { documentId: doc.id } } };
     },
   },
 

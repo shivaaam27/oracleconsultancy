@@ -7,7 +7,7 @@ import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
-import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-documents";
+import { PortalDocuments, type PortalDocumentItem } from "@/components/portal-documents";
 import { PortalAttendance } from "@/components/portal-attendance";
 import { personAttendanceWeek } from "@/lib/attendance";
 import { PasskeyManager } from "@/components/passkey-manager";
@@ -21,7 +21,6 @@ import { getInitials } from "@/lib/names";
 import { audienceForRole, firstRunTourFor, spotlightsFor } from "@/lib/tours";
 import { TourReplay } from "@/components/tour-replay";
 import { portalRestartTour } from "../../tour-actions";
-import { getPersonChecklist } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
 import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
@@ -64,16 +63,17 @@ export default async function PortalProfile() {
     emergencyContactPhone: (contactRow?.emergency_contact_phone as string | null) ?? "",
   };
 
-  // The person's document-compliance checklist (auto-links + scores server-side).
-  const checklist = await getPersonChecklist(me.id);
-  const docItems: PortalChecklistItem[] = (checklist?.items ?? []).map((it) => ({
-    id: it.id,
-    label: it.label,
-    mandatory: it.mandatory,
-    effectiveStatus: it.effectiveStatus,
-    documentTitle: it.documentTitle,
-    expiryLabel: it.expiryLabel,
-  }));
+  // The documents filed against this person — a plain list, no checklist.
+  const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
+  const docItems: PortalDocumentItem[] = (await listDocuments())
+    .filter((d) => d.personId === me.id && !d.archived)
+    .map((d) => ({
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      status: deriveDocStatus(d),
+      expiryLabel: docExpiryLabel(d),
+    }));
 
   const [journey, equipment, attendance] = await Promise.all([
     getJourney(me.id, "onboarding"),
@@ -128,10 +128,8 @@ export default async function PortalProfile() {
 
   // Glance rail — the three numbers that tell a staff member where they stand
   // before any scrolling. Each tile only appears when there's data behind it.
-  const compScore = checklist ? checklist.score : null;
   const presentDays = attendance.days.filter((d) => d.status === "Present" || d.status === "Remote" || d.status === "Half-day").length;
   const glance: Array<{ label: string; value: string; tone: keyof typeof TONE }> = [
-    ...(compScore != null ? [{ label: "Compliance", value: `${compScore}%`, tone: (compScore >= 80 ? "success" : compScore >= 50 ? "warn" : "danger") as keyof typeof TONE }] : []),
     { label: "Present wk", value: `${presentDays}/6`, tone: "muted" as keyof typeof TONE },
   ];
 
@@ -214,12 +212,12 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
-      {!isDirector && docItems.length > 0 && (
+      {!isDirector && (
         <Reveal delay={0.08} className="flex flex-col gap-2.5">
           <SectionLabel icon={<FileCheck2 size={13} />}>Your documents</SectionLabel>
-          <PortalDocuments items={docItems} score={checklist?.score ?? 0} />
+          <PortalDocuments items={docItems} />
           <p className="px-1 text-[11px] text-fg-subtle">
-            Upload anything we still need. Your administrator checks and confirms each one.
+            Send anything we ask for. Your administrator files and checks each one.
           </p>
         </Reveal>
       )}

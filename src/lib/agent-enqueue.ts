@@ -14,15 +14,6 @@ export async function enqueueAsk(question: string, opts?: { threadId?: number; r
   });
 }
 
-/** Ask ORI to READ a document (batch lane) — resolves owner + fields, files it. */
-export async function enqueueDocExtract(documentId: number, opts?: { text?: string; imageRef?: string; requestedBy?: string }) {
-  return enqueueJob({
-    kind: "extract", lane: "batch",
-    payload: { documentId, text: opts?.text ?? null, imageRef: opts?.imageRef ?? null },
-    requestedBy: opts?.requestedBy ?? "system",
-  });
-}
-
 /** Turn a natural-language request into an action (meeting/task/reminder). */
 export async function enqueueAction(request: string, opts?: { confirmed?: boolean; requestedBy?: string }) {
   return enqueueJob({

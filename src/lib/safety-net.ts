@@ -1,7 +1,6 @@
 import { sb } from "@/db/supabase";
 import { factStatus, type FactValue } from "@/lib/facts-shared";
 import { commitmentUrgency, daysToNotice, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
-import { categoryExpiryDefault } from "@/lib/documents-shared";
 import type { Finding } from "@/lib/safety-net-shared";
 import { sortFindings } from "@/lib/safety-net-shared";
 
@@ -25,7 +24,7 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
 
   const [companies, documents, facts, openAssignments] = await Promise.all([
     sb.from("companies").select("id,name,tin,registration_no,active"),
-    sb.from("documents").select("id,title,category,file_name,archived,company_id,person_id,needs_original,expiry_date,expiry_kind,review_status"),
+    sb.from("documents").select("id,title,category,file_name,archived,company_id,person_id,expiry_date"),
     sb.from("facts").select("id,entity_type,person_id,company_id,field,value,display,effective_date,verified,verified_at"),
     sb.from("asset_assignments").select("id,asset_id,person_id,returned_at").is("returned_at", null),
   ]);
@@ -70,16 +69,13 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
     }
   }
 
-  // 3. Awaiting original — the AI/operator flagged it (`needs_original`), or a
-  //    photo is standing in for an official document (heuristic, for legacy docs
-  //    uploaded before the flag existed).
-  const docRows = (documents.data ?? []) as Array<{ id: number; title: string; category: string | null; file_name: string | null; archived: boolean; needs_original: boolean | null; expiry_date: string | null; expiry_kind: string | null; review_status: string | null }>;
+  // 3. Awaiting original — a photo is standing in for an official document.
+  const docRows = (documents.data ?? []) as Array<{ id: number; title: string; category: string | null; file_name: string | null; archived: boolean; expiry_date: string | null }>;
   for (const d of docRows) {
     if (d.archived) continue;
-    const flagged = d.needs_original === true;
     const heuristic = !!d.file_name && IMAGE_FILE.test(d.file_name) && !!d.category && OFFICIAL_CATEGORIES.has(d.category);
-    if (!flagged && !heuristic) continue;
-    const kindNote = d.file_name && IMAGE_FILE.test(d.file_name) ? ` (${d.file_name})` : "";
+    if (!heuristic) continue;
+    const kindNote = d.file_name ? ` (${d.file_name})` : "";
     findings.push({
       id: `awaiting-original:${d.id}`,
       severity: "medium",
@@ -90,26 +86,6 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
     });
   }
 
-  // 3b. Untracked expiry (transfer-pack 10 §C): a document that SHOULD carry an
-  //     expiry (its type renews) but has no expiry date set — so the reminder
-  //     engine is blind to it. We only flag when the system is confident it
-  //     expires (expiry_kind "yes", or a renewable category) and it isn't already
-  //     waiting in the review queue.
-  for (const d of docRows) {
-    if (d.archived) continue;
-    if (d.expiry_date) continue; // already tracked
-    if (d.review_status === "needs_review") continue; // already surfaced
-    const expects = d.expiry_kind === "yes" || (d.expiry_kind == null && categoryExpiryDefault(d.category) === "yes");
-    if (!expects) continue;
-    findings.push({
-      id: `untracked-expiry:${d.id}`,
-      severity: "medium",
-      kind: "untracked-expiry",
-      title: `Expiry not captured — ${d.title}`,
-      detail: `This ${(d.category ?? "document").toLowerCase()} renews, but no expiry date is on record — so it won't trigger a reminder. Open it and add the expiry (or mark "no expiry").`,
-      href: `/documents?doc=${d.id}`,
-    });
-  }
 
   // 4. Stale / incomplete facts (current value per entity+field, from the ledger).
   type FactRow = { id: number; entity_type: string; person_id: number | null; company_id: number | null; field: string; value: FactValue; display: string | null; effective_date: string; verified: boolean; verified_at: string | null };

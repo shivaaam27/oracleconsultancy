@@ -1,5 +1,4 @@
 import { sb } from "@/db/supabase";
-import { bestDocType, deriveFiling } from "@/lib/doc-catalog";
 import { getAllTasks } from "@/lib/queries";
 import { computeWorkload } from "@/lib/workload";
 
@@ -19,7 +18,7 @@ import { computeWorkload } from "@/lib/workload";
 export type SmartTone = "danger" | "warn" | "success" | "muted" | "accent";
 export type SmartRow = { label: string; sub?: string | null; badge?: string | null; tone?: SmartTone; href: string };
 export type SmartAnswer = {
-  kind: "leave" | "expiry" | "expired" | "tasks" | "compliance" | "count";
+  kind: "leave" | "expiry" | "expired" | "tasks" | "count";
   title: string;
   count: number;
   rows: SmartRow[];
@@ -111,18 +110,27 @@ async function docExpiryAnswer(q: string): Promise<SmartAnswer | null> {
   // query when it's not already an EXPIRED one.
   const wantExpiring = !wantExpired && /\bexpiring\b|\bexpiry\b|expires\b|renew|due (soon|this|for renewal)|valid until|coming due/i.test(q);
   if (!wantExpired && !wantExpiring) return null;
-  // A document type named in the query narrows it (e.g. "expired permits").
-  const type = bestDocType(q.replace(/\b(expired|expiring|expiry|expires|renew|renewal|due|soon|this|week|month|documents?|which|what|show|list|are)\b/gi, " ").trim());
+  // A document type named in the query narrows it (e.g. "expired permits") —
+  // matched against the type/title the owner typed, not a catalogue.
+  const typeWords = q
+    .replace(/\b(expired|expiring|expiry|expires|renew|renewal|due|soon|this|week|month|documents?|which|what|show|list|are)\b/gi, " ")
+    .replace(/[^a-z0-9 ]/gi, " ")
+    .toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
   const window = /month/i.test(q) ? 30 : /week/i.test(q) ? 7 : 90;
   const today = startOfToday();
 
   const { data } = await sb
     .from("documents")
     .select("id,title,file_name,doc_type,company_id,person_id,expiry_date")
-    .eq("archived", false).eq("intake_state", "filed").not("expiry_date", "is", null)
+    .eq("archived", false).not("expiry_date", "is", null)
     .order("expiry_date", { ascending: true }).limit(400);
   let docs = (data ?? []) as Record<string, unknown>[];
-  if (type) docs = docs.filter((d) => deriveFiling(d.file_name as string | null, d.title as string, "").typeKey === type.key);
+  if (typeWords.length) {
+    docs = docs.filter((d) => {
+      const hay = `${d.doc_type ?? ""} ${d.title ?? ""}`.toLowerCase();
+      return typeWords.every((w) => hay.includes(w));
+    });
+  }
 
   const rows: SmartRow[] = [];
   for (const d of docs) {
@@ -143,7 +151,7 @@ async function docExpiryAnswer(q: string): Promise<SmartAnswer | null> {
   }
   if (rows.length === 0) return null;
   const title = wantExpired && !wantExpiring
-    ? (type ? `Expired ${type.label.toLowerCase()}s` : "Expired documents")
+    ? "Expired documents"
     : `Documents expiring${/month/i.test(q) ? " this month" : /week/i.test(q) ? " this week" : " soon"}`;
   return { kind: wantExpired && !wantExpiring ? "expired" : "expiry", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/documents" };
 }
@@ -214,59 +222,6 @@ async function countAnswer(q: string): Promise<SmartAnswer | null> {
   }
   if (/vendor|supplier/i.test(q)) { const n = await head("vendors", (qb) => qb.eq("active", true)); return { kind: "count", title: "Active vendors", count: n, rows: [], href: "/hrms/assets" }; }
   return null;
-}
-
-/** WHO IS MISSING a document — people whose compliance checklist still lacks the
- *  named document (e.g. "who is missing a passport", "staff without a contract"). */
-async function missingDocAnswer(q: string): Promise<SmartAnswer | null> {
-  // PERSON-oriented only ("who is missing a passport", "staff without a
-  // contract") — a bare "X missing documents" with a company is handled by
-  // companyComplianceAnswer (which runs first).
-  if (!/\b(who|which|anyone|everyone|list|staff|people|employees?|any)\b.*\b(missing|without|lacks?|hasn'?t|doesn'?t have|needs?|no|not have)\b/i.test(q)
-    && !/\b(missing|without)\b\s+(a |an |their )?(passport|visa|permit|contract|nida|id|licen[cs]e|photo|cv|certificate|tin)/i.test(q)) return null;
-  // The document concept (passport / visa / contract / NIDA …) from the query.
-  const cleaned = q.replace(/\b(who|which|anyone|everyone|list|is|are|has|have|missing|without|lacks?|hasn'?t|doesn'?t|need|needs|a|an|their|the|staff|people|employees?|no|not|got|any)\b/gi, " ").replace(/[^a-z0-9 ]/gi, " ").trim();
-  const type = bestDocType(cleaned);
-  const concept = type ? type.label.split(/\s+/).find((w) => w.length >= 4)?.toLowerCase() : cleaned.split(/\s+/).find((w) => w.length >= 4)?.toLowerCase();
-  if (!concept) return null;
-  // Prefer the EXACT checklist label the catalogue type satisfies ("Passport",
-  // not "Passport photo"); fall back to a keyword match when no type resolved.
-  const targetLabel = type?.personReqLabel ?? null;
-  const base = sb.from("person_requirements").select("label,status,people(name,active)").in("status", ["missing", "requested"]).limit(200);
-  const { data } = await (targetLabel ? base.eq("label", targetLabel) : base.ilike("label", `%${concept}%`));
-  const seen = new Set<string>();
-  const rows: SmartRow[] = [];
-  let label = targetLabel ?? concept;
-  for (const r of (data ?? []) as Record<string, unknown>[]) {
-    const p = r.people as { name?: string; active?: boolean } | { name?: string; active?: boolean }[] | null;
-    const person = Array.isArray(p) ? p[0] : p;
-    if (!person?.name || person.active === false || seen.has(person.name)) continue;
-    seen.add(person.name);
-    label = (r.label as string) || label;
-    rows.push({ label: person.name, sub: `missing ${(r.label as string) ?? label}`, badge: "missing", tone: "warn", href: "/people" });
-  }
-  const title = `Missing: ${label}`;
-  if (rows.length === 0) return { kind: "compliance", title, count: 0, rows: [], note: "Everyone on the checklist has it.", href: "/documents" };
-  return { kind: "compliance", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/documents" };
-}
-
-/** [COMPANY] missing documents / compliance — the company's outstanding
- *  statutory items + its score, read-only (no auto-link writes). */
-async function companyComplianceAnswer(q: string): Promise<SmartAnswer | null> {
-  if (!/(missing (document|doc|paper|item)|complian|\bgaps?\b|outstanding|what.*(need|require)|up to date|shortfall|statutory)/i.test(q)) return null;
-  const company = await matchCompany(q);
-  if (!company) return null;
-  const { buildCompanyRequirementScores } = await import("@/lib/company-requirements");
-  const [score] = await buildCompanyRequirementScores([company]);
-  if (!score) return null;
-  const rows: SmartRow[] = (score.gaps ?? []).map((g) => ({
-    label: g.label, sub: null,
-    badge: score.expired > 0 ? "gap" : "missing", tone: "warn",
-    href: `/documents?company=${company.id}`,
-  }));
-  const title = `${company.name} · ${score.score}% compliant`;
-  const note = rows.length ? `${rows.length} of ${score.required} still needed` : "All required documents are on file.";
-  return { kind: "compliance", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), note, href: `/documents?company=${company.id}` };
 }
 
 /** PROBATION ending — staff whose probation end date falls within the window. */
@@ -1209,7 +1164,7 @@ export async function resolveSmartAnswer(query: string): Promise<SmartAnswer | n
     // "leaderboard / who hasn't logged in / most-used pages / who hasn't acked" win.
     announcementAckAnswer, engagementLeaderboardAnswer, inactiveStaffAnswer, pageUsageAnswer,
     performanceAnswer, engagementAnswer,
-    leaveAnswer, companyComplianceAnswer, missingDocAnswer, docExpiryAnswer,
+    leaveAnswer, docExpiryAnswer,
     overdueTasksAnswer, dueTasksAnswer, recentlyUpdatedTasksAnswer, probationAnswer, assetsAnswer,
     tasksByPersonAnswer, countAnswer,
   ];

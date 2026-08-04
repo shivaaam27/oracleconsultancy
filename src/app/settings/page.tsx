@@ -18,22 +18,18 @@ import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
 import { getAutomationRuleStatuses, getRecordsConfidence } from "@/app/automations/actions";
-import { DropboxSettings } from "@/components/dropbox-settings";
-import { getDropboxStatus } from "@/lib/dropbox";
 import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
 import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
 import { getOwnerIdentity } from "@/lib/admin-auth";
-import { WipeDocuments } from "@/components/wipe-documents";
-import { getWipePreviewAction } from "@/app/documents/wipe-actions";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, ShieldAlert } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +41,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
-  { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
+  { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal", "danger"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
 ];
@@ -80,7 +76,6 @@ export default async function SettingsPage({
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
   // Live counts for the Danger-zone confirmation screen.
-  const wipePreview = await getWipePreviewAction();
   const geminiKey = await getGeminiKeyPreview();
   const ocrKey = await getOcrSpaceKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
@@ -110,7 +105,6 @@ export default async function SettingsPage({
   const emailTestMode = (tmRow?.value as string | null) === "1";
   const automationStatuses = await getAutomationRuleStatuses();
   const recordsConfidence = await getRecordsConfidence();
-  const dropboxStatus = await getDropboxStatus();
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
 
   return (
@@ -667,10 +661,6 @@ export default async function SettingsPage({
             )}
           </SettingsCard>
 
-          {/* Dropbox inbox connector */}
-          <SettingsCard id="dropbox" icon={<FolderSync size={15} />} title="Dropbox inbox" desc="Auto-pull files from a watched folder. Read-only." keywords="dropbox inbox folder sync files import" className="scroll-mt-24">
-            <DropboxSettings status={dropboxStatus} />
-          </SettingsCard>
         </section>
 
         {/* ───────────────────── Security & Access ───────────────────── */}
@@ -832,11 +822,6 @@ export default async function SettingsPage({
             </form>
           </SettingsCard>
 
-          {/* Danger zone — the one irreversible action in the app. Last card in
-              the last group, so it can't be stumbled into. */}
-          <SettingsCard id="danger" icon={<ShieldAlert size={15} />} title="Danger zone" desc="Permanently erase every document and start fresh." keywords="danger wipe delete all documents erase reset fresh start permanent">
-            <WipeDocuments preview={wipePreview} />
-          </SettingsCard>
         </section>
 
         {/* ───────────────────── Notifications & More ───────────────────── */}

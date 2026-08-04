@@ -2,7 +2,6 @@ import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
-import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { sb } from "@/db/supabase";
 
@@ -14,9 +13,8 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap] = await Promise.all([
+  const [people, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap] = await Promise.all([
     getAllPeopleWithWorkload(),
-    buildPersonRequirementScores(),
     sb.from("companies").select("id,name,accent_color").order("name"),
     sb.from("departments").select("name").order("name"),
     sb.from("sites").select("name").eq("active", true).order("name"),
@@ -63,9 +61,6 @@ export default async function PeoplePage({
   // For the manager dropdown in the create dialog — derived from already-loaded data
   const peopleList = people.map((p) => ({ id: p.id, name: p.name, active: p.active }));
 
-  const complianceById: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }> = {};
-  for (const s of personScores) complianceById[s.ownerId] = { score: s.score, status: s.status };
-
   const siteCount = new Set(
     people.flatMap((p) => [p.workSiteName, p.residenceName].filter(Boolean) as string[])
   ).size;
@@ -76,7 +71,6 @@ export default async function PeoplePage({
       <PeopleTable
         people={people}
         companies={companies}
-        complianceById={complianceById}
         directoryHints={directoryHints}
         totalCompanies={companies.length}
         totalSites={siteCount}

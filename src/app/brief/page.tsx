@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CheckCircle2, AlertTriangle, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
+import { CheckCircle2, AlertTriangle, CircleCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Badge } from "@/components/ui";
 import { Hero, TONE } from "@/components/surface-kit";
 import { CountUp } from "@/components/arc-gauge";
@@ -241,28 +241,6 @@ export default async function DirectorBriefPage({
         </div>
       )}
 
-      {/* Compliance watch */}
-      {b.compliance.length > 0 && (
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
-            <ShieldCheck size={13} className="text-warn" /> Compliance watch · {b.compliance.length}
-          </div>
-          <Card className="divide-y divide-border/70">
-            {b.compliance.slice(0, 5).map((c) => (
-              <div key={c.companyId} className="flex items-center gap-3 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{c.companyName}</div>
-                  <div className="text-[11px] text-fg-subtle">
-                    {c.missing} missing · {c.expired} expired · {c.expiring} expiring
-                  </div>
-                </div>
-                <Badge tone={c.status === "Risk" ? "danger" : "warn"}>{c.score}%</Badge>
-              </div>
-            ))}
-          </Card>
-        </div>
-      )}
-
       {/* Statutory deadlines — portfolio-wide tax/filing cadence coming up. */}
       {b.statutory.length > 0 && (
         <div>
@@ -298,7 +276,6 @@ export default async function DirectorBriefPage({
               <span className="tabular"><b>{b.hr.headcount}</b> <span className="text-fg-subtle text-xs">active</span></span>
               {b.hr.joiners ? <span className="tabular"><b className="text-success">{b.hr.joiners}</b> <span className="text-fg-subtle text-xs">joined</span></span> : null}
               {b.hr.onLeaveToday ? <span className="tabular"><b className="text-info">{b.hr.onLeaveToday}</b> <span className="text-fg-subtle text-xs">on leave</span></span> : null}
-              {b.hr.belowFullCount ? <span className="tabular"><b className={b.hr.belowFullCount ? "text-warn" : ""}>{b.hr.belowFullCount}</b> <span className="text-fg-subtle text-xs">below full compliance</span></span> : null}
               {b.hr.expiringDocs.length ? <span className="tabular"><b className="text-danger">{b.hr.expiringDocs.length}</b> <span className="text-fg-subtle text-xs">docs expiring</span></span> : null}
             </div>
             {b.hr.probationEnding.length > 0 && (

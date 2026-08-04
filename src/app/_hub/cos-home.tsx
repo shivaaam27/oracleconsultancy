@@ -69,7 +69,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false).eq("review_status", "needs_review"),
     ]);
   // What ORI did on its own (auto-filed / renamed / verified…) — a slim,
-  // trust-building recap; the full undoable feed lives on /inbox.
+  // trust-building recap; the full undoable feed lives on /approvals.
   const autonomy = await listCockpitActivity(12);
 
   // The command levers — live state of the operation's automation, outreach and AI.

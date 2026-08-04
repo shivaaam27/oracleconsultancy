@@ -799,6 +799,13 @@
       "when": 1783320197716,
       "tag": "0113_little_zarek",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1785856218239,
+      "tag": "0114_strip_document_intelligence",
+      "breakpoints": true
     }
   ]
 }

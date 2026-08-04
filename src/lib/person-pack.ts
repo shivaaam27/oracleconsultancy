@@ -1,7 +1,5 @@
 import { sb } from "@/db/supabase";
 import { isOpen } from "@/lib/derive";
-import { type ComplianceScore } from "@/lib/compliance";
-import { getPersonRequirementScore } from "@/lib/requirements";
 import { deriveDocStatus, expiryLabel, listDocuments, type DocumentRow } from "@/lib/documents";
 import { getPersonDetail, type PersonDetail } from "@/lib/people-queries";
 import type { TaskRow } from "@/lib/queries";
@@ -54,14 +52,12 @@ export type PersonPack = {
   purpose: PersonPackPurpose;
   generatedAt: Date;
   detail: PersonDetail;
-  compliance: ComplianceScore;
   documents: PersonPackDocument[];
   openTasks: TaskRow[];
   personalTodos: PersonPackTodo[];
   drafts: PersonPackDraft[];
   recommendedSelection: PersonPackSectionSelection;
   counts: {
-    missingDocuments: number;
     documentIssues: number;
     linkedDocuments: number;
     openTasks: number;
@@ -77,7 +73,6 @@ export function defaultPersonPackSelection(
   const s = blankPersonPackSelection();
 
   if (purpose === "document-request") {
-    s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.deadlines = true;
@@ -87,7 +82,6 @@ export function defaultPersonPackSelection(
   }
 
   if (purpose === "expat-onboarding") {
-    s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.personalTodos = true;
@@ -99,7 +93,6 @@ export function defaultPersonPackSelection(
   }
 
   if (purpose === "visa-permit") {
-    s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.openTasks = true;
@@ -112,7 +105,6 @@ export function defaultPersonPackSelection(
   }
 
   if (purpose === "work-permit-renewal") {
-    s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.openTasks = true;
@@ -124,7 +116,6 @@ export function defaultPersonPackSelection(
   }
 
   if (purpose === "recruitment") {
-    s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.personalTodos = true;
@@ -135,7 +126,6 @@ export function defaultPersonPackSelection(
   }
 
   if (purpose === "contract-signing") {
-    s.missingDocuments = true;
     s.linkedDocuments = true;
     s.deadlines = true;
     s.fileLinks = true;
@@ -265,23 +255,6 @@ export async function getPersonPack(
 
   if (!detail) return null;
 
-  const compliance =
-    (await getPersonRequirementScore(detail.person.id, detail.person.name)) ?? {
-      ownerId: detail.person.id,
-      ownerName: detail.person.name,
-      ownerType: "person" as const,
-      score: 100,
-      required: 0,
-      present: 0,
-      missing: 0,
-      inProgress: 0,
-      expired: 0,
-      expiring: 0,
-      monitoredDocuments: 0,
-      status: "Good" as const,
-      gaps: [],
-      documentIssues: [],
-    };
   const docs = personDocuments(documents, companies, detail.person.id);
   const openTasks = detail.assignedTasks.filter((task) => isOpen(task.status));
 
@@ -289,15 +262,13 @@ export async function getPersonPack(
     purpose,
     generatedAt: new Date(),
     detail,
-    compliance,
     documents: docs,
     openTasks,
     personalTodos: todos,
     drafts,
     recommendedSelection: defaultPersonPackSelection(purpose, detail.person.personType),
     counts: {
-      missingDocuments: compliance.missing,
-      documentIssues: compliance.expired + compliance.expiring,
+      documentIssues: docs.filter((d) => d.status === "Expired" || d.status === "Expiring").length,
       linkedDocuments: docs.length,
       openTasks: openTasks.length,
       personalTodos: todos.length,

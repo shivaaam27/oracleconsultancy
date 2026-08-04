@@ -39,12 +39,23 @@ export const renewalsCategory: CategoryDef = {
         });
         sent = r.sent; prepared = r.prepared;
       }
-    } else {
-      const { draftDocumentRenewalAction } = await import("@/app/documents/actions");
-      for (const c of candidates) {
-        const r = await draftDocumentRenewalAction(c.document.id); // de-duped per doc per day
-        if (r.ok && r.created) prepared++;
-      }
+    } else if (candidates.length > 0) {
+      // PREPARE mode: one digest draft listing everything due, rather than a
+      // per-document AI-written note (the document intelligence layer is gone).
+      const lines = candidates.slice(0, 30).map((c) => `• ${c.document.title} — ${c.status}`);
+      const text = [
+        `Documents needing renewal (${candidates.length}):`,
+        "",
+        ...lines,
+        "",
+        "Review in Documents.",
+      ].join("\n");
+      const r = await ctx.sendToOwner(
+        `Renewals due — ${candidates.length} document${candidates.length === 1 ? "" : "s"}`,
+        text,
+        "automation-renewals",
+      );
+      prepared = r.prepared;
     }
 
     return { prepared, sent, skipped: 0 };

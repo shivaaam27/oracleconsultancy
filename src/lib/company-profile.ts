@@ -1,6 +1,5 @@
 import { sb } from "@/db/supabase";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
-import { deriveFiling } from "@/lib/doc-catalog";
 import { reindexEntity } from "@/lib/index-hooks";
 
 /* ------------------------------------------------------------------ */
@@ -106,16 +105,16 @@ export function buildCompanyKeyDocuments(docs: DocumentRow[], numbers: CompanyPr
     expiryLabel: doc ? expiryLabel(doc) : null,
   });
 
-  // Match by KNOWN document TYPE (the catalogue), not a fuzzy category guess — so
-  // the TIN row shows the TIN certificate, never a WCF receipt that happened to sit
-  // in the Tax shelf.
-  const byType = (typeKey: string) =>
-    pickDoc(docs, (d) => deriveFiling(d.fileName, d.title, d.docType ?? "").typeKey === typeKey);
-  const registration = byType("certificate-of-incorporation");
-  const vrnDoc = byType("vrn-certificate");
-  const tinDoc = byType("tin-certificate");
-  const licence = byType("business-licence");
-  const lease = byType("lease");
+  // Match on what the owner typed — the document's own type, title and category.
+  // The auto-classifying catalogue went with the rest of the intake brain, so
+  // "which document is the TIN certificate" is now a plain text match.
+  const byWords = (re: RegExp) =>
+    pickDoc(docs, (d) => re.test(`${d.docType ?? ""} ${d.title} ${d.category ?? ""}`));
+  const registration = byWords(/incorporat|registration certificate/i);
+  const vrnDoc = byWords(/\bvrn\b|\bvat\b/i);
+  const tinDoc = byWords(/\btin\b/i);
+  const licence = byWords(/licen[cs]e/i);
+  const lease = byWords(/lease/i);
 
   return [
     row("registration", "Registration", registration, numbers.registrationNo),

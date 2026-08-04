@@ -14,7 +14,7 @@ import { sb } from "@/db/supabase";
  * concurrent runners never grab the same job.
  */
 
-export type AiJobKind = "ping" | "extract" | "ask" | "action";
+export type AiJobKind = "ping" | "ask" | "action";
 export type AiJobLane = "fast" | "batch";
 export type AiJobStatus = "queued" | "running" | "done" | "error";
 

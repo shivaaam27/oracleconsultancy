@@ -65,20 +65,8 @@ type Permit = {
   daysLeft: number | null;
   flag: CcFlag;
 };
-type Registration = {
-  ownerId: number;
-  ownerName: string;
-  accent: string | null;
-  score: number;
-  required: number;
-  missing: number;
-  expired: number;
-  expiring: number;
-  gaps: string[];
-  flag: CcFlag;
-};
 type Company = { id: number; name: string; accent: string | null };
-type TabKey = "deadlines" | "permits" | "registrations";
+type TabKey = "deadlines" | "permits";
 
 function Pill({ flag }: { flag: CcFlag }) {
   const m = FLAG_META[flag];
@@ -99,14 +87,12 @@ export function CommandCentreView({
   habits,
   deadlines,
   permits,
-  registrations,
   companies,
 }: {
   initial?: TabKey;
   habits: Habit[];
   deadlines: Deadline[];
   permits: Permit[];
-  registrations: Registration[];
   companies: Company[];
 }) {
   const [tab, setTab] = useState<TabKey>(initial);
@@ -122,7 +108,6 @@ export function CommandCentreView({
   const tabs = [
     { key: "deadlines" as const, label: "Deadlines", icon: CalendarClock, count: deadlines.length },
     { key: "permits" as const, label: "Permit Watch", icon: Plane, count: permits.length },
-    { key: "registrations" as const, label: "Registrations", icon: Building2, count: registrations.length },
   ];
 
   function tickHabit(id: number) {
@@ -351,51 +336,6 @@ export function CommandCentreView({
         </Panel>
       )}
 
-      {/* ---------------- REGISTRATIONS ---------------- */}
-      {tab === "registrations" && (
-        <Panel glass className="overflow-hidden">
-          <div className="border-b border-border/60 px-4 py-3">
-            <SectionLabel icon={<Building2 size={13} className="text-accent" />}
-              action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">statutory standing per company</span>}>
-              Registrations &amp; renewals
-            </SectionLabel>
-          </div>
-          <div className="divide-y divide-border/40">
-            {registrations.length === 0 && <Empty label="No companies to show." />}
-            {registrations.map((r) => (
-              <div key={r.ownerId} className="flex items-start gap-3 px-3.5 py-3">
-                {r.accent
-                  ? <span className="mt-0.5 h-9 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: r.accent }} />
-                  : <span className="mt-0.5 h-9 w-1.5 shrink-0" />}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{r.ownerName}</span>
-                    <Pill flag={r.flag} />
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-fg-subtle">
-                    {r.score}% · {r.required - r.missing}/{r.required} on file
-                    {r.expired ? ` · ${r.expired} expired` : ""}
-                    {r.expiring ? ` · ${r.expiring} expiring` : ""}
-                  </div>
-                  {r.gaps.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {r.gaps.slice(0, 6).map((g) => (
-                        <span key={g} className="inline-flex items-center rounded-md bg-bg-muted/70 px-2 py-0.5 text-[11px] text-fg-muted ring-1 ring-border/50">{g}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Link
-                  href={`/documents?company=${r.ownerId}`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted"
-                >
-                  <ExternalLink size={13} /> Open
-                </Link>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
     </div>
   );
 }

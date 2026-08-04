@@ -29,37 +29,17 @@ const TYPE_TINT: Record<string, string> = {
   candidate: "bg-warn-soft text-warn ring-warn/25",
 };
 
-// A small SVG ring that fills with colour by compliance score — calmer than a
-// flat block, and the % sits beneath it. r=15 → circumference ≈ 94.25.
-function ComplianceDial({ score, status }: { score: number; status: "Good" | "Watch" | "Risk" }) {
-  const C = 94.25;
-  const off = C * (1 - Math.max(0, Math.min(100, score)) / 100);
-  const stroke = status === "Risk" ? "var(--color-danger)" : status === "Watch" ? "var(--color-warn)" : "var(--color-success)";
-  const text = status === "Risk" ? "text-danger" : status === "Watch" ? "text-warn" : "text-success";
-  return (
-    <div className="flex flex-col items-center gap-0.5 shrink-0 w-[42px]" title={`Document compliance: ${score}% (${status})`}>
-      <svg width="30" height="30" viewBox="0 0 36 36" aria-hidden="true">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--color-border)" strokeWidth="3" opacity="0.5" />
-        <circle cx="18" cy="18" r="15" fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 18 18)" />
-      </svg>
-      <span className={cn("text-[10px] font-semibold tabular leading-none", text)}>{score}%</span>
-    </div>
-  );
-}
-
 /**
  * A single person in the directory — a spacious, self-contained Aurora glass
  * card (no shared slab): a company-tinted left rail, ring avatar with a
  * status dot, role-tinted portal pill, a three-tier text block, and a
- * compliance dial + workload pill on the right. Tap opens the full popup;
+ * workload pill on the right. Tap opens the full popup;
  * long-press is handled by the parent (peek). In select mode the card becomes
  * a checkbox target.
  */
 export function PersonCard({
   person: p,
   onOpen,
-  compliance,
   hint,
   directReports = 0,
   accentColor,
@@ -73,7 +53,6 @@ export function PersonCard({
 }: {
   person: PersonRow;
   onOpen: () => void;
-  compliance?: { score: number; status: "Good" | "Watch" | "Risk" } | null;
   hint?: { onLeave: boolean; present: number; absent: number } | null;
   /** Count of people who report to this person (primary line) — for the directory. */
   directReports?: number;
@@ -182,7 +161,6 @@ export function PersonCard({
         </span>
       )}
 
-      {compliance && <ComplianceDial score={compliance.score} status={compliance.status} />}
 
       <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium tabular shrink-0", workloadTint)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}

@@ -10,7 +10,6 @@ import { listRoleNames } from "./roles";
 import { listPersonEvents, type PersonEvent } from "./person-audit";
 import { personLeaveBalances, listLeaveRequests, personAttendanceThisMonth, type PersonAttendanceSummary } from "./leave";
 import type { PersonLeaveBalance, LeaveRequestRow } from "./leave-shared";
-import { listProfileSuggestions, type ProfileSuggestion } from "./profile-suggestions";
 import { computePersonKpi, type PersonKpi } from "./kpi";
 
 export type { PersonType };
@@ -300,10 +299,6 @@ export type PersonDetail = {
   portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
   /** People who report to THIS person — primary (solid) and dotted (secondary) lines. */
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
-  /** Pending "Suggested additions" read off this person's filed documents. */
-  suggestions: ProfileSuggestion[];
-  /** Auto-applied additions (Smart-auto) — shown for review + undo. */
-  appliedSuggestions: ProfileSuggestion[];
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -491,14 +486,12 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     }
   }
 
-  const [events, leaveBalances, leaveRequests, attendance, { data: portalRow }, suggestions, appliedSuggestions] = await Promise.all([
+  const [events, leaveBalances, leaveRequests, attendance, { data: portalRow }] = await Promise.all([
     listPersonEvents(id, 40),
     personLeaveBalances(id),
     listLeaveRequests({ personId: id }),
     personAttendanceThisMonth(id),
     sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id").eq("id", id).maybeSingle(),
-    listProfileSuggestions({ personId: id, status: "pending" }),
-    listProfileSuggestions({ personId: id, status: "applied" }),
   ]);
   const portal = {
     enabled: !!(portalRow?.portal_password_hash as string | null),
@@ -517,6 +510,6 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sites: await listSiteNames(),
     roles: await listRoleNames(),
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
-    portal, directReports, suggestions, appliedSuggestions,
+    portal, directReports,
   };
 }

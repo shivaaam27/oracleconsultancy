@@ -3,14 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FilePlus, X, FolderOpen, Users, ExternalLink, Pencil, Trash2, Loader2, ChevronDown, Search, Check, Wand2 } from "lucide-react";
+import { FilePlus, X, FolderOpen, Users, ExternalLink, Pencil, Trash2, Loader2, ChevronDown, Search, Check } from "lucide-react";
 import { DocumentForm } from "@/components/document-form";
 import { DocPreview } from "@/components/doc-preview";
-import { RenameSweepDialog } from "@/components/rename-sweep-dialog";
-import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { archiveDocumentAction, renameDocumentAction } from "@/app/documents/actions";
-import { deriveDocStatus, expiryLabel, pickShelf, allShelves, type CustomShelf, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
 import { getInitials as initials } from "@/lib/names";
 
@@ -58,7 +56,6 @@ export function CompanyDocuments({
   staffGroups,
   companies,
   people,
-  customShelves = [],
   stageByDoc = {},
 }: {
   companyId: number;
@@ -67,7 +64,6 @@ export function CompanyDocuments({
   staffGroups: StaffFileGroup[];
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
-  customShelves?: CustomShelf[];
   /** Pipeline stage per document id, so a doc shows where it is at a glance. */
   stageByDoc?: Record<number, string>;
 }) {
@@ -84,7 +80,6 @@ export function CompanyDocuments({
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, startRename] = useTransition();
-  const [sweepOpen, setSweepOpen] = useState(false);
   const formOpen = addOpen || !!editDoc;
 
   function beginRename(doc: DocumentRow) { setRenamingId(doc.id); setRenameValue(doc.title); }
@@ -149,14 +144,16 @@ export function CompanyDocuments({
   const visibleDocs = q
     ? sortedDocs.filter((d) => [d.title, d.category, d.issuer, d.referenceNo, stageByDoc[d.id]].filter(Boolean).join(" ").toLowerCase().includes(q))
     : sortedDocs;
+  // Grouped by the category the owner picked; anything left blank collects
+  // under "Uncategorised" rather than being guessed into a folder.
   const docsByShelf = new Map<string, DocumentRow[]>();
   for (const doc of visibleDocs) {
-    const shelf = pickShelf(doc, customShelves).name;
+    const shelf = doc.category || "Uncategorised";
     const list = docsByShelf.get(shelf) ?? [];
     list.push(doc);
     docsByShelf.set(shelf, list);
   }
-  const shelves = allShelves(customShelves);
+  const shelves = [...docsByShelf.keys()].sort().map((name) => ({ name, code: "" }));
 
   function renderDocRow(doc: DocumentRow) {
     const status = deriveDocStatus(doc);
@@ -240,17 +237,7 @@ export function CompanyDocuments({
         </summary>
 
         <div className="border-t border-border/60 p-3 space-y-3">
-          {/* Statutory checklist — kept, collapsed by default. */}
-          <CompanyRequirementsChecklist
-            companyId={companyId}
-            documents={linkableDocs}
-            reloadSignal={reloadSignal}
-            onAddDocument={(o) => startAdd(o)}
-            onChanged={() => router.refresh()}
-            defaultOpen={false}
-          />
-
-          {/* Search + tidy names — find fast as volumes grow; collapse by default. */}
+          {/* Search — find fast as volumes grow. */}
           {documents.length > 0 && (
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -261,14 +248,10 @@ export function CompanyDocuments({
                   className="w-full rounded-lg border border-border bg-bg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-ring/40"
                 />
               </div>
-              <button type="button" onClick={() => setSweepOpen(true)} title="Tidy document names to the standard format"
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg transition">
-                <Wand2 size={13} /> Tidy names
-              </button>
             </div>
           )}
 
-          {/* Shelves — the owner's eight folders, collapsed by default (click to open). */}
+          {/* Category folders, collapsed by default (click to open). */}
           {documents.length === 0 ? (
             <div className="px-2 py-8 text-center text-sm text-fg-muted space-y-3">
               <p>No documents filed for {companyName} yet.</p>
@@ -397,7 +380,6 @@ export function CompanyDocuments({
         </a>
       </div>
 
-      <RenameSweepDialog open={sweepOpen} onClose={() => setSweepOpen(false)} onDone={() => router.refresh()} />
 
       {/* Add / edit document modal, layered over the page (no route change). */}
       <Dialog.Root open={formOpen} onOpenChange={(o) => { if (!o) closeForm(); }}>

@@ -1,9 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles, Upload, FileCheck } from "lucide-react";
+import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles } from "lucide-react";
 import { createPerson, updatePerson, extractPersonFields } from "@/app/people/actions";
-import { extractDocumentFromFile, createDocumentAction } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { submitOnEnterKeyDown, EnterHint, FieldError, invalidFieldClass } from "@/components/form-keys";
@@ -90,18 +89,6 @@ export function PersonForm({
   const [scanText, setScanText] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
-  const scanFileRef = useRef<HTMLInputElement>(null);
-  // After a file scan we keep the file itself so it can ALSO be filed as a
-  // document for this person (one tap) — without re-uploading via Documents.
-  const [scannedFile, setScannedFile] = useState<{
-    file: File;
-    title: string;
-    category: string | null;
-    docType: string | null;
-    expiryDate: string | null;
-  } | null>(null);
-  const [savingDoc, setSavingDoc] = useState(false);
-  const [docSavedNote, setDocSavedNote] = useState<string | null>(null);
 
   // Apply extracted profile fields to EMPTY form fields only (never overwrites).
   // Selects (company / manager) are matched by name to an existing option.
@@ -154,8 +141,6 @@ export function PersonForm({
     if (!scanText.trim()) return;
     setScanning(true);
     setScanNote(null);
-    setScannedFile(null); // a text scan has no file to file as a document
-    setDocSavedNote(null);
     try {
       const res = await extractPersonFields(scanText);
       setScanNote(noteForFill(applyProfileFields(res.fields), res.source));
@@ -164,68 +149,6 @@ export function PersonForm({
     }
   }
 
-  // Auto-fill from an uploaded file / photo (passport, ID, CV, contract…) using
-  // the shared document-vision engine, which returns a person profile block.
-  async function scanFileFill(file: File) {
-    setScanning(true);
-    setScanNote(null);
-    setDocSavedNote(null);
-    setScannedFile(null);
-    try {
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await extractDocumentFromFile(fd);
-      if (!res.ok) { setScanNote(res.note ?? "Couldn't read that file."); return; }
-      // The doc engine returns a nested person block plus a top-level role.
-      const f: PersonProfileFields = { ...(res.fields.person ?? {}) };
-      if (!f.role && res.fields.docType) { /* leave role alone */ }
-      const filled = applyProfileFields(f);
-      setScanNote(noteForFill(filled, res.source, filled === 0 ? " No personal details were found in this file." : ""));
-      // Keep the file so it can ALSO be filed as this person's document — but only
-      // when editing a saved person (we need their id to set the owner).
-      if (mode === "edit" && id) {
-        setScannedFile({
-          file,
-          title: (res.fields.title || file.name.replace(/\.[^.]+$/, "")).slice(0, 200),
-          category: res.fields.category ?? null,
-          docType: res.fields.docType ?? null,
-          expiryDate: res.fields.expiryDate ?? null,
-        });
-      }
-    } finally {
-      setScanning(false);
-      if (scanFileRef.current) scanFileRef.current.value = "";
-    }
-  }
-
-  // One-tap "Also save as a document" — files the scanned file against this
-  // person via the existing document flow (re-using the extracted category/title/
-  // expiry). Optional + non-blocking; never touches the main person save.
-  async function saveScannedAsDocument() {
-    if (!scannedFile || !id) return;
-    setSavingDoc(true);
-    setDocSavedNote(null);
-    try {
-      const fd = new FormData();
-      fd.set("file", scannedFile.file);
-      fd.set("title", scannedFile.title);
-      fd.set("personId", String(id));
-      if (scannedFile.category) fd.set("category", scannedFile.category);
-      if (scannedFile.docType) fd.set("docType", scannedFile.docType);
-      if (scannedFile.expiryDate) fd.set("expiryDate", scannedFile.expiryDate);
-      const res = await createDocumentAction(fd);
-      if (res.ok) {
-        setDocSavedNote("Saved to this person's documents.");
-        setScannedFile(null);
-      } else {
-        setDocSavedNote(res.error || "Couldn't save the document.");
-      }
-    } catch {
-      setDocSavedNote("Couldn't save the document.");
-    } finally {
-      setSavingDoc(false);
-    }
-  }
   const [associations, setAssociations] = useState<Association[]>(
     (defaults?.associations ?? []).map((a) => ({ companyId: a.companyId, relationship: a.relationship ?? "" }))
   );
@@ -326,27 +249,9 @@ export function PersonForm({
               {scanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
               {scanning ? "Reading…" : "Read & fill empty fields"}
             </button>
-            <span className="text-[11px] text-fg-subtle">or</span>
-            <input ref={scanFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) scanFileFill(f); }} className="hidden" />
-            <button type="button" onClick={() => scanFileRef.current?.click()} disabled={scanning}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">
-              <Upload size={13} /> Read from a file / photo
-            </button>
           </div>
-          <p className="text-[11px] text-fg-subtle">Reads a passport, ID, CV or contract and fills empty profile fields only.</p>
+          <p className="text-[11px] text-fg-subtle">Fills empty profile fields only — it never overwrites what is already there.</p>
           {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
-          {scannedFile && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-subtle/40 px-2.5 py-2">
-              <span className="text-[11px] text-fg-muted">Keep this file as a document for this person?</span>
-              <button type="button" onClick={saveScannedAsDocument} disabled={savingDoc}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
-                {savingDoc ? <Loader2 size={13} className="animate-spin" /> : <FileCheck size={13} />}
-                {savingDoc ? "Saving…" : "Also save as a document"}
-              </button>
-            </div>
-          )}
-          {docSavedNote && <p className="text-xs text-fg-muted">{docSavedNote}</p>}
         </div>
       </details>
 

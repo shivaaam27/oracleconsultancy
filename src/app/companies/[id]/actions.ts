@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
 import { reindexEntity } from "@/lib/index-hooks";
-import { syncCompanyRequirementApplicability } from "@/lib/company-requirements";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -65,9 +64,7 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
 
   const { error } = await sb.from("companies").update(patch).eq("id", companyId);
   if (error) return { ok: false, error: error.message };
-  // The VAT/sector flags change which statutory items apply — resync the checklist
   // so it reflects what THIS company actually needs. Best-effort.
-  try { await syncCompanyRequirementApplicability(companyId); } catch { /* best-effort */ }
   // Best-effort semantic re-index (no-op unless semantic search is enabled).
   void reindexEntity("company", companyId);
   revalidatePath(`/companies/${companyId}`);

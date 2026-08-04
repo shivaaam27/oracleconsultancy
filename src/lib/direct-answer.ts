@@ -52,23 +52,26 @@ function nameScore(name: string, tokens: string[]): number {
 }
 
 /** Document expiry/renewal lookup: "business licence expiry date", "when does the
- *  lease expire". Finds the document by its KNOWN type + shows its expiry from the
- *  record — instant, no AI. */
+ *  lease expire". Matches the question's distinctive words against the type/title
+ *  the owner typed on the document — instant, no AI. */
 async function resolveDocExpiry(q: string): Promise<DirectAnswer | null> {
   if (!/expir|valid\s+(until|till)|renew|\bdue\b/i.test(q)) return null;
-  const { bestDocType, deriveFiling } = await import("./doc-catalog");
   const cleaned = q
     .replace(/\b(what|whats|what's|is|the|of|for|show|me|tell|when|does|do|expiry|expires?|expiration|expiring|date|valid|until|till|renew|renewal|due|on)\b/gi, " ")
     .replace(/[^a-z0-9 ]/gi, " ").trim();
-  const type = bestDocType(cleaned);
-  if (!type || !type.expires) return null;
+  const words = cleaned.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+  if (!words.length) return null;
 
   const { data } = await sb
     .from("documents")
-    .select("id,title,file_name,company_id,person_id,expiry_date")
-    .eq("archived", false).eq("intake_state", "filed").not("expiry_date", "is", null);
-  const matches = ((data ?? []) as Record<string, unknown>[])
-    .filter((d) => deriveFiling(d.file_name as string | null, d.title as string, "").typeKey === type.key);
+    .select("id,title,doc_type,category,company_id,person_id,expiry_date")
+    .eq("archived", false).not("expiry_date", "is", null);
+  // Every distinctive word from the question has to appear in what the owner
+  // typed on the document. No catalogue, no guessing.
+  const matches = ((data ?? []) as Record<string, unknown>[]).filter((d) => {
+    const hay = `${d.doc_type ?? ""} ${d.title ?? ""} ${d.category ?? ""}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
   if (matches.length === 0) return null;
   // The current one = the furthest-future expiry.
   matches.sort((a, b) => new Date(b.expiry_date as string).getTime() - new Date(a.expiry_date as string).getTime());
@@ -83,7 +86,7 @@ async function resolveDocExpiry(q: string): Promise<DirectAnswer | null> {
   else if (best.company_id) { const { data: c } = await sb.from("companies").select("name").eq("id", best.company_id as number).maybeSingle(); entity = (c?.name as string) ?? ""; }
 
   return {
-    label: `${type.label} expiry`,
+    label: `${(best.doc_type as string | null) || (best.title as string)} expiry`,
     value: `${iso} · ${rel}`,
     entity,
     entityType: best.person_id ? "person" : "company",

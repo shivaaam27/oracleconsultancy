@@ -6,11 +6,8 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
-import { createDocument, uploadDocumentFile, hashFile, findDocumentsByHash } from "@/lib/documents";
+import { createDocument, uploadDocumentFile } from "@/lib/documents";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
-import { deriveFiling } from "@/lib/doc-catalog";
-import { extractDocumentFromFile } from "@/app/documents/actions";
-import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction, sendEventInviteAction, ensureEventMeetLink } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
@@ -2186,104 +2183,30 @@ export async function portalCompleteTask(
  * ---------------------------------------------------------------------- */
 const MAX_PORTAL_DOC_BYTES = 20 * 1024 * 1024; // 20 MB (matches the admin upload)
 
-export async function portalUploadRequirementDocument(
+export async function portalUploadDocument(
   formData: FormData
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  const requirementId = Number(formData.get("requirementId"));
   const fileEntry = formData.get("file");
   const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
-  if (!Number.isFinite(requirementId)) return { ok: false, error: "Missing requirement." };
   if (!file) return { ok: false, error: "Choose a file to upload." };
   if (file.size > MAX_PORTAL_DOC_BYTES) return { ok: false, error: "That file is too large (max 20 MB)." };
 
-  // Authorise: the requirement must belong to THIS person.
-  const { data: req } = await sb
-    .from("person_requirements")
-    .select("id,person_id,label,category")
-    .eq("id", requirementId)
-    .maybeSingle();
-  if (!req || (req.person_id as number) !== me.id) {
-    return { ok: false, error: "That document isn't on your checklist." };
-  }
-
-  const createdBy = `portal:${me.name}`;
-  const label = (req.label as string | null) ?? file.name;
-  const category = (req.category as string | null) ?? null;
-
-  // Read the file the same way the admin upload does, so a staff passport/permit
-  // gets its type/expiry/issuer captured — otherwise the renewal radar never sees
-  // it. The checklist already fixes the title + category; we take the dates,
-  // issuer/reference and the catalogue TYPE. Nothing here overwrites an existing
-  // value (blank record → blanks-only by definition).
-  let read: Awaited<ReturnType<typeof extractDocumentFromFile>> | null = null;
+  // Filed against the person under its own file name. Nothing is read, typed or
+  // classified here — the administrator gives it a proper title and category on
+  // /documents. (This used to run the AI intake; that layer was removed.)
   try {
-    const extractFd = new FormData();
-    extractFd.set("file", file);
-    read = await extractDocumentFromFile(extractFd);
-  } catch {
-    /* extraction is best-effort — never block the staff upload on it */
-  }
-  const f = read?.fields ?? {};
-  // Catalogue filing: proper document type + expiry behaviour, so it is
-  // classified/searchable and its renewal is tracked like an admin upload.
-  const filing = deriveFiling(file.name, label, read?.fullText ?? "");
-  const docType = filing.typeLabel ?? f.docType ?? null;
-  const expiryKind = filing.expires ? "yes" : (f.expiryKind ?? null);
-  const expiryDate = filing.expiry ?? f.expiryDate;
-
-  try {
-    // Dedup: the same file already on THIS person's record → reuse it instead of
-    // piling up a duplicate (the admin upload dedups; the portal used not to).
-    let docId: number | null = null;
-    let hash: string | null = null;
-    try { hash = await hashFile(file); } catch { hash = null; }
-    if (hash) {
-      try {
-        const dups = await findDocumentsByHash(hash, undefined, { excludeCompilations: true });
-        const existing = dups.find((d) => d.personId === me.id) ?? dups[0];
-        if (existing) docId = existing.id;
-      } catch { /* dedup best-effort */ }
-    }
-
-    if (docId == null) {
-      docId = await createDocument(
-        {
-          title: label,
-          personId: me.id,
-          category,
-          docType,
-          expiryKind,
-          expiryDate,
-          issueDate: f.issueDate,
-          issuer: f.issuer,
-          referenceNo: f.referenceNo,
-          // A staff self-upload is held for an admin glance (Verify queue) before
-          // it is trusted — it does not silently pass as admin-verified.
-          reviewStatus: "needs_review",
-          fileHash: hash,
-          notes: `Uploaded by ${me.name} via the staff portal.`,
-        },
-        createdBy
-      );
-      await uploadDocumentFile(docId, file);
-    }
-
-    // Link to the checklist item as "received" (awaiting admin verification).
-    const now = new Date().toISOString();
-    await sb
-      .from("person_requirements")
-      .update({ document_id: docId, status: "received", received_at: now, updated_at: now, auto_link: true })
-      .eq("id", requirementId);
-    await logPersonRequirementEvent(requirementId, "linked", {
-      documentId: docId,
-      detail: label,
-      ownerId: me.id,
-      label,
-      createdBy,
-    });
+    const docId = await createDocument(
+      {
+        title: file.name,
+        personId: me.id,
+        notes: `Uploaded by ${me.name} via the staff portal.`,
+      },
+      `portal:${me.name}`
+    );
+    await uploadDocumentFile(docId, file);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not upload the document." };
   }

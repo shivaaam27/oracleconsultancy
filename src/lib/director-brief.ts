@@ -5,8 +5,6 @@ import { getAllTasks, computeCompanyKpis, type TaskRow, type CompanyKpi } from "
 import { getCompanyLogoMap } from "./company-brand";
 import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
-import { buildCompanyRequirementScores } from "./company-requirements";
-import { buildPersonRequirementScores } from "./requirements";
 import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
@@ -131,19 +129,8 @@ export type BriefCompany = {
 };
 export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null; latestUpdate: string | null }[] };
 export type BriefWatch = { id: number; code: string; actionItem: string; companyId: number; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
-export type BriefCompliance = {
-  companyId: number;
-  companyName: string;
-  score: number;
-  status: string;
-  missing: number;
-  expired: number;
-  expiring: number;
-  gaps: string[];
-  issues: string[];
-};
 export type BriefDirectorAction = {
-  type: "Task" | "Compliance";
+  type: "Task";
   companyName: string;
   headline: string;
   detail: string;
@@ -156,8 +143,6 @@ export type BriefHr = {
   byType: Array<{ type: PersonType; label: string; count: number }>;
   byCompany: Array<{ name: string; count: number }>;
   joiners: number;
-  belowFullCount: number;
-  compliancePeople: Array<{ name: string; score: number; missing: number }>;
   expiringDocs: Array<{ person: string; title: string; status: string; expiryLabel: string | null }>;
   onLeaveToday: number;
   pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
@@ -207,7 +192,6 @@ export type BriefData = {
   companies: BriefCompany[];
   delivered: BriefDelivered[];
   watch: BriefWatch[];
-  compliance: BriefCompliance[];
   statutory: BriefStatutory[];
   directorActions: BriefDirectorAction[];
   hr: BriefHr;
@@ -236,9 +220,8 @@ async function buildHrBrief(
   documents: DocumentRow[],
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
-  const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
+  const [{ data: pplRows }, leave, pendingReqs] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
-    buildPersonRequirementScores(),
     // When the Brief is filtered to companies, the on-leave-today figure scopes to
     // them too (a single company scopes precisely; a multi-company scope keeps the
     // portfolio aggregate — a count only).
@@ -274,14 +257,6 @@ async function buildHrBrief(
   const byCompany = [...companyCounts.entries()]
     .map(([id, count]) => ({ name: companyNameById.get(id) ?? "—", count }))
     .sort((a, b) => b.count - a.count);
-
-  // Per-person compliance (below 100%), worst first.
-  const compliancePeople = scores
-    .filter((s) => idSet.has(s.ownerId) && s.score < 100)
-    .sort((a, b) => a.score - b.score || b.missing - a.missing)
-    .slice(0, 10)
-    .map((s) => ({ name: s.ownerName, score: s.score, missing: s.missing }));
-  const belowFullCount = scores.filter((s) => idSet.has(s.ownerId) && s.score < 100).length;
 
   // Expiring / expired people-linked documents.
   const expiringDocs = documents
@@ -340,8 +315,6 @@ async function buildHrBrief(
     byType,
     byCompany,
     joiners,
-    belowFullCount,
-    compliancePeople,
     expiringDocs,
     onLeaveToday: leave.onLeaveToday,
     pendingLeave,
@@ -506,11 +479,10 @@ export async function getBrief(
   // of awaiting one-after-another — this is the brief's biggest wall-clock cost
   // (it dominates the director board's load + reload-on-back). Total time drops
   // from the SUM of these reads to the slowest single one.
-  const [hr, notes, logoMap, companyReqScores, appSettings, obligations, calEvents] = await Promise.all([
+  const [hr, notes, logoMap, appSettings, obligations, calEvents] = await Promise.all([
     buildHrBrief(now, range, scope, documents, companyNameById),
     listBriefNotes(range, scope, companyNameById),
     getCompanyLogoMap(),
-    buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name }))),
     getAppSettings(),
     listObligations(),
     listCalendarEvents({ from: weekFrom, to: weekTo, ...(selectedCompanyId ? { companyId: selectedCompanyId } : {}) }),
@@ -572,21 +544,6 @@ export async function getBrief(
     .slice(0, 40)
     .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyId: r.companyId, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
-  const compliance: BriefCompliance[] = (historicOnly ? [] : companyReqScores)
-    .filter((score) => score.status !== "Good")
-    .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)
-    .map((score) => ({
-      companyId: score.ownerId,
-      companyName: score.ownerName,
-      score: score.score,
-      status: score.status,
-      missing: score.missing,
-      expired: score.expired,
-      expiring: score.expiring,
-      gaps: score.gaps.map((gap) => gap.label),
-      issues: score.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`),
-    }));
-
   // Statutory deadlines coming up — per-company aware: inside the warning window
   // with an applicable company still outstanding this period (see Command Centre).
   // Dropped entirely when the Tax & Legal area is paused (master switch).
@@ -616,25 +573,6 @@ export async function getBrief(
           link: `/task/${r.code}`,
         };
       }),
-    ...compliance.slice(0, 4).map((c) => {
-      const detail = [
-        c.missing ? `${c.missing} missing` : null,
-        c.expired ? `${c.expired} expired` : null,
-        c.expiring ? `${c.expiring} expiring` : null,
-      ].filter(Boolean).join(" · ");
-      return {
-        type: "Compliance" as const,
-        companyName: c.companyName,
-        headline: `${c.companyName}: compliance score ${c.score}%`,
-        detail: `${detail || c.status}${c.gaps[0] ? ` · next: ${c.gaps[0]}` : ""}`,
-        urgency: (c.status === "Risk" || c.expired > 0 ? "High" : "Medium") as "High" | "Medium",
-        // The company file, where the compliance card + its gaps live. NOT
-        // `/documents?company=` — /documents never read that parameter (so it
-        // filtered nothing), and `?company=` pops the global CompanyDrawer
-        // preview over whatever page it lands on. See lib/brief-links.ts.
-        link: `/companies/${c.companyId}`,
-      };
-    }),
   ]
     .sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "High" ? -1 : 1))
     .slice(0, 6);
@@ -673,7 +611,7 @@ export async function getBrief(
     overdueCount: overdueOpen.length,
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
-    companies, delivered, watch, compliance, statutory, directorActions, hr,
+    companies, delivered, watch, statutory, directorActions, hr,
     weekAhead, notes,
   };
 }
@@ -720,18 +658,6 @@ export function briefShareText(b: BriefData): string {
       L.push(`• ${a.companyName}: ${a.headline} — ${a.detail}`);
     }
   }
-  if (b.compliance.length) {
-    L.push("");
-    L.push(`*Compliance watch*`);
-    for (const c of b.compliance.slice(0, 5)) {
-      const detail = [
-        c.missing ? `${c.missing} missing` : null,
-        c.expired ? `${c.expired} expired` : null,
-        c.expiring ? `${c.expiring} expiring` : null,
-      ].filter(Boolean).join(" · ");
-      L.push(`• ${c.companyName} — ${c.score}% · ${detail || c.status}`);
-    }
-  }
   if (b.statutory.length) {
     L.push("");
     L.push(`*Statutory deadlines*`);
@@ -746,7 +672,6 @@ export function briefShareText(b: BriefData): string {
     L.push("");
     L.push(`*People*`);
     L.push(`👥 ${hr.headcount} active${hr.joiners ? ` · ${hr.joiners} joined in ${b.monthLabel}` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}${hr.pendingLeave.length ? ` · ${hr.pendingLeave.length} leave to approve` : ""}`);
-    if (hr.belowFullCount) L.push(`• ${hr.belowFullCount} below full document compliance`);
     if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
     for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
     for (const p of hr.birthdays.slice(0, 5)) L.push(`• 🎂 Birthday: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.date)}`);
@@ -813,17 +738,6 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
       bullets: b.directorActions.slice(0, 5).map((a) => `${a.companyName}: ${a.headline} — ${a.detail}`),
     });
   }
-  if (b.compliance.length) {
-    blocks.push({
-      kind: "section",
-      label: "Compliance watch",
-      rows: b.compliance.slice(0, 6).map((c) => {
-        const detail = [c.missing && `${c.missing} missing`, c.expired && `${c.expired} expired`, c.expiring && `${c.expiring} expiring`]
-          .filter(Boolean).join(" · ");
-        return { left: c.companyName, right: `${c.score}%${detail ? ` · ${detail}` : ""}` };
-      }),
-    });
-  }
   if (b.statutory.length) {
     blocks.push({
       kind: "section",
@@ -841,7 +755,6 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
       { left: "Active staff", right: `${hr.headcount}${hr.joiners ? ` · ${hr.joiners} joined` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}` },
     ];
     if (hr.pendingLeave.length) peopleRows.push({ left: "Leave to approve", right: `${hr.pendingLeave.length}` });
-    if (hr.belowFullCount) peopleRows.push({ left: "Below full compliance", right: `${hr.belowFullCount}` });
     blocks.push({ kind: "section", label: "People", rows: peopleRows });
   }
   return {

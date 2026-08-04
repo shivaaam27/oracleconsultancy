@@ -7,7 +7,6 @@ import {
   ClipboardList,
   FileText,
   FileWarning,
-  ShieldCheck,
 } from "lucide-react";
 import { Badge, Card, Stat } from "@/components/ui";
 import { PersonPackPrintButton } from "@/components/person-pack-print-button";
@@ -77,12 +76,6 @@ function statusTone(status: PersonPackDocument["status"]): "default" | "success"
   return "default";
 }
 
-function complianceTone(status: "Good" | "Watch" | "Risk"): "default" | "success" | "warn" | "danger" {
-  if (status === "Risk") return "danger";
-  if (status === "Watch") return "warn";
-  return "success";
-}
-
 function documentFileLabel(doc: PersonPackDocument) {
   if (doc.fileUrl) return "External link";
   if (doc.fileName) return doc.fileName;
@@ -100,21 +93,16 @@ function DocumentFileCell({ doc }: { doc: PersonPackDocument }) {
   return documentFileLabel(doc) ?? "-";
 }
 
-function complianceText(pack: Awaited<ReturnType<typeof getPersonPack>> extends infer T ? NonNullable<T> : never) {
-  const c = pack.compliance;
-  if (c.required === 0 && c.monitoredDocuments === 0) {
-    return "No required checklist applies yet, and no person-linked documents are on file.";
-  }
-  if (c.required === 0) {
-    return `${plural(c.monitoredDocuments, "linked document")} monitored for expiry. Score ${c.score}% (${c.status}).`;
-  }
-  return `${c.present} of ${c.required} required items are present. Score ${c.score}% (${c.status}).`;
+/** Person-linked documents that have expired or are inside their warning window.
+ *  Replaces the old compliance `documentIssues` list — same idea, read straight
+ *  off the document's own expiry rather than a required-document checklist. */
+function docsNeedingAttention(pack: Awaited<ReturnType<typeof getPersonPack>> extends infer T ? NonNullable<T> : never) {
+  return pack.documents.filter((d) => d.status === "Expired" || d.status === "Expiring");
 }
 
 function actionCount(pack: Awaited<ReturnType<typeof getPersonPack>> extends infer T ? NonNullable<T> : never, selection: PersonPackSectionSelection) {
   return (
-    (selection.missingDocuments ? pack.compliance.gaps.length : 0) +
-    (selection.documentIssues ? pack.compliance.documentIssues.length : 0) +
+    (selection.documentIssues ? docsNeedingAttention(pack).length : 0) +
     (selection.openTasks ? pack.openTasks.length : 0) +
     (selection.personalTodos ? pack.personalTodos.length : 0)
   );
@@ -175,26 +163,6 @@ export default async function PersonPackPage({
   ]);
   if (!pack) notFound();
 
-  // Drop the request items the operator unticked. The builder passes them via
-  // `exclude`; opening the page directly falls back to the saved preferences,
-  // so the PDF still matches what was chosen for this person.
-  let excludedLabels: string[] | null = null;
-  if (sp.exclude) {
-    try {
-      excludedLabels = JSON.parse(decodeURIComponent(atob(sp.exclude)));
-    } catch {
-      /* malformed param — fall through to saved prefs / full list */
-    }
-  }
-  if (excludedLabels == null && savedPrefs) excludedLabels = savedPrefs.excluded;
-  if (excludedLabels && excludedLabels.length) {
-    const excluded = new Set(excludedLabels.map((l) => l.trim().toLowerCase()));
-    pack.compliance = {
-      ...pack.compliance,
-      gaps: pack.compliance.gaps.filter((g) => !excluded.has(g.label.trim().toLowerCase())),
-    };
-  }
-
   const sectionsParam = sp.sections ?? savedPrefs?.sections ?? undefined;
   const selection = sectionsParam
     ? parsePersonPackSections(sectionsParam)
@@ -210,22 +178,16 @@ export default async function PersonPackPage({
     `${plural(selectedActions, "selected action")}`,
     selection.linkedDocuments ? `${plural(linkedDocsShown, "linked document")}` : null,
     workShown ? `${plural(workShown, "work item")}` : null,
-    selection.complianceScore ? complianceText(pack) : null,
   ].filter(Boolean);
 
   // Only show the summary tiles that correspond to chosen sections, so a
   // documents-only pack never displays empty Work/Compliance boxes.
-  const showActions = selection.missingDocuments || selection.documentIssues || selection.openTasks || selection.personalTodos;
+  const showActions = selection.documentIssues || selection.openTasks || selection.personalTodos;
   const showWork = selection.openTasks || selection.personalTodos;
-  const complianceValue =
-    pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
-      ? "None"
-      : `${pack.compliance.score}%`;
   const statBoxes: Array<{ label: string; value: number | string; tone?: "warn" | "success" | "default" | "danger"; icon: React.ReactNode }> = [
     ...(showActions ? [{ label: "Needed", value: selectedActions, tone: (selectedActions ? "warn" : "success") as "warn" | "success", icon: selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} /> }] : []),
     ...(selection.linkedDocuments ? [{ label: "Documents", value: linkedDocsShown, icon: <FileText size={16} /> }] : []),
     ...(showWork ? [{ label: "Work", value: workShown, tone: (workShown ? "warn" : "default") as "warn" | "default", icon: <ClipboardList size={16} /> }] : []),
-    ...(selection.complianceScore ? [{ label: "Compliance", value: complianceValue, tone: complianceTone(pack.compliance.status), icon: <ShieldCheck size={16} /> }] : []),
   ];
   const statGridCols =
     statBoxes.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : statBoxes.length === 3 ? "grid-cols-3" : statBoxes.length === 2 ? "grid-cols-2" : "grid-cols-1";
@@ -289,36 +251,13 @@ export default async function PersonPackPage({
       </Card>
 
       <div className="space-y-5">
-        {selection.missingDocuments && (
-          <Section title="Items needed from you" icon={<FileWarning size={13} className="text-warn" />}>
-            {pack.compliance.gaps.length ? (
-              <Card className="divide-y divide-border/70">
-                {pack.compliance.gaps.map((gap) => (
-                  <div key={gap.id} className="flex items-center gap-2 px-4 py-2.5 text-sm">
-                    <span className="min-w-0 flex-1">{gap.label}</span>
-                    <Link href={addDocumentHref(person.id, gap.label)} className="print-hidden rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20">
-                      Add document
-                    </Link>
-                  </div>
-                ))}
-              </Card>
-            ) : (
-              <Card className="p-4 text-sm text-fg-muted">
-                {pack.compliance.required === 0
-                  ? "No required checklist applies to this person type yet."
-                  : "No missing required documents found."}
-              </Card>
-            )}
-          </Section>
-        )}
-
         {selection.documentIssues && (
           <Section title="Documents needing attention" icon={<FileWarning size={13} className="text-warn" />}>
-            {pack.compliance.documentIssues.length ? (
+            {docsNeedingAttention(pack).length ? (
               <table className="report-table">
                 <thead><tr><th>Document</th><th>Status</th><th>Expiry</th></tr></thead>
                 <tbody>
-                  {pack.compliance.documentIssues.map((doc) => (
+                  {docsNeedingAttention(pack).map((doc) => (
                     <tr key={doc.id}>
                       <td>{doc.title}</td>
                       <td>{doc.status}</td>
@@ -434,12 +373,6 @@ export default async function PersonPackPage({
                 </div>
               )}
             </Card>
-          </Section>
-        )}
-
-        {selection.complianceScore && (
-          <Section title="Compliance status" icon={<ShieldCheck size={13} className="text-accent" />}>
-            <Card className="p-4 text-sm text-fg-muted">{complianceText(pack)}</Card>
           </Section>
         )}
 

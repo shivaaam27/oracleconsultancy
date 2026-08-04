@@ -19,7 +19,6 @@ import { useCurrentView } from "@/lib/current-view";
 import { friendlyAIError } from "@/lib/ai-errors";
 import { TracePanel } from "./trace-panel";
 import { MagneticItem, HighlightSnippet, HighlightBlock, WhyTag } from "./command-palette-bits";
-import { DocReaderPane } from "./command-palette-doc-reader";
 import { ConversationPane, type Msg } from "./command-palette-chat";
 
 type Ctx = { open: () => void; close: () => void; ask: (q: string) => void };
@@ -166,10 +165,9 @@ export function CommandPaletteProvider({
   voiceLanguage?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<"search" | "chat" | "doc">("search");
+  const [mode, setMode] = useState<"search" | "chat">("search");
   // The document being read in-place (expand, don't open). Set when a document
   // search result is chosen; cleared on Back.
-  const [docReader, setDocReader] = useState<{ id: number; title: string; href: string; query: string } | null>(null);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -314,7 +312,6 @@ export function CommandPaletteProvider({
       }
       // ESC closes from search mode; from the doc reader it steps back to results.
       if (e.key === "Escape") {
-        if (mode === "doc") { setMode("search"); setDocReader(null); return; }
         setIsOpen((o) => (o && mode === "search" ? false : o));
       }
     };
@@ -626,8 +623,7 @@ export function CommandPaletteProvider({
   // The desktop preview pane — shows the highlighted result live so you can skim
   // without opening. No extra fetch: identity + why + snippet + quick actions.
   const openResult = (r: SearchResult) => {
-    if (r.type === "document") { setDocReader({ id: r.id, title: r.title, href: r.href, query }); setMode("doc"); }
-    else go(r.href);
+    go(r.href);
   };
   // The entity the preview pane is currently showing (same seed as previewNode).
   const previewEntity = activeResult ?? heroResult ?? results[0] ?? null;
@@ -765,7 +761,7 @@ export function CommandPaletteProvider({
               transition={{ duration: 0.18, ease: "easeOut" }}
               className={cn(
                 "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
-                mode === "chat" || mode === "doc" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
+                mode === "chat" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
               )}
             >
               {/* GSAP-driven sheen that sweeps once on open. */}
@@ -779,16 +775,9 @@ export function CommandPaletteProvider({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className={cn("flex flex-col min-h-0", (mode === "chat" || mode === "doc") && "flex-1 h-full")}
+                className={cn("flex flex-col min-h-0", mode === "chat" && "flex-1 h-full")}
               >
-              {mode === "doc" && docReader ? (
-                <DocReaderPane
-                  doc={docReader}
-                  onBack={() => { setMode("search"); setDocReader(null); }}
-                  onClose={() => setIsOpen(false)}
-                  onOpen={(href) => { setIsOpen(false); router.push(href); }}
-                />
-              ) : mode === "chat" ? (
+              {mode === "chat" ? (
                 <ConversationPane
                   thread={thread}
                   thinking={thinking}
@@ -1270,14 +1259,7 @@ export function CommandPaletteProvider({
                               value={`${query} __r_${r.type}_${r.id} ${r.title} ${r.subtitle} ${r.snippet ?? ""}`}
                               onMouseEnter={() => setActiveValue(`__r_${r.type}_${r.id}`)}
                               onFocus={() => setActiveValue(`__r_${r.type}_${r.id}`)}
-                              onSelect={() => {
-                                if (r.type === "document") {
-                                  setDocReader({ id: r.id, title: r.title, href: r.href, query });
-                                  setMode("doc");
-                                } else {
-                                  go(r.href);
-                                }
-                              }}
+                              onSelect={() => go(r.href)}
                               className={cn(
                                 "group/idx px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted",
                                 r.lifecycle === "history" && "opacity-70",

@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
+  Search, Filter, FilePlus, UploadCloud, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip,
-  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors, ChevronDown, Users, Trash2, AlertTriangle, Loader2,
+  CheckSquare, Check, List as ListIcon, CalendarRange, ChevronDown, Users, Trash2, AlertTriangle, Loader2,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { CompanyAvatar } from "./company-avatar";
@@ -13,15 +13,14 @@ import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } fro
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
-import { ConfidenceBadge, confidenceTier } from "@/components/confidence-badge";
-import { SplitDocumentDialog } from "./split-document-dialog";
+import { BulkUploadDialog } from "./bulk-upload-dialog";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import {
   deriveDocStatus, daysToExpiry, expiryLabel, docStatusColor, displayDocName,
-  shelfForCategory, SHELF_CODE, type DocStatus, type DocumentRow,
+  type DocStatus, type DocumentRow,
 } from "@/lib/documents-shared";
 import { archiveDocumentAction, renewDocumentAction, getDocumentFileLinkAction, deleteDocumentsAction, type DeleteScope } from "@/app/documents/actions";
 
@@ -33,14 +32,14 @@ function fmtDate(d: Date | null): string {
 }
 
 type ShelfGroup = { name: string; code: string; rows: DocumentRow[]; expired: number; expiring: number };
-/** Group a company's documents into the owner's 8 filing shelves (category folders),
- *  in shelf-code order (01…08) so it reads like the on-disk folders. */
+/** Group a company's documents by the category the owner chose. Uncategorised
+ *  rows collect under "Uncategorised" rather than being guessed into a folder. */
 function groupRowsByShelf(rows: DocumentRow[]): ShelfGroup[] {
   const map = new Map<string, ShelfGroup>();
   for (const d of rows) {
-    const name = shelfForCategory(d.category);
+    const name = d.category || "Uncategorised";
     let g = map.get(name);
-    if (!g) { g = { name, code: SHELF_CODE[name], rows: [], expired: 0, expiring: 0 }; map.set(name, g); }
+    if (!g) { g = { name, code: name, rows: [], expired: 0, expiring: 0 }; map.set(name, g); }
     g.rows.push(d);
     const s = deriveDocStatus(d);
     if (s === "Expired") g.expired++;
@@ -86,10 +85,10 @@ export function DocumentsTable({
   const [showArchived, setShowArchived] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   // Editing is owned by the ONE workspace-level inline editor (opens over whatever
   // tab you're on; closing returns you there). We just hand it the doc.
   const openEditor = (doc: DocumentRow) => window.dispatchEvent(new CustomEvent("cos:edit-document", { detail: { id: doc.id, doc } }));
-  const [splitDoc, setSplitDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
   const [prefillText, setPrefillText] = useState<string | undefined>(undefined);
@@ -195,7 +194,10 @@ export function DocumentsTable({
   // Page "+" action
   useContextActions(
     "documents",
-    [{ id: "add-document", label: "Add document", icon: <FilePlus size={16} />, onClick: () => setCreateOpen(true), primary: true, tone: "accent" }],
+    [
+      { id: "add-document", label: "Add document", icon: <FilePlus size={16} />, onClick: () => setCreateOpen(true), primary: true, tone: "accent" },
+      { id: "add-several", label: "Add several", icon: <UploadCloud size={16} />, onClick: () => setBulkOpen(true) },
+    ],
     []
   );
 
@@ -364,7 +366,6 @@ export function DocumentsTable({
     if (doc.companyId) a.push({ label: "Renew", icon: <RefreshCw size={16} />, onClick: () => doRenew(doc) });
     if (doc.storagePath) a.push({ label: "Open file", icon: <Paperclip size={16} />, onClick: () => openStoredFile(doc) });
     else if (doc.fileUrl) a.push({ label: "Open link", icon: <ExternalLink size={16} />, onClick: () => window.open(doc.fileUrl!, "_blank") });
-    if (doc.storagePath) a.push({ label: "Split into documents", icon: <Scissors size={16} />, onClick: () => { setPeek(null); setSplitDoc(doc); } });
     a.push(doc.archived
       ? { label: "Restore", icon: <ArchiveRestore size={16} />, onClick: () => doArchive(doc, false) }
       : { label: "Archive", icon: <Archive size={16} />, onClick: () => doArchive(doc, true) });
@@ -394,14 +395,6 @@ export function DocumentsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
-  // Renewal lineage maps (documents includes archived, so old copies resolve).
-  const docById = useMemo(() => new Map(documents.map((d) => [d.id, d])), [documents]);
-  const replacedByOf = useMemo(() => {
-    const m = new Map<number, DocumentRow>();
-    for (const d of documents) if (d.supersedesId) m.set(d.supersedesId, d);
-    return m;
-  }, [documents]);
-
   function renderRow(doc: DocumentRow, opts: { hideCompany?: boolean; hidePerson?: boolean } = {}) {
     const dte = daysToExpiry(doc);
     const urgent = dte !== null && dte < 0;
@@ -430,8 +423,6 @@ export function DocumentsTable({
             {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
             {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
             {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
-            {doc.supersedesId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0" title="Replaces an earlier document">↻ Renewal</span>}
-            {confidenceTier(doc.confidence) === "low" && <ConfidenceBadge confidence={doc.confidence} showLabel={false} className="shrink-0" />}
             {openLinkedTask && (
               <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
                 {openLinkedTask.code}
@@ -650,16 +641,10 @@ export function DocumentsTable({
             {peek.expiryDate && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-muted text-fg-muted">{fmtDate(peek.expiryDate)}{expiryLabel(peek) ? ` · ${expiryLabel(peek)}` : ""}</span>}
           </>
         ) : undefined}
-        body={peek && (peek.issuer || peek.referenceNo || peek.notes || (linkedTasks[peek.id]?.length) || peek.supersedesId || replacedByOf.has(peek.id)) ? (
+        body={peek && (peek.issuer || peek.referenceNo || peek.notes || linkedTasks[peek.id]?.length) ? (
           <div className="space-y-1 text-[13px] text-fg-muted">
             {peek.issuer && <div><span className="text-fg-subtle">Issuer:</span> {peek.issuer}</div>}
             {peek.referenceNo && <div><span className="text-fg-subtle">Ref:</span> {peek.referenceNo}</div>}
-            {peek.supersedesId && docById.get(peek.supersedesId) && (
-              <div><span className="text-fg-subtle">Replaces:</span> {docById.get(peek.supersedesId)!.title} <span className="text-fg-subtle">(archived)</span></div>
-            )}
-            {replacedByOf.get(peek.id) && (
-              <div><span className="text-fg-subtle">Replaced by:</span> {replacedByOf.get(peek.id)!.title}</div>
-            )}
             {peek.notes && <div className="line-clamp-3">{peek.notes}</div>}
             {linkedTasks[peek.id]?.length ? (
               <div className="pt-0.5">
@@ -679,26 +664,22 @@ export function DocumentsTable({
         actionsLayout="row"
       />
 
-      {/* Automatic bulk intake — drop all, AI files them, review only exceptions. */}
+
+      <BulkUploadDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        companies={companies.map((c) => ({ id: c.id, name: c.name }))}
+        people={people}
+        onDone={() => router.refresh()}
+      />
 
       <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) closeCreate(); }} title="Add a document">
-        <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
-          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId} initialSupersedesId={prefillSupersedeId}
+        <DocumentForm mode="create" companies={companies.map((c) => ({ id: c.id, name: c.name }))} people={people}
+          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId}
           onCancel={() => { setCreateOpen(false); closeCreate(); }}
           onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); closeCreate(); } }} />
       </DocDialog>
 
-
-      {/* Split a multi-document file into separate records (sharing the file). */}
-      {splitDoc && (
-        <SplitDocumentDialog
-          documentId={splitDoc.id}
-          fileName={splitDoc.fileName}
-          open={!!splitDoc}
-          onOpenChange={(o) => { if (!o) setSplitDoc(null); }}
-          onDone={() => router.refresh()}
-        />
-      )}
 
       {/* Delete flow (per document / category / company / all) — Trash or permanent. */}
       <DeleteDocsDialog
@@ -707,7 +688,7 @@ export function DocumentsTable({
         onDone={(mode, count) => {
           setDeleteTarget(null);
           exitSelect();
-          toast(`${count} document${count === 1 ? "" : "s"} ${mode === "permanent" ? "permanently deleted" : "moved to Trash"}`, { tone: "success" });
+          toast(`${count} document${count === 1 ? "" : "s"} ${mode === "permanent" ? "permanently deleted" : "archived"}`, { tone: "success" });
           router.refresh();
         }}
       />
@@ -718,13 +699,13 @@ export function DocumentsTable({
 function DeleteDocsDialog({ target, onClose, onDone }: {
   target: { scope: DeleteScope; label: string } | null;
   onClose: () => void;
-  onDone: (mode: "trash" | "permanent", count: number) => void;
+  onDone: (mode: "archive" | "permanent", count: number) => void;
 }) {
-  const [busy, setBusy] = useState<"trash" | "permanent" | null>(null);
+  const [busy, setBusy] = useState<"archive" | "permanent" | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
   useEffect(() => { if (target) setConfirmPermanent(false); }, [target]);
   if (!target) return null;
-  const run = async (mode: "trash" | "permanent") => {
+  const run = async (mode: "archive" | "permanent") => {
     setBusy(mode);
     const res = await deleteDocumentsAction(target.scope, mode);
     setBusy(null);
@@ -734,10 +715,10 @@ function DeleteDocsDialog({ target, onClose, onDone }: {
     <HrmsDialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }} width={460} title={`Delete ${target.label}`}>
       <div className="space-y-4 p-1">
         <p className="text-sm text-fg-muted">Choose how to delete <b className="text-fg">{target.label}</b>.</p>
-        <button type="button" disabled={!!busy} onClick={() => run("trash")}
+        <button type="button" disabled={!!busy} onClick={() => run("archive")}
           className="flex w-full items-start gap-3 rounded-xl border border-border p-3 text-left hover:border-accent hover:bg-accent-soft/30 disabled:opacity-50 transition-colors">
-          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg-muted text-fg-muted">{busy === "trash" ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}</span>
-          <span><span className="block text-sm font-medium">Move to Trash</span><span className="block text-xs text-fg-muted">Recoverable — restore any time from the Trash tab.</span></span>
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg-muted text-fg-muted">{busy === "archive" ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}</span>
+          <span><span className="block text-sm font-medium">Archive</span><span className="block text-xs text-fg-muted">Recoverable — turn on “Show archived” to bring it back.</span></span>
         </button>
         {!confirmPermanent ? (
           <button type="button" disabled={!!busy} onClick={() => setConfirmPermanent(true)}

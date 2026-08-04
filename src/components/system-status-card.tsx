@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, Wrench, KeyRound } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { ExtractionHealth } from "@/components/extraction-health";
 import { SEVERITY_LABEL, SEVERITY_TONE, type Finding } from "@/lib/safety-net-shared";
 import type { SystemHealth } from "@/lib/system-health";
 import type { GroqKeyStatus } from "@/lib/model-watch";
@@ -175,7 +174,6 @@ export function SystemStatusCard({ health, findings }: { health: SystemHealth; f
             {tab === "ai" && (
               <div className="space-y-3">
                 <AiKeyRow status={key.status} />
-                <ExtractionHealth bare />
               </div>
             )}
 

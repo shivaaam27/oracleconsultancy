@@ -18,7 +18,6 @@ import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
 import { createCalendarEvent, toIcsEvent } from "@/lib/calendar";
 import { googleCalendarUrl } from "@/lib/ics";
-import { buildPersonRequirementScores } from "@/lib/requirements";
 import { listLeaveRequests } from "@/lib/leave";
 import { rememberPreference, recallMemories, listMemories, forgetMemory } from "@/lib/ai-memory";
 
@@ -41,7 +40,6 @@ type ParsedIntent =
   | { type: "person_pack"; personName: string; purpose: PersonPackPurpose }
   | { type: "remind"; personName: string; about?: string; when?: string; whenLabel?: string }
   | { type: "draft_brief"; companyName?: string; period?: string }
-  | { type: "find_missing"; doc: string }
   | { type: "leave_status"; window: "today" | "week" }
   | { type: "remember"; text: string; kind: "preference" | "fact" }
   | { type: "recall_memory"; query?: string }
@@ -67,7 +65,6 @@ Possible intents (output ONLY the JSON, no prose):
 - Create a new task: {"type":"create","companyName":"Dar Spices","actionItem":"Send invoice","priority":"High","deadline":"2026-06-15","assignee":"Shivam"}
 - Remind a person — prepares an Outbox reminder DRAFT, never auto-sent: {"type":"remind","personName":"Shivam","about":"his work permit"}
 - Draft the Director Brief — creates an email DRAFT in Outbox, never auto-sent: {"type":"draft_brief","companyName":"Dar Spices","period":"month"}. Omit companyName for the whole portfolio. period is one of month|last-month|quarter|year.
-- Find who is missing a document type (read-only question): {"type":"find_missing","doc":"passport"}. Use for "who is missing a passport", "which staff don't have a work permit", "anyone without a contract".
 - Who is on leave (read-only question): {"type":"leave_status","window":"today"} or {"type":"leave_status","window":"week"}. Use for "who is on leave today", "who is off this week", "anyone away".
 - Apply ONE action to ALL tasks in the current view ("escalate these", "complete these", "mark these blocked", "make these high"): {"type":"bulk","op":"escalate"} | {"type":"bulk","op":"complete"} | {"type":"bulk","op":"set_status","status":"Blocked"} | {"type":"bulk","op":"set_priority","priority":"High"}. Use bulk when the command refers to the visible set ("these", "them", "all of them", "the ones shown", "the overdue ones") rather than a single task code.
 - Navigate / open: {"type":"navigate","target":"task","query":"DAR-007"} or {"type":"navigate","target":"company","query":"Dar Spices"} or {"type":"navigate","target":"escalations"}
@@ -279,26 +276,6 @@ function parseBriefCommand(command: string): ParsedIntent | null {
   }
 
   return { type: "draft_brief", companyName, period };
-}
-
-/**
- * Deterministic "who is missing a <doc>" read-only query parser. Runs before the
- * LLM so it works AI-off.
- */
-function parseFindMissingCommand(command: string): ParsedIntent | null {
-  const c = command.trim();
-  const m = c.match(
-    /\b(?:who(?:'s| is| are)?|which (?:people|staff|employees?)|anyone|list (?:of )?(?:people|staff|everyone))\b.*?\b(?:missing|without|needs?|doesn'?t have|don'?t have|lacks?|haven'?t (?:got|submitted)|has no|have no)\s+(?:an?\s+|the\s+)?(.+?)[?.!]*$/i,
-  );
-  if (!m) return null;
-  let doc = (m[1] || "")
-    .trim()
-    .replace(/\b(on (?:file|record)|yet|documents?|docs?|uploaded|submitted)\b/gi, "")
-    .trim()
-    .replace(/^(an?|the)\s+/i, "")
-    .trim();
-  if (!doc) return null;
-  return { type: "find_missing", doc };
 }
 
 /**
@@ -910,7 +887,6 @@ export async function POST(req: NextRequest) {
       parsePersonPackCommand(command) ??
       parseRemindCommand(command) ??
       parseBriefCommand(command) ??
-      parseFindMissingCommand(command) ??
       parseLeaveStatusCommand(command) ??
       await parseCommand(command, history, activeContext);
 
@@ -952,36 +928,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (intent.type === "find_missing") {
-      // Read-only question — answer immediately, no mutation, no confirm.
-      const scores = await buildPersonRequirementScores();
-      const kw = intent.doc.toLowerCase();
-      const matches = scores.filter((s) =>
-        s.gaps.some(
-          (g) =>
-            g.label.toLowerCase().includes(kw) ||
-            (g.categories ?? []).some((cat) => cat.toLowerCase().includes(kw)),
-        ),
-      );
-      const docLabel = intent.doc.replace(/\s+/g, " ").trim();
-      if (matches.length === 0) {
-        return NextResponse.json({
-          intent,
-          ok: true,
-          executed: true,
-          message: `Good news — no active person has a ${docLabel} outstanding on their checklist.`,
-        });
-      }
-      const names = matches.map((m) => m.ownerName);
-      const shown = names.slice(0, 12).join(", ");
-      const extra = names.length > 12 ? ` and ${names.length - 12} more` : "";
-      return NextResponse.json({
-        intent,
-        ok: true,
-        executed: true,
-        message: `${names.length} ${names.length === 1 ? "person is" : "people are"} missing a ${docLabel}: ${shown}${extra}.`,
-      });
-    }
 
     if (intent.type === "leave_status") {
       const rows = await listLeaveRequests({ status: "Approved" });

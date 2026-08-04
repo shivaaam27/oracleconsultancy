@@ -7,7 +7,7 @@ import { setDepartmentHead } from "@/lib/org-actions";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, FoldVertical,
-  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
+  MessageCircle, UserRound, Send, Laptop, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
   Focus, Scaling, List, GitBranch, Building2, Minimize2, UnfoldVertical,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
@@ -85,18 +85,6 @@ function HoverDetail({
 
       {x && (
         <>
-          {x.compliancePct != null && (
-            <div className="mt-2">
-              <div className="flex items-center justify-between text-[10px] text-fg-subtle mb-1">
-                <span className="inline-flex items-center gap-1"><ShieldCheck size={11} /> Document compliance</span>
-                <span className="tabular font-medium text-fg">{x.compliancePct}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-bg-muted overflow-hidden">
-                <div className={cn("h-full rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-success")} style={{ width: `${x.compliancePct}%` }} />
-              </div>
-            </div>
-          )}
-
           <div className="mt-2 flex flex-wrap gap-1">
             {x.open > 0 && <Badge tone="info">{x.open} open</Badge>}
             {x.overdue > 0 && <Badge tone="danger">{x.overdue} overdue</Badge>}
@@ -207,9 +195,6 @@ function NodeCard({
           ) : x?.open ? (
             <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-[10px] font-bold tabular">{x.open}</span>
           ) : null}
-          {x?.compliancePct != null && (
-            <span title={`Compliance ${x.compliancePct}%`} className={cn("w-2 h-2 rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-success")} />
-          )}
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
         </div>
 

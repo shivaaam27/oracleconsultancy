@@ -13,7 +13,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
-const AI_KINDS = ["ask", "extract", "action"];
+const AI_KINDS = ["ask", "action"];
 
 async function main() {
   const laneArg = process.argv[2];

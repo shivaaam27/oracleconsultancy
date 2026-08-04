@@ -9,8 +9,6 @@
 
 import { sb } from "@/db/supabase";
 import { getDocument } from "@/lib/documents";
-import { verifyRequirement, unverifyRequirement, getPersonChecklist } from "@/lib/requirements";
-import { verifyCompanyRequirement, unverifyCompanyRequirement } from "@/lib/company-requirements";
 import { setPipelineStage, pipelineForTask, createPipelineFromDocument } from "@/lib/pipeline";
 import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
 import { toggleTodo } from "@/app/todos/actions";
@@ -20,8 +18,8 @@ import { reindexEntity } from "@/lib/index-hooks";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 import type { DocumentRow } from "@/lib/documents-shared";
 
-export type AutomationKind = "compliance-verify" | "task-complete" | "pipeline-advance" | "onboarding-tick" | "pipeline-create";
-export type AutomationTable = "person_requirements" | "company_requirements" | "tasks" | "pipeline" | "todos" | "documents";
+export type AutomationKind = "task-complete" | "pipeline-advance" | "onboarding-tick" | "pipeline-create";
+export type AutomationTable = "tasks" | "pipeline" | "todos" | "documents";
 
 type LogInput = {
   kind: AutomationKind;
@@ -176,10 +174,6 @@ async function taskCode(taskId: number): Promise<string | null> {
 /** Perform (or re-perform, on Apply) an automation move. */
 export async function performAutomationMove(row: MoveRow): Promise<void> {
   switch (row.kind) {
-    case "compliance-verify":
-      if (row.targetTable === "person_requirements") await verifyRequirement(row.targetId);
-      else await verifyCompanyRequirement(row.targetId);
-      return;
     case "task-complete": {
       const code = await taskCode(row.targetId);
       if (code) await addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed");
@@ -207,10 +201,6 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
       await sb.from("pipeline").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", row.targetId);
       void reindexEntity("pipeline", row.targetId); // archive re-stamps lifecycle="history"
       return;
-    case "compliance-verify":
-      if (row.targetTable === "person_requirements") await unverifyRequirement(row.targetId);
-      else await unverifyCompanyRequirement(row.targetId);
-      return;
     case "task-complete": {
       const code = await taskCode(row.targetId);
       if (code) await addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress");
@@ -232,52 +222,29 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
 export async function reactToFiledDocument(documentId: number): Promise<void> {
   try {
     const doc = await getDocument(documentId);
-    if (!doc || doc.archived || doc.intakeState !== "filed") return;
+    if (!doc || doc.archived) return;
     const who = await ownerName(doc);
     // Each reaction is independently guarded so one failure never stops the rest.
     // The recursion guard keys on this document so a reaction that ticks a todo /
     // advances a pipeline (which may itself spawn work) can't re-enter the same
     // document's reaction set and loop.
     await withCascadeGuard(`doc-filed:${doc.id}`, () => Promise.allSettled([
-      reactCompliance(doc, who),
       reactLinkedTasks(doc, who),
       reactPipeline(doc, who),
       reactStartPipeline(doc, who),
       reactOnboarding(doc, who),
-      cascadeComplianceComplete(doc, who),
     ]).then(() => undefined));
   } catch (e) {
     await recordEvent("automation.react", "error", { documentId, message: e instanceof Error ? e.message : String(e) });
   }
 }
 
-/** Compliance: a document the matcher auto-linked to a requirement → verify it.
- *  CERTAIN when the read was clean (not needs-review, not an awaiting-original
- *  photo); otherwise suggest. Reuses the system's own auto-link as the signal. */
-async function reactCompliance(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    const clean = doc.reviewStatus === "ok" && !doc.needsOriginal;
-    for (const table of ["person_requirements", "company_requirements"] as const) {
-      const { data } = await sb.from(table).select("id,status").eq("document_id", doc.id).limit(20);
-      for (const r of data ?? []) {
-        const status = (r.status as string | null) ?? "received";
-        if (status === "verified" || status === "waived") continue;
-        const targetId = r.id as number;
-        if (await alreadyLogged(doc.id, "compliance-verify", table, targetId)) continue;
-        const base = { kind: "compliance-verify" as const, documentId: doc.id, targetTable: table, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Verify “${doc.title}” for ${who}`, detail: "Auto-linked to a compliance requirement", prevValue: status, newValue: "verified" };
-        await commit(base, clean, `Verified “${doc.title}” for ${who}`);
-      }
-    }
-  } catch { /* best-effort */ }
-}
-
-/** Tasks: an open task explicitly linked (document_links) to this document — or to
- *  the document it supersedes — is fulfilled by it → complete it. Always CERTAIN
- *  (an explicit link), so it auto-completes. */
+/** Tasks: an open task explicitly linked (document_links) to this document is
+ *  fulfilled by it → complete it. Always CERTAIN (an explicit link), so it
+ *  auto-completes. */
 async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
   try {
-    const docIds = [doc.id, doc.supersedesId].filter((x): x is number => !!x);
-    const { data: links } = await sb.from("document_links").select("task_id").in("document_id", docIds);
+    const { data: links } = await sb.from("document_links").select("task_id").eq("document_id", doc.id);
     const taskIds = [...new Set((links ?? []).map((l) => l.task_id as number))];
     if (!taskIds.length) return;
     const { data: tasks } = await sb.from("tasks").select("id,code,title,status").in("id", taskIds);
@@ -311,28 +278,6 @@ async function reactStartPipeline(_doc: DocumentRow, _who: string): Promise<void
 /* Phase 3 — cross-process cascades (one process completing nudges the */
 /* next). Both reuse the onboarding-tick kind + undo (toggleTodo).     */
 /* ------------------------------------------------------------------ */
-
-/** When filing a document pushes a person's MANDATORY compliance to 100%, tick
- *  the onboarding "collect & verify documents" step — closing the compliance loop.
- *  Runs as part of reactToFiledDocument (after the compliance verify). */
-async function cascadeComplianceComplete(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    if (!doc.personId) return;
-    const chk = await getPersonChecklist(doc.personId);
-    if (!chk || chk.mandatoryTotal === 0) return;
-    // Only when EVERY mandatory item is satisfied (verified, none missing/expired).
-    if (chk.score < 100 || chk.missingMandatory > 0 || chk.expiredMandatory > 0) return;
-    const { data } = await sb.from("todos").select("id,title").eq("person_id", doc.personId).eq("kind", "onboarding").eq("done", false).limit(40);
-    for (const td of data ?? []) {
-      if (!/document|compliance|collect/.test(norm(td.title as string))) continue;
-      const targetId = td.id as number;
-      if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
-      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Onboarding step “${td.title}” done — compliance complete for ${who}`, detail: "All required documents collected & verified", prevValue: "open", newValue: "done" };
-      await commit(base, true);
-      break; // one step is enough
-    }
-  } catch { /* best-effort */ }
-}
 
 /** When a task is COMPLETED (open → closed), run the state-driven cascade chains:
  *   • a task that DRIVES a pipeline case → advance that case one stage;

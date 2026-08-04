@@ -20,7 +20,6 @@ import { StaffIdChip } from "./staff-id-chip";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackPanel } from "./person-pack-builder";
-import { RequirementsChecklist } from "./requirements-checklist";
 import { DocumentForm } from "./document-form";
 import { NewTaskForm } from "@/app/task/new/new-task-form";
 import { JourneyChecklist } from "./journey-checklist";
@@ -38,8 +37,6 @@ import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
 import { PersonProbation } from "./person-probation";
 import { FactsPanel } from "./facts-panel";
-import { SuggestionTray } from "./suggestion-tray";
-import type { ProfileSuggestion } from "@/lib/profile-suggestions";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
 
@@ -137,8 +134,6 @@ type DrawerData = {
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
-  suggestions: ProfileSuggestion[];
-  appliedSuggestions: ProfileSuggestion[];
 };
 
 /* -------------------------------------------------------------------------
@@ -325,7 +320,6 @@ export function PersonDrawer() {
   // person, with their name + company pre-filled (the commonest HR action).
   const [newTask, setNewTask] = useState(false);
   // Headline summaries reported up by the section components, for the hero tiles.
-  const [compSum, setCompSum] = useState<{ score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number } | null>(null);
   const [journeySum, setJourneySum] = useState<{ completed: number; total: number } | null>(null);
   const [assetsSum, setAssetsSum] = useState<{ held: number } | null>(null);
   const { toast } = useToast();
@@ -339,7 +333,7 @@ export function PersonDrawer() {
 
   useEffect(() => {
     if (!idStr) { setData(null); setMode("view"); setSnoozeInput(""); return; }
-    setCompSum(null); setJourneySum(null); setAssetsSum(null);
+    setJourneySum(null); setAssetsSum(null);
     setLoading(true);
     setError(false);
     fetch(`/api/people-detail?id=${encodeURIComponent(idStr)}`)
@@ -444,15 +438,9 @@ export function PersonDrawer() {
   const person = data?.person;
   const snoozed = person?.snoozedUntil ? new Date(person.snoozedUntil) > new Date() : false;
 
-  const band = compSum?.band ?? null;
-  const tone: "accent" | "success" | "warn" | "danger" =
-    !person?.active ? "accent" : band === "Risk" ? "danger" : band === "Watch" ? "warn" : band === "Good" ? "success" : "accent";
+  const tone: "accent" | "success" | "warn" | "danger" = "accent";
   const avatarTone =
-    !person?.active ? "bg-bg-subtle text-fg-muted ring-border"
-    : band === "Risk" ? "bg-danger-soft text-danger ring-danger/30"
-    : band === "Watch" ? "bg-warn-soft text-warn ring-warn/30"
-    : band === "Good" ? "bg-success-soft text-success ring-success/30"
-    : "bg-accent-soft text-accent ring-accent/30";
+    !person?.active ? "bg-bg-subtle text-fg-muted ring-border" : "bg-accent-soft text-accent ring-accent/30";
 
   const docIssues = data ? data.documents.filter((d) => d.status === "Expired" || d.status === "Expiring") : [];
   const overdueTasks = data ? data.assignedTasks.filter((t) => t.flag === "overdue" || t.flag === "escalate-now") : [];
@@ -577,19 +565,14 @@ export function PersonDrawer() {
       attention.push({ key: `t${t.id}`, icon: <AlertTriangle size={14} className="text-danger" />, label: t.actionItem, sub: `${t.code} · overdue`, onClick: () => openView("tasks") })
     );
     docIssues.slice(0, 4).forEach((d) =>
-      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => openView("compliance") })
+      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => { close(); router.push(`/documents?person=${person?.id ?? ""}`); } })
     );
-    if (compSum && compSum.missing > 0)
-      attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => openView("compliance") });
     if (person?.active && anniversary)
       attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("profile") });
   }
 
   // Vitals — the ONLY entry points to the deep views. Each chip is a door.
-  const compBandTone =
-    band === "Good" ? "text-success" : band === "Watch" ? "text-warn" : band === "Risk" ? "text-danger" : "text-fg-subtle";
   const vitals: Array<{ key: string; label: string; value: React.ReactNode; tone: string; onClick: () => void }> = data && person ? [
-    { key: "compliance", label: "Compliance", value: compSum ? `${compSum.score}%` : "—", tone: compBandTone, onClick: () => openView("compliance") },
     { key: "open", label: "Open tasks", value: openTasks, tone: data.workload.overdue ? "text-danger" : openTasks ? "text-info" : "text-fg-subtle", onClick: () => openView("tasks") },
     { key: "equipment", label: "Equipment", value: assetsSum ? assetsSum.held : "—", tone: assetsSum && assetsSum.held ? "text-info" : "text-fg-subtle", onClick: () => openView("journey") },
     { key: "journey", label: person.active ? "Journey" : "Exit", value: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : "—", tone: journeySum && journeySum.total > 0 && journeySum.completed === journeySum.total ? "text-success" : "text-info", onClick: () => openView("journey") },
@@ -759,12 +742,6 @@ export function PersonDrawer() {
       </div>
     ) : (
       <>
-        {/* Suggested additions — pending decisions + auto-applied (undoable) */}
-        {(data.suggestions.length > 0 || data.appliedSuggestions.length > 0) && (
-          <div className="mb-3">
-            <SuggestionTray suggestions={data.suggestions} applied={data.appliedSuggestions} personId={person.id} />
-          </div>
-        )}
         {/* Profile details — grouped definition grids */}
         {(() => {
           const docFor = (kind: "passport" | "nationalId") =>
@@ -946,7 +923,6 @@ export function PersonDrawer() {
   // When the pack step is open it takes over the body as a single view.
   // More menu — the door to every deep view (each is a hidden, mounted tab).
   const moreItems = person && data ? [
-    { id: "compliance", icon: <ShieldCheck size={15} />, label: "Compliance", meta: compSum ? `${compSum.score}%` : undefined },
     { id: "journey", icon: <RouteIcon size={15} />, label: person.active ? "Journey" : "Exit", meta: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : undefined },
     { id: "tasks", icon: <ListTodo size={15} />, label: "Tasks", meta: openTasks ? `${openTasks} open` : undefined },
     { id: "history", icon: <Clock size={15} />, label: "History", meta: data.events.length ? String(data.events.length) : undefined },
@@ -1003,8 +979,6 @@ export function PersonDrawer() {
           content: <PersonPackPanel personId={person.id} personName={person.name} initialPurpose={packPurpose} onBack={() => setActiveTab("snapshot")} /> },
         // Hidden but mounted (so their onSummary feeds the vitals); reached from
         // a vital chip or the More menu.
-        { id: "compliance", label: "Compliance", hidden: true,
-          content: <><BackBar label="Back" onBack={goBack} /><RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /></> },
         { id: "journey", label: "Journey", hidden: true, content: journeyView },
         { id: "tasks", label: "Tasks", hidden: true, content: <><BackBar label="Back" onBack={goBack} />{tasksContent}</> },
         { id: "manage", label: "Manage", hidden: true, content: manageContent },

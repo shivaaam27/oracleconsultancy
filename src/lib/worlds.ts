@@ -60,7 +60,6 @@ export const WORLDS: World[] = [
       { label: "Documents",       href: "/documents",            icon: "FileText" },
       { label: "Tax & Legal",     href: "/hrms/command-centre",  icon: "Scale" },
       { label: "Commitments register", href: "/hrms/registers",  icon: "FileWarning" },
-      { label: "To Sort",         href: "/documents?tab=sort",   icon: "Inbox" },
     ],
   },
   {

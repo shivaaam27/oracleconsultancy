@@ -1,7 +1,6 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
-import { buildPersonRequirementScores } from "./requirements";
 import { listAssets } from "./assets";
 import { listLeaveRequests } from "./leave";
 
@@ -17,9 +16,6 @@ export type OrgPersonExtras = {
   closed: number;
   /** The single most pressing open task (by flag), for the hover summary. */
   topTask: { code: string; title: string; flag: string | null } | null;
-  /** Document-compliance score 0–100, or null if the person has no requirements. */
-  compliancePct: number | null;
-  complianceStatus: "Good" | "Watch" | "Risk" | null;
   assetsHeld: number;
   onLeaveToday: boolean;
   onboarding: boolean;
@@ -33,21 +29,12 @@ function involves(t: TaskRow, personId: number): boolean {
 }
 
 export async function getOrgExtras(): Promise<Record<number, OrgPersonExtras>> {
-  const [tasks, scores, assets, leave, { data: onbRows }] = await Promise.all([
+  const [tasks, assets, leave, { data: onbRows }] = await Promise.all([
     getAllTasks(),
-    buildPersonRequirementScores(),
     listAssets(),
     listLeaveRequests({ status: "Approved" }),
     sb.from("todos").select("person_id").eq("kind", "onboarding").eq("done", false),
   ]);
-
-  // Compliance by person.
-  const complianceById = new Map<number, { pct: number; status: "Good" | "Watch" | "Risk" }>();
-  for (const s of scores) {
-    if (s.ownerType === "person" && s.required > 0) {
-      complianceById.set(s.ownerId, { pct: s.score, status: s.status });
-    }
-  }
 
   // Assets currently held by each person.
   const assetsById = new Map<number, number>();
@@ -96,20 +83,17 @@ export async function getOrgExtras(): Promise<Record<number, OrgPersonExtras>> {
 
   // Merge everyone who appears in any source.
   const ids = new Set<number>([
-    ...taskStats.keys(), ...complianceById.keys(), ...assetsById.keys(), ...onLeaveIds, ...onboardingIds,
+    ...taskStats.keys(), ...assetsById.keys(), ...onLeaveIds, ...onboardingIds,
   ]);
   const out: Record<number, OrgPersonExtras> = {};
   for (const id of ids) {
     const ts = taskStats.get(id);
-    const comp = complianceById.get(id);
     out[id] = {
       open: ts?.open ?? 0,
       overdue: ts?.overdue ?? 0,
       notStarted: ts?.notStarted ?? 0,
       closed: ts?.closed ?? 0,
       topTask: ts?.top ? { code: ts.top.code, title: ts.top.actionItem, flag: ts.top.flag } : null,
-      compliancePct: comp?.pct ?? null,
-      complianceStatus: comp?.status ?? null,
       assetsHeld: assetsById.get(id) ?? 0,
       onLeaveToday: onLeaveIds.has(id),
       onboarding: onboardingIds.has(id),
