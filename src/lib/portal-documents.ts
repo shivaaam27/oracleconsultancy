@@ -21,7 +21,6 @@ export type PortalDocRow = {
   expiry: string | null;
   companyName: string | null;
   personName: string | null;
-  reviewStatus: string | null;
 };
 
 /** Person ids belonging to any of the given companies (primary ∪ person_companies). */
@@ -40,7 +39,7 @@ async function personIdsInCompanies(companyIds: number[]): Promise<number[]> {
 type RawDoc = {
   id: number; title: string | null; category: string | null; doc_type: string | null;
   file_name: string | null; storage_path: string | null; file_url: string | null;
-  expiry_date: string | null; review_status: string | null;
+  expiry_date: string | null;
   companies: { name: string } | { name: string }[] | null;
   people: { name: string } | { name: string }[] | null;
 };
@@ -60,12 +59,11 @@ function mapRow(d: RawDoc): PortalDocRow {
     expiry: (d.expiry_date as string | null) ?? null,
     companyName: one(d.companies)?.name ?? null,
     personName: one(d.people)?.name ?? null,
-    reviewStatus: (d.review_status as string | null) ?? null,
   };
 }
 
 const SELECT =
-  "id,title,category,doc_type,file_name,storage_path,file_url,expiry_date,review_status,company_id,person_id,companies(name),people(name)";
+  "id,title,category,doc_type,file_name,storage_path,file_url,expiry_date,company_id,person_id,companies(name),people(name)";
 
 /** Core: documents for a company-id set (null = every company). Includes each
  *  company's own documents PLUS the documents of the PEOPLE in those companies.

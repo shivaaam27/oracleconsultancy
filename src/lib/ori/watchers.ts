@@ -175,16 +175,15 @@ export async function evaluateWatchers(type: string, id: number): Promise<void> 
 
         case "document_expiring": {
           const { data: doc } = await sb.from("documents")
-            .select("id,title,company_id,expiry_date,expiry_kind,archived")
+            .select("id,title,company_id,expiry_date,archived")
             .eq("id", id).maybeSingle();
           if (!doc) break;
           const row = doc as {
             title: string | null; company_id: number | null;
-            expiry_date: string | null; expiry_kind: string | null; archived: boolean | null;
+            expiry_date: string | null; archived: boolean | null;
           };
-          // Skip archived docs and ones explicitly marked as non-expiring; a null
-          // expiry_kind ("not yet determined") with a real expiry_date still counts.
-          if (row.archived || row.expiry_kind === "no" || !row.expiry_date) break;
+          // A document expires iff the owner typed an expiry date on it.
+          if (row.archived || !row.expiry_date) break;
           if (typeof cfg.companyId === "number" && row.company_id !== cfg.companyId) break;
           const daysBefore = Math.max(0, Math.round(cfg.daysBefore ?? 14));
           const exp = new Date(row.expiry_date).getTime();

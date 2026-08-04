@@ -52,7 +52,7 @@ async function buildPulse(): Promise<PulseItem[]> {
     sb.from("tasks").select("code,action_item,created_date,companies(name)").eq("archived", false).not("created_date", "is", null).order("created_date", { ascending: false }).limit(6),
     sb.from("attendance").select("status,updated_at,people(name)").order("updated_at", { ascending: false }).limit(6),
     sb.from("requests").select("code,title,created_at,people:requester_id(name)").order("created_at", { ascending: false }).limit(4),
-    sb.from("documents").select("title,filed_at,created_at,companies(name)").eq("archived", false).eq("intake_state", "filed").order("created_at", { ascending: false }).limit(4),
+    sb.from("documents").select("title,created_at,companies(name)").eq("archived", false).order("created_at", { ascending: false }).limit(4),
   ]);
 
   for (const u of (updatesR.data ?? []) as Record<string, unknown>[]) {

@@ -119,9 +119,8 @@ export async function getActivityFeed(opts?: { actor?: Actor | "all"; limit?: nu
   const want = opts?.actor ?? "all";
   const per = Math.min(150, Math.max(40, limit * 2));
 
-  const [auto, recs, audit, sys] = await Promise.all([
+  const [auto, audit, sys] = await Promise.all([
     sb.from("automation_events").select("id,summary,detail,document_id,created_at,status").in("status", ["applied", "undone"]).order("created_at", { ascending: false }).limit(per),
-    sb.from("profile_suggestions").select("id,summary,detail,document_id,created_at").eq("status", "accepted").order("created_at", { ascending: false }).limit(per),
     sb.from("audit_log").select("id,entry_type,field,change_reason,task_code,created_at,created_by").is("deleted_at", null).order("created_at", { ascending: false }).limit(per),
     sb.from("system_events").select("id,kind,status,details,created_at").order("created_at", { ascending: false }).limit(per * 2),
   ]);
@@ -130,9 +129,6 @@ export async function getActivityFeed(opts?: { actor?: Actor | "all"; limit?: nu
 
   for (const a of auto.data ?? []) {
     rows.push({ key: `ae:${a.id}`, actor: "system", actorLabel: "System", summary: (a.status === "undone" ? "Reversed: " : "") + (a.summary as string), detail: (a.detail as string | null) ?? null, when: new Date(a.created_at as string), href: a.document_id ? `/documents?doc=${a.document_id}` : null });
-  }
-  for (const s of recs.data ?? []) {
-    rows.push({ key: `ps:${s.id}`, actor: "system", actorLabel: "System", summary: s.summary as string, detail: (s.detail as string | null) ?? null, when: new Date(s.created_at as string), href: s.document_id ? `/documents?doc=${s.document_id}` : null });
   }
   for (const r of audit.data ?? []) {
     const who = classifyActor(r.created_by as string | null);

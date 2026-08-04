@@ -134,7 +134,6 @@ function DocRow({ d }: { d: PortalDocRow }) {
               <CalendarClock size={11} /> {expired ? "Expired" : "Expires"} {expiry}
             </span>
           )}
-          {d.reviewStatus === "needs_review" && <span className="text-warn">Needs review</span>}
         </p>
       </div>
       {d.openable ? (

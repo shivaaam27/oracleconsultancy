@@ -1,9 +1,16 @@
 {
-  "regions": ["dub1"],
+  "regions": [
+    "dub1"
+  ],
   "headers": [
     {
       "source": "/manifest.json",
-      "headers": [{ "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }]
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json; charset=utf-8"
+        }
+      ]
     }
   ],
   "crons": [
@@ -46,10 +53,6 @@
     {
       "path": "/api/cron/ori-automations",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/cron/purge-trash",
-      "schedule": "0 4 * * *"
     }
   ]
 }

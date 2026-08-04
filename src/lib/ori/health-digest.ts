@@ -40,7 +40,6 @@ export interface HealthDigest {
     embeddings: number;
     openTasks: number;
     documents: number;
-    trash: number;
   };
 }
 
@@ -87,7 +86,7 @@ export async function composeHealthDigest(): Promise<HealthDigest> {
   ]);
 
   // Index size + entity counts — all head-only count queries.
-  const [embeddings, openTasks, documents, trash] = await Promise.all([
+  const [embeddings, openTasks, documents] = await Promise.all([
     countOf(() => sb.from("embeddings").select("*", { count: "exact", head: true })),
     countOf(() =>
       sb
@@ -97,9 +96,8 @@ export async function composeHealthDigest(): Promise<HealthDigest> {
         .not("status", "in", '("Completed","Closed")'),
     ),
     countOf(() =>
-      sb.from("documents").select("*", { count: "exact", head: true }).eq("archived", false).is("trashed_at", null),
+      sb.from("documents").select("*", { count: "exact", head: true }).eq("archived", false),
     ),
-    countOf(() => sb.from("documents").select("*", { count: "exact", head: true }).not("trashed_at", "is", null)),
   ]);
 
   const stats: HealthDigest["stats"] = {
@@ -110,7 +108,6 @@ export async function composeHealthDigest(): Promise<HealthDigest> {
     embeddings,
     openTasks,
     documents,
-    trash,
   };
 
   const costMonth = stats.aiCostMonth > 0 ? ` · £${stats.aiCostMonth.toFixed(2)} est this month` : "";
@@ -127,7 +124,7 @@ export async function composeHealthDigest(): Promise<HealthDigest> {
       stats.aiCostMonth > 0 ? ` · £${stats.aiCostMonth.toFixed(2)} est cost` : " · free tier (£0 est)"
     }`,
     `Search index: ${stats.embeddings.toLocaleString()} indexed record${stats.embeddings === 1 ? "" : "s"}`,
-    `Open tasks: ${stats.openTasks} · Documents: ${stats.documents} · Trash: ${stats.trash}`,
+    `Open tasks: ${stats.openTasks} · Documents: ${stats.documents}`,
     "",
     "Note: true Supabase bandwidth/egress can't be measured from inside the app — read it from the Supabase dashboard (Reports → Usage).",
   ].join("\n");

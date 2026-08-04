@@ -209,7 +209,6 @@ async function flagFactDiscrepancy(
   });
   if (documentId != null) {
     try {
-      await sb.from("documents").update({ review_status: "needs_review" }).eq("id", documentId);
     } catch {
       /* flag is advisory — a failed update must not unwind the fact append */
     }

@@ -54,7 +54,7 @@ function daysUntil(deadline: Date | null, now: number): number | null {
 
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const now = new Date();
-  const [settings, signals, automation, emailCfg, dirRow, activity, nowData, approvals, companiesRes, docCountRes, docReviewRes] =
+  const [settings, signals, automation, emailCfg, dirRow, activity, nowData, approvals, companiesRes, docCountRes] =
     await Promise.all([
       getAppSettings(),
       gatherHomeSignals(rows, todos),
@@ -66,7 +66,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       listApprovals(),
       sb.from("companies").select("id,name,accent_color"),
       sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false),
-      sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false).eq("review_status", "needs_review"),
     ]);
   // What ORI did on its own (auto-filed / renamed / verified…) — a slim,
   // trust-building recap; the full undoable feed lives on /approvals.
@@ -187,7 +186,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
 
   /* ---------- Rooms — the live house ---------- */
   const docCount = docCountRes.count ?? 0;
-  const docReview = docReviewRes.count ?? 0;
   const firstEvent = nowData.events[0];
   const rooms: Room[] = [
     {
@@ -232,9 +230,9 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       key: "documents",
       label: "Documents",
       count: docCount,
-      heartbeat: docReview > 0 ? `${docReview} to review` : "all filed",
+      heartbeat: docCount === 1 ? "1 on file" : `${docCount} on file`,
       href: "/documents",
-      tone: docReview > 0 ? "warn" : "success",
+      tone: "success",
     },
   ];
 

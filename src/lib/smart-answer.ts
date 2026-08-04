@@ -215,7 +215,7 @@ async function countAnswer(q: string): Promise<SmartAnswer | null> {
   };
   if (/compan/i.test(q)) { const n = await head("companies", (qb) => qb.eq("active", true)); return { kind: "count", title: "Active companies", count: n, rows: [], href: "/companies" }; }
   if (/staff|people|employee|team/i.test(q)) { const n = await head("people", (qb) => qb.eq("active", true)); return { kind: "count", title: "Active staff", count: n, rows: [], href: "/people" }; }
-  if (/document|file|paper/i.test(q)) { const n = await head("documents", (qb) => qb.eq("archived", false).eq("intake_state", "filed")); return { kind: "count", title: "Filed documents", count: n, rows: [], href: "/documents" }; }
+  if (/document|file|paper/i.test(q)) { const n = await head("documents", (qb) => qb.eq("archived", false)); return { kind: "count", title: "Documents on file", count: n, rows: [], href: "/documents" }; }
   if (/task/i.test(q)) {
     const open = await head("tasks", (qb) => qb.eq("archived", false).not("status", "in", '("Completed","Closed")'));
     return { kind: "count", title: "Open tasks", count: open, rows: [], href: "/?tab=tasks" };

@@ -401,12 +401,11 @@ async function traceDocument(id: number, events: TraceEvent[]): Promise<string> 
   await safely(async () => {
     const { data } = await sb
       .from("documents")
-      .select("id,title,created_at,updated_at,archived,trashed_at,vetted_at,intake_state,intake_reason,supersedes_id,created_by,review_status")
+      .select("id,title,created_at,updated_at,archived,created_by")
       .eq("id", id)
       .maybeSingle();
     if (!data) return;
     label = (data.title as string) || label;
-    supersedesId = (data.supersedes_id as number | null) ?? null;
 
     const created = iso(data.created_at);
     if (created) {
@@ -414,42 +413,17 @@ async function traceDocument(id: number, events: TraceEvent[]): Promise<string> 
         at: created,
         kind: "Filed",
         title: "Document filed",
-        detail: (data.intake_state as string | null) && data.intake_state !== "filed" ? `state: ${data.intake_state}` : undefined,
         by: actorOf(data.created_by as string | null),
       });
     }
-    const vetted = iso(data.vetted_at);
-    if (vetted) events.push({ at: vetted, kind: "Reviewed", title: "Confirmed / reviewed" });
     const updated = iso(data.updated_at);
     if (updated && updated !== created) events.push({ at: updated, kind: "Updated", title: "Document updated" });
-    if (data.archived && (data.trashed_at || data.intake_state === "trash")) {
-      const tat = iso(data.trashed_at) ?? updated;
-      if (tat) events.push({ at: tat, kind: "Trashed", title: "Moved to Trash", detail: (data.intake_reason as string | null) || undefined });
-    } else if (data.archived) {
-      if (updated) events.push({ at: updated, kind: "Archived", title: "Archived", detail: (data.intake_reason as string | null) || undefined });
-    }
+    if (data.archived && updated) events.push({ at: updated, kind: "Archived", title: "Archived" });
   });
 
-  // Renewal chain — the document this one replaces (and the one that replaces it).
-  await safely(async () => {
-    if (supersedesId) {
-      const { data } = await sb.from("documents").select("id,title,created_at").eq("id", supersedesId).maybeSingle();
-      if (data) {
-        const at = iso(data.created_at);
-        if (at) events.push({ at, kind: "Renewal", title: `Replaces: ${(data.title as string) || `#${supersedesId}`}` });
-      }
-    }
-    const { data: replacedBy } = await sb
-      .from("documents")
-      .select("id,title,created_at")
-      .eq("supersedes_id", id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    for (const r of replacedBy ?? []) {
-      const at = iso(r.created_at);
-      if (at) events.push({ at, kind: "Renewal", title: `Replaced by: ${(r.title as string) || `#${r.id}`}` });
-    }
-  });
+  // No renewal chain any more — documents don't supersede one another. When a
+  // renewal arrives you file it and archive the old one, so the trail is just
+  // the two documents' own histories.
 
   // Tasks linked to the document.
   await safely(async () => {
