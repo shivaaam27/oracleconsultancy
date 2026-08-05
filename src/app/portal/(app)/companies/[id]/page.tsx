@@ -27,9 +27,26 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "da
   );
 }
 
-export default async function PortalCompanyPage({ params }: { params: Promise<{ id: string }> }) {
+/** Where "back" goes. You can reach a company from the board, the directory or a
+ *  person's page, and the link used to always say "Board" — which threw you out
+ *  of the directory you were browsing. Mirrors the admin side's `?from=` crumb. */
+const BACK_TO: Record<string, { href: string; label: string }> = {
+  directory: { href: "/portal/directory?tab=companies", label: "Companies" },
+  team: { href: "/portal/team", label: "Team" },
+  board: { href: "/portal/board", label: "Board" },
+};
+
+export default async function PortalCompanyPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  const { from } = await searchParams;
+  const back = BACK_TO[from ?? ""] ?? BACK_TO.board;
   const companyId = Number((await params).id);
   if (!Number.isFinite(companyId) || !(await personCanSeeCompany(me, companyId))) notFound();
 
@@ -59,8 +76,8 @@ export default async function PortalCompanyPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-4">
-      <Link href="/portal/board" className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
-        <ArrowLeft size={14} /> Board
+      <Link href={back.href} className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
+        <ArrowLeft size={14} /> {back.label}
       </Link>
 
       <Reveal>

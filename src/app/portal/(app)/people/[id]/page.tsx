@@ -98,7 +98,7 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
                 label="Company"
                 value={
                   canOpenCompany && p.company_id ? (
-                    <Link href={`/portal/companies/${p.company_id}`} className="text-accent hover:underline">{companyName}</Link>
+                    <Link href={`/portal/companies/${p.company_id}?from=team`} className="text-accent hover:underline">{companyName}</Link>
                   ) : (
                     companyName
                   )

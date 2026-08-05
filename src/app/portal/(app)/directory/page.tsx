@@ -27,7 +27,12 @@ const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
  *  Deliberately omits pay, national IDs, passports and emergency contacts — those
  *  stay admin-only. Each row links to the existing per-person / per-company portal
  *  pages, which carry their own scope guards. */
-export default async function PortalDirectoryPage() {
+export default async function PortalDirectoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab: initialTab } = await searchParams;
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
@@ -172,6 +177,7 @@ export default async function PortalDirectoryPage() {
           attendance={attendance}
           showAttendance={canSeeAttendance}
           canOpenProfiles={me.portalRole !== "staff"}
+          initialTab={initialTab}
         />
       </Reveal>
     </div>

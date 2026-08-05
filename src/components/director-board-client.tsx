@@ -232,7 +232,7 @@ function HealthTile({ c }: { c: CompanyHealth }) {
   const attention = c.overdue > 0;
   return (
     <Link
-      href={`/portal/companies/${c.id}`}
+      href={`/portal/companies/${c.id}?from=board`}
       className={`group relative flex flex-col rounded-2xl p-3 ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] ${TONE[tone].bg} ${TONE[tone].ring}`}
     >
       <div className="flex items-start justify-between gap-2">

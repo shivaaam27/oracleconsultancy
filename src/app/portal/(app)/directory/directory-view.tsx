@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Panel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -55,16 +56,30 @@ export function DirectoryView({
   attendance = [],
   showAttendance = false,
   canOpenProfiles = true,
+  initialTab,
 }: {
   people: DirectoryPerson[];
   companies: DirectoryCompany[];
   attendance?: DirectoryAttendance[];
   showAttendance?: boolean;
   canOpenProfiles?: boolean;
+  /** Which tab to open on (from `?tab=`), so coming BACK from a company lands
+   *  on the Companies list you were browsing rather than resetting to People. */
+  initialTab?: string;
 }) {
   type Tab = "people" | "companies" | "attendance";
   const tabs: Tab[] = showAttendance ? ["people", "companies", "attendance"] : ["people", "companies"];
-  const [tab, setTab] = useState<Tab>("people");
+  const router = useRouter();
+  const pathname = usePathname();
+  const [tab, setTab] = useState<Tab>(
+    tabs.includes(initialTab as Tab) ? (initialTab as Tab) : "people"
+  );
+
+  /** Switch tab AND put it in the URL, so a back-link can return you here. */
+  function selectTab(t: Tab) {
+    setTab(t);
+    router.replace(t === "people" ? pathname : `${pathname}?tab=${t}`, { scroll: false });
+  }
   const [q, setQ] = useState("");
   const [companyId, setCompanyId] = useState<number | "all">("all");
   const ql = q.trim().toLowerCase();
@@ -114,7 +129,7 @@ export function DirectoryView({
           <button
             key={t}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => selectTab(t)}
             className={cn(
               "rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors",
               tab === t ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border/50" : "text-fg-muted hover:text-fg",
@@ -329,7 +344,7 @@ function PersonRow({ p, canOpenProfile }: { p: DirectoryPerson; canOpenProfile: 
 
 function CompanyCard({ c }: { c: DirectoryCompany }) {
   return (
-    <Link href={`/portal/companies/${c.id}`} className="group block">
+    <Link href={`/portal/companies/${c.id}?from=directory`} className="group block">
       <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-2 group-hover:ring-accent/30">
         <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={40} rounded="rounded-full" iconSize={18} />
         <div className="min-w-0 flex-1">
