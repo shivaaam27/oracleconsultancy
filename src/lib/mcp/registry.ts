@@ -31,6 +31,10 @@ import {
   mcpArchiveTask, mcpArchiveDocument, mcpBulkTaskAction,
   PRIORITIES, CATEGORIES, OPEN_STATUSES, ALL_STATUSES, BULK_ACTIONS,
 } from "@/lib/mcp/writes";
+import {
+  mcpListRecords, mcpManageTodo, mcpMarkAttendance, mcpManagePipeline, mcpDraftAnnouncement,
+  RECORD_TYPES, ATTENDANCE_STATUSES, PIPELINE_STAGE_NAMES,
+} from "@/lib/mcp/records";
 import { getAllTasks, computeCompanyKpis, computeGlobalKpis, type TaskRow } from "@/lib/queries";
 import { getAllPeopleWithWorkload, getPersonDetail } from "@/lib/people-queries";
 import { teamAttendanceToday } from "@/lib/attendance";
@@ -543,6 +547,115 @@ export const MCP_TOOLS: McpTool[] = [
     capability: "bulkTaskActions",
     write: true,
     run: async (args, caller) => await mcpBulkTaskAction(caller, args as Parameters<typeof mcpBulkTaskAction>[1]),
+  },
+
+  /* =============================================================== *
+   * The wider modules. ONE reading tool for twelve of them (see the
+   * header of lib/mcp/records.ts for why it isn't twelve tools), plus
+   * a typed tool for each of the four that are worth writing to.
+   * =============================================================== */
+
+  {
+    name: "list_records",
+    title: "Look at the other registers",
+    description:
+      "Read the parts of COS beyond tasks. Pick a type:\n" +
+      "• todos — the to-do list\n" +
+      "• risks / decisions — the board-level risk register and decision log\n" +
+      "• governance — one company's shareholding, directors, signatories, resolutions (needs a company)\n" +
+      "• pipeline — applications in progress: permits, visas, licences and where each has got to\n" +
+      "• commitments — leases, insurance and contracts, with when notice is due\n" +
+      "• vendors — suppliers and contractors\n" +
+      "• stock — the office consumables register (OECR)\n" +
+      "• cleaning — the daily cleaning log (OCR)\n" +
+      "• announcements — what's been posted to staff\n" +
+      "• holidays — the public holiday calendar\n" +
+      "• facts — the fact ledger for one company (needs a company)\n" +
+      "Use this before answering anything about these areas rather than guessing.",
+    schema: z.object({
+      type: z.enum(RECORD_TYPES).describe("Which register to read"),
+      company: z.string().optional().describe("Limit to one company (required for governance and facts)"),
+      search: z.string().optional().describe("Filter by title/name/description"),
+      openOnly: z.boolean().optional().describe("Only outstanding items — default true"),
+      limit: z.number().int().min(1).max(100).optional().describe("Max rows (default 30)"),
+    }),
+    capability: "navTasks",
+    run: async (args, caller) => await mcpListRecords(caller, args as Parameters<typeof mcpListRecords>[1]),
+  },
+
+  {
+    name: "manage_todo",
+    title: "To-do list",
+    description:
+      "Add a to-do, tick one off, or put one back. Use list_records with type 'todos' to find its id. " +
+      "This is the personal to-do list — for work someone is accountable for, raise a task instead.",
+    schema: z.object({
+      action: z.enum(["create", "complete", "reopen"]),
+      title: z.string().optional().describe("For 'create' — what needs doing"),
+      id: z.number().int().optional().describe("For 'complete'/'reopen' — the to-do's id"),
+      company: z.string().optional().describe("Optionally tie a new to-do to a company"),
+      remindAt: z.string().optional().describe("Remind at this time, ISO format"),
+    }),
+    capability: "navTasks",
+    write: true,
+    run: async (args, caller) => await mcpManageTodo(caller, args as Parameters<typeof mcpManageTodo>[1]),
+  },
+
+  {
+    name: "mark_attendance",
+    title: "Mark attendance",
+    description:
+      "Record whether someone was in, out, on leave or absent on a given day. Defaults to today. " +
+      "Marking replaces whatever was there, so check before overwriting a day somebody already filled in.",
+    schema: z.object({
+      person: z.string().describe("Who — must be an existing active person"),
+      status: z.enum(ATTENDANCE_STATUSES),
+      date: z.string().optional().describe("yyyy-mm-dd, default today"),
+    }),
+    capability: "navTasks",
+    write: true,
+    run: async (args, caller) => await mcpMarkAttendance(caller, args as Parameters<typeof mcpMarkAttendance>[1]),
+  },
+
+  {
+    name: "manage_pipeline",
+    title: "Applications in progress",
+    description:
+      "Track a permit, visa or licence through the stages: To Apply → Applied → Control No. Issued → " +
+      "Paid → Receipt Received → Issued. Create a new case, move one to the next stage, or update its " +
+      "control number, deadline, next action or notes.",
+    schema: z.object({
+      action: z.enum(["create", "advance", "update"]),
+      id: z.number().int().optional().describe("For 'advance'/'update' — from list_records type 'pipeline'"),
+      subject: z.string().optional().describe("For 'create' — who or what it's for"),
+      type: z.string().optional().describe("For 'create' — e.g. 'Work permit', 'Business licence'"),
+      company: z.string().optional(),
+      stage: z.enum(PIPELINE_STAGE_NAMES).optional().describe("For 'advance' — the stage to move to"),
+      controlNo: z.string().optional(),
+      deadline: z.string().optional().describe("yyyy-mm-dd"),
+      nextAction: z.string().optional(),
+      notes: z.string().optional(),
+    }),
+    capability: "navTasks",
+    write: true,
+    run: async (args, caller) => await mcpManagePipeline(caller, args as Parameters<typeof mcpManagePipeline>[1]),
+  },
+
+  {
+    name: "draft_announcement",
+    title: "Draft an announcement (never publishes)",
+    description:
+      "Write an announcement to staff and save it as a DRAFT. It is NOT published and nobody is told — " +
+      "a person publishes it from the Announcements page. Say so when you use it. It goes to everyone; " +
+      "narrower audiences are chosen by hand in the UI.",
+    schema: z.object({
+      title: z.string().min(3),
+      body: z.string().min(3).describe("The announcement itself, ready to publish as written"),
+      type: z.enum(["policy", "holiday", "safety", "celebration", "operational", "urgent"]).optional(),
+    }),
+    // Owner-only: this reaches every member of staff once published.
+    write: true,
+    run: async (args, caller) => await mcpDraftAnnouncement(caller, args as Parameters<typeof mcpDraftAnnouncement>[1]),
   },
 
   {

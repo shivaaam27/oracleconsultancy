@@ -10,6 +10,25 @@ metadata:
 Read [[mcp_plan]] for the architecture. This file answers the owner's question
 (Aug 2026): *"if I add new things and features to my site, how will MCP behave?"*
 
+## Coverage today (Aug 2026) — 24 tools
+
+Every module of COS is now reachable. **Reading: all of it.** Writing: tasks,
+calendar, documents, assets, and four of the wider modules.
+
+`list_records` is the pattern to copy — ONE tool with a `type` argument covers
+twelve registers (todos, risks, decisions, governance, pipeline, commitments,
+vendors, stock, cleaning, announcements, holidays, facts) for the cost of one
+description. Twelve separate tools would have cost twelve.
+
+Writable beyond tasks: `manage_todo`, `mark_attendance`, `manage_pipeline`,
+`draft_announcement` (draft only — it never publishes).
+
+**Deliberately NOT writable, and why** (see the foot of `src/lib/mcp/records.ts`):
+people (HR records, duplicates are painful), chat (sending a message to a person),
+publishing announcements, cleaning ticks, stock issues, governance and the fact
+ledger (records a person should enter with the evidence in front of them).
+`governance`, `facts` and `stock` are **owner-only even to read**.
+
 ## The short answer
 
 **Nothing new reaches Claude by itself.** MCP knows exactly the tools listed in

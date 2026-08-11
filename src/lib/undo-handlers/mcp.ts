@@ -79,3 +79,45 @@ registerUndoHandler("mcp.document.archive", async (raw) => {
   const { archiveDocumentAction } = await import("@/app/documents/actions");
   await archiveDocumentAction(p.documentId, p.before);
 });
+
+/* ---- the wider modules (lib/mcp/records.ts) ---- */
+
+// A to-do the assistant added — remove it. Only ever one it just created.
+registerUndoHandler("mcp.todo.create", async (raw) => {
+  const p = raw as { todoId: number };
+  await sb.from("todos").delete().eq("id", p.todoId);
+});
+
+// Tick / untick — put the flag back.
+registerUndoHandler("mcp.todo.toggle", async (raw) => {
+  const p = raw as { todoId: number; before: boolean };
+  const { toggleTodo } = await import("@/app/todos/actions");
+  await toggleTodo(p.todoId, p.before);
+});
+
+// Attendance — restore the previous mark, INCLUDING "nothing was marked", which
+// is why the snapshot stores null rather than omitting the field.
+registerUndoHandler("mcp.attendance.record", async (raw) => {
+  const p = raw as { personId: number; date: string; before: string | null };
+  const { recordAttendanceAction } = await import("@/app/hrms/leave/actions");
+  await recordAttendanceAction(p.personId, p.date, p.before);
+});
+
+// A new application in progress — remove it.
+registerUndoHandler("mcp.pipeline.create", async (raw) => {
+  const p = raw as { pipelineId: number };
+  await sb.from("pipeline").delete().eq("id", p.pipelineId);
+});
+
+// Stage move — step it back to where it was.
+registerUndoHandler("mcp.pipeline.stage", async (raw) => {
+  const p = raw as { pipelineId: number; before: string };
+  const { movePipelineStageAction } = await import("@/app/hrms/pipeline/actions");
+  await movePipelineStageAction(p.pipelineId, p.before as never);
+});
+
+// A drafted announcement — delete it. It was never published, so it reached nobody.
+registerUndoHandler("mcp.announcement.draft", async (raw) => {
+  const p = raw as { announcementId: number };
+  await sb.from("announcements").delete().eq("id", p.announcementId).eq("status", "draft");
+});
