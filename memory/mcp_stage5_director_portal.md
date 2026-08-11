@@ -5,10 +5,14 @@ metadata:
   type: project
 ---
 
-# MCP stage 5 — the director portal (Pulin) (PLANNED)
+# MCP stage 5 — the director portal (Pulin) (VERIFIED WORKING, Aug 2026)
 
-Read [[mcp_plan]] first. **Owner's instruction (Aug 2026): do not start this until
-stages 1–4 are working for the command centre.**
+Read [[mcp_plan]] first. Stages 1–3 are live and the owner's connector works, so
+this was verified ahead of stage 4 (scheduling), which it does not depend on.
+
+**It needed no new code.** Pulin signs in at `/mcp/connect` with his existing
+portal password; the resolver returns his `PortalPerson` and everything else
+follows. The one change required was a BUG FIX, below.
 
 **Goal:** Pulin tells his own Claude something, and it happens inside his portal —
 his data, his powers, his Outbox. Never the owner's.
@@ -22,8 +26,8 @@ id: 13 · Mr Pulin Manek · portal_role: director · director_company_id: null �
 ```
 
 `director_company_id` is **null**, which makes him a **portfolio director** — his
-`scopeLevel` resolves to `all` and he already sees **all seven companies** in the
-portal.
+`scopeLevel` resolves to `all` and he sees **all thirteen companies** (re-checked
+Aug 2026; the "seven" in the original note was already stale).
 
 ⚠️ **So "only in his portal" does not mean "only one company".** It means the
 director role's **powers and surfaces** — the board, tasks, the brief — and not
@@ -70,7 +74,39 @@ Because the matrix is owner-configurable, **turning a director capability off in
 Settings removes the matching tool from his Claude.** No redeploy, no code change.
 That is the payoff for not hard-coding roles.
 
-## How you'll know it works — test the negative
+## Verified (Aug 2026) — the negatives, driven against the live database
+
+| Check | Result |
+|---|---|
+| Tools offered to Pulin | **15** — driven by his SAVED permissions, not a role guess |
+| `create_document` / `archive_document` / `assign_asset` | not offered (owner-only) |
+| **Owner-only tool called DIRECTLY, bypassing the menu** | `-32602 Tool not found`, **and nothing written** |
+| `delete_task` | does not exist for anybody |
+| Raise a task | works; audit reads **`mcp:Mr Pulin Manek`** |
+| Complete a task | works — see the fix below |
+| **Company-scoped director** (Mr Kishan Suchak → MES Ltd) | `list_tasks` returned **only MES Ltd**; creating for Terra Green **refused** |
+
+Why 15 and not 19: three are owner-only, and `search_cos` is absent because
+**`oriAsk` is switched OFF for directors in your Settings** (`v2.portalPermissions`
+overrides the default, which is on). That is the matrix working exactly as
+intended — turn it on and search appears in his Claude with no redeploy.
+
+**On "hidden vs refused":** the tool list is rebuilt per REQUEST from freshly
+resolved capabilities, so a tool a caller may not use is never registered on their
+session — there is no code path to it — *and* every handler re-checks before
+touching data. Both layers are live. A capability switched off in Settings takes
+effect on his very next request.
+
+### The bug this stage caught
+
+`add_task_update` gated Completed/Closed on `caller.kind === "owner"`. The portal
+gates it on `manageAnyTask`, which **directors hold** — so Pulin could complete a
+task by tapping it on his board but not by asking his Claude. Not a security hole,
+but a straight violation of the rule that MCP reach equals portal reach. Replaced
+with `mayFinishTasks()` in `lib/mcp/writes.ts`, which reads the capability.
+**Never branch on a role name here** — that is what went wrong.
+
+## Original plan — test the negative
 
 Positive tests prove very little here. The tests that matter are the ones that
 should **fail**:

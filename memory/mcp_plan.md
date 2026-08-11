@@ -17,9 +17,9 @@ locked to his portal.
 |---|---|---|
 | 1 | [[mcp_stage1_read_only]] | ✅ **BUILT, DEPLOYED, IN USE** (commit 28d3e6c). Claude reads COS. |
 | 2 | [[mcp_stage2_safe_writes]] | ✅ **BUILT** (Aug 2026). 10 write tools + undo; never deletes, never sends a message. |
-| 3 | [[mcp_stage3_sign_in]] | ✅ **BUILT** (Aug 2026), untested. OAuth 2.1. **Migration 0116 not yet applied.** |
+| 3 | [[mcp_stage3_sign_in]] | ✅ **LIVE** (Aug 2026). Owner's claude.ai connector works. |
 | 4 | [[mcp_stage4_automatic]] | ⬜ Runs on a schedule without being asked. |
-| 5 | [[mcp_stage5_director_portal]] | ⬜ Pulin's own Claude. **Only after 1–4 work.** |
+| 5 | [[mcp_stage5_director_portal]] | ✅ **VERIFIED** (Aug 2026). Needed no new code — one portal-parity bug fixed. |
 
 Owner's instruction (Aug 2026): **command centre first, prove it works, then
 Pulin.** Stage 1 is proven — the owner is using it against the live site.

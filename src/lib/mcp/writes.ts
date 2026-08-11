@@ -59,10 +59,10 @@ export const OPEN_STATUSES = [
   "Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated",
 ] as const;
 
-/** Every status. The owner may move a task anywhere, including finishing it —
- *  a completed task can be reopened, so this is not a one-way door. Staff keys
- *  stay on OPEN_STATUSES, because that is what the portal allows them and MCP
- *  must never hand anyone more reach than their web login. */
+/** Every status, including finishing a task off — reopening one is always
+ *  possible, so this is not a one-way door. Who may reach these is decided by
+ *  `mayFinishTasks()`, which mirrors the portal's own rule rather than guessing
+ *  from a role name. */
 export const ALL_STATUSES = [
   ...OPEN_STATUSES, "Completed", "Closed",
 ] as const;
@@ -73,6 +73,27 @@ export type WriteResult = { ok: true; [k: string]: unknown } | { ok: false; erro
  *  what `undo_last_change` looks for. */
 function actorFor(caller: McpCaller): Actor {
   return callerStamp(caller) as Actor;
+}
+
+/**
+ * May this caller finish a task off (Completed / Closed)?
+ *
+ * The owner always may. A staff caller may exactly when the PORTAL would let
+ * them: `canManageTask` in the portal gates completion on `manageAnyTask`, which
+ * is how a director can close things and ordinary staff cannot.
+ *
+ * ⚠️ Do NOT write this as `caller.kind === "owner"`-style role branching. It was
+ * that at first, and it quietly made a director LESS able through Claude than on
+ * his own board — he could complete a task by tapping it, but not by asking. MCP
+ * reach must equal portal reach, in both directions.
+ *
+ * Slightly stricter than the portal in one corner: the portal also lets the
+ * task's own creator close it without `manageAnyTask`. Being narrower is safe;
+ * being wider would not be.
+ */
+function mayFinishTasks(caller: McpCaller): boolean {
+  if (caller.kind === "owner") return true;
+  return caller.person.caps.manageAnyTask === true;
 }
 
 /* --------------------------------------------------------------- *
@@ -289,9 +310,9 @@ export async function mcpAddTaskUpdate(
 
   let newStatus: string | undefined;
   if (args.newStatus) {
-    // The owner may finish a task; a staff key may not — that is the portal's own
-    // rule (staff never set Completed/Closed) and MCP must not exceed it.
-    const allowed = caller.kind === "owner" ? ALL_STATUSES : OPEN_STATUSES;
+    // Whoever the portal would let finish a task off may do it here too; everyone
+    // else is held to the open statuses. Same rule, both doors.
+    const allowed = mayFinishTasks(caller) ? ALL_STATUSES : OPEN_STATUSES;
     const s = oneOf(allowed, args.newStatus);
     if (!s) {
       return { ok: false, error: `I can move ${task.code} to any of: ${allowed.join(", ")}.` };
@@ -843,7 +864,7 @@ export async function mcpBulkTaskAction(
   let action: { kind: string; value?: string; days?: number; body?: string };
   switch (args.action) {
     case "status": {
-      const allowed = caller.kind === "owner" ? ALL_STATUSES : OPEN_STATUSES;
+      const allowed = mayFinishTasks(caller) ? ALL_STATUSES : OPEN_STATUSES;
       const s = oneOf(allowed, args.value);
       if (!s) return { ok: false, error: `Which status? One of: ${allowed.join(", ")}.` };
       action = { kind: "status", value: s };
@@ -866,7 +887,7 @@ export async function mcpBulkTaskAction(
       action = { kind: "escalate" };
       break;
     case "close":
-      if (caller.kind !== "owner") return { ok: false, error: "Closing tasks off isn't something your login can do." };
+      if (!mayFinishTasks(caller)) return { ok: false, error: "Closing tasks off isn't something your login can do." };
       action = { kind: "close" };
       break;
     case "update": {
