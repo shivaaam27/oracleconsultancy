@@ -338,6 +338,61 @@ function directorScopeFrom(data: Record<string, unknown>): number[] {
   return Array.from(new Set(ids));
 }
 
+/** The one place a `people` row becomes a resolved PortalPerson — role, company
+ *  scope and the owner-configured capability set merged onto a single object.
+ *  Shared by the cookie session (below) and by any other way in (the MCP key
+ *  path, `portalPersonById`), so every caller is governed by identical rules. */
+function mapPortalPerson(
+  data: Record<string, unknown>,
+  permsConfig: Awaited<ReturnType<typeof getPortalPermissions>>,
+): PortalPerson {
+  const portalRole: PortalRole =
+    data.portal_role === "manager"
+      ? "manager"
+      : data.portal_role === "hr"
+        ? "hr"
+        : data.portal_role === "director"
+          ? "director"
+          : data.portal_role === "receptionist"
+            ? "receptionist"
+            : "staff";
+  const resolved = resolveRolePerms(permsConfig, portalRole);
+  return {
+    id: data.id as number,
+    name: data.name as string,
+    email: (data.email as string | null) ?? null,
+    role: (data.role as string | null) ?? null,
+    companyId: (data.company_id as number | null) ?? null,
+    portalDesignation: (data.portal_designation as string | null) ?? null,
+    portalRole,
+    // Only a director can be company-scoped; ignore for other roles so a stray
+    // value can never narrow a non-director's (already-narrow) scope.
+    directorCompanyIds: data.portal_role === "director" ? directorScopeFrom(data) : [],
+    scopeLevel: resolved.scopeLevel,
+    caps: resolved.caps,
+  };
+}
+
+/**
+ * Resolve a person by id — no cookie involved. For callers that authenticated
+ * some other way (an MCP key today, an OAuth token later) but must be governed
+ * by exactly the same role, scope and capability rules as the portal.
+ *
+ * Returns null if the person is archived or their portal access has been
+ * withdrawn, so revoking access in Settings cuts every route off at once.
+ */
+export async function portalPersonById(personId: number): Promise<PortalPerson | null> {
+  const permsConfig = await getPortalPermissions();
+  const { data, error } = await sb
+    .from("people")
+    .select("id,name,email,role,company_id,active,portal_password_hash,portal_role,portal_designation,director_company_id,director_companies(company_id)")
+    .eq("id", personId)
+    .maybeSingle();
+  if (error || !data) return null;
+  if (!data.active || !data.portal_password_hash) return null; // access revoked
+  return mapPortalPerson(data as Record<string, unknown>, permsConfig);
+}
+
 /** Returns the signed-in portal person, or null. Re-checks that portal
  *  access is still enabled and the person is still active, so revoking
  *  access in Settings takes effect immediately. */
@@ -380,33 +435,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
         console.warn(`[portal-auth] fingerprint mismatch person ${personId} — keeping session (cookie valid)`);
       }
-      const portalRole: PortalRole =
-        data.portal_role === "manager"
-          ? "manager"
-          : data.portal_role === "hr"
-            ? "hr"
-            : data.portal_role === "director"
-              ? "director"
-              : data.portal_role === "receptionist"
-                ? "receptionist"
-                : "staff";
-      const resolved = resolveRolePerms(permsConfig, portalRole);
-      return {
-        id: data.id as number,
-        name: data.name as string,
-        email: (data.email as string | null) ?? null,
-        role: (data.role as string | null) ?? null,
-        companyId: (data.company_id as number | null) ?? null,
-        portalDesignation: (data.portal_designation as string | null) ?? null,
-        portalRole,
-        // Only a director can be company-scoped; ignore for other roles so a stray
-        // value can never narrow a non-director's (already-narrow) scope. Read the
-        // full set from the join table, falling back to the legacy single column
-        // if the backfill hasn't run yet.
-        directorCompanyIds: data.portal_role === "director" ? directorScopeFrom(data) : [],
-        scopeLevel: resolved.scopeLevel,
-        caps: resolved.caps,
-      };
+      return mapPortalPerson(data as Record<string, unknown>, permsConfig);
     }
 
     // No error but NO row can be a cold/transient empty read on a freshly-woken

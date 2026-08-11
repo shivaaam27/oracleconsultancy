@@ -208,5 +208,8 @@ export const config = {
   // NOTE: /portal is intentionally NOT excluded — the proxy runs on portal routes
   // ONLY to slide the cos_portal session forward (refreshPortalSession); it never
   // gates them. api/portal stays excluded (those routes verify their own cookie).
-  matcher: ["/((?!login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
+  // api/mcp is excluded because an AI assistant carries a Bearer key, never a
+  // browser cookie: inside the gate every MCP request is redirected to /login and
+  // no assistant can connect at all. It authenticates itself in lib/mcp/auth.ts.
+  matcher: ["/((?!login|e/|r/|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
 };

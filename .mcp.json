@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "cos": {
+      "type": "http",
+      "url": "https://oracleconsultancy.vercel.app/api/mcp",
+      "headersHelper": "node scripts/mcp-auth-header.mjs"
+    }
+  }
+}

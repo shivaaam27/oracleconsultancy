@@ -22,6 +22,9 @@ import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
 import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
+import { listMcpKeys, createMcpKey, revokeMcpKey } from "./mcp-actions";
+import { McpKeyManager } from "@/components/mcp-key-manager";
+import { appBaseUrl } from "@/lib/app-url";
 import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
@@ -29,7 +32,7 @@ import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +45,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
-  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal", "danger"] },
+  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "mcp-keys", "portal", "danger"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
 ];
 
@@ -75,6 +78,8 @@ export default async function SettingsPage({
   ]);
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
+  const mcpKeys = await listMcpKeys();
+  const appUrl = appBaseUrl();
   // Live counts for the Danger-zone confirmation screen.
   const geminiKey = await getGeminiKeyPreview();
   const ocrKey = await getOcrSpaceKeyPreview();
@@ -736,6 +741,16 @@ export default async function SettingsPage({
           {/* Face ID / fingerprint */}
           <SettingsCard id="passkeys" icon={<ScanFace size={15} />} title="Face ID & fingerprint" desc="Sign in without a password. Biometric stays on device." keywords="passkey face id touch fingerprint biometric webauthn windows hello">
             <PasskeyManager initial={ownerPasskeys} begin={adminBeginPasskey} finish={adminFinishPasskey} remove={adminRemovePasskey} />
+          </SettingsCard>
+
+          {/* Claude / MCP access keys */}
+          <SettingsCard id="mcp-keys" icon={<Bot size={15} />} title="Claude access keys" desc="Let Claude read your COS data. Read-only for now." keywords="claude mcp ai assistant key token api access connector model context protocol">
+            <p className="mb-3 text-xs leading-snug text-fg-muted">
+              A key lets Claude look at COS — tasks, people, attendance, calendar, documents and the
+              brief. It cannot change, create or delete anything. Add it to Claude Code with{" "}
+              <code className="rounded bg-surface px-1 py-0.5 text-[11px]">claude mcp add --transport http cos {appUrl}/api/mcp -H &quot;Authorization: Bearer YOUR_KEY&quot;</code>
+            </p>
+            <McpKeyManager initial={mcpKeys} create={createMcpKey} revoke={revokeMcpKey} />
           </SettingsCard>
 
           {/* Staff portal access */}

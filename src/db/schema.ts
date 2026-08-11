@@ -73,6 +73,30 @@ export const webauthnCredentials = pgTable("webauthn_credentials", {
   lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
 });
 
+// MCP access keys — the credential an AI assistant presents to reach COS through
+// the Model Context Protocol (/api/mcp). See memory/mcp_plan.md.
+//
+// `person_id` NULL = the owner (command centre, full reach); otherwise the key
+// resolves to that staff member and inherits their portal role, capabilities and
+// company scope — the same engine the portal itself uses.
+//
+// `key_hash` is a plain SHA-256 of the token, NOT scrypt. That is deliberate and
+// is the opposite of the password rule: a key is 32 bytes of random, so there is
+// nothing to brute-force, and hashing it unsalted means a presented key can be
+// looked up by its hash in one indexed query. Salted scrypt would force a scan
+// of every key on every request. Never store the token itself.
+export const mcpKeys = pgTable("mcp_keys", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  personId: integer("person_id").references((): AnyPgColumn => people.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { mode: "date", withTimezone: true }),
+}, (t) => [
+  index("mcp_keys_person_idx").on(t.personId),
+]);
+
 // Managed list of job titles / roles — powers the role field's suggestions and
 // lets duplicates be cleaned up. people.role stays free text (NOT a FK); a
 // rename/merge here re-points people whose role text matches exactly.
