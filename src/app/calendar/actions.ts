@@ -20,8 +20,10 @@ import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent, del
 import { notifyMany, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
-import { cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
+import { addGoogleMeet, cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
 import { resolveEventCategoryId } from "@/lib/event-categories";
+import { withManagedGuest } from "@/lib/managed-calendar";
+import { recordEvent } from "@/lib/system-events";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
 import { calendarEvents, eventCategories } from "@/db/schema";
@@ -145,7 +147,9 @@ export async function createEventAction(
       allDay,
       reminders: parseReminders(str(fd, "reminders")),
       ...parseRecurrence(fd),
-      attendees: parseAttendees(str(fd, "attendees")),
+      // The director is added to every event automatically, so his diary is
+      // complete without anyone remembering to invite him.
+      attendees: await withManagedGuest(parseAttendees(str(fd, "attendees"))),
       createdBy,
     });
 
@@ -197,9 +201,23 @@ export async function createEventAction(
       }
     } catch { /* notifications are best-effort */ }
 
+    // EVERY event goes onto the Google calendar, not only the ones with a Meet
+    // room or an email guest — a site visit, a flight or a lunch has to reach the
+    // director's diary too. No-op when Google isn't connected (the .ics email
+    // path still covers guests).
+    //
+    // This runs BEFORE the invitation below, and it is the ONLY place a Meet room
+    // is minted at creation: `requestMeet` ("1"/"0", set by both event forms)
+    // decides. Previously the invitation minted one unconditionally, so ticking
+    // "No Meet link will be added" was ignored for any event with an email guest.
+    try {
+      const fresh = await getCalendarEvent(ev.id);
+      if (fresh) await ensureGoogleEvent(fresh, { requestMeet: fd.get("requestMeet") === "1" });
+    } catch { /* the Google mirror is always best-effort */ }
+
     // Auto-send the branded invitation to any guests with an email — create ==
-    // invite, like a ticketing system. sendEventInviteAction also mints the Meet
-    // link + mirrors to Google, so the UI's later ensureEventMeetLink is a no-op.
+    // invite, like a ticketing system. The event is already on Google by now, so
+    // the email carries whatever link the owner actually asked for.
     // Best-effort — never block event creation; the "Send invite" button stays as
     // a manual re-send.
     let invited: number | undefined;
@@ -220,21 +238,91 @@ export async function createEventAction(
 }
 
 /**
+ * Bell + push to every attendee who is a person in the system. Used when an
+ * event is moved or called off — an email alone is easy to miss, and the people
+ * on the invite are the ones who have to change their day. The organiser isn't
+ * told about their own edit. Gated by the same `eventAttendeePings` switch as
+ * the "you've been added to a meeting" ping, and always best-effort.
+ */
+async function pingAttendees(
+  ev: CalendarEvent,
+  title: string,
+  body: string,
+  actorSource?: string | null
+): Promise<void> {
+  try {
+    const settings = await getAppSettings();
+    if (!settings.eventAttendeePings) return;
+    const ids = [...new Set(ev.attendees.map((a) => a.personId).filter((p): p is number => typeof p === "number"))];
+    if (!ids.length) return;
+    const organiser = await recipientForCreatedBy(actorSource ?? ev.createdBy ?? null);
+    const recipients = ids.map(personRecipient).filter((r) => r !== organiser);
+    if (!recipients.length) return;
+    await notifyMany(recipients, {
+      kind: "meeting",
+      title,
+      body,
+      actor: ev.createdBy ? ev.createdBy.split(":").pop() ?? null : null,
+    });
+  } catch { /* notifications are best-effort */ }
+}
+
+/**
+ * Put an event on the Google calendar — ONCE. Every event goes to Google now,
+ * not just the ones with a Meet link or an email guest, because that is the only
+ * way a site visit, a flight or a lunch reaches the director's calendar at all.
+ *
+ * Idempotent: an event that already carries a `googleEventId` is left alone, so
+ * a re-sent invitation or a second "add Meet" click can never create a duplicate
+ * entry in anyone's calendar. Returns quietly when Google isn't connected —
+ * every caller treats the Google mirror as best-effort.
+ */
+async function ensureGoogleEvent(
+  ev: CalendarEvent,
+  opts?: { requestMeet?: boolean }
+): Promise<{ ok: boolean; meetLink: string | null }> {
+  if (ev.googleEventId) return { ok: true, meetLink: ev.meetLink };
+  const g = await createGoogleEvent(ev, { requestMeet: opts?.requestMeet ?? false });
+  if (!g.ok) {
+    // Never fail silently: an event that doesn't reach Google is invisible on
+    // everyone's phone, and until now there was no trace of why. "not-connected"
+    // is a normal state (no Google account linked), so it isn't an error.
+    if (g.reason === "error") {
+      await recordEvent("calendar.google-push", "error", { eventId: ev.id, title: ev.title, message: g.error ?? "unknown" });
+    }
+    return { ok: false, meetLink: ev.meetLink };
+  }
+  if (g.eventId) await setGoogleEventId(ev.id, g.eventId, g.meetLink && !ev.meetLink ? g.meetLink : null);
+  else if (g.meetLink && !ev.meetLink) {
+    await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", ev.id);
+  }
+  return { ok: true, meetLink: g.meetLink ?? ev.meetLink };
+}
+
+/**
  * Ensure a Google Meet link exists on an event — mints one via the Google
  * Calendar API even when there are NO email attendees (so an internal meeting
  * still gets a room). No-op if a link already exists or Google isn't connected.
- * Creating the Google event also invites any email guests (sendUpdates="all").
+ * If the event is already in Google (it always is now), the room is PATCHED onto
+ * that same entry rather than inserted as a second event.
  */
 export async function ensureEventMeetLink(id: number): Promise<{ meetLink: string | null }> {
   const ev = await getCalendarEvent(id);
   if (!ev) return { meetLink: null };
   if (ev.meetLink) return { meetLink: ev.meetLink };
-  const g = await createGoogleEvent(ev, { requestMeet: true });
+
+  if (ev.googleEventId) {
+    const r = await addGoogleMeet(ev.googleEventId, ev.id);
+    if (r.ok && r.meetLink) {
+      await sb.from("calendar_events").update({ meet_link: r.meetLink, updated_at: new Date().toISOString() }).eq("id", id);
+      invalidate();
+      return { meetLink: r.meetLink };
+    }
+    return { meetLink: null };
+  }
+
+  const g = await ensureGoogleEvent(ev, { requestMeet: true });
   if (g.ok) {
-    // Remember the Google event id so a later edit/cancel can reach it, and store
-    // the freshly-minted Meet link.
-    if (g.eventId) await setGoogleEventId(id, g.eventId, g.meetLink);
-    else if (g.meetLink) await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", id);
     invalidate();
     return { meetLink: g.meetLink };
   }
@@ -252,6 +340,9 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
   const endAt = localToIso(str(fd, "endAt"), allDay);
 
   try {
+    // Remember the old slot so a genuine RESCHEDULE can be told apart from a
+    // typo fix — only a moved meeting is worth buzzing everyone about.
+    const before = await getCalendarEvent(id);
     const updated = await updateCalendarEvent(id, {
       title,
       description: str(fd, "description"),
@@ -264,17 +355,34 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       allDay,
       reminders: parseReminders(str(fd, "reminders")),
       ...parseRecurrence(fd),
+      // NOT run through withManagedGuest: on an edit the guest list is whatever
+      // the owner left in the picker. Taking someone off ONE event has to stick,
+      // otherwise the director could never be excluded from a single meeting.
       attendees: parseAttendees(str(fd, "attendees")),
     });
     // Keep the owner's Google copy in step (silent — no guest email from Google).
+    // An event that never made it to Google (created while the connection was
+    // down) is pushed now, so editing it is also a repair.
     let googleSynced = false;
     if (updated.googleEventId) {
       const r = await updateGoogleEvent(updated);
       googleSynced = r.ok;
+    } else {
+      googleSynced = (await ensureGoogleEvent(updated)).ok;
     }
     // Tell guests about the change with OUR branded "updated" email (only if an
     // invite was actually sent before — never for an unsent draft).
     const guestsNotified = await emailUpdateIfSent(updated);
+
+    // Moved to a different time → tell the attendees in-app as well.
+    if (before && before.startAt !== updated.startAt) {
+      await pingAttendees(
+        updated,
+        `Moved: ${updated.title}`,
+        `Now ${fmtEat(updated.startAt, updated.allDay)}`,
+      );
+    }
+
     invalidate();
     return { ok: true, id, googleSynced: googleSynced || guestsNotified };
   } catch (e) {
@@ -382,18 +490,14 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
     return { ok: false, error: "No attendees with an email address. Add their email first." };
   const recipients = guests.map((a) => a.email!) as string[];
 
-  // 1. Google (silent) — mint the Meet link + put it on the owner's calendar.
-  let meetLink = ev.meetLink;
-  let googleOk = false;
-  const g = await createGoogleEvent(ev, { requestMeet: true });
-  if (g.ok) {
-    googleOk = true;
-    if (g.eventId) await setGoogleEventId(ev.id, g.eventId, g.meetLink && !ev.meetLink ? g.meetLink : null);
-    else if (g.meetLink && !ev.meetLink) {
-      await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", ev.id);
-    }
-    if (g.meetLink && !ev.meetLink) meetLink = g.meetLink;
-  }
+  // 1. Google (silent) — put it on the owner's calendar if it isn't there yet.
+  //    Idempotent: re-sending an invitation must not clone the Google entry.
+  //    It does NOT mint a Meet room: sending an invitation must never conjure a
+  //    video link the owner didn't ask for. The room is decided at creation
+  //    (`requestMeet`) or added deliberately via ensureEventMeetLink.
+  const g = await ensureGoogleEvent(ev);
+  const googleOk = g.ok;
+  const meetLink = g.meetLink ?? ev.meetLink;
 
   // 2. Send OUR branded email to each guest, with the .ics for auto-add / RSVP.
   const { emailFrom, emailFromName } = await getAppSettings();
@@ -686,6 +790,7 @@ export async function deleteEventAction(id: number): Promise<Result> {
       // Guests are emailed OUR cancellation (we own their invites now); the Google
       // event is removed from the owner's calendar too. Both best-effort.
       await emailCancellationIfSent(ev);
+      await pingAttendees(ev, `Cancelled: ${ev.title}`, fmtEat(ev.startAt, ev.allDay));
       if (ev.googleEventId) {
         const r = await cancelGoogleEvent(ev.googleEventId);
         googleCancelled = r.ok;
@@ -713,6 +818,7 @@ export async function cancelEventAction(id: number): Promise<Result> {
     const ev = await getCalendarEvent(id);
     if (!ev) return { ok: false, error: "Event not found." };
     await emailCancellationIfSent(ev);
+    await pingAttendees(ev, `Cancelled: ${ev.title}`, fmtEat(ev.startAt, ev.allDay));
     let googleCancelled = false;
     if (ev.googleEventId) {
       const r = await cancelGoogleEvent(ev.googleEventId);

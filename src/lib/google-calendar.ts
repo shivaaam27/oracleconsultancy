@@ -122,6 +122,46 @@ export async function updateGoogleEvent(ev: CalendarEvent): Promise<GoogleWriteR
 }
 
 /**
+ * Mint a Meet room ON an event that is ALREADY in Google. Needed because every
+ * event now reaches Google at creation — so "add a Meet link" afterwards must
+ * patch the existing event, never insert a second copy of it.
+ */
+export async function addGoogleMeet(
+  googleEventId: string,
+  eventId: number
+): Promise<{ ok: true; meetLink: string | null } | { ok: false; reason: "not-connected" | "error"; error?: string }> {
+  const auth = await getAuthorizedClient();
+  if (!auth) return { ok: false, reason: "not-connected" };
+  try {
+    const calendar = google.calendar({ version: "v3", auth });
+    const res = await calendar.events.patch({
+      calendarId: "primary",
+      eventId: googleEventId,
+      sendUpdates: "none",
+      conferenceDataVersion: 1,
+      requestBody: {
+        conferenceData: {
+          createRequest: {
+            requestId: `cos-meet-${eventId}-${Date.now()}`,
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        },
+      },
+    });
+    const data = res.data;
+    return {
+      ok: true,
+      meetLink:
+        data.hangoutLink ??
+        data.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ??
+        null,
+    };
+  } catch (e) {
+    return { ok: false, reason: "error", error: e instanceof Error ? e.message : "Google Calendar error" };
+  }
+}
+
+/**
  * Cancel ONE occurrence of a recurring Google event (leaving the rest intact) so
  * guests are told that single date is off. Finds the instance whose start matches
  * `occurrenceStartIso` (within the same day) and deletes it with sendUpdates="all".

@@ -358,7 +358,7 @@ export default async function SettingsPage({
 
           <SettingsCard id="meeting-tasks" icon={<CalendarCheck size={15} />} title="Meetings & scheduling" desc="Turn meetings into tasks and tune how they auto-advance and remind." keywords="meeting task schedule calendar event auto in progress reminder ping recurring">
             <form action={saveSettings} className="space-y-4">
-              <input type="hidden" name="__keys" value="meetingTaskMode,meetingTaskCategory,autoAdvanceMeetingTasks,meetingTaskGraceMinutes,eventAttendeePings,recurringMeetingTaskMode,meetingFollowupPrompt" />
+              <input type="hidden" name="__keys" value="meetingTaskMode,meetingTaskCategory,autoAdvanceMeetingTasks,meetingTaskGraceMinutes,eventAttendeePings,recurringMeetingTaskMode,meetingFollowupPrompt,managedCalendarPersonId,eventReminderEmail" />
               <input type="hidden" name="__section" value="automation" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -388,8 +388,27 @@ export default async function SettingsPage({
                 name="eventAttendeePings"
                 defaultChecked={s.eventAttendeePings}
                 label="Ping attendees before each meeting"
-                hint="A push + a message in their Reminders channel, on top of the calendar's own alarm."
+                hint="A push + a message in their Reminders channel, at every reminder time set on the event."
               />
+              <FormSwitch
+                name="eventReminderEmail"
+                defaultChecked={s.eventReminderEmail}
+                label="Email the reminder as well"
+                hint="Guests with an email address also get the branded “coming up” note."
+              />
+              <div className="sm:w-1/2">
+                <FieldLabel>Keep this person&rsquo;s calendar</FieldLabel>
+                <Select name="managedCalendarPersonId" defaultValue={String(s.managedCalendarPersonId || "")}>
+                  <option value="">Nobody</option>
+                  {portalPeople.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+                <p className="mt-1.5 text-xs leading-snug text-fg-muted">
+                  Every event you create adds them as a guest, so it lands on their Google calendar —
+                  not just the ones with a Meet link.
+                </p>
+              </div>
               <div className="sm:w-1/2">
                 <FieldLabel>Recurring meeting tasks</FieldLabel>
                 <Select name="recurringMeetingTaskMode" defaultValue={s.recurringMeetingTaskMode}>

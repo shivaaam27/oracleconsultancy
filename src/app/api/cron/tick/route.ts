@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runDueRules } from "@/app/api/cron/ori-automations/route";
+import { runEventReminders } from "@/lib/event-reminders";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 
@@ -54,8 +55,18 @@ async function tick(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
   try {
     const { evaluated, fired, retired } = await runDueRules();
-    await recordEvent("cron.tick", "ok", { evaluated, fired, retired });
-    return NextResponse.json({ ok: true, ran: evaluated, fired, retired });
+    // Calendar reminders ride the same heartbeat: a "30 minutes before" nudge is
+    // only as punctual as the sweep, and this is the finest clock we have.
+    // Idempotent and independently guarded, so a failure here can't lose the
+    // automation sweep that already succeeded above.
+    let events = 0;
+    try {
+      events = (await runEventReminders()).fired;
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/event-reminders" });
+    }
+    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events });
+    return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events });
   } catch (err) {
     // Fail-open: report + a soft 200 so a flaky sweep doesn't make the scheduler
     // hammer with retries; the next tick simply tries again.

@@ -172,6 +172,12 @@ export async function saveSettings(fd: FormData): Promise<void> {
     eventAttendeePings: fd.get("eventAttendeePings") === "on",
     recurringMeetingTaskMode: fd.get("recurringMeetingTaskMode") === "series" ? "series" : (fd.has("recurringMeetingTaskMode") ? "occurrence" : undefined),
     meetingFollowupPrompt: fd.get("meetingFollowupPrompt") === "on",
+    // "Nobody" (blank) must actually CLEAR the managed calendar, so an empty
+    // submit saves 0 rather than being read as "leave it alone".
+    managedCalendarPersonId: fd.has("managedCalendarPersonId")
+      ? Number(String(fd.get("managedCalendarPersonId") ?? "").trim()) || 0
+      : undefined,
+    eventReminderEmail: fd.get("eventReminderEmail") === "on",
     portalNudges: fd.get("portalNudges") === "on",
     portalNudgeNotStartedHours: num(fd, "portalNudgeNotStartedHours"),
     portalNudgeNoUpdateDays: num(fd, "portalNudgeNoUpdateDays"),

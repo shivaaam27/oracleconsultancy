@@ -62,7 +62,8 @@ export function DirectorEventForm({
   const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
   const [allDay, setAllDay] = useState(false);
   const [remind1d, setRemind1d] = useState(true);
-  const [addMeet, setAddMeet] = useState(true);
+  // Opt-in, not opt-out — see the note in calendar-board.tsx.
+  const [addMeet, setAddMeet] = useState(false);
   const [trackTask, setTrackTask] = useState(true);
   const [attendees, setAttendees] = useState<number[]>([]);
   const [companyIds, setCompanyIds] = useState<number[]>([]);

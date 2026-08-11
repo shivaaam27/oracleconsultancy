@@ -1466,8 +1466,10 @@ function EventForm({
   const [recurrenceUntil, setRecurrenceUntil] = useState<string>(editing?.recurrenceUntil ? editing.recurrenceUntil.slice(0, 10) : "");
   const [startVal, setStartVal] = useState<string>(isoToLocalInput(editing?.startAt ?? null, editing?.allDay ?? false));
   const [endVal, setEndVal] = useState<string>(isoToLocalInput(editing?.endAt ?? null, false));
-  // New events default to auto-adding a Google Meet link (existing events keep theirs).
-  const [addMeet, setAddMeet] = useState(!editing);
+  // Meet links are OPT-IN. Most entries in a diary are not video calls — a site
+  // visit, a flight, a lunch — and a link nobody asked for is worse than a
+  // missing one. Tick it when you actually want a room.
+  const [addMeet, setAddMeet] = useState(false);
   // New events: also track the meeting as a task (creates one task per company).
   const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
   const [trackTask, setTrackTask] = useState(!editing);
@@ -1526,6 +1528,10 @@ function EventForm({
     fd.set("recurrence", recurrence);
     fd.set("recurrenceUntil", recurrence !== "none" ? recurrenceUntil : "");
     if (allDay) fd.set("allDay", "1");
+    // Tell the server whether a Meet room was actually wanted. Without this the
+    // invitation path minted one regardless, so "No Meet link will be added" was
+    // silently ignored on any event with an email guest.
+    if (!editing) fd.set("requestMeet", addMeet ? "1" : "0");
     if (editing) fd.set("id", String(editing.id));
     start(async () => {
       const r = editing ? await updateEventAction(fd) : await createEventAction(fd);

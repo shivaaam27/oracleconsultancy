@@ -23,3 +23,16 @@ export function appBaseUrl(): string {
 
   return "http://localhost:3000";
 }
+
+/**
+ * Base URL for assets EMBEDDED IN AN EMAIL (the masthead logo, etc).
+ *
+ * An email is always opened somewhere other than the machine that sent it, so a
+ * localhost URL can never load — Gmail renders it as an empty bordered box,
+ * which reads as a black square in dark mode. Anything sent from a dev machine
+ * therefore borrows the public production host for its images.
+ */
+export function emailAssetBaseUrl(): string {
+  const base = appBaseUrl();
+  return base.startsWith("http://localhost") ? "https://oracleconsultancy.vercel.app" : base;
+}

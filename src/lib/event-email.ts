@@ -7,6 +7,7 @@
 import { toIcsEvent, type CalendarEvent } from "@/lib/calendar";
 import { googleCalendarUrl, outlookCalendarUrl } from "@/lib/ics";
 import { renderEmail, type EmailOffice } from "@/lib/email/layout";
+import { getGivenName } from "@/lib/names";
 
 const EAT_TZ = "Africa/Dar_es_Salaam";
 const ACCENT = "#1f7aeb";
@@ -57,8 +58,11 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** "Mr Shivam Parmar" → "Shivam". Taking the first word alone greeted people as
+ *  "Hi Mr," — getGivenName skips the honorific, as the chat reminders already do. */
 function firstName(name?: string | null): string {
-  return (name ?? "").trim().split(/\s+/)[0] ?? "";
+  const raw = (name ?? "").trim();
+  return raw ? getGivenName(raw) : "";
 }
 
 function fmt(iso: string, allDay: boolean, withTime: boolean): string {
@@ -106,19 +110,26 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   const googleUrl = googleCalendarUrl(ics);
   const outlookUrl = outlookCalendarUrl(ics);
 
+  // A video link makes it a MEETING you're invited to; without one it's simply
+  // something going in the diary — a site visit, a flight, a deadline. Calling
+  // that an "invitation" reads wrongly, so the wording follows the link.
+  const isMeeting = !!ev.meetLink;
+
   const subject =
     kind === "reminder" ? `Reminder: ${ev.title} — ${when}`
     : kind === "followup" ? `Follow-up: ${ev.title}`
     : kind === "update" ? `Updated: ${ev.title} — ${when}`
     : kind === "cancel" ? `Cancelled: ${ev.title} — ${when}`
-    : `Invitation: ${ev.title} — ${when}`;
+    : isMeeting ? `Invitation: ${ev.title} — ${when}`
+    : `Your upcoming event: ${ev.title} — ${when}`;
 
   const intro =
     kind === "reminder" ? `A friendly reminder that this is coming up:`
     : kind === "followup" ? `Thank you for joining. Here's a summary for your records:`
     : kind === "update" ? `This event has been updated — here are the new details:`
     : kind === "cancel" ? `This event has been cancelled. Please remove it from your diary:`
-    : `You're invited — here are the details:`;
+    : isMeeting ? `You're invited — here are the details:`
+    : `Your upcoming event — here are the details:`;
 
   const repeats = recurrenceLabel(ev);
   const reminders = ev.reminders && ev.reminders.length
@@ -176,7 +187,7 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
     <p style="color:#aab2c0;font-size:11px;margin:18px 0 0;font-family:${FONT}">Times shown in Dar es Salaam (EAT, UTC+3).</p>`;
 
   const footerNote = (kind === "invite" || kind === "update")
-    ? "This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons."
+    ? `This message includes a calendar ${isMeeting ? "invitation" : "entry"} — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons.`
     : undefined;
 
   const html = renderEmail({

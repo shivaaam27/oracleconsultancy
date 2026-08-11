@@ -183,6 +183,13 @@ export type AppSettings = {
   /** After a meeting ends, if its task is still open, post a "capture the outcome /
    *  minutes" prompt into the task so nothing is forgotten. */
   meetingFollowupPrompt: boolean;
+  /** The person whose diary COS keeps (the director). When set, EVERY event
+   *  created here quietly adds them as a guest, so it lands on their Google
+   *  calendar too — not just the ones with a Meet link. 0 = nobody (off). */
+  managedCalendarPersonId: number;
+  /** Also email the branded "coming up" reminder at each lead time, on top of
+   *  the push + Reminders-channel ping. */
+  eventReminderEmail: boolean;
 
   /* ---- Portal task nudges (the banner above every portal hero) ---- */
   /** Master switch for the portal "you have tasks to look at" nudge banner. */
@@ -259,6 +266,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   eventAttendeePings: true,
   recurringMeetingTaskMode: "occurrence",
   meetingFollowupPrompt: true,
+  managedCalendarPersonId: 0, // off until the owner picks the director
+  eventReminderEmail: true,
   portalNudges: true,
   portalNudgeNotStartedHours: 2,
   portalNudgeNoUpdateDays: 1,
@@ -316,6 +325,8 @@ const KEY: Record<keyof AppSettings, string> = {
   eventAttendeePings: "v2.eventAttendeePings",
   recurringMeetingTaskMode: "v2.recurringMeetingTaskMode",
   meetingFollowupPrompt: "v2.meetingFollowupPrompt",
+  managedCalendarPersonId: "v2.managedCalendarPersonId",
+  eventReminderEmail: "v2.eventReminderEmail",
   portalNudges: "v2.portalNudges",
   portalNudgeNotStartedHours: "v2.portalNudgeNotStartedHours",
   portalNudgeNoUpdateDays: "v2.portalNudgeNoUpdateDays",
@@ -393,6 +404,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     eventAttendeePings: toBool(map.get(KEY.eventAttendeePings), d.eventAttendeePings),
     recurringMeetingTaskMode: map.get(KEY.recurringMeetingTaskMode) === "series" ? "series" : d.recurringMeetingTaskMode,
     meetingFollowupPrompt: toBool(map.get(KEY.meetingFollowupPrompt), d.meetingFollowupPrompt),
+    managedCalendarPersonId: toNum(map.get(KEY.managedCalendarPersonId), d.managedCalendarPersonId),
+    eventReminderEmail: toBool(map.get(KEY.eventReminderEmail), d.eventReminderEmail),
     portalNudges: toBool(map.get(KEY.portalNudges), d.portalNudges),
     portalNudgeNotStartedHours: toNum(map.get(KEY.portalNudgeNotStartedHours), d.portalNudgeNotStartedHours),
     portalNudgeNoUpdateDays: toNum(map.get(KEY.portalNudgeNoUpdateDays), d.portalNudgeNoUpdateDays),

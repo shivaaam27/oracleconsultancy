@@ -5,7 +5,7 @@
 //
 // Pure + client-safe (app-url only reads process.env), so it's trivially testable.
 
-import { appBaseUrl } from "@/lib/app-url";
+import { appBaseUrl, emailAssetBaseUrl } from "@/lib/app-url";
 
 export type EmailTone = "default" | "danger" | "warn" | "accent" | "success" | "muted";
 
@@ -177,7 +177,9 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
   // Masthead org name (brand override falls back to the short company name) +
   // its leading-letter monogram tile.
   const orgName = brand.wordmark || COMPANY_SHORT_NAME;
-  const logoUrl = brand.logoUrl ?? `${appBaseUrl()}/icon-192.png`;
+  // emailAssetBaseUrl, not appBaseUrl: links may point at localhost in dev, but an
+  // IMAGE must be fetchable from the reader's inbox or it renders as a black box.
+  const logoUrl = brand.logoUrl ?? `${emailAssetBaseUrl()}/icon-192.png`;
   const blocks = doc.blocks.map(renderBlock).join("");
 
   const cta = doc.cta

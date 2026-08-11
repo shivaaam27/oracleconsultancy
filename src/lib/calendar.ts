@@ -292,13 +292,23 @@ export async function markCalendarEventCancelled(id: number): Promise<void> {
     .eq("id", id);
 }
 
-/** Shape a stored event into the form the .ics/Google-URL builders expect. */
+/**
+ * Shape a stored event into the form the .ics/Google-URL builders expect.
+ *
+ * UID: once an event is on Google, the .ics MUST borrow Google's identity for it
+ * (`<eventId>@google.com`) rather than our own `<uuid>@cos-system`. A guest is an
+ * attendee on the Google event AND receives our branded email with the .ics
+ * attached — two identities meant their calendar filed it as two separate
+ * entries, so one event showed up three times (organiser's copy + Google's
+ * invitation + the .ics). Sharing the UID makes the calendar recognise them as
+ * the same event and merge them. Events not on Google keep our own uid.
+ */
 export function toIcsEvent(
   ev: CalendarEvent,
   organizer?: { name?: string | null; email?: string | null }
 ): IcsEvent {
   return {
-    uid: ev.uid,
+    uid: ev.googleEventId ? `${ev.googleEventId}@google.com` : ev.uid,
     title: ev.title,
     description: ev.description,
     location: ev.location,
