@@ -4,15 +4,30 @@ Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain lan
 
 ## Product
 
-Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
+Chief-of-Staff command centre for Oracle Consultancy's portfolio companies (the
+parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is
+also one of the companies).
 
-- CO01 Dar Spices
-- CO02 Cocozuri Chocolat
-- CO03 Terra Green
-- CO04 Oracle Consultancy
-- CO05 PES Ltd
-- CO06 MES Ltd
-- CO07 Pamoja Plus
+**⚠️ Do not hard-code the company list — read it from the `companies` table.** It
+started as seven and is now **thirteen**, and two of the originals were renamed
+(the `code_prefix` stayed, which is why task codes still look familiar). Verified
+against the live database Aug 2026:
+
+| Prefix | Name | Note |
+|---|---|---|
+| DS | DSC Ltd | was "Dar Spices" |
+| CC | Furaha Innovation Ltd | was "Cocozuri Chocolat" |
+| TG | Terra Green Ltd | |
+| OC | Oracle Consultancy Ltd | |
+| PE | PES Ltd | |
+| ME | MES Ltd | |
+| PP | Pamoja Plus | |
+| V1 | Akasaki Middle East LLC | added later |
+| VI | V1 Intertrade Limited | added later |
+| PA | Urban Trade Solutions | added later |
+| VA | Venture Advisory FZCO | added later |
+| RU | Rugantino | added later |
+| TA | Tanam Advisory PVT. Ltd | added later |
 
 Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/proxy.ts` — the Next-16 `proxy` convention, renamed from `src/middleware.ts` in June 2026; cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Command Centre** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Command Centre tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; staff-portal posts use `"portal:<Name>"`.
 
@@ -107,6 +122,31 @@ Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0114**.
 
 See `memory/database_schema.md`.
+
+## MCP — Claude reaches into COS (`/api/mcp`)
+
+Owner asks Claude a question in plain English; Claude answers from the live
+system. **Stage 1 (read-only) is BUILT, DEPLOYED and in use** (Aug 2026, commit
+28d3e6c). Stages 2–5 are planned and not started.
+
+**Read `memory/mcp_plan.md` first** — it holds the architecture and links a file
+per stage: `mcp_stage1_read_only` (done) → `mcp_stage2_safe_writes` →
+`mcp_stage3_sign_in` → `mcp_stage4_automatic` → `mcp_stage5_director_portal`
+(Pulin; owner's instruction is command centre first, Pulin last).
+
+- Endpoint `src/app/api/mcp/route.ts` (Streamable HTTP, `mcp-handler` +
+  `@modelcontextprotocol/server`); tools in `src/lib/mcp/registry.ts` — **add ONE
+  registry entry to add a tool**; identity in `src/lib/mcp/auth.ts`.
+- **Permissions are NOT reimplemented.** A caller resolves to the same
+  `PortalPerson` the portal builds (`portalPersonById`), so `portal-permissions`
+  capabilities and `companyScope()` govern MCP unchanged. Every tool is checked
+  twice: the advertised list is filtered, AND each handler re-checks. Keep both.
+- `src/proxy.ts` **must** keep excluding `api/mcp` — inside the admin gate every
+  request redirects to `/login` and nothing can connect.
+- Keys: `mcp_keys` (SHA-256, unsalted on purpose). Mint/revoke in Settings →
+  Security & Access. `npm run mcp:key` writes `COS_MCP_KEY` to `.env.local`;
+  `.mcp.json` reads it via `scripts/mcp-auth-header.mjs` so no committed file
+  ever carries the key.
 
 ## Current Pages
 

@@ -74,9 +74,27 @@ helper at connect time and merges the output into its headers.
 Both the worktree and the main checkout have the key, the config and the helper.
 Verified end to end: helper → header → `initialize` → 9 tools → live KPI numbers.
 
-⚠️ `.mcp.json` points at **production** (`oracleconsultancy.vercel.app`), so it
-only connects once this branch is deployed. For local testing, temporarily change
-that `url` to `http://localhost:3000/api/mcp` with the dev server running.
+`.mcp.json` points at **production** (`oracleconsultancy.vercel.app`). For local
+testing, temporarily change that `url` to `http://localhost:3000/api/mcp` with the
+dev server running.
+
+### Getting it to actually appear in Claude — two gotchas that cost a round trip
+
+1. **A `.mcp.json` server needs approving before it connects.** Approvals live in
+   settings files that aren't committed. The reliable place is the **user**
+   settings — `~/.claude/settings.json` with `"enabledMcpjsonServers": ["cos"]` —
+   because per the Claude Code docs those approvals "still apply in an untrusted
+   folder", whereas an untracked `.claude/settings.local.json` only applies once
+   the folder has been trusted via a dialog. That entry is now set (a `.bak` of
+   the previous file sits beside it).
+2. **`/mcp` is not a reliable check in the desktop app.** The owner restarted, ran
+   `/mcp`, saw nothing, and reasonably concluded it had failed — while the server
+   was in fact connected and serving. MCP connects silently; there is no banner.
+   **The real test is to ask a question** and see whether real data comes back.
+
+Deployed to master and confirmed against the live site: anonymous → 401, owner key
+→ 200, 9 tools, and `company_kpis` returning 39 open / 19 overdue across 6
+companies with tasks.
 
 ## Note for whoever builds stage 2
 

@@ -5,23 +5,31 @@ metadata:
   type: project
 ---
 
-# MCP for COS — master plan (Aug 2026, PLANNED, not built)
+# MCP for COS — master plan (Aug 2026)
 
 The goal: the owner tells Claude something in plain English, and Claude does it
 in COS — reads the real data, creates the real task. Later the same for Pulin,
 locked to his portal.
 
-**Read this file first.** Each stage has its own file:
+## WHERE WE ARE
 
-| Stage | File | What it gives you |
+| Stage | File | Status |
 |---|---|---|
-| 1 | [[mcp_stage1_read_only]] | Claude can LOOK at COS. Cannot change anything. |
-| 2 | [[mcp_stage2_safe_writes]] | Claude can create tasks/events. Nothing sent, spent or deleted. |
-| 3 | [[mcp_stage3_sign_in]] | Works on the phone + claude.ai, via a real sign-in. |
-| 4 | [[mcp_stage4_automatic]] | Runs on a schedule without being asked. |
-| 5 | [[mcp_stage5_director_portal]] | Pulin's own Claude, scoped to his portal. **Only after 1–4 work.** |
+| 1 | [[mcp_stage1_read_only]] | ✅ **BUILT, DEPLOYED, IN USE** (commit 28d3e6c). Claude reads COS. |
+| 2 | [[mcp_stage2_safe_writes]] | ⬜ Next. Create tasks/events; nothing sent, spent or deleted. |
+| 3 | [[mcp_stage3_sign_in]] | ⬜ Phone + claude.ai, via a real sign-in. |
+| 4 | [[mcp_stage4_automatic]] | ⬜ Runs on a schedule without being asked. |
+| 5 | [[mcp_stage5_director_portal]] | ⬜ Pulin's own Claude. **Only after 1–4 work.** |
 
-Owner's instruction (Aug 2026): **command centre first, prove it works, then Pulin.**
+Owner's instruction (Aug 2026): **command centre first, prove it works, then
+Pulin.** Stage 1 is proven — the owner is using it against the live site.
+
+**Picking this up in a new session:** read this file, then the stage file you're
+building. Stage 1's file records what shipped, the exact package/export names and
+the two bugs testing caught — don't re-derive them. The groundwork for stage 5
+(per-tool `capability` tags, `companyScope()` on every query) is already in the
+registry even though the owner alone doesn't need it; **do not strip it as dead
+code.**
 
 ## What MCP is, in one paragraph
 
