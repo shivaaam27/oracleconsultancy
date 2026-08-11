@@ -7,7 +7,14 @@ metadata:
 
 # MCP stage 1 — read-only, command centre (BUILT + VERIFIED, Aug 2026)
 
-Read [[mcp_plan]] first. This is the stage that proves the idea works.
+Read [[mcp_plan]] first. This is the stage that proved the idea works.
+
+**⚠️ SUPERSEDED IN PART.** This file is the historical record of stage 1 and its
+nine read tools. Since then [[mcp_stage2_safe_writes]] added ten write tools (19
+in total), [[mcp_stage3_sign_in]] added OAuth sign-in beside the bearer key, and
+[[mcp_stage5_director_portal]] verified staff callers. Where this file says
+"nothing can be altered", that was true of stage 1 only. The permission model,
+the key handling and the two bugs recorded below all still stand.
 
 ## Built — what actually shipped
 

@@ -21,8 +21,13 @@ locked to his portal.
 | 4 | [[mcp_stage4_automatic]] | ⬜ Runs on a schedule without being asked. |
 | 5 | [[mcp_stage5_director_portal]] | ✅ **VERIFIED** (Aug 2026). Needed no new code — one portal-parity bug fixed. |
 
+Plus [[mcp_extending]] — **what MCP does as COS grows**, and the forward rule for
+anyone shipping a new feature. Read it before adding one.
+
 Owner's instruction (Aug 2026): **command centre first, prove it works, then
-Pulin.** Stage 1 is proven — the owner is using it against the live site.
+Pulin.** Followed, and done: the owner's claude.ai connector is live and Pulin's
+access is verified. Stage 4 (unattended, scheduled runs) is the only one left, and
+nothing depends on it.
 
 **Picking this up in a new session:** read this file, then the stage file you're
 building. Stage 1's file records what shipped, the exact package/export names and

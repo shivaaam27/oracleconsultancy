@@ -131,9 +131,22 @@ DEPLOYED and in use** (Aug 2026, commit 28d3e6c); **stage 2 (safe writes) is
 BUILT**. Stages 3–5 are planned and not started.
 
 **Read `memory/mcp_plan.md` first** — it holds the architecture and links a file
-per stage: `mcp_stage1_read_only` (done) → `mcp_stage2_safe_writes` (done) →
-`mcp_stage3_sign_in` → `mcp_stage4_automatic` → `mcp_stage5_director_portal`
-(Pulin; owner's instruction is command centre first, Pulin last).
+per stage: `mcp_stage1_read_only` → `mcp_stage2_safe_writes` → `mcp_stage3_sign_in`
+→ `mcp_stage5_director_portal` (all ✅ done, Aug 2026) → `mcp_stage4_automatic`
+(⬜ the only one left). `memory/mcp_extending.md` covers **what happens to MCP when
+COS grows** — read it before adding a feature.
+
+**⚠️ FORWARD RULE — ask the MCP question.** Nothing new reaches Claude by itself:
+a new page, module or table is invisible until a registry entry exists. That's the
+safe default, but it fails *silently*. So when you ship a feature, ask: **should
+the owner be able to ask Claude to do this?** "No" is a fine and common answer
+(admin plumbing, settings, anything dangerous → do nothing). "Yes" → add ONE entry
+to `src/lib/mcp/registry.ts`. Group by SUBJECT, not per button (one tool with an
+`action` argument, like `bulk_task_action`) — every description sits in every
+conversation's prompt, so 19 is fine and 150 would wreck tool-picking.
+Three things already flow automatically and need no work: **new rows** in existing
+tables, **permission changes** in Settings (re-resolved per request), and a new
+`EntityDef` in `entity-registry.ts` (makes it searchable via `search_cos` free).
 
 - **⚠️ MCP NEVER DELETES, AND NEVER SENDS A MESSAGE** (owner's line, Aug 2026).
   "Delete it" → **archive** it. Person-to-person WhatsApp/email becomes an Outbox
