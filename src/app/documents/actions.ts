@@ -98,11 +98,13 @@ function revalidateDocs() {
 /* Create / read / update                                              */
 /* ------------------------------------------------------------------ */
 
-export async function createDocumentAction(fd: FormData): Promise<Result> {
+/** `createdBy` defaults to the web UI; /api/mcp passes its `mcp:<Name>` stamp so
+ *  a document an assistant filed is identifiable in the row it wrote. */
+export async function createDocumentAction(fd: FormData, createdBy?: string): Promise<Result> {
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
-    const id = await createDocument(parsed);
+    const id = await createDocument(parsed, createdBy ?? "web-ui");
     const uploaded = uploadedFromForm(fd);
     if (uploaded) await attachUploadedFile(id, uploaded.path, uploaded.fileName);
     if (parsed.companyId) revalidatePath(`/companies/${parsed.companyId}`);

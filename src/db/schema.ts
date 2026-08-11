@@ -97,6 +97,77 @@ export const mcpKeys = pgTable("mcp_keys", {
   index("mcp_keys_person_idx").on(t.personId),
 ]);
 
+/* ------------------------------------------------------------------ *
+ * MCP sign-in (OAuth 2.1) — stage 3.
+ *
+ * A bearer key (mcp_keys, above) works for Claude Code on the laptop and for
+ * unattended jobs. It does NOT work on claude.ai or the phone, which expect a
+ * real "Connect" button. These three tables are the authorization server behind
+ * that button: who registered, the one-time code, and the tokens issued.
+ *
+ * Nothing here stores a credential in the clear — codes and tokens are hashed
+ * exactly like an mcp_keys row. See memory/mcp_stage3_sign_in.md.
+ * ------------------------------------------------------------------ */
+
+/** An MCP client that has registered itself (Claude on a phone, claude.ai, …). */
+export const mcpOauthClients = pgTable("mcp_oauth_clients", {
+  id: serial("id").primaryKey(),
+  clientId: text("client_id").notNull().unique(),
+  /** Public clients (the normal case for MCP) have no secret. */
+  clientSecretHash: text("client_secret_hash"),
+  clientName: text("client_name").notNull(),
+  /** JSON array. An authorization request must match one of these EXACTLY. */
+  redirectUris: text("redirect_uris").notNull(),
+  grantTypes: text("grant_types").notNull(),
+  scope: text("scope"),
+  /** "dcr" (RFC 7591) or "cimd" (client-id metadata document). */
+  source: text("source").notNull().default("dcr"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+});
+
+/** A one-time authorization code. Short-lived, single-use, PKCE-bound. */
+export const mcpOauthCodes = pgTable("mcp_oauth_codes", {
+  id: serial("id").primaryKey(),
+  codeHash: text("code_hash").notNull().unique(),
+  clientId: text("client_id").notNull(),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  codeChallengeMethod: text("code_challenge_method").notNull().default("S256"),
+  scope: text("scope"),
+  /** RFC 8707 resource indicator — the audience the token will be bound to. */
+  resource: text("resource"),
+  /** Who approved it. Null = the owner (no person row), as in mcp_keys. */
+  personId: integer("person_id").references((): AnyPgColumn => people.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+}, (t) => [
+  index("mcp_oauth_codes_expires_idx").on(t.expiresAt),
+]);
+
+/** An issued access token (+ its refresh token). Revoking sets revoked_at, and
+ *  that is instant — every request re-checks it. */
+export const mcpOauthTokens = pgTable("mcp_oauth_tokens", {
+  id: serial("id").primaryKey(),
+  accessHash: text("access_hash").notNull().unique(),
+  refreshHash: text("refresh_hash").unique(),
+  clientId: text("client_id").notNull(),
+  /** Shown in Settings, e.g. "Claude (iPhone)". */
+  label: text("label").notNull(),
+  personId: integer("person_id").references((): AnyPgColumn => people.id, { onDelete: "cascade" }),
+  scope: text("scope"),
+  resource: text("resource"),
+  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { mode: "date", withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { mode: "date", withTimezone: true }),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+}, (t) => [
+  index("mcp_oauth_tokens_person_idx").on(t.personId),
+  index("mcp_oauth_tokens_client_idx").on(t.clientId),
+]);
+
 // Managed list of job titles / roles — powers the role field's suggestions and
 // lets duplicates be cleaned up. people.role stays free text (NOT a FK); a
 // rename/merge here re-points people whose role text matches exactly.

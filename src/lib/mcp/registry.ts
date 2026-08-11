@@ -6,9 +6,17 @@
 // derives everything else. Same idea as the entity registry (lib/entity-registry.ts)
 // — one definition, no wiring in three places.
 //
-// STAGE 1 IS READ-ONLY. Every handler below reads. Nothing creates, edits,
-// archives or deletes. Writes arrive in stage 2 (memory/mcp_stage2_safe_writes.md)
-// and bring their own tier rules with them.
+// STAGE 2 — reads, plus writes (memory/mcp_stage2_safe_writes.md). The two lines
+// that must not move:
+//
+//   MCP NEVER DELETES.
+//   MCP NEVER SENDS A MESSAGE — except a meeting/event invitation, which the
+//   owner opened deliberately in Aug 2026.
+//
+// Everything else the owner can do in the command centre is available here.
+// Anything outbound that isn't an invitation becomes an Outbox draft. Every write
+// tool sets `write: true` below — that flag is what marks it non-read-only to the
+// client and what puts it behind the care language in the server instructions.
 //
 // Server-only.
 
@@ -16,7 +24,13 @@ import { z } from "zod";
 import { sb } from "@/db/supabase";
 import type { CapabilityKey } from "@/lib/portal-permissions";
 import { companyScope } from "@/lib/portal-auth";
-import type { McpCaller } from "@/lib/mcp/auth";
+import { callerMayWrite, type McpCaller } from "@/lib/mcp/auth";
+import {
+  mcpCreateTask, mcpAddTaskUpdate, mcpCreateEvent, mcpCreateDocument,
+  mcpAssignAsset, mcpDraftMessage, mcpUndoLast,
+  mcpArchiveTask, mcpArchiveDocument, mcpBulkTaskAction,
+  PRIORITIES, CATEGORIES, OPEN_STATUSES, ALL_STATUSES, BULK_ACTIONS,
+} from "@/lib/mcp/writes";
 import { getAllTasks, computeCompanyKpis, computeGlobalKpis, type TaskRow } from "@/lib/queries";
 import { getAllPeopleWithWorkload, getPersonDetail } from "@/lib/people-queries";
 import { teamAttendanceToday } from "@/lib/attendance";
@@ -41,6 +55,14 @@ export type McpTool = {
    * must hold the key in their resolved `caps`.
    */
   capability?: CapabilityKey;
+  /**
+   * True if this tool CHANGES something. Reads leave it undefined.
+   *
+   * Not a permission — the capability above is. This drives the `readOnlyHint`
+   * annotation the client sees and the "check before you act" wording in the
+   * server instructions, so an assistant treats a write like a write.
+   */
+  write?: boolean;
   /** Returns anything JSON-serialisable; the endpoint stringifies it. */
   run: (args: Record<string, unknown>, caller: McpCaller) => Promise<unknown>;
 };
@@ -55,6 +77,10 @@ export type McpTool = {
  * advertised list. See memory/mcp_plan.md.
  */
 export function callerMayUse(tool: McpTool, caller: McpCaller): boolean {
+  // A connection that was only granted `cos.read` gets no write tools, whoever
+  // is behind it. Checked BEFORE the capability, because a scope the person
+  // approved is a ceiling on top of what their role would otherwise allow.
+  if (tool.write && !callerMayWrite(caller)) return false;
   if (caller.kind === "owner") return true;
   if (!tool.capability) return false; // owner-only tool
   return caller.person.caps[tool.capability] === true;
@@ -338,6 +364,201 @@ export const MCP_TOOLS: McpTool[] = [
       const scope = await scopeFor(caller);
       return await getBrief(new Date(), period ?? "month", scope);
     },
+  },
+
+  /* =============================================================== *
+   * WRITES (stage 2). Read the header of lib/mcp/writes.ts before
+   * adding another one — the tier rules are not negotiable.
+   * =============================================================== */
+
+  {
+    name: "create_task",
+    title: "Create a task",
+    description:
+      "Raise ONE new task. Give the company and a title; optionally who it's for, a deadline " +
+      "(yyyy-mm-dd), a priority and an opening note. People must already exist — if a name " +
+      "doesn't match anybody this fails rather than inventing a member of staff. " +
+      "Tell the person what you created, including the task code you get back.",
+    schema: z.object({
+      company: z.string().describe("Company name or its two-letter prefix, e.g. 'DSC Ltd' or 'DS'"),
+      title: z.string().min(3).describe("What actually needs doing, in a line"),
+      assignees: z.array(z.string()).optional().describe("Names of existing people to make responsible"),
+      deadline: z.string().optional().describe("Due date, yyyy-mm-dd"),
+      priority: z.enum(PRIORITIES).optional().describe("Default Medium"),
+      status: z.enum(OPEN_STATUSES).optional().describe("Starting status, default Not Started"),
+      category: z.enum(CATEGORIES).optional(),
+      note: z.string().optional().describe("An opening instruction or context for whoever picks it up"),
+    }),
+    capability: "createTasks",
+    write: true,
+    run: async (args, caller) => await mcpCreateTask(caller, args as Parameters<typeof mcpCreateTask>[1]),
+  },
+
+  {
+    name: "add_task_update",
+    title: "Post a task update",
+    description:
+      "Add an update to an existing task, and optionally move its status — including marking it " +
+      "Completed or Closed. Always write what actually happened in the note; the update is the " +
+      "record of why the status moved.",
+    schema: z.object({
+      taskCode: z.string().describe("Task code, e.g. DS-014"),
+      note: z.string().min(2).describe("The update, in plain words"),
+      newStatus: z.enum(ALL_STATUSES).optional().describe("Move the task to this status"),
+    }),
+    capability: "messageOnTasks",
+    write: true,
+    run: async (args, caller) => await mcpAddTaskUpdate(caller, args as Parameters<typeof mcpAddTaskUpdate>[1]),
+  },
+
+  {
+    name: "create_event",
+    title: "Put something in the diary",
+    description:
+      "Create a meeting or event. It reaches the diary and Google, and — this is the ONE thing " +
+      "here that emails anybody — an invitation is sent to attendees who have an email address. " +
+      "So be sure of the people and the time before you call it, and say afterwards who was " +
+      "invited. Pass sendInvitations: false to pencil something in without telling anyone. " +
+      "Times are Dar es Salaam (EAT). Use 'yyyy-mm-dd HH:MM', or just 'yyyy-mm-dd' for all day.",
+    schema: z.object({
+      title: z.string().min(2),
+      start: z.string().describe("'2026-08-20 09:00' (EAT) or '2026-08-20' for an all-day event"),
+      end: z.string().optional().describe("Same format as start"),
+      allDay: z.boolean().optional(),
+      company: z.string().optional().describe("Which company this is for"),
+      location: z.string().optional(),
+      description: z.string().optional(),
+      attendees: z.array(z.string()).optional().describe("Names of existing people to invite"),
+      sendInvitations: z.boolean().optional().describe("Default true — set false to add it quietly, inviting nobody"),
+    }),
+    capability: "createEvents",
+    write: true,
+    run: async (args, caller) => await mcpCreateEvent(caller, args as Parameters<typeof mcpCreateEvent>[1]),
+  },
+
+  {
+    name: "create_document",
+    title: "File a document record",
+    description:
+      "Record a document in the library — a licence, contract, certificate or permit — so its " +
+      "expiry is tracked. This records the DETAILS only; no file is attached and nothing is read " +
+      "or classified for you. Never guess a date or a reference number: leave it out and ask.",
+    schema: z.object({
+      title: z.string().min(2).describe("What the document is called"),
+      company: z.string().optional().describe("The company it belongs to"),
+      person: z.string().optional().describe("The person it belongs to (a passport, a permit)"),
+      category: z.string().optional().describe("Licence, Contract, Certificate, Registration, Insurance, Lease, Permit, Immigration, Passport, Tax, Banking, HR, Legal, Operations, Travel"),
+      docType: z.string().optional().describe("The specific type, e.g. 'Business Licence'"),
+      issuer: z.string().optional().describe("Who issued it, e.g. 'TRA'"),
+      referenceNo: z.string().optional(),
+      issueDate: z.string().optional().describe("yyyy-mm-dd"),
+      expiryDate: z.string().optional().describe("yyyy-mm-dd — this is what drives renewal reminders"),
+      notes: z.string().optional(),
+    }),
+    // Owner-only: no portal capability covers the document library.
+    write: true,
+    run: async (args, caller) => await mcpCreateDocument(caller, args as Parameters<typeof mcpCreateDocument>[1]),
+  },
+
+  {
+    name: "assign_asset",
+    title: "Hand an asset to someone",
+    description:
+      "Record that a piece of equipment is now held by a person. Closes whoever had it before " +
+      "and opens a new entry in its history. Find the asset by tag, name or serial number.",
+    schema: z.object({
+      asset: z.string().describe("Asset tag, name or serial number"),
+      person: z.string().describe("Who is taking it — must be an existing active person"),
+      notes: z.string().optional().describe("Condition, accessories, anything worth recording"),
+    }),
+    // Owner-only: the asset register has no portal capability.
+    write: true,
+    run: async (args, caller) => await mcpAssignAsset(caller, args as Parameters<typeof mcpAssignAsset>[1]),
+  },
+
+  {
+    name: "draft_message",
+    title: "Draft a message (never sends)",
+    description:
+      "Write a message to someone and save it in the Outbox as a DRAFT. It is not sent, and you " +
+      "cannot send it — a person opens the Outbox and presses send. Always say this when you " +
+      "use it, so nobody believes a message has gone out when it hasn't.",
+    schema: z.object({
+      person: z.string().describe("Who it's for — an existing active person"),
+      body: z.string().min(2).describe("The message itself, ready to send as written"),
+      subject: z.string().optional().describe("Email subject line"),
+      channel: z.enum(["WHATSAPP", "EMAIL", "SMS"]).optional().describe("Default is their preferred channel"),
+    }),
+    capability: "bulkOutreach",
+    write: true,
+    run: async (args, caller) => await mcpDraftMessage(caller, args as Parameters<typeof mcpDraftMessage>[1]),
+  },
+
+  {
+    name: "archive_task",
+    title: "Archive or restore a task",
+    description:
+      "File a task out of the way, or bring one back. Archiving is NOT deleting — the task, its " +
+      "history and its conversation all stay, it simply leaves the active list. Use this when " +
+      "asked to get rid of a task; you cannot delete anything, and archiving is what people mean.",
+    schema: z.object({
+      taskCode: z.string().describe("Task code, e.g. DS-014"),
+      archived: z.boolean().optional().describe("Default true; pass false to restore it"),
+    }),
+    capability: "manageAnyTask",
+    write: true,
+    run: async (args, caller) => await mcpArchiveTask(caller, args as Parameters<typeof mcpArchiveTask>[1]),
+  },
+
+  {
+    name: "archive_document",
+    title: "Archive or restore a document",
+    description:
+      "File a document out of the library, or bring it back. Like a task, archiving keeps the " +
+      "record and its file — nothing is deleted. Needs the numeric id from list_documents.",
+    schema: z.object({
+      documentId: z.number().int().describe("Document id from list_documents"),
+      archived: z.boolean().optional().describe("Default true; pass false to restore it"),
+    }),
+    // Owner-only: the document library has no portal capability.
+    write: true,
+    run: async (args, caller) => await mcpArchiveDocument(caller, args as Parameters<typeof mcpArchiveDocument>[1]),
+  },
+
+  {
+    name: "bulk_task_action",
+    title: "Change several tasks at once",
+    description:
+      "Apply ONE change to a list of tasks — set a status or priority, postpone deadlines, " +
+      "escalate, close, or post the same update on all of them. Up to 25 at a time, and every " +
+      "code must be one you can reach or the whole call is refused. There is NO single undo for " +
+      "this, so list the tasks back to the person afterwards. It cannot delete.",
+    schema: z.object({
+      taskCodes: z.array(z.string()).min(1).max(25).describe("The task codes to change"),
+      action: z.enum(BULK_ACTIONS).describe("What to do to all of them"),
+      value: z.string().optional().describe("The status (for 'status') or priority (for 'priority')"),
+      days: z.number().int().optional().describe("Days to push the deadline by, for 'postpone'"),
+      note: z.string().optional().describe("The update body, for 'update'"),
+    }),
+    capability: "bulkTaskActions",
+    write: true,
+    run: async (args, caller) => await mcpBulkTaskAction(caller, args as Parameters<typeof mcpBulkTaskAction>[1]),
+  },
+
+  {
+    name: "undo_last_change",
+    title: "Undo my last change",
+    description:
+      "Reverse something YOU changed in the last ten minutes — the most recent one, or a specific " +
+      "undoToken returned by an earlier tool. It only reaches your own changes; it cannot undo " +
+      "anything a person did. Past ten minutes, it has to be changed by hand in COS.",
+    schema: z.object({
+      token: z.string().optional().describe("An undoToken from an earlier result; omit for the most recent change"),
+    }),
+    // Anyone who can write can pull their own write back.
+    capability: "createTasks",
+    write: true,
+    run: async (args, caller) => await mcpUndoLast(caller, args as Parameters<typeof mcpUndoLast>[1]),
   },
 ];
 

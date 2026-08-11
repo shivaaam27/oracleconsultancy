@@ -86,3 +86,60 @@ export async function revokeMcpKey(id: number): Promise<{ ok: boolean; error?: s
   revalidatePath("/settings");
   return { ok: true };
 }
+
+/* ------------------------------------------------------------------ *
+ * Connected assistants (stage 3 — OAuth)
+ *
+ * A key is something you issue; a connection is something someone approved on
+ * the sign-in screen. Both need to be visible in one place and cuttable in one
+ * click, because an access grant you cannot cut off is not one you should have
+ * issued.
+ * ------------------------------------------------------------------ */
+
+export type McpConnectionRow = {
+  id: number;
+  label: string;
+  personName: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  /** False once the access token has aged out; the refresh token may still work. */
+  accessLive: boolean;
+};
+
+/** Live connections, newest first. Never returns anything token-shaped. */
+export async function listMcpConnections(): Promise<McpConnectionRow[]> {
+  if (!(await isAdminSession())) return [];
+  const { data } = await sb
+    .from("mcp_oauth_tokens")
+    .select("id,label,person_id,created_at,last_used_at,expires_at,people(name)")
+    .is("revoked_at", null)
+    .order("id", { ascending: false });
+  return (data ?? []).map((r) => {
+    const person = Array.isArray(r.people) ? r.people[0] : r.people;
+    return {
+      id: r.id as number,
+      label: (r.label as string) ?? "Assistant",
+      personName: ((person as { name?: string } | null)?.name) ?? null,
+      createdAt: r.created_at as string,
+      lastUsedAt: (r.last_used_at as string | null) ?? null,
+      accessLive: new Date(r.expires_at as string).getTime() > Date.now(),
+    };
+  });
+}
+
+/**
+ * Cut a connection off. Instant: every request re-checks `revoked_at`, and the
+ * refresh token dies with the same row, so the assistant cannot quietly mint
+ * itself a fresh hour of access.
+ */
+export async function revokeMcpConnection(id: number): Promise<{ ok: boolean; error?: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
+  const { error } = await sb
+    .from("mcp_oauth_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  await recordEvent("mcp.connection-revoked", "ok", { id });
+  revalidatePath("/settings");
+  return { ok: true };
+}

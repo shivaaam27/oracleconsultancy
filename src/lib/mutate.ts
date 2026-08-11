@@ -4,7 +4,10 @@ import { reportError } from "./sentry";
 // 10 minutes
 const UNDO_TTL_MS = 10 * 60 * 1000;
 
-export type Actor = "web-ui" | "ai-command";
+/** Who made the change. `mcp:<Name>` is an assistant working through /api/mcp —
+ *  the undo tools there find a caller's own tokens by matching this exact stamp,
+ *  so it must stay identical to `callerStamp()` in lib/mcp/auth.ts. */
+export type Actor = "web-ui" | "ai-command" | `mcp:${string}`;
 
 export type UndoSpec = {
   kind: string;

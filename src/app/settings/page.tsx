@@ -22,7 +22,7 @@ import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
 import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
-import { listMcpKeys, createMcpKey, revokeMcpKey } from "./mcp-actions";
+import { listMcpKeys, createMcpKey, revokeMcpKey, listMcpConnections, revokeMcpConnection } from "./mcp-actions";
 import { McpKeyManager } from "@/components/mcp-key-manager";
 import { appBaseUrl } from "@/lib/app-url";
 import { getOwnerIdentity } from "@/lib/admin-auth";
@@ -79,6 +79,7 @@ export default async function SettingsPage({
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
   const mcpKeys = await listMcpKeys();
+  const mcpConnections = await listMcpConnections();
   const appUrl = appBaseUrl();
   // Live counts for the Danger-zone confirmation screen.
   const geminiKey = await getGeminiKeyPreview();
@@ -744,13 +745,18 @@ export default async function SettingsPage({
           </SettingsCard>
 
           {/* Claude / MCP access keys */}
-          <SettingsCard id="mcp-keys" icon={<Bot size={15} />} title="Claude access keys" desc="Let Claude read your COS data. Read-only for now." keywords="claude mcp ai assistant key token api access connector model context protocol">
+          <SettingsCard id="mcp-keys" icon={<Bot size={15} />} title="Claude access" desc="Let Claude read COS and do your day-to-day work in it." keywords="claude mcp ai assistant key token api access connector model context protocol oauth connect phone">
             <p className="mb-3 text-xs leading-snug text-fg-muted">
-              A key lets Claude look at COS — tasks, people, attendance, calendar, documents and the
-              brief. It cannot change, create or delete anything. Add it to Claude Code with{" "}
+              Claude can look at everything you can — tasks, people, attendance, calendar, documents,
+              the brief — and do the ordinary work: raise tasks, post updates, complete and archive
+              them, put meetings in the diary. <strong className="font-medium text-fg">It can never
+              delete anything, and it never sends a message on your behalf</strong> — those wait in
+              the Outbox for you. Creating a meeting is the one thing that emails anybody, because an
+              invitation is part of the meeting. Add it to Claude Code with{" "}
               <code className="rounded bg-surface px-1 py-0.5 text-[11px]">claude mcp add --transport http cos {appUrl}/api/mcp -H &quot;Authorization: Bearer YOUR_KEY&quot;</code>
+              , or add <code className="rounded bg-surface px-1 py-0.5 text-[11px]">{appUrl}/api/mcp</code> as a connector in Claude on your phone and sign in.
             </p>
-            <McpKeyManager initial={mcpKeys} create={createMcpKey} revoke={revokeMcpKey} />
+            <McpKeyManager initial={mcpKeys} create={createMcpKey} revoke={revokeMcpKey} connections={mcpConnections} revokeConnection={revokeMcpConnection} />
           </SettingsCard>
 
           {/* Staff portal access */}

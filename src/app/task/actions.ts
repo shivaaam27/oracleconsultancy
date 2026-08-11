@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
+import { bustTag } from "@/lib/cache-bust";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import {
@@ -11,10 +12,8 @@ import {
 } from "@/lib/db-helpers";
 import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
-import { withTx } from "@/lib/tx";
-import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
-import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { computeClosedDateFrom } from "@/lib/task-status";
+import { createTaskCore, addTaskUpdateCore } from "@/lib/task-write";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { invalidateAllTasks } from "@/lib/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
@@ -430,6 +429,13 @@ export async function updateTask(code: string, formData: FormData) {
   redirect(`/task/${finalCode}`);
 }
 
+/**
+ * Create a task from the web form.
+ *
+ * The write itself lives in `createTaskCore` (lib/task-write.ts) so /api/mcp
+ * creates tasks through identical code. What stays here is what only a browser
+ * has: the FormData, the undo cookie and the redirect.
+ */
 export async function createTask(formData: FormData) {
   const companyId = parseInt(String(formData.get("companyId")), 10);
   const actionItem = str(formData.get("actionItem"));
@@ -461,145 +467,26 @@ export async function createTask(formData: FormData) {
   const repeatDayOfMonth = Number.isInteger(repeatDayOfMonthRaw) ? Math.min(31, Math.max(1, repeatDayOfMonthRaw)) : 1;
   const willRepeat = repeatOn && (repeatCadence === "monthly" || repeatWeekdays.length > 0);
 
-  const result = await mutate({
-    kind: "task.create",
-    run: async () => {
-      const { data: company, error: cErr } = await sb
-        .from("companies")
-        .select("code, code_prefix")
-        .eq("id", companyId)
-        .maybeSingle();
-      if (cErr) throw new Error(cErr.message);
-      if (!company) throw new Error("Company not found");
-
-      // Resolve the department + assignee people BEFORE the transaction: these
-      // are idempotent get-or-create lookups (their own rows are not part of the
-      // task's atomic write, and re-running them is harmless on retry).
-      const departmentId = await getOrCreateDeptSb(departmentName);
-      const assigneeIds: number[] = [];
-      for (const n of splitNames(accountableRaw)) {
-        assigneeIds.push(await getOrCreatePersonSb(n, companyId));
-      }
-
-      const now = new Date();
-      const nowIso = now.toISOString();
-      // Prefer the two-letter prefix (DS-001); fall back to the legacy company code.
-      const prefix = (company.code_prefix as string | null) || (company.code as string);
-      const closedDate = computeClosedDate(status, null, nowIso);
-
-      // Atomic create (ACTTASKS-04 / DBSPINE-02): the task row, its assignees and
-      // the CREATE audit entry either all commit or all roll back — no orphaned
-      // task and no missing audit on a mid-sequence failure. The unique-code
-      // allocation is retried in-transaction on a code collision.
-      const task = await withTx(async (tx) => {
-        let created: { id: number; code: string } | null = null;
-        for (let attempt = 0; attempt < 5 && !created; attempt++) {
-          const existing = await tx
-            .select({ code: tasksTable.code })
-            .from(tasksTable)
-            .where(eq(tasksTable.companyId, companyId));
-          let maxNum = 0;
-          for (const row of existing) {
-            const m = row.code.match(/(\d+)$/);
-            if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-          }
-          const newCode = `${prefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
-          try {
-            // Nested transaction = a SAVEPOINT, so a unique-code collision rolls
-            // back just this attempt (not the whole transaction, which postgres.js
-            // would otherwise abort) and the next attempt can proceed.
-            created = await tx.transaction(async (sp) => {
-              const [inserted] = await sp
-                .insert(tasksTable)
-                .values({
-                  code: newCode,
-                  companyId,
-                  departmentId,
-                  actionItem,
-                  status,
-                  priority,
-                  risk,
-                  escalation,
-                  category,
-                  deadline,
-                  meetingDate,
-                  comments,
-                  latestUpdate,
-                  createdDate: now,
-                  lastUpdatedAt: now,
-                  closedDate: closedDate ? new Date(closedDate) : null,
-                  archived: false,
-                  accountability,
-                  // In "lead" mode the first assignee owns it (carries overdue).
-                  ownerId: accountability === "lead" && assigneeIds.length ? assigneeIds[0] : undefined,
-                })
-                .returning({ id: tasksTable.id, code: tasksTable.code });
-              return inserted;
-            });
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            if (!/duplicate key|unique/i.test(msg)) throw e;
-            // Code collided — let the next attempt pick the next number.
-          }
-        }
-        if (!created) throw new Error("Could not allocate a unique task code.");
-
-        if (assigneeIds.length) {
-          await tx
-            .insert(taskAssignees)
-            .values(assigneeIds.map((personId, i) => ({
-              taskId: created!.id,
-              personId,
-              // In "lead" mode the first assignee is the accountable lead.
-              role: accountability === "lead" && i === 0 ? "accountable" : "working",
-            })))
-            .onConflictDoNothing();
-        }
-
-        await tx.insert(auditLog).values({
-          taskId: created.id,
-          taskCode: created.code,
-          companyId,
-          entryType: "CREATE",
-          field: "Task",
-          oldValue: null,
-          newValue: actionItem,
-          changeReason: null,
-          createdAt: now,
-          createdBy: "web-ui",
-        });
-
-        return created;
-      });
-
-      // Best-effort semantic index (no-op unless semantic search is enabled).
-      void reindexEntity("task", task.id);
-
-      // Standing repeat rule — mirrors this task's template (title, company,
-      // assignees, priority, status, description) so future copies auto-create
-      // complete. Never bound to today's task row; best-effort (never blocks
-      // today's task creation if it fails).
-      if (willRepeat) {
-        try {
-          await sb.from("automation_rules").insert({
-            task_id: null, company_id: companyId, kind: "recurring_task",
-            config: {
-              cadence: repeatCadence,
-              ...(repeatCadence === "weekly" ? { weekdays: repeatWeekdays } : { dayOfMonth: repeatDayOfMonth }),
-              title: actionItem, companyId, priority, status,
-              assigneePersonIds: assigneeIds,
-              ...(comments ? { description: comments } : {}),
-            },
-            active: true, done: false, created_by: "web-ui", created_at: nowIso,
-          });
-        } catch { /* best-effort — today's task is created regardless */ }
-      }
-
-      return {
-        result: { code: task.code },
-        undo: { kind: "task.create", taskId: task.id, payload: { taskId: task.id } },
-      };
-    },
+  const result = await createTaskCore({
+    companyId,
+    actionItem,
+    departmentName,
+    status,
+    priority,
+    risk,
+    escalation,
+    category,
+    deadline,
+    meetingDate,
+    comments,
+    latestUpdate,
+    // The web form is the owner typing: an unknown name is a new person, on purpose.
+    assigneeNames: splitNames(accountableRaw),
+    accountability,
+    repeat: willRepeat
+      ? { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth }
+      : null,
+    createdBy: "web-ui",
   });
 
   if (!result.ok) throw new Error(result.error);
@@ -676,89 +563,16 @@ export async function deleteTask(code: string) {
   redirect("/registry");
 }
 
+/**
+ * Post an update from the web. The write is `addTaskUpdateCore`
+ * (lib/task-write.ts), shared with /api/mcp; the cookie, revalidation and pulse
+ * are the browser's half.
+ */
 export async function addTaskUpdate(taskId: number, taskCode: string, body: string, newStatus?: string) {
   const trimmed = body.trim();
   if (!trimmed) return;
 
-  const result = await mutate({
-    kind: "task.update.add",
-    taskId,
-    run: async () => {
-      const { data: t, error: tErr } = await sb
-        .from("tasks")
-        .select("status,closed_date,latest_update,last_updated_at,company_id")
-        .eq("id", taskId)
-        .maybeSingle();
-      if (tErr) throw new Error(tErr.message);
-      if (!t) throw new Error("Task not found");
-
-      const before = {
-        latestUpdate: t.latest_update as string | null,
-        lastUpdatedAt: t.last_updated_at as string | null,
-        status: t.status as string,
-        closedDate: t.closed_date as string | null,
-      };
-
-      const { data: inserted, error: insErr } = await sb
-        .from("task_updates")
-        .insert({
-          task_id: taskId,
-          body: trimmed,
-          created_at: new Date().toISOString(),
-          created_by: "web-ui",
-        })
-        .select("id")
-        .single();
-      if (insErr) throw new Error(insErr.message);
-      const taskUpdateId = inserted.id as number;
-
-      const updatePayload: Record<string, unknown> = {
-        latest_update: trimmed,
-        last_updated_at: new Date().toISOString(),
-      };
-
-      if (newStatus) {
-        updatePayload.status = newStatus;
-        updatePayload.closed_date = computeClosedDateFrom(t.status, newStatus, t.closed_date as string | null);
-
-        if (t.status !== newStatus) {
-          await sb.from("audit_log").insert({
-            task_id: taskId,
-            task_code: taskCode,
-            company_id: t.company_id as number,
-            entry_type: "CHANGE",
-            field: "Status",
-            old_value: t.status,
-            new_value: newStatus,
-            change_reason: trimmed,
-            created_at: new Date().toISOString(),
-            created_by: "web-ui",
-          });
-        }
-      }
-
-      await sb.from("tasks").update(updatePayload).eq("id", taskId);
-      if (newStatus) await fireTaskCascade(taskId, t.status as string, newStatus);
-
-      // Best-effort re-index: latest_update (and possibly status/lifecycle) moved.
-      void reindexEntity("task", taskId);
-
-      return {
-        result: { taskUpdateId },
-        undo: {
-          kind: "task.update.add",
-          taskId,
-          payload: {
-            taskUpdateId,
-            taskId,
-            taskCode,
-            companyId: t.company_id as number,
-            before,
-          },
-        },
-      };
-    },
-  });
+  const result = await addTaskUpdateCore({ taskId, taskCode, body: trimmed, newStatus, createdBy: "web-ui" });
 
   if (!result.ok) throw new Error(result.error);
   if (result.undoToken) await setUndoCookie(result.undoToken, "Update added.");
@@ -1102,7 +916,11 @@ export type BulkResult = {
   errors: { code: string; error: string }[];
 };
 
-export async function bulkUpdateTasks(codes: string[], action: BulkAction): Promise<BulkResult> {
+export async function bulkUpdateTasks(
+  codes: string[],
+  action: BulkAction,
+  createdBy = "web-ui",
+): Promise<BulkResult> {
   if (!Array.isArray(codes) || codes.length === 0) {
     return { ok: false, applied: 0, skipped: 0, errors: [{ code: "-", error: "No tasks selected" }] };
   }
@@ -1185,7 +1003,7 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
           task_id: t.id,
           body,
           created_at: nowIso,
-          created_by: "web-ui",
+          created_by: createdBy,
         });
         patch.latest_update = body;
         field = "Update";
@@ -1207,7 +1025,8 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
   }
 
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  // bustTag, not updateTag: also called from /api/mcp (a route handler).
+  bustTag("tasks"); invalidateAllTasks();
 
   return { ok: errors.length === 0, applied, skipped, errors };
 }
@@ -1311,7 +1130,11 @@ export async function inlineUpdateTask(
 }
 
 /** Archive / unarchive a task. Undo is simply the inverse call (no token needed). */
-export async function setTaskArchived(code: string, archived: boolean): Promise<{ ok: boolean; error?: string }> {
+export async function setTaskArchived(
+  code: string,
+  archived: boolean,
+  createdBy = "web-ui",
+): Promise<{ ok: boolean; error?: string }> {
   const { data: t, error } = await sb.from("tasks").select("id,company_id").eq("code", code).maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!t) return { ok: false, error: "Task not found" };
@@ -1320,12 +1143,13 @@ export async function setTaskArchived(code: string, archived: boolean): Promise<
     task_id: t.id, task_code: code, company_id: t.company_id,
     entry_type: "CHANGE", field: "Archived",
     old_value: String(!archived), new_value: String(archived),
-    change_reason: null, created_at: new Date().toISOString(), created_by: "web-ui",
+    change_reason: null, created_at: new Date().toISOString(), created_by: createdBy,
   });
   // Re-index to re-stamp lifecycle (active ↔ history). We keep history searchable,
   // so this is reindexEntity, not removeEntityIndex.
   void reindexEntity("task", t.id);
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  // bustTag, not updateTag: this is also called from /api/mcp (a route handler).
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 

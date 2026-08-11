@@ -16,8 +16,8 @@ locked to his portal.
 | Stage | File | Status |
 |---|---|---|
 | 1 | [[mcp_stage1_read_only]] | ✅ **BUILT, DEPLOYED, IN USE** (commit 28d3e6c). Claude reads COS. |
-| 2 | [[mcp_stage2_safe_writes]] | ⬜ Next. Create tasks/events; nothing sent, spent or deleted. |
-| 3 | [[mcp_stage3_sign_in]] | ⬜ Phone + claude.ai, via a real sign-in. |
+| 2 | [[mcp_stage2_safe_writes]] | ✅ **BUILT** (Aug 2026). 10 write tools + undo; never deletes, never sends a message. |
+| 3 | [[mcp_stage3_sign_in]] | ✅ **BUILT** (Aug 2026), untested. OAuth 2.1. **Migration 0116 not yet applied.** |
 | 4 | [[mcp_stage4_automatic]] | ⬜ Runs on a schedule without being asked. |
 | 5 | [[mcp_stage5_director_portal]] | ⬜ Pulin's own Claude. **Only after 1–4 work.** |
 
@@ -30,6 +30,11 @@ the two bugs testing caught — don't re-derive them. The groundwork for stage 5
 (per-tool `capability` tags, `companyScope()` on every query) is already in the
 registry even though the owner alone doesn't need it; **do not strip it as dead
 code.**
+
+**The write rule, once, for every stage after this one:** MCP never sends, never
+deletes, never spends. A tool that would do any of those writes a draft instead
+and lets a person press the button. Stage 2's file explains how that is enforced;
+stages 3–5 inherit it unchanged.
 
 ## What MCP is, in one paragraph
 

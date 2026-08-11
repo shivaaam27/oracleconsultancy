@@ -211,5 +211,9 @@ export const config = {
   // api/mcp is excluded because an AI assistant carries a Bearer key, never a
   // browser cookie: inside the gate every MCP request is redirected to /login and
   // no assistant can connect at all. It authenticates itself in lib/mcp/auth.ts.
-  matcher: ["/((?!login|e/|r/|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
+  // mcp/connect (the OAuth consent screen, stage 3) is excluded for the same
+  // reason from the other side: whoever arrives there is BY DEFINITION not signed
+  // in to this browser yet — that is the entire point of the page. It does its own
+  // password check before it grants anything.
+  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
 };

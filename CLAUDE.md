@@ -119,24 +119,47 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0114**.
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0116** (MCP OAuth — `mcp_oauth_clients`/`_codes`/`_tokens`; **written, NOT yet applied**).
 
 See `memory/database_schema.md`.
 
 ## MCP — Claude reaches into COS (`/api/mcp`)
 
 Owner asks Claude a question in plain English; Claude answers from the live
-system. **Stage 1 (read-only) is BUILT, DEPLOYED and in use** (Aug 2026, commit
-28d3e6c). Stages 2–5 are planned and not started.
+system — and, since stage 2, can raise the task too. **Stage 1 (read-only) is
+DEPLOYED and in use** (Aug 2026, commit 28d3e6c); **stage 2 (safe writes) is
+BUILT**. Stages 3–5 are planned and not started.
 
 **Read `memory/mcp_plan.md` first** — it holds the architecture and links a file
-per stage: `mcp_stage1_read_only` (done) → `mcp_stage2_safe_writes` →
+per stage: `mcp_stage1_read_only` (done) → `mcp_stage2_safe_writes` (done) →
 `mcp_stage3_sign_in` → `mcp_stage4_automatic` → `mcp_stage5_director_portal`
 (Pulin; owner's instruction is command centre first, Pulin last).
 
+- **⚠️ MCP NEVER DELETES, AND NEVER SENDS A MESSAGE** (owner's line, Aug 2026).
+  "Delete it" → **archive** it. Person-to-person WhatsApp/email becomes an Outbox
+  **draft**. **The ONE exception: creating a meeting/event DOES email the
+  invitation** (`sendInvitations: false` holds it back). Everything reversible IS
+  allowed — complete/close, archive, bulk (≤25). Write tools live in
+  `src/lib/mcp/writes.ts` (read its header before adding one); each registers an
+  undo token except bulk (`undo_last_change` reverses the caller's OWN write for
+  10 min; `mcp.*` handlers in `src/lib/undo-handlers/mcp.ts`). Names resolve to
+  **existing** people only — an assistant must never create a member of staff.
+  **A staff key never exceeds its portal ceiling** (staff stay on open statuses).
 - Endpoint `src/app/api/mcp/route.ts` (Streamable HTTP, `mcp-handler` +
   `@modelcontextprotocol/server`); tools in `src/lib/mcp/registry.ts` — **add ONE
-  registry entry to add a tool**; identity in `src/lib/mcp/auth.ts`.
+  registry entry to add a tool** (set `write: true` if it changes anything);
+  identity in `src/lib/mcp/auth.ts`.
+- **Two ways in, ONE caller shape** (stage 3): a bearer key from `mcp_keys` (Claude
+  Code, cron) and an OAuth token from `mcp_oauth_tokens` (claude.ai, phone). Both
+  resolve to the same `McpCaller`, so tools/scope never branch on the route. OAuth
+  server = `src/lib/mcp/oauth.ts` + `src/app/api/mcp/oauth/*` + the consent screen
+  `src/app/mcp/connect/`; discovery documents are served through **rewrites in
+  `next.config.ts`** (they must sit at the domain root). `src/proxy.ts` must keep
+  excluding BOTH `api/mcp` and `mcp/connect`.
+- **Task writes go through `src/lib/task-write.ts`** (`createTaskCore` /
+  `addTaskUpdateCore`). The web actions in `src/app/task/actions.ts` are thin
+  wrappers over them — FormData, undo cookie, redirect. **Any new task write path
+  calls the cores**; a second insert would drift out of audit.
 - **Permissions are NOT reimplemented.** A caller resolves to the same
   `PortalPerson` the portal builds (`portalPersonById`), so `portal-permissions`
   capabilities and `companyScope()` govern MCP unchanged. Every tool is checked

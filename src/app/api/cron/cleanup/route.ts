@@ -19,10 +19,36 @@ export async function GET(req: NextRequest) {
       .select("id");
     if (error) throw new Error(error.message);
 
+    // Spent MCP sign-in codes (stage 3). They live for a minute and are single-use,
+    // so anything past its expiry is dead weight — but it is dead weight that grows
+    // by one row per connection attempt forever if nobody sweeps it.
+    let codesDeleted = 0;
+    try {
+      const { data: codes } = await sb
+        .from("mcp_oauth_codes")
+        .delete()
+        .lt("expires_at", nowIso)
+        .select("id");
+      codesDeleted = (codes ?? []).length;
+    } catch { /* the sweep is housekeeping — never fail the run over it */ }
+
+    // Connections whose refresh token has also expired: the grant is finished and
+    // cannot be revived. Revoked rows are KEPT — they are the record of what was
+    // once connected, which is worth more than the space.
+    let grantsDeleted = 0;
+    try {
+      const { data: grants } = await sb
+        .from("mcp_oauth_tokens")
+        .delete()
+        .lt("refresh_expires_at", nowIso)
+        .select("id");
+      grantsDeleted = (grants ?? []).length;
+    } catch { /* ditto */ }
+
     const count = (deleted ?? []).length;
-    await recordEvent("cron.cleanup", "ok", { undoTokensDeleted: count });
+    await recordEvent("cron.cleanup", "ok", { undoTokensDeleted: count, codesDeleted, grantsDeleted });
     await recordEvent("heartbeat", "ok");
-    return NextResponse.json({ ok: true, undoTokensDeleted: count });
+    return NextResponse.json({ ok: true, undoTokensDeleted: count, codesDeleted, grantsDeleted });
   } catch (err) {
     await reportError(err, { route: "cron.cleanup" });
     await recordEvent("cron.cleanup", "error", {
