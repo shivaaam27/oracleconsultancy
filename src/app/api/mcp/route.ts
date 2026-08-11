@@ -30,13 +30,41 @@ export const maxDuration = 60;
 const inFlight = new Map<string, McpCaller>();
 
 /**
+ * Who this server says it is, including the Oracle mark (SEP-973 `icons`).
+ *
+ * ⚠️ TWO THINGS TO KNOW BEFORE TOUCHING THIS.
+ *
+ * 1. **claude.ai does not render connector icons yet** — it shows a generic globe
+ *    whatever a server advertises. This is correct per the spec and will start
+ *    showing by itself when they support it. A blank icon there is not a bug in
+ *    this codebase and cannot be fixed from here.
+ * 2. **The cast is deliberate.** `mcp-handler` types `serverInfo` as just
+ *    `{name, version}`, but it passes the object STRAIGHT through to the SDK
+ *    (`new McpServer(serverInfo, …)`), and the SDK's `Implementation` does accept
+ *    `title`, `icons` and `websiteUrl`. So the fields reach the wire; only the
+ *    wrapper's type is too narrow. Re-check if mcp-handler widens it.
+ */
+function identity(origin: string): { name: string; version: string } {
+  return {
+    name: "cos-system",
+    version: "2.0.0",
+    title: "Oracle Consultancy COS",
+    icons: [
+      { src: `${origin}/icon-192.png`, mimeType: "image/png", sizes: ["192x192"] },
+      { src: `${origin}/icon-512.png`, mimeType: "image/png", sizes: ["512x512"] },
+    ],
+    websiteUrl: origin,
+  } as { name: string; version: string };
+}
+
+/**
  * Build the MCP server for ONE caller.
  *
  * Deliberately per-request: the tools registered are exactly the tools this
  * caller may use, so a tool they can't call never reaches the model's context at
  * all. Each handler then re-checks anyway — see below.
  */
-function serverFor(caller: McpCaller, companies: string[]) {
+function serverFor(caller: McpCaller, companies: string[], origin: string) {
   return createMcpHandler(
     (server: McpServer) => {
       for (const tool of toolsFor(caller)) {
@@ -85,7 +113,7 @@ function serverFor(caller: McpCaller, companies: string[]) {
       }
     },
     {
-      serverInfo: { name: "cos-system", version: "2.0.0" },
+      serverInfo: identity(origin),
       instructions:
         "Oracle Consultancy's Chief-of-Staff system (COS). " +
         (companies.length
@@ -161,7 +189,10 @@ const handler = withMcpAuth(
     if (!caller) return new Response("Unauthorised.", { status: 401 });
     try {
       const companies = await companyNamesFor(caller);
-      return await serverFor(caller, companies)(req);
+      // Absolute, and derived from the request so the icon URLs are right in
+      // production, in a preview deployment and on localhost alike.
+      const { originOf } = await import("@/lib/mcp/oauth");
+      return await serverFor(caller, companies, originOf(req))(req);
     } finally {
       if (bearer) inFlight.delete(bearer);
     }
