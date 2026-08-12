@@ -97,6 +97,26 @@ session — there is no code path to it — *and* every handler re-checks before
 touching data. Both layers are live. A capability switched off in Settings takes
 effect on his very next request.
 
+### ⚠️ DOCUMENTS — a deliberate owner decision, NOT a bug to fix
+
+Measured Aug 2026: a director reading `list_documents` sees **every** document in
+the library — 194 rows, including **23 attached to a person**: passports and NIDA
+cards for staff (Parin Manek, Amal Somaiya and others).
+
+**His portal does not show him this.** `/documents` is an admin page; in the portal
+a director sees only "Your documents" on his own profile. So this is one place
+where MCP reach EXCEEDS portal reach, which everywhere else in this project is
+treated as a defect.
+
+**The owner was shown this explicitly and chose to leave it** (Aug 2026), having
+been offered: company documents only (hiding person-attached ones), no change, or
+no documents at all. He picked no change.
+
+**So do not "fix" it.** It reads like an oversight and it isn't. If it is ever
+revisited, the shape to reach for is filtering `person_id IS NOT NULL` out of
+`list_documents` for non-owner callers — company licences, contracts and tax stay,
+personal records go. But that is the owner's call to reverse, not a tidy-up.
+
 ### The bug this stage caught
 
 `add_task_update` gated Completed/Closed on `caller.kind === "owner"`. The portal
