@@ -8,7 +8,7 @@ import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
-  Megaphone, Plus, Layers as LayersIcon, type LucideIcon,
+  Megaphone, Plus, Paperclip, Layers as LayersIcon, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
@@ -18,9 +18,12 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
 import { FluidSelect } from "@/components/fluid-select";
+import { isoToLocalInput as sharedIsoToLocalInput } from "@/components/date-time-field";
 import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { Combobox } from "@/components/combobox";
 import { ReferenceAdmin } from "@/components/reference-admin";
+import { EventAttachments, ReadSummary, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
+import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
@@ -61,6 +64,8 @@ export type CalendarEventView = CalendarEvent & {
   categoryName: string | null;
   googleUrl: string;
   icsPath: string;
+  /** Papers attached to this entry — drives the paperclip on the card. */
+  attachmentCount: number;
 };
 
 type Person = { id: number; name: string; email: string | null };
@@ -105,14 +110,10 @@ function fmtTime(iso: string): string {
 }
 
 // ISO → value for <input type="datetime-local"> in Dar es Salaam wall-clock.
-function isoToLocalInput(iso: string | null, allDay: boolean): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  // Shift to +03:00 then format.
-  const shifted = new Date(d.getTime() + 3 * 3600_000);
-  const s = shifted.toISOString();
-  return allDay ? s.slice(0, 10) : s.slice(0, 16);
-}
+// Moved to date-time-field.tsx (beside composeDT/dateOf/timeOf) when the portal
+// event sheet needed the same conversion. Re-exported under the local name so
+// every call site in this file reads exactly as it did.
+const isoToLocalInput = sharedIsoToLocalInput;
 
 function reminderLabel(min: number | null): string | null {
   if (min == null) return null;
@@ -1064,10 +1065,20 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
       const r = await sendEventInviteAction(event.id);
       if (r.ok) {
         const who = `${r.count} ${r.count === 1 ? "guest" : "guests"}`;
-        const msg = r.via === "google"
+        const base = r.via === "google"
           ? `Invite sent to ${who} via Google Calendar${r.meetLink ? " · Meet link created" : ""}. It's on your own calendar (organisers don't get an email); a copy is in your inbox.`
           : `Invite emailed to ${who}`;
-        toast(msg, { tone: "success", duration: 7000 });
+        // Say what happened to the papers. A file that had to go as a link is
+        // stated outright — believing a ticket was attached when it wasn't is
+        // exactly the failure this feature exists to prevent.
+        const files = r.attached ? ` · ${r.attached} file${r.attached === 1 ? "" : "s"} attached` : "";
+        const oversize = r.tooLargeToAttach?.length
+          ? ` · ${r.tooLargeToAttach.join(", ")} was too large to attach and went as a link instead`
+          : "";
+        toast(base + files + oversize, {
+          tone: r.tooLargeToAttach?.length ? "warn" : "success",
+          duration: r.tooLargeToAttach?.length ? 9000 : 7000,
+        });
       } else {
         toast(r.error, { tone: r.reason === "not-configured" ? "warn" : "danger", duration: 6000 });
       }
@@ -1091,6 +1102,15 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-fg-muted">
             {event.companyLabel && (
               <span className="inline-flex items-center gap-1"><Building2 size={12} />{event.companyLabel}</span>
+            )}
+            {event.attachmentCount > 0 && (
+              <span
+                className="inline-flex items-center gap-1"
+                title={`${event.attachmentCount} file${event.attachmentCount === 1 ? "" : "s"} attached to this event`}
+              >
+                <Paperclip size={12} />
+                {event.attachmentCount}
+              </span>
             )}
             {event.meetLink && (
               <a href={event.meetLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
@@ -1474,6 +1494,48 @@ function EventForm({
   const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
   const [trackTask, setTrackTask] = useState(!editing);
 
+  // Title / location / description are CONTROLLED so an attached ticket can fill
+  // them in. They were uncontrolled defaults; a read would have had no way to
+  // reach them without reaching into the DOM.
+  const [title, setTitle] = useState(editing?.title ?? "");
+  const [location, setLocation] = useState(editing?.location ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+
+  // Papers travelling with the event, and what the last read found.
+  const [attachments, setAttachments] = useState<AttachedDoc[]>([]);
+  const [readBanner, setReadBanner] = useState<EventPrefill | null>(null);
+
+  // An existing event already has its papers — load them so the list shows what
+  // is attached rather than looking empty until something new is dropped.
+  const editingId = editing?.id ?? null;
+  useEffect(() => {
+    if (!editingId) return;
+    let live = true;
+    void listEventDocumentsAction(editingId).then((docs) => {
+      if (!live) return;
+      setAttachments(docs.map((d) => ({ id: d.id, title: d.title, fileName: d.fileName, share: d.sendWithInvite })));
+    });
+    return () => { live = false; };
+  }, [editingId]);
+
+  /**
+   * Apply what a document said. Deliberately additive: it fills BLANKS and
+   * replaces the description, but never overwrites a title, place or time the
+   * owner has already typed — his correction always outranks the read.
+   */
+  function applyPrefill(p: EventPrefill) {
+    setReadBanner(p);
+    if (p.title && !title.trim()) setTitle(p.title);
+    if (p.location && !location.trim()) setLocation(p.location);
+    if (p.description) {
+      setDescription((prev) => (prev.trim() ? `${prev.trim()}\n\n${p.description}` : p.description));
+    }
+    if (p.allDay) setAllDay(true);
+    if (p.startAt && !startVal) setStartVal(isoToLocalInput(p.startAt, p.allDay));
+    if (p.endAt && !endVal && !p.allDay) setEndVal(isoToLocalInput(p.endAt, false));
+    if (p.reminders.length && !reminders.length) setReminders(p.reminders);
+  }
+
   function toggleReminder(v: number) {
     setReminders((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => b - a));
   }
@@ -1525,6 +1587,11 @@ function EventForm({
   function submit(fd: FormData) {
     fd.set("attendees", JSON.stringify(picked));
     fd.set("reminders", JSON.stringify(reminders));
+    // Files are already filed in the library by the time we get here; this tells
+    // the server which of them belong to THIS event — and carries the per-file
+    // "send to guests" tick, which would otherwise default to on and email a
+    // document the owner had deliberately marked reference-only.
+    fd.set("documentIds", JSON.stringify(attachments.map((d) => ({ id: d.id, send: d.share }))));
     fd.set("recurrence", recurrence);
     fd.set("recurrenceUntil", recurrence !== "none" ? recurrenceUntil : "");
     if (allDay) fd.set("allDay", "1");
@@ -1599,7 +1666,7 @@ function EventForm({
           )}
           <div>
             <FieldLabel>Title</FieldLabel>
-            <Input name="title" required defaultValue={editing?.title ?? ""} placeholder="e.g. Q3 review with Dar Spices" className="font-medium" />
+            <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with Dar Spices" className="font-medium" />
           </div>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -1656,7 +1723,7 @@ function EventForm({
           </div>
           <div>
             <FieldLabel>Location</FieldLabel>
-            <Input name="location" defaultValue={editing?.location ?? ""} placeholder="Office, address…" />
+            <Input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" />
           </div>
         </div>
 
@@ -1773,7 +1840,20 @@ function EventForm({
         {/* Description */}
         <div>
           <FieldLabel>Description</FieldLabel>
-          <Textarea name="description" defaultValue={editing?.description ?? ""} rows={2} placeholder="Agenda, notes…" />
+          <Textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Agenda, notes…" />
+        </div>
+
+        {/* Papers that travel with the entry — ticket, booking, agenda. */}
+        <div>
+          <EventAttachments
+            eventId={editing?.id ?? null}
+            companyId={companyIds[0] ?? editing?.companyId ?? null}
+            value={attachments}
+            onChange={setAttachments}
+            onPrefill={applyPrefill}
+            allowLibrary
+          />
+          {readBanner && <ReadSummary prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
         </div>
 
         {/* Attendees */}

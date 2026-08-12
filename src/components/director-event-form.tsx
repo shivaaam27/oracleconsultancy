@@ -8,8 +8,9 @@ import { PeoplePicker } from "@/components/people-picker";
 import { SwitchRow } from "@/components/ui";
 import { FluidSelect } from "@/components/fluid-select";
 import { CompanyMultiSelect } from "@/components/company-multi-select";
-import { DateTimeField, dateOf, FIELD_TRIGGER } from "@/components/date-time-field";
+import { DateTimeField, dateOf, FIELD_TRIGGER, isoToLocalInput as toLocalInput } from "@/components/date-time-field";
 import { DatePopover } from "@/components/date-popover";
+import { EventAttachments, ReadSummary, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
 import { useToast } from "./toast";
 import { portalDirectorCreateEvent } from "@/app/portal/actions";
 
@@ -74,6 +75,31 @@ export function DirectorEventForm({
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
 
+  // Controlled so an attached ticket can fill them in (see the note in
+  // calendar-board.tsx — a read can't reach an uncontrolled defaultValue).
+  const [title, setTitle] = useState(seedTitle ?? "");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [attachDocs, setAttachDocs] = useState<AttachedDoc[]>([]);
+  const [readBanner, setReadBanner] = useState<EventPrefill | null>(null);
+
+  // A title seeded from outside (the board's smart-capture bar) must still land
+  // in the field now that it is controlled.
+  useEffect(() => {
+    if (seedTitle) setTitle(seedTitle);
+  }, [seedTitle]);
+
+  /** Fill blanks from what the document said; never overwrite the owner's typing. */
+  function applyPrefill(p: EventPrefill) {
+    setReadBanner(p);
+    if (p.title && !title.trim()) setTitle(p.title);
+    if (p.location && !location.trim()) setLocation(p.location);
+    if (p.description) setDescription((prev) => (prev.trim() ? `${prev.trim()}\n\n${p.description}` : p.description));
+    if (p.allDay) setAllDay(true);
+    if (p.startAt && !startVal) setStartVal(toLocalInput(p.startAt, p.allDay));
+    if (p.endAt && !endVal && !p.allDay) setEndVal(toLocalInput(p.endAt, false));
+  }
+
   // Attendees are scoped to the SELECTED company/companies (like the task
   // composer's Responsible people) so the picker stays short. Before a company is
   // chosen, or if none of the chosen companies have linked people, show the full
@@ -100,6 +126,11 @@ export function DirectorEventForm({
     setEndVal("");
     setRecurrence("none");
     setRecurrenceUntil("");
+    setTitle("");
+    setLocation("");
+    setDescription("");
+    setAttachDocs([]);
+    setReadBanner(null);
   }
 
   function submit(form: HTMLFormElement) {
@@ -116,6 +147,9 @@ export function DirectorEventForm({
     fd.set("recurrence", recurrence);
     fd.set("recurrenceUntil", recurrence !== "none" ? recurrenceUntil : "");
     fd.set("trackAsTask", trackTask && companyIds.length > 0 ? "on" : "off");
+    // Files are filed the moment they're dropped; this says which belong here,
+    // and carries each one's "send to guests" tick.
+    fd.set("documentIds", JSON.stringify(attachDocs.map((d) => ({ id: d.id, send: d.share }))));
     setBusy(true);
     startTransition(async () => {
       const res = await action(fd);
@@ -167,7 +201,15 @@ export function DirectorEventForm({
         <form id={FORM_ID} onSubmit={(e) => { e.preventDefault(); submit(e.currentTarget); }} className="flex flex-col gap-3.5">
           <div>
             <label className={fieldLabel}>Title</label>
-            <input name="title" required defaultValue={seedTitle ?? ""} autoFocus={!!seedTitle} placeholder="Board meeting — Q3" className={inputCls} />
+            <input
+              name="title"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus={!!seedTitle}
+              placeholder="Board meeting — Q3"
+              className={inputCls}
+            />
           </div>
 
           <SwitchRow label="All day" on={allDay} onChange={setAllDay} />
@@ -195,7 +237,13 @@ export function DirectorEventForm({
 
           <div>
             <label className={fieldLabel}>Location (optional)</label>
-            <input name="location" placeholder={addMeet ? "Office address (a Meet link is added)" : "Office address or paste a link"} className={inputCls} />
+            <input
+              name="location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder={addMeet ? "Office address (a Meet link is added)" : "Office address or paste a link"}
+              className={inputCls}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
@@ -234,7 +282,29 @@ export function DirectorEventForm({
 
           <div>
             <label className={fieldLabel}>Notes / agenda (optional)</label>
-            <textarea name="description" rows={3} placeholder="What's it about?" className={inputCls} />
+            <textarea
+              name="description"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What's it about?"
+              className={inputCls}
+            />
+          </div>
+
+          {/* Papers that travel with the entry. Same control as the command
+              centre — a ticket dropped here reads itself and fills the form in. */}
+          <div>
+            <EventAttachments
+              eventId={null}
+              companyId={companyIds[0] ?? null}
+              value={attachDocs}
+              onChange={setAttachDocs}
+              onPrefill={applyPrefill}
+              /* No library picker here — reaching into the document library is
+                 owner-only. Upload is the case that matters on the portal. */
+            />
+            {readBanner && <ReadSummary prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
           </div>
         </form>
       </BottomSheet>

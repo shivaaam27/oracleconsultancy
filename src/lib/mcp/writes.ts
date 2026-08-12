@@ -354,6 +354,7 @@ export async function mcpCreateEvent(
     description?: string;
     attendees?: string[];
     sendInvitations?: boolean;
+    documentIds?: number[];
   },
 ): Promise<WriteResult> {
   const title = (args.title ?? "").trim();
@@ -397,6 +398,34 @@ export async function mcpCreateEvent(
     }
   }
 
+  // Papers to travel with the entry (a ticket, an agenda). IDS ONLY, never
+  // names: attaching the wrong document to an event that then EMAILS it to
+  // guests is a disclosure, not a typo, so a near-miss on a title is not a risk
+  // worth taking. The assistant looks the id up with list_documents first.
+  //
+  // Owner keys only — the document library sits outside every portal
+  // capability, exactly as create_document notes. A scoped caller asking for
+  // this is told plainly rather than silently getting an event without it.
+  const documentIds = [...new Set((args.documentIds ?? []).filter((n) => Number.isInteger(n) && n > 0))];
+  if (documentIds.length) {
+    if (caller.kind === "person") {
+      return { ok: false, error: "Attaching documents to an event is something only the owner's own key can do." };
+    }
+    const { data } = await sb.from("documents").select("id,storage_path,archived").in("id", documentIds);
+    const rows = (data ?? []) as Array<{ id: number; storage_path: string | null; archived: boolean }>;
+    const missing = documentIds.filter((id) => !rows.some((r) => r.id === id));
+    if (missing.length) {
+      return { ok: false, error: `I couldn't find document ${missing.join(", ")} — check the id with list_documents.` };
+    }
+    const empty = rows.filter((r) => !r.storage_path || r.archived);
+    if (empty.length) {
+      return {
+        ok: false,
+        error: `Document ${empty.map((r) => r.id).join(", ")} has no file attached (or is archived), so there is nothing to send.`,
+      };
+    }
+  }
+
   const fd = new FormData();
   fd.set("title", title);
   fd.set("startAt", startInput);
@@ -406,6 +435,7 @@ export async function mcpCreateEvent(
   if (args.location) fd.set("location", args.location.trim());
   if (args.description) fd.set("description", args.description.trim());
   if (attendees.length) fd.set("attendees", JSON.stringify(attendees));
+  if (documentIds.length) fd.set("documentIds", JSON.stringify(documentIds));
   // Don't mint a Meet room off the owner's account for a diary entry nobody asked
   // to be a video call.
   fd.set("requestMeet", "0");

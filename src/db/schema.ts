@@ -1207,6 +1207,34 @@ export const documentLinks = pgTable(
   (t) => [primaryKey({ columns: [t.documentId, t.taskId] })]
 );
 
+// Papers that travel WITH a diary entry — a flight ticket, a hotel booking, an
+// agenda, a summons. Mirrors document_links (document↔task) exactly, so the
+// filing rule stays one rule: a file is a `documents` row, and a link says where
+// it is used. Many-to-many on purpose — an outbound ticket and its return can
+// hang off two events, and one agenda can serve a recurring meeting.
+//
+// Cascade on both sides: deleting the event drops the link (never the document,
+// which stays in the library), and deleting the document can't leave a dangling
+// paperclip on someone's calendar entry.
+export const eventDocuments = pgTable(
+  "event_documents",
+  {
+    eventId: integer("event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
+    documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+    // Whether this file rides along on the invitation email. On by default —
+    // the whole point is that he gets the ticket — but an internal agenda can be
+    // linked for reference without posting it to every guest.
+    sendWithInvite: boolean("send_with_invite").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    createdBy: text("created_by").notNull().default("web-ui"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.documentId] }),
+    index("event_documents_document_idx").on(t.documentId),
+  ]
+);
+
 // HRMS — Stock Control module. Mirrors the Excel stock workbook: an item
 // register plus two movement ledgers (purchases IN, issues OUT). Current stock
 // is never stored — it is DERIVED (opening + purchased − issued) at read time

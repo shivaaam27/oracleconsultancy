@@ -4,7 +4,7 @@
 
 import { randomUUID } from "crypto";
 import { sb } from "@/db/supabase";
-import type { IcsAttendee, IcsEvent } from "@/lib/ics";
+import type { IcsAttachment, IcsAttendee, IcsEvent } from "@/lib/ics";
 
 export type CalendarAttendee = {
   personId?: number;
@@ -305,10 +305,14 @@ export async function markCalendarEventCancelled(id: number): Promise<void> {
  */
 export function toIcsEvent(
   ev: CalendarEvent,
-  organizer?: { name?: string | null; email?: string | null }
+  organizer?: { name?: string | null; email?: string | null },
+  /** Papers attached to the event, already shaped as permanent URLs. Optional:
+   *  every existing caller passes nothing and gets exactly what it did before. */
+  attachments?: IcsAttachment[]
 ): IcsEvent {
   return {
     uid: ev.googleEventId ? `${ev.googleEventId}@google.com` : ev.uid,
+    ...(attachments && attachments.length ? { attachments } : {}),
     title: ev.title,
     description: ev.description,
     location: ev.location,

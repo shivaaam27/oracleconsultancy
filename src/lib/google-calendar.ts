@@ -10,17 +10,43 @@ import type { CalendarEvent } from "@/lib/calendar";
 import { recurrenceToRrule } from "@/lib/ics";
 
 export type GoogleCreateResult =
-  | { ok: true; htmlLink: string | null; meetLink: string | null; eventId: string }
+  | { ok: true; htmlLink: string | null; meetLink: string | null; eventId: string; attachmentsAccepted?: boolean }
   | { ok: false; reason: "not-connected" | "error"; error?: string };
 
 export type GoogleWriteResult =
-  | { ok: true }
+  | { ok: true; attachmentsAccepted?: boolean }
   | { ok: false; reason: "not-connected" | "no-google-event" | "error"; error?: string };
+
+/** A paper to hang off the Google event. `fileUrl` is our permanent
+ *  /e/<token>/doc/<id> link — see the caveat on `attachmentsAccepted` below. */
+export type GoogleAttachment = { fileUrl: string; title: string; mimeType?: string | null };
 
 const EAT_TZ = "Africa/Dar_es_Salaam";
 
+// Google caps attachments at 25 per event (documented on Events.attachments).
+const MAX_GOOGLE_ATTACHMENTS = 25;
+
+/**
+ * Google's own reference is ambiguous about whether `fileUrl` MUST be a Drive
+ * link: it documents the Drive format but describes the field as "URL link to
+ * the attachment". Rather than depend on the answer, every call that sends
+ * attachments RETRIES WITHOUT THEM if Google refuses — the calendar entry is the
+ * thing that matters, and a rejected paperclip must never cost us the event.
+ * The .ics ATTACH line and the emailed file are unaffected either way.
+ */
+function looksLikeAttachmentRejection(e: unknown): boolean {
+  const err = e as { code?: number; message?: string; errors?: Array<{ reason?: string; message?: string }> };
+  if (err?.code !== 400 && err?.code !== 403) return false;
+  const text = [err?.message, ...(err?.errors ?? []).map((x) => `${x.reason} ${x.message}`)].join(" ").toLowerCase();
+  return text.includes("attachment") || text.includes("fileurl") || text.includes("drive");
+}
+
 /** Shared field mapping for insert + patch. `wantMeet` adds a Meet create request. */
-function buildRequestBody(ev: CalendarEvent, wantMeet: boolean): calendar_v3.Schema$Event {
+function buildRequestBody(
+  ev: CalendarEvent,
+  wantMeet: boolean,
+  attachments?: GoogleAttachment[]
+): calendar_v3.Schema$Event {
   const start = new Date(ev.startAt);
   const end = ev.endAt ? new Date(ev.endAt) : new Date(start.getTime() + (ev.allDay ? 24 : 1) * 60 * 60 * 1000);
   const startField = ev.allDay ? { date: start.toISOString().slice(0, 10) } : { dateTime: start.toISOString(), timeZone: EAT_TZ };
@@ -48,6 +74,15 @@ function buildRequestBody(ev: CalendarEvent, wantMeet: boolean): calendar_v3.Sch
       reminderOverrides.length > 0
         ? { useDefault: false, overrides: reminderOverrides }
         : { useDefault: true },
+    ...(attachments && attachments.length
+      ? {
+          attachments: attachments.slice(0, MAX_GOOGLE_ATTACHMENTS).map((a) => ({
+            fileUrl: a.fileUrl,
+            title: a.title,
+            ...(a.mimeType ? { mimeType: a.mimeType } : {}),
+          })),
+        }
+      : {}),
     ...(wantMeet
       ? {
           conferenceData: {
@@ -69,31 +104,48 @@ function buildRequestBody(ev: CalendarEvent, wantMeet: boolean): calendar_v3.Sch
  */
 export async function createGoogleEvent(
   ev: CalendarEvent,
-  opts?: { requestMeet?: boolean }
+  opts?: { requestMeet?: boolean; attachments?: GoogleAttachment[] }
 ): Promise<GoogleCreateResult> {
   const auth = await getAuthorizedClient();
   if (!auth) return { ok: false, reason: "not-connected" };
 
-  try {
-    const calendar = google.calendar({ version: "v3", auth });
-    const wantMeet = !!(opts?.requestMeet && !ev.meetLink);
-    const requestBody = buildRequestBody(ev, wantMeet);
+  const calendar = google.calendar({ version: "v3", auth });
+  const wantMeet = !!(opts?.requestMeet && !ev.meetLink);
+  const atts = opts?.attachments ?? [];
 
+  const insert = async (withAttachments: boolean) => {
     const res = await calendar.events.insert({
       calendarId: "primary",
       sendUpdates: "none",
       conferenceDataVersion: wantMeet ? 1 : 0,
-      requestBody,
+      ...(withAttachments && atts.length ? { supportsAttachments: true } : {}),
+      requestBody: buildRequestBody(ev, wantMeet, withAttachments ? atts : undefined),
     });
-
     const data = res.data;
     const meetLink =
       data.hangoutLink ??
       data.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ??
       null;
+    return {
+      ok: true as const,
+      htmlLink: data.htmlLink ?? null,
+      meetLink,
+      eventId: data.id ?? "",
+      attachmentsAccepted: withAttachments && atts.length > 0,
+    };
+  };
 
-    return { ok: true, htmlLink: data.htmlLink ?? null, meetLink, eventId: data.id ?? "" };
+  try {
+    return await insert(atts.length > 0);
   } catch (e) {
+    // A refused paperclip must not cost us the calendar entry — retry plain.
+    if (atts.length && looksLikeAttachmentRejection(e)) {
+      try {
+        return await insert(false);
+      } catch (e2) {
+        return { ok: false, reason: "error", error: e2 instanceof Error ? e2.message : "Google Calendar error" };
+      }
+    }
     return { ok: false, reason: "error", error: e instanceof Error ? e.message : "Google Calendar error" };
   }
 }
@@ -103,20 +155,38 @@ export async function createGoogleEvent(
  * change email and their calendars update. No-op (typed) when Google isn't
  * connected or the event was never pushed to Google. Never mints a new Meet.
  */
-export async function updateGoogleEvent(ev: CalendarEvent): Promise<GoogleWriteResult> {
+export async function updateGoogleEvent(
+  ev: CalendarEvent,
+  opts?: { attachments?: GoogleAttachment[] }
+): Promise<GoogleWriteResult> {
   if (!ev.googleEventId) return { ok: false, reason: "no-google-event" };
   const auth = await getAuthorizedClient();
   if (!auth) return { ok: false, reason: "not-connected" };
-  try {
-    const calendar = google.calendar({ version: "v3", auth });
+
+  const calendar = google.calendar({ version: "v3", auth });
+  const atts = opts?.attachments ?? [];
+
+  const patch = async (withAttachments: boolean) => {
     await calendar.events.patch({
       calendarId: "primary",
-      eventId: ev.googleEventId,
+      eventId: ev.googleEventId!,
       sendUpdates: "none",
-      requestBody: buildRequestBody(ev, false),
+      ...(withAttachments && atts.length ? { supportsAttachments: true } : {}),
+      requestBody: buildRequestBody(ev, false, withAttachments ? atts : undefined),
     });
-    return { ok: true };
+    return { ok: true as const, attachmentsAccepted: withAttachments && atts.length > 0 };
+  };
+
+  try {
+    return await patch(atts.length > 0);
   } catch (e) {
+    if (atts.length && looksLikeAttachmentRejection(e)) {
+      try {
+        return await patch(false);
+      } catch (e2) {
+        return { ok: false, reason: "error", error: e2 instanceof Error ? e2.message : "Google Calendar error" };
+      }
+    }
     return { ok: false, reason: "error", error: e instanceof Error ? e.message : "Google Calendar error" };
   }
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import { CalendarClock, MapPin, Video, Building2 } from "lucide-react";
+import { CalendarClock, MapPin, Video, Building2, Paperclip, Download } from "lucide-react";
 import { getCalendarEventByToken, toIcsEvent } from "@/lib/calendar";
+import { eventAttachmentLinks } from "@/lib/event-documents";
 import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
 import { ShareActions } from "./share-actions";
@@ -33,6 +34,10 @@ export default async function PublicEventPage({ params }: { params: Promise<{ id
     const { data } = await sb.from("companies").select("name").eq("id", ev.companyId).maybeSingle();
     companyName = (data?.name as string) ?? null;
   }
+
+  // Only papers marked "share with guests" — a reference-only attachment is
+  // never listed here, and the /doc route enforces the same rule.
+  const attachments = await eventAttachmentLinks(ev.id, ev.publicToken).catch(() => []);
 
   const googleUrl = googleCalendarUrl(toIcsEvent(ev));
   const icsPath = `/api/calendar/${ev.publicToken}.ics`;
@@ -75,6 +80,30 @@ export default async function PublicEventPage({ params }: { params: Promise<{ id
 
         {ev.description && (
           <p className="text-sm text-fg-muted whitespace-pre-wrap border-t border-border pt-4">{ev.description}</p>
+        )}
+
+        {/* The papers. This is the link that has to keep working months later —
+            it is served by /e/<token>/doc/<id>, which mints a fresh storage URL
+            on each visit, so nothing here expires the way a signed URL would. */}
+        {attachments.length > 0 && (
+          <div className="border-t border-border pt-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+              {attachments.length === 1 ? "Attached" : "Attached files"}
+            </p>
+            {attachments.map((a) => (
+              <a
+                key={a.documentId}
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-xl bg-bg-subtle px-3 py-2.5 ring-1 ring-border transition-colors hover:bg-bg-muted"
+              >
+                <Paperclip size={15} className="shrink-0 text-fg-muted" />
+                <span className="min-w-0 flex-1 truncate text-sm">{a.fileName || a.title}</span>
+                <Download size={14} className="shrink-0 text-fg-subtle" />
+              </a>
+            ))}
+          </div>
         )}
 
         <div className="border-t border-border pt-4">

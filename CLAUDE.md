@@ -119,7 +119,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0116** (MCP OAuth — `mcp_oauth_clients`/`_codes`/`_tokens`; **written, NOT yet applied**).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0117** (`event_documents` — papers attached to a calendar event). **0116 (MCP OAuth) and 0117 are both WRITTEN, NOT yet applied.**
 
 See `memory/database_schema.md`.
 
@@ -308,6 +308,39 @@ in a sane year range, and a payment due-date is explicitly NOT an expiry.
 
 **Forward rule:** intelligence may READ and SUGGEST. It must never move, rename, archive, hide
 or file a document on its own. Anything that writes needs the owner to press a button.
+
+### Papers that travel with an event (Aug 2026)
+
+Attach a document to a calendar event and it goes WITH it — the airline-ticket case: the owner
+books the director's travel, so the ticket reaches the OWNER's inbox, not his. Full notes in
+`memory/event_attachments_aug2026.md`.
+
+- **`event_documents`** (migration **0117 — WRITTEN, NOT APPLIED**; 0116 is also pending, so
+  `db:migrate` applies both — **back up first**). Same shape as `document_links`: a file is always
+  a `documents` row, a link row says where it is used. `send_with_invite` = "guests may have this"
+  and governs the email AND the public link together.
+- **`event-read.ts` / `event-read-core.ts`** — the sibling of `doc-read.ts`. Reads a ticket/booking
+  into the EVENT form (title, times, place, description, flight details, and alarms derived from the
+  printed boarding time). Shares **`file-extract.ts`** with `doc-read` — one extractor, two readers.
+- **⚠️ Time zones: a time is NEVER accepted without its IANA zone.** The model returns the wall clock
+  exactly as printed plus the zone of the place it belongs to, and is told NOT to convert; a zone the
+  runtime doesn't recognise is rejected AND the time dropped with it. The owner confirms
+  "02:15 (EAT) → 08:40 (Dubai time)" before saving. Do not "simplify" this to a single zone.
+- **Delivery**: real bytes on the invitation email (budget 15 MB, `EVENT_ATTACH_MAX_BYTES`; over it
+  the file goes as a link and the email, the toast and the Outbox row all SAY SO), `ATTACH` lines in
+  the .ics, and Google `attachments[]`. Every link is the permanent `/e/<token>/doc/<id>` route — a
+  signed URL expires, a calendar entry does not.
+- **⚠️ UNVERIFIED**: whether Google accepts a non-Drive `fileUrl`. Both Google writers retry WITHOUT
+  attachments if it objects, so a refused paperclip can never cost the calendar entry. Settle it with
+  one live create.
+- **⚠️ A server action bypasses the `src/proxy.ts` admin gate** when a PORTAL page imports it (the
+  POST goes to the portal URL). `calendar/attachment-actions.ts` therefore checks auth itself:
+  reading is restricted to `uploads/` staged paths — so it can only ever read the file you just
+  uploaded, **which is why the form reads BEFORE filing** — and anything reaching into the library is
+  owner-only. The form's `documentIds` is a second door, gated in `portal/actions.ts`
+  (`attachableDocumentIds`, keeps only documents that person uploaded).
+- **Not built**: live flight status (needs a paid flight-data API + key). A return or connection
+  reads as the FIRST departing leg, with the rest in the summary.
 
 ## ORI Search Brain — universal search / find / trace (V3 — Jun 2026, LIVE)
 

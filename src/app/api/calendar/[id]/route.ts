@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCalendarEventByToken, toIcsEvent } from "@/lib/calendar";
+import { eventAttachmentLinks } from "@/lib/event-documents";
 import { buildIcs } from "@/lib/ics";
 
 // Serves a single event as a downloadable .ics file. Linking to or attaching
@@ -18,7 +19,12 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const ics = buildIcs(toIcsEvent(ev));
+  // ATTACH lines so the saved entry keeps its paperclip — the ticket stays one
+  // tap away in the calendar app, not just in the email that carried it.
+  const attachments = await eventAttachmentLinks(ev.id, ev.publicToken).catch(() => []);
+  const ics = buildIcs(
+    toIcsEvent(ev, undefined, attachments.map((a) => ({ url: a.url, mimeType: a.mimeType, fileName: a.fileName })))
+  );
   const safeName = ev.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "event";
 
   return new NextResponse(ics, {

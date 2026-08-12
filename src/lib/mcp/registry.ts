@@ -423,7 +423,9 @@ export const MCP_TOOLS: McpTool[] = [
       "here that emails anybody — an invitation is sent to attendees who have an email address. " +
       "So be sure of the people and the time before you call it, and say afterwards who was " +
       "invited. Pass sendInvitations: false to pencil something in without telling anyone. " +
-      "Times are Dar es Salaam (EAT). Use 'yyyy-mm-dd HH:MM', or just 'yyyy-mm-dd' for all day.",
+      "Times are Dar es Salaam (EAT). Use 'yyyy-mm-dd HH:MM', or just 'yyyy-mm-dd' for all day. " +
+      "documentIds attaches already-filed papers (a ticket, an agenda) — they go OUT on the " +
+      "invitation email, so find the id with list_documents and be certain it is the right one.",
     schema: z.object({
       title: z.string().min(2),
       start: z.string().describe("'2026-08-20 09:00' (EAT) or '2026-08-20' for an all-day event"),
@@ -434,6 +436,10 @@ export const MCP_TOOLS: McpTool[] = [
       description: z.string().optional(),
       attendees: z.array(z.string()).optional().describe("Names of existing people to invite"),
       sendInvitations: z.boolean().optional().describe("Default true — set false to add it quietly, inviting nobody"),
+      documentIds: z
+        .array(z.number())
+        .optional()
+        .describe("Ids of filed documents to attach — they are EMAILED to attendees. Owner key only; get ids from list_documents"),
     }),
     capability: "createEvents",
     write: true,

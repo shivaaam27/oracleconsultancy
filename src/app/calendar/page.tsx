@@ -1,4 +1,5 @@
 import { listCalendarEvents, toIcsEvent } from "@/lib/calendar";
+import { countEventDocuments } from "@/lib/event-documents";
 import { advanceDueMeetingTasks, postMeetingFollowups } from "@/lib/meeting-tasks";
 import { listOverlayItems } from "@/lib/calendar-overlays";
 import { listEventCategories } from "@/lib/event-categories";
@@ -67,6 +68,10 @@ export default async function CalendarPage() {
 
   // Pre-compute the share links server-side (the Google URL builder lives next to
   // the .ics builder; keeping it here avoids duplicating the mapping client-side).
+  // How many papers each entry carries — ONE query for the whole board, so a
+  // flight with its ticket attached is obvious without opening it.
+  const attachmentCounts = await countEventDocuments(events.map((e) => e.id));
+
   const views: CalendarEventView[] = events.map((ev) => ({
     ...ev,
     companyLabel: ev.companyId ? companyName.get(ev.companyId) ?? null : null,
@@ -74,6 +79,7 @@ export default async function CalendarPage() {
     categoryName: ev.categoryId ? categoryName.get(ev.categoryId) ?? null : null,
     googleUrl: googleCalendarUrl(toIcsEvent(ev)),
     icsPath: `/api/calendar/${ev.publicToken}.ics`,
+    attachmentCount: attachmentCounts.get(ev.id) ?? 0,
   }));
 
   const now = Date.now();

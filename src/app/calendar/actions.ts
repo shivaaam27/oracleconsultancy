@@ -23,6 +23,12 @@ import { getAppSettings } from "@/lib/settings";
 import { addGoogleMeet, cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
 import { resolveEventCategoryId } from "@/lib/event-categories";
 import { withManagedGuest } from "@/lib/managed-calendar";
+import {
+  eventAttachmentLinks,
+  linkEventDocument,
+  selectEmailAttachments,
+  type EventAttachmentLink,
+} from "@/lib/event-documents";
 import { recordEvent } from "@/lib/system-events";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
@@ -120,6 +126,73 @@ function invalidate() {
   revalidatePath("/calendar");
 }
 
+export type EventDocumentRequest = { id: number; send: boolean };
+
+/**
+ * Papers the form wants attached ("documentIds", a JSON array).
+ *
+ * TWO shapes, both accepted:
+ *   [{ "id": 42, "send": false }]  — the event forms, carrying the per-file
+ *                                    "share with guests" tick;
+ *   [42, 43]                       — MCP, where everything attached is meant to
+ *                                    go out (that is the whole request).
+ *
+ * The `send` flag has to survive this trip. A file marked "reference only"
+ * before the event is saved must NOT be emailed to the guests — dropping the
+ * flag here would email it anyway, which is a disclosure rather than a glitch.
+ */
+function parseDocumentIds(fd: FormData): EventDocumentRequest[] {
+  const raw = (fd.get("documentIds") ?? "").toString().trim();
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    const out = new Map<number, boolean>();
+    for (const entry of v) {
+      const id = Number(typeof entry === "object" && entry !== null ? (entry as { id?: unknown }).id : entry);
+      if (!Number.isInteger(id) || id <= 0) continue;
+      const send =
+        typeof entry === "object" && entry !== null && "send" in (entry as object)
+          ? (entry as { send?: unknown }).send !== false
+          : true;
+      out.set(id, send);
+    }
+    return [...out].map(([id, send]) => ({ id, send }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Attach already-filed documents to an event. Best-effort per document: one bad
+ * id must not lose the others, and it must never fail the event itself — the
+ * diary entry is the point, the paperclip is the convenience.
+ */
+async function attachDocuments(
+  eventId: number,
+  documents: EventDocumentRequest[],
+  createdBy?: string
+): Promise<void> {
+  for (const [i, doc] of documents.entries()) {
+    try {
+      await linkEventDocument(eventId, doc.id, {
+        sendWithInvite: doc.send,
+        sortOrder: i,
+        createdBy: createdBy ?? "web-ui",
+      });
+    } catch { /* skip this one, keep the rest */ }
+  }
+}
+
+/** Permanent links for the papers on an event — for Google, the .ics and the email. */
+async function attachmentLinks(ev: CalendarEvent): Promise<EventAttachmentLink[]> {
+  try {
+    return await eventAttachmentLinks(ev.id, ev.publicToken);
+  } catch {
+    return [];
+  }
+}
+
 export async function createEventAction(
   fd: FormData,
   createdBy?: string,
@@ -152,6 +225,11 @@ export async function createEventAction(
       attendees: await withManagedGuest(parseAttendees(str(fd, "attendees"))),
       createdBy,
     });
+
+    // Attach the papers BEFORE anything is pushed or emailed, so the Google
+    // entry, the .ics and the invitation all carry them on the first pass
+    // rather than needing a second save to catch up.
+    await attachDocuments(ev.id, parseDocumentIds(fd), createdBy);
 
     // Meeting-as-task: spawn one task per company (no deadline) so the meeting can
     // be prepped + followed through in the task system. Per-event override:
@@ -282,7 +360,14 @@ async function ensureGoogleEvent(
   opts?: { requestMeet?: boolean }
 ): Promise<{ ok: boolean; meetLink: string | null }> {
   if (ev.googleEventId) return { ok: true, meetLink: ev.meetLink };
-  const g = await createGoogleEvent(ev, { requestMeet: opts?.requestMeet ?? false });
+  // Papers ride along as Google attachments (permanent links, not Drive files).
+  // createGoogleEvent retries without them if Google objects, so this can only
+  // ever add a paperclip — never cost us the calendar entry.
+  const links = await attachmentLinks(ev);
+  const g = await createGoogleEvent(ev, {
+    requestMeet: opts?.requestMeet ?? false,
+    attachments: links.map((a) => ({ fileUrl: a.url, title: a.fileName || a.title, mimeType: a.mimeType })),
+  });
   if (!g.ok) {
     // Never fail silently: an event that doesn't reach Google is invisible on
     // everyone's phone, and until now there was no trace of why. "not-connected"
@@ -360,12 +445,19 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       // otherwise the director could never be excluded from a single meeting.
       attendees: parseAttendees(str(fd, "attendees")),
     });
+
+    // Newly-ticked papers, before the Google patch below sees the event.
+    await attachDocuments(updated.id, parseDocumentIds(fd));
+
     // Keep the owner's Google copy in step (silent — no guest email from Google).
     // An event that never made it to Google (created while the connection was
     // down) is pushed now, so editing it is also a repair.
     let googleSynced = false;
     if (updated.googleEventId) {
-      const r = await updateGoogleEvent(updated);
+      const links = await attachmentLinks(updated);
+      const r = await updateGoogleEvent(updated, {
+        attachments: links.map((a) => ({ fileUrl: a.url, title: a.fileName || a.title, mimeType: a.mimeType })),
+      });
       googleSynced = r.ok;
     } else {
       googleSynced = (await ensureGoogleEvent(updated)).ok;
@@ -412,7 +504,17 @@ function publicEventUrl(token: string): string | null {
 }
 
 type SendResult =
-  | { ok: true; count: number; via: "google" | "email"; meetLink?: string | null }
+  | {
+      ok: true;
+      count: number;
+      via: "google" | "email";
+      meetLink?: string | null;
+      /** How many papers rode along on the message. */
+      attached?: number;
+      /** Names of any file too large for a mailbox — sent as a link instead.
+       *  Surfaced so the owner knows, rather than assuming the ticket arrived. */
+      tooLargeToAttach?: string[];
+    }
   | { ok: false; error: string; reason?: string };
 
 /** Category name for an event (for the branded email's "Type" row). */
@@ -507,7 +609,34 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
     resolveEventSender(ev.createdBy),
   ]);
   const evForEmail = { ...ev, meetLink };
-  const ics = buildIcs(toIcsEvent(evForEmail, { name: emailFromName, email: emailFrom }));
+
+  // The papers. Three separate jobs, deliberately:
+  //   • `links`  — permanent URLs, listed in the body and emitted as .ics ATTACH
+  //                lines, so the ticket is reachable from the calendar entry for
+  //                as long as the event exists;
+  //   • `attach` — the real bytes on the message, the way an airline sends it;
+  //   • `tooLarge` — anything a mailbox would bounce. It is NOT dropped silently;
+  //                the email says "too large to attach" beside its link, and the
+  //                caller reports it back to the owner.
+  const links = await attachmentLinks(ev);
+  const { attach, tooLarge } = await selectEmailAttachments(ev.id);
+  const attachedIds = new Set(attach.map((a) => a.documentId));
+  const tooLargeIds = new Set(tooLarge.map((a) => a.documentId));
+  const emailAttachments = links.map((a) => ({
+    title: a.title,
+    fileName: a.fileName,
+    url: a.url,
+    attached: attachedIds.has(a.documentId),
+    tooLarge: tooLargeIds.has(a.documentId),
+  }));
+
+  const ics = buildIcs(
+    toIcsEvent(
+      evForEmail,
+      { name: emailFromName, email: emailFrom },
+      links.map((a) => ({ url: a.url, mimeType: a.mimeType, fileName: a.fileName }))
+    )
+  );
 
   let sent = 0;
   let lastError: string | null = null;
@@ -524,6 +653,7 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
       office: sender.office,
       signoffName: sender.signoffName,
       signoffTitle: sender.signoffTitle,
+      attachments: emailAttachments,
     });
     const r = await sendEmail({
       to: a.email!,
@@ -533,6 +663,12 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
       fromName: sender.fromName,
       replyTo: sender.replyTo,
       calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
+      attachments: attach.map((f) => ({
+        filename: f.fileName,
+        content: f.bytes.toString("base64"),
+        encoding: "base64" as const,
+        contentType: f.contentType,
+      })),
     });
     if (r.ok) sent++;
     else if (r.reason === "not-configured") notConfigured = true;
@@ -551,7 +687,12 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
     recipient_name: guests.map((a) => a.name).join(", "),
     recipient_contact: recipients.join(", "),
     subject: `Invitation: ${ev.title}`,
-    body: `Branded invitation sent to ${sent} guest${sent === 1 ? "" : "s"}.${meetLink ? ` Meet: ${meetLink}` : ""}`,
+    body: [
+      `Branded invitation sent to ${sent} guest${sent === 1 ? "" : "s"}.`,
+      meetLink ? ` Meet: ${meetLink}` : "",
+      attach.length ? ` Attached: ${attach.map((f) => f.fileName).join(", ")}.` : "",
+      tooLarge.length ? ` Sent as a link (too large to attach): ${tooLarge.map((f) => f.fileName).join(", ")}.` : "",
+    ].join(""),
     message_type: "calendar-invite",
     status: "Sent",
     source: `calendar:${ev.id}`,
@@ -560,7 +701,14 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
   });
 
   invalidate();
-  return { ok: true, count: sent, via: googleOk ? "google" : "email", meetLink };
+  return {
+    ok: true,
+    count: sent,
+    via: googleOk ? "google" : "email",
+    meetLink,
+    attached: attach.length || undefined,
+    tooLargeToAttach: tooLarge.length ? tooLarge.map((f) => f.fileName) : undefined,
+  };
 }
 
 /**
@@ -580,6 +728,13 @@ export async function previewEventInviteAction(
     eventCategoryName(ev.categoryId),
     resolveEventSender(ev.createdBy),
   ]);
+  // The preview has to show the papers too, and honestly: a file that will go
+  // as a link rather than an attachment says so HERE, before anything is sent.
+  const links = await attachmentLinks(ev);
+  const { attach, tooLarge } = await selectEmailAttachments(ev.id);
+  const attachedIds = new Set(attach.map((a) => a.documentId));
+  const tooLargeIds = new Set(tooLarge.map((a) => a.documentId));
+
   const mail = buildEventEmail(ev, {
     kind,
     organizerName: emailFromName,
@@ -592,6 +747,13 @@ export async function previewEventInviteAction(
     office: sender.office,
     signoffName: sender.signoffName,
     signoffTitle: sender.signoffTitle,
+    attachments: links.map((a) => ({
+      title: a.title,
+      fileName: a.fileName,
+      url: a.url,
+      attached: attachedIds.has(a.documentId),
+      tooLarge: tooLargeIds.has(a.documentId),
+    })),
   });
   const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
   return { ok: true, subject: mail.subject, html: mail.html, recipients };
@@ -762,13 +924,26 @@ async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
       eventCategoryName(ev.categoryId),
       resolveEventSender(ev.createdBy),
     ]);
-    const ics = buildIcs(toIcsEvent(ev, { name: emailFromName, email: emailFrom }));
+    // The papers travel as LINKS on an update, not as bytes again: the guests
+    // already received the file on the invitation, and re-attaching a 5 MB
+    // ticket every time a time is corrected would be a nuisance. Losing the
+    // paperclip altogether would be worse — the .ics carries ATTACH, so the
+    // updated calendar entry keeps the ticket on it.
+    const links = await attachmentLinks(ev);
+    const ics = buildIcs(
+      toIcsEvent(
+        ev,
+        { name: emailFromName, email: emailFrom },
+        links.map((a) => ({ url: a.url, mimeType: a.mimeType, fileName: a.fileName }))
+      )
+    );
     let any = false;
     for (const a of guests) {
       const mail = buildEventEmail(ev, {
         kind: "update", organizerName: emailFromName, organizerEmail: emailFrom,
         companyName, categoryName, recipientName: a.name, publicUrl: publicEventUrl(ev.publicToken),
         office: sender.office, signoffName: sender.signoffName, signoffTitle: sender.signoffTitle,
+        attachments: links.map((x) => ({ title: x.title, fileName: x.fileName, url: x.url, attached: false })),
       });
       const r = await sendEmail({
         to: a.email!, subject: mail.subject, html: mail.html, text: mail.text,

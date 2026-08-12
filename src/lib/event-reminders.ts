@@ -25,6 +25,7 @@ import { getAppSettings } from "@/lib/settings";
 import { postSystemMessage } from "@/lib/chat";
 import { sendEmail } from "@/lib/email/send";
 import { buildEventEmail } from "@/lib/event-email";
+import { eventAttachmentLinks } from "@/lib/event-documents";
 import { listCalendarEvents, type CalendarEvent } from "@/lib/calendar";
 import {
   buildChatBody,
@@ -240,6 +241,13 @@ export async function runEventReminders(opts?: { now?: Date }): Promise<EventRem
 
     // ── branded email ─────────────────────────────────────────────────────
     if (wantEmail) {
+      // The papers, as links. This is arguably the most useful place for them:
+      // the reminder that lands the night before a flight is exactly when the
+      // ticket wants to be one tap away. Links rather than bytes because a
+      // reminder can fire at several lead times, and re-sending the same 5 MB
+      // ticket three times is a nuisance, not a service.
+      const links = await eventAttachmentLinks(ev.id, ev.publicToken).catch(() => []);
+
       for (const a of ev.attendees.filter((g) => g.email)) {
         try {
           const mail = buildEventEmail(shifted, {
@@ -250,6 +258,12 @@ export async function runEventReminders(opts?: { now?: Date }): Promise<EventRem
             publicUrl: process.env.NEXT_PUBLIC_APP_URL
               ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/e/${ev.publicToken}`
               : null,
+            attachments: links.map((x) => ({
+              title: x.title,
+              fileName: x.fileName,
+              url: x.url,
+              attached: false,
+            })),
           });
           const r = await sendEmail({ to: a.email!, subject: mail.subject, html: mail.html, text: mail.text });
           if (r.ok) emailed += 1;

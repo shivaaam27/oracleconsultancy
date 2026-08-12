@@ -134,6 +134,24 @@ export type IcsEvent = {
   sequence?: number;
   /** "confirmed" (default) or "cancelled" to retract a previously sent event. */
   status?: "confirmed" | "cancelled";
+  /**
+   * Papers that belong to the entry — a ticket, an agenda — emitted as ATTACH
+   * lines. Apple Calendar and Outlook show these as a paperclip on the event
+   * itself, which is how a flight ticket stays one tap away months later.
+   *
+   * URLs, never inline bytes: an .ics with a base64 PDF inside it is enormous,
+   * and several clients silently drop the whole VEVENT. The URL must be a
+   * PERMANENT one (our /e/<token>/doc/<id> route), because a calendar entry
+   * outlives any expiring signed link.
+   */
+  attachments?: IcsAttachment[];
+};
+
+export type IcsAttachment = {
+  url: string;
+  /** MIME type, e.g. "application/pdf" — clients use it to pick an icon. */
+  mimeType?: string | null;
+  fileName?: string | null;
 };
 
 // RFC 5545 text escaping: backslash, semicolon, comma, newline.
@@ -247,6 +265,19 @@ export function buildIcs(ev: IcsEvent): string {
         lines.push(`EXDATE:${dtUtc(dt)}`);
       }
     }
+  }
+
+  // ATTACH — the paperclip on the calendar entry. A URI value is NOT escaped
+  // (RFC 5545 §3.3.13): escaping the commas in a query string would break the
+  // link. Parameter values are quoted instead, so a filename with a space or a
+  // semicolon can't terminate the property early.
+  for (const att of ev.attachments ?? []) {
+    const url = (att.url ?? "").trim();
+    if (!url) continue;
+    const params: string[] = [];
+    if (att.mimeType) params.push(`FMTTYPE=${att.mimeType.replace(/[^\w./+-]/g, "")}`);
+    if (att.fileName) params.push(`FILENAME="${att.fileName.replace(/["\r\n]/g, "")}"`);
+    lines.push(`ATTACH${params.length ? `;${params.join(";")}` : ""}:${url}`);
   }
 
   if (ev.organizerEmail)

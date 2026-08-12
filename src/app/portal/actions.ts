@@ -788,6 +788,58 @@ async function enrichAttendeeEmails(formData: FormData): Promise<void> {
  *  Creates the event, then mints the Google Meet link + sends invites to every
  *  attendee with an email — unless the owner has paused director/manager
  *  outreach. Falls back to the .ics email path when Google isn't connected. */
+/**
+ * Keep only the document ids this portal person actually uploaded themselves.
+ *
+ * `documentIds` arrives in the form, and a form is client-supplied. Without this
+ * a manager could submit any id in the library, attach it to an event, and then
+ * read the file straight off the public /e/<token> page. Uploads are stamped
+ * server-side with `portal:<Name>` (see calendar/attachment-actions.ts), so
+ * "did you put this here" is a question the database can answer.
+ *
+ * The owner's own side is unaffected — the admin form links from the library on
+ * purpose, and that path is admin-gated separately.
+ */
+async function attachableDocumentIds(me: PortalPerson, formData: FormData): Promise<void> {
+  const raw = (formData.get("documentIds") ?? "").toString().trim();
+  if (!raw) return;
+
+  // Entries are `{ id, send }` from the event forms (a bare number is also
+  // accepted). The `send` flag must be carried through untouched — rebuilding
+  // this as a plain id list would silently re-tick "send to guests" on a file
+  // the person had marked reference-only.
+  let entries: Array<{ id: number; send: boolean }> = [];
+  try {
+    const v = JSON.parse(raw);
+    entries = Array.isArray(v)
+      ? v
+          .map((e) => ({
+            id: Number(typeof e === "object" && e !== null ? (e as { id?: unknown }).id : e),
+            send: typeof e === "object" && e !== null && "send" in (e as object)
+              ? (e as { send?: unknown }).send !== false
+              : true,
+          }))
+          .filter((e) => Number.isInteger(e.id) && e.id > 0)
+      : [];
+  } catch {
+    entries = [];
+  }
+  if (!entries.length) {
+    formData.delete("documentIds");
+    return;
+  }
+
+  const { data } = await sb
+    .from("documents")
+    .select("id")
+    .in("id", entries.map((e) => e.id))
+    .eq("created_by", `portal:${me.name}`);
+  const mine = new Set((data ?? []).map((r) => r.id as number));
+  const kept = entries.filter((e) => mine.has(e.id));
+  if (kept.length) formData.set("documentIds", JSON.stringify(kept));
+  else formData.delete("documentIds");
+}
+
 async function portalCreateAndSendEvent(formData: FormData, createdBy: string): Promise<PortalEventResult> {
   await enrichAttendeeEmails(formData);
   // Whether to auto-add a Google Meet link (form toggle; default on). "0" = off.
@@ -871,6 +923,7 @@ export async function portalDirectorCreateEvent(formData: FormData): Promise<Por
   if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
+  await attachableDocumentIds(me, formData);
   const res = await portalCreateAndSendEvent(formData, `portal-dir:${me.name}`);
   if (res.ok) revalidatePath("/portal/board");
   return res;
@@ -884,6 +937,7 @@ export async function portalManagerCreateEvent(formData: FormData): Promise<Port
   if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
+  await attachableDocumentIds(me, formData);
   const res = await portalCreateAndSendEvent(formData, `portal-mgr:${me.name}`);
   if (res.ok) revalidatePath("/portal");
   return res;
@@ -898,6 +952,7 @@ export async function portalCreateEvent(formData: FormData): Promise<PortalEvent
   if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
+  await attachableDocumentIds(me, formData);
   const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "manager" ? "portal-mgr" : "portal-hr";
   const res = await portalCreateAndSendEvent(formData, `${tag}:${me.name}`);
   if (res.ok) {
