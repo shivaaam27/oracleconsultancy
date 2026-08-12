@@ -2,6 +2,12 @@
   "regions": [
     "dub1"
   ],
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "master": true
+    }
+  },
   "headers": [
     {
       "source": "/manifest.json",
