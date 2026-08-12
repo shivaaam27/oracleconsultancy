@@ -18,7 +18,7 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
 import { FluidSelect } from "@/components/fluid-select";
-import { isoToLocalInput as sharedIsoToLocalInput } from "@/components/date-time-field";
+import { isoToLocalInput as sharedIsoToLocalInput, TimeField } from "@/components/date-time-field";
 import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { Combobox } from "@/components/combobox";
 import { ReferenceAdmin } from "@/components/reference-admin";
@@ -1422,6 +1422,23 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   );
 }
 
+/* ---- ONE size for everything in the event form ----------------------- *
+ * Measured on the live form before this: single-line controls came in FOUR
+ * different heights — 34px (date, time), 36px (title, link, location, repeats),
+ * 42px (category) and 44px (company) — plus two chip sizes, 24px and 25px. That
+ * raggedness is what made the form feel unfinished. These three constants are
+ * now the only sizes used, so a new field cannot quietly introduce a fifth.
+ *
+ * FIELD       — height only, for controls that bring their own shell (Input, Select).
+ * FIELD_SHELL — the full box, for controls we style ourselves (date, time, company, category).
+ * CHIP        — every small toggle: reminders and the quick templates.
+ */
+const FIELD = "h-10 rounded-xl";
+const FIELD_SHELL =
+  "h-10 rounded-xl bg-bg-subtle px-3.5 text-sm text-fg ring-1 ring-border transition-colors hover:ring-accent/40";
+const CHIP =
+  "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium ring-1 transition-colors";
+
 const REMINDER_OPTS: { v: number; label: string }[] = [
   { v: 0, label: "At start" },
   { v: 10, label: "10m" },
@@ -1432,20 +1449,12 @@ const REMINDER_OPTS: { v: number; label: string }[] = [
   { v: 10080, label: "1 week" },
 ];
 
-// Time-of-day options every 15 min, e.g. { value: "14:30", label: "2:30 PM" }.
-const TIME_OPTS: { value: string; label: string }[] = Array.from({ length: 96 }, (_, i) => {
-  const h = Math.floor(i / 4);
-  const m = (i % 4) * 15;
-  const hh = String(h).padStart(2, "0");
-  const mm = String(m).padStart(2, "0");
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  const ap = h < 12 ? "AM" : "PM";
-  return { value: `${hh}:${mm}`, label: `${h12}:${mm} ${ap}` };
-});
+// (The 96-option TIME_OPTS list that used to live here is gone — the form now
+// uses TimeField, where you type the time. See lib/time-input.ts.)
 const dateOf = (v: string) => (v || "").slice(0, 10);
 const timeOf = (v: string) => (v && v.length >= 16 ? v.slice(11, 16) : "");
-const composeDT = (date: string, time: string, allDay: boolean) =>
-  !date ? "" : allDay ? date : `${date}T${time || "09:00"}`;
+// (composeDT was removed with the combined date+time state — returning "" for an
+//  empty date is exactly what silently discarded a time typed before a date.)
 
 const TEMPLATES: { label: string; durationMin: number; reminders: number[]; allDay?: boolean }[] = [
   { label: "30-min call", durationMin: 30, reminders: [10] },
@@ -1484,15 +1493,32 @@ function EventForm({
   const [reminders, setReminders] = useState<number[]>(editing?.reminders ?? []);
   const [recurrence, setRecurrence] = useState<string>(editing?.recurrence ?? "none");
   const [recurrenceUntil, setRecurrenceUntil] = useState<string>(editing?.recurrenceUntil ? editing.recurrenceUntil.slice(0, 10) : "");
-  const [startVal, setStartVal] = useState<string>(isoToLocalInput(editing?.startAt ?? null, editing?.allDay ?? false));
-  const [endVal, setEndVal] = useState<string>(isoToLocalInput(editing?.endAt ?? null, false));
+  // Date and time are held SEPARATELY, and the combined value is derived below.
+  //
+  // They used to be one datetime-local string, and `composeDT` returns "" when
+  // the date is empty — so choosing a time before choosing a date silently threw
+  // the time away and snapped back to 09:00. Found while testing the new time
+  // field; it was there before it too. Keeping them apart means each is
+  // remembered on its own, in whichever order you fill them in.
+  const startSeed = isoToLocalInput(editing?.startAt ?? null, editing?.allDay ?? false);
+  const endSeed = isoToLocalInput(editing?.endAt ?? null, false);
+  const [startDate, setStartDate] = useState<string>(dateOf(startSeed));
+  const [startTime, setStartTime] = useState<string>(timeOf(startSeed) || "09:00");
+  const [endDate, setEndDate] = useState<string>(dateOf(endSeed));
+  const [endTime, setEndTime] = useState<string>(timeOf(endSeed) || "10:00");
+
+  const startVal = startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : "";
+  const endVal = endDate ? `${endDate}T${endTime}` : "";
   // Meet links are OPT-IN. Most entries in a diary are not video calls — a site
   // visit, a flight, a lunch — and a link nobody asked for is worse than a
   // missing one. Tick it when you actually want a room.
   const [addMeet, setAddMeet] = useState(false);
   // New events: also track the meeting as a task (creates one task per company).
   const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
-  const [trackTask, setTrackTask] = useState(!editing);
+  // OFF by default (owner's call, Aug 2026). Most diary entries — a flight, a
+  // site visit, a lunch — are not something to follow through as a task, and
+  // having it pre-ticked created one every time unless you noticed.
+  const [trackTask, setTrackTask] = useState(false);
 
   // Title / location / description are CONTROLLED so an attached ticket can fill
   // them in. They were uncontrolled defaults; a read would have had no way to
@@ -1531,8 +1557,16 @@ function EventForm({
       setDescription((prev) => (prev.trim() ? `${prev.trim()}\n\n${p.description}` : p.description));
     }
     if (p.allDay) setAllDay(true);
-    if (p.startAt && !startVal) setStartVal(isoToLocalInput(p.startAt, p.allDay));
-    if (p.endAt && !endVal && !p.allDay) setEndVal(isoToLocalInput(p.endAt, false));
+    if (p.startAt && !startDate) {
+      const local = isoToLocalInput(p.startAt, p.allDay);
+      setStartDate(dateOf(local));
+      if (!p.allDay) setStartTime(timeOf(local) || "09:00");
+    }
+    if (p.endAt && !endDate && !p.allDay) {
+      const local = isoToLocalInput(p.endAt, false);
+      setEndDate(dateOf(local));
+      setEndTime(timeOf(local) || "10:00");
+    }
     if (p.reminders.length && !reminders.length) setReminders(p.reminders);
   }
 
@@ -1544,7 +1578,11 @@ function EventForm({
     setReminders(t.reminders);
     if (!t.allDay && t.durationMin && startVal) {
       const ms = inputToMs(startVal, false);
-      if (ms) setEndVal(isoToLocalInput(new Date(ms + t.durationMin * 60_000).toISOString(), false));
+      if (ms) {
+        const local = isoToLocalInput(new Date(ms + t.durationMin * 60_000).toISOString(), false);
+        setEndDate(dateOf(local));
+        setEndTime(timeOf(local) || "10:00");
+      }
     }
   }
 
@@ -1632,7 +1670,9 @@ function EventForm({
     <HrmsDialog
       open
       onClose={onClose}
-      width="lg"
+      // 820px, not the "lg" preset: two columns need roughly 380px each to hold
+      // a Meet link or a long company name without wrapping.
+      width={820}
       title={
         <span className="inline-flex items-center gap-2">
           <CalendarPlus size={16} className="text-accent" />
@@ -1650,201 +1690,135 @@ function EventForm({
         </>
       }
     >
-      <form id="calendar-event-form" action={submit} className="space-y-5">
-        {/* Title + when */}
-        <div className="space-y-4">
-          {!editing && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] uppercase tracking-wider text-fg-subtle mr-0.5">Quick</span>
-              {TEMPLATES.map((t) => (
-                <button key={t.label} type="button" onClick={() => applyTemplate(t)}
-                  className="rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div>
-            <FieldLabel>Title</FieldLabel>
-            <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with Dar Spices" className="font-medium" />
-          </div>
+      {/* ONE grid, two columns. Every short field is half-width, so the 311px of
+          dead space that sat beside Category and Repeats is gone and the form is
+          roughly half as tall — it now fits without scrolling. Fields holding
+          long text (title, description, attachments, attendees) span both.
+          Order follows how an event is actually decided: what · when · who ·
+          where · detail · optional extras last. */}
+      <form id="calendar-event-form" action={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
+        {/* ── What ─────────────────────────────────────────────────────── */}
+        <div className="sm:col-span-2">
+          <FieldLabel>Title</FieldLabel>
+          <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with Dar Spices" className={cn(FIELD, "font-medium")} />
+        </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[150px]">
-              <FieldLabel>{allDay ? "Date" : "Start date"}</FieldLabel>
-              <DatePopover block value={dateOf(startVal) || null} onChange={(d) => setStartVal(composeDT(d, timeOf(startVal), allDay))} />
-            </div>
-            {!allDay && (
-              <div className="w-[128px]">
-                <FieldLabel>Time</FieldLabel>
-                <FluidSelect value={timeOf(startVal) || "09:00"} options={TIME_OPTS} onSelect={(t) => setStartVal(composeDT(dateOf(startVal), t, false))} />
+        {/* ── When: start, end and all-day on ONE row ──────────────────── */}
+        <div className="sm:col-span-2">
+          <div className="mb-1.5 flex items-end justify-between gap-3">
+            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">When</span>
+            {/* Quick templates sit WITH the times they change, rather than
+                floating above the title as the first thing you met. */}
+            {!editing && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {TEMPLATES.map((t) => (
+                  <button key={t.label} type="button" onClick={() => applyTemplate(t)}
+                    className={cn(CHIP, "bg-bg-subtle text-fg-muted ring-border hover:text-fg")}>
+                    {t.label}
+                  </button>
+                ))}
               </div>
             )}
-            <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-bg-elev text-sm cursor-pointer select-none hover:border-border-strong transition-colors">
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-[132px] flex-1">
+              <DatePopover
+                block
+                triggerClassName={FIELD_SHELL}
+                value={startDate || null}
+                // Mirror the end date when it is still blank. Almost every event
+                // starts and ends on the same day, and the row already shows an
+                // end TIME — leaving "No date" beside it meant that time was
+                // quietly ignored on save.
+                onChange={(d) => { setStartDate(d); if (!endDate) setEndDate(d); }}
+              />
+            </div>
+            {!allDay && (
+              <>
+                <TimeField className="w-[104px] shrink-0" inputClassName={FIELD_SHELL} value={startTime} onChange={setStartTime} />
+                <span className="text-xs text-fg-subtle">to</span>
+                <div className="min-w-[132px] flex-1">
+                  <DatePopover block triggerClassName={FIELD_SHELL} value={endDate || null} onChange={setEndDate} />
+                </div>
+                <TimeField className="w-[104px] shrink-0" inputClassName={FIELD_SHELL} value={endTime} onChange={setEndTime} />
+              </>
+            )}
+            <label className={cn(FIELD_SHELL, "inline-flex shrink-0 cursor-pointer select-none items-center gap-2")}>
               <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="h-3.5 w-3.5 accent-[hsl(var(--accent))]" />
               All-day
             </label>
           </div>
-          {!allDay && (
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[150px]">
-                <FieldLabel>End date</FieldLabel>
-                <DatePopover block value={dateOf(endVal) || null} onChange={(d) => setEndVal(composeDT(d, timeOf(endVal), false))} />
-              </div>
-              <div className="w-[128px]">
-                <FieldLabel>Time</FieldLabel>
-                <FluidSelect value={timeOf(endVal) || "10:00"} options={TIME_OPTS} onSelect={(t) => setEndVal(composeDT(dateOf(endVal), t, false))} />
-              </div>
-            </div>
-          )}
-          {/* Canonical values the server reads (kept in datetime-local / date shape). */}
-          <input type="hidden" name="startAt" value={allDay ? dateOf(startVal) : (dateOf(startVal) ? composeDT(dateOf(startVal), timeOf(startVal) || "09:00", false) : "")} />
-          {!allDay && <input type="hidden" name="endAt" value={dateOf(endVal) ? composeDT(dateOf(endVal), timeOf(endVal) || "10:00", false) : ""} />}
-
+          {/* Canonical values the server reads (datetime-local / date shape). */}
+          <input type="hidden" name="startAt" value={startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : ""} />
+          {!allDay && <input type="hidden" name="endAt" value={endDate ? `${endDate}T${endTime}` : ""} />}
           {conflicts.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg bg-warn-soft/60 ring-1 ring-warn/30 px-3 py-2 text-xs text-warn">
+            <div className="mt-2 flex items-start gap-2 rounded-lg bg-warn-soft/60 px-3 py-2 text-xs text-warn ring-1 ring-warn/30">
               <Bell size={13} className="mt-0.5 shrink-0" />
               <span>Overlaps {conflicts.length} existing event{conflicts.length === 1 ? "" : "s"}: {conflicts.slice(0, 3).map((c) => c.title).join(", ")}{conflicts.length > 3 ? "…" : ""}</span>
             </div>
           )}
         </div>
 
-        {/* Where */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Meeting link</FieldLabel>
-            <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" />
-            {!editing && (
-              <label className="mt-1.5 flex items-center gap-2 text-[11px] text-fg-muted cursor-pointer">
-                <input type="checkbox" checked={addMeet} onChange={(e) => setAddMeet(e.target.checked)} className="accent-[var(--accent)]" />
-                {addMeet ? "A Google Meet link is added when you create this event" : "No Meet link will be added"}
-              </label>
-            )}
-          </div>
-          <div>
-            <FieldLabel>Location</FieldLabel>
-            <Input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" />
-          </div>
+        {/* ── Who — moved up: you settle who it is with early, not last. ── */}
+        <div className="sm:col-span-2">
+          <FieldLabel>Attendees</FieldLabel>
+          <AttendeePicker people={people} value={picked} onChange={setPicked} />
         </div>
 
-        {/* Company — a searchable dropdown (multi-select). One task per selected
-            company when tracked; the first is the event's lead company. */}
+        {/* ── Filing: company + category, paired ───────────────────────── */}
         <div>
           <FieldLabel>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company"}</FieldLabel>
-          <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} />
+          <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(FIELD_SHELL, "flex w-full items-center justify-between")} />
           {companyIds.length > 1 && (
-            <p className="mt-1 text-[11px] text-fg-subtle">A task is created for each company; the first is the event&apos;s lead company.</p>
+            <p className="mt-1 text-[11px] text-fg-subtle">One task per company; the first is the lead.</p>
           )}
         </div>
         <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
         <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
 
-        {/* Category — type a new one to create it on the fly, or pick an existing. */}
-        <div className="sm:w-1/2">
+        <div>
           <FieldLabel>Category</FieldLabel>
           <Combobox
             name="category"
             options={categories.map((c) => c.name)}
             defaultValue={editing?.categoryName ?? ""}
-            placeholder="e.g. Board meeting — or pick one"
-            className="w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+            placeholder="Board meeting…"
+            className={cn(FIELD_SHELL, "w-full placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40")}
           />
         </div>
 
-        <div className="sm:w-1/2">
-          <FieldLabel>Repeats</FieldLabel>
-          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
-            <option value="none">Does not repeat</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </Select>
+        {/* ── Where: place + link, paired ──────────────────────────────── */}
+        <div>
+          <FieldLabel>Location</FieldLabel>
+          <Input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" className={FIELD} />
+        </div>
+        <div>
+          <FieldLabel>Meeting link</FieldLabel>
+          <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" className={FIELD} />
+          {!editing && (
+            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] text-fg-muted">
+              <input type="checkbox" checked={addMeet} onChange={(e) => setAddMeet(e.target.checked)} className="accent-[var(--accent)]" />
+              {addMeet ? "A Google Meet link is added on create" : "No Meet link will be added"}
+            </label>
+          )}
         </div>
 
-        {recurrence !== "none" && (
-          <div className="sm:w-1/2">
-            <FieldLabel>Repeat until (optional)</FieldLabel>
-            <Input type="date" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} />
-          </div>
-        )}
-
-        {/* Per-occurrence skip — cancel JUST this date of a repeating event. Only
-            shown when editing an existing recurring occurrence. */}
-        {isRecurring && (
-          <div className="rounded-xl bg-bg-subtle/60 ring-1 ring-border/70 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
-              {alreadySkipped ? (
-                <span className="text-[11px] font-medium text-danger shrink-0">This date is cancelled</span>
-              ) : (
-                <Button type="button" size="sm" variant="ghost" onClick={doSkip} disabled={pending} className="shrink-0">
-                  Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                </Button>
-              )}
-            </div>
-            {editing!.excludedDates.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-                <span className="text-[11px] text-fg-subtle">Cancelled dates (tap to restore):</span>
-                {editing!.excludedDates.map((d) => (
-                  <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
-                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-[11px] text-danger ring-1 ring-danger/20 hover:bg-danger-soft/70 transition-colors">
-                    {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Meeting-as-task: create a task to prep/follow the meeting (one per company). */}
-        {!editing && (
-          <label className="flex items-start gap-2.5 rounded-xl bg-bg-subtle ring-1 ring-border/70 px-3 py-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={trackTask}
-              onChange={(e) => setTrackTask(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--accent))]"
-            />
-            <span className="text-sm">
-              <span className="font-medium">
-                {companyIds.length > 1 ? `Track as ${companyIds.length} tasks (one per company)` : "Track this meeting as a task"}
-              </span>
-              <span className="block text-[12px] text-fg-muted">
-                {companyIds.length > 0
-                  ? "Creates a task (no deadline) so you can prep and follow it through; it moves to In Progress when the meeting starts."
-                  : "Pick a company above to create a follow-through task."}
-              </span>
-            </span>
-          </label>
-        )}
-        <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
-
-        {/* Reminders */}
-        <div>
-          <FieldLabel>Reminders</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {REMINDER_OPTS.map((o) => {
-              const on = reminders.includes(o.v);
-              return (
-                <button key={o.v} type="button" onClick={() => toggleReminder(o.v)}
-                  className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
-                    on ? "bg-accent/15 text-accent ring-accent/40" : "ring-border text-fg-muted hover:text-fg bg-bg-subtle")}>
-                  <Bell size={11} /> {o.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1 text-[11px] text-fg-subtle">Pick one or more — each becomes an alarm in the invite.</p>
-        </div>
-
-        {/* Description */}
-        <div>
+        {/* ── Detail — full width and roomy. An AI-read ticket runs to ten
+               lines and used to arrive in a two-line box. ──────────────── */}
+        <div className="sm:col-span-2">
           <FieldLabel>Description</FieldLabel>
-          <Textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Agenda, notes…" />
+          <Textarea
+            name="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={5}
+            placeholder="Agenda, notes…"
+            className="min-h-[7.5rem] resize-y leading-relaxed"
+          />
         </div>
 
         {/* Papers that travel with the entry — ticket, booking, agenda. */}
-        <div>
+        <div className="sm:col-span-2">
           <EventAttachments
             eventId={editing?.id ?? null}
             companyId={companyIds[0] ?? editing?.companyId ?? null}
@@ -1856,11 +1830,79 @@ function EventForm({
           {readBanner && <ReadSummary prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
         </div>
 
-        {/* Attendees */}
+        {/* ── Reminders + repeats, paired ──────────────────────────────── */}
         <div>
-          <FieldLabel>Attendees</FieldLabel>
-          <AttendeePicker people={people} value={picked} onChange={setPicked} />
+          <FieldLabel>Reminders</FieldLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {REMINDER_OPTS.map((o) => {
+              const on = reminders.includes(o.v);
+              return (
+                <button key={o.v} type="button" onClick={() => toggleReminder(o.v)}
+                  className={cn(CHIP, on ? "bg-accent/15 text-accent ring-accent/40" : "bg-bg-subtle text-fg-muted ring-border hover:text-fg")}>
+                  <Bell size={11} /> {o.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        <div>
+          <FieldLabel>Repeats</FieldLabel>
+          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)} className={FIELD}>
+            <option value="none">Does not repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </Select>
+          {recurrence !== "none" && (
+            <Input type="date" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className={cn(FIELD, "mt-2")} aria-label="Repeat until" />
+          )}
+        </div>
+
+        {/* Per-occurrence skip — cancel JUST this date of a repeating event. */}
+        {isRecurring && (
+          <div className="space-y-2 rounded-xl bg-bg-subtle/60 p-3 ring-1 ring-border/70 sm:col-span-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
+              {alreadySkipped ? (
+                <span className="shrink-0 text-[11px] font-medium text-danger">This date is cancelled</span>
+              ) : (
+                <Button type="button" size="sm" variant="ghost" onClick={doSkip} disabled={pending} className="shrink-0">
+                  Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </Button>
+              )}
+            </div>
+            {editing!.excludedDates.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
+                <span className="text-[11px] text-fg-subtle">Cancelled dates (tap to restore):</span>
+                {editing!.excludedDates.map((d) => (
+                  <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
+                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-[11px] text-danger ring-1 ring-danger/20 transition-colors hover:bg-danger-soft/70">
+                    {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Meeting-as-task — OFF by default (owner's call): most diary entries
+            are not something to follow through as a task. */}
+        {!editing && (
+          <label className="flex h-10 cursor-pointer select-none items-center gap-2.5 rounded-xl bg-bg-subtle px-3 ring-1 ring-border/70 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={trackTask}
+              onChange={(e) => setTrackTask(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[hsl(var(--accent))]"
+            />
+            <span className="truncate text-sm">
+              {companyIds.length > 1 ? `Track as ${companyIds.length} tasks (one per company)` : "Track this meeting as a task"}
+              <span className="text-fg-muted"> — {companyIds.length > 0 ? "prep and follow it through" : "pick a company first"}</span>
+            </span>
+          </label>
+        )}
+        <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
       </form>
     </HrmsDialog>
   );

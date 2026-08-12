@@ -328,7 +328,7 @@ export function EventAttachments({
             type="button"
             disabled={!!working}
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1.5 rounded-full bg-bg-subtle px-2.5 text-xs font-medium text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50"
           >
             <Paperclip size={11} /> Attach a file
           </button>

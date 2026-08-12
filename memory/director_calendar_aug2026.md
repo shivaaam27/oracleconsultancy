@@ -265,3 +265,49 @@ Running it often is harmless — every reminder fires at most once.
   simply skips guests without an address.
 - Not built: reading RSVP status back from Google, and a daily morning agenda
   (the owner picked per-event reminders over a digest).
+
+## The event form was rebuilt (Aug 2026) — measured, not guessed
+
+The owner: "the preview panel is large, not optimised… I can't scroll to change
+time… the description hurts when information is long… attendees should be at the
+top… there shouldn't be any negative space."
+
+Measured on the live form first. All of it was true:
+
+| | Before | After |
+|---|---|---|
+| Content vs window | 1301px in a 614px window (**687px hidden**) | 859px (245px, and it fits outright on a full-height screen) |
+| Category / Repeats | 312px wide in a 623px form — **311px dead beside each**, on separate rows | paired, full width used |
+| Single-line control heights | **four**: 34 / 36 / 42 / 44px | **one**: 40px |
+| Chip heights | two: 24 / 25px | one: 28px |
+| Description | 58px (~2 lines) | 131px (5 rows, resizable) |
+| Attendees | last, under attachments | third, right after When |
+| Track as task | ticked by default | **off** |
+| Dialog | 680px | 820px |
+
+- **Two-column grid** (`grid sm:grid-cols-2`); long fields span both. Order now
+  follows how an event is decided: what · when · who · where · detail · extras.
+- **`FIELD` / `FIELD_SHELL` / `CHIP` in calendar-board.tsx are the only sizes** —
+  a new field cannot quietly introduce a fifth height. `attendee-picker` and the
+  attachment buttons were brought onto them too.
+- Quick templates moved next to the When row, beside the times they change.
+
+### The time picker — the real complaint
+It was a **96-option dropdown: 3,468px of list in a 501px window, opening at
+midnight while the selected time sat 1,446px below the fold**. Replaced by
+**`TimeField`** (`components/date-time-field.tsx`) — type `1430`, `2:30pm`, `930`
+or `9`. Parsing is pure and unit-tested in **`lib/time-input.ts`** (16 tests);
+suggestions start AROUND the current time, never at 00:00. Out-of-range input is
+REFUSED, not clamped — turning "25:00" into 23:59 would set a time nobody chose.
+The portal event sheet gets this free, via `DateTimeField`.
+
+### Two bugs found while testing
+1. **Choosing a time before a date silently discarded it.** `composeDT` returns
+   "" when the date is empty, so the time snapped back to 09:00. Predated this
+   work. Fixed by holding **date and time as separate state** and deriving the
+   combined value — verified: typing 10:45 with no date, then picking the 20th,
+   yields `2026-08-20T10:45`.
+2. **Focusing the time field blanked it** (my own, introduced then fixed): the
+   focus handler cleared the text. Selecting instead was worse — a click collapses
+   the selection, so typing "1045" against "9:00 AM" gave "9:00 AM1045". It now
+   clears the text but shows the current time as the PLACEHOLDER.

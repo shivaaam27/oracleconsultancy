@@ -51,7 +51,9 @@ export function DocLinkPicker({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-1 rounded-md bg-bg-subtle px-1.5 py-1 text-[11px] text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50",
+          // h-7 / rounded-full so it matches the chips and the "Attach a file"
+          // button it sits beside; it used to be 3px shorter than both.
+          "inline-flex h-7 items-center gap-1 rounded-full bg-bg-subtle px-2.5 text-xs text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50",
           triggerClassName,
         )}
       >

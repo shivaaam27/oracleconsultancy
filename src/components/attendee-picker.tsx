@@ -72,7 +72,10 @@ export function AttendeePicker({
       <div className="relative">
         <div
           className={cn(
-            "w-full min-h-9 px-2 py-1.5 rounded-lg border border-border bg-bg-elev",
+            // min-h-10 / rounded-xl to match every other field in the event form
+            // (see FIELD_SHELL in calendar-board.tsx) — it used to sit 4px
+            // shorter than its neighbours, which read as sloppy.
+            "w-full min-h-10 px-2.5 py-1.5 rounded-xl border border-border bg-bg-elev",
             "flex flex-wrap items-center gap-1.5 cursor-text",
             "focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/20"
           )}
