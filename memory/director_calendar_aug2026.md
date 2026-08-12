@@ -311,3 +311,54 @@ The portal event sheet gets this free, via `DateTimeField`.
    focus handler cleared the text. Selecting instead was worse — a click collapses
    the selection, so typing "1045" against "9:00 AM" gave "9:00 AM1045". It now
    clears the text but shows the current time as the PLACEHOLDER.
+
+## Editing no longer emails anybody (Aug 2026)
+
+> "I want to edit an event — timing, date, description, reminders — but I do not
+> want to fire another email. I want it to update on the calendar automatically."
+
+**It already updated silently; the email was ours.** `updateGoogleEvent` patches
+with `sendUpdates: "none"`, which Google's own reference describes as governing
+*notification delivery, not data synchronisation* — attendees still receive the
+changed event. The noise came from one unconditional line: `emailUpdateIfSent`
+ran on EVERY save, gated only on "was an invitation ever sent". Correct a typo →
+everyone got an "Updated:" email.
+
+Now:
+
+- **`notifyGuests` ("1"/"0") — a tick box, OFF by default.** No tick, no email.
+  Only rendered when editing and a guest actually has an address.
+- **A no-op save does nothing at all.** `diffEvent` compares before/after BEFORE
+  writing; zero changes → return early, no row write, no sequence bump, no
+  Google patch, no ping. It used to do all four for a save that altered nothing.
+- **`src/lib/event-changes.ts`** (pure, 16 tests) — the diff, plus
+  `changeLines()` for the email: *"When: Mon, 7 Sept 2026, 10:45–14:15 → Tue,
+  8 Sept 2026, 14:00–15:30"*. Filing fields (company, category) count as a change
+  for saving but are filtered out of what a GUEST is told (`guestFacingChanges`).
+- **The email leads with "What changed"** rather than re-listing the event.
+- **The bell + push on a real reschedule stays** — it is not email, and someone
+  could otherwise turn up at the wrong hour. Now driven by `diff.timeMoved`.
+- **Update emails are logged to the outbox** (`message_type: calendar-update`).
+  They previously left no trace whatsoever.
+- The toast says what actually happened: "Nothing changed — nothing was sent." /
+  "Saved. Their calendar updates automatically — no email sent." / "…and guests
+  have been emailed what changed." The old one claimed "guests notified" whenever
+  GOOGLE synced, which read as though an email had gone.
+
+**⚠️ Compare instants, never date STRINGS.** The database returns
+`2026-09-07T07:45:00+00:00`; the form produces `2026-09-07T07:45:00.000Z`. Same
+moment, different text. The first cut of `timeMoved` compared strings and would
+have reported a reschedule on every save, buzzing every attendee. Pinned by a
+test using both spellings.
+
+### Corrections to the notes above
+- **Short lead times DO work.** The scheduling note said a daily Vercel cron
+  isn't enough and an external scheduler "would be" needed. One is running, and
+  has been: `cron.tick` fires **every 15 minutes** (verified in `system_events`),
+  and the ledger shows a 30-minute reminder delivered. Reminders land within ~15
+  minutes of the mark, not to the second.
+- **Editing reminders cannot change a guest's calendar alarm.** Google documents
+  `reminders` as "for the authenticated user" — they are per-person. COS holds
+  the OPERATOR's Google account, so it only ever sets the operator's alarms. The
+  guest is still reminded, by COS push + chat + email at the chosen lead times.
+  The owner asked for no note about this in the form (Aug 2026).

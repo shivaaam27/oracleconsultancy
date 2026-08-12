@@ -1530,6 +1530,10 @@ function EventForm({
   // Papers travelling with the event, and what the last read found.
   const [attachments, setAttachments] = useState<AttachedDoc[]>([]);
   const [readBanner, setReadBanner] = useState<EventPrefill | null>(null);
+  // Editing NEVER emails unless this is ticked. The calendar updates either way
+  // — Google is patched silently — so correcting a typo no longer posts a
+  // message to every guest.
+  const [notifyGuests, setNotifyGuests] = useState(false);
 
   // An existing event already has its papers — load them so the list shows what
   // is attached rather than looking empty until something new is dropped.
@@ -1637,7 +1641,10 @@ function EventForm({
     // invitation path minted one regardless, so "No Meet link will be added" was
     // silently ignored on any event with an email guest.
     if (!editing) fd.set("requestMeet", addMeet ? "1" : "0");
-    if (editing) fd.set("id", String(editing.id));
+    if (editing) {
+      fd.set("id", String(editing.id));
+      fd.set("notifyGuests", notifyGuests ? "1" : "0");
+    }
     start(async () => {
       const r = editing ? await updateEventAction(fd) : await createEventAction(fd);
       if (r.ok) {
@@ -1654,8 +1661,16 @@ function EventForm({
         if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
           const m = await ensureEventMeetLink(r.id);
           toast((m.meetLink ? "Event created — Google Meet link added." : "Event created.") + taskNote + inviteNote, { tone: r.inviteNotConfigured ? "warn" : "success" });
-        } else if (editing && r.googleSynced) {
-          toast("Event updated — guests notified of the change.", { tone: "success", duration: 6000 });
+        } else if (editing) {
+          // Say exactly what happened. The old toast claimed "guests notified"
+          // whenever Google synced, which was true of the calendar but read as
+          // though an email had gone out.
+          const msg = r.unchanged
+            ? "Nothing changed — nothing was sent."
+            : r.guestsEmailed
+              ? "Saved. Their calendar is updated and guests have been emailed what changed."
+              : "Saved. Their calendar updates automatically — no email sent.";
+          toast(msg, { tone: "success", duration: 6000 });
         } else {
           toast((editing ? "Event updated" : "Event created") + taskNote + inviteNote, { tone: r.inviteNotConfigured ? "warn" : "success" });
         }
@@ -1884,6 +1899,27 @@ function EventForm({
               </div>
             )}
           </div>
+        )}
+
+        {/* Telling guests is a DELIBERATE act, never a side effect of saving.
+            Only shown when there is somebody with an email to tell. */}
+        {editing && picked.some((p) => p.email) && (
+          <label className="flex cursor-pointer select-none items-start gap-2.5 rounded-xl bg-bg-subtle px-3 py-2.5 ring-1 ring-border/70 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={notifyGuests}
+              onChange={(e) => setNotifyGuests(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--accent))]"
+            />
+            <span className="text-sm">
+              Tell guests about this change
+              <span className="block text-[12px] text-fg-muted">
+                {notifyGuests
+                  ? "They will get an email saying exactly what changed."
+                  : "Their calendar updates by itself — tick this only if they need to be told."}
+              </span>
+            </span>
+          </label>
         )}
 
         {/* Meeting-as-task — OFF by default (owner's call): most diary entries

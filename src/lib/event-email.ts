@@ -35,6 +35,15 @@ export type EventEmailOptions = {
    * from the email months later even if their mail client strips attachments.
    */
   attachments?: EventEmailAttachment[];
+  /**
+   * For an "update" email: what actually changed, one line each
+   * ("When: Tue 25 Aug, 10:45 → Wed 26 Aug, 14:00").
+   *
+   * Without this the message just re-listed the whole event and left the reader
+   * to spot the difference — which is no use to someone deciding whether this
+   * affects their morning.
+   */
+  changeLines?: string[];
 };
 
 export type EventEmailAttachment = {
@@ -251,7 +260,21 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   // version gave every one of these identical weight in a flat two-column list,
   // so the departure time of a flight looked no more important than its baggage
   // allowance.
-  const rows: string[] = [heroWhen(ev)];
+  const rows: string[] = [];
+
+  // What changed goes FIRST on an update — it is the only reason the message
+  // exists, and burying it under the full details is how the old one read.
+  const changed = opts.changeLines ?? [];
+  if (kind === "update" && changed.length) {
+    rows.push(`<tr><td style="padding:0 0 16px">
+      <div style="border-left:3px solid ${ACCENT};background:${ACCENT}0d;border-radius:0 10px 10px 0;padding:10px 14px">
+        <div style="font-size:12px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;color:${ACCENT};font-family:${FONT};padding-bottom:5px">What changed</div>
+        ${changed.map((l) => `<div style="font-size:15px;line-height:1.55;color:#1b2333;font-family:${FONT}">${esc(l)}</div>`).join("")}
+      </div>
+    </td></tr>`);
+  }
+
+  rows.push(heroWhen(ev));
 
   if (ev.location) rows.push(detailRow("Where", esc(ev.location)));
   if (ev.meetLink) {
@@ -356,7 +379,11 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   // --- Plain-text fallback ---
   const textLines: string[] = [];
   if (opts.recipientName) textLines.push(`Hi ${firstName(opts.recipientName)},`, "");
-  textLines.push(ev.title, "", intro, "", `When: ${when}`);
+  textLines.push(ev.title, "", intro, "");
+  if (kind === "update" && changed.length) {
+    textLines.push("What changed:", ...changed.map((l) => `  ${l}`), "");
+  }
+  textLines.push(`When: ${when}`);
   if (repeats) textLines.push(`Repeats: ${repeats}`);
   if (opts.categoryName) textLines.push(`Type: ${opts.categoryName}`);
   if (ev.meetLink) textLines.push(`Join: ${ev.meetLink}`);

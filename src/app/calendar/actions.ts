@@ -26,9 +26,11 @@ import { withManagedGuest } from "@/lib/managed-calendar";
 import {
   eventAttachmentLinks,
   linkEventDocument,
+  listEventDocuments,
   selectEmailAttachments,
   type EventAttachmentLink,
 } from "@/lib/event-documents";
+import { changeLines, diffEvent, guestFacingChanges } from "@/lib/event-changes";
 import { recordEvent } from "@/lib/system-events";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
@@ -36,7 +38,21 @@ import { calendarEvents, eventCategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 type Result =
-  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean; taskCodes?: string[]; invited?: number; inviteNotConfigured?: boolean }
+  | {
+      ok: true;
+      id?: number;
+      googleSynced?: boolean;
+      googleCancelled?: boolean;
+      taskCodes?: string[];
+      invited?: number;
+      inviteNotConfigured?: boolean;
+      /** Nothing actually changed, so nothing was written, pushed or sent. */
+      unchanged?: boolean;
+      /** An "updated" email really went out (only when the box was ticked). */
+      guestsEmailed?: boolean;
+      /** How many fields changed — lets the toast say what happened. */
+      changeCount?: number;
+    }
   | { ok: false; error: string };
 
 /** Parse a JSON array of company ids from the form ("companyIds"), falling back
@@ -428,7 +444,17 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
     // Remember the old slot so a genuine RESCHEDULE can be told apart from a
     // typo fix — only a moved meeting is worth buzzing everyone about.
     const before = await getCalendarEvent(id);
-    const updated = await updateCalendarEvent(id, {
+
+    // EDITING NEVER EMAILS unless you say so (owner's call, Aug 2026). It used
+    // to email every guest on EVERY save — correct a typo, everyone hears about
+    // it. The calendar itself updates either way: Google is patched with
+    // sendUpdates:"none", which its own docs describe as suppressing the
+    // notification, NOT the data, so attendees still get the new details.
+    const notifyGuests = fd.get("notifyGuests") === "1";
+
+    // What the form is asking for, in the same shape as the stored event, so the
+    // two can be compared BEFORE anything is written.
+    const nextFields = {
       title,
       description: str(fd, "description"),
       location: str(fd, "location"),
@@ -440,18 +466,39 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       allDay,
       reminders: parseReminders(str(fd, "reminders")),
       ...parseRecurrence(fd),
-      // NOT run through withManagedGuest: on an edit the guest list is whatever
-      // the owner left in the picker. Taking someone off ONE event has to stick,
-      // otherwise the director could never be excluded from a single meeting.
       attendees: parseAttendees(str(fd, "attendees")),
+    };
+
+    // Papers can change without any field changing, so they count too.
+    const wantedDocs = parseDocumentIds(fd);
+    const existingDocs = before ? await listEventDocuments(before.id).catch(() => []) : [];
+    const existingDocIds = new Set(existingDocs.map((d) => d.id));
+    const docsChanged =
+      wantedDocs.some((d) => !existingDocIds.has(d.id)) ||
+      wantedDocs.some((d) => existingDocs.find((e) => e.id === d.id)?.sendWithInvite !== d.send);
+
+    const diff = before ? diffEvent(before, { ...before, ...nextFields }) : null;
+
+    // Nothing actually changed → do nothing at all. A no-op save used to bump
+    // the version number, re-send the whole event to Google and email everyone.
+    if (diff && diff.changes.length === 0 && !docsChanged) {
+      return { ok: true, id, unchanged: true };
+    }
+
+    const updated = await updateCalendarEvent(id, {
+      ...nextFields,
+      // `attendees` is NOT run through withManagedGuest: on an edit the guest
+      // list is whatever the owner left in the picker. Taking someone off ONE
+      // event has to stick, otherwise the director could never be excluded from
+      // a single meeting.
     });
 
     // Newly-ticked papers, before the Google patch below sees the event.
-    await attachDocuments(updated.id, parseDocumentIds(fd));
+    await attachDocuments(updated.id, wantedDocs);
 
-    // Keep the owner's Google copy in step (silent — no guest email from Google).
-    // An event that never made it to Google (created while the connection was
-    // down) is pushed now, so editing it is also a repair.
+    // Keep the owner's Google copy in step. THIS is what makes a silent edit
+    // work: sendUpdates:"none" stops Google notifying anyone, while the event
+    // data itself still syncs to every attendee's calendar.
     let googleSynced = false;
     if (updated.googleEventId) {
       const links = await attachmentLinks(updated);
@@ -462,12 +509,33 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
     } else {
       googleSynced = (await ensureGoogleEvent(updated)).ok;
     }
-    // Tell guests about the change with OUR branded "updated" email (only if an
-    // invite was actually sent before — never for an unsent draft).
-    const guestsNotified = await emailUpdateIfSent(updated);
 
-    // Moved to a different time → tell the attendees in-app as well.
-    if (before && before.startAt !== updated.startAt) {
+    // The branded "updated" email — ONLY when the owner deliberately ticked the
+    // box, and only if an invitation was actually sent before. It carries what
+    // changed, in words, rather than re-listing the whole event.
+    let guestsNotified = false;
+    if (notifyGuests) {
+      const lines = diff ? changeLines(guestFacingChanges(diff)) : [];
+
+      // A newly attached paper is news to a guest even when no field moved —
+      // "here is your ticket" is often the whole reason for telling them.
+      if (docsChanged) {
+        const nowDocs = await listEventDocuments(updated.id).catch(() => []);
+        for (const d of nowDocs.filter((x) => !existingDocIds.has(x.id))) {
+          lines.push(`Attached: ${d.fileName || d.title} (added)`);
+        }
+      }
+
+      // Nothing a guest would recognise as a change → send nothing. Ticking the
+      // box after re-filing the event under a different company should not post
+      // everyone an email that says only "this event has been updated".
+      if (lines.length) guestsNotified = await emailUpdateIfSent(updated, lines);
+    }
+
+    // Moved to a different time → tell the attendees in-app. This is a bell and
+    // a push, NOT an email, so it stays on regardless of the tick box: someone
+    // could otherwise turn up at the wrong hour.
+    if (diff?.timeMoved) {
       await pingAttendees(
         updated,
         `Moved: ${updated.title}`,
@@ -476,7 +544,13 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
     }
 
     invalidate();
-    return { ok: true, id, googleSynced: googleSynced || guestsNotified };
+    return {
+      ok: true,
+      id,
+      googleSynced,
+      guestsEmailed: guestsNotified,
+      changeCount: diff?.changes.length ?? 0,
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update event." };
   }
@@ -910,7 +984,7 @@ async function emailCancellationIfSent(ev: CalendarEvent): Promise<void> {
  * when an invite was actually sent before. Returns true if anyone was emailed.
  * Best-effort: never throws.
  */
-async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
+async function emailUpdateIfSent(ev: CalendarEvent, changed: string[] = []): Promise<boolean> {
   try {
     const guests = ev.attendees.filter((a) => a.email);
     if (guests.length === 0) return false;
@@ -944,12 +1018,31 @@ async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
         companyName, categoryName, recipientName: a.name, publicUrl: publicEventUrl(ev.publicToken),
         office: sender.office, signoffName: sender.signoffName, signoffTitle: sender.signoffTitle,
         attachments: links.map((x) => ({ title: x.title, fileName: x.fileName, url: x.url, attached: false })),
+        changeLines: changed,
       });
       const r = await sendEmail({
         to: a.email!, subject: mail.subject, html: mail.html, text: mail.text,
         fromName: sender.fromName, replyTo: sender.replyTo, calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
       });
       if (r.ok) any = true;
+    }
+
+    // Record it, the way an invitation is recorded. Update emails used to leave
+    // no trace at all — you could not tell afterwards what had gone out.
+    if (any) {
+      const now = new Date().toISOString();
+      await sb.from("outbox").insert({
+        channel: "EMAIL",
+        recipient_name: guests.map((a) => a.name).join(", "),
+        recipient_contact: guests.map((a) => a.email).join(", "),
+        subject: `Updated: ${ev.title}`,
+        body: changed.length ? changed.join("\n") : "Event updated.",
+        message_type: "calendar-update",
+        status: "Sent",
+        source: `calendar:${ev.id}`,
+        created_at: now,
+        sent_at: now,
+      });
     }
     return any;
   } catch {

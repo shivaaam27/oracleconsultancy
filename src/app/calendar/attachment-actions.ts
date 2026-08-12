@@ -38,12 +38,15 @@ import {
 } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 import {
+  eventAttachmentLinks,
   linkEventDocument,
   unlinkEventDocument,
   setEventDocumentSendFlag,
   listEventDocuments,
   type EventDocument,
 } from "@/lib/event-documents";
+import { getCalendarEvent } from "@/lib/calendar";
+import { updateGoogleEvent } from "@/lib/google-calendar";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { recordEvent } from "@/lib/system-events";
@@ -208,10 +211,36 @@ export async function fileEventAttachmentAction(input: {
 
 type Ok = { ok: true } | Denied;
 
+/**
+ * Push the event's current paperclips to Google.
+ *
+ * These three actions take effect the moment you click, without going through
+ * the event form — so without this they changed COS and nothing else. Adding a
+ * file left it off the calendar entry until some later edit happened to sync;
+ * removing one, or un-ticking "share with guests", left it STILL VISIBLE to
+ * every guest on the Google event. That last one is a disclosure, not an
+ * inconvenience: the tick is supposed to withdraw the file from the guests.
+ *
+ * Silent (`sendUpdates: "none"` inside updateGoogleEvent) — changing an
+ * attachment must not email anybody. Best-effort: the paperclip is a
+ * convenience, and a Google blip must never fail the click.
+ */
+async function syncAttachmentsToGoogle(eventId: number): Promise<void> {
+  try {
+    const ev = await getCalendarEvent(eventId);
+    if (!ev?.googleEventId) return;
+    const links = await eventAttachmentLinks(ev.id, ev.publicToken);
+    await updateGoogleEvent(ev, {
+      attachments: links.map((a) => ({ fileUrl: a.url, title: a.fileName || a.title, mimeType: a.mimeType })),
+    });
+  } catch { /* best-effort */ }
+}
+
 export async function linkEventDocumentAction(eventId: number, documentId: number): Promise<Ok> {
   if (!(await isOwner())) return DENIED;
   try {
     await linkEventDocument(eventId, documentId);
+    await syncAttachmentsToGoogle(eventId);
     revalidatePath("/calendar");
     return { ok: true };
   } catch (e) {
@@ -224,6 +253,7 @@ export async function unlinkEventDocumentAction(eventId: number, documentId: num
   if (!(await isOwner())) return DENIED;
   try {
     await unlinkEventDocument(eventId, documentId);
+    await syncAttachmentsToGoogle(eventId);
     revalidatePath("/calendar");
     return { ok: true };
   } catch (e) {
@@ -231,7 +261,8 @@ export async function unlinkEventDocumentAction(eventId: number, documentId: num
   }
 }
 
-/** Tick/untick "share with guests" — governs the email AND the public link. */
+/** Tick/untick "share with guests" — governs the email, the public link AND the
+ *  paperclip on the Google entry, so all three withdraw together. */
 export async function setEventDocumentShareAction(
   eventId: number,
   documentId: number,
@@ -240,6 +271,7 @@ export async function setEventDocumentShareAction(
   if (!(await isOwner())) return DENIED;
   try {
     await setEventDocumentSendFlag(eventId, documentId, share);
+    await syncAttachmentsToGoogle(eventId);
     revalidatePath("/calendar");
     return { ok: true };
   } catch (e) {
