@@ -1,3 +1,9 @@
+> **⚠️ SUPERSESSION AGREED, NOT YET APPLIED (Aug 2026).** The owner has asked for
+> COS to be rebuilt in the **ERPNext** shape — flat, grey, dense, with one uniform
+> list + record screen everywhere. Stage 1 of `memory/erpnext_redesign_plan.md`
+> rewrites this file. **Until then Aurora below remains the rule**, so that the
+> system is never half-converted. Read the plan before starting any UI work.
+
 # Aurora — the COS Design System (liquid glass, web, Apple-inspired)
 
 **The design language is called "Aurora."** When the owner says *"make X Aurora"* /

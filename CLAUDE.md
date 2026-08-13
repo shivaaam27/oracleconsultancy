@@ -62,6 +62,13 @@ The system replaces an Excel workbook with:
 - Admin edge auth gate lives in `src/proxy.ts` (Next-16 `proxy` convention; renamed from `middleware.ts`). The `secret()` derivation here MUST stay identical to `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). Run a backup before any migration/bulk DB change.
+- **Deploys: ONLY `master`, and push ONLY to `master`** (Aug 2026). `vercel.json` carries
+  `git.deploymentEnabled: { "**": false, "master": true }` — `**` not `*`, because minimatch
+  does not cross `/` and the branch names have slashes (`claude/…`, `dependabot/npm_and_yarn/…`);
+  with `*` it would match only `master` and change nothing. Vercel deploys a branch if ANY
+  matching rule is true, so listing `master: true` after the catch-all keeps production live.
+  **Do not also push the working branch** — pushing both `HEAD:master` and the branch is what
+  produced two builds of identical code (one production, one preview) and wasted a deploy.
 - **Dependency security**: `package.json` `overrides` pin patched `postcss`/`esbuild`/`sharp`/`fast-uri` (keeps `npm audit` clean without breaking downgrades — do not remove without re-checking audit). Dependabot config in `.github/dependabot.yml`.
   - **KNOWN, ACCEPTED (Jul 2026): `brace-expansion` 2.1.2 nested under `minimatch` stays unpatched.** `npm audit` reports it as high (GHSA-mh99-v99m-4gvg, DoS). **Do NOT add a `brace-expansion` override** — the only patched release is 5.0.8, which switched to a named export, so `minimatch` throws `brace_expansion_1.default is not a function` on any `{a,b}` pattern. This was tried and reverted. There is no patched 2.x. **Where it actually sits (corrected Jul 2026):** the surviving vulnerable copy is `node_modules/minimatch/node_modules/brace-expansion`, reached via `googleapis` → `googleapis-common` → `gaxios` → `rimraf` → `glob` → `minimatch`. That is a RUNTIME chain (Google Calendar sync), not build-only — an earlier note here said "build config" and was wrong. Still not exploitable: triggering it needs an attacker-controlled brace pattern reaching `expand()`, and the only patterns on that path are ones the libraries construct internally; no user input reaches a glob pattern anywhere in this app. The top-level copy IS patched (5.0.8), so nothing else resolves to the vulnerable one. Re-check when `minimatch` ships a release accepting brace-expansion ≥5.
 
@@ -215,7 +222,26 @@ Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Di
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed. **Removed Aug 2026 (documents back to manual):** `/inbox` + `/api/inbox`, `/suggestions`, `/api/dropbox/*`, `/api/cron/auto-sort`, `/api/ask-doc`, `/api/doc-passages`, `/api/company-requirements`, `/api/person-requirements`, `/api/requirement-templates`, and the Registrations tab on Tax & Legal. Their tables WERE dropped (migration 0114) — see "Documents — manual filing".
 
-## Design language — "Aurora" (DEFAULT for everything)
+## ⚠️ A redesign is agreed but NOT started — read this before any UI work
+
+The owner uses ERPNext, loves it, and has asked for COS to be rebuilt in that
+shape: flat/grey/dense, one uniform list + record screen everywhere, saved views
+and bulk edit. He chose the **full structural rebuild** with the cheaper options
+put to him first, so it is a settled decision — roughly 6–9 weeks, staged.
+
+**Read `memory/erpnext_redesign_plan.md` before touching any UI.** It holds the
+stages, the decisions, the measurements (already taken — don't repeat them), the
+palette, what is deliberately out of scope, and the mockup link.
+
+The key insight in one line: ERPNext's uniformity comes from **metadata**, and
+COS already has the seed of it in `src/lib/entity-registry.ts` — extend that with
+list columns and form sections and generate the screens, rather than hand-copying
+a layout across 58 pages.
+
+**Until Stage 1 lands, Aurora below is still the rule.** Don't half-convert
+things. The plan's Stage 1 rewrites this section and `DESIGN_SYSTEM.md` together.
+
+## Design language — "Aurora" (DEFAULT for everything — until the redesign above)
 
 The visual + interaction system is named **Aurora**. **Every new page, dialog, pop-up,
 search surface, panel, drawer or feature uses Aurora by default — do not invent a new
