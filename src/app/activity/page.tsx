@@ -18,7 +18,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   }));
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5">
       <HrmsCrumbs from={from} />
       <PageHeader
         title="Activity log"

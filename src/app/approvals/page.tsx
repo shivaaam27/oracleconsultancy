@@ -9,7 +9,7 @@ export const metadata = { title: "Approvals · COS" };
 export default async function ApprovalsPage() {
   const [approvals, activity, urgent] = await Promise.all([listApprovals(), listCockpitActivity(), gatherUrgent()]);
   return (
-    <div className="mx-auto max-w-[760px] space-y-4">
+    <div className="space-y-4">
       <div className="px-1">
         <h1 className="text-lg font-semibold tracking-tight">Approvals</h1>
         <p className="text-sm text-fg-muted">

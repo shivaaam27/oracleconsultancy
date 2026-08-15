@@ -1,234 +1,240 @@
-> **⚠️ SUPERSESSION AGREED, NOT YET APPLIED (Aug 2026).** The owner has asked for
-> COS to be rebuilt in the **ERPNext** shape — flat, grey, dense, with one uniform
-> list + record screen everywhere. Stage 1 of `memory/erpnext_redesign_plan.md`
-> rewrites this file. **Until then Aurora below remains the rule**, so that the
-> system is never half-converted. Read the plan before starting any UI work.
+# Desk — the COS Design System (flat, grey, dense; ERPNext-shaped)
 
-# Aurora — the COS Design System (liquid glass, web, Apple-inspired)
+**The design language is called "Desk"** — ERPNext's own word for its working
+interface, because that is exactly what this borrows. When the owner says *"make
+X look like the rest of the system,"* it means: build it from the rules below.
+**Every new page, dialog, pop-up, panel or feature defaults to Desk — without
+being asked.**
 
-**The design language is called "Aurora."** When the owner says *"make X Aurora"* /
-*"this popup should be Aurora"* / *"redesign the documents page in Aurora,"* it means:
-build it from the Aurora kit below so it looks and behaves like the rest of the system.
-**Every new page, dialog, pop-up, search surface, panel or feature defaults to Aurora —
-without being asked.** (Mirrored as a standing rule in `CLAUDE.md`.)
+> **Replaced Aurora (liquid glass) in Stage 1 of the ERPNext redesign, Aug 2026.**
+> Aurora was Apple-inspired: translucent, rounded, atmospheric. It is gone — the
+> owner uses ERPNext daily and asked for COS in that shape. The old language
+> survives only in git history and as *class names* (`.glass`, `.elevated`) that
+> now resolve to flat surfaces, so 94 components needed no edit.
+> Programme + remaining stages: `memory/erpnext_redesign_plan.md`.
 
-A living reference for the COS visual + interaction system. It is **Apple-inspired,
-not a clone**: we follow Apple's *rules* (architecture + accessibility) and rebuild
-the *behaviour* with web tech (CSS `backdrop-filter`, layered materials, framer-motion).
-True iOS 26 `glassEffect` APIs don't exist on the web, so this is a faithful
-approximation that works cross-browser **including iPhone Safari**.
+## 0. Desk at a glance
 
-Keep this file updated whenever the system changes — it's how we keep improving.
+Seven rules. If a screen obeys these it belongs.
 
----
+1. **Flat.** No glass, no blur, no glow, no gradient, no atmospheric wash. One
+   surface: a solid fill with a hairline edge.
+2. **Grey page, white content.** `#f4f5f6` behind, `#ffffff` for anything you can
+   read or act on. Dark mode: `#15181b` behind, `#1c2126` in front.
+3. **Crisp corners.** 4px on chips and badges, 6px on controls, 8px on cards.
+   **Nothing is a pill.**
+4. **Dense.** 13px body text; 9px list rows (4px on Compact). Whitespace is not
+   how this system breathes — the grid is.
+5. **Hairlines do the separating.** A shadow means "this floats above the page"
+   (menus, popovers, the nav pill) and nothing else.
+6. **One blue** (`#2490ef`) for what you can act on. Colour that *means*
+   something — red, amber, green, violet — is kept separate from it and used as
+   text and small dots, not as blocks of fill.
+7. **Every screen works the same way.** List → record → sidebar → history. The
+   uniformity is the product.
 
-## 0. Aurora at a glance
+### Applying Desk to a new page, dialog or panel
 
-**In one breath:** liquid-glass surfaces · one cool-blue accent · **centred, never
-edge-to-edge** · **no hard boxes** (soft panels + hairlines + whitespace) · iPhone-style
-toggles · concentric radius ladder · calm, reduced-motion-safe motion · quietly **alive**
-(heartbeat, count-ups, world-accent tints) · glanceable; every number is a door; observe + act.
+- Page opens with a heading and a rule: `<section data-page-header>`, with any
+  figures line as `data-page-header-meta`. Never a rounded hero card.
+- Content sits on `bg-bg-elev` with `border border-border` and `rounded-xl`.
+- Lists: tag rows `data-list-row` and the column strip `data-list-head`, and they
+  inherit the 9px/4px rhythm and the quiet uppercase header automatically.
+- Fields are visible boxes — a white fill and a hairline — so you can see where
+  you may type before you touch it.
+- Buttons: filled blue for the primary action, hairline + white for the rest.
+- Status is text and small dots, never a coloured block.
+- Reach for the kit (`ui.tsx`, `surface-kit.tsx`, `BottomSheet`, `Combobox`,
+  `FluidSelect`, `EntityDrawer`) before writing anything new.
 
-### The Aurora kit — reuse, never reinvent
-- **Layout:** `CommandWall` (centred max-width column; reserved side rails) wraps a
-  screen; `Hero` (aurora-washed header); `Panel` / **`CockpitModule`** for every section
-  (soft, no hard border); `Reveal` for staggered entrance.
-- **Controls:** `Button` (Apple-like press/rim), the shared **`Switch`** (iPhone toggle,
-  `ui.tsx`), `FluidSelect` / `Combobox`, `SearchField`.
-- **Status + data:** the `TONE` map (6 tones: danger/warn/success/accent/info/muted),
-  `Badge` / `Pill` / `TrendChip` / `Stat`, `InsightPopover` for hover detail. Status shows
-  as small dots / text, **never loud coloured blocks**.
-- **Overlays:** `EntityDrawer` (hero + tab-morph + sticky actions) for any drawer/inspector;
-  glass dialogs (Radix + `.glass .glass-menu elevated rounded-3xl`, `popIn`, centred).
-- **Per-domain colour:** the 7 world accents (`lib/worlds.ts`) tint world surfaces + the pill.
-- **Alive (use sparingly, always meaningful):** `CockpitLive` heartbeat, count-ups, live
-  activity feed, world-accent tints. Never looping/busy.
+### The consistency contract
 
-### Applying Aurora to a new …
-- **Page** → wrap in `CommandWall`; lead with a `Hero`; sections as `CockpitModule`s in a
-  single calm column; `Reveal`-stagger; British-English copy; `force-dynamic` if live.
-- **Pop-up / dialog** → Radix Dialog with `.glass glass-menu elevated rounded-3xl`, centred,
-  `popIn`; quiet title + close; content as soft rows, not nested boxes.
-- **Search** → `SearchField` / the ⌘K palette language; results as soft rows with TONE dots.
-- **Toggle / control** → the shared `Switch`; status as dots/text.
-- **List / directory page** → the canonical rhythm is **stat strip → search + filter chips
-  → rows → drawer**. Use the shared pieces, do not re-roll them:
-  - `StatStrip` (`ui.tsx`) — glanceable header metrics (2 cols mobile, one row from `sm`).
-    Built on `Stat` (tinted icon tile + tone-coloured number).
-  - `FilterChips` (`filter-chips.tsx`) — status filters that **collapse to icon + count on
-    mobile** (the active chip keeps its label) and show full labels from `sm` up. Every chip
-    needs a self-explanatory icon + `title`/`aria-label`.
-  - `EntityCard` (`entity-card.tsx`) — the floating glass list-row shell: brand-tinted left
-    rail, hover-to-accent ring, selectable state, full pointer/keyboard activation. Compose
-    row content as children (leading slot · `min-w-0 flex-1` body · trailing meta). People's
-    directory (`person-card.tsx`) is the reference implementation.
-- **Never** → hard-bordered box-soup, loud colour fills, edge-to-edge width, a bespoke
-  one-off when a kit piece exists, or motion that ignores reduced-motion.
+Anything you build inherits, with no work on your part:
 
-### The consistency contract (what you can rely on across every page)
-Pages differ in their middles — that's fine. These never vary, and that's what makes the
-app feel like one system:
-1. **Frame** — centred max-width column + `PageHeader` (title · sub · action) + the single
-   nav pill. Same margins, same header, same place the `+` lives.
-2. **Tokens only, one accent** — colours/spacing/radius come from `globals.css`; never a
-   hardcoded hex (only exception: company brand rails). One cool-blue accent. Status as
-   dots/small text, never blocks.
-3. **Reuse the kit** — before building a row, chip, stat, drawer, toggle or dialog, check
-   for the kit piece above. A one-off is only justified when no piece fits — and then it
-   should become a new kit piece, not stay local.
+- the palette, in both themes, from ~120 token lines in `globals.css`;
+- flat surfaces — `.glass`, `.vibrancy`, `.elevated`, `.nav-frost`, `.glass-menu`
+  all resolve to the one surface;
+- square corners — `rounded-full` is squared globally (see §3);
+- the type scale — `text-xs`…`text-3xl` are ERPNext's sizes;
+- the density switch — `data-density="compact"` on `<html>`, from the nav pill;
+- reduced-motion and increased-contrast handling.
 
-The rest of this file is the detailed reference behind the kit.
+## 1. Principles
 
----
+- **Businesslike, not beautiful.** This is a tool for a working day. Nothing
+  decorative earns its place.
+- **Uniform beats bespoke.** A screen that behaves like the last screen is worth
+  more than a screen that is cleverer than the last screen.
+- **Density is respect.** More on screen means less scrolling and fewer clicks.
+- **Glanceable.** Worst-first ordering, real numbers, and every number a door.
+- **Calm motion.** 120–240ms, opacity and small translations only. No springs,
+  no drifting blobs, no parallax. Reduced-motion is honoured everywhere.
+- **Accessible by default.** Hairlines strengthen under `prefers-contrast: more`;
+  focus is a 2px accent outline; hit areas stay ≥ 32px even in Compact.
 
-## 1. Principles (from Apple's HIG / Liquid Glass guidance)
+## 2. Surfaces (there is only one)
 
-1. **Glass is for the navigation/overlay layer only** — never on content (tables,
-   cards, lists, media). Content stays solid; glass floats above it.
-2. **No glass-on-glass.**
-3. **Tint = call-to-action**, not decoration. One confident accent.
-4. **Gentle blur** — clarity + translucency, not heavy frost. Content reads through.
-5. **Concentric corners** — nested shapes step down in radius.
-6. **Accessibility is non-negotiable** — honour Reduce Transparency / Increase
-   Contrast / Reduce Motion; never override them.
-7. **Motion rests in steady states** — spring transitions, press feedback, morphs;
-   no looping animation.
+| | |
+|---|---|
+| **Page** | `bg-bg` — the grey field everything sits on |
+| **Surface** | `bg-bg-elev` + `border border-border` — cards, lists, panels, dialogs |
+| **Inset** | `bg-bg-subtle` — table header strips, striping, quiet rows |
+| **Floating** | surface + `--shadow-md` — menus, popovers, the nav pill only |
 
----
-
-## 2. The three tiers
-
-| Tier | What | Treatment | Examples |
-|---|---|---|---|
-| **1 — Glass chrome** | Floating navigation/overlays | `.glass` (frosted + specular + depth; `.glass-refract` on Chromium) | Command palette, task inspector, capture wizard, bottom pill, Assist menu, sheets, mobile sidebar |
-| **2 — Solid content** | Data surfaces | `.elevated` (lit rim + soft shadow, **no blur**), `rounded-xl` (12px) | Cards, tables, list rows, stats |
-| **3 — Atmospheric wash** | Header colour/light | `.wash-accent` (subtle accent gradient behind content) | COS Home hero |
-
----
+The old three-tier material system (glass / elevated / wash) is retired. The
+class names still exist and are safe to use; they all mean "surface".
 
 ## 3. Tokens (`src/app/globals.css`)
 
-**Colour** (light + dark, adaptive):
-- Accent: cool professional blue (`--accent`, light `214 88% 52%`, dark `213 94% 62%`).
-- Semantic: `--success / --warn / --danger / --info` (+ `-soft`).
-- Surfaces: `--bg / --bg-elev / --bg-subtle / --bg-muted`.
+One file, one place. Change a token and every screen changes.
 
-**Glass material:**
-- `--glass-tint` (light `…/0.44`, dark `…/0.55`) — translucent fill, readable.
-- `--glass-border`, `--glass-rim` (specular top highlight).
-- `--blur-sm 6 / --blur-md 9 / --blur-lg 16` (gentle).
+```
+light   page #f4f5f6   surface #ffffff   surface-alt #fafbfc
+        line #e2e6e9   ink #1f272e   ink-muted #6b757d   ink-subtle #8d99a6
+        accent #2490ef   accent-soft #eaf3fd
+        red #d13d3d   amber #b7791f   green #2f9461
 
-**Radius (concentric ladder):** `--radius-sm 6 · md 8 · lg 10 · xl 12 · 2xl 16`.
-Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
+dark    page #15181b   surface #1c2126   surface-alt #20262c
+        line #2c343b   ink #e7ebee   ink-muted #9aa5ae   ink-subtle #78838c
+        accent #4aa3f5   accent-soft #17293b
+        red #f07171   amber #dda44b   green #5cc08a
 
-**Motion:** `--ease-spring`, `--ease-out`, `--dur-fast/base/slow`. JS presets in
-`src/lib/motion.ts` (`spring`, `springSoft`, `springSnappy`, `easeOut`, `fadeUp`, `popIn`).
+radius  4px chips · 6px controls · 8px cards
+type    11 · 12.5 · 13 · 16 · 18 · 22 · 26px   (Compact drops a notch)
+rows    9px padding · 4px on Compact
+```
 
----
+Colours are stored as bare HSL triplets (`208 19% 15%`) and consumed as
+`hsl(var(--fg))`, so alpha variants (`bg-accent/10`) keep working.
 
-## 4. CSS utilities
+**Square corners.** `rounded-full` is a hard-coded 9999px that no token can
+reach, and pages carry ~250 of them, so `globals.css` squares it globally.
+Exempted, deliberately: status dots and the live "ping" (small *empty* elements,
+matched by an exact size token), spinners, and anything marked `data-switch`
+(a toggle only reads as a toggle when it is a capsule).
 
-- `.glass` — layered glass material (Tier 1). Sheen is a layered background
-  gradient (works on fixed/sticky/static; never overrides `position`).
-- `.glass-refract` — adds Chromium-only SVG edge refraction when `html[data-refract="1"]`.
-- `.elevated` — Tier-2 lit rim + soft depth (no frost).
-- `.wash-accent` — Tier-3 accent header wash.
-- `.btn-primary-rim` / `.btn-rim` — control highlight materials.
-- `svg.lucide { stroke-width: 1.75 }` — lighter, SF-Symbols-like icons.
+## 4. CSS utilities worth knowing
 
-**Accessibility media queries (mandatory):**
-- `@media (prefers-reduced-transparency: reduce)` → all glass becomes opaque, no blur.
-- `@media (prefers-contrast: more)` → stronger borders + text.
-- `@media (prefers-reduced-motion)` → transitions neutralised (+ `<MotionConfig reducedMotion="user">`).
+- `.glass` / `.vibrancy` / `.elevated` — the one flat surface (legacy names).
+- `.glass-menu` / `.nav-frost` / `.org-pop` — surface + the floating shadow.
+- `data-page-header` / `-meta` — page heading and figures line.
+- `data-list-row` / `data-list-head` — list rhythm and column strip.
+- `data-decor` — marks a purely decorative element; it is hidden outright.
+- `.bare-field` — opts a field out of the box treatment (its ROW owns the edge).
+- `.slim-scroll`, `.scroll-fade-y`, `.no-scrollbar` — scroll-housing helpers.
+- `.tabular` — tabular figures; use for every number in a column.
 
----
+## 5. Density
 
-## 5. Components (where each is used)
+Comfortable (default) and Compact, from the toggle in the nav pill and the portal
+preferences. It sets `data-density` on `<html>`, so **every** screen honours it:
+Compact drops the type a notch and roughly halves row padding. Build lists from
+`data-list-row` and you get this free.
 
-| Component | File | Purpose / used by |
-|---|---|---|
-| `Button` / `LinkButton` / `IconButton` | `components/ui.tsx` | All buttons. Press compression, focus ring, `loading`, rim materials. |
-| `Card`, `Surface`, `TableShell`, `Badge`, `Stat`, `PageHeader`, `EmptyState`, `SearchInput`, inputs | `components/ui.tsx` | Tier-2 content surfaces + form bits. **`SearchInput`** = leading magnifier + system border/bg + accent focus ring (use for page search bars). |
-| `Segmented`, `Pill`, `SearchField`, `Toolbar`, `ListRow`, `Sheet` | `components/macos.tsx` | macOS primitives. Segmented has a `layoutId` morph indicator. |
-| `TopPill` / `NavLens` / `HrmsLauncher` | `components/top-pill.tsx` | The single bottom nav pill (all breakpoints). Tabs: Home · Director Brief · Task Management · Workbook · **HRMS** + page-action `+` · Search · Theme. **`HrmsLauncher`** = the HRMS icon opens a centred "Go to" dashboard (Radix Dialog) of all secondary destinations (replaced the old "More" sheet + per-tab popovers). Draggable liquid-glass lens. |
-| `LiquidGlassDefs` | `components/liquid-glass.tsx` | Squircle displacement map + SVG filters (`#cos-liquid-glass` backdrop, `#cos-lens-refract` element); flips `data-refract` on Chromium. |
-| `SwipeRow` | `components/swipe-row.tsx` | iOS swipe **actions** (framer `drag="x"` + `dragDirectionLock`, action-on-threshold coloured reveals). Admin side; used by `AttentionList`. |
-| `useSwipeRow` | `lib/use-swipe-row.ts` | iOS swipe **tray reveal** for portal action rows (persistent open state you then tap). Axis-locked (vertical scroll never engages — pair with `touch-pan-y`), finger-following, settle-or-snap-back. Adopters: board `AttentionCard`, `PortalTaskCard`, tasks-command `TaskRow`. Prefer this for portal rows; `SwipeRow` for fire-and-forget admin actions. |
-| `PeekPreview` + `useLongPress` | `components/peek-preview.tsx`, `lib/use-long-press.ts` | Long-press peek & pop. Used by the Tasks table; reusable for People/Notes/Meetings. |
-| `WelcomeHero` | `components/welcome-hero.tsx` | COS Home Tier-3 wash header + inline KPIs. |
-| **`EntityDrawer`** | `components/entity-drawer.tsx` | **The reusable cockpit shell** — rounded-3xl glass dialog, status-tinted hero glow, glass segmented tab pill (`layoutId` morph), all-tabs-mounted body (instant switching, active tab fades in), sticky action bar. **Adopted by person + task + company drawers.** Build every new drawer/pop-up on this. Props: `title` (sr-only Dialog.Title), `tone`, `hero`, `tabs[]`, `activeTab`/`onTabChange`, `actionBar`, `loading`/`error`. |
-| **`drawer-kit`** | `components/drawer-kit.tsx` | Shared drawer primitives: `IconButton`, `ProgressTrack`, `SectionPulse`, `StatusChip`, `DrawerRow` (hover-revealed actions), `EmptyState` (celebratory all-clear), `SectionCard`, `DefGrid`, `GroupLabel`. Use these inside `EntityDrawer` tabs — don't hand-roll rows/cards. |
-| **`surface-kit`** | `components/surface-kit.tsx` | Page-level surfaces: `Hero`, `Panel`, `SectionLabel`, `TrendChip`, and the `TONE`/`Tone` severity colour map (`danger/warn/accent/success/muted/info`). First adopter = Home Mission Control. Reuse `TONE` for any severity-coloured UI. |
-| **`BottomSheet`** | `components/bottom-sheet.tsx` | **The iPhone action sheet** for portal forms/pop-ups. Mobile: rises from the bottom on a spring with a drag-to-dismiss grabber, glass, safe-area pad, scrollable body, sticky footer CTA. Desktop (`sm+`): a centred glass dialog (`popIn`-style). Portals to `document.body`; Esc + backdrop close; background scroll locked; reduced-motion safe (no slide/drag). `SheetButton` bundles a trigger + sheet. Adopters: director task/message/event forms. |
-| **`SwitchRow`** | `components/ui.tsx` | Full-width tappable settings row with the iPhone `Switch` on the right — the "toggle as a slider" control. Owns the click + `role="switch"`. Use for sheet options + settings lists. |
+Whether Compact should become the default is still the owner's call.
 
----
+## 6. Motion
 
-## 6. Interactions
+`--dur-fast 120ms · --dur-base 160ms · --dur-slow 240ms`. Opacity and small
+translations only. `Reveal` (`components/reveal.tsx`) is the one entrance
+animation and honours both the OS setting and the portal's manual
+`data-motion="reduced"`. Do not hand-roll `motion.*`.
 
-- **Swipe** (configurable in Settings → Swipe actions): Complete · Escalate · Snooze ·
-  Archive · Delete · Open · Add update · Nothing. Stored in `lib/settings.ts`
-  (`swipeRightAction` / `swipeLeftAction`); applied on save. All undoable.
-- **Long-press peek & pop**: hold a row → preview card + quick actions; tap to open.
-  Haptic fires where supported (Android); iOS Safari is a silent no-op (no Vibration API).
-- **Bottom sheets**: mobile capture wizard has a grabber + drag-to-dismiss.
-- **Morphing**: segmented control active pill slides (`layoutId`).
+## 7. The two shells (Stage 2 — use these for any list or record)
 
----
+**Every list is `RecordList`** (`components/record-list.tsx`) and **every record
+is `RecordPage`** (`components/record-page.tsx`). Do not hand-build either.
 
-## 7. Honest web limits (don't regress on these)
+```tsx
+<RecordList
+  rows={rows} rowKey={r => r.id} onRowClick={r => open(r)}
+  filters={rail}                       // left rail, grouped, with counts
+  columns={[{ key, label, width, sortHref, sorted, render }]}
+  selectionSlot={r => <Checkbox …/>}   // ticking raises your bulk bar
+  subRow={r => …}                      // optional context line (folds in Compact)
+  rowActions={r => …}                  // hover-revealed, never shifts columns
+  total={all.length}                   // footer reads "N of M shown"
+/>
+```
 
-- Native `glassEffect` / `GlassEffectContainer` don't exist on web — we approximate.
-- **Real refraction is Chromium-only** (SVG `feDisplacementMap` as `backdrop-filter`);
-  Safari/iPhone fall back to layered glass. Refraction must never be load-bearing.
-- **Haptics**: no Vibration API on iOS Safari. **Pressure**: modern iPhones have no
-  3D Touch, so "press harder" is impossible — we use press *duration* instead.
+Rules that come with it: **sorting and filtering are URLs, not component state**
+(the server stays the source of truth and every view is a shareable link); an
+empty value sorts last, never first; and a column sort runs before any group sort
+so rows keep their order inside groups.
 
----
+Two more things the list owns, both free once you pass the prop:
 
-## 8. How to extend (the playbook)
+- **`listKey="task"`** turns on the **column chooser** — a Columns button that
+  hides/shows columns and remembers the choice per list. The first column is
+  never hideable; it is the record's identity.
+- **`bulkActions={[…]}`** turns on **ticking**: a box per row, select-all in the
+  header, and a bar reading "N selected" with the actions and a Clear. A screen
+  that already owns its selection passes `selectionSlot` instead, which wins.
 
-- New overlay? Use `.glass` (+ `.glass-refract` if it floats over content). Keep it
-  Tier-1 only.
-- New content surface? Use `Card` / `.elevated`, `rounded-xl`, never glass.
-- New control? Use `Button` / `Segmented` / `Pill`; honour the focus ring + press.
-- New colour? Tint **only** primary actions (and per-company identity later).
-- New gesture? Reuse `SwipeRow` / `PeekPreview` / `useLongPress`.
-- Always re-test with Reduce Transparency / Contrast / Motion on.
+`RecordPage` is header (code · status · title · actions) → tabs → collapsible
+sections in a 2-column field grid → right sidebar → activity last. **`RecordBody`**
+is the same body without the header, for records that live inside a drawer;
+`RecordSidebarBlock` is one titled block in the right column.
 
----
+**A record is a PAGE with its own URL** (`/task/CODE`), reached through
+`taskHref()`. Never link `?task=` — that is the legacy drawer path.
 
-## 9. The living gallery — `/design`
+### Layout and navigation
 
-`src/app/design/page.tsx` (sidebar → **Design**) renders every token, surface,
-control and gesture on one page: colour swatches, the three surface tiers, the
-radius ladder, all button variants/sizes, badges, `FluidSelect`, and live demos
-of `SwipeRow`, `PeekPreview` and `SnoozeSheet`. Use it to eyeball consistency and
-try ideas before rolling them across the app. Keep it in sync when primitives change.
+- The working area uses the **full screen width**, capped at 1600px. Pages do
+  NOT set their own `max-w-*` — that was the old centred-column rule and it left
+  dead grey down both sides. Exceptions, deliberately narrow: `/ask`, `/brief`,
+  the person pack, `/design`, `/task/new`.
+- From `lg` up the **persistent left sidebar** (`desk-sidebar.tsx`) is the
+  navigation: 208px, collapsible to 56px, grouped Work · Records · Registers ·
+  System, built from `NAV_ROUTES`. It publishes `--desk-sidebar` on `<html>` and
+  `main`'s gutter follows it. Below `lg`, the bottom pill.
+
+Both are layout-only and know nothing about tasks or people. In Stage 3 their
+props come straight from `EntityDef`, which is why they are shaped this way.
+
+## 8. Components
+
+Reuse before inventing: `Card`, `Surface`, `Button`, `Badge`, `Pill`, `Switch`,
+`SwitchRow`, `CaretInput`/`CaretTextarea` (`ui.tsx`); `CommandWall`, `Hero`,
+`Panel`, `CockpitModule`, `SectionLabel`, `TONE` (`surface-kit.tsx`);
+`BottomSheet`, `Combobox`, `FluidSelect`, `EntityDrawer`, `InsightPopover`,
+`ReferenceAdmin`, `PasskeyManager`, `useSwipeRow`.
 
 ### Dropdowns — `FluidSelect`
-`src/components/fluid-select.tsx` is the one fluid menu: a glass popover with a
-spring pop-in, check-marked selection, optional colour `dot`, and outside-click /
-Escape dismissal. It renders its menu in a **portal with fixed positioning**
-(clamped to the viewport) so it can never be trapped behind a `glass`/transform
-stacking context or clipped. `FilterSelect` wraps it to drive a URL search param
-(Tasks filters); People filters and `InlineEdit` menus use the same look. Prefer
-it over native `<select>` everywhere.
+`components/fluid-select.tsx` is the one menu: a flat popover with check-marked
+selection, an optional colour `dot`, and outside-click / Escape dismissal. It
+renders in a **portal with fixed positioning** (clamped to the viewport) so it
+can never be clipped by a scroll container. `FilterSelect` wraps it to drive a
+URL search param. Prefer it over a native `<select>` everywhere.
 
 ### Print / PDF (`@media print` in `globals.css`)
-The **Director Brief** prints via the browser (no PDF library). Print rules:
-re-map dark surface/text tokens to light (clean white document from any theme),
-hide chrome (`.fixed`, `.print-hidden`), reveal `.print-only` content, flatten the
-framer-motion page wrapper (`.page-flow { display:contents }`) so content
-**paginates across pages**, and style the `.report-table` (repeating headers,
-`break-inside: avoid` per company, fresh page for the detailed report). Mark
-on-screen-only controls with `print-hidden`; mark PDF-only sections `print-only`.
+The **Director Brief** prints via the browser (no PDF library): dark tokens are
+re-mapped to light, chrome is hidden (`.fixed`, `.print-hidden`), `.print-only`
+content is revealed, the page wrapper is flattened so content paginates, and
+`.report-table` repeats its headers with `break-inside: avoid` per company.
 
 ### Typography
-Base body has smoothing + tuned letter-spacing; headings use `text-wrap: balance`
-and paragraphs `text-wrap: pretty` for even, orphan-free wrapping system-wide.
+Inter, self-hosted via `next/font`. Neutral letter-spacing (the old look tightened
+it), `text-wrap: balance` on headings and `pretty` on paragraphs.
 
-## 10. The signals engine (the "nervous system") — `src/lib/signals.ts`
+## 9. How to extend
+
+1. Look for an existing token, utility or component. There usually is one.
+2. If you need a new colour, add a **token** — never a raw hex in a component.
+3. If you need a new surface, you don't: use `bg-bg-elev` + `border-border`.
+4. New list? `data-list-row` / `data-list-head`.
+5. New page? `data-page-header` and the field/button rules in §0.
+6. Then update this file. A rule that isn't written down doesn't survive.
+
+## 10. The living gallery — `/design`
+
+`src/app/design/page.tsx` renders the tokens, surfaces, controls and gestures on
+one page. Use it to eyeball consistency before rolling a change across the app.
+**It still demonstrates several Aurora-era ideas and needs rewriting** — that is
+tracked as part of the redesign programme, not a bug.
+
+## 11. The signals engine (the "nervous system") — `src/lib/signals.ts`
 
 The single producer of operational signals: `gatherHomeSignals(rows, todos)`
 derives the command cards, focus queue, pulse metrics and portfolio health from
@@ -249,7 +255,7 @@ actionLabel/tone/count/automationAction?`).
 - Inbox cards swipe (right = File it, left = Dismiss) only when not editing, so
   the textarea keeps full touch.
 
-## 11. Scroll housing (named pattern)
+## 12. Scroll housing (named pattern)
 
 **"Scroll housing"** = wrap a scrollable list/grid in a soft bordered panel so the
 cards read as a *contained* list, not loose floating tiles. When the owner says
@@ -266,7 +272,7 @@ Needs-you + Health columns (`components/director-board-client.tsx`).
 - The inner `px` padding keeps each card's ring/shadow off the clip edge (prevents
   left-edge clipping).
 
-## 12. Board list ordering — "worst first, always" (`app/portal/(app)/board/page.tsx`)
+## 13. Board list ordering — "worst first, always" (`app/portal/(app)/board/page.tsx`)
 
 Both board columns are ordered so the item needing attention **most** sits at the
 top, and the order updates itself as the numbers change — no manual re-ordering.
@@ -290,17 +296,17 @@ deadline), **Due soon = soonest first**, **In progress / open = most recent firs
 housing** (`houseList` prop) so a growing list scrolls in place instead of running
 the page long; the full Tasks tab uses natural page scroll.
 
-## §13 · Command Centre control language (THE standard — follow on every CC page)
+## §14 · Command Centre control language (THE standard — follow on every CC page)
 
 Set on the Tasks page and now the CC-wide standard. When building or redesigning
 ANY Command Centre surface, reuse these exactly — do not invent new button/icon
-styles. (This is the CC layer on top of Aurora above.)
+styles. (This is the CC layer on top of Desk above.)
 
 - **Buttons are rounded-RECTANGLES, not pills** — `rounded-lg`, roomy padding
-  (chips `px-3 py-1.5`; primary `px-3.5 py-2`). Never `rounded-full` for filter
-  chips / control / action buttons. The ONE exception is a true segmented toggle
-  (Comfortable|Compact, Events|Announcements, Focus|Browse), which may be a
-  `rounded-full` pill segment.
+  (chips `px-3 py-1.5`; primary `px-3.5 py-2`). Never `rounded-full`. This rule
+  predates the redesign and is now enforced globally in `globals.css`: even the
+  segmented toggles (Comfortable|Compact, Focus|Browse), which used to be the one
+  exception, are squared.
 - **Icons: outline lucide only. No emoji in UI chrome.** ~13–15px in buttons,
   matching the nav-pill icon weight.
 - **Filter / counting chips:** one horizontal row (`-mx-4 overflow-x-auto` on
@@ -319,7 +325,8 @@ styles. (This is the CC layer on top of Aurora above.)
   badge (kind colour ~14% via `color-mix`) + outline icon, title + quiet
   sublabel, optional trailing `ExternalLink`; row = `flex items-center gap-2.5
   rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/60`.
-- **Hero strip:** aurora `glass elevated rounded-3xl`, `<EYEBROW> · live` dot,
+- **Hero strip:** now a plain page header — `<section data-page-header>` (a title
+  and a rule, no card), `<EYEBROW> · live` dot,
   greeting/title, avatar or segmented tabs, then a slim stats/KPI pill. Stacks
   `flex-col sm:flex-row` on mobile. **The hero NEVER carries an "add"/create
   button** — put the primary create action below (e.g. above the search,

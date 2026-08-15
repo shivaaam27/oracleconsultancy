@@ -45,9 +45,9 @@ export function AuthShell({
       <div className="relative text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500">
         <div data-auth-logo className="relative mx-auto mb-4 h-20 w-20">
           {/* Soft accent halo — reads well in both light and dark. */}
-          <div aria-hidden className="absolute -inset-3 rounded-[2rem] bg-accent/15 blur-2xl" />
+          <div aria-hidden className="absolute -inset-3 rounded-xl bg-accent/15 blur-2xl" />
           {/* Gradient frame around the white logo tile. */}
-          <div className="relative h-20 w-20 rounded-[1.15rem] bg-gradient-to-br from-accent/50 via-border to-info/40 p-[2px] shadow-md">
+          <div className="relative h-20 w-20 rounded-lg bg-gradient-to-br from-accent/50 via-border to-info/40 p-[2px] shadow-md">
             <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-white">
               <Image src="/logo-source.png" alt="Oracle Consultancy" width={64} height={64} className="h-16 w-16 object-contain" />
             </div>

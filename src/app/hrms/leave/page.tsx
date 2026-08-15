@@ -42,7 +42,7 @@ export default async function AttendancePage({
     active ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60");
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <HrmsCrumbs from={from} />
       <PageHeader title="Attendance" sub={sub} />
 

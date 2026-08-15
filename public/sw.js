@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v10";
+const CACHE_VERSION = "cos-v11"; // v11 = the ERPNext redesign (Desk). Old caches hold Aurora assets.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 

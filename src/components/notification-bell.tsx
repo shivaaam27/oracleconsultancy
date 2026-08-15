@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { useAnchored } from "@/lib/use-anchored";
+import { taskHref } from "@/lib/task-href";
 import {
   groupNotifications,
   isDailyReminder,
@@ -210,10 +211,7 @@ export function NotificationBell({
       router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {
       if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
-        const params = new URLSearchParams(searchParams?.toString() ?? "");
-        params.set("task", n.taskCode);
-        params.delete("person");
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        router.push(taskHref(n.taskCode));
       } else {
         router.push(`${to}/${n.taskCode}`);
       }

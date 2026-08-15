@@ -172,7 +172,7 @@ export default async function CompanyPage({
   }
 
   return (
-    <div className="mx-auto max-w-[880px] space-y-3.5">
+    <div className="mx-auto max-w-[1100px] space-y-3.5">
       <HrmsCrumbs from={sp.from} />
 
       {/* Header — company accent identity, count chips, New Task pill */}

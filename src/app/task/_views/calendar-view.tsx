@@ -20,6 +20,7 @@ import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
+import { taskHref } from "@/lib/task-href";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -180,10 +181,7 @@ export function CalendarView({
   const dueThisMonth = rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length;
 
   function openTask(code: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    params.delete("person");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    router.push(taskHref(code));
   }
 
   async function reschedule(code: string, day: Date) {

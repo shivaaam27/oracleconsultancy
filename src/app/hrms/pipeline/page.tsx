@@ -17,7 +17,7 @@ export default async function PipelinePage() {
   const open = items.filter((i) => i.stage !== "Issued").length;
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <HrmsCrumbs />
       <PageHeader
         title="Applications in progress"

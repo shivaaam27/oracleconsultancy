@@ -11,6 +11,12 @@ import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
 import { VENDOR_CATEGORIES, type VendorRow } from "@/lib/vendors-shared";
 import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/app/hrms/vendors/actions";
+import { RecordList } from "./record-list";
+import { buildColumns } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+
+/** The Vendors list is defined in metadata, not here (Stage 3/4). */
+const VENDOR_COLUMNS = ENTITY_VIEWS.vendor!.listColumns;
 
 type Lite = { id: number; name: string };
 
@@ -72,62 +78,89 @@ export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors
       </div>
 
       {filtered.length > 0 ? (
-        <RegisterList>
-          {filtered.map((v) => {
-            const busy = busyId === v.id;
-            const contact = [v.contactName, v.email, v.phone].filter(Boolean).join(" · ");
-            return (
-              <RegisterRow key={v.id} className={busy ? "opacity-60" : undefined}>
-                <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
-                  <Building size={15} />
+        <RecordList
+          rows={filtered}
+          rowKey={(v) => v.id}
+          listKey="vendor"
+          bulkActions={[
+            {
+              label: "Archive",
+              tone: "danger",
+              icon: <Archive size={12} />,
+              run: async (picked) => {
+                for (const v of picked) await archiveVendorAction(v.id);
+                toast(`${picked.length} vendor${picked.length === 1 ? "" : "s"} archived.`, { tone: "success" });
+              },
+            },
+          ]}
+          total={vendors.length}
+          columns={buildColumns<(typeof filtered)[number] & Record<string, unknown>>(VENDOR_COLUMNS, {
+            overrides: {
+              name: (v) => (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-muted text-fg-muted ring-1 ring-border">
+                    <Building size={12} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[13px] font-medium">{v.name}</span>
+                      {v.docCount > 0 && <Badge tone="default">{v.docCount} doc{v.docCount === 1 ? "" : "s"}</Badge>}
+                      {(assetCounts[v.id] ?? 0) > 0 && <Badge tone="info">{assetCounts[v.id]} asset{assetCounts[v.id] === 1 ? "" : "s"}</Badge>}
+                      {v.expiredCount > 0 && <Badge tone="danger">{v.expiredCount} expired</Badge>}
+                      {v.expiringCount > 0 && <Badge tone="warn">{v.expiringCount} expiring</Badge>}
+                    </span>
+                    {v.location && (
+                      <span className="block truncate text-[11px] text-fg-muted">
+                        <MapPin size={10} className="mr-1 inline" />{v.location}
+                      </span>
+                    )}
+                  </span>
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm truncate">{v.name}</span>
-                    {v.category && <span className="text-[11px] text-fg-subtle">{v.category}</span>}
-                    {v.companyName && <span className="text-[11px] text-fg-subtle">· {v.companyName}</span>}
-                    {v.docCount > 0 && <Badge tone="default">{v.docCount} doc{v.docCount === 1 ? "" : "s"}</Badge>}
-                    {(assetCounts[v.id] ?? 0) > 0 && <Badge tone="info">{assetCounts[v.id]} asset{assetCounts[v.id] === 1 ? "" : "s"}</Badge>}
-                    {v.expiredCount > 0 && <Badge tone="danger">{v.expiredCount} expired</Badge>}
-                    {v.expiringCount > 0 && <Badge tone="warn">{v.expiringCount} expiring</Badge>}
-                  </div>
-                  <div className="text-xs text-fg-muted truncate mt-0.5 flex flex-wrap items-center gap-x-2">
-                    {contact && <span className="inline-flex items-center gap-1">{v.email ? <Mail size={11} /> : <Phone size={11} />}{contact}</span>}
-                    {v.location && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {v.location}</span>}
-                    {!contact && !v.location && "—"}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Link
-                    href={`/documents?newdoc=1&vendor=${v.id}&category=Contract`}
-                    className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted"
-                  >
-                    <FilePlus size={12} /> Add contract
-                  </Link>
-                  {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
-                  <DropdownMenu.Root>
-                    <DropdownMenu.Trigger asChild>
-                      <button type="button" disabled={busy} title="More actions"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content align="end" sideOffset={6}
-                        className="z-[60] min-w-[170px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
-                        <MenuItem icon={<FilePlus size={14} />} onSelect={() => { window.location.href = `/documents?newdoc=1&vendor=${v.id}&category=Contract`; }}>Add contract</MenuItem>
-                        <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(v)}>Edit</MenuItem>
-                        <DropdownMenu.Separator className="h-px bg-border my-1" />
-                        <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(v.id, () => archiveVendorAction(v.id), "Vendor archived.")}>Archive</MenuItem>
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu.Root>
-                </div>
-              </RegisterRow>
-            );
+              ),
+              contact: (v) => {
+                const contact = [v.contactName, v.email, v.phone].filter(Boolean).join(" · ");
+                if (!contact) return <span className="text-fg-subtle">—</span>;
+                return (
+                  <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-fg-muted">
+                    {v.email ? <Mail size={11} className="shrink-0" /> : <Phone size={11} className="shrink-0" />}
+                    <span className="truncate">{contact}</span>
+                  </span>
+                );
+              },
+            },
           })}
-        </RegisterList>
+          rowActions={(v) => {
+            const busy = busyId === v.id;
+            return (
+              <span className="flex items-center gap-1.5">
+                <Link
+                  href={`/documents?newdoc=1&vendor=${v.id}&category=Contract`}
+                  className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex"
+                >
+                  <FilePlus size={12} /> Add contract
+                </Link>
+                {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button type="button" disabled={busy} title="More actions"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
+              <MoreHorizontal size={16} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="end" sideOffset={6}
+              className="z-[60] min-w-[170px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
+              <MenuItem icon={<FilePlus size={14} />} onSelect={() => { window.location.href = `/documents?newdoc=1&vendor=${v.id}&category=Contract`; }}>Add contract</MenuItem>
+              <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(v)}>Edit</MenuItem>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(v.id, () => archiveVendorAction(v.id), "Vendor archived.")}>Archive</MenuItem>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+              </span>
+            );
+          }}
+        />
       ) : (
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {vendors.length === 0 ? "No vendors yet. Add your first to begin." : "No vendors match these filters."}

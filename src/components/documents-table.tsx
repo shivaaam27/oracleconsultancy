@@ -18,6 +18,12 @@ import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
+import { RecordList, RecordListHeader, type RecordColumn } from "./record-list";
+import { buildColumns } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+
+/** The Documents list is defined in metadata, not here (Stage 3/4). */
+const DOC_COLUMNS = ENTITY_VIEWS.document!.listColumns;
 import {
   deriveDocStatus, daysToExpiry, expiryLabel, docStatusColor, displayDocName,
   type DocStatus, type DocumentRow,
@@ -395,6 +401,81 @@ export function DocumentsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
+  /* The Documents list on the shared shell (Stage 4). Columns come from
+     ENTITY_VIEWS.document; the cells that carry meaning here — the file name
+     with its chips, the expiry with its countdown, the status badge — are
+     overridden, because metadata cannot describe them. Rendered bare and
+     headerless inside the existing company/shelf housings, with one shared
+     header above the whole list. */
+  function docColumns(opts: { hideCompany?: boolean; hidePerson?: boolean } = {}) {
+    return buildColumns<DocumentRow & Record<string, unknown>>(DOC_COLUMNS, {
+      overrides: {
+        title: (d) => {
+          const openLinkedTask = linkedTasks[d.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
+          const company = !opts.hideCompany ? companyName(d.companyId) : null;
+          const person = !opts.hidePerson ? personName(d.personId) : null;
+          return (
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="h-6 w-1 shrink-0 rounded-sm" style={{ backgroundColor: companyAccent(d.companyId) || "var(--border)" }} />
+              <FileText size={14} className="shrink-0 text-fg-subtle" />
+              <span className="min-w-0">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[13px] font-medium">{displayDocName(d)}</span>
+                  {(d.storagePath || d.fileUrl) && <Paperclip size={11} className="shrink-0 text-fg-subtle" />}
+                  {d.personId && <span className="shrink-0 rounded-sm bg-info-soft px-1 py-0.5 text-[10px] text-info">Person file</span>}
+                  {openLinkedTask && <span className="shrink-0 rounded-sm bg-accent-soft px-1 py-0.5 text-[10px] text-accent">{openLinkedTask.code}</span>}
+                </span>
+                {(company || person || (d.notes && d.notes.trim())) && (
+                  <span className="block truncate text-[11px] text-fg-subtle">
+                    {[company, person, d.notes?.trim()].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </span>
+            </span>
+          );
+        },
+        expiryDate: (d) => {
+          const dte = daysToExpiry(d);
+          const urgent = dte !== null && dte < 0;
+          const soon = dte !== null && dte >= 0 && dte <= d.reminderLeadDays;
+          return (
+            <span className="block text-right">
+              <span className="block text-[11px] text-fg-muted">{fmtDate(d.expiryDate) || "—"}</span>
+              <span className={cn("block text-[11px]", urgent ? "font-medium text-danger" : soon ? "text-warn" : "text-fg-subtle")}>
+                {expiryLabel(d) || "No expiry"}
+              </span>
+            </span>
+          );
+        },
+        status: (d) => <span className="inline-flex">{statusBadge(d)}</span>,
+      },
+    }) as RecordColumn<DocumentRow>[];
+  }
+
+  function DocList({ rows, opts }: { rows: DocumentRow[]; opts?: { hideCompany?: boolean; hidePerson?: boolean } }) {
+    return (
+      <RecordList<DocumentRow>
+        rows={rows}
+        rowKey={(d) => d.id}
+        bare
+        showHeader={false}
+        showFooter={false}
+        columns={docColumns(opts)}
+        onRowClick={(d) => {
+          if (longPressed.current) { longPressed.current = false; return; }
+          if (selectMode) { toggleSelect(d.id); return; }
+          openEditor(d);
+        }}
+        selectionSlot={selectMode ? (d) => (
+          <span className={cn("inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+            selected.has(d.id) ? "border-accent bg-accent text-accent-fg" : "border-border-strong")}>
+            {selected.has(d.id) && <Check size={12} strokeWidth={3} />}
+          </span>
+        ) : undefined}
+      />
+    );
+  }
+
   function renderRow(doc: DocumentRow, opts: { hideCompany?: boolean; hidePerson?: boolean } = {}) {
     const dte = daysToExpiry(doc);
     const urgent = dte !== null && dte < 0;
@@ -580,7 +661,7 @@ export function DocumentsTable({
                             </div>
                             {!scol && (
                               <div className={cn("divide-y divide-border/40 border-t border-border/30 bg-bg-subtle/20", sub.rows.length > 6 && "scroll-fade-y overflow-y-auto overscroll-contain slim-scroll max-h-[26rem]")}>
-                                {sub.rows.map((d) => renderRow(d, g.kind === "people" ? { hidePerson: true } : { hideCompany: true }))}
+                                <DocList rows={sub.rows} opts={g.kind === "people" ? { hidePerson: true } : { hideCompany: true }} />
                               </div>
                             )}
                           </div>
@@ -603,7 +684,7 @@ export function DocumentsTable({
                   {g.label}
                 </RegisterGroupHeader>
               }>
-                {g.rows.map((d) => renderRow(d))}
+                <DocList rows={g.rows} />
               </RegisterList>
             ))}
           </div>

@@ -40,7 +40,7 @@ export default async function OcrPage({
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <HrmsCrumbs />

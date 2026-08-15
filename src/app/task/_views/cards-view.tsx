@@ -30,6 +30,7 @@ import { getInitials } from "@/lib/names";
 import type { TaskRow } from "@/lib/queries";
 import { adminRemindTask, inlineUpdateTask } from "@/app/task/actions";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
+import { taskHref } from "@/lib/task-href";
 
 /* Cards view — the merged Tasks view (Command Centre unification, round 2).
  * ONE view with a Comfortable | Compact density toggle. Both skins share:
@@ -163,7 +164,7 @@ function ExpandPanel({ r, onChanged }: { r: TaskRow; onChanged: () => void }) {
         </ul>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <Link href={`/?tab=tasks&task=${encodeURIComponent(r.code)}&dtab=conversation`} className={cn(chip, "text-accent")}>
+        <Link href={taskHref(r.code, { tab: "conversation" })} className={cn(chip, "text-accent")}>
           <MessageSquarePlus size={13} /> Add update
         </Link>
         {r.status !== "Escalated" && (
@@ -174,7 +175,7 @@ function ExpandPanel({ r, onChanged }: { r: TaskRow; onChanged: () => void }) {
         <button type="button" onClick={() => act("done")} disabled={busy !== null} className={cn(chip, "text-success")}>
           <Check size={13} /> Done
         </button>
-        <Link href={`/?tab=tasks&task=${encodeURIComponent(r.code)}`} className={cn(chip, "ml-auto")}>
+        <Link href={taskHref(r.code)} className={cn(chip, "ml-auto")}>
           Open full task <ArrowUpRight size={13} />
         </Link>
       </div>
@@ -282,7 +283,7 @@ function TaskCard({
   );
   const openBtn = (
     <Link
-      href={`/?tab=tasks&task=${encodeURIComponent(r.code)}`}
+      href={taskHref(r.code)}
       title="Open task"
       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-elev text-fg-muted transition-colors hover:border-accent/40 hover:text-accent"
     >
@@ -292,7 +293,7 @@ function TaskCard({
 
   const titleLink = (
     <Link
-      href={`/?tab=tasks&task=${encodeURIComponent(r.code)}`}
+      href={taskHref(r.code)}
       onClick={(ev) => {
         if (swiped) {
           ev.preventDefault();
@@ -807,7 +808,7 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
               {top.r.code}
             </span>
             <Link
-              href={`/?tab=tasks&task=${encodeURIComponent(top.r.code)}`}
+              href={taskHref(top.r.code)}
               className="min-w-0 flex-1 truncate text-base font-semibold text-fg hover:text-accent sm:text-lg"
             >
               {top.r.actionItem}
@@ -880,7 +881,7 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
             {active.slice(1, 6).map((e, i) => (
               <li key={e.r.code} style={{ opacity: 1 - i * 0.12 }}>
                 <Link
-                  href={`/?tab=tasks&task=${encodeURIComponent(e.r.code)}`}
+                  href={taskHref(e.r.code)}
                   className="flex items-center gap-2.5 rounded-xl bg-bg-elev/50 px-3 py-2 ring-1 ring-border/60 transition-all hover:ring-accent/30"
                 >
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", e.late !== null ? "bg-danger" : "bg-warn")} />

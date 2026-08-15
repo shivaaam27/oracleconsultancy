@@ -21,7 +21,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const backHref = kind === "person" ? "/people" : `/companies/${id}?tab=profile`;
 
   return (
-    <div className="mx-auto max-w-[820px] space-y-4">
+    <div className="space-y-4">
       <Link href={backHref} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors">
         <ArrowLeft size={13} /> Back
       </Link>

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { HoverPreview } from "./hover-preview";
+import { taskHref } from "@/lib/task-href";
 
 type Props = {
   code: string;
@@ -67,11 +68,7 @@ export function TaskDrawerLink({ code, children, className }: Props) {
   const pathname = usePathname();
 
   const open = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    params.delete("person"); // one drawer at a time
-    params.delete("company");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    router.push(taskHref(code));
   };
 
   return (

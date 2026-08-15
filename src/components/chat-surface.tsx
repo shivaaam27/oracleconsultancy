@@ -410,7 +410,7 @@ export function ChatSurface(props: Props) {
   }, [selected, selectedThread, actions, reloadList]);
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-bg md:static md:z-auto md:h-[calc(100dvh_-_13rem)] md:min-h-[420px] md:overflow-hidden md:rounded-[1.75rem] md:bg-bg-elev/70 md:shadow-pill md:ring-1 md:ring-border md:backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 flex bg-bg md:static md:z-auto md:h-[calc(100dvh_-_13rem)] md:min-h-[420px] md:overflow-hidden md:rounded-xl md:bg-bg-elev/70 md:shadow-pill md:ring-1 md:ring-border md:backdrop-blur-xl">
       {/* ---------------- Thread list ---------------- */}
       <aside
         className={`flex w-full flex-col border-border/60 md:w-[21rem] md:shrink-0 md:border-r ${
@@ -1282,7 +1282,7 @@ function Composer({
         </div>
       )}
       {error && <p className="mb-1.5 px-2 text-[12px] text-danger">{error}</p>}
-      <div className="flex items-end gap-1.5 rounded-[1.75rem] bg-bg-subtle px-1.5 py-1 transition-shadow focus-within:ring-2 ring-accent/30">
+      <div className="flex items-end gap-1.5 rounded-xl bg-bg-subtle px-1.5 py-1 transition-shadow focus-within:ring-2 ring-accent/30">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -1368,7 +1368,7 @@ function NewChatDialog({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-[1.75rem] bg-bg-elev shadow-pill ring-1 ring-border sm:rounded-[1.75rem]"
+        className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-xl bg-bg-elev shadow-pill ring-1 ring-border sm:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pb-3 pt-5">

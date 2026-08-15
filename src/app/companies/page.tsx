@@ -49,7 +49,7 @@ export default async function CompaniesPage({
   const g = computeGlobalKpis(rows);
   const totals = { open: g.open, overdue: g.overdue, completed: g.completed };
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
+    <div className="space-y-5">
       <HrmsCrumbs from={from} />
       <Hero title="Companies" subtitle={`${companies.length} companies tracked across the portfolio`}>
         <div className="flex flex-wrap gap-5">

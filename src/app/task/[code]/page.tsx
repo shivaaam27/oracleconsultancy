@@ -1,12 +1,16 @@
-import { redirect } from "next/navigation";
+import { TaskRecordPage } from "@/components/task-drawer";
 
 /**
- * The standalone task page was merged into the task drawer (the pop-up is now
- * the single, full-parity task view). Any /task/CODE link — including old/legacy
- * codes and external deep-links — redirects to the tasks list with the drawer
- * open over it. The drawer's API resolves legacy codes to the canonical task.
+ * /task/CODE — the task record, at its own URL.
+ *
+ * A record is a page, as in ERPNext (owner's decision, Aug 2026). This replaced
+ * the old redirect into the drawer. The drawer still exists for legacy
+ * `?task=CODE` links; everything in the app now links here via taskHref().
+ *
+ * Legacy codes resolve through the record's own API, so old deep links keep
+ * working.
  */
 export default async function TaskPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  redirect(`/?tab=tasks&task=${encodeURIComponent(code)}`);
+  return <TaskRecordPage code={decodeURIComponent(code)} />;
 }

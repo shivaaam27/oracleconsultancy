@@ -58,7 +58,7 @@ The system replaces an Excel workbook with:
 - Baseline migration `0000_flaky_amphibian.sql` was applied manually; `scripts/baseline-migrations.ts` marks it applied.
 - Newer write paths often use `src/db/supabase.ts` and helpers in `src/lib/db-helpers.ts`.
 - All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
-- Navigation is one bottom-floating pill on **all** breakpoints (`top-pill.tsx`); the desktop sidebar was removed. The pill carries the page action `+` and a draggable liquid-glass lens.
+- **Navigation is TWO things now (Aug 2026, ERPNext redesign).** From `lg` up a **persistent left sidebar** (`desk-sidebar.tsx`) is the navigation — 208px, collapsible to 56px, grouped Work/Records/Registers/System, built from `NAV_ROUTES`. Below `lg` it is the bottom-floating pill (`top-pill.tsx`), which still carries the page action `+`. The pill's vertical `SidePill` variant is RETIRED at `lg`+ (the sidebar replaces it). The sidebar publishes `--desk-sidebar` on `<html>`; `main`'s left gutter follows that variable.
 - Admin edge auth gate lives in `src/proxy.ts` (Next-16 `proxy` convention; renamed from `middleware.ts`). The `secret()` derivation here MUST stay identical to `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). Run a backup before any migration/bulk DB change.
@@ -193,9 +193,9 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 
 ## Current Pages
 
-- `/` - command centre: Overview, Companies, Tasks
+- `/` - command centre: Overview, Companies, Tasks. **The Tasks tab opens on the LIST view** (columns, filter rail, sorting, bulk edit); Cards/Board/Calendar/Timeline are one click away in the switcher.
 - `/task/new`
-- `/task/[code]`
+- `/task/[code]` - **the task record, as a real page** (Aug 2026). A record is a page with its own URL, as in ERPNext. Everything links here via `taskHref()` in `src/lib/task-href.ts` — never `?task=`. The old drawer still opens for legacy `?task=CODE` links.
 - `/registry` - redirects to hub Tasks table
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
 - `/hrms` - redirects to `/hrms/command-centre`. **`/hrms/command-centre` is labelled "Tax & Legal"** in the UI (launcher + page header; route path unchanged) — recurring tax/statutory/legal obligations. See `memory/hrms.md`.
@@ -222,7 +222,7 @@ Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Di
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed. **Removed Aug 2026 (documents back to manual):** `/inbox` + `/api/inbox`, `/suggestions`, `/api/dropbox/*`, `/api/cron/auto-sort`, `/api/ask-doc`, `/api/doc-passages`, `/api/company-requirements`, `/api/person-requirements`, `/api/requirement-templates`, and the Registrations tab on Tax & Legal. Their tables WERE dropped (migration 0114) — see "Documents — manual filing".
 
-## ⚠️ A redesign is agreed but NOT started — read this before any UI work
+## ⚠️ The redesign is under way — Stages 0–3 are built. Read before any UI work
 
 The owner uses ERPNext, loves it, and has asked for COS to be rebuilt in that
 shape: flat/grey/dense, one uniform list + record screen everywhere, saved views
@@ -238,23 +238,81 @@ COS already has the seed of it in `src/lib/entity-registry.ts` — extend that w
 list columns and form sections and generate the screens, rather than hand-copying
 a layout across 58 pages.
 
-**Until Stage 1 lands, Aurora below is still the rule.** Don't half-convert
-things. The plan's Stage 1 rewrites this section and `DESIGN_SYSTEM.md` together.
+**Stage 0** (the preview switch) was built and then **superseded by Stage 1** —
+its component and scoped token block are gone.
 
-## Design language — "Aurora" (DEFAULT for everything — until the redesign above)
+**Stage 1 is BUILT and LIVE EVERYWHERE** (Aug 2026). The tokens in
+`src/app/globals.css` now hold ERPNext's palette, radii and type scale; the glass
+materials were rewritten as one flat surface; `rounded-full` is squared globally;
+decorative glows and backdrop blur are switched off. **No component was rebuilt**
+— the old class names (`.glass`, `.elevated`, `.vibrancy`, `.nav-frost`) survive
+and simply resolve to the flat surface, which is why ~94 files needed no edit.
+This reaches the staff portal too, by design (shared `globals.css`).
 
-The visual + interaction system is named **Aurora**. **Every new page, dialog, pop-up,
-search surface, panel, drawer or feature uses Aurora by default — do not invent a new
-look.** When the owner says "make X Aurora" / "this popup should be Aurora," apply the
-kit. Aurora = liquid-glass surfaces · one cool-blue accent · **centred, never edge-to-edge**
-(`CommandWall`) · **no hard boxes** (soft `Panel`/`CockpitModule` + hairlines + whitespace) ·
-iPhone-style `Switch` toggles · concentric radius · calm reduced-motion-safe motion (`Reveal`,
-`lib/motion.ts`) · quietly alive (heartbeat/count-ups/world-accent tints) · status as small
-dots/text not blocks · glanceable, every-number-a-door, observe + act. Reuse the kit
-(`CommandWall`, `Hero`, `CockpitModule`, `Switch`, `TONE`, `Badge`/`Pill`, `EntityDrawer`,
-`InsightPopover`, `FluidSelect`/`Combobox`, glass tiers) — never a one-off when a kit piece
-exists. **Full reference + "how to apply Aurora to a new page/popup/search/feature":
-`DESIGN_SYSTEM.md` — keep it updated.**
+**Aurora is gone. The design language is now "Desk" — read `DESIGN_SYSTEM.md`.**
+Its seven rules in one line: flat · grey page / white content · crisp corners ·
+dense · hairlines separate · one blue · every screen the same.
+
+**Reverting is one commit** (`git revert`) — no data, settings or migrations are
+involved.
+
+**Stage 2 is BUILT too** — the two shells. **Every list is `RecordList`
+(`src/components/record-list.tsx`) and every record is `RecordPage`
+(`src/components/record-page.tsx`) — do not hand-build either.** The list gives
+you a filter rail with counts, URL-driven column sorting, tickable rows and an
+"N of M shown" footer; the record gives you header → tabs → 2-column field
+sections → right sidebar → activity (with `RecordBody` for records that live in a
+drawer). Both are proven on Tasks. Sorting/filtering are **URLs, never component
+state**. Their props are shaped to be fed from `EntityDef` in Stage 3.
+
+**Stage 3 is BUILT** — the metadata layer, which is what makes this ERPNext
+rather than a lookalike. **`src/lib/entity-view.ts`** (client-safe, declarative,
+NO functions) defines each entity's `listColumns` / `filters` / `formSections`;
+`src/components/entity-cells.tsx` turns them into shell props via one renderer
+per `CellFormat`, with an `overrides` escape hatch for interactive cells.
+**FORWARD RULE: to give a new record type a screen, add ONE `ENTITY_VIEWS` entry**
+— it inherits the list, rail, sorting, field grid and density. Sort keys in a
+page's `SORTERS` must equal the metadata's column keys.
+
+**A record is a PAGE with its own URL** (`/task/CODE`, owner's decision Aug 2026),
+reached through `taskHref()` — never `?task=`. The drawer survives only for legacy
+links. **Compact is the default density** on the admin side; the portal stays
+Comfortable. The working area uses the full screen width (capped 1600px).
+
+**Stages 4 and 5 are BUILT too**, and so is the **persistent left sidebar**
+(`src/components/desk-sidebar.tsx` — 208px, collapsible to 56px, grouped from
+`NAV_ROUTES`, `lg`+ only; it publishes `--desk-sidebar` and `main`'s gutter
+follows it). Converted lists: Tasks, People, Documents, Assets, Vendors,
+Commitments. `RecordList` also owns the **column chooser** (`listKey`) and
+**bulk edit** (`bulkActions`). Saved views are generalised in
+`src/lib/saved-views.ts` (`<listKey>.savedViews` in `settings`).
+
+**⚠️ ONE THING LEFT:** saved views only work where filters are in the URL.
+Assets, Vendors, Documents and Commitments still filter with `useState`, so they
+have nothing to save. Moving those filters into the URL is the remaining
+per-screen job.
+
+## Design language — "Desk" (DEFAULT for everything, Aug 2026)
+
+The visual + interaction system is named **Desk** (ERPNext's own word for its
+working interface — which is what it borrows). It replaced **Aurora**, the
+liquid-glass language, in Stage 1 above. **Every new page, dialog, pop-up, search
+surface, panel, drawer or feature uses Desk by default — do not invent a new
+look, and do not reintroduce glass, blur, glows or pills.**
+
+Desk = **flat** (one solid surface + a hairline; no glass, blur, glow or
+gradient) · **grey page `#f4f5f6`, white content** · **crisp corners** (4px chips,
+6px controls, 8px cards — nothing is a pill) · **dense** (13px body, 9px rows,
+4px on Compact) · **hairlines separate, shadows only float** · **one blue
+`#2490ef`** with semantic colour kept separate · status as small dots/text, never
+blocks · glanceable, every-number-a-door · calm 120–240ms motion (`Reveal`,
+`lib/motion.ts`), reduced-motion safe · **every screen works the same way**.
+
+Reuse the kit (`Card`, `Panel`, `CockpitModule`, `Switch`, `TONE`, `Badge`/`Pill`,
+`EntityDrawer`, `BottomSheet`, `FluidSelect`/`Combobox`) — never a one-off when a
+kit piece exists. New page? `data-page-header`. New list? `data-list-row` /
+`data-list-head`. **Full reference + "how to apply Desk to a new
+page/popup/search/feature": `DESIGN_SYSTEM.md` — keep it updated.**
 
 ## Onboarding tours (PLANNED — see `memory/onboarding_tours.md`)
 

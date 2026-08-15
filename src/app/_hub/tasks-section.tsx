@@ -15,6 +15,8 @@ import { CardsView, FocusQueue, type CompanyMeta } from "@/app/task/_views/cards
 import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
+import type { RecordFilter } from "@/components/record-list";
+import type { TaskRow } from "@/lib/queries";
 import { CheckSquare, Sparkles, Archive } from "lucide-react";
 
 type Sp = {
@@ -42,6 +44,29 @@ type Sp = {
   who?: string;
   /** With person set: "created" = tasks they created (else tasks assigned). */
   whoMode?: string;
+  /** List view (Stage 2): column to sort by, and the direction. */
+  sort?: string;
+  dir?: string;
+};
+
+/** How each sortable column sorts, server-side and URL-driven.
+ *  ⚠️ The keys MUST match the column keys in ENTITY_VIEWS.task.listColumns —
+ *  that is how a column header finds its sort link.
+ *
+ *  `isEmpty` marks rows with nothing in that column. They are pinned to the
+ *  BOTTOM in both directions: an undated task is not "due now", and reversing
+ *  the sort must not float 20 blanks to the top of your list. */
+const SORTERS: Record<string, { cmp: (a: TaskRow, b: TaskRow) => number; isEmpty?: (r: TaskRow) => boolean }> = {
+  actionItem: { cmp: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }) },
+  status: { cmp: (a, b) => a.status.localeCompare(b.status) },
+  deadline: {
+    cmp: (a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime(),
+    isEmpty: (r) => !r.deadline,
+  },
+  assignees: {
+    cmp: (a, b) => (a.assignees[0] ?? "").localeCompare(b.assignees[0] ?? ""),
+    isEmpty: (r) => r.assignees.length === 0,
+  },
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -55,7 +80,8 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.status) u.set("status", next.status);
   if (next.noOwner) u.set("noOwner", next.noOwner);
   if (next.closed) u.set("closed", next.closed);
-  if (next.view && next.view !== "cards") u.set("view", next.view);
+  // List is the default view, so only a non-list view needs to appear in the URL.
+  if (next.view && next.view !== "table") u.set("view", next.view);
   if (next.month) u.set("month", next.month);
   if (next.q) u.set("q", next.q);
   if (next.all) u.set("all", next.all);
@@ -68,6 +94,8 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.quiet) u.set("quiet", next.quiet);
   if (next.who) u.set("who", next.who);
   if (next.whoMode) u.set("whoMode", next.whoMode);
+  if (next.sort) u.set("sort", next.sort);
+  if (next.dir) u.set("dir", next.dir);
   return `/?${u.toString()}`;
 }
 
@@ -337,6 +365,34 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const groupBy = (["company", "status", "person"].includes(sp.group || "") ? sp.group : null) as
     | "company" | "status" | "person" | null;
   const cardsGroupBy = view === "cards" ? (sp.group === "none" ? null : (groupBy ?? "company")) : null;
+
+  /* ---------- Stage 2: the list's left rail + column sorting ----------
+     The rail is the same data as the chips and pickers above — the counts are
+     already computed — just laid out the way ERPNext lays it out. Built here,
+     on the server, because this is where the counts live. */
+  const railFilters: RecordFilter[] = [
+    ...chips.map((c) => ({ key: `s-${c.key}`, label: c.label, count: c.count, href: c.href, active: c.active, group: "Status", tone: c.tone })),
+    ...companyOptions
+      .filter((o) => o.key === "all" || (o.count ?? 0) > 0 || o.active)
+      .map((o) => ({ key: `c-${o.key}`, label: o.label, count: o.count, href: o.href, active: o.active, group: "Company" })),
+  ];
+
+  // Column sort runs FIRST, then the group sort — Array.sort is stable, so rows
+  // keep their column order inside each group instead of fighting it.
+  const sortKey = sp.sort && SORTERS[sp.sort] ? sp.sort : null;
+  const sortDir: "asc" | "desc" = sp.dir === "desc" ? "desc" : "asc";
+  if (sortKey && view === "table") {
+    const { cmp, isEmpty } = SORTERS[sortKey];
+    rows = [...rows].sort((a, b) => {
+      // Empties are pinned last OUTSIDE the direction flip, so reversing the
+      // sort reverses the real values and leaves the blanks where they belong.
+      const ae = isEmpty?.(a) ?? false;
+      const be = isEmpty?.(b) ?? false;
+      if (ae !== be) return ae ? 1 : -1;
+      if (ae && be) return 0;
+      return sortDir === "desc" ? -cmp(a, b) : cmp(a, b);
+    });
+  }
   if (groupBy && view === "table") {
     const keyOf = (r: (typeof rows)[number]) =>
       groupBy === "company" ? r.companyName || "~"
@@ -344,6 +400,14 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       : r.assignees[0] || "~~Unassigned";
     rows = [...rows].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
   }
+  // Clicking a column sorts ascending; clicking the sorted column reverses it.
+  const sortHrefs = Object.fromEntries(
+    Object.keys(SORTERS).map((k) => [
+      k,
+      buildHref(sp, { sort: k, dir: sortKey === k && sortDir === "asc" ? "desc" : undefined }),
+    ])
+  );
+
   const groupOptions: FilterOption[] = ([
     { key: null, label: "None" },
     { key: "company", label: "Company" },
@@ -408,7 +472,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const currentQuery = (() => {
     const u = new URLSearchParams(queryWithoutView(sp));
     u.delete("tab");
-    if (sp.view && sp.view !== "cards") u.set("view", sp.view);
+    if (sp.view && sp.view !== "table") u.set("view", sp.view);
     if (sp.month) u.set("month", sp.month);
     return u.toString();
   })();
@@ -425,8 +489,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
 
       {/* ---- Hero strip — the portal-unified header (refinement round 1). ---- */}
-      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <section data-page-header className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
+        <div aria-hidden data-decor className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.25), transparent 70%)" }} />
         </div>
         <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
@@ -465,7 +529,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           )}
           </div>
         </div>
-        <div className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border">
+        <div data-page-header-meta className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border">
           <span><b className="font-semibold text-fg tabular">{counts.all}</b> open</span>
           <span aria-hidden className="text-border">·</span>
           <span className={needYou > 0 ? "text-danger" : ""}><b className="font-semibold tabular">{needYou}</b> need{needYou === 1 ? "s" : ""} you</span>
@@ -556,7 +620,17 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               />
             )
           ) : (
-            <TableView rows={rows} groupBy={view === "table" ? groupBy : null} hideCompany={view === "table" && groupBy === "company"} />
+            <TableView
+              rows={rows}
+              groupBy={view === "table" ? groupBy : null}
+              hideCompany={view === "table" && groupBy === "company"}
+              filters={railFilters}
+              sortHrefs={sortHrefs}
+              sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
+              /* "N of M shown" — M is every task in this lane before filters,
+                 so the footer says what the filters are hiding from you. */
+              total={base.length}
+            />
           )}
         </SelectionProvider>
       )}

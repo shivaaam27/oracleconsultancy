@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, MessageCircle, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, CheckSquare, X, Pencil, ShieldCheck, ShieldOff, Users, PhoneOff, MoonStar, Flame, Hourglass, UserX, ChevronDown, Check, Target, SkipForward, Wrench } from "lucide-react";
 import { PersonCard } from "./person-card";
+import { PeopleRecordList, PeopleListHeader } from "./people-record-list";
 import { CompanyAvatar } from "./company-avatar";
 import { Combobox } from "./combobox";
 import { PeekPreview, type PeekAction } from "./peek-preview";
@@ -579,6 +580,9 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
       {/* ---- BROWSE MODE ---- */}
       {mode === "browse" && filtered.length > 0 && (
         <div className="flex flex-col gap-3">
+          {/* One column header for the whole list, above the company housings —
+              the names would otherwise repeat at every group (Stage 4). */}
+          {density === "compact" && <PeopleListHeader selectMode={selectMode} />}
           {groups.map((g) => {
             const meta = g.companyId != null ? companyById.get(g.companyId) : undefined;
             const overdue = g.items.filter((p) => p.workload.overdue > 0).length;
@@ -586,20 +590,24 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
             const isCollapsed = collapsed.has(g.key);
             const body = (
               <div className={cn(g.items.length > 6 && "scroll-fade-y overflow-y-auto overscroll-contain slim-scroll", g.items.length > 6 && (density === "compact" ? "max-h-[24rem]" : "max-h-[32rem]"))}>
+                {/* Compact = THE list screen (Stage 4). The columns come from
+                    ENTITY_VIEWS.person and the shell is the same RecordList
+                    that Tasks uses — drawn headerless and frameless, because
+                    this company housing already provides both. */}
+                {density === "compact" ? (
+                  <PeopleRecordList
+                    items={g.items}
+                    selectMode={selectMode}
+                    selected={selected}
+                    directoryHints={directoryHints}
+                    managerPicker={managerPicker}
+                    onOpen={(x) => cardHandlers(x).onOpen()}
+                    onSetManager={(id, m) => applyFieldTo([id], "manager", m, false)}
+                    onSetRole={(id, r) => applyRoleTo([id], r, false)}
+                  />
+                ) : (
                 <div className="flex flex-col gap-1.5 p-2">
-                  {g.items.map((p) => density === "compact" ? (
-                    <CompactRow
-                      key={p.id}
-                      p={p}
-                      hint={directoryHints?.[p.id] ?? null}
-                      selectMode={selectMode}
-                      selected={selected.has(p.id)}
-                      managerPicker={managerPicker}
-                      onSetManager={(id) => applyFieldTo([p.id], "manager", id, false)}
-                      onSetRole={(r) => applyRoleTo([p.id], r, false)}
-                      {...cardHandlers(p)}
-                    />
-                  ) : (
+                  {g.items.map((p) => (
                     <PersonCard
                       key={p.id}
                       person={p}
@@ -612,6 +620,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                     />
                   ))}
                 </div>
+                )}
               </div>
             );
             if (groupBy === "none") return <div key={g.key}>{body}</div>;

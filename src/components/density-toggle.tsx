@@ -15,17 +15,21 @@ export function DensityScript() {
   return (
     <script
       dangerouslySetInnerHTML={{
-        __html: `try{var d=localStorage.getItem('${KEY}')||'comfortable';document.documentElement.setAttribute('data-density',d);}catch(e){}`,
+        __html: `try{var d=localStorage.getItem('${KEY}')||(location.pathname.indexOf('/portal')===0?'comfortable':'compact');document.documentElement.setAttribute('data-density',d);}catch(e){}`,
       }}
     />
   );
 }
 
 export function DensityToggle({ className }: { className?: string }) {
-  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  // Compact is the default on the admin side (owner's call, Aug 2026) — ERPNext's
+  // own tight mode. The staff portal stays Comfortable: it is phone-first, and
+  // density on a phone is a downgrade. Either way the toggle still decides.
+  const [density, setDensity] = useState<"comfortable" | "compact">("compact");
 
   useEffect(() => {
-    const stored = (localStorage.getItem(KEY) as "comfortable" | "compact" | null) ?? "comfortable";
+    const fallback = window.location.pathname.startsWith("/portal") ? "comfortable" : "compact";
+    const stored = (localStorage.getItem(KEY) as "comfortable" | "compact" | null) ?? fallback;
     setDensity(stored);
     applyDensity(stored);
   }, []);

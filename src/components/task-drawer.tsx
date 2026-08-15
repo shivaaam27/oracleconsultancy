@@ -4,6 +4,10 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
+import { RecordBody, RecordPage, RecordSidebarBlock } from "./record-page";
+import { taskHref } from "@/lib/task-href";
+import { buildSections } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SectionCard } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
 import { TimelineEntry } from "./timeline-entry";
@@ -129,6 +133,9 @@ function FactRow({ label, children, last }: { label: string; children: React.Rea
   );
 }
 
+/** The task record's field grid is defined in metadata, not here (Stage 3). */
+const TASK_FORM_SECTIONS = ENTITY_VIEWS.task!.formSections ?? [];
+
 /** Muted "Set …" placeholder that jumps to the Edit tab. */
 function SetLink({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
@@ -138,19 +145,32 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
   );
 }
 
-export function TaskDrawer() {
+/**
+ * ONE task record, in two frames (Stage 2 of the ERPNext redesign).
+ *
+ * `mode="page"`  → a real record screen at /task/CODE, built on `RecordPage`.
+ *                  This is the owner's chosen behaviour: a record is a page
+ *                  with its own URL, exactly as ERPNext does it.
+ * `mode="drawer"`→ the same record inside the sliding drawer, kept so that old
+ *                  `?task=CODE` links (emails, notifications, anything already
+ *                  sent out) still open something instead of 404-ing.
+ *
+ * Everything between here and the return statement is shared — one record, one
+ * set of actions, no second implementation to drift.
+ */
+function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
-  const code = searchParams.get("task");
+  const code = mode === "page" ? (codeProp ?? null) : searchParams.get("task");
   const refreshNonce = searchParams.get("tr");
   // Optional ordered code list for Prev/Next triage. Any view can opt a row into
-  // step-through by adding `&tl=DS-001,DS-002,…` when it opens the drawer; absent
+  // step-through by adding `&tl=DS-001,DS-002,…` when it opens the record; absent
   // here, the arrows simply don't render (no-op-safe).
   const tlParam = searchParams.get("tl");
-  const isTaskPage = /^\/task\/[A-Z]{2}\d{2}-\d{3}$/.test(pathname);
-  const open = !!code && !isTaskPage;
+  const isTaskPage = /^\/task\//.test(pathname);
+  const open = mode === "page" ? true : (!!code && !isTaskPage);
 
   const [data, setData] = useState<DrawerData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -182,12 +202,22 @@ export function TaskDrawer() {
 
   const goToCode = useCallback((next: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("task", next);
     params.delete("tr");
+    if (mode === "page") {
+      // Stepping through records is a real navigation now — each one is a URL.
+      const q = params.toString();
+      router.push(q ? `/task/${encodeURIComponent(next)}?${q}` : `/task/${encodeURIComponent(next)}`);
+      return;
+    }
+    params.set("task", next);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [mode, pathname, router, searchParams]);
 
   const close = useCallback(() => {
+    if (mode === "page") {
+      router.push("/?tab=tasks");
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.delete("task");
     params.delete("tr");
@@ -195,7 +225,7 @@ export function TaskDrawer() {
     params.delete("dtab");
     const q = params.toString();
     router.push(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [mode, pathname, router, searchParams]);
 
   // Seed the active tab from the `dtab` URL param so openers can deep-link a tab
   // (e.g. table-view openTask(code,"conversation") sets ?dtab=conversation). A
@@ -299,7 +329,10 @@ export function TaskDrawer() {
   }
 
   useEffect(() => {
-    if (!code || isTaskPage) { setData(null); return; }
+    // The DRAWER must stay quiet on /task/CODE (the page owns the record there);
+    // the PAGE is the record, so it always loads. Before records became pages
+    // this read `if (!code || isTaskPage)`, which left the new page empty.
+    if (!code || (mode === "drawer" && isTaskPage)) { setData(null); return; }
     setLoading(true);
     setError(false);
     fetch(`/api/task-detail?code=${encodeURIComponent(code)}`)
@@ -307,7 +340,7 @@ export function TaskDrawer() {
       .then((d: DrawerData) => { setData(d); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, refreshKey, refreshNonce, isTaskPage]);
+  }, [code, refreshKey, refreshNonce, isTaskPage, mode]);
 
   // Seed the Edit-tab controlled selects whenever the task data (re)loads.
   useEffect(() => {
@@ -319,11 +352,12 @@ export function TaskDrawer() {
 
   const t = data?.task;
 
-  // Copy a stable deep-link to this task (current page + ?task=CODE) to the clipboard.
+  // Copy the record's own permanent URL. A record is a page now, so the link is
+  // /task/CODE — not "whatever page you happened to be on, plus ?task=".
   async function copyLink() {
     const taskCode = t?.code ?? code;
     if (!taskCode) return;
-    const url = `${location.origin}${pathname}?task=${encodeURIComponent(taskCode)}`;
+    const url = `${location.origin}${taskHref(taskCode)}`;
     try {
       await navigator.clipboard.writeText(url);
       toast("Link copied", { tone: "success", duration: 3000 });
@@ -455,35 +489,44 @@ export function TaskDrawer() {
         </div>
       )}
 
-      {/* Facts — a calm hairline list (no hard box); empties invite a tap. */}
-      <div className="px-0.5">
-        <FactRow label="Accountable">
-          {t.assignees.length ? (
-            <span className="inline-flex items-center gap-2 min-w-0 align-middle">
-              <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={22} />
-              <span className="truncate max-w-[12rem] text-[13px] text-fg-muted">{t.assignees.join(", ")}</span>
-            </span>
-          ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
-        </FactRow>
-        <FactRow label="Deadline">
-          <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
-        </FactRow>
-        <FactRow label="Category">
-          {t.category ? <span className="text-[13px] font-medium text-fg">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set category</SetLink>}
-        </FactRow>
-        <FactRow label="Department" last>
-          {t.department ? <span className="text-[13px] font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set department</SetLink>}
-        </FactRow>
-      </div>
-
-
-      {/* About — the full description */}
-      {t.comments && t.comments.trim() && (
-        <div className="px-0.5">
-          <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">About</div>
-          <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap break-words"><CodeLinkedText text={t.comments} /></p>
-        </div>
-      )}
+      {/* The record body — the SAME shell every record uses (Stage 2): titled
+          sections in a two-column field grid on the left, the "who and where"
+          sidebar on the right. The drawer supplies the header and tabs, so this
+          uses RecordBody; a full record page would use RecordPage and get an
+          identical layout. */}
+      <RecordBody
+        /* Stage 3: the fields, their labels, order and formatting come from
+           ENTITY_VIEWS.task.formSections. Only the cells that need to DO
+           something (edit a date, prompt when empty) are overridden. */
+        sections={buildSections(TASK_FORM_SECTIONS, t as unknown as Record<string, unknown>, {
+          deadline: () => (
+            <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
+          ),
+          category: () => (t.category
+            ? <span className="font-medium">{t.category}</span>
+            : <SetLink onClick={() => setActiveTab("edit")}>Set category</SetLink>),
+          department: () => (t.department
+            ? <span className="font-medium">{t.department}</span>
+            : <SetLink onClick={() => setActiveTab("edit")}>Set department</SetLink>),
+          ...(t.comments && t.comments.trim()
+            ? { comments: () => (
+                <p className="whitespace-pre-wrap break-words leading-relaxed">
+                  <CodeLinkedText text={t.comments!} />
+                </p>
+              ) }
+            : {}),
+        })}
+        sidebar={
+          <RecordSidebarBlock title="Accountable">
+            {t.assignees.length ? (
+              <span className="inline-flex min-w-0 items-center gap-2 align-middle">
+                <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={22} />
+                <span className="max-w-[10rem] truncate text-fg-muted">{t.assignees.join(", ")}</span>
+              </span>
+            ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
+          </RecordSidebarBlock>
+        }
+      />
 
       {/* Latest update — a calm hairline block → jump to the full conversation */}
       {t.latestActivity && (
@@ -763,6 +806,57 @@ export function TaskDrawer() {
     </div>
   ) : undefined;
 
+  /* ---------------- The record AS A PAGE (/task/CODE) ----------------
+     Same data, same tabs, same actions — laid out by the shared RecordPage
+     shell, so it is the same shape as every other record screen. */
+  if (mode === "page") {
+    if (loading && !data) {
+      return <p className="py-16 text-center text-[13px] text-fg-muted">Loading {code}…</p>;
+    }
+    if (error || !t) {
+      return (
+        <div className="py-16 text-center">
+          <p className="text-[13px] text-fg-muted">Couldn&apos;t load {code}.</p>
+          <Button type="button" onClick={() => router.push("/?tab=tasks")} variant="ghost" size="sm" className="mt-3">
+            Back to tasks
+          </Button>
+        </div>
+      );
+    }
+    const active = tabs.find((x) => x.id === activeTab) ?? tabs[0];
+    return (
+      <div className="mx-auto max-w-[1100px]">
+        <div className="mb-3 flex items-center gap-1.5">
+          <Button type="button" onClick={close} variant="ghost" size="sm">
+            <ChevronLeft size={14} /> Tasks
+          </Button>
+          {(prevCode || nextCode) && (
+            <span className="ml-auto flex items-center gap-1">
+              <IconButton aria-label="Previous task" disabled={!prevCode} onClick={() => prevCode && goToCode(prevCode)}>
+                <ChevronLeft size={15} />
+              </IconButton>
+              <IconButton aria-label="Next task" disabled={!nextCode} onClick={() => nextCode && goToCode(nextCode)}>
+                <ChevronRight size={15} />
+              </IconButton>
+            </span>
+          )}
+        </div>
+        <RecordPage
+          code={t.code}
+          title={t.actionItem}
+          subtitle={t.companyName}
+          status={<Badge tone={tone === "danger" ? "danger" : tone === "success" ? "success" : "default"}>{t.status}</Badge>}
+          actions={actionBar}
+          tabs={tabs.map((x) => ({ id: x.id, label: x.label, count: typeof x.badge === "number" ? x.badge : undefined }))}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        >
+          {active?.content}
+        </RecordPage>
+      </div>
+    );
+  }
+
   return (
     <EntityDrawer
       open={open}
@@ -783,4 +877,17 @@ export function TaskDrawer() {
       actionBar={actionBar}
     />
   );
+}
+
+/** The record at its own URL — /task/CODE. This is the primary way to open a
+ *  task (the owner's decision: a record is a page, as in ERPNext). */
+export function TaskRecordPage({ code }: { code: string }) {
+  return <TaskRecord mode="page" codeProp={code} />;
+}
+
+/** Legacy `?task=CODE` links (old emails, notifications, pasted URLs) still
+ *  open the record in a drawer over whatever page you were on. Nothing in the
+ *  app links this way any more — see taskHref() in lib/task-href.ts. */
+export function TaskDrawer() {
+  return <TaskRecord mode="drawer" />;
 }

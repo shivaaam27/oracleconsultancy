@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
@@ -12,13 +12,15 @@ import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { TaskCard } from "@/components/task-card";
-import { Reveal } from "@/components/reveal";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
 import { TaskInlineStatus } from "@/components/task-inline-edit";
 import { DeadlineEditor } from "@/components/deadline-editor";
-import { Panel } from "@/components/surface-kit";
+import { RecordList, type RecordFilter, type RecordColumn } from "@/components/record-list";
+import { buildColumns } from "@/components/entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+import { taskHref } from "@/lib/task-href";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -48,9 +50,6 @@ function priorityDot(p: string): string {
   return "bg-fg-subtle";
 }
 
-/** Shared column template so the header strip and every row line up exactly:
- *  [task ………… 1fr] · status · deadline · who(md+). */
-const COLS = "grid grid-cols-[minmax(0,1fr)_140px_108px] md:grid-cols-[minmax(0,1fr)_150px_116px_76px]";
 
 /** Wrap interactive cell content so clicks don't bubble to the row (opens drawer). */
 function Stop({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -61,20 +60,8 @@ function Stop({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-/** React to the global density toggle (data-density on <html>) so Compact rows
- *  collapse lines 2–3 and reveal them on hover. Mirrors DensityToggle. */
-function useDensity(): "comfortable" | "compact" {
-  const [d, setD] = useState<"comfortable" | "compact">("comfortable");
-  useEffect(() => {
-    const read = () =>
-      setD(document.documentElement.getAttribute("data-density") === "compact" ? "compact" : "comfortable");
-    read();
-    const obs = new MutationObserver(read);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-density"] });
-    return () => obs.disconnect();
-  }, []);
-  return d;
-}
+/** The Tasks list is defined in metadata, not here (Stage 3). */
+const TASK_COLUMNS = ENTITY_VIEWS.task!.listColumns;
 
 type GroupBy = "company" | "status" | "person" | null;
 
@@ -85,7 +72,20 @@ function groupLabelFor(r: TaskRow, by: GroupBy): string {
   return "";
 }
 
-export function TableView({ rows, hideCompany = false, groupBy = null }: { rows: TaskRow[]; hideCompany?: boolean; groupBy?: GroupBy }) {
+export function TableView({
+  rows, hideCompany = false, groupBy = null, filters, sortHrefs, sortedBy, total,
+}: {
+  rows: TaskRow[];
+  hideCompany?: boolean;
+  groupBy?: GroupBy;
+  /** Left filter rail (Stage 2) — built on the server, where the counts are. */
+  filters?: RecordFilter[];
+  /** Column key → the URL that sorts by it. */
+  sortHrefs?: Record<string, string>;
+  sortedBy?: { key: string; dir: "asc" | "desc" };
+  /** Total before filtering, for the "N of M shown" footer. */
+  total?: number;
+}) {
   // Precompute, per row, whether it starts a new group (rows arrive pre-sorted
   // by the group key from the server).
   const headerAt = new Map<number, string>();
@@ -100,8 +100,6 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const density = useDensity();
-  const compact = density === "compact";
 
   const [peek, setPeek] = useState<TaskRow | null>(null);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
@@ -110,16 +108,9 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
   const longPressed = useRef(false);
 
   function openTask(code: string, tab?: "conversation") {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    // Drawer's own tab param — must NOT be "tab" (that selects the hub/HRMS/
-    // workbook section; reusing it would knock the page off the Tasks list).
-    if (tab) params.set("dtab", tab);
-    else params.delete("dtab");
-    params.delete("person");
-    // Triage list — the drawer's Prev/Next arrows walk this in render order.
-    params.set("tl", rows.map((r) => r.code).join(","));
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    // A record is a page with its own URL. `list` carries the order you are
+    // looking at, so the record's Prev/Next arrows walk the same queue.
+    router.push(taskHref(code, { tab, list: rows.map((r) => r.code) }));
   }
 
   // Long-press → peek preview (without fighting clicks or scroll).
@@ -192,111 +183,85 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
         ))}
       </div>
 
-      {/* Desktop: soft Aurora rich-row list framed in the kit Panel. Line 1 is a
-          column grid so Status / Deadline / Who line up down the whole list; the
-          column-header strip names them. Priority is the leading dot; the meta
-          lines share one indent so every row reads the same. */}
-      <Panel className="hidden sm:block overflow-hidden">
-        <div className={cn(COLS, "items-center gap-x-3 px-4 py-2 border-b border-border/50 text-[10px] font-medium uppercase tracking-[0.09em] text-fg-subtle")}>
-          <span>Task</span>
-          <span>Status</span>
-          <span>Deadline</span>
-          <span className="hidden md:block text-right">Who</span>
-        </div>
-        <ul className="divide-y divide-border/50">
-          {rows.map((r, i) => {
-            const done = r.status === "Completed" || r.status === "Closed";
-            const startsGroup = headerAt.has(r.id);
-            return (
-              <Fragment key={r.id}>
-                {startsGroup && (
-                  <li className="bg-bg-subtle/50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
-                    {headerAt.get(r.id)}
-                  </li>
+      {/* Desktop: THE list screen (Stage 2). Every column, the filter rail, the
+          selection bar and the footer come from the shared RecordList shell, so
+          this list behaves exactly like every other list in the system. The
+          cells are still the Tasks-specific editors (inline status, deadline,
+          avatars) — that is the whole point of a shell: one skeleton, any body. */}
+      <div className="hidden sm:block">
+        <RecordList<TaskRow>
+          rows={rows}
+          rowKey={(r) => r.id}
+          onRowClick={(r) => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+          filters={filters}
+          listKey="task"
+          total={total}
+          groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
+          selectionSlot={(r) => <SelectCheckbox code={r.code} />}
+          rowActions={(r) => <TaskRowActions task={r} onDone={() => router.refresh()} />}
+          /* Stage 3: the columns, their order, widths, labels and sortability
+             come from ENTITY_VIEWS.task in lib/entity-view.ts. Only the three
+             genuinely INTERACTIVE cells are overridden here — metadata cannot
+             describe an inline editor. Add a column to the metadata and it
+             appears; no change to this file. */
+          columns={buildColumns<TaskRow & Record<string, unknown>>(TASK_COLUMNS, {
+            sortHrefs,
+            sortedBy,
+            overrides: {
+              actionItem: (r) => (
+                <div
+                  className="flex min-w-0 items-center gap-2"
+                  onPointerDown={(e) => onRowPointerDown(r, e)}
+                  onPointerMove={onRowPointerMove}
+                  onPointerUp={clearPress}
+                  onPointerLeave={clearPress}
+                  onPointerCancel={clearPress}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  <span title={`${r.priority} priority`} className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))} />
+                  {r.unread && (
+                    <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
+                  )}
+                  <span className="tabular inline-flex shrink-0 items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-fg-muted ring-1 ring-border">
+                    {r.code}
+                  </span>
+                  <PinnedMarker task={r} className="shrink-0" />
+                  <span className={cn(
+                    "truncate text-[13px] font-medium leading-snug",
+                    (r.status === "Completed" || r.status === "Closed") && "text-fg-muted line-through decoration-fg-subtle/40",
+                  )}>
+                    {r.actionItem}
+                  </span>
+                </div>
+              ),
+              status: (r) => <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-[11px]" /></Stop>,
+              deadline: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>,
+              assignees: (r) => (
+                <div className="flex justify-end">
+                  {r.assignees.length > 0
+                    ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
+                    : <span className="text-[11px] italic text-fg-subtle">—</span>}
+                </div>
+              ),
+            },
+          }) as RecordColumn<TaskRow>[]}
+          subRow={(r) => (
+            <div className="space-y-0.5">
+              <div className="flex min-w-0 items-center gap-2">
+                {!hideCompany && (
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-fg-muted">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
+                    <span className="max-w-[9rem] truncate">{r.companyName}</span>
+                  </span>
                 )}
-                <li>
-                  <Reveal delay={Math.min(i, 12) * 0.012}>
-                    <div
-                      onPointerDown={(e) => onRowPointerDown(r, e)}
-                      onPointerMove={onRowPointerMove}
-                      onPointerUp={clearPress}
-                      onPointerLeave={clearPress}
-                      onPointerCancel={clearPress}
-                      onContextMenu={(e) => e.preventDefault()}
-                      onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
-                      className={cn(
-                        "group relative cursor-pointer select-none px-4 py-2.5 transition-colors",
-                        "hover:bg-bg-subtle/70 focus-within:bg-bg-subtle/50",
-                        done && "opacity-60",
-                      )}
-                    >
-                      {/* Line 1 — aligned columns: [task] · status · deadline · who */}
-                      <div className={cn(COLS, "items-center gap-x-3")}>
-                        {/* col 1 — checkbox · priority dot · unread · code · title */}
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Stop className="shrink-0"><SelectCheckbox code={r.code} /></Stop>
-                          <span
-                            title={`${r.priority} priority`}
-                            className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))}
-                          />
-                          {r.unread && (
-                            <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
-                          )}
-                          <span className="shrink-0 inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">
-                            {r.code}
-                          </span>
-                          <PinnedMarker task={r} className="shrink-0" />
-                          <span className="truncate text-[15px] font-medium leading-snug group-hover:text-accent transition-colors">{r.actionItem}</span>
-                        </div>
-
-                        {/* col 2 — status (editable glass pill) */}
-                        <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-[11px]" /></Stop>
-
-                        {/* col 3 — deadline (editable) */}
-                        <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>
-
-                        {/* col 4 — who (avatars), right-aligned */}
-                        <div className="hidden md:flex justify-end">
-                          {r.assignees.length > 0
-                            ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
-                            : <span className="text-[11px] text-fg-subtle italic">—</span>}
-                        </div>
-                      </div>
-
-                      {/* Lines 2 + 3 — company · description, then latest update;
-                          one shared indent so every row reads consistently. */}
-                      <div
-                        className={cn(
-                          "mt-1 pl-[2.4rem] space-y-0.5",
-                          compact && "hidden group-hover:block",
-                        )}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {!hideCompany && (
-                            <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] text-fg-muted">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                              <span className="truncate max-w-[9rem]">{r.companyName}</span>
-                            </span>
-                          )}
-                          <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
-                          <span className="min-w-0 flex-1"><TaskMetaLine task={r} /></span>
-                        </div>
-                        <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
-                      </div>
-
-                      {/* hover actions — overlaid right so they never disturb the
-                          column alignment */}
-                      <Stop className="absolute right-3 top-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity rounded-full bg-bg-elev/95 backdrop-blur-sm pl-2 shadow-sm ring-1 ring-border/50">
-                        <TaskRowActions task={r} onDone={() => router.refresh()} />
-                      </Stop>
-                    </div>
-                  </Reveal>
-                </li>
-              </Fragment>
-            );
-          })}
-        </ul>
-      </Panel>
+                <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
+                <span className="min-w-0 flex-1"><TaskMetaLine task={r} /></span>
+              </div>
+              <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
+            </div>
+          )}
+        />
+      </div>
 
       <PeekPreview
         open={!!peek}

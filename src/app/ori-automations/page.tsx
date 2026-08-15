@@ -85,7 +85,7 @@ export default async function OriAutomationsPage() {
   const paused = described.filter((r) => !r.active);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-28">
+    <main className="mx-auto w-full px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-28">
       <HrmsCrumbs />
       <PageHeader
         title="ORI Automation"

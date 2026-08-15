@@ -66,7 +66,7 @@ export default async function PeoplePage({
   ).size;
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <HrmsCrumbs from={from} />
       <PeopleTable
         people={people}

@@ -114,7 +114,7 @@ export default async function SettingsPage({
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="w-full">
       <HrmsCrumbs />
       <PageHeader
         title="Settings"

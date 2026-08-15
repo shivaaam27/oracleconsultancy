@@ -531,7 +531,7 @@ function NavLens({ containerRef, onSelect, enabled = true }: { containerRef: Ref
           transition={{ duration: 0.16 }}
           style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5, willChange: "transform" }}
           className={cn(
-            "pointer-events-none absolute z-20 overflow-hidden rounded-[1.1rem]",
+            "pointer-events-none absolute z-20 overflow-hidden rounded-lg",
             plain
               ? "bg-accent-soft ring-1 ring-accent/30"
               : "glass-refract bg-white/20 dark:bg-white/[0.07] ring-1 ring-white/55 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.65),inset_0_-1px_0_0_rgba(255,255,255,0.15),0_5px_16px_-6px_rgba(0,0,0,0.35)] backdrop-blur-[3px] backdrop-saturate-[1.7]"
@@ -539,8 +539,8 @@ function NavLens({ containerRef, onSelect, enabled = true }: { containerRef: Ref
         >
           {!plain && (
             <>
-              <motion.span style={{ x: edgeC }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-cyan-300/45 mix-blend-screen" />
-              <motion.span style={{ x: edgeR }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-rose-400/45 mix-blend-screen" />
+              <motion.span style={{ x: edgeC }} className="pointer-events-none absolute inset-0 rounded-lg border-2 border-cyan-300/45 mix-blend-screen" />
+              <motion.span style={{ x: edgeR }} className="pointer-events-none absolute inset-0 rounded-lg border-2 border-rose-400/45 mix-blend-screen" />
               <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/50 blur-[3px]" />
             </>
           )}
@@ -668,7 +668,10 @@ function SidePill({ reduce, overdue }: { reduce: boolean; overdue: number }) {
   // gap tracks the viewport so it stays balanced (never lonely at the far edge,
   // never touching the content). Clamped so it can't crowd a narrow xl window.
   return (
-    <div className="hidden lg:flex fixed left-[max(0.75rem,calc((100vw_-_1100px)/2_-_86px))] top-1/2 -translate-y-1/2 z-40 pointer-events-none">
+    /* Retired: the persistent DeskSidebar owns the left edge from lg up. Its
+       old position was computed off a 1100px content column that no longer
+       exists, so at wide widths it sat on top of the list. */
+    <div className="hidden fixed left-3 top-1/2 -translate-y-1/2 z-40 pointer-events-none">
       <motion.div
         data-nav-pill
         initial={reduce ? false : { x: -20, opacity: 0 }}

@@ -4,126 +4,138 @@
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
-  /* macOS uses crisper corners than the old scale; tightened for a less
-     "chunky" feel (windows ~10px, cards ~12–16px). */
-  --radius-sm: 0.375rem;  /* 6px  — controls */
-  --radius-md: 0.5rem;    /* 8px  — inputs, small buttons */
-  --radius-lg: 0.625rem;  /* 10px — buttons, popovers */
-  --radius-xl: 0.75rem;   /* 12px — cards */
-  --radius-2xl: 1rem;     /* 16px — panels, sheets */
-  --radius-pill: 999px;
+  /* ERPNext corners: crisp, near-square. 6px on controls, 8px on cards — and
+     nothing is ever a pill (see "Square corners" at the foot of this file). */
+  --radius-sm:  0.25rem;   /* 4px — chips, badges, tags */
+  --radius-md:  0.375rem;  /* 6px — inputs, buttons */
+  --radius-lg:  0.375rem;  /* 6px — buttons, popovers */
+  --radius-xl:  0.5rem;    /* 8px — cards */
+  --radius-2xl: 0.5rem;    /* 8px — panels, sheets */
+  --radius-3xl: 0.5rem;    /* 8px */
+  --radius-4xl: 0.5rem;    /* 8px */
+  --radius-pill: 0.25rem;  /* deliberately NOT a pill any more */
+
+  /* ERPNext runs on ~13px body text. The whole scale is a notch tighter than
+     the old one, which was built around 15–16px. */
+  --text-xs:   11px;    --text-xs--line-height:   1.35;
+  --text-sm:   12.5px;  --text-sm--line-height:   1.4;
+  --text-base: 13px;    --text-base--line-height: 1.5;
+  /* Headings stay legible: many page titles are `text-lg`, and ERPNext sets a
+     page heading at ~18px, not 15px. */
+  --text-lg:   16px;    --text-lg--line-height:   1.4;
+  --text-xl:   18px;    --text-xl--line-height:   1.35;
+  --text-2xl:  22px;    --text-2xl--line-height:  1.3;
+  --text-3xl:  26px;    --text-3xl--line-height:  1.25;
 }
 
-/* ---------- Light (macOS-ish, warm neutral) ---------- */
+/* ---------- Light (ERPNext / Frappe: blue-biased grey, flat) ---------- */
 :root {
   /* Layered surfaces */
-  --bg:         240 5% 97%;
-  --bg-elev:    0 0% 100%;
-  --bg-subtle:  240 6% 95%;
-  --bg-muted:   240 5% 92%;
+  --bg:         210 10% 96%;   /* #f4f5f6 — the page  */
+  --bg-elev:    0 0% 100%;     /* #ffffff — cards, lists, panels */
+  --bg-subtle:  210 25% 98%;   /* #fafbfc — striping, headers */
+  --bg-muted:   206 14% 92%;
   --bg-overlay: 0 0% 100%;
 
-  /* Vibrancy fill (used behind backdrop-blur) */
-  --vibrancy:        0 0% 100% / 0.62;
-  --vibrancy-strong: 0 0% 100% / 0.92;
+  /* Kept for compatibility: the old vibrancy fills are now solid surfaces. */
+  --vibrancy:        0 0% 100%;
+  --vibrancy-strong: 0 0% 100%;
 
   /* Text */
-  --fg:        240 10% 10%;
-  --fg-muted:  240 4% 38%;
-  --fg-subtle: 240 4% 55%;
+  --fg:        208 19% 15%;    /* #1f272e */
+  --fg-muted:  207 8% 45%;     /* #6b757d */
+  --fg-subtle: 211 12% 60%;    /* #8d99a6 */
 
-  /* Hairlines */
-  --border:        240 6% 88%;
-  --border-strong: 240 6% 80%;
-  --hairline:      240 10% 10% / 0.08;
+  /* Hairlines — the main way one area is separated from the next */
+  --border:        206 14% 90%; /* #e2e6e9 */
+  --border-strong: 206 14% 82%;
+  --hairline:      208 19% 15% / 0.10;
 
-  /* Cool, professional blue accent */
-  --accent:       214 88% 52%;
-  --accent-hover: 214 88% 46%;
+  /* One workmanlike blue. Semantic colour is kept separate from it. */
+  --accent:       208 86% 54%;  /* #2490ef */
+  --accent-hover: 208 86% 46%;
   --accent-fg:    0 0% 100%;
-  --accent-soft:  214 92% 95%;
-  --accent-ring:  214 88% 58%;
+  --accent-soft:  212 83% 95%;  /* #eaf3fd */
+  --accent-ring:  208 86% 54%;
 
-  /* ── Liquid glass material ── */
-  --glass-tint:   0 0% 100% / 0.44;   /* light: clearly see-through, minimal frost */
-  --glass-border: 240 10% 10% / 0.10; /* hairline edge (a touch stronger in light) */
-  --glass-rim:    0 0% 100% / 0.72;   /* bright top specular rim */
-  /* Apple Liquid Glass uses a gentle blur (clarity + refraction, not heavy frost) */
-  --blur-sm: 6px;
-  --blur-md: 9px;
-  --blur-lg: 16px;
+  /* Kept for compatibility: `.glass` is a SOLID surface now, and blur is off. */
+  --glass-tint:   0 0% 100%;
+  --glass-border: 206 14% 90%;
+  --glass-rim:    0 0% 100% / 0;
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
 
   /* ── Motion ── */
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
-  --dur-fast: 140ms;
-  --dur-base: 220ms;
-  --dur-slow: 360ms;
+  --dur-fast: 120ms;
+  --dur-base: 160ms;
+  --dur-slow: 240ms;
 
-  /* Semantic (macOS-y) */
-  --success:      142 60% 42%;
-  --success-soft: 142 55% 93%;
-  --warn:         35 92% 50%;
-  --warn-soft:    40 100% 93%;
-  --danger:       4 78% 56%;
-  --danger-soft:  4 90% 95%;
-  --info:         211 100% 50%;
-  --info-soft:    211 100% 95%;
+  /* Semantic */
+  --success:      150 52% 38%;  /* #2f9461 */
+  --success-soft: 150 45% 93%;
+  --warn:         36 71% 42%;   /* #b7791f */
+  --warn-soft:    36 80% 93%;
+  --danger:       0 62% 53%;    /* #d13d3d */
+  --danger-soft:  0 70% 95%;
+  --info:         208 86% 54%;
+  --info-soft:    212 83% 95%;
 
-  /* Stacked shadows (ambient + drop) */
-  --shadow-sm:  0 0 0 1px hsl(var(--hairline)), 0 1px 2px hsl(240 10% 10% / 0.04);
-  --shadow:     0 0 0 1px hsl(var(--hairline)), 0 2px 6px -1px hsl(240 10% 10% / 0.06), 0 1px 2px hsl(240 10% 10% / 0.04);
-  --shadow-md:  0 0 0 1px hsl(var(--hairline)), 0 8px 24px -6px hsl(240 10% 10% / 0.10), 0 2px 6px -2px hsl(240 10% 10% / 0.06);
-  --shadow-lg:  0 0 0 1px hsl(var(--hairline)), 0 20px 48px -12px hsl(240 10% 10% / 0.18), 0 4px 12px -4px hsl(240 10% 10% / 0.08);
-  --shadow-pill:0 0 0 1px hsl(var(--hairline)), 0 12px 32px -10px hsl(240 10% 10% / 0.20), 0 2px 6px -2px hsl(240 10% 10% / 0.08);
+  /* Flat: a hairline is the default "edge"; only things that float get a drop. */
+  --shadow-sm:   0 0 0 1px hsl(var(--border));
+  --shadow:      0 0 0 1px hsl(var(--border));
+  --shadow-md:   0 0 0 1px hsl(var(--border)), 0 4px 12px -4px hsl(208 19% 15% / 0.12);
+  --shadow-lg:   0 0 0 1px hsl(var(--border)), 0 12px 28px -8px hsl(208 19% 15% / 0.18);
+  --shadow-pill: 0 0 0 1px hsl(var(--border)), 0 4px 12px -4px hsl(208 19% 15% / 0.14);
 
   color-scheme: light;
 }
 
 /* ---------- Dark ---------- */
 .dark {
-  --bg:         240 8% 7%;
-  --bg-elev:    240 7% 11%;
-  --bg-subtle:  240 7% 9%;
-  --bg-muted:   240 6% 15%;
-  --bg-overlay: 240 8% 13%;
+  --bg:         210 12% 9%;    /* #15181b */
+  --bg-elev:    210 15% 13%;   /* #1c2126 */
+  --bg-subtle:  210 16% 15%;   /* #20262c */
+  --bg-muted:   208 15% 20%;
+  --bg-overlay: 210 15% 13%;
 
-  --vibrancy:        240 8% 12% / 0.62;
-  --vibrancy-strong: 240 8% 12% / 0.92;
+  --vibrancy:        210 15% 13%;
+  --vibrancy-strong: 210 15% 13%;
 
-  --fg:        0 0% 98%;
-  --fg-muted:  240 5% 68%;
-  --fg-subtle: 240 4% 50%;
+  --fg:        206 17% 92%;    /* #e7ebee */
+  --fg-muted:  207 11% 64%;    /* #9aa5ae */
+  --fg-subtle: 207 8% 51%;     /* #78838c */
 
-  --border:        240 6% 20%;
-  --border-strong: 240 6% 28%;
+  --border:        208 15% 20%; /* #2c343b */
+  --border-strong: 208 15% 28%;
   --hairline:      0 0% 100% / 0.08;
 
-  --accent:       213 94% 62%;
-  --accent-hover: 213 94% 68%;
+  --accent:       209 90% 63%;  /* #4aa3f5 */
+  --accent-hover: 209 90% 70%;
   --accent-fg:    0 0% 100%;
-  --accent-soft:  214 60% 20%;
-  --accent-ring:  213 94% 66%;
+  --accent-soft:  210 44% 16%;  /* #17293b */
+  --accent-ring:  209 90% 63%;
 
-  /* ── Liquid glass material (dark) ── */
-  --glass-tint:   240 8% 13% / 0.55;
-  --glass-border: 0 0% 100% / 0.08;
-  --glass-rim:    0 0% 100% / 0.12;
+  --glass-tint:   210 15% 13%;
+  --glass-border: 208 15% 20%;
+  --glass-rim:    0 0% 100% / 0;
 
-  --success:      142 55% 55%;
-  --success-soft: 142 35% 18%;
-  --warn:         35 92% 60%;
-  --warn-soft:    35 45% 18%;
-  --danger:       4 75% 62%;
-  --danger-soft:  4 45% 20%;
-  --info:         211 95% 65%;
-  --info-soft:    211 45% 20%;
+  --success:      148 44% 56%;  /* #5cc08a */
+  --success-soft: 148 30% 16%;
+  --warn:         37 68% 58%;   /* #dda44b */
+  --warn-soft:    37 40% 17%;
+  --danger:       0 81% 69%;    /* #f07171 */
+  --danger-soft:  0 40% 18%;
+  --info:         209 90% 63%;
+  --info-soft:    210 44% 16%;
 
-  --shadow-sm:  0 0 0 1px hsl(var(--hairline)), 0 1px 2px hsl(0 0% 0% / 0.4);
-  --shadow:     0 0 0 1px hsl(var(--hairline)), 0 2px 6px -1px hsl(0 0% 0% / 0.5), 0 1px 2px hsl(0 0% 0% / 0.4);
-  --shadow-md:  0 0 0 1px hsl(var(--hairline)), 0 8px 24px -6px hsl(0 0% 0% / 0.6), 0 2px 6px -2px hsl(0 0% 0% / 0.4);
-  --shadow-lg:  0 0 0 1px hsl(var(--hairline)), 0 20px 48px -12px hsl(0 0% 0% / 0.75), 0 4px 12px -4px hsl(0 0% 0% / 0.5);
-  --shadow-pill:0 0 0 1px hsl(var(--hairline)), 0 12px 32px -10px hsl(0 0% 0% / 0.7), 0 2px 6px -2px hsl(0 0% 0% / 0.4);
+  --shadow-sm:   0 0 0 1px hsl(var(--border));
+  --shadow:      0 0 0 1px hsl(var(--border));
+  --shadow-md:   0 0 0 1px hsl(var(--border)), 0 4px 12px -4px hsl(0 0% 0% / 0.5);
+  --shadow-lg:   0 0 0 1px hsl(var(--border)), 0 12px 28px -8px hsl(0 0% 0% / 0.6);
+  --shadow-pill: 0 0 0 1px hsl(var(--border)), 0 4px 12px -4px hsl(0 0% 0% / 0.5);
 
   color-scheme: dark;
 }
@@ -225,149 +237,64 @@ button, a, [role="button"], [role="tab"], td, th {
   -webkit-touch-callout: none;
 }
 
-/* ---------- Vibrancy (macOS translucent material) ---------- */
-.vibrancy {
-  background: hsl(var(--vibrancy));
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  border: 1px solid hsl(var(--hairline));
-}
-.vibrancy-strong {
-  background: hsl(var(--vibrancy-strong));
-  backdrop-filter: saturate(180%) blur(30px);
-  -webkit-backdrop-filter: saturate(180%) blur(30px);
-  border: 1px solid hsl(var(--hairline));
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .vibrancy, .vibrancy-strong { background: hsl(var(--bg-elev)); }
-}
-
-/* ---------- Liquid glass (layered material: tint + specular + lensing) ----------
-   Sheen is a layered background gradient (not a positioned pseudo-element), so
-   the material works on fixed / sticky / static hosts without overriding their
-   position. */
-.glass {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.12) 0%, hsl(0 0% 100% / 0.03) 24%, transparent 46%),
-    hsl(var(--glass-tint));
-  backdrop-filter: saturate(185%) blur(var(--blur-md));
-  -webkit-backdrop-filter: saturate(185%) blur(var(--blur-md));
-  border: 1px solid hsl(var(--glass-border));
-  /* bright top rim, soft lower shade (roundness), ambient + drop depth */
-  box-shadow:
-    inset 0 1px 0 0 hsl(var(--glass-rim)),
-    inset 0 -1px 1px 0 hsl(240 12% 4% / 0.10),
-    0 1px 2px hsl(240 10% 10% / 0.05),
-    0 16px 40px -16px hsl(240 10% 10% / 0.22);
-}
+/* ---------- Surfaces ----------
+   There is ONE surface in this design: a solid fill with a hairline edge. The
+   old material names (.glass, .vibrancy, .nav-frost, .glass-menu, .org-pop)
+   are kept ONLY so that ~94 existing components need no edit — they all now
+   resolve to that same flat surface. Do not add new ones; use `bg-bg-elev`
+   with `border border-border` on anything new. */
+.vibrancy,
+.vibrancy-strong,
+.glass,
+.glass-refract,
 .dark .glass {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.12) 0%, hsl(0 0% 100% / 0.03) 24%, transparent 46%),
-    hsl(var(--glass-tint));
-}
-/* Nav-pill frost: a firmer, more opaque frosted fill than chrome glass so the
-   floating nav-pill icons stay legible over ANY page content (the pill was too
-   see-through — people missed it). Keeps the glass blur/rim/shadow from `.glass`;
-   only the fill is stronger. Apply alongside `.glass` (defined AFTER it, so this
-   background wins by source order). */
-.nav-frost {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.14) 0%, hsl(0 0% 100% / 0.04) 24%, transparent 46%),
-    hsl(var(--bg-elev) / 0.9);
-  backdrop-filter: saturate(180%) blur(22px);
-  -webkit-backdrop-filter: saturate(180%) blur(22px);
-}
-.dark .nav-frost {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.10) 0%, hsl(0 0% 100% / 0.02) 24%, transparent 46%),
-    hsl(var(--bg-elev) / 0.86);
-}
-
-/* Menu variant: a touch more opaque than chrome glass so option text stays
-   crisp on busy backgrounds (dropdowns, snooze sheet, peek menus). Keeps the
-   glass blur/rim/shadow; only the fill is firmer. */
-.glass-menu {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.10) 0%, hsl(0 0% 100% / 0.02) 24%, transparent 46%),
-    hsl(0 0% 100% / 0.82);
-}
-.dark .glass-menu {
-  background:
-    linear-gradient(135deg, hsl(0 0% 100% / 0.10) 0%, hsl(0 0% 100% / 0.02) 24%, transparent 46%),
-    hsl(240 8% 14% / 0.86);
-}
-/* Organogram popovers sit over a very busy, colourful chart, so they need a
-   near-solid fill (the standard glass-menu was too see-through there). */
-.org-pop {
-  background: hsl(var(--bg-elev) / 0.97);
-  backdrop-filter: saturate(180%) blur(16px);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  background: hsl(var(--bg-elev));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid hsl(var(--border));
-  box-shadow:
-    inset 0 1px 0 0 hsl(var(--glass-rim)),
-    0 2px 8px hsl(240 10% 10% / 0.16),
-    0 24px 56px -18px hsl(240 10% 10% / 0.45);
-}
-.dark .org-pop { background: hsl(var(--bg-elev) / 0.97); }
-
-/* Chrome-only edge refraction (progressive enhancement; gated by [data-refract]). */
-.glass-refract { /* base = identical to .glass via composition in markup */ }
-html[data-refract="1"] .glass-refract {
-  backdrop-filter: url(#cos-liquid-glass) saturate(185%) blur(var(--blur-sm));
-  -webkit-backdrop-filter: saturate(185%) blur(var(--blur-md));
-}
-.glass-rim {
-  box-shadow: inset 0 1px 0 0 hsl(var(--glass-rim));
-}
-/* Tier 2 — solid content surfaces: a lit top rim + soft depth (no frosting). */
-.elevated {
-  box-shadow: inset 0 1px 0 0 hsl(var(--glass-rim)), var(--shadow-sm);
-}
-/* Tier 3 — atmospheric accent wash for headers (sits behind content). */
-.wash-accent {
-  background:
-    radial-gradient(120% 140% at 0% 0%, hsl(var(--accent) / 0.12), transparent 55%),
-    linear-gradient(135deg, hsl(var(--accent) / 0.07), hsl(var(--bg-elev)) 60%);
+  box-shadow: none;
 }
 
-/* ---------- Accessibility (Apple-mandated, non-negotiable) ----------
-   Reduce Transparency → make glass opaque (no blur). Increase Contrast →
-   strengthen edges. The system settings always win over the aesthetic. */
-@media (prefers-reduced-transparency: reduce) {
-  .glass, .glass-refract, .vibrancy, .vibrancy-strong {
-    background: hsl(var(--bg-elev)) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
+/* Things that genuinely FLOAT above the page (menus, popovers, the nav pill)
+   get one soft drop shadow — the only depth cue left in the system. */
+.nav-frost,
+.glass-menu,
+.dark .glass-menu,
+.org-pop,
+.dark .org-pop {
+  background: hsl(var(--bg-elev));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--shadow-md);
 }
+.nav-frost { box-shadow: var(--shadow-lg); }
+
+/* Retired effect — the class survives in markup, and means nothing now. */
+.glass-rim { box-shadow: none; }
+
+/* A solid content surface: hairline edge, no lift. */
+.elevated { box-shadow: 0 0 0 1px hsl(var(--border)); }
+
+/* Section headers: a flat tint, not an atmospheric wash. */
+.wash-accent { background: hsl(var(--bg-subtle)); }
+
+/* ---------- Accessibility ----------
+   Nothing is translucent any more, so Reduce Transparency has nothing to undo.
+   Increase Contrast still strengthens edges and lifts muted text. */
 @media (prefers-contrast: more) {
-  .glass, .glass-refract, .vibrancy, .vibrancy-strong, .elevated {
+  .glass, .glass-refract, .vibrancy, .vibrancy-strong, .elevated,
+  .glass-menu, .org-pop, .nav-frost {
     border: 1px solid hsl(var(--border-strong)) !important;
   }
   .text-fg-muted { color: hsl(var(--fg)) !important; }
 }
 
-/* ---------- Apple-like controls ---------- */
-/* Primary button: soft inner top highlight + accent-tinted outer glow. */
-.btn-primary-rim {
-  box-shadow:
-    inset 0 1px 0 0 hsl(0 0% 100% / 0.22),
-    0 1px 2px hsl(var(--accent) / 0.22),
-    0 6px 16px -7px hsl(var(--accent) / 0.45);
-}
-.btn-primary-rim:hover {
-  box-shadow:
-    inset 0 1px 0 0 hsl(0 0% 100% / 0.28),
-    0 2px 4px hsl(var(--accent) / 0.24),
-    0 10px 22px -8px hsl(var(--accent) / 0.55);
-}
-/* Neutral/secondary control: faint top rim for the "lit pane" read. */
-.btn-rim {
-  box-shadow: inset 0 1px 0 0 hsl(var(--glass-rim)), var(--shadow-sm);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass { background: hsl(var(--bg-elev)); }
-}
+/* ---------- Controls ----------
+   Flat: a button is a fill and an edge. No rims, no glow. */
+.btn-primary-rim,
+.btn-primary-rim:hover { box-shadow: none; }
+.btn-rim { box-shadow: 0 0 0 1px hsl(var(--border)); }
 
 /* ---------- Focus ring (graphite) ---------- */
 *:focus-visible {
@@ -376,29 +303,29 @@ html[data-refract="1"] .glass-refract {
   border-radius: 6px;
 }
 
-/* ---------- Inputs — soft inset fields ----------
-   Borderless by default: a gentle tinted "well" that reads as part of the
-   surface, so a field inside a card no longer looks like a box-in-a-box.
-   Focus grows an animated accent ring and lifts the fill. */
+/* ---------- Inputs — a field is a box ----------
+   ERPNext draws every field as a plain white box with a hairline edge: you can
+   see where you may type before you touch it. (The old look hid the edge and
+   used a tinted well.) */
 input, select, textarea {
-  background: hsl(var(--fg) / 0.045);
+  background: hsl(var(--bg-elev));
   color: hsl(var(--fg));
-  border: 1px solid transparent;
+  border: 1px solid hsl(var(--border));
   border-radius: var(--radius-md);
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 input:hover:not(:focus):not(:disabled),
 select:hover:not(:focus):not(:disabled),
 textarea:hover:not(:focus):not(:disabled) {
-  background: hsl(var(--fg) / 0.07);
+  border-color: hsl(var(--border-strong));
 }
 input:focus, select:focus, textarea:focus {
   background: hsl(var(--bg-elev));
-  border-color: hsl(var(--accent) / 0.55);
-  box-shadow: 0 0 0 3px hsl(var(--accent-ring) / 0.22);
+  border-color: hsl(var(--accent));
+  box-shadow: 0 0 0 2px hsl(var(--accent-ring) / 0.18);
   outline: none;
 }
 input:disabled, select:disabled, textarea:disabled {
@@ -418,7 +345,7 @@ input:disabled, select:disabled, textarea:disabled {
   box-shadow: none;
 }
 
-/* Command surface backdrop — soft drifting accent glows behind a frosted scrim. */
+/* Command surface backdrop (the drifting glows are gone with Aurora). */
 .cmd-backdrop { z-index: 0; }
 .cmd-blob {
   position: absolute;
@@ -454,14 +381,14 @@ input:disabled, select:disabled, textarea:disabled {
    inline buttons (chat, quick capture). The field itself carries the fill and
    the animated focus ring, so there's no box-inside-a-box. */
 .composer-field {
-  background: hsl(var(--fg) / 0.05);
-  border-radius: 1.25rem;
-  box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.5);
-  transition: background-color 200ms ease, box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: hsl(var(--bg-elev));
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+  transition: box-shadow 120ms ease;
 }
 .composer-field:focus-within {
   background: hsl(var(--bg-elev));
-  box-shadow: 0 0 0 3px hsl(var(--accent-ring) / 0.22), inset 0 0 0 1px hsl(var(--accent) / 0.55);
+  box-shadow: 0 0 0 2px hsl(var(--accent-ring) / 0.18), inset 0 0 0 1px hsl(var(--accent));
 }
 .composer-field textarea,
 .composer-field input {
@@ -578,13 +505,19 @@ input:disabled, select:disabled, textarea:disabled {
 }
 
 /* ---------- Admin side-pill gutter ----------
-   The vertical nav pill shows from lg (1024px). Between lg and xl the centred
-   1100px content column would collide with it, so give the admin <main> a left
-   gutter in exactly that band. Portal pages are excluded (they set
-   data-portal-zoom on <html> and keep the bottom pill instead). From xl up the
-   pill fits in the natural margin — no gutter needed. */
-@media (min-width: 1024px) and (max-width: 1279px) {
-  html:not([data-portal-zoom]) main { padding-left: 88px; }
+   The vertical nav pill shows from lg (1024px). The working area now uses the
+   full width of the screen, so there is no "natural margin" for the pill to sit
+   in at any size — the gutter applies from lg UP, with no ceiling. (It used to
+   stop at 1279px, which was right only while content was a centred 1100px
+   column.) Portal pages are excluded: they set data-portal-zoom on <html> and
+   keep the bottom pill. */
+@media (min-width: 1024px) {
+  /* The persistent sidebar publishes its own width as --desk-sidebar (208px, or
+     56px collapsed); the gutter follows it, plus a little breathing room. The
+     fallback keeps the old pill gutter if the sidebar is ever not mounted. */
+  html:not([data-portal-zoom]) main {
+    padding-left: calc(var(--desk-sidebar, 88px) + 1.25rem);
+  }
 }
 
 /* ---------- Portal web zoom ----------
@@ -600,11 +533,9 @@ input:disabled, select:disabled, textarea:disabled {
   html[data-portal-zoom] { zoom: 1; }
 }
 
-/* ---------- Density (compact mode) ---------- */
-:root[data-density="compact"] .card { padding: 0.5rem !important; }
-:root[data-density="compact"] .card .text-sm { font-size: 0.8125rem; line-height: 1.15rem; }
-:root[data-density="compact"] table th,
-:root[data-density="compact"] table td { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+/* Density lives in one place now — see "Density" at the foot of this file.
+   (The old block here also forced `.card .text-sm` to 13px, which fought the
+   new type scale.) */
 
 /* ---------- Focus mode ---------- */
 /* Calm view: hide the floating distractions (AI assistant bubble + suggestions
@@ -959,5 +890,139 @@ html.hide-brief-note-company .brief-note-company { display: none !important; }
 /* Constellation native fullscreen still fills the screen. */
 .org-web-wrap:fullscreen { background: hsl(var(--bg)); }
 .org-web-wrap:fullscreen > svg { height: 100vh !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE SHAPE LANGUAGE  (Stage 1 of the ERPNext redesign — Aug 2026)
+   ──────────────────────────────────────────────────────────────────────────
+   The tokens above changed the colours; these rules change the SHAPE, which is
+   what the eye actually reads. They are global on purpose: ~250 elements per
+   page carry hard-coded pill/glow classes that no token can reach, so squaring
+   them here is what saves editing 257 components by hand.
+   See memory/erpnext_redesign_plan.md and DESIGN_SYSTEM.md.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------- Square corners ----------
+   `rounded-full` is a hard-coded 9999px, NOT one of the radius tokens, so it
+   survives any re-skin. ERPNext has no pills: chips, badges, status tags,
+   segmented controls and avatars are all crisp little boxes.
+
+   What must STAY round: status dots, the "live" ping, and spinners. Those are
+   all EMPTY elements, which is what :not(:empty) keys on. */
+.rounded-full { border-radius: var(--radius-sm); }
+
+/* …except the genuinely round things. Status dots are small EMPTY elements, so
+   they are matched by an exact size token (`~=` matches a whole class name, so
+   "h-2" never catches "h-20"). Spinners and the live "ping" stay circles too. */
+[data-switch],
+[data-switch] > span,
+.animate-spin.rounded-full,
+.animate-ping.rounded-full,
+:is(span, div, i, em):empty.rounded-full:is(
+  [class~="h-1"], [class~="h-1.5"], [class~="h-2"], [class~="h-2.5"], [class~="h-3"], [class~="h-3.5"],
+  [class~="size-1"], [class~="size-1.5"], [class~="size-2"], [class~="size-2.5"], [class~="size-3"],
+  [class~="w-px"], [class~="h-px"]
+) { border-radius: 9999px; }
+
+/* ---------- No atmosphere ----------
+   The soft accent glows behind heroes (`blur-3xl` blobs, the command palette's
+   drifting blobs) are the signature of the old look. A business screen has a
+   flat background. `data-decor` marks a wrapper whose only job was decoration. */
+.blur-3xl,
+.blur-2xl,
+.cmd-blob,
+[data-decor] { display: none !important; }
+
+/* Frosting is off system-wide — a translucent bar is a glass idea.
+   NB: this zeroes Tailwind's own variable rather than setting `backdrop-filter:
+   none`. Writing both the prefixed and unprefixed property gets COLLAPSED by the
+   CSS minifier (it kept only `-webkit-backdrop-filter`, which Chrome ignores in
+   favour of the unprefixed one the utility also sets — so the blur survived).
+   The utility builds its filter out of these vars, so emptying them is exact. */
+[class*="backdrop-blur"] {
+  --tw-backdrop-blur: initial !important;
+  --tw-backdrop-saturate: initial !important;
+}
+
+/* ---------- Neutral typography ----------
+   The old look tightened letter-spacing for an Apple feel; ERPNext sets type
+   plainly and lets the grid do the work. */
+body { letter-spacing: normal; }
+h1, h2, h3 { letter-spacing: normal; }
+
+/* ---------- Focus ---------- */
+*:focus-visible {
+  outline: 2px solid hsl(var(--accent-ring) / 0.6);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Density ----------
+   Comfortable (default) and Compact, set on <html> by the toggle in the nav
+   pill / portal preferences, so EVERY screen honours it. Compact is ERPNext's
+   own tight mode: one notch smaller type and roughly half the row padding. */
+:root[data-density="compact"] {
+  --text-xs:   10.5px;
+  --text-sm:   12px;
+  --text-base: 12px;
+  --text-lg:   14px;
+  --text-xl:   16px;
+  --text-2xl:  18px;
+}
+:root[data-density="compact"] .card { padding: 0.5rem !important; }
+:root[data-density="compact"] [data-list-row] { padding-top: 4px; padding-bottom: 4px; }
+/* A list row's context line (RecordList `subRow`) folds away in Compact and
+   comes back on hover: one line per row, detail still one glance away. */
+:root[data-density="compact"] [data-subrow] { display: none; }
+:root[data-density="compact"] [data-list-row]:hover [data-subrow] { display: block; }
+:root[data-density="compact"] table th,
+:root[data-density="compact"] table td { padding-top: 4px; padding-bottom: 4px; }
+
+/* Lists: 9px rows and a quiet uppercase header strip — the ERPNext list rhythm.
+   `data-list-row` / `data-list-head` mark a list built from divs rather than a
+   real <table>; tag any new list with them and it inherits this automatically. */
+[data-list-row] { padding-top: 9px; padding-bottom: 9px; }
+[data-list-head],
+table th {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--fg-subtle));
+}
+table th, table td { padding-top: 9px; padding-bottom: 9px; }
+
+/* ---------- Page headers ----------
+   A page opens with a title and a rule, not a rounded hero card. Tag the header
+   `data-page-header` (and its figures line `data-page-header-meta`). The element
+   qualifier matters: it must beat the `.glass` surface rule above. */
+section[data-page-header] {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 0 10px;
+}
+[data-page-header-meta] {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+/* ---------- Launch splash ----------
+   Same choreography, no aurora: a flat page-coloured field behind the mark. */
+.aurora-splash { --aurora: none; }
+.aurora-splash::before { background: none; }
+.aurora-splash__mark {
+  box-shadow: none;
+  border: 1px solid hsl(var(--border));
+}
+.aurora-splash__ring { border-top-color: hsl(var(--accent)); }
+
+
+
+
 
 

@@ -4,13 +4,13 @@ import { cn } from "@/lib/cn";
 
 export type ViewMode = "cards" | "board" | "table" | "calendar" | "timeline";
 
-// The merged "Tasks" view (cards, with a Comfortable|Compact density toggle)
-// replaces the old Cards + Table entries — Table stays reachable at ?view=table
-// but no longer clutters the switcher (Command Centre unification, round 2).
-export const VIEW_MODES: ViewMode[] = ["cards", "board", "calendar", "timeline"];
+// LIST is the default and comes first (Stage 2 of the ERPNext redesign): the
+// list screen — columns, filter rail, bulk edit — is the working view, exactly
+// as in ERPNext. Cards stay for the glanceable read.
+export const VIEW_MODES: ViewMode[] = ["table", "cards", "board", "calendar", "timeline"];
 
 export function parseViewMode(v: string | undefined): ViewMode {
-  return v === "board" || v === "calendar" || v === "timeline" || v === "table" ? v : "cards";
+  return v === "board" || v === "calendar" || v === "timeline" || v === "cards" ? v : "table";
 }
 
 const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
@@ -22,9 +22,9 @@ const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
 };
 
 const LABELS: Record<ViewMode, string> = {
-  cards: "Tasks",
+  cards: "Cards",
   board: "Board",
-  table: "Table",
+  table: "List",
   calendar: "Calendar",
   timeline: "Timeline",
 };
@@ -46,8 +46,8 @@ export function ViewSwitcher({
         const Icon = ICONS[m];
         const active = m === current;
         const params = new URLSearchParams(queryWithoutView);
-        // cards is the default — keep URLs clean
-        if (m !== "cards") params.set("view", m);
+        // list is the default — keep URLs clean
+        if (m !== "table") params.set("view", m);
         const q = params.toString();
         const href = q ? `${basePath}?${q}` : basePath;
         return (

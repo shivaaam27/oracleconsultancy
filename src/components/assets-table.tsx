@@ -11,6 +11,12 @@ import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
+import { RecordList } from "./record-list";
+import { buildColumns } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+
+/** The Assets list is defined in metadata, not here (Stage 3/4). */
+const ASSET_COLUMNS = ENTITY_VIEWS.asset!.listColumns;
 import {
   ASSET_CATEGORIES,
   ASSET_STATUS_LABELS,
@@ -139,100 +145,133 @@ export function AssetsTable({
       </div>
 
       {filtered.length > 0 ? (
-        <RegisterList>
-          {filtered.map((a) => {
-            const busy = busyId === a.id;
-            const meta = [a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ");
-            return (
-              <RegisterRow key={a.id} className={busy ? "opacity-60" : undefined}>
-                <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
-                  <Laptop size={15} />
+        <RecordList
+          rows={filtered}
+          rowKey={(a) => a.id}
+          listKey="asset"
+          bulkActions={[
+            {
+              label: "Archive",
+              tone: "danger",
+              icon: <Archive size={12} />,
+              run: async (picked) => {
+                for (const a of picked) await archiveAssetAction(a.id, true);
+                toast(`${picked.length} asset${picked.length === 1 ? "" : "s"} archived.`, { tone: "success" });
+              },
+            },
+            {
+              label: "To maintenance",
+              icon: <Wrench size={12} />,
+              run: async (picked) => {
+                for (const a of picked) await setAssetStatusAction(a.id, "maintenance");
+                toast(`${picked.length} sent to maintenance.`, { tone: "success" });
+              },
+            },
+          ]}
+          total={assets.length}
+          columns={buildColumns<(typeof filtered)[number] & Record<string, unknown>>(ASSET_COLUMNS, {
+            overrides: {
+              name: (a) => (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-muted text-fg-muted ring-1 ring-border">
+                    <Laptop size={12} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-medium">{a.name}</span>
+                    <span className="block truncate text-[11px] text-fg-muted">
+                      {[a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ") || "—"}
+                    </span>
+                  </span>
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm truncate">{a.name}</span>
-                    {a.category && <span className="text-[11px] text-fg-subtle">{a.category}</span>}
-                    <Badge tone={ASSET_STATUS_TONE[a.status]}>{ASSET_STATUS_LABELS[a.status]}</Badge>
-                  </div>
-                  <div className="text-xs text-fg-muted truncate mt-0.5">{meta || "—"}</div>
-                  {a.status === "assigned" && a.assignedToName && (
-                    <div className="text-[11px] text-info mt-0.5 inline-flex items-center gap-1">
-                      <User size={11} /> {a.assignedToName}{a.assignedAt ? ` · since ${fmtDate(a.assignedAt)}` : ""}
-                    </div>
-                  )}
-                  {a.status === "assigned" && !a.assignedToName && (a.assignedToCompanyName || a.custodianName) && (
-                    <div className="text-[11px] text-info mt-0.5 inline-flex items-center gap-1">
-                      <Users size={11} /> Shared{a.assignedToCompanyName ? ` · ${a.assignedToCompanyName}` : ""}{a.custodianName ? ` · custodian ${a.custodianName}` : ""}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* One primary, contextual action; the rest live in the kebab. */}
-                  {a.status === "in_store" && (
-                    <button type="button" disabled={busy} onClick={() => setAssigning(a)}
-                      className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
-                      <UserPlus size={12} /> Assign
-                    </button>
-                  )}
-                  {a.status === "assigned" && (
-                    <button type="button" disabled={busy} onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
-                      className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
-                      <RotateCcw size={12} /> Return
-                    </button>
-                  )}
-                  {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
-
-                  <DropdownMenu.Root>
-                    <DropdownMenu.Trigger asChild>
-                      <button type="button" disabled={busy} title="More actions"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content align="end" sideOffset={6}
-                        className="z-[60] min-w-[180px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
-                        {a.status === "in_store" && (
-                          <MenuItem icon={<UserPlus size={14} />} onSelect={() => setAssigning(a)}>Assign to person…</MenuItem>
-                        )}
-                        {a.status === "in_store" && (
-                          <MenuItem icon={<Users size={14} />} onSelect={() => setSharing(a)}>Share with team…</MenuItem>
-                        )}
-                        {a.status === "assigned" && (
-                          <MenuItem icon={<UserCog size={14} />} onSelect={() => setAssigning(a)}>Reassign…</MenuItem>
-                        )}
-                        {a.status === "assigned" && (
-                          <MenuItem icon={<RotateCcw size={14} />} onSelect={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}>Return to store</MenuItem>
-                        )}
-                        {a.status === "assigned" && (
-                          <MenuItem icon={<Printer size={14} />} onSelect={() => window.open(`/hrms/assets/${a.id}/receipt`, "_blank")}>Handover receipt (PDF)</MenuItem>
-                        )}
-
-                        <DropdownMenu.Separator className="h-px bg-border my-1" />
-                        {a.status !== "maintenance" && a.status !== "retired" && (
-                          <MenuItem icon={<Wrench size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "maintenance"), "Marked as maintenance.")}>Send to maintenance</MenuItem>
-                        )}
-                        {a.status === "maintenance" && (
-                          <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Back in store.")}>Back in store</MenuItem>
-                        )}
-                        {a.status === "retired" ? (
-                          <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Restored to store.")}>Restore to store</MenuItem>
-                        ) : (
-                          <MenuItem icon={<Ban size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "retired"), "Asset retired.")}>Retire (end of life)</MenuItem>
-                        )}
-                        <MenuItem icon={<Clock size={14} />} onSelect={() => setHistoryAsset(a)}>History</MenuItem>
-                        <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(a)}>Edit</MenuItem>
-                        <DropdownMenu.Separator className="h-px bg-border my-1" />
-                        <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(a.id, () => archiveAssetAction(a.id, true), "Asset archived.")}>Archive</MenuItem>
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu.Root>
-                </div>
-              </RegisterRow>
-            );
+              ),
+              assignedToName: (a) => {
+                if (a.status === "assigned" && a.assignedToName) {
+                  return (
+                    <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-info">
+                      <User size={11} className="shrink-0" />
+                      <span className="truncate">{a.assignedToName}</span>
+                    </span>
+                  );
+                }
+                if (a.status === "assigned" && (a.assignedToCompanyName || a.custodianName)) {
+                  return (
+                    <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-info">
+                      <Users size={11} className="shrink-0" />
+                      <span className="truncate">{a.assignedToCompanyName || `custodian ${a.custodianName}`}</span>
+                    </span>
+                  );
+                }
+                return <span className="text-fg-subtle">—</span>;
+              },
+              status: (a) => <Badge tone={ASSET_STATUS_TONE[a.status]}>{ASSET_STATUS_LABELS[a.status]}</Badge>,
+            },
           })}
-        </RegisterList>
+          rowActions={(a) => {
+            const busy = busyId === a.id;
+            return (
+              <span className="flex items-center gap-1.5">
+                {a.status === "in_store" && (
+                  <button type="button" disabled={busy} onClick={() => setAssigning(a)}
+                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
+                    <UserPlus size={12} /> Assign
+                  </button>
+                )}
+                {a.status === "assigned" && (
+                  <button type="button" disabled={busy} onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
+                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
+                    <RotateCcw size={12} /> Return
+                  </button>
+                )}
+                {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button type="button" disabled={busy} title="More actions"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
+              <MoreHorizontal size={16} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="end" sideOffset={6}
+              className="z-[60] min-w-[180px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
+              {a.status === "in_store" && (
+                <MenuItem icon={<UserPlus size={14} />} onSelect={() => setAssigning(a)}>Assign to person…</MenuItem>
+              )}
+              {a.status === "in_store" && (
+                <MenuItem icon={<Users size={14} />} onSelect={() => setSharing(a)}>Share with team…</MenuItem>
+              )}
+              {a.status === "assigned" && (
+                <MenuItem icon={<UserCog size={14} />} onSelect={() => setAssigning(a)}>Reassign…</MenuItem>
+              )}
+              {a.status === "assigned" && (
+                <MenuItem icon={<RotateCcw size={14} />} onSelect={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}>Return to store</MenuItem>
+              )}
+              {a.status === "assigned" && (
+                <MenuItem icon={<Printer size={14} />} onSelect={() => window.open(`/hrms/assets/${a.id}/receipt`, "_blank")}>Handover receipt (PDF)</MenuItem>
+              )}
+
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              {a.status !== "maintenance" && a.status !== "retired" && (
+                <MenuItem icon={<Wrench size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "maintenance"), "Marked as maintenance.")}>Send to maintenance</MenuItem>
+              )}
+              {a.status === "maintenance" && (
+                <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Back in store.")}>Back in store</MenuItem>
+              )}
+              {a.status === "retired" ? (
+                <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Restored to store.")}>Restore to store</MenuItem>
+              ) : (
+                <MenuItem icon={<Ban size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "retired"), "Asset retired.")}>Retire (end of life)</MenuItem>
+              )}
+              <MenuItem icon={<Clock size={14} />} onSelect={() => setHistoryAsset(a)}>History</MenuItem>
+              <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(a)}>Edit</MenuItem>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(a.id, () => archiveAssetAction(a.id, true), "Asset archived.")}>Archive</MenuItem>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+              </span>
+            );
+          }}
+        />
       ) : (
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {assets.length === 0 ? "No assets yet. Add your first to begin." : "No assets match these filters."}

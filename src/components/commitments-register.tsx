@@ -3,6 +3,12 @@
 import { useState, useTransition } from "react";
 import { Plus, Archive, Loader2, X, FileWarning, Home, ShieldCheck, FileText } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { RecordList } from "./record-list";
+import { buildColumns } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+
+/** The commitments list is defined in metadata, not here (Stage 3/4). */
+const COMMITMENT_COLUMNS = ENTITY_VIEWS.commitment!.listColumns;
 import {
   KIND_LABEL,
   daysToNotice,
@@ -65,40 +71,66 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
 
       {adding && <AddForm companies={companies} onDone={() => setAdding(false)} />}
 
-      <div className="overflow-hidden rounded-2xl glass elevated">
-        <ul className="divide-y divide-border/50">
-          {ranked.map((c) => {
-            const urg = commitmentUrgency(c);
-            const nb = noticeByDate(c);
-            const d = daysToNotice(c);
-            const hasNotice = (c.noticeDays ?? 0) > 0;
-            return (
-              <li key={c.id} className="flex items-center gap-2.5 px-4 py-2.5">
+      {/* The commitments register on the shared list shell (Stage 4). Columns
+          come from ENTITY_VIEWS.commitment; the urgency chip, the notice date
+          and the row's own controls are overrides. */}
+      <RecordList
+        rows={ranked}
+        rowKey={(c) => c.id}
+        listKey="commitment"
+        bulkActions={[
+          {
+            label: "Archive",
+            tone: "danger",
+            icon: <Archive size={12} />,
+            run: async (picked) => { for (const c of picked) await archive(c.id); },
+          },
+        ]}
+        total={ranked.length}
+        empty={<p className="text-center text-[12px] text-fg-subtle">No commitments yet. Add a lease, insurance policy or contract.</p>}
+        columns={buildColumns<(typeof ranked)[number] & Record<string, unknown>>(COMMITMENT_COLUMNS, {
+          overrides: {
+            title: (c) => (
+              <span className="flex min-w-0 items-center gap-2">
                 <span className="shrink-0 text-fg-subtle" title={KIND_LABEL[c.kind]}>{KIND_ICON[c.kind]}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium truncate">{c.title}</span>
-                  <span className="block text-[11px] text-fg-muted truncate">
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-medium">{c.title}</span>
+                  <span className="block truncate text-[11px] text-fg-muted">
                     {[KIND_LABEL[c.kind], c.companyName, c.counterparty, c.amount].filter(Boolean).join(" · ")}
                   </span>
                 </span>
-                <span className="hidden sm:block shrink-0 text-right text-[11px] text-fg-subtle">
-                  {c.endDate ? <>ends {fmt(c.endDate)}<br /></> : null}
-                  {nb && hasNotice ? <>notice by {fmt(nb.toISOString())}</> : c.endDate ? null : statusLabel(c.status)}
+              </span>
+            ),
+            noticeBy: (c) => {
+              const urg = commitmentUrgency(c);
+              const nb = noticeByDate(c);
+              const d = daysToNotice(c);
+              const hasNotice = (c.noticeDays ?? 0) > 0;
+              return (
+                <span className="flex items-center justify-end gap-2">
+                  <span className="hidden text-right text-[11px] text-fg-subtle sm:block">
+                    {nb && hasNotice ? fmt(nb.toISOString()) : "—"}
+                  </span>
+                  <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
+                    {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired")
+                      : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}`
+                      : urg === "ok" ? "OK" : statusLabel(c.status)}
+                  </span>
                 </span>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
-                  {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired") : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}` : urg === "ok" ? "OK" : statusLabel(c.status)}
-                </span>
-                <DocLinkControl documentId={c.documentId} documents={documents} companyId={c.companyId} onLink={(docId) => linkCommitmentDocumentAction(c.id, docId).then(() => {})} />
-                <button type="button" onClick={() => archive(c.id)} disabled={busy === c.id} title="Archive"
-                  className="shrink-0 rounded-md p-1 text-fg-subtle hover:bg-bg-muted hover:text-danger">
-                  {busy === c.id ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
-                </button>
-              </li>
-            );
-          })}
-          {ranked.length === 0 && <li className="px-4 py-6 text-center text-[12px] text-fg-subtle">No commitments yet. Add a lease, insurance policy or contract.</li>}
-        </ul>
-      </div>
+              );
+            },
+          },
+        })}
+        rowActions={(c) => (
+          <span className="flex items-center gap-1">
+            <DocLinkControl documentId={c.documentId} documents={documents} companyId={c.companyId} onLink={(docId) => linkCommitmentDocumentAction(c.id, docId).then(() => {})} />
+            <button type="button" onClick={() => archive(c.id)} disabled={busy === c.id} title="Archive"
+              className="shrink-0 rounded-md p-1 text-fg-subtle hover:bg-bg-muted hover:text-danger">
+              {busy === c.id ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+            </button>
+          </span>
+        )}
+      />
     </div>
   );
 }

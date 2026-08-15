@@ -22,8 +22,8 @@ import { ContextActionsProvider } from "@/components/context-actions";
 import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
-import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
+import { DeskSidebar } from "@/components/desk-sidebar";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
@@ -97,8 +97,18 @@ export default async function RootLayout({ children, modal }: { children: React.
                 {/* Top padding respects the notch/status-bar safe area so the
                     hero isn't clipped in the installed PWA (env inset is 0 in a
                     normal browser, so desktop is unaffected). */}
+                {/* The working area uses the WIDTH OF THE SCREEN (Desk / Stage 2):
+                    a list is a workspace, and a 1100px column left ~400px of dead
+                    grey down each side of a wide monitor. 1600px is the stop, so
+                    a 27" display doesn't stretch rows to absurdity. Records cap
+                    themselves narrower for readability — see RecordPage. */}
+                <HideOnPortal>
+                  <Suspense>
+                    <DeskSidebar />
+                  </Suspense>
+                </HideOnPortal>
                 <main className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12">
-                  <div className="mx-auto max-w-[1100px]">
+                  <div className="mx-auto max-w-[1600px]">
                     <PageTransition>{children}</PageTransition>
                   </div>
                 </main>
@@ -114,11 +124,6 @@ export default async function RootLayout({ children, modal }: { children: React.
               </HideOnPortal>
               <ServiceWorkerRegister />
               <IosResume />
-              <LiquidGlassDefs />
-              <HideOnPortal>
-                <Suspense>
-                </Suspense>
-              </HideOnPortal>
               </NavVisibilityProvider>
             </CommandPaletteProvider>
             </Suspense>

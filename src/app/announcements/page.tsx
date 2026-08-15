@@ -86,7 +86,7 @@ export default async function AnnouncementsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="space-y-5">
       <Reveal>
         <Hero title="Announcements" subtitle="Post a notice once — it reaches the right people on the portal and here.">
           <div className="flex flex-wrap items-end gap-x-7 gap-y-3">

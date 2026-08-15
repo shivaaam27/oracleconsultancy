@@ -28,6 +28,7 @@ import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { createCaptureTask } from "@/app/capture/actions";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
+import { taskHref } from "@/lib/task-href";
 
 const BOARD_STATUSES = [
   "Not Started", "In Progress", "Under Review", "Waiting External",
@@ -102,10 +103,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   const orderedCodes = columns.flatMap((c) => c.items.map((r) => r.code));
 
   function openTask(code: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    params.delete("person");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    router.push(taskHref(code, { list: orderedCodes }));
   }
 
   async function move(r: TaskRow, toStatus: string) {

@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { CompanyAvatar } from "@/components/company-avatar";
+import { taskHref } from "@/lib/task-href";
 
 /* The Command Centre "deck" — the unified home's working surfaces
  * (memory/command_centre_unification.md):
@@ -68,7 +69,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
         className="relative touch-pan-y"
       >
         <Link
-          href={`/?tab=tasks&task=${encodeURIComponent(t.code)}`}
+          href={taskHref(t.code)}
           onClick={(e) => {
             if (swiped) {
               e.preventDefault();

@@ -8,6 +8,7 @@ import { DeadlineEditor } from "@/components/deadline-editor";
 import { TaskInlineStatus } from "@/components/task-inline-edit";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { TaskRowActions } from "@/components/task-row-actions";
+import { taskHref } from "@/lib/task-href";
 
 /** Small priority dot colour — mirrors the desktop rich-row leading glyph. */
 function priorityDot(p: string): string {
@@ -58,11 +59,7 @@ export function TaskCard({
   const openConversation =
     onOpenConversation ??
     (() => {
-      const params = new URLSearchParams(window.location.search);
-      params.set("task", row.code);
-      params.set("dtab", "conversation");
-      params.delete("person");
-      router.push(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+      router.push(taskHref(row.code, { tab: "conversation" }));
     });
 
   return (

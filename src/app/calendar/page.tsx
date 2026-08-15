@@ -100,7 +100,7 @@ export default async function CalendarPage() {
   const counts = { thisWeek, today, needInvites, unacknowledged };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <CalendarBoard
         events={views}
         overlays={overlays}

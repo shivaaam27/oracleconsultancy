@@ -10,6 +10,7 @@ import { Panel } from "@/components/surface-kit";
 import { Deadline } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { TimelineEntry, type TimelineTask } from "@/components/timeline-entry";
+import { taskHref } from "@/lib/task-href";
 import {
   sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
   suppressNoReasonAudits, groupFieldEdits, type TimelineItem,
@@ -96,12 +97,8 @@ export function TimelineView({
   }, [rows, groupBy]);
 
   function openTask(code: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    params.delete("person");
-    // Triage list — the drawer's Prev/Next arrows walk this in render order.
-    params.set("tl", triageCodes);
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    // Triage list — the record's Prev/Next arrows walk this in render order.
+    router.push(taskHref(code, { list: triageCodes.split(",") }));
   }
 
   const metaByCode = useMemo(() => {

@@ -28,7 +28,7 @@ export default async function CommandCentrePage({
   const { commandCentrePaused } = await getAppSettings();
   if (commandCentrePaused) {
     return (
-      <div className="space-y-4 max-w-5xl mx-auto">
+      <div className="space-y-4">
         <HrmsCrumbs from={from} />
         <Hero title="Tax & Legal" subtitle="Paused" accentTone="muted">
           <div className="flex items-start gap-3 rounded-2xl bg-bg-elev/70 px-4 py-3.5 ring-1 ring-border/60 backdrop-blur-sm">
@@ -115,7 +115,7 @@ export default async function CommandCentrePage({
   ];
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <HrmsCrumbs from={from} />
       <Hero
         title="Tax & Legal"

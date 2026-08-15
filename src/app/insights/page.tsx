@@ -99,7 +99,7 @@ export default async function InsightsPage() {
     : null;
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5">
       <HrmsCrumbs />
       <PageHeader title="Insights" sub="How your tasks are spread across companies, status and priority. (Forecasts — leave, renewals, probations — live on the Director Brief.)" />
 

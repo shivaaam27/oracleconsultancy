@@ -51,12 +51,14 @@ export function derivePageContext(pathname: string, params?: Params): PageContex
   // An open task drawer (?task=CODE) takes focus on whatever page it's over.
   const drawerTask = sp.get("task");
 
+  // /task/new must be tested FIRST — it also matches the record pattern below,
+  // which used to label the create form "Task new".
+  if (p === "/task/new") return { label: "New task form", section: "task" };
   const taskM = p.match(/^\/task\/([^/]+)$/);
   if (taskM) {
     const code = decodeURIComponent(taskM[1]);
     return { label: `Task ${code}`, taskCode: code, section: "task" };
   }
-  if (p === "/task/new") return { label: "New task form", section: "task" };
 
   if (p === "/") {
     const tab = sp.get("tab");

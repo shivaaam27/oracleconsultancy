@@ -184,9 +184,13 @@ const switchDims = {
 
 export function Switch({ on, busy = false, size = "md" }: { on: boolean; busy?: boolean; size?: keyof typeof switchDims }) {
   const d = switchDims[size];
+  // data-switch keeps the track and knob genuinely round: the global "square
+  // the pills" rule in globals.css exempts it (a toggle reads as a toggle only
+  // when it is a capsule).
   return (
     <span
       aria-hidden
+      data-switch
       className={cn(
         "relative inline-flex shrink-0 items-center rounded-full ring-1 transition-colors duration-200",
         d.track,
@@ -531,8 +535,10 @@ export function RegisterList({
   return (
     <div
       className={cn(
-        "bg-bg-elev ring-1 ring-border rounded-2xl elevated overflow-hidden",
-        "divide-y divide-border/60",
+        // Same frame as RecordList, so a register and a record list are the
+        // same object to the eye (Stage 4).
+        "overflow-hidden rounded-xl border border-border bg-bg-elev",
+        "divide-y divide-border",
         className
       )}
     >
@@ -571,9 +577,12 @@ export function RegisterRow({
             }
           : undefined
       }
+      data-list-row
       className={cn(
-        "flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors",
-        "hover:bg-bg-subtle/40",
+        // py comes from the global [data-list-row] rule (9px, 4px on Compact),
+        // so every register honours the density switch like the task list.
+        "flex items-center gap-3 px-3 transition-colors",
+        "hover:bg-bg-subtle",
         interactive && "cursor-pointer select-none",
         className
       )}

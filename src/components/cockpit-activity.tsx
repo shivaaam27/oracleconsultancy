@@ -3,6 +3,7 @@ import { Activity, Sparkles, CircleCheck, MessageSquare, ChevronRight } from "lu
 import { cn } from "@/lib/cn";
 import { CockpitModule } from "@/components/cockpit-module";
 import type { ActivityItem } from "@/lib/activity";
+import { taskHref } from "@/lib/task-href";
 
 /** Compact relative time (re-evaluated each server render → stays fresh on refresh). */
 function ago(iso: string): string {
@@ -35,7 +36,7 @@ export function CockpitActivity({ items }: { items: ActivityItem[] }) {
           return (
             <li key={it.id}>
               <Link
-                href={it.code ? `/?tab=tasks&task=${it.code}` : "/?tab=tasks"}
+                href={it.code ? taskHref(it.code) : "/?tab=tasks"}
                 className="group flex items-center gap-3 py-2.5 transition-colors"
               >
                 <Icon size={16} className={cn("shrink-0", tone)} />
