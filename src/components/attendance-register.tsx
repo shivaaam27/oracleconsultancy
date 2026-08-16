@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Eraser, CalendarCheck } from "lucide-react";
-import { Button } from "./ui";
+import { Button, Select } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { recordAttendanceAction, bulkRecordAttendanceAction } from "@/app/hrms/leave/actions";
@@ -112,11 +112,10 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
         <a href={ymHref(prev.y, prev.m)} className="h-11 w-11 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border text-fg-muted hover:text-fg"><ChevronLeft size={18} className="sm:hidden" /><ChevronLeft size={15} className="hidden sm:block" /></a>
         <span className="text-sm font-semibold tabular min-w-[8.5rem] text-center">{MONTH_NAMES[month.month - 1]} {month.year}</span>
         <a href={ymHref(next.y, next.m)} className="h-11 w-11 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border text-fg-muted hover:text-fg"><ChevronRight size={18} className="sm:hidden" /><ChevronRight size={15} className="hidden sm:block" /></a>
-        <select value={companyFilter === "all" ? "all" : String(companyFilter)} onChange={(e) => setCompanyFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className="h-11 sm:h-8 rounded-lg bg-bg-subtle text-sm sm:text-xs text-fg ring-1 ring-border px-3 sm:px-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
+        <Select value={companyFilter === "all" ? "all" : String(companyFilter)} onChange={(e) => setCompanyFilter(e.target.value === "all" ? "all" : Number(e.target.value))}>
           <option value="all">All companies</option>
           {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </Select>
         {isToday && brush !== "Clear" && (
           <Button size="sm" variant="secondary" disabled={pending} onClick={markAllToday} className="h-11 sm:h-8"><CalendarCheck size={14} /> Mark all {brush} today</Button>
         )}
@@ -198,13 +197,13 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
               no horizontal scroll. */}
           <div className="sm:hidden space-y-3">
             {/* Person picker */}
-            <select
+            <Select wrapperClassName="w-full"
               value={selectedPerson ? String(selectedPerson.id) : ""}
               onChange={(e) => setSelectedPersonId(Number(e.target.value))}
-              className="w-full h-11 rounded-xl bg-bg-subtle text-sm text-fg ring-1 ring-border px-3 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="text-fg"
             >
               {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </Select>
 
             {/* Week stepper */}
             <div className="flex items-center gap-2">

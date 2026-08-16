@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Select } from "./ui";
 import { Check, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -66,15 +67,15 @@ export function PortalPermissionsEditor({
           {PORTAL_ROLES.map((role) => (
             <label key={role} className="flex items-center justify-between gap-3 rounded-xl bg-bg-elev px-3 py-2.5 ring-1 ring-border">
               <span className="text-[13px] font-medium">{ROLE_LABEL[role]}</span>
-              <select
+              <Select
                 value={scope[role]}
                 onChange={(e) => setScope((s) => ({ ...s, [role]: e.target.value as ScopeLevel }))}
-                className="rounded-lg border border-border bg-bg px-2 py-1.5 text-[12px] text-fg"
+                className="text-[12px] text-fg"
               >
                 {SCOPE_LEVELS.map((lvl) => (
                   <option key={lvl.value} value={lvl.value}>{lvl.label}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           ))}
         </div>

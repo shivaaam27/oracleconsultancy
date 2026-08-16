@@ -223,6 +223,7 @@ export function TaskFilterBar({
   groupLabel,
   groupOptions,
   strip,
+  railOwnsFilters = false,
 }: {
   q: string;
   /** Href with every param EXCEPT q — the search box appends q client-side. */
@@ -242,6 +243,14 @@ export function TaskFilterBar({
   groupLabel: string;
   groupOptions: FilterOption[];
   strip: IdentityStrip | null;
+  /**
+   * True on the List view, where RecordList shows its own left filter rail from
+   * `md` up. The rail carries the SAME status chips and company list, so showing
+   * both was the duplication the owner spotted. When this is set, the status
+   * chips and the Company/Status pickers hide from `md` up and the rail owns
+   * them; below `md` the rail is hidden, so the chips stay and nothing is lost.
+   */
+  railOwnsFilters?: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -336,6 +345,7 @@ export function TaskFilterBar({
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition-all",
                 c.active ? tone.on : tone.off,
+                railOwnsFilters && "md:hidden",
               )}
             >
               {c.label} <b className="font-bold tabular">{c.count}</b>
@@ -344,29 +354,35 @@ export function TaskFilterBar({
           );
         })}
 
-        <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden />
+        <span className={cn("mx-0.5 h-4 w-px shrink-0 bg-border", railOwnsFilters && "md:hidden")} aria-hidden />
 
-        <Popover label="Filter by company" trigger={(o) => ddChip(o, <Building2 size={13} />, companyLabel ?? "Company", !!companyLabel)}>
-          {(close) => <OptionList options={companyOptions} close={close} searchable emptyLabel="No companies." />}
-        </Popover>
+        <span className={cn("shrink-0", railOwnsFilters && "md:hidden")}>
+          <Popover label="Filter by company" trigger={(o) => ddChip(o, <Building2 size={13} />, companyLabel ?? "Company", !!companyLabel)}>
+            {(close) => <OptionList options={companyOptions} close={close} searchable emptyLabel="No companies." />}
+          </Popover>
+        </span>
         <Popover label="Filter by person" trigger={(o) => ddChip(o, <User size={13} />, personLabel ?? "Person", !!personLabel)}>
           {(close) => <OptionList options={personOptions} close={close} searchable emptyLabel="No people." />}
         </Popover>
-        <Popover label="Filter by status" trigger={(o) => ddChip(o, <ListChecks size={13} />, statusLabel ?? "Status", !!statusLabel)}>
-          {(close) => <OptionList options={statusOptions} close={close} />}
-        </Popover>
-        <Popover
-          label="More filters"
-          width={240}
-          trigger={(o) => ddChip(o, <Ellipsis size={13} />, moreActiveCount > 0 ? `More · ${moreActiveCount}` : "More", moreActiveCount > 0)}
-        >
-          {(close) => (
-            <OptionList
-              options={moreItems.map((m) => ({ key: m.key, label: m.label, count: m.count, href: m.href, active: m.active }))}
-              close={close}
-            />
-          )}
-        </Popover>
+        <span className={cn("shrink-0", railOwnsFilters && "md:hidden")}>
+          <Popover label="Filter by status" trigger={(o) => ddChip(o, <ListChecks size={13} />, statusLabel ?? "Status", !!statusLabel)}>
+            {(close) => <OptionList options={statusOptions} close={close} />}
+          </Popover>
+        </span>
+        <span className={cn("shrink-0", railOwnsFilters && "md:hidden")}>
+          <Popover
+            label="More filters"
+            width={240}
+            trigger={(o) => ddChip(o, <Ellipsis size={13} />, moreActiveCount > 0 ? `More · ${moreActiveCount}` : "More", moreActiveCount > 0)}
+          >
+            {(close) => (
+              <OptionList
+                options={moreItems.map((m) => ({ key: m.key, label: m.label, count: m.count, href: m.href, active: m.active }))}
+                close={close}
+              />
+            )}
+          </Popover>
+        </span>
 
         <span className="shrink-0 sm:ml-auto">
           <Popover label="Group by" width={180} trigger={(o) => ddChip(o, null, `Group: ${groupLabel}`, false)}>

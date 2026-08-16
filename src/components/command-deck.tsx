@@ -9,6 +9,7 @@ import {
   BellRing,
   CalendarDays,
   Check,
+  Clock,
   FileText,
   KanbanSquare,
   ListChecks,
@@ -170,14 +171,14 @@ export function CompanyHeat({
           <b className={cn("font-semibold tabular", tone)}>{health}%</b> healthy
           {atRisk > 0 && <> · <span className="font-medium text-danger">{atRisk} at risk</span></>}
         </span>
-        <Link href="/?tab=companies" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
+        <Link href="/companies" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
           Companies <ArrowUpRight size={12} />
         </Link>
       </div>
       {/* All companies, worst-first — housed + scrolls within, matching the
           Needs-you column's height (the portal board's HealthPanel pattern). */}
       <div className="scroll-fade-y mt-3 -mx-1 max-h-[27rem] flex-1 overflow-y-auto overscroll-contain px-1 slim-scroll">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 2xl:grid-cols-3">
           {tiles.map((c) => (
             <Link
               key={c.companyId}
@@ -223,6 +224,8 @@ export type Room = {
 
 const ROOM_ICON: Record<string, React.ReactNode> = {
   tasks: <ListChecks size={13} />,
+  overdue: <AlertOctagon size={13} />,
+  dueToday: <Clock size={13} />,
   approvals: <ShieldCheck size={13} />,
   people: <Users size={13} />,
   calendar: <CalendarDays size={13} />,
@@ -275,12 +278,15 @@ function RoomTile({ r }: { r: Room }) {
         aria-hidden
       />
       <span className={cn("absolute right-3 top-3 h-1.5 w-1.5 rounded-full", ROOM_DOT[r.tone])} aria-hidden />
-      <span className="text-xl font-bold leading-none tracking-tight tabular text-fg group-hover:text-accent">
+      {/* Number card, ERPNext order: LABEL first, then the figure, then the
+          one-line heartbeat. The figure is the biggest thing on the card. */}
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+        <span className="text-fg-subtle">{ROOM_ICON[r.key]}</span>
+        <span className="truncate">{r.label}</span>
+      </span>
+      <span className="mt-1.5 text-3xl font-bold leading-none tracking-tight tabular text-fg group-hover:text-accent">
         {r.count}
         {r.suffix && <em className="ml-1 align-middle text-[10px] font-semibold not-italic text-danger">{r.suffix}</em>}
-      </span>
-      <span className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
-        <span className="text-fg-subtle">{ROOM_ICON[r.key]}</span> {r.label}
       </span>
       <span className="mt-2 block truncate border-t border-dashed border-border/60 pt-1.5 text-[10px] text-fg-subtle">
         {r.heartbeat}
@@ -291,7 +297,7 @@ function RoomTile({ r }: { r: Room }) {
 
 export function CommandRooms({ rooms }: { rooms: Room[] }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
       {rooms.map((r) => (
         <RoomTile key={r.key} r={r} />
       ))}

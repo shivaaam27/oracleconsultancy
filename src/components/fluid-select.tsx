@@ -120,16 +120,28 @@ export function FluidSelect({
         onKeyDown={(e) => { if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !open) { e.preventDefault(); setOpen(true); } }}
         aria-haspopup="listbox"
         aria-expanded={open}
+        /* Deliberately the SAME box as the kit `Select` (ui.tsx): h-9, pl-3/pr-8,
+           text-sm, rounded-lg, hairline border, same hover and focus ring. The
+           two controls do different jobs — this one is for toolbars, that one for
+           form fields — but a filter dropdown and a form dropdown sitting near
+           each other must not look like two different products. */
         className={cn(
-          "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-bg-elev text-fg",
-          "hover:bg-bg-muted btn-rim transition-colors select-none whitespace-nowrap",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring/60",
+          "relative inline-flex h-9 w-full items-center gap-1.5 pl-3 pr-8 text-sm rounded-lg border border-border bg-bg-elev text-fg",
+          "hover:border-border-strong transition-colors select-none whitespace-nowrap",
+          "focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent-ring/60",
           buttonClassName
         )}
       >
         {current?.dot && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: current.dot }} />}
         <span className={cn("min-w-0 flex-1 truncate text-left", !current && "text-fg-muted")}>{current ? current.label : placeholder}</span>
-        <ChevronDown size={13} className={cn("opacity-50 transition-transform", open && "rotate-180")} />
+        {/* Absolutely placed, matching the kit Select's chevron position exactly. */}
+        <ChevronDown
+          size={14}
+          className={cn(
+            "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle transition-transform",
+            open && "rotate-180"
+          )}
+        />
       </button>
 
       {mounted && createPortal(

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UploadCloud, X, Check, Loader2, SkipForward, AlertTriangle, Sparkles, FileText } from "lucide-react";
 import { useToast } from "./toast";
-import { Button } from "./ui";
+import { Button, Select } from "./ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { Segmented } from "./macos";
 import { cn } from "@/lib/cn";
@@ -155,7 +155,8 @@ export function BulkUploadDialog({
       ? companies.find((c) => String(c.id) === companyId)?.name ?? "—"
       : people.find((p) => String(p.id) === personId)?.name ?? "—";
 
-  const field = "mt-1 w-full rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent";
+  // Layout only — the box comes from the global field rule (see document-form).
+  const field = "mt-1 w-full px-3 py-2 text-sm";
 
   return (
     <HrmsDialog open={open} onOpenChange={onOpenChange} width={880} title="Add several documents">
@@ -176,27 +177,27 @@ export function BulkUploadDialog({
                 options={[{ value: "company", label: "A company" }, { value: "person", label: "A person" }]}
               />
               {ownerMode === "company" ? (
-                <select aria-label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}
-                  className="flex-1 rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent">
+                <Select wrapperClassName="flex-1" aria-label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}
+         >
                   <option value="">Choose a company…</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                </Select>
               ) : (
-                <select aria-label="Person" value={personId} onChange={(e) => setPersonId(e.target.value)}
-                  className="flex-1 rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent">
+                <Select wrapperClassName="flex-1" aria-label="Person" value={personId} onChange={(e) => setPersonId(e.target.value)}
+         >
                   <option value="">Choose a person…</option>
                   {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                </Select>
               )}
             </div>
           </div>
 
           <div>
             <label className="block text-xs text-fg-muted" htmlFor="bulk-category">Category</label>
-            <select id="bulk-category" value={category} onChange={(e) => setCategory(e.target.value)} className={field}>
+            <Select id="bulk-category" value={category} onChange={(e) => setCategory(e.target.value)} className={field}>
               <option value="">Choose a category…</option>
               {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </Select>
           </div>
 
           <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => pickFiles(e.target.files)} />

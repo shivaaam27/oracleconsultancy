@@ -76,23 +76,44 @@ export function Vibrancy({
 /* Headings                                                               */
 /* --------------------------------------------------------------------- */
 
+/**
+ * THE page heading. Every admin page opens with this — a title, an optional
+ * figures line, and an optional action, over a hairline rule.
+ *
+ * ⚠️ There used to be three: this, the aurora `<Hero>` from surface-kit, and
+ * twenty pages that simply began with content and no heading at all. The
+ * `data-page-header` tag the design guide specifies was used by exactly one
+ * file. Tagging it here means anything using PageHeader now inherits that
+ * treatment, and `metrics` gives the pages that were using Hero for its figure
+ * rail somewhere to put them.
+ */
 export function PageHeader({
   title,
   sub,
   action,
+  metrics,
+  children,
 }: {
   title: string;
   sub?: ReactNode;
   action?: ReactNode;
+  /** A figures line under the title — what `<Hero>` used its children for.
+   *  `children` does the same thing, so the pages converted from Hero (which
+   *  passed their figure rail as children) needed no rewriting. */
+  metrics?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {sub && <div className="text-xs text-fg-muted mt-0.5">{sub}</div>}
+    <section data-page-header className="mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+          {sub && <div className="mt-0.5 text-xs text-fg-muted">{sub}</div>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
-    </div>
+      {(metrics ?? children) && <div data-page-header-meta className="mt-2.5">{metrics ?? children}</div>}
+    </section>
   );
 }
 
@@ -171,6 +192,32 @@ export function Button({
       {loading && <Loader2 size={spinnerSize[size]} className="animate-spin" />}
       {children}
     </button>
+  );
+}
+
+/**
+ * The same button, as a LINK.
+ *
+ * A link that looks like a button was being hand-rolled with a different set of
+ * classes on nearly every page, which is why two "buttons" side by side could be
+ * different heights. This shares Button's exact recipe, so they can't drift.
+ * Use it for anything that navigates (mailto:, tel:, an href); use `Button` for
+ * anything that acts.
+ */
+export function ButtonLink({
+  variant = "primary",
+  size = "md",
+  className,
+  children,
+  ...p
+}: {
+  variant?: keyof typeof buttonStyles;
+  size?: keyof typeof buttonSizes;
+} & ComponentProps<"a">) {
+  return (
+    <a className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)} {...p}>
+      {children}
+    </a>
   );
 }
 
@@ -725,19 +772,50 @@ export function CaretTextarea({
   );
 }
 
-export function Select({ className, ...p }: ComponentProps<"select">) {
+/**
+ * THE dropdown for a form field — pick one of a fixed list.
+ *
+ * There are exactly two dropdowns in this system and one rule for choosing:
+ *   • `Select`      — a fixed list INSIDE A FORM. Native, so it submits with
+ *                     FormData and gives the OS wheel picker on a phone.
+ *   • `FluidSelect` — a fixed list in a TOOLBAR or FILTER, where nothing is being
+ *                     submitted. A portalled popover with check marks and dots.
+ * Anything you can type into, or that accepts a brand-new value, is `Combobox`.
+ * Never write a bare `<select>`; it will not match either of them.
+ *
+ * `wrapperClassName` exists because this renders a positioning <div> around the
+ * native element — a caller that needs `flex-1` must put it on the WRAPPER, or
+ * the layout collapses. That is the trap that kept people writing raw selects.
+ *
+ * Draws its own chevron, so it opts out of the global raw-select styling in
+ * globals.css via `data-kit-select` — otherwise you would see two arrows.
+ */
+export function Select({
+  className,
+  wrapperClassName,
+  size = "md",
+  ...p
+}: {
+  wrapperClassName?: string;
+  /** `sm` for dense strips — a bulk-action bar, a table row. Use this rather
+   *  than hand-writing `h-8 px-2`: ad-hoc sizing was how dropdowns drifted to
+   *  three different heights, and a px override collapses the chevron gap. */
+  size?: "sm" | "md";
+} & Omit<ComponentProps<"select">, "size">) {
+  const box = size === "sm" ? "h-8 pl-2.5 pr-7 text-xs" : "h-9 pl-3 pr-8 text-sm";
   return (
-    <div className="relative">
+    <div className={cn("relative", wrapperClassName)}>
       <select
+        data-kit-select
         {...p}
-        className={cn(
-          "w-full pl-3 pr-8 py-1.5 text-sm h-9 rounded-lg appearance-none cursor-pointer",
-          className
-        )}
+        className={cn("w-full py-1.5 rounded-lg appearance-none cursor-pointer", box, className)}
       />
       <ChevronDown
-        size={14}
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
+        size={size === "sm" ? 13 : 14}
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-fg-subtle",
+          size === "sm" ? "right-2" : "right-2.5"
+        )}
       />
     </div>
   );

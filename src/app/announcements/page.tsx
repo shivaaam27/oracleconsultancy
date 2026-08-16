@@ -1,6 +1,7 @@
 import { Megaphone } from "lucide-react";
+import { PageHeader } from "@/components/ui";
 import { sb } from "@/db/supabase";
-import { Hero, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
+import { SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AnnouncementComposer, type Opt } from "@/components/announcement-composer";
 import { AnnouncementAdminList, type AdminAnnouncement } from "@/components/announcement-admin-list";
@@ -88,7 +89,7 @@ export default async function AnnouncementsPage() {
   return (
     <div className="space-y-5">
       <Reveal>
-        <Hero title="Announcements" subtitle="Post a notice once — it reaches the right people on the portal and here.">
+        <PageHeader title="Announcements" sub="Post a notice once — it reaches the right people on the portal and here.">
           <div className="flex flex-wrap items-end gap-x-7 gap-y-3">
             {heroMetrics.map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
@@ -97,7 +98,7 @@ export default async function AnnouncementsPage() {
               </div>
             ))}
           </div>
-        </Hero>
+        </PageHeader>
       </Reveal>
 
       <Reveal delay={0.04}>

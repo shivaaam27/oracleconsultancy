@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PersonForm } from "./person-form";
@@ -23,8 +23,6 @@ export function NewPersonButton({
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
   const { toast } = useToast();
 
   useContextActions(
@@ -47,10 +45,10 @@ export function NewPersonButton({
           if (res.ok && res.id) {
             toast("Person added.", { tone: "success" });
             setOpen(false);
-            // Open the new person's drawer immediately so the user lands on their record
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("person", String(res.id));
-            router.push(`${pathname}?${params.toString()}`, { scroll: false });
+            // Land on the new person's RECORD PAGE. This used to push `?person=<id>`,
+            // which opened the old drawer over the list — so a moment after saving,
+            // an overlay you never asked for appeared on top of you.
+            router.push(`/people/${res.id}`);
           } else if (!res.ok) {
             toast(res.error, { tone: "danger" });
           }

@@ -1,8 +1,9 @@
 import { generateDrafts } from "@/lib/outbox/gen";
+import { PageHeader } from "@/components/ui";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox/history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
-import { Hero, Panel, TONE, type Tone } from "@/components/surface-kit";
+import { Panel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { Globe2 } from "lucide-react";
@@ -104,10 +105,10 @@ export default async function OutboxPage({
     <div className="space-y-5">
       <HrmsCrumbs from={from} />
       <Reveal>
-        <Hero
+        <PageHeader
           title="Outbox"
-          subtitle="Reminders, drafts and what's gone out — across every company"
-          actions={
+          sub="Reminders, drafts and what's gone out — across every company"
+          action={
             <SentLogDrawer
               todayDone={todayDoneEntries}
               yesterday={yesterdayEntries}
@@ -132,7 +133,7 @@ export default async function OutboxPage({
               </div>
             )}
           </div>
-        </Hero>
+        </PageHeader>
       </Reveal>
 
       {scopeName && (

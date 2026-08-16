@@ -12,6 +12,8 @@ import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+import { useUrlFilters } from "@/lib/use-url-filters";
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 
@@ -56,16 +58,24 @@ export function AssetsTable({
   companies,
   people,
   vendors = [],
+  savedViews = [],
 }: {
   assets: AssetRow[];
   companies: Lite[];
   people: Lite[];
   vendors?: Lite[];
+  savedViews?: SavedView[];
 }) {
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  /* Filters live in the URL, not component state — so this list is shareable and
+   * its saved views have something to save (see lib/use-url-filters.ts). The
+   * Vendors table shares this page, so it namespaces its own params (`vq`,
+   * `vcategory`) and the two never collide. */
+  const { values: filters, set: setFilter, dirty, query } = useUrlFilters(
+    { q: "", category: "all", status: "all" },
+    { debounceKeys: ["q"] }
+  );
+  const { q: search, category: categoryFilter, status: statusFilter } = filters;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -116,7 +126,7 @@ export function AssetsTable({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setFilter({ q: e.target.value })}
             placeholder="Search name, tag, serial, holder…"
             className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
@@ -124,12 +134,12 @@ export function AssetsTable({
         <div className="flex items-center gap-2 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
           <FluidSelect
             value={categoryFilter}
-            onSelect={setCategoryFilter}
+            onSelect={(v) => setFilter({ category: v })}
             options={[{ value: "all", label: "All Categories" }, ...ASSET_CATEGORIES.map((c) => ({ value: c, label: c }))]}
           />
           <FluidSelect
             value={statusFilter}
-            onSelect={setStatusFilter}
+            onSelect={(v) => setFilter({ status: v })}
             options={[
               { value: "all", label: "All Statuses" },
               ...(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
@@ -144,10 +154,21 @@ export function AssetsTable({
         </div>
       </div>
 
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/hrms/assets"
+        extraQuery="view=assets"
+        listKey="asset"
+      />
+
       {filtered.length > 0 ? (
         <RecordList
           rows={filtered}
           rowKey={(a) => a.id}
+          /* An asset is a record page now, like a task or a person. */
+          rowHref={(a) => `/hrms/assets/${a.id}`}
           listKey="asset"
           bulkActions={[
             {

@@ -184,18 +184,37 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     })
     .sort((a, b) => b.overdue - a.overdue || (b.tone === "warn" ? 1 : 0) - (a.tone === "warn" ? 1 : 0) || b.open - a.open);
 
-  /* ---------- Rooms — the live house ---------- */
+  /* ---------- Number cards — the ERPNext workspace strip ----------
+   * ERPNext opens a workspace with a row of number cards: one figure per thing
+   * you care about, each a door. The figures the hero states in prose get their
+   * own cards here (Open · Overdue · Due today), then the rooms of the house. */
+  // Today's diary is carried by the Now strip (event + time), which says more
+  // than a count — so Calendar has no number card of its own.
   const docCount = docCountRes.count ?? 0;
-  const firstEvent = nowData.events[0];
   const rooms: Room[] = [
     {
       key: "tasks",
-      label: "Tasks",
+      label: "Open tasks",
       count: open,
-      suffix: overdue > 0 ? `· ${overdue} late` : undefined,
-      heartbeat: dueToday > 0 ? `${dueToday} due today` : "nothing due today",
+      heartbeat: `across ${companies.length} companies`,
       href: "/?tab=tasks",
-      tone: overdue > 0 ? "danger" : dueToday > 0 ? "warn" : "success",
+      tone: "success",
+    },
+    {
+      key: "overdue",
+      label: "Overdue",
+      count: overdue,
+      heartbeat: lateRows[0] ? `worst ${lateRows[0].late}d late` : "nothing late",
+      href: "/?tab=tasks&flag=overdue",
+      tone: overdue > 0 ? "danger" : "success",
+    },
+    {
+      key: "dueToday",
+      label: "Due today",
+      count: dueToday,
+      heartbeat: dueToday > 0 ? "needs clearing today" : "nothing due today",
+      href: "/?tab=tasks&flag=due-soon",
+      tone: dueToday > 0 ? "warn" : "success",
     },
     {
       key: "approvals",
@@ -219,18 +238,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       tone: nowData.pendingLeave > 0 ? "warn" : "success",
     },
     {
-      key: "calendar",
-      label: "Calendar",
-      count: nowData.events.length,
-      heartbeat: firstEvent ? firstEvent.title : "clear today",
-      href: "/calendar",
-      tone: "success",
-    },
-    {
       key: "documents",
       label: "Documents",
       count: docCount,
-      heartbeat: docCount === 1 ? "1 on file" : `${docCount} on file`,
+      heartbeat: docCount === 0 ? "nothing filed yet" : "on file",
       href: "/documents",
       tone: "success",
     },
@@ -256,6 +267,12 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
           oriLine={oriLine}
         />
 
+        {/* The ERPNext workspace order: NUMBERS FIRST — a row of number cards,
+            each figure a door — then today's diary, then the working panels. */}
+        <CommandRooms rooms={rooms} />
+
+        <CockpitNow now={nowData} dueToday={dueToday} />
+
         {/* The deck — Needs-you beside the full company heat wall (equal-height
             scroll housings; controls live further down beside the activity feed). */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
@@ -263,11 +280,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
           <CompanyHeat tiles={heatTiles} health={health} atRisk={heatTiles.filter((t) => t.tone === "danger").length} />
         </div>
 
-        {/* The rooms — every area of the house, breathing. */}
-        <CommandRooms rooms={rooms} />
-
         <HomeAutonomyRecap items={autonomy} />
-        <CockpitNow now={nowData} dueToday={dueToday} />
 
         {/* The pulse + the levers, side by side. */}
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

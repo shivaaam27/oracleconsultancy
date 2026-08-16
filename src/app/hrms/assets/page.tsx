@@ -1,4 +1,5 @@
-import { Hero, TONE, type Tone } from "@/components/surface-kit";
+import { TONE, type Tone } from "@/components/surface-kit";
+import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { AssetsTable } from "@/components/assets-table";
 import { SiteToolsTable } from "@/components/site-tools-table";
@@ -7,6 +8,7 @@ import { RegisterTabs } from "@/components/register-tabs";
 import { listAssets, assetMetrics, assetCountByVendor } from "@/lib/assets";
 import { listSiteTools, siteToolMetrics } from "@/lib/site-tools";
 import { listVendors, listVendorsLite } from "@/lib/vendors";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,7 @@ export default async function AssetVendorPage({
   searchParams: Promise<{ from?: string; view?: string }>;
 }) {
   const { from, view } = await searchParams;
-  const [assets, tools, vendors, vendorsLite, vendorAssetCounts, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [assets, tools, vendors, vendorsLite, vendorAssetCounts, { data: companiesRaw }, { data: peopleRaw }, assetViews, vendorViews] = await Promise.all([
     listAssets(),
     listSiteTools(),
     listVendors(),
@@ -25,6 +27,8 @@ export default async function AssetVendorPage({
     assetCountByVendor(),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
+    getSavedViewsFor("asset"),
+    getSavedViewsFor("vendor"),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
@@ -47,9 +51,9 @@ export default async function AssetVendorPage({
   return (
     <div className="space-y-5">
       <HrmsCrumbs from={from} />
-      <Hero
+      <PageHeader
         title="Assets, Tools & Vendors"
-        subtitle="Durable equipment, site tools and the suppliers behind them"
+        sub="Durable equipment, site tools and the suppliers behind them"
       >
         <div className="flex flex-wrap gap-x-6 gap-y-3">
           {metrics.map((mt) => (
@@ -59,15 +63,15 @@ export default async function AssetVendorPage({
             </div>
           ))}
         </div>
-      </Hero>
+      </PageHeader>
       <RegisterTabs
         initial={initial}
         assetCount={assets.length}
         toolCount={tools.length}
         vendorCount={vendors.length}
-        assetsSlot={<AssetsTable assets={assets} companies={companies} people={people} vendors={vendorsLite} />}
+        assetsSlot={<AssetsTable assets={assets} companies={companies} people={people} vendors={vendorsLite} savedViews={assetViews} />}
         toolsSlot={<SiteToolsTable tools={tools} companies={companies} />}
-        vendorsSlot={<VendorsTable vendors={vendors} companies={companies} assetCounts={vendorAssetCounts} />}
+        vendorsSlot={<VendorsTable vendors={vendors} companies={companies} assetCounts={vendorAssetCounts} savedViews={vendorViews} />}
       />
     </div>
   );

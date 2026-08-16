@@ -11,7 +11,7 @@ import {
   Focus, Scaling, List, GitBranch, Building2, Minimize2, UnfoldVertical,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
-import { Badge } from "@/components/ui";
+import { Badge, Select } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/names";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
@@ -555,10 +555,10 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                   {companyId != null && deptId != null && (
                     <span className="inline-flex items-center gap-1 ml-auto text-[11px] text-fg-muted print-hidden">
                       Head
-                      <select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-[11px] cursor-pointer focus:outline-none focus:ring-accent/40">
+                      <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="text-[11px]">
                         <option value="">— none —</option>
                         {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                      </select>
+                      </Select>
                     </span>
                   )}
                 </div>
@@ -649,11 +649,11 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                     {companyId != null && deptId != null && (
                       <span className="inline-flex items-center gap-1 ml-1 print-hidden">
                         <span className="text-fg-subtle">· Head</span>
-                        <select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)}
-                          className="rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-[11px] text-fg focus:outline-none focus:ring-accent/40 cursor-pointer">
+                        <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)}
+                          className="text-[11px] text-fg">
                           <option value="">— none —</option>
                           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
+                        </Select>
                       </span>
                     )}
                   </div>

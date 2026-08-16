@@ -19,6 +19,8 @@ import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { RecordList, RecordListHeader, type RecordColumn } from "./record-list";
+import { useUrlFilters } from "@/lib/use-url-filters";
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 
@@ -73,22 +75,30 @@ function groupRowsByPerson(rows: DocumentRow[], nameOf: (id: number | null) => s
 }
 
 export function DocumentsTable({
-  documents, companies, people, linkedTasks = {},
+  documents, companies, people, linkedTasks = {}, savedViews = [],
 }: {
   documents: DocumentRow[];
   companies: Array<{ id: number; name: string; accentColor?: string | null; aliases?: string[]; logoUrl?: string | null }>;
   people: Array<{ id: number; name: string }>;
   linkedTasks?: Record<number, Array<{ code: string; status: string }>>;
+  savedViews?: SavedView[];
 }) {
   const { toast } = useToast();
   const [, startAction] = useTransition();
 
-  const [search, setSearch] = useState("");
-  const [companyFilter, setCompanyFilter] = useState<number | "all">("all");
-  const [personFilter, setPersonFilter] = useState<number | "all">("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [showArchived, setShowArchived] = useState(false);
+  /* Filters live in the URL, not component state, so the library is shareable
+   * ("/documents?company=3&status=Expired" is a real address) and saved views
+   * have something to save. See lib/use-url-filters.ts. */
+  const { values: filters, set: setFilter, dirty, query } = useUrlFilters(
+    { q: "", company: "all", person: "all", category: "all", status: "all", archived: "0" },
+    { debounceKeys: ["q"] }
+  );
+  const search = filters.q;
+  const companyFilter: number | "all" = /^\d+$/.test(filters.company) ? parseInt(filters.company, 10) : "all";
+  const personFilter: number | "all" = /^\d+$/.test(filters.person) ? parseInt(filters.person, 10) : "all";
+  const categoryFilter = filters.category;
+  const statusFilter = filters.status as StatusFilter;
+  const showArchived = filters.archived === "1";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -148,12 +158,15 @@ export function DocumentsTable({
         if (m) setReturnTo(m[1] === "person" ? `/people?person=${m[2]}` : `/companies/${m[2]}`);
       }
       setCreateOpen(true);
-      router.replace(pathname, { scroll: false });
+      // Strip only the one-shot prefill params. The filter params (company,
+      // person, category, status, archived, q) now DRIVE the list, so wiping the
+      // whole query string here would clear the filters the caller asked for.
+      const keep = new URLSearchParams(searchParams.toString());
+      for (const k of ["newdoc", "text", "title", "vendor", "supersede", "from"]) keep.delete(k);
+      const qs = keep.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     }
-    const company = searchParams.get("company");
-    if (company && /^\d+$/.test(company)) setCompanyFilter(parseInt(company, 10));
-    const person = searchParams.get("person");
-    if (person && /^\d+$/.test(person)) setPersonFilter(parseInt(person, 10));
+    // company/person no longer need seeding into state — they ARE the URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,19 +187,8 @@ export function DocumentsTable({
     return () => window.removeEventListener("cos:new-document", onNewDoc);
   }, []);
 
-  // Deep-link: /documents?doc=ID opens that document's editor. Hand it to the ONE
-  // workspace-level inline editor (works for quarantined docs not in this list too)
-  // and strip the param immediately — MOUNT-ONLY so it never re-fires on tab switch.
-  useEffect(() => {
-    const doc = searchParams.get("doc");
-    if (doc && /^\d+$/.test(doc)) {
-      window.dispatchEvent(new CustomEvent("cos:edit-document", { detail: { id: parseInt(doc, 10) } }));
-      const sp = new URLSearchParams(Array.from(searchParams.entries()));
-      sp.delete("doc");
-      router.replace(sp.toString() ? `${pathname}?${sp}` : pathname, { scroll: false });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // The /documents?doc=ID deep link is handled by DocumentsWorkspace, which owns
+  // the editor dialog — see the note there about why it cannot live here.
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -538,10 +540,18 @@ export function DocumentsTable({
       {/* Search only — the company + category housings below ARE the filter now. */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
+        <input value={search} onChange={(e) => setFilter({ q: e.target.value })}
           placeholder="Search a document, number, person or company…"
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50" />
       </div>
+
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/documents"
+        listKey="document"
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 -mt-1.5">
         <button type="button" onClick={() => setBulkOpen(true)}

@@ -59,6 +59,34 @@ Anything you build inherits, with no work on your part:
 - the density switch — `data-density="compact"` on `<html>`, from the nav pill;
 - reduced-motion and increased-contrast handling.
 
+### ⚠️ The Command Centre home is a deliberate exception — do NOT flatten it
+
+The rules above govern the **list and record screens**. The home page (`/`) keeps
+its warmer treatment — the aurora-lit hero, the soft-tinted company heat tiles,
+the rounded cards and the hover lift — because **the owner asked for it back**
+(16 Aug 2026). Offered the flat grey version of home, his answer was:
+
+> *"revert it back. i loved the way it was just that it wasnt fitting well. i want
+> erpnext but modern one."*
+
+So what home borrows from ERPNext is its **ORGANISATION**, not its paint:
+
+1. page hero, then
+2. a row of **number cards** — Open tasks · Overdue · Due today · Approvals ·
+   People · Documents, every figure a door (`CommandRooms` in `command-deck.tsx`),
+3. the "Now" strip (today's diary),
+4. then the working panels — Needs you beside Company health,
+5. then activity, controls and the engine bar.
+
+The complaint that started it was **fit, not decoration**: `CommandWall` capped
+the page at 880px and centred it, so a wide monitor showed dead grey down both
+sides. Home now uses the full working width like every other screen.
+
+**Before restyling anything on a "make it look like ERPNext" instruction, ask
+whether the problem is the LAYOUT or the LOOK.** Fix the layout first and show
+him. The rest of the app staying flat is settled; whether it also gets the modern
+treatment back is an open question he parked as "home first, then decide".
+
 ## 1. Principles
 
 - **Businesslike, not beautiful.** This is a tool for a working day. Nothing
@@ -201,12 +229,34 @@ Reuse before inventing: `Card`, `Surface`, `Button`, `Badge`, `Pill`, `Switch`,
 `BottomSheet`, `Combobox`, `FluidSelect`, `EntityDrawer`, `InsightPopover`,
 `ReferenceAdmin`, `PasskeyManager`, `useSwipeRow`.
 
-### Dropdowns — `FluidSelect`
-`components/fluid-select.tsx` is the one menu: a flat popover with check-marked
-selection, an optional colour `dot`, and outside-click / Escape dismissal. It
-renders in a **portal with fixed positioning** (clamped to the viewport) so it
-can never be clipped by a scroll container. `FilterSelect` wraps it to drive a
-URL search param. Prefer it over a native `<select>` everywhere.
+### Dropdowns — two controls, one rule (settled Aug 2026)
+
+There is **no third option, and never a bare `<select>`.** Pick by where it sits:
+
+| Where it sits | Use | Why |
+|---|---|---|
+| A fixed list **inside a form** | **`Select`** (`ui.tsx`) | Native, so it submits with FormData and gives the OS wheel picker on a phone |
+| A fixed list in a **toolbar or filter** | **`FluidSelect`** | Nothing is being submitted; a portalled popover with check marks and colour `dot`s, never clipped by a scroll container |
+| Anything you can **type into, or invent a new value for** | **`Combobox`** | The typeable field — ERPNext's Link field, in effect |
+
+The two look **identical by construction**: same `h-9`, `pl-3 pr-8`, `text-sm`,
+`rounded-lg`, hairline border, hover and focus ring. A filter dropdown beside a
+form dropdown must not read as two different products. If you change one box,
+change the other.
+
+**Traps:**
+- `Select` renders a positioning `<div>` around the native element. A caller that
+  needs `flex-1` must pass **`wrapperClassName`**, not `className`, or the row
+  collapses. Not knowing this is why people kept writing raw `<select>`s.
+- A `<select size={n}>` with n > 1 is a **list**, not a dropdown. Leave it native;
+  the global CSS explicitly exempts it.
+- There is a safety-net rule in `globals.css` that styles any stray bare
+  `<select>` to match. It is a net, not the mechanism — don't rely on it.
+
+*History: there were 36 raw `<select>` elements across 22 files, each with its
+own hand-written box classes, alongside all three components. They were all
+converted; the only survivor is one deliberate multi-row list on the Assets
+assign dialog.*
 
 ### Print / PDF (`@media print` in `globals.css`)
 The **Director Brief** prints via the browser (no PDF library): dark tokens are

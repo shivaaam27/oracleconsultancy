@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/cn";
 import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 
 type SelectionCtx = {
   /** All codes currently rendered (used by selectAll). Reset by SelectionProvider on each render. */
@@ -238,26 +238,26 @@ export function BulkBar() {
         {mode && mode !== "delete" && (
           <div className="border-t border-border px-3 py-2 flex items-center gap-2 bg-bg-subtle">
             {mode === "status" && (
-              <select
-                autoFocus
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-bg outline-none"
-              >
+              <Select wrapperClassName="flex-1"
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        
+       >
                 <option value="">Pick a status…</option>
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              </Select>
             )}
             {mode === "priority" && (
-              <select
-                autoFocus
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="flex-1 px-2 py-1.5 text-sm rounded-md bg-bg outline-none"
-              >
+              <Select wrapperClassName="flex-1"
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        
+       >
                 <option value="">Pick a priority…</option>
                 {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
-              </select>
+              </Select>
             )}
             {mode === "postpone" && (
               <>

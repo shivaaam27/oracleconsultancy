@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Select } from "./ui";
 import { useRouter } from "next/navigation";
 import { UserPlus, Loader2 } from "lucide-react";
 import { setPersonDirector, addPersonManager, type ReportingResult } from "@/lib/org-actions";
@@ -61,25 +62,25 @@ export function OrgDirectorPicker({
           <div className="absolute z-50 mt-1 right-0 w-60 rounded-xl glass glass-menu elevated p-2.5 space-y-2 text-left">
             <div>
               <label className="block text-[10px] uppercase tracking-wide text-fg-subtle mb-1">Reports to (Director)</label>
-              <select
+              <Select wrapperClassName="w-full"
                 defaultValue={currentManagerId ?? ""}
                 onChange={(e) => run(() => setPersonDirector(personId, e.target.value ? Number(e.target.value) : null))}
-                className="w-full rounded-md bg-bg-subtle ring-1 ring-border px-2 py-1.5 text-xs focus:outline-none focus:ring-accent/40 cursor-pointer"
+                className="text-xs"
               >
                 <option value="">— none —</option>
                 {options.map((p) => <option key={p.id} value={p.id}>{p.name}{p.companyName ? ` · ${p.companyName}` : ""}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-[10px] uppercase tracking-wide text-fg-subtle mb-1">Also reports to</label>
-              <select
+              <Select wrapperClassName="w-full"
                 value=""
                 onChange={(e) => { if (e.target.value) run(() => addPersonManager(personId, Number(e.target.value))); }}
-                className="w-full rounded-md bg-bg-subtle ring-1 ring-border px-2 py-1.5 text-xs focus:outline-none focus:ring-accent/40 cursor-pointer"
+                className="text-xs"
               >
                 <option value="">+ add a manager…</option>
                 {options.map((p) => <option key={p.id} value={p.id}>{p.name}{p.companyName ? ` · ${p.companyName}` : ""}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
         </>

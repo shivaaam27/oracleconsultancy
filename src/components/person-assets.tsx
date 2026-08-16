@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { Select } from "./ui";
 import Link from "next/link";
 import { Laptop, Loader2, RotateCcw, Plus, Users } from "lucide-react";
 import { useToast } from "./toast";
@@ -127,7 +128,7 @@ export function PersonAssets({
       <div className="flex items-center gap-2 border-t border-border/50 px-3.5 py-2">
         <Plus size={13} className="text-fg-subtle shrink-0" />
         {data.available.length > 0 ? (
-          <select
+          <Select wrapperClassName="flex-1"
             disabled={busyId != null}
             defaultValue=""
             onChange={(e) => {
@@ -135,13 +136,13 @@ export function PersonAssets({
               if (!Number.isNaN(v)) run(v, () => assignAssetAction(v, personId), "Equipment assigned.");
               e.currentTarget.value = "";
             }}
-            className="flex-1 rounded-lg bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1.5"
+            className="text-[11px] text-fg-muted"
           >
             <option value="" disabled>Assign equipment from store…</option>
             {data.available.map((a) => (
               <option key={a.id} value={a.id}>{a.name}{a.tag ? ` (${a.tag})` : ""}</option>
             ))}
-          </select>
+          </Select>
         ) : (
           <Link href="/hrms/assets" onClick={onNavigate} className="text-[11px] text-accent hover:underline">
             No equipment in store — add some in the Asset Register

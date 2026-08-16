@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { FluidSelect } from "@/components/fluid-select";
 import { useRouter } from "next/navigation";
 import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
 import type { OutboxDraftRow } from "@/lib/outbox/drafts";
@@ -253,20 +254,17 @@ export function OutboxWorkspace({
         </div>
 
         {companyOptions.length > 0 && (
-          <select
+          <FluidSelect
             value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            className={cn(
-              "text-xs rounded-full border px-2.5 py-1.5 cursor-pointer transition-colors",
-              company !== "all" ? "border-accent/40 bg-accent/10 text-fg" : "border-border bg-bg-elev text-fg-muted hover:text-fg"
-            )}
-            title="Filter by company"
-          >
-            <option value="all">All companies</option>
-            {companyOptions.map(([name, n]) => (
-              <option key={name} value={name}>{name === scopeName ? `★ ${name}` : name} ({n})</option>
-            ))}
-          </select>
+            onSelect={setCompany}
+            options={[
+              { value: "all", label: "All companies" },
+              ...companyOptions.map(([name, n]) => ({
+                value: name,
+                label: `${name === scopeName ? `★ ${name}` : name} (${n})`,
+              })),
+            ]}
+          />
         )}
 
         {emailDraftCount > 0 && (

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Megaphone, X, Pin, CheckCircle2, Sparkles, Languages } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { Panel } from "@/components/surface-kit";
 import { ANNOUNCEMENT_TYPES, AUDIENCE_KINDS, type AudienceKind } from "@/lib/announcements-shared";
 import {
@@ -166,20 +166,20 @@ export function AnnouncementComposer({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Type
-            <select name="type" defaultValue="operational" className="rounded-xl border border-border bg-bg-elev px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent-ring/50">
+            <Select name="type" defaultValue="operational" className="text-fg">
               {ANNOUNCEMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Who sees it
-            <select
+            <Select
               name="audienceKind"
               value={kind}
               onChange={(e) => setKind(e.target.value as AudienceKind)}
-              className="rounded-xl border border-border bg-bg-elev px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent-ring/50"
+              className="text-fg"
             >
               {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-            </select>
+            </Select>
           </label>
         </div>
 

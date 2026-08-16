@@ -3,14 +3,15 @@
 // The Documents library — one view, no queues. Aurora hero with glance counts,
 // then the table. Everything here is what the owner filed by hand.
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { deriveDocStatus, type DocumentRow } from "@/lib/documents-shared";
 
 import { DocumentsTable } from "@/components/documents-table";
 import { DocumentForm } from "@/components/document-form";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { getDocumentRowAction } from "@/app/documents/actions";
+import type { SavedView } from "@/components/saved-views-bar";
 
 type Company = { id: number; name: string; accentColor?: string | null; aliases?: string[]; logoUrl?: string | null };
 
@@ -19,13 +20,17 @@ export function DocumentsWorkspace({
   companies,
   people,
   linkedTasks,
+  savedViews = [],
 }: {
   documents: DocumentRow[];
   companies: Company[];
   people: Array<{ id: number; name: string; personType?: string }>;
   linkedTasks: Record<number, Array<{ code: string; status: string }>>;
+  savedViews?: SavedView[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   // "Edit" opens the editor in place (a dialog over the table). A table row hands
   // us the whole document; a deep link passes only the id, so we fetch it.
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
@@ -60,6 +65,37 @@ export function DocumentsWorkspace({
     return () => { cancelled = true; window.removeEventListener("cos:edit-document", onEdit); };
   }, []);
 
+  /* Deep link: /documents?doc=ID opens that document's editor.
+   *
+   * ⚠️ This used to live in DocumentsTable, which dispatched `cos:edit-document`
+   * on mount. React runs a CHILD's effects before its PARENT's, and the listener
+   * above belongs to the parent — so the event was fired before anything was
+   * listening and the link silently did nothing. It is read HERE now, by the
+   * component that actually owns the editor. Mount-only, and the param is
+   * stripped straight away so it can't re-fire. */
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    // Run-once ref, NOT a `cancelled` flag. In development React invokes effects
+    // twice (mount → cleanup → mount). With a cancelled flag the first pass set
+    // "Opening…", its cleanup cancelled it before it could clear, and the second
+    // pass saw the param already stripped and bailed — leaving the overlay stuck
+    // on "Opening…" forever. A ref makes it genuinely once.
+    if (deepLinkDone.current) return;
+    const raw = searchParams.get("doc");
+    if (!raw || !/^\d+$/.test(raw)) return;
+    deepLinkDone.current = true;
+
+    setEditLoading(true);
+    getDocumentRowAction(parseInt(raw, 10))
+      .then((found) => { if (found) setEditDoc(found); })
+      .finally(() => setEditLoading(false));
+
+    const sp = new URLSearchParams(Array.from(searchParams.entries()));
+    sp.delete("doc");
+    router.replace(sp.toString() ? `${pathname}?${sp}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* ── Aurora hero (CC grammar) ─────────────────────────────── */}
@@ -85,7 +121,7 @@ export function DocumentsWorkspace({
         </div>
       </section>
 
-      <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
+      <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} savedViews={savedViews} />
 
       {/* ── Inline editor ───────────────────────────────────────── */}
       <HrmsDialog

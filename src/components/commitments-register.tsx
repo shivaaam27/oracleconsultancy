@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Select } from "./ui";
 import { Plus, Archive, Loader2, X, FileWarning, Home, ShieldCheck, FileText } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+import { FluidSelect } from "./fluid-select";
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
+import { useUrlFilters } from "@/lib/use-url-filters";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 
@@ -35,10 +39,15 @@ const statusLabel = (s: string) => STATUS_LABEL[s] ?? s;
  * Commitments register + calendar: leases, insurance and contracts with their
  * notice-by deadlines (end − notice period). Items needing notice soon float up.
  */
-export function CommitmentsRegister({ items, companies, documents = [] }: { items: Commitment[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[] }) {
+export function CommitmentsRegister({ items, companies, documents = [], savedViews = [] }: { items: Commitment[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[]; savedViews?: SavedView[] }) {
   const [adding, setAdding] = useState(false);
   const [, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
+
+  /* This register had no filters at all, so there was nothing for a saved view to
+   * save. It now has the three that matter — company, kind and how urgent the
+   * notice is — and they live in the URL like every other list. */
+  const { values: filters, set: setFilter, dirty, query } = useUrlFilters({ company: "all", kind: "all", urgency: "all" });
 
   function archive(id: number) {
     if (!confirm("Archive this commitment?")) return;
@@ -55,9 +64,38 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
   });
   const dueSoon = ranked.filter((c) => ["overdue", "soon"].includes(commitmentUrgency(c)));
 
+  const shown = ranked.filter((c) => {
+    if (filters.company !== "all" && String(c.companyId ?? "") !== filters.company) return false;
+    if (filters.kind !== "all" && c.kind !== filters.kind) return false;
+    if (filters.urgency === "due" && !["overdue", "soon"].includes(commitmentUrgency(c))) return false;
+    if (filters.urgency !== "all" && filters.urgency !== "due" && commitmentUrgency(c) !== filters.urgency) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <FluidSelect
+          value={filters.company}
+          onSelect={(v) => setFilter({ company: v })}
+          options={[{ value: "all", label: "All companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
+        <FluidSelect
+          value={filters.kind}
+          onSelect={(v) => setFilter({ kind: v })}
+          options={[{ value: "all", label: "All kinds" }, ...(Object.keys(KIND_LABEL) as CommitmentKind[]).map((k) => ({ value: k, label: KIND_LABEL[k] }))]}
+        />
+        <FluidSelect
+          value={filters.urgency}
+          onSelect={(v) => setFilter({ urgency: v })}
+          options={[
+            { value: "all", label: "Any notice date" },
+            { value: "due", label: "Notice due soon" },
+            { value: "overdue", label: "Notice overdue" },
+            { value: "ok", label: "On track" },
+            { value: "undated", label: "No end date" },
+          ]}
+        />
         {dueSoon.length > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn">
             <FileWarning size={13} /> {dueSoon.length} need{dueSoon.length === 1 ? "s" : ""} notice soon
@@ -69,13 +107,21 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
         </button>
       </div>
 
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/hrms/registers"
+        listKey="commitment"
+      />
+
       {adding && <AddForm companies={companies} onDone={() => setAdding(false)} />}
 
       {/* The commitments register on the shared list shell (Stage 4). Columns
           come from ENTITY_VIEWS.commitment; the urgency chip, the notice date
           and the row's own controls are overrides. */}
       <RecordList
-        rows={ranked}
+        rows={shown}
         rowKey={(c) => c.id}
         listKey="commitment"
         bulkActions={[
@@ -147,7 +193,8 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent/60";
+  // Layout only — the box comes from the global field rule.
+  const input = "w-full px-2.5 py-1.5 text-[13px]";
 
   async function save() {
     setSaving(true); setError(null);
@@ -168,16 +215,16 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <button type="button" onClick={onDone} className="ml-auto rounded-md p-1 text-fg-subtle hover:bg-bg-muted"><X size={13} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select className={input} value={kind} onChange={(e) => setKind(e.target.value as CommitmentKind)}>
+        <Select className={input} value={kind} onChange={(e) => setKind(e.target.value as CommitmentKind)}>
           <option value="lease">Lease</option><option value="insurance">Insurance</option><option value="contract">Contract</option>
-        </select>
+        </Select>
         <input className={input} placeholder="Title (e.g. Head office lease)" value={title} onChange={(e) => setTitle(e.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select className={input} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+        <Select className={input} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
           <option value="">— Company —</option>
           {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </Select>
         <input className={input} placeholder="Other party (landlord/insurer)" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} />
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -186,9 +233,9 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <label className="text-[11px] text-fg-muted">Amount<input className={input} placeholder="rent/premium" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="text-[11px] text-fg-muted">Status<select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+        <label className="text-[11px] text-fg-muted">Status<Select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="active">Active</option><option value="needs_doc">Needs document</option><option value="quoting">Quoting</option><option value="partial">Partial</option><option value="expired">Expired</option>
-        </select></label>
+        </Select></label>
         <label className="text-[11px] text-fg-muted">Reference / policy no.<input className={input} value={reference} onChange={(e) => setReference(e.target.value)} /></label>
       </div>
       <div className="flex items-center justify-end gap-1.5">

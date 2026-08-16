@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pencil, Pin, PinOff, Send, Trash2, X } from "lucide-react";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
-import { CaretTextarea } from "./ui";
+import { CaretTextarea, Select } from "./ui";
 import { VoiceButton } from "./voice-button";
 
 /* Shared conversation view for a task — used by BOTH the staff portal and the
@@ -406,12 +406,12 @@ export function PortalConversation(props: Props) {
                 />
                 <label className="flex items-center gap-2 text-xs text-fg-muted">
                   Status
-                  <select name="newStatus" defaultValue="" className="rounded-xl px-2.5 py-1.5 text-xs focus:outline-none">
+                  <Select name="newStatus" defaultValue="" className="text-xs">
                     <option value="">No change</option>
                     {statusOptions.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </div>
               <button type="submit" className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg px-4 py-2 text-xs font-semibold hover:opacity-90 transition-opacity">

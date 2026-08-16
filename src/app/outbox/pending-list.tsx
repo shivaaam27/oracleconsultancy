@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
+import { FluidSelect } from "@/components/fluid-select";
 import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
 import { OutboxCard } from "./outbox-card";
-import { Card, CountPill } from "@/components/ui";
+import { Card, CountPill, Select } from "@/components/ui";
 import { Search, X } from "lucide-react";
 
 type Filter = "all" | "critical" | "overdue" | "missing";
@@ -61,23 +62,14 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
         <Chip label="Overdue" count={counts.overdue} active={filter === "overdue"} onClick={() => setFilter(filter === "overdue" ? "all" : "overdue")} tone="danger" />
         <Chip label="Missing contact" count={counts.missing} active={filter === "missing"} onClick={() => setFilter(filter === "missing" ? "all" : "missing")} tone="warn" />
 
-        <select
+        <FluidSelect
           value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          className={`text-xs rounded-full border px-2.5 py-1 cursor-pointer transition-colors ${
-            company !== "all"
-              ? "border-accent/40 bg-accent/10 text-fg"
-              : "border-border bg-bg-elev text-fg-muted hover:text-fg"
-          }`}
-          title="Filter by company"
-        >
-          <option value="all">All companies ({items.length})</option>
-          {companyCounts.map(([name, n]) => (
-            <option key={name} value={name}>
-              {name === scopeName ? `★ ${name}` : name} ({n})
-            </option>
-          ))}
-        </select>
+          onSelect={setCompany}
+          options={[
+            { value: "all", label: `All companies (${items.length})` },
+            ...companyCounts.map(([name, n]) => ({ value: name, label: `${name} (${n})` })),
+          ]}
+        />
 
         {/* Search — right-aligned */}
         <div className="relative ml-auto flex-1 sm:flex-none min-w-[8rem]">

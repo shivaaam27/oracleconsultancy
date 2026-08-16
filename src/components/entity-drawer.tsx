@@ -103,6 +103,18 @@ export function EntityDrawer({
         {fullScreenOnMobile ? (
           <Dialog.Content
             aria-describedby={undefined}
+            /* ⚠️ Click-outside has to be handled BY HAND here.
+             *
+             * This branch makes Content `fixed inset-0` — a full-screen flex box
+             * that centres the card. That means the grey area around the card is
+             * INSIDE Dialog.Content, so Radix's dismissable layer never sees an
+             * "outside" pointerdown and the drawer could not be closed by clicking
+             * away from it. (The person and company drawers both use this branch,
+             * so both were stuck open until you found the X.)
+             *
+             * `e.target === e.currentTarget` is true only for the padding area
+             * itself, never for a click that lands on the card. */
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             className="group fixed inset-0 z-[51] flex items-end justify-center sm:items-center outline-none
               data-[state=open]:animate-in data-[state=closed]:animate-out
               data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200

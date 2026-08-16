@@ -1,4 +1,5 @@
-import { Hero, TONE, type Tone } from "@/components/surface-kit";
+import { TONE, type Tone } from "@/components/surface-kit";
+import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CommandCentreView } from "@/components/command-centre-view";
 import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/recurring";
@@ -30,7 +31,7 @@ export default async function CommandCentrePage({
     return (
       <div className="space-y-4">
         <HrmsCrumbs from={from} />
-        <Hero title="Tax & Legal" subtitle="Paused" accentTone="muted">
+        <PageHeader title="Tax & Legal" sub="Paused">
           <div className="flex items-start gap-3 rounded-2xl bg-bg-elev/70 px-4 py-3.5 ring-1 ring-border/60 backdrop-blur-sm">
             <PauseCircle size={20} className="mt-0.5 shrink-0 text-fg-muted" />
             <div className="text-sm text-fg-muted">
@@ -42,7 +43,7 @@ export default async function CommandCentrePage({
               </p>
             </div>
           </div>
-        </Hero>
+        </PageHeader>
       </div>
     );
   }
@@ -117,10 +118,9 @@ export default async function CommandCentrePage({
   return (
     <div className="space-y-4">
       <HrmsCrumbs from={from} />
-      <Hero
+      <PageHeader
         title="Tax & Legal"
-        subtitle={`${overdue} overdue · ${dueNow} due now · ${soon} coming up`}
-        accentTone={heroTone}
+        sub={`${overdue} overdue · ${dueNow} due now · ${soon} coming up`}
       >
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {metrics.map((m) => (
@@ -130,7 +130,7 @@ export default async function CommandCentrePage({
             </div>
           ))}
         </div>
-      </Hero>
+      </PageHeader>
       <CommandCentreView
         initial={view === "permits" ? "permits" : "deadlines"}
         habits={habitRows}

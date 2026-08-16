@@ -14,16 +14,26 @@ including the staff portal. Read this whole file before touching any UI.
 ## ⚡ Picking this up in a new chat — read this box first
 
 **Where the work is.** A git worktree, NOT the main folder:
-`C:\Users\Shivam Parmar\Documents\cos-system\.claude\worktrees\mpc-stage-2-556d33`
-on branch **`claude/erpnext-redesign-stage-0-0b5839`**. The owner's normal
-checkout (`Documents\cos-system`, `master`) still has the OLD design — that is
-why "I see the old design" came up twice. **Nothing is merged or pushed** (his
-instruction). `master` HAS moved on since this branch started, so a merge is
-needed before anything ships.
+`C:\Users\Shivam Parmar\Documents\cos-system\.claude\worktrees\ai-document-event-attachment-e20b1d`
+on branch **`claude/server-status-check-91a135`**, where the whole programme
+landed as commit `d804ad5` ("Rebuild COS in the ERPNext shape — all five stages,
+plus the sidebar"). *(It was built in an earlier worktree, `mpc-stage-2-556d33`
+on `claude/erpnext-redesign-stage-0-0b5839` — that path is stale, don't look for
+it.)* The owner's normal checkout (`Documents\cos-system`, `master`) still has
+the OLD design — that is why "I see the old design" came up twice. **Nothing is
+merged or pushed** (his instruction). `master` HAS moved on since this branch
+started, so a merge is needed before anything ships.
 
 **Run it:** `npm run dev` from the worktree, then sign in at localhost:3000.
 ⚠️ `npm run build` overwrites `.next` and breaks a running dev server — stop the
 server, build, `rm -rf .next`, restart. This bit twice.
+
+⚠️ **A stale `.next` will lie to you about the layout.** Aug 2026: the dev server
+served an OLD CSS chunk in which the sidebar gutter still stopped at 1279px, so on
+a wide monitor `main` got no left gutter at all and the content sat under the
+sidebar. The source was correct the whole time. If a layout looks wrong and the
+CSS doesn't match the file, stop the server, `rm -rf .next`, restart before
+changing a single line.
 
 **What is DONE** (all verified live, type-check + 281 tests + build clean):
 | | |
@@ -40,11 +50,27 @@ own URL; **Compact is the default** density on admin (portal stays Comfortable);
 the left sidebar was wanted, and built last on purpose; full width everywhere
 except reading/printing surfaces.
 
-**THE ONE THING LEFT:** saved views only work where filters live in the URL.
-Assets, Vendors, Documents and Commitments still filter with `useState`, so they
-have nothing to save. Moving those filters into the URL is a per-screen refactor
-of each page's server/client split — four screens, each needing its own check.
-Everything else in the programme is finished.
+**THE PROGRAMME IS FINISHED** (16 Aug 2026). The last job — saved views only work
+where filters live in the URL — is done: Assets, Vendors, Documents and
+Commitments all filter through **`src/lib/use-url-filters.ts`** and carry a
+`SavedViewsBar`. Notes for whoever comes next:
+
+- The hook takes the defaults and returns `values` / `set` / `dirty` / `query`.
+  Anything still at its default is left OUT of the URL, so a clean list has a
+  clean address and a saved view records only what differs. Free-text fields are
+  debounced (`debounceKeys`) so typing isn't one navigation per keystroke, and it
+  writes with `router.replace` so filtering never fills the Back button.
+- **Two lists on one page will fight over a param.** `/hrms/assets` mounts all
+  three tabs at once, so Vendors namespaces its own (`vq`, `vcategory`) while
+  Assets keeps `q`/`category`/`status`. The tab itself is now `?view=` rather
+  than `useState`, so a saved view can record which tab it belongs to.
+- **Commitments had no filters at all** — the old note said it filtered with
+  `useState`, which was wrong. It gained company/kind/urgency so it has something
+  to save.
+- Saved views moved to the generic **`/api/prefs/list-views?list=<key>`** built on
+  `lib/saved-views.ts`. The task-only `/api/prefs/task-views` route and
+  `lib/task-views.ts` were duplicates and are deleted; the settings key
+  (`<key>.savedViews`) is unchanged, so views already saved on Tasks still load.
 
 **Not converted, with reasons:** Pipeline is a kanban (ERPNext has kanbans too);
 OECR/OCR/attendance are grids and checklists, not record lists; Companies is a
@@ -52,6 +78,26 @@ hub of small reference lists. All three already inherit the Desk look.
 
 > The owner: *"I have ERPNext and I love the interface and design, can we do that
 > for our site also?"*
+
+## Where it stands (Aug 2026, after the follow-up passes)
+
+**Navigation is ONE map now.** The seven "Worlds" (`lib/worlds.ts`, `/world/<slug>`,
+`world-screen.tsx`, the vertical SidePill and its flyouts) are DELETED. The desktop
+sidebar and the mobile launcher both render `NAV_GROUPS` from `src/lib/nav.ts` —
+Work / Records / Registers / System. **FORWARD RULE: add a route to `NAV_ROUTES`,
+then put its id in a group.** A route in neither is reachable only by typing its
+address, which is exactly how Chat, the Director Brief and the Applications board
+went missing.
+
+**Records are pages, not overlays.** `/task/CODE` and now `/people/<id>` both render
+`RecordPage`. The person page reuses `getPersonDetail` — the same loader the drawer's
+API route uses — so the two can never disagree. The `?person=` drawer still opens for
+legacy links and still owns EDITING (one edit form, not two).
+
+**Still on drawers/overlays:** Companies (`/companies/[id]` exists but is hand-built
+with its own tabs), Documents, Vendors, Assets, Commitments, Pipeline. Each follows
+the People pattern: a `[id]/page.tsx` that loads with the existing loader and hands
+`RecordPage` its sections + sidebar.
 
 ## The mockup (look at this first)
 

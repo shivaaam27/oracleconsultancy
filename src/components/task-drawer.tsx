@@ -620,8 +620,34 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     // A conversation post (add / pin / status) runs as a server-action form;
     // PortalConversation fires onPosted when it resolves, so we refetch exactly
     // then — no fixed 0.7s guess that could miss a slow upload.
-    <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4 lg:items-start">
-      <aside className="hidden lg:block space-y-1 rounded-2xl bg-bg-subtle/40 p-3 ring-1 ring-border/60">
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-4 lg:items-start">
+      <PortalConversation
+        taskId={t.id}
+        code={t.code}
+        closed={done}
+        statusOptions={data.statusOptions}
+        currentStatus={t.status}
+        messages={data.convoMessages}
+        events={data.convoEvents}
+        latestId={data.latestId}
+        seenLabel={data.seenLabel}
+        team={data.team}
+        addAction={adminAddUpdate}
+        pinAction={adminTogglePin}
+        canPin
+        canAck={false}
+        composerHint="You can set any status, pin the current instruction, attach files, and @mention the team."
+        onPosted={() => setRefreshKey((k) => k + 1)}
+      />
+      {/* The facts rail sits on the RIGHT, like every other record's sidebar
+          (RecordPage puts sections left, sidebar right) and like the Details tab
+          right here. It used to sit on the left, which made the record read
+          differently depending on which tab you were on. */}
+      <aside className="hidden lg:block overflow-hidden rounded-xl border border-border bg-bg-elev">
+        <div className="border-b border-border bg-bg-subtle px-3 py-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">At a glance</span>
+        </div>
+        <div className="space-y-1 px-3 py-2.5">
         <FactRow label="Accountable">
           {t.assignees.length ? (
             <span className="inline-flex items-center gap-1.5 min-w-0 align-middle">
@@ -646,30 +672,13 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           </div>
         )}
         <div className="pt-2 flex flex-wrap gap-1.5">
-          <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={copyLink}>
+          <Button type="button" variant="ghost" size="sm" onClick={copyLink}>
             <LinkIcon size={12} /> Link
           </Button>
           <DraftEmailButton taskId={t.id} />
         </div>
+        </div>
       </aside>
-      <PortalConversation
-        taskId={t.id}
-        code={t.code}
-        closed={done}
-        statusOptions={data.statusOptions}
-        currentStatus={t.status}
-        messages={data.convoMessages}
-        events={data.convoEvents}
-        latestId={data.latestId}
-        seenLabel={data.seenLabel}
-        team={data.team}
-        addAction={adminAddUpdate}
-        pinAction={adminTogglePin}
-        canPin
-        canAck={false}
-        composerHint="You can set any status, pin the current instruction, attach files, and @mention the team."
-        onPosted={() => setRefreshKey((k) => k + 1)}
-      />
     </div>
   ) : null;
 

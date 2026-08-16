@@ -22,7 +22,7 @@ const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   org: Network,
 };
 
-const LABELS: Record<CompanyTab, string> = {
+export const COMPANY_TAB_LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
   profile: "Profile",
   tasks: "Tasks",
@@ -58,7 +58,7 @@ export function CompanyTabs({
             )}
           >
             <Icon size={14} />
-            {LABELS[t]}
+            {COMPANY_TAB_LABELS[t]}
             {t === "tasks" && openCount ? (
               <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{openCount}</span>
             ) : null}

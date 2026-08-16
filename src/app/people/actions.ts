@@ -10,14 +10,14 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
 import { getAiKey } from "@/lib/settings";
-import { reindexEntity } from "@/lib/index-hooks";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
 import { hashPassword } from "@/lib/portal-auth";
 import { recordEvent } from "@/lib/system-events";
 import { withTx, type Tx } from "@/lib/tx";
 import { people, departmentHeads, reportingLines } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql as sqlRaw } from "drizzle-orm";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -1121,6 +1121,113 @@ export async function snoozePerson(id: number, untilIso: string | null): Promise
   if (error) return { ok: false, error: error.message };
 
   await logPersonEvent(id, value ? "snoozed" : "unsnoozed", value ? { detail: `Until ${untilIso}` } : {});
+
+  invalidate();
+  return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Permanent delete — the only irreversible action on a person.
+ * ---------------------------------------------------------------------- */
+
+export type PersonDeleteImpact = {
+  name: string;
+  active: boolean;
+  /** Tasks they OWN. The task survives; it is left with no owner. */
+  ownedTasks: number;
+  /** Tasks they are assigned to. The assignment row is destroyed by cascade. */
+  assignedTasks: number;
+  /** Documents filed against them. The document survives, unfiled. */
+  documents: number;
+  /** Assets in their name — released back to the store. */
+  assets: number;
+  /** People who report to them, who end up with no manager. */
+  reports: number;
+  /** Their audit trail, attendance, leave and chat mentions — all destroyed. */
+  history: number;
+  /** Departments they head. */
+  departmentsHeaded: number;
+};
+
+/**
+ * What deleting this person would destroy. Read-only — call it to show the
+ * owner the damage BEFORE they confirm, never as part of the delete itself.
+ */
+export async function personDeleteImpact(id: number): Promise<PersonDeleteImpact | null> {
+  const { data: p } = await sb.from("people").select("name,active").eq("id", id).maybeSingle();
+  if (!p) return null;
+
+  const count = async (table: string, column: string) => {
+    const { count: c } = await sb.from(table).select("id", { count: "exact", head: true }).eq(column, id);
+    return c ?? 0;
+  };
+  const [ownedTasks, assignedTasks, documents, assets, reports, events, attendance, departmentsHeaded] =
+    await Promise.all([
+      count("tasks", "owner_id"),
+      count("task_assignees", "person_id"),
+      count("documents", "person_id"),
+      count("assets", "assigned_to_person_id"),
+      count("people", "manager_id"),
+      count("person_events", "person_id"),
+      count("attendance", "person_id"),
+      count("department_heads", "head_person_id"),
+    ]);
+
+  return {
+    name: p.name as string,
+    active: p.active as boolean,
+    ownedTasks,
+    assignedTasks,
+    documents,
+    assets,
+    reports,
+    history: events + attendance,
+    departmentsHeaded,
+  };
+}
+
+/**
+ * Delete a person for good. **There is no undo.**
+ *
+ * Deactivating is the normal answer and keeps the whole record; this exists for
+ * the case deactivating cannot solve — a duplicate, a typo, a test row that
+ * should never have been created.
+ *
+ * ⚠️ Four foreign keys to `people` are ON DELETE NO ACTION — `tasks.owner_id`,
+ * `tasks.created_by_person_id`, `tasks.blocked_on_person_id` and
+ * `department_heads.head_person_id`. Postgres REFUSES the delete while any of
+ * them points at the row, so they are cleared first, in the same transaction.
+ * Everything else is CASCADE (assignments, attendance, audit trail) or SET NULL
+ * (documents, assets, todos) and the database handles it.
+ *
+ * Requires the person's exact name as typed confirmation — the same bar the
+ * document library sets for its permanent delete.
+ */
+export async function deletePersonForever(id: number, typedName: string): Promise<ActionResult> {
+  const { data: p } = await sb.from("people").select("name").eq("id", id).maybeSingle();
+  if (!p) return { ok: false, error: "Person not found." };
+
+  const expected = (p.name as string).trim().toLowerCase();
+  if (typedName.trim().toLowerCase() !== expected) {
+    return { ok: false, error: "The name didn't match, so nothing was deleted." };
+  }
+
+  try {
+    await withTx(async (tx) => {
+      // Release the references Postgres will not cascade for us.
+      await tx.execute(sqlRaw`update tasks set owner_id = null where owner_id = ${id}`);
+      await tx.execute(sqlRaw`update tasks set created_by_person_id = null where created_by_person_id = ${id}`);
+      await tx.execute(sqlRaw`update tasks set blocked_on_person_id = null where blocked_on_person_id = ${id}`);
+      await tx.execute(sqlRaw`update department_heads set head_person_id = null where head_person_id = ${id}`);
+      await tx.delete(people).where(eq(people.id, id));
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't delete this person." };
+  }
+
+  // The row is gone, so its search-index entry must go too or it stays findable.
+  await removeEntityIndex("person", id).catch(() => {});
+  await recordEvent("person.deleted", "ok", { personId: id, name: p.name, createdBy: "web-ui" });
 
   invalidate();
   return { ok: true };

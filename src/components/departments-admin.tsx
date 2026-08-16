@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Check, X, GitMerge, Trash2, Users, Building2, ListTodo, Crown } from "lucide-react";
-import { Button } from "./ui";
+import { Button, Select } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { createDepartment, renameDepartment, mergeDepartments, deleteDepartment } from "@/app/companies/department-actions";
@@ -89,10 +89,10 @@ export function DepartmentsAdmin({ departments }: { departments: DepartmentAdmin
                 {mergeId === d.id && (
                   <div className="rounded-xl bg-bg-subtle/60 ring-1 ring-border/60 p-2.5 flex flex-col sm:flex-row sm:items-center gap-2">
                     <span className="text-xs text-fg-muted shrink-0">Merge <span className="font-medium text-fg">{d.name}</span> into:</span>
-                    <select id={`merge-${d.id}`} defaultValue="" className="flex-1 min-w-0 rounded-lg bg-bg-elev text-xs text-fg ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                    <Select wrapperClassName="flex-1 min-w-0" id={`merge-${d.id}`} defaultValue="" className="text-xs text-fg">
                       <option value="" disabled>Choose target…</option>
                       {others.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                    </select>
+                    </Select>
                     <Button size="sm" disabled={busy} onClick={() => {
                       const v = (document.getElementById(`merge-${d.id}`) as HTMLSelectElement)?.value;
                       if (!v) { toast("Choose a target department.", { tone: "warn" }); return; }

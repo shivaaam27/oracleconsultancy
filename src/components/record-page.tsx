@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -122,7 +123,16 @@ export function RecordPage({
   primaryAction?: ReactNode;
   /** Secondary buttons and the ⋯ menu. */
   actions?: ReactNode;
-  tabs?: { id: string; label: string; count?: number }[];
+  /**
+   * A tab. Give it an `href` and it renders as a LINK instead of a button.
+   *
+   * ⚠️ `href` is a STRING on purpose. Records whose tab lives in the URL
+   * (Companies uses `?tab=`) are server components, and React refuses to pass a
+   * FUNCTION from a server component to a client one — an earlier attempt at a
+   * `tabHref: (id) => string` prop crashed the company page with exactly that.
+   * Data crosses the boundary; callbacks do not.
+   */
+  tabs?: { id: string; label: string; count?: number; href?: string }[];
   activeTab?: string;
   onTabChange?: (id: string) => void;
   sections?: RecordSection[];
@@ -162,22 +172,23 @@ export function RecordPage({
         <div role="tablist" className="-mt-1 flex gap-1 border-b border-border">
           {tabs.map((t) => {
             const active = t.id === activeTab;
-            return (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={active}
-                type="button"
-                onClick={() => onTabChange?.(t.id)}
-                className={cn(
-                  "-mb-px border-b-2 px-2.5 py-1.5 text-[13px] transition-colors",
-                  active
-                    ? "border-accent font-medium text-fg"
-                    : "border-transparent text-fg-muted hover:text-fg"
-                )}
-              >
+            const cls = cn(
+              "-mb-px border-b-2 px-2.5 py-1.5 text-[13px] transition-colors",
+              active ? "border-accent font-medium text-fg" : "border-transparent text-fg-muted hover:text-fg"
+            );
+            const inner = (
+              <>
                 {t.label}
                 {t.count !== undefined && <span className="tabular ml-1.5 text-[11px] text-fg-subtle">{t.count}</span>}
+              </>
+            );
+            return t.href ? (
+              <Link key={t.id} href={t.href} role="tab" aria-selected={active} className={cls}>
+                {inner}
+              </Link>
+            ) : (
+              <button key={t.id} role="tab" aria-selected={active} type="button" onClick={() => onTabChange?.(t.id)} className={cls}>
+                {inner}
               </button>
             );
           })}

@@ -1,6 +1,17 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // ⚠️ Pin the workspace root to THIS folder.
+  //
+  // Development happens in git worktrees under `.claude/worktrees/`, and each one
+  // has its own package-lock.json. With several of them present Turbopack cannot
+  // tell which is the root, warns about "multiple lockfiles", and picks the PARENT
+  // checkout — at which point it resolves modules across sibling worktrees and
+  // emits chunks named after whichever one it wandered into. The browser then
+  // asks for a chunk that doesn't exist and the app dies with a ChunkLoadError
+  // that has nothing to do with your code. Pinning the root stops it dead.
+  turbopack: { root: path.resolve(__dirname) },
   // unpdf bundles a serverless pdf.js build; @napi-rs/canvas is a native addon
   // used to rasterise scanned PDFs for the vision model; @react-pdf/renderer
   // renders the Director Brief PDF server-side. Keep them external so they aren't

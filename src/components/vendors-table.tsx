@@ -12,6 +12,8 @@ import { useToast } from "./toast";
 import { VENDOR_CATEGORIES, type VendorRow } from "@/lib/vendors-shared";
 import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/app/hrms/vendors/actions";
 import { RecordList } from "./record-list";
+import { useUrlFilters } from "@/lib/use-url-filters";
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 
@@ -20,10 +22,17 @@ const VENDOR_COLUMNS = ENTITY_VIEWS.vendor!.listColumns;
 
 type Lite = { id: number; name: string };
 
-export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors: VendorRow[]; companies: Lite[]; assetCounts?: Record<number, number> }) {
+export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews = [] }: { vendors: VendorRow[]; companies: Lite[]; assetCounts?: Record<number, number>; savedViews?: SavedView[] }) {
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  /* Filters live in the URL so saved views have something to save. Vendors shares
+   * its page with the Assets table (all three tabs mount at once), so its params
+   * are namespaced `vq` / `vcategory` — otherwise the two would fight over
+   * `category` and one list would silently empty. */
+  const { values: filters, set: setFilter, dirty, query } = useUrlFilters(
+    { vq: "", vcategory: "all" },
+    { debounceKeys: ["vq"] }
+  );
+  const { vq: search, vcategory: categoryFilter } = filters;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<VendorRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -64,23 +73,34 @@ export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors
         <div className="relative w-full sm:flex-1 min-w-0 sm:min-w-[240px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
-            type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+            type="text" value={search} onChange={(e) => setFilter({ vq: e.target.value })}
             placeholder="Search name, contact, location…"
             className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
         </div>
         <FluidSelect
           value={categoryFilter}
-          onSelect={setCategoryFilter}
+          onSelect={(v) => setFilter({ vcategory: v })}
           options={[{ value: "all", label: "All Categories" }, ...VENDOR_CATEGORIES.map((c) => ({ value: c, label: c }))]}
         />
         <Button size="sm" onClick={openNew}><Plus size={14} /> Add vendor</Button>
       </div>
 
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/hrms/assets"
+        extraQuery="view=vendors"
+        listKey="vendor"
+      />
+
       {filtered.length > 0 ? (
         <RecordList
           rows={filtered}
           rowKey={(v) => v.id}
+          /* A vendor is a record page now, like a task or a person. */
+          rowHref={(v) => `/hrms/vendors/${v.id}`}
           listKey="vendor"
           bulkActions={[
             {

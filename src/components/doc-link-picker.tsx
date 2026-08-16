@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Select } from "./ui";
 import { ChevronDown, Link2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
  * DocLinkPicker — a searchable "Link…" control for attaching a saved document to a
- * requirement / pipeline case / commitment. Replaces the native <select> (which was
+ * requirement / pipeline case / commitment. Replaces the native <Select> (which was
  * an un-searchable wall of options once a company had 15–20+ documents): a compact
  * trigger opens a typeahead-filtered list anchored to the app. Reused by the company
  * + person statutory checklists and the doc-link control.

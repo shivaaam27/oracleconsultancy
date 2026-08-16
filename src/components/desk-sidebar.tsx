@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, CheckSquare, PanelLeftClose, PanelLeftOpen, type LucideIcon } from "lucide-react";
-import { NAV_ROUTES } from "@/lib/nav";
+import { Home, CheckSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, type LucideIcon } from "lucide-react";
+import { navGroups } from "@/lib/nav";
 import { cn } from "@/lib/cn";
+import { useCommandPalette } from "./command-palette";
+import { useRegisteredActions } from "./context-actions";
+import { ThemeToggle } from "./theme-toggle";
+import { DensityToggle } from "./density-toggle";
 
 /**
  * The persistent left sidebar — ERPNext's workspace rail.
@@ -26,38 +30,47 @@ const STORE = "cos-sidebar";
 
 type Item = { href: string; label: string; icon: LucideIcon };
 
-function route(id: string): Item | null {
-  const r = NAV_ROUTES.find((x) => x.id === id);
-  return r ? { href: r.href, label: r.label, icon: r.icon } : null;
-}
+/** The filled blue Create button — same skin whether it links or fires an action. */
+const createSkin = (collapsed: boolean) =>
+  cn(
+    "inline-flex items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-[12.5px] font-medium text-accent-fg transition-opacity hover:opacity-90",
+    collapsed && "justify-center px-0"
+  );
 
-const GROUPS: { label: string; items: Item[] }[] = [
-  {
-    label: "Work",
-    items: [
-      { href: "/", label: "Home", icon: Home },
-      { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
-      ...["approvals", "outbox", "calendar", "announcements"].map(route).filter(Boolean) as Item[],
-    ],
-  },
-  {
-    label: "Records",
-    items: ["people", "companies", "documents", "assets"].map(route).filter(Boolean) as Item[],
-  },
-  {
-    label: "Registers",
-    items: ["tax-legal", "registers", "leave", "oecr", "ocr"].map(route).filter(Boolean) as Item[],
-  },
-  {
-    label: "System",
-    items: ["insights", "activity", "ori-automations", "settings"].map(route).filter(Boolean) as Item[],
-  },
-];
+
+/* The grouping lives in lib/nav.ts so the mobile launcher shows the SAME map.
+   Home and Tasks are prepended here because they are the hub's own tabs, not
+   NAV_ROUTES entries. */
+const GROUPS: { label: string; items: Item[] }[] = navGroups().map((g) =>
+  g.label === "Work"
+    ? {
+        label: g.label,
+        items: [
+          { href: "/", label: "Home", icon: Home },
+          { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
+          ...g.items,
+        ],
+      }
+    : g
+);
 
 export function DeskSidebar() {
   const pathname = usePathname() || "/";
   const params = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
+  // At lg+ the floating pill is hidden, so the controls it used to carry —
+  // Create, search, theme and density — have to live here or they exist nowhere
+  // on a desktop.
+  const { open: openPalette } = useCommandPalette();
+  const { actions } = useRegisteredActions();
+  // Use the page's own create action when it HAS one — "Add asset" on Assets,
+  // "New Task" on a company. A page's primary action is not always a create,
+  // though: the task record's is "Draft email", which behind a + button read as
+  // "create a draft email". So match on intent, and fall back to New task so the
+  // button is never missing and never lies.
+  const pageCreate = actions.find((a) => /\b(new|create|add|raise)\b/i.test(a.label));
+  const create: { label: string; href?: string; onClick?: () => void } =
+    pageCreate ?? { label: "New task", href: "/task/new" };
 
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(STORE) === "1"); } catch { /* ignore */ }
@@ -112,6 +125,38 @@ export function DeskSidebar() {
         </button>
       </div>
 
+      {/* Create + search — the two things you reach for most. */}
+      <div className={cn("flex flex-col gap-1.5 border-b border-border px-2 py-2", collapsed && "px-1.5")}>
+        {create.href ? (
+          <Link href={create.href} title={collapsed ? create.label : undefined} className={createSkin(collapsed)}>
+            <Plus size={14} className="shrink-0" />
+            {!collapsed && <span className="truncate">{create.label}</span>}
+          </Link>
+        ) : (
+          <button type="button" onClick={create.onClick} title={collapsed ? create.label : undefined} className={createSkin(collapsed)}>
+            <Plus size={14} className="shrink-0" />
+            {!collapsed && <span className="truncate">{create.label}</span>}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={openPalette}
+          title={collapsed ? "Search (Ctrl+K)" : undefined}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-lg border border-border bg-bg-subtle/60 px-2.5 py-1.5 text-[12.5px] text-fg-subtle transition-colors hover:border-accent/40 hover:text-fg",
+            collapsed ? "justify-center px-0" : ""
+          )}
+        >
+          <Search size={14} className="shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="truncate">Search</span>
+              <span className="ml-auto shrink-0 text-[10px] text-fg-subtle">⌘K</span>
+            </>
+          )}
+        </button>
+      </div>
+
       <nav className="min-h-0 flex-1 overflow-y-auto slim-scroll px-2 py-2">
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-3">
@@ -147,6 +192,17 @@ export function DeskSidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Appearance — the pill carried these below lg; on desktop they live here. */}
+      <div
+        className={cn(
+          "flex items-center gap-1 border-t border-border px-2 py-1.5",
+          collapsed && "flex-col gap-0.5 px-0"
+        )}
+      >
+        <ThemeToggle />
+        <DensityToggle />
+      </div>
     </aside>
   );
 }

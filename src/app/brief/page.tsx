@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { CheckCircle2, AlertTriangle, CircleCheck, Target, Users, CalendarClock } from "lucide-react";
-import { Card, Badge } from "@/components/ui";
-import { Hero, TONE } from "@/components/surface-kit";
+import { Badge, Card, PageHeader } from "@/components/ui";
+import { TONE } from "@/components/surface-kit";
 import { CountUp } from "@/components/arc-gauge";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
@@ -48,16 +48,16 @@ export default async function DirectorBriefPage({
     <div className="space-y-5 max-w-3xl mx-auto pb-10">
       {/* Hero — screen only; the PDF keeps its own header + stat overview. */}
       <div className="space-y-2">
-        <Hero
+        <PageHeader
           title={b.selectedPersonName ?? b.selectedCompanyName ?? BRAND_NAME}
-          subtitle={[
+          sub={[
             "Director Brief",
             // With a person selected the company becomes context, not the title.
             ...(b.selectedPersonName && b.selectedCompanyName ? [b.selectedCompanyName] : []),
             b.monthLabel,
             `as at ${b.asAt}`,
           ].join(" · ")}
-          actions={
+          action={
             <div className="flex items-center gap-2 flex-wrap">
               <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
               <ShareBrief
@@ -87,7 +87,7 @@ export default async function DirectorBriefPage({
               </div>
             ))}
           </div>
-        </Hero>
+        </PageHeader>
         <div className="flex flex-wrap items-center gap-2">
           <BriefPeriodFilter
             period={b.period}

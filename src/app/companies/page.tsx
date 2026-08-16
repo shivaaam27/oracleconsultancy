@@ -1,7 +1,8 @@
 import { getAllTasks, computeCompanyKpisByMembership, computeGlobalKpis } from "@/lib/queries";
+import { PageHeader } from "@/components/ui";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
-import { Hero, TONE } from "@/components/surface-kit";
+import { TONE } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import { CompanyAvatar } from "@/components/company-avatar";
@@ -51,7 +52,7 @@ export default async function CompaniesPage({
   return (
     <div className="space-y-5">
       <HrmsCrumbs from={from} />
-      <Hero title="Companies" subtitle={`${companies.length} companies tracked across the portfolio`}>
+      <PageHeader title="Companies" sub={`${companies.length} companies tracked across the portfolio`}>
         <div className="flex flex-wrap gap-5">
           {([
             { label: "Open tasks", value: totals.open, tone: "accent" as const },
@@ -64,7 +65,7 @@ export default async function CompaniesPage({
             </div>
           ))}
         </div>
-      </Hero>
+      </PageHeader>
 
       <CompaniesHubTabs
         departments={departments}

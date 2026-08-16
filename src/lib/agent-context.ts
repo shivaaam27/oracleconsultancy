@@ -8,6 +8,12 @@ import type { AiJob } from "./ai-jobs";
  *
  * `agent-next.ts` prints gatherContext(job) as JSON; the agent reads it, thinks,
  * then submits a result via `agent-complete.ts` → agent-apply.ts.
+ *
+ * ⚠️ NOT IMPORTED ANYWHERE YET, AND THAT IS DELIBERATE. This and `agent-apply.ts`
+ * are groundwork for MCP Stage 4 (the automatic lane), the one stage never
+ * started — see memory/mcp_stage4_automatic.md. A dead-code sweep in Aug 2026
+ * deleted 15 genuinely obsolete modules and spared these two on purpose. Don't
+ * remove them because nothing imports them; that is the point.
  */
 
 export type AgentContext = {

@@ -328,6 +328,37 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 2px hsl(var(--accent-ring) / 0.18);
   outline: none;
 }
+
+/* ---------- Dropdowns: a safety net, not the mechanism ----------
+   The system has exactly two dropdowns (see the note on `Select` in ui.tsx):
+   `Select` for a fixed list in a FORM, `FluidSelect` for one in a TOOLBAR, plus
+   `Combobox` when you can type or invent a value. The 36 stray raw `<select>`
+   elements that used to be scattered across 22 files were all converted.
+
+   This rule stays as a NET: if a bare `<select>` creeps back in, it still gets
+   the right height, padding and chevron instead of the browser's default, so it
+   can never look obviously foreign. The kit `Select` draws its own chevron, so
+   it opts out with `data-kit-select` — otherwise you would see two arrows. */
+select:not([data-kit-select]) {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 2.25rem;              /* h-9, the kit control height */
+  padding: 0.375rem 2rem 0.375rem 0.75rem;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+}
+/* A multi-row select is a list, not a dropdown — leave it alone. */
+select[multiple]:not([data-kit-select]),
+select[size]:not([size="1"]):not([data-kit-select]) {
+  appearance: auto;
+  -webkit-appearance: auto;
+  height: auto;
+  background-image: none;
+  padding: 0.375rem 0.75rem;
+}
 input:disabled, select:disabled, textarea:disabled {
   opacity: 0.6;
 }

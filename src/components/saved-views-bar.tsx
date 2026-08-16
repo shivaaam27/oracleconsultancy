@@ -17,6 +17,7 @@ export function SavedViewsBar({
   hasFilters,
   basePath = "/",
   extraQuery = "",
+  listKey = "task",
 }: {
   initialViews: SavedView[];
   currentQuery: string;
@@ -25,6 +26,8 @@ export function SavedViewsBar({
   basePath?: string;
   /** Extra params to prepend (e.g. "tab=tasks" for hub). */
   extraQuery?: string;
+  /** Which list these views belong to — stored as `<listKey>.savedViews`. */
+  listKey?: string;
 }) {
   const [views, setViews] = useState<SavedView[]>(initialViews);
   const [pending, startTransition] = useTransition();
@@ -34,7 +37,7 @@ export function SavedViewsBar({
   const persist = async (next: SavedView[]) => {
     setViews(next);
     try {
-      await fetch("/api/prefs/task-views", {
+      await fetch(`/api/prefs/list-views?list=${encodeURIComponent(listKey)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ views: next }),

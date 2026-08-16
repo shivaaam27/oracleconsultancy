@@ -122,11 +122,11 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
   const moved = useRef(false);
   const lastPointerType = useRef<string>("mouse");
 
+  /** A person is a PAGE now (/people/<id>), the same as a task — see
+   *  src/app/people/[id]/page.tsx. The `?person=` drawer still works for old
+   *  links, but nothing in the app opens one on purpose any more. */
   function openPerson(id: number) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("person", String(id));
-    params.delete("task");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    router.push(`/people/${id}`);
   }
   function doSnooze(p: PersonRow) {
     startSnooze(async () => {
@@ -674,7 +674,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                 const { labels: mgrLabels, labelToId } = managerPicker;
                 return (
                   <>
-                    <Select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className="h-8 min-w-0 bg-bg-subtle text-[11px] text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40">
+                    <Select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} size="sm" wrapperClassName="min-w-0">
                       <option value="" disabled>Set company…</option>
                       <option value="none">— Clear —</option>
                       {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -682,7 +682,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                     <Combobox options={["— Clear —", ...mgrLabels]} placeholder="Set manager…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear —") { applyBulkField("manager", null); return; } const id = labelToId.get(t); if (id != null) applyBulkField("manager", id); }} />
                     <Combobox options={["— Clear extra —", ...mgrLabels]} placeholder="Also reports to…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear extra —") { applyBulkSecondary(null); return; } const id = labelToId.get(t); if (id != null) applyBulkSecondary(id); }} />
                     <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
-                    <Select defaultValue="" onChange={(e) => { const v = e.target.value; if (v) applyBulkRole(v as "staff" | "manager" | "director"); e.currentTarget.selectedIndex = 0; }} className="h-8 min-w-0 bg-bg-subtle text-[11px] text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40 col-span-2">
+                    <Select defaultValue="" onChange={(e) => { const v = e.target.value; if (v) applyBulkRole(v as "staff" | "manager" | "director"); e.currentTarget.selectedIndex = 0; }} size="sm" wrapperClassName="min-w-0 col-span-2">
                       <option value="" disabled>Set portal role… (already-enabled only)</option>
                       <option value="staff">Staff</option>
                       <option value="manager">Manager</option>

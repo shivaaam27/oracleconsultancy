@@ -41,8 +41,10 @@ events. Cascade on both sides. Carries **`send_with_invite`** — "the guests ma
 have this" — which governs the email AND the public link together, so un-ticking
 it withdraws the file from both at once.
 
-**⚠️ Migration 0117 is WRITTEN, NOT APPLIED.** 0116 (MCP OAuth) is also pending,
-so `npm run db:migrate` applies both. Take `npm run db:backup` first.
+**Migration 0117 is APPLIED**, and so is 0116 (MCP OAuth) — checked against the
+live database on 16 Aug 2026 (`event_documents`, `mcp_oauth_clients` and
+`mcp_oauth_tokens` all present). An earlier note here said both were still
+pending; that was out of date.
 
 ### 2. Reading a document as an EVENT — `event-read.ts` + `event-read-core.ts`
 The sibling of `doc-read.ts`. Same files, same extractor, a different question:

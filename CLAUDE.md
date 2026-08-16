@@ -126,7 +126,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0117** (`event_documents` — papers attached to a calendar event). **0116 (MCP OAuth) and 0117 are both WRITTEN, NOT yet applied.**
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0117** (`event_documents` — papers attached to a calendar event). **0116 (MCP OAuth) and 0117 are both APPLIED** (verified against the live DB, 16 Aug 2026 — `event_documents`, `mcp_oauth_clients` and `mcp_oauth_tokens` all exist).
 
 See `memory/database_schema.md`.
 
@@ -222,6 +222,13 @@ Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Di
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed. **Removed Aug 2026 (documents back to manual):** `/inbox` + `/api/inbox`, `/suggestions`, `/api/dropbox/*`, `/api/cron/auto-sort`, `/api/ask-doc`, `/api/doc-passages`, `/api/company-requirements`, `/api/person-requirements`, `/api/requirement-templates`, and the Registrations tab on Tax & Legal. Their tables WERE dropped (migration 0114) — see "Documents — manual filing".
 
+**⚠️ When you delete a route, delete its cron entry in `vercel.json` too.** `auto-sort`
+was removed in Aug 2026 but stayed scheduled, so Vercel fired a daily 404 at 08:00 for
+weeks. Cleared Aug 2026; all 10 remaining `crons` entries were verified to point at a
+real `route.ts`. `/api/cron/automations`, `/notify` and `/tick` are unscheduled ON
+PURPOSE (morning-run does the first, digests flush the second, `tick` is for an
+external scheduler) — don't "fix" them by adding schedules.
+
 ## ⚠️ The redesign is under way — Stages 0–3 are built. Read before any UI work
 
 The owner uses ERPNext, loves it, and has asked for COS to be rebuilt in that
@@ -287,10 +294,39 @@ Commitments. `RecordList` also owns the **column chooser** (`listKey`) and
 **bulk edit** (`bulkActions`). Saved views are generalised in
 `src/lib/saved-views.ts` (`<listKey>.savedViews` in `settings`).
 
-**⚠️ ONE THING LEFT:** saved views only work where filters are in the URL.
-Assets, Vendors, Documents and Commitments still filter with `useState`, so they
-have nothing to save. Moving those filters into the URL is the remaining
-per-screen job.
+**Saved views now work on every converted list** (Aug 2026). Assets, Vendors,
+Documents and Commitments filter through the URL, not `useState`, via
+**`src/lib/use-url-filters.ts`** — give it the defaults, it hands back
+`values` / `set` / `dirty` / `query`, keeps anything at its default OUT of the
+address, and debounces free-text so typing isn't one navigation per keystroke.
+**FORWARD RULE: a new list's filters go through that hook** — a list filtered
+with component state has nothing for a saved view to save. Watch for param
+collisions when two lists share a page: Assets and Vendors both live on
+`/hrms/assets`, so Vendors namespaces its params `vq`/`vcategory`. Saved views
+are served by the generic **`/api/prefs/list-views?list=<key>`** (the task-only
+`task-views` route and `lib/task-views.ts` were removed; the settings key
+`<key>.savedViews` is unchanged, so views saved on Tasks still load).
+Commitments had NO filters at all — it gained company/kind/urgency.
+
+## What's next — read `memory/next_features_aug2026.md`
+
+The ERPNext programme is done. The agreed next slice, in the owner's order:
+**export any list → a global New menu → MCP Stage 4 → keyboard navigation**,
+then a pass over the staff portal (which has had none of this work). That file
+holds the design for each, the traps, the other candidates, and what is
+deliberately not being done. **`RecordList` is the lever for three of the four**
+— build export and keyboard nav there once and every converted list gets them.
+
+**⚠️ MCP Stage 4 is the risky one** and should go last: it is the lane where COS
+wakes Claude on a schedule instead of the owner asking. Set a real
+`aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
+
+**People can now be permanently deleted** (Danger zone on the person record).
+Deactivate is still the normal answer. ⚠️ Four FKs to `people` are ON DELETE NO
+ACTION (`tasks.owner_id`, `tasks.created_by_person_id`,
+`tasks.blocked_on_person_id`, `department_heads.head_person_id`) — the action
+clears them in-transaction first, and **any new NO ACTION FK to `people` must be
+added there** or deleting will start failing.
 
 ## Design language — "Desk" (DEFAULT for everything, Aug 2026)
 
@@ -399,8 +435,8 @@ Attach a document to a calendar event and it goes WITH it — the airline-ticket
 books the director's travel, so the ticket reaches the OWNER's inbox, not his. Full notes in
 `memory/event_attachments_aug2026.md`.
 
-- **`event_documents`** (migration **0117 — WRITTEN, NOT APPLIED**; 0116 is also pending, so
-  `db:migrate` applies both — **back up first**). Same shape as `document_links`: a file is always
+- **`event_documents`** (migration **0117 — APPLIED**, as is 0116; verified live 16 Aug 2026).
+  Same shape as `document_links`: a file is always
   a `documents` row, a link row says where it is used. `send_with_invite` = "guests may have this"
   and governs the email AND the public link together.
 - **`event-read.ts` / `event-read-core.ts`** — the sibling of `doc-read.ts`. Reads a ticket/booking
@@ -539,6 +575,7 @@ The owner's #1 complaint is wasted usage, and the waste is TOOL-OUTPUT VOLUME, n
 ## Workflow
 
 - Verify code with `npm exec tsc -- --noEmit`. A full type-check needs a bigger heap locally: `NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit`.
+- **`npm run build` also needs a bigger heap** (Aug 2026): the default dies with `Ineffective mark-compacts near heap limit` AFTER "Compiled successfully" — the crash is page-data collection, not your code. Use `NODE_OPTIONS=--max-old-space-size=8192 npm run build`.
 - Run unit tests with `npm test` (Vitest). Pure-logic tests live next to the module as `src/lib/*.test.ts` (pay, leave, derive, staff-id). Add tests when you change money/leave/status maths.
 - For schema work: edit `schema.ts`, generate/review migration, apply with `npm run db:migrate`. **Take `npm run db:backup` first.** drizzle-kit diffs the `drizzle/meta` snapshot, NOT the live DB — if the live DB has drift, generated `CREATE`s can collide; use `IF NOT EXISTS` or reconcile.
 - Do NOT clear `.next` while the dev server is running (it corrupts the live build cache → ENOENT 500s). Stop the server first, then `rm -rf .next`, then restart.

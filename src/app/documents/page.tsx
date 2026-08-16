@@ -2,6 +2,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { DocumentsWorkspace } from "./documents-workspace";
 import { listDocuments } from "@/lib/documents";
 import { getCompanyLogoMap } from "@/lib/company-brand";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 
@@ -14,11 +15,12 @@ export default async function DocumentsPage({
 }) {
   const { from } = await searchParams;
 
-  const [documents, { data: companiesRaw }, { data: peopleRaw }, logoMap] = await Promise.all([
+  const [documents, { data: companiesRaw }, { data: peopleRaw }, logoMap, savedViews] = await Promise.all([
     listDocuments({ includeArchived: true }),
     sb.from("companies").select("id,name,accent_color,aliases").order("name"),
     sb.from("people").select("id,name,person_type").eq("active", true).order("name"),
     getCompanyLogoMap(),
+    getSavedViewsFor("document"),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
@@ -52,6 +54,7 @@ export default async function DocumentsPage({
         companies={companies}
         people={people}
         linkedTasks={linkedTasks}
+        savedViews={savedViews}
       />
     </div>
   );

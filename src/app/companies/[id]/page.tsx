@@ -2,7 +2,8 @@ import { getAllTasks } from "@/lib/queries";
 import { CompanySummary } from "@/components/company-summary";
 import { CompanyActions } from "./_tabs/company-actions";
 import { ViewPublisher } from "@/components/view-publisher";
-import { CompanyTabs, parseCompanyTab } from "./_tabs/tabs";
+import { COMPANY_TABS, COMPANY_TAB_LABELS, parseCompanyTab } from "./_tabs/tabs";
+import { RecordPage } from "@/components/record-page";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { CompanyDocuments } from "./_tabs/company-documents";
@@ -172,29 +173,31 @@ export default async function CompanyPage({
   }
 
   return (
-    <div className="mx-auto max-w-[1100px] space-y-3.5">
+    /* Converted to the shared record shell (Stage 5). It keeps its own tab
+       BODIES — they are big and company-specific — but the header and tab strip
+       are now RecordPage's, so a company reads like a task, a person or an asset.
+       Its tab lives in the URL, so it uses RecordPage's `tabHref` form and stays
+       a server component. Width is the app default now, not a 1100px column. */
+    <div className="space-y-3.5">
       <HrmsCrumbs from={sp.from} />
-
-      {/* Header — company accent identity, count chips, New Task pill */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <CompanyAvatar name={name} accent={accent} logoUrl={logoUrl} size={44} iconSize={19} />
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight truncate">{name}</h1>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/30 text-info tabular">
-                {openRows.length} open
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-subtle/70 ring-1 ring-border/60 text-fg-muted tabular">
-                {rows.length} total
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
       <CompanyActions companyId={companyId} companyName={name} />
 
-      <CompanyTabs companyId={companyId} current={tab} openCount={openRows.length} />
+      <RecordPage
+        title={
+          <span className="flex min-w-0 items-center gap-2.5">
+            <CompanyAvatar name={name} accent={accent} logoUrl={logoUrl} size={28} rounded="rounded-md" iconSize={14} />
+            <span className="truncate">{name}</span>
+          </span>
+        }
+        subtitle={`${openRows.length} open · ${rows.length} total · ${teamCount} people`}
+        tabs={COMPANY_TABS.map((t) => ({
+          id: t,
+          label: COMPANY_TAB_LABELS[t],
+          count: t === "tasks" ? openRows.length : undefined,
+          href: t === "overview" ? `/companies/${companyId}` : `/companies/${companyId}?tab=${t}`,
+        }))}
+        activeTab={tab}
+      />
 
       {tab === "overview" && (
         <>

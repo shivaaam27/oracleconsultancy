@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { sb } from "@/db/supabase";
-import { getSavedViews } from "@/lib/task-views";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
@@ -131,7 +131,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // applies to /task (standalone) but the hub shows all companies by design.
   const [all, savedViews, taskSources, adminViews, peopleRows, autoEvents, logoMap, companiesRes] = await Promise.all([
     showArchived ? getArchivedTasks() : getAllTasks(),
-    getSavedViews(),
+    getSavedViewsFor("task"),
     getTaskSources(),
     sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
@@ -372,6 +372,25 @@ export async function TasksSection({ sp }: { sp: Sp }) {
      on the server, because this is where the counts live. */
   const railFilters: RecordFilter[] = [
     ...chips.map((c) => ({ key: `s-${c.key}`, label: c.label, count: c.count, href: c.href, active: c.active, group: "Status", tone: c.tone })),
+    // The "More" flags used to hide behind a popover. On the rail they show their
+    // counts, which is the point of a rail — you can see where the trouble is
+    // without opening anything. Empty flags are dropped so it stays short, EXCEPT
+    // the two lane switches: "Archived" always reports 0 (it counts nothing) and
+    // Renewals can legitimately be empty, and both must stay reachable because the
+    // More popover is hidden at this width.
+    ...moreItems
+      .filter((m) => (m.count ?? 0) > 0 || m.active || m.key === "archived" || m.key === "renewals")
+      .map((m) => ({
+        key: `f-${m.key}`,
+        label: m.label,
+        // "Archived" counts nothing, so showing a hard 0 beside it would read as
+        // "there are no archived tasks" — which it does not mean.
+        count: m.key === "archived" ? undefined : m.count,
+        href: m.href,
+        active: m.active,
+        group: "Flags",
+        tone: m.tone,
+      })),
     ...companyOptions
       .filter((o) => o.key === "all" || (o.count ?? 0) > 0 || o.active)
       .map((o) => ({ key: `c-${o.key}`, label: o.label, count: o.count, href: o.href, active: o.active, group: "Company" })),
@@ -559,6 +578,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         groupLabel={groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1)}
         groupOptions={groupOptions}
         strip={strip}
+        /* The List view shows RecordList's own filter rail from md up, and the
+           rail carries the same status chips + company list. Tell the bar, so it
+           drops the duplicates there instead of showing every filter twice. */
+        railOwnsFilters={view === "table"}
       />
 
       {showArchived && (
@@ -578,6 +601,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         hasFilters={hasFilters}
         basePath="/"
         extraQuery="tab=tasks"
+        listKey="task"
       />
 
       {/* Quick-create host: registers the nav-pill `+` page action + renders the

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Select } from "./ui";
 import { ChevronLeft, ChevronRight, Plus, Archive, Loader2, X, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PIPELINE_STAGES, STAGE_TONE, type PipelineItem, type PipelineStage } from "@/lib/pipeline-shared";
@@ -125,7 +126,8 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent/60";
+  // Layout only — the box comes from the global field rule.
+  const input = "w-full px-2.5 py-1.5 text-[13px]";
 
   async function save() {
     setSaving(true); setError(null);
@@ -146,10 +148,10 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <input className={input} placeholder="Type (e.g. Work Permit)" value={type} onChange={(e) => setType(e.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select className={input} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+        <Select className={input} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
           <option value="">— Company —</option>
           {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </Select>
         <input className={input} placeholder="Next action" value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
       </div>
       <div className="grid grid-cols-3 gap-2">

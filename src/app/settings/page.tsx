@@ -606,15 +606,15 @@ export default async function SettingsPage({
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-[11px] text-fg-muted">
                   Send only between (from)
-                  <select name="windowStartHour" defaultValue={String(emailAuto.windowStartHour)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                  <Select wrapperClassName="w-full" name="windowStartHour" defaultValue={String(emailAuto.windowStartHour)} className="mt-1 text-fg">
                     {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="text-[11px] text-fg-muted">
                   …and (to)
-                  <select name="windowEndHour" defaultValue={String(emailAuto.windowEndHour)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                  <Select wrapperClassName="w-full" name="windowEndHour" defaultValue={String(emailAuto.windowEndHour)} className="mt-1 text-fg">
                     {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="text-[11px] text-fg-muted">
                   Daily email cap
@@ -626,9 +626,9 @@ export default async function SettingsPage({
                 </label>
                 <label className="text-[11px] text-fg-muted col-span-2">
                   Send the weekly Director Brief on
-                  <select name="briefDay" defaultValue={String(emailAuto.briefDay)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                  <Select wrapperClassName="w-full" name="briefDay" defaultValue={String(emailAuto.briefDay)} className="mt-1 text-fg">
                     {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
+                  </Select>
                 </label>
               </div>
               <Button type="submit" variant="secondary"><Save size={13} /> Save settings</Button>
@@ -791,7 +791,7 @@ export default async function SettingsPage({
                     {/* Change role without resetting the password. */}
                     <form action={setPortalRole} className="flex items-center gap-1.5">
                       <input type="hidden" name="personId" value={p.id} />
-                      <Select name="portalRole" defaultValue={p.role} className="h-8 text-xs">
+                      <Select name="portalRole" defaultValue={p.role} size="sm">
                         <option value="staff">Staff</option>
                         <option value="manager">Manager</option>
                         <option value="hr">Admin</option>

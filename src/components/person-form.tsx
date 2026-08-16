@@ -10,12 +10,34 @@ import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonTyp
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 import { Combobox } from "@/components/combobox";
 import { Button, Select, FieldLabel } from "@/components/ui";
+import type { ReactNode } from "react";
+
+/**
+ * One titled section of the form — the SAME chrome RecordPage draws around a
+ * read-only section (bordered card, grey header strip, quiet uppercase title).
+ *
+ * The person form used to be 26 fields in a single two-column grid with one
+ * divider, so "Also reports to" and "Also works for" sat among plain text boxes
+ * and the whole thing read as a wall. It now uses the same five sections the
+ * record shows — Identity · Role · Contact · Personal · Links — so reading a
+ * person and editing one have identical bones.
+ */
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-border bg-bg-elev">
+      <div className="border-b border-border bg-bg-subtle px-3 py-2">
+        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 px-3 py-3">{children}</div>
+    </section>
+  );
+}
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
 type Association = { companyId: number | ""; relationship: string };
 
-type Defaults = Partial<{
+export type Defaults = Partial<{
   name: string | null;
   email: string | null;
   phone: string | null;
@@ -255,325 +277,330 @@ export function PersonForm({
         </div>
       </details>
 
-      <div className="grid gap-2.5 grid-cols-2">
-        {/* Name (required, full width) */}
-        <div className="col-span-2">
-          <FieldLabel>Name <span className="text-danger">*</span></FieldLabel>
-          <input
-            name="name"
-            defaultValue={defaults?.name ?? ""}
-            required
-            autoFocus={mode === "create"}
-            className={inputCls}
-            placeholder="Full name"
-          />
-        </div>
-
-        {/* Person type — drives whether this is an employee or an external/expat contact */}
-        <div className="col-span-2">
-          <FieldLabel>Type</FieldLabel>
-          <input type="hidden" name="personType" value={pType} />
-          <div className="grid grid-cols-2 gap-1.5">
-            {PERSON_TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setPType(t)}
-                title={PERSON_TYPE_HINTS[t]}
-                className={cn(
-                  "rounded-md border px-2 py-1.5 text-xs transition-colors text-left",
-                  pType === t
-                    ? "border-accent bg-accent/10 text-accent font-medium"
-                    : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-                )}
-              >
-                {PERSON_TYPE_LABELS[t]}
-              </button>
-            ))}
+      <div className="space-y-3">
+        <FormSection title="Identity">
+          <div className="col-span-2">
+            <FieldLabel>Name <span className="text-danger">*</span></FieldLabel>
+            <input
+              name="name"
+              defaultValue={defaults?.name ?? ""}
+              required
+              autoFocus={mode === "create"}
+              className={inputCls}
+              placeholder="Full name"
+            />
           </div>
-        </div>
 
-        <div>
-          <FieldLabel>Role / Job title</FieldLabel>
-          <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
-        </div>
+          {/* Person type — drives whether this is an employee or an external/expat contact */}
+          <div className="col-span-2">
+            <FieldLabel>Type</FieldLabel>
+            <input type="hidden" name="personType" value={pType} />
+            <div className="grid grid-cols-2 gap-1.5">
+              {PERSON_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setPType(t)}
+                  title={PERSON_TYPE_HINTS[t]}
+                  className={cn(
+                    "rounded-md border px-2 py-1.5 text-xs transition-colors text-left",
+                    pType === t
+                      ? "border-accent bg-accent/10 text-accent font-medium"
+                      : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+                  )}
+                >
+                  {PERSON_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <div>
-          <FieldLabel>Staff ID category</FieldLabel>
-          <Select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""}>
-            {STAFF_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </Select>
-          <p className="mt-1 text-[11px] text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
-        </div>
+          <div className="col-span-2">
+            <FieldLabel>Staff ID category</FieldLabel>
+            <Select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""}>
+              {STAFF_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </Select>
+            <p className="mt-1 text-[11px] text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
+          </div>
+        </FormSection>
 
-        <div>
-          <FieldLabel>Department</FieldLabel>
-          <Combobox name="department" options={departments} defaultValue={defaults?.department ?? ""} className={inputCls} placeholder="e.g. Finance" />
-        </div>
+        <FormSection title="Role">
+          <div>
+            <FieldLabel>Role / Job title</FieldLabel>
+            <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
+          </div>
 
-        <div>
-          <FieldLabel>Work site</FieldLabel>
-          <Combobox name="workSite" options={sites} defaultValue={defaults?.workSite ?? ""} className={inputCls} placeholder="e.g. Matongo" />
-        </div>
+          <div>
+            <FieldLabel>Main company</FieldLabel>
+            <Select
+              name="companyId"
+              defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
+            >
+              <option value="">—</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others under Links.</p>
+          </div>
 
-        <div>
-          <FieldLabel>Residence</FieldLabel>
-          <Combobox name="residence" options={sites} defaultValue={defaults?.residence ?? ""} className={inputCls} placeholder="e.g. Expat House A" />
-        </div>
+          <div>
+            <FieldLabel>Department</FieldLabel>
+            <Combobox name="department" options={departments} defaultValue={defaults?.department ?? ""} className={inputCls} placeholder="e.g. Finance" />
+          </div>
 
-        <div>
-          <FieldLabel>Start date</FieldLabel>
-          <input
-            name="startDate"
-            type="date"
-            defaultValue={defaults?.startDate ?? ""}
-            onChange={() => clearFieldError("probationEndDate")}
-            className={inputCls}
-          />
-        </div>
-
-        <div>
-          <FieldLabel>Main company</FieldLabel>
-          <Select
-            name="companyId"
-            defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
-          >
-            <option value="">—</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </Select>
-          <p className="text-[11px] text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others below.</p>
-        </div>
-
-        <div>
-          <FieldLabel>Email</FieldLabel>
-          <input
-            name="email"
-            type="email"
-            defaultValue={defaults?.email ?? ""}
-            onChange={() => clearFieldError("email")}
-            aria-invalid={!!fieldErrors.email}
-            className={cn(inputCls, fieldErrors.email && invalidFieldClass)}
-            placeholder="name@example.com"
-          />
-          <FieldError message={fieldErrors.email} />
-        </div>
-
-        <div>
-          <FieldLabel>Phone</FieldLabel>
-          <input
-            name="phone"
-            type="tel"
-            defaultValue={defaults?.phone ?? ""}
-            className={inputCls}
-            placeholder="+254..."
-          />
-        </div>
-
-        <div>
-          <FieldLabel>WhatsApp</FieldLabel>
-          <input
-            name="whatsapp"
-            type="tel"
-            defaultValue={defaults?.whatsapp ?? ""}
-            className={inputCls}
-            placeholder="+254..."
-          />
-        </div>
-
-        <div>
-          <FieldLabel>Preferred channel</FieldLabel>
-          <Select
-            name="preferredChannel"
-            defaultValue={defaults?.preferredChannel ?? ""}
-          >
-            <option value="">—</option>
-            {CHANNELS.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </Select>
-        </div>
-
-        <div>
-          <FieldLabel>Reports to</FieldLabel>
-          <Select
-            name="managerId"
-            defaultValue={defaults?.managerId ? String(defaults.managerId) : ""}
-          >
-            <option value="">— No manager</option>
-            {managerOptions.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </Select>
-        </div>
-
-        {/* Also reports to — secondary / dotted-line managers (organogram) */}
-        <div>
-          <FieldLabel>Also reports to</FieldLabel>
-          <Select
-            value=""
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              if (Number.isInteger(v)) addSecondaryManager(v);
-              e.target.value = "";
-            }}
-          >
-            <option value="">+ Add a dotted-line manager…</option>
-            {managerCandidates
-              .filter((p) => !secondaryManagers.includes(p.id))
-              .map((p) => (
+          <div>
+            <FieldLabel>Reports to</FieldLabel>
+            <Select
+              name="managerId"
+              defaultValue={defaults?.managerId ? String(defaults.managerId) : ""}
+            >
+              <option value="">— No manager</option>
+              {managerOptions.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-          </Select>
-          {secondaryManagers.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {secondaryManagers.map((mid) => {
-                const p = peopleList.find((x) => x.id === mid);
-                return (
-                  <span
-                    key={mid}
-                    className="inline-flex items-center gap-1 rounded-full bg-bg-muted/70 px-2.5 py-1 text-xs text-fg"
-                  >
-                    {p?.name ?? `#${mid}`}
-                    <button
-                      type="button"
-                      onClick={() => removeSecondaryManager(mid)}
-                      className="text-fg-subtle hover:text-fg"
-                      aria-label={`Remove ${p?.name ?? "manager"}`}
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            </Select>
+          </div>
 
-        {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
-        <div>
-          <FieldLabel>Related to</FieldLabel>
-          <Select
-            name="relatedPersonId"
-            defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
-          >
-            <option value="">— None</option>
-            {relatedOptions.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </Select>
-        </div>
+          <div>
+            <FieldLabel>Start date</FieldLabel>
+            <input
+              name="startDate"
+              type="date"
+              defaultValue={defaults?.startDate ?? ""}
+              onChange={() => clearFieldError("probationEndDate")}
+              className={inputCls}
+            />
+          </div>
 
-        {/* Also works for — additional companies this person belongs to/serves.
-            Feeds person_companies, so they appear under each company in pickers,
-            company task lists and KPIs. Relationship label is optional. */}
-        <div className="col-span-2">
-          <FieldLabel>Also works for</FieldLabel>
-          <div className="space-y-2">
-            {associations.length === 0 && (
-              <p className="text-xs text-fg-subtle italic">
-                None. Add other companies this person works for or serves — their tasks and records show under each one.
-              </p>
-            )}
-            {associations.map((row, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <select
-                  value={row.companyId === "" ? "" : String(row.companyId)}
-                  onChange={(e) => updateAssociation(i, { companyId: e.target.value === "" ? "" : Number(e.target.value) })}
-                  className={cn(inputCls, "flex-1")}
-                >
-                  <option value="">— Company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <input
-                  value={row.relationship}
-                  onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
-                  className={cn(inputCls, "flex-1")}
-                  placeholder="role / relationship (optional)"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeAssociation(i)}
-                  title="Remove"
-                  className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addAssociation}
-              className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+          <div>
+            <FieldLabel>Probation ends</FieldLabel>
+            <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""}
+              onChange={() => clearFieldError("probationEndDate")}
+              aria-invalid={!!fieldErrors.probationEndDate}
+              className={cn(inputCls, fieldErrors.probationEndDate && invalidFieldClass)} />
+            <FieldError message={fieldErrors.probationEndDate} />
+          </div>
+        </FormSection>
+
+        <FormSection title="Contact">
+          <div>
+            <FieldLabel>Email</FieldLabel>
+            <input
+              name="email"
+              type="email"
+              defaultValue={defaults?.email ?? ""}
+              onChange={() => clearFieldError("email")}
+              aria-invalid={!!fieldErrors.email}
+              className={cn(inputCls, fieldErrors.email && invalidFieldClass)}
+              placeholder="name@example.com"
+            />
+            <FieldError message={fieldErrors.email} />
+          </div>
+
+          <div>
+            <FieldLabel>Phone</FieldLabel>
+            <input
+              name="phone"
+              type="tel"
+              defaultValue={defaults?.phone ?? ""}
+              className={inputCls}
+              placeholder="+254..."
+            />
+          </div>
+
+          <div>
+            <FieldLabel>WhatsApp</FieldLabel>
+            <input
+              name="whatsapp"
+              type="tel"
+              defaultValue={defaults?.whatsapp ?? ""}
+              className={inputCls}
+              placeholder="+254..."
+            />
+          </div>
+
+          <div>
+            <FieldLabel>Preferred channel</FieldLabel>
+            <Select
+              name="preferredChannel"
+              defaultValue={defaults?.preferredChannel ?? ""}
             >
-              <Plus size={13} /> Add company
-            </button>
+              <option value="">—</option>
+              {CHANNELS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
           </div>
-        </div>
 
-        {/* Profile details — HR master data. All optional; auto-filled from intake where possible. */}
-        <div className="col-span-2 mt-1 border-t border-border/60 pt-2.5">
-          <div className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle mb-2">Profile details</div>
-          <div className="grid gap-2.5 grid-cols-2">
-            <div>
-              <FieldLabel>Date of birth</FieldLabel>
-              <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
-                onChange={() => clearFieldError("dateOfBirth")}
-                aria-invalid={!!fieldErrors.dateOfBirth}
-                className={cn(inputCls, fieldErrors.dateOfBirth && invalidFieldClass)} />
-              <FieldError message={fieldErrors.dateOfBirth} />
-            </div>
-            <div>
-              <FieldLabel>Nationality</FieldLabel>
-              <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
-            </div>
-            <div>
-              <FieldLabel>National ID (NIDA)</FieldLabel>
-              <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
-            </div>
-            <div>
-              <FieldLabel>Passport number</FieldLabel>
-              <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
-            </div>
-            <div className="col-span-2">
-              <FieldLabel>Address</FieldLabel>
-              <input name="address" defaultValue={defaults?.address ?? ""} className={inputCls} placeholder="Residential address" />
-            </div>
-            <div>
-              <FieldLabel>Emergency contact</FieldLabel>
-              <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
-            </div>
-            <div>
-              <FieldLabel>Emergency phone</FieldLabel>
-              <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
-            </div>
-            <div>
-              <FieldLabel>Probation ends</FieldLabel>
-              <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""}
-                onChange={() => clearFieldError("probationEndDate")}
-                aria-invalid={!!fieldErrors.probationEndDate}
-                className={cn(inputCls, fieldErrors.probationEndDate && invalidFieldClass)} />
-              <FieldError message={fieldErrors.probationEndDate} />
+          <div>
+            <FieldLabel>Work site</FieldLabel>
+            <Combobox name="workSite" options={sites} defaultValue={defaults?.workSite ?? ""} className={inputCls} placeholder="e.g. Matongo" />
+          </div>
+
+          <div>
+            <FieldLabel>Residence</FieldLabel>
+            <Combobox name="residence" options={sites} defaultValue={defaults?.residence ?? ""} className={inputCls} placeholder="e.g. Expat House A" />
+          </div>
+
+          <div className="col-span-2">
+            <FieldLabel>Address</FieldLabel>
+            <input name="address" defaultValue={defaults?.address ?? ""} className={inputCls} placeholder="Residential address" />
+          </div>
+        </FormSection>
+
+        <FormSection title="Personal">
+          <div>
+            <FieldLabel>Date of birth</FieldLabel>
+            <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
+              onChange={() => clearFieldError("dateOfBirth")}
+              aria-invalid={!!fieldErrors.dateOfBirth}
+              className={cn(inputCls, fieldErrors.dateOfBirth && invalidFieldClass)} />
+            <FieldError message={fieldErrors.dateOfBirth} />
+          </div>
+          <div>
+            <FieldLabel>Nationality</FieldLabel>
+            <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
+          </div>
+          <div>
+            <FieldLabel>National ID (NIDA)</FieldLabel>
+            <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
+          </div>
+          <div>
+            <FieldLabel>Passport number</FieldLabel>
+            <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
+          </div>
+          <div>
+            <FieldLabel>Emergency contact</FieldLabel>
+            <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
+          </div>
+          <div>
+            <FieldLabel>Emergency phone</FieldLabel>
+            <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
+          </div>
+          <div className="col-span-2">
+            <FieldLabel>Notes</FieldLabel>
+            <textarea
+              name="notes"
+              defaultValue={defaults?.notes ?? ""}
+              rows={2}
+              className={inputCls}
+              onKeyDown={submitOnEnterKeyDown}
+              placeholder="Internal notes, escalation preferences, etc."
+            />
+          </div>
+        </FormSection>
+
+        {/* Links — the relationships that used to hide among the plain fields. */}
+        <FormSection title="Links">
+          {/* Also reports to — secondary / dotted-line managers (organogram) */}
+          <div>
+            <FieldLabel>Also reports to</FieldLabel>
+            <Select
+              value=""
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isInteger(v)) addSecondaryManager(v);
+                e.target.value = "";
+              }}
+            >
+              <option value="">+ Add a dotted-line manager…</option>
+              {managerCandidates
+                .filter((p) => !secondaryManagers.includes(p.id))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </Select>
+            {secondaryManagers.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {secondaryManagers.map((mid) => {
+                  const p = peopleList.find((x) => x.id === mid);
+                  return (
+                    <span
+                      key={mid}
+                      className="inline-flex items-center gap-1 rounded-full bg-bg-muted/70 px-2.5 py-1 text-xs text-fg"
+                    >
+                      {p?.name ?? `#${mid}`}
+                      <button
+                        type="button"
+                        onClick={() => removeSecondaryManager(mid)}
+                        className="text-fg-subtle hover:text-fg"
+                        aria-label={`Remove ${p?.name ?? "manager"}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Related person — e.g. an immigration agent and the expat they help */}
+          <div>
+            <FieldLabel>Related to</FieldLabel>
+            <Select
+              name="relatedPersonId"
+              defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
+            >
+              <option value="">— None</option>
+              {relatedOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          </div>
+
+          {/* Also works for — additional companies this person belongs to/serves.
+              Feeds person_companies, so they appear under each company in pickers,
+              company task lists and KPIs. Relationship label is optional. */}
+          <div className="col-span-2">
+            <FieldLabel>Also works for</FieldLabel>
+            <div className="space-y-2">
+              {associations.length === 0 && (
+                <p className="text-xs text-fg-subtle italic">
+                  None. Add other companies this person works for or serves — their tasks and records show under each one.
+                </p>
+              )}
+              {associations.map((row, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <Select
+                    wrapperClassName="flex-1"
+                    value={row.companyId === "" ? "" : String(row.companyId)}
+                    onChange={(e) => updateAssociation(i, { companyId: e.target.value === "" ? "" : Number(e.target.value) })}
+                  >
+                    <option value="">— Company</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                  <input
+                    value={row.relationship}
+                    onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
+                    className={cn(inputCls, "flex-1")}
+                    placeholder="role / relationship (optional)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAssociation(i)}
+                    title="Remove"
+                    className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addAssociation}
+                className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+              >
+                <Plus size={13} /> Add company
+              </button>
             </div>
           </div>
-        </div>
-
-        <div className="col-span-2">
-          <FieldLabel>Notes</FieldLabel>
-          <textarea
-            name="notes"
-            defaultValue={defaults?.notes ?? ""}
-            rows={2}
-            className={inputCls}
-            onKeyDown={submitOnEnterKeyDown}
-            placeholder="Internal notes, escalation preferences, etc."
-          />
-        </div>
+        </FormSection>
       </div>
 
       {error && (

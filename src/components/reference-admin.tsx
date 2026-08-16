@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Check, X, GitMerge, Trash2 } from "lucide-react";
-import { Button } from "./ui";
+import { Button, Select } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 
@@ -88,10 +88,10 @@ export function ReferenceAdmin({
                 {mergeId === d.id && (
                   <div className="rounded-xl bg-bg-subtle/60 ring-1 ring-border/60 p-2.5 flex flex-col sm:flex-row sm:items-center gap-2">
                     <span className="text-xs text-fg-muted shrink-0">Merge <span className="font-medium text-fg">{d.name}</span> into:</span>
-                    <select id={`ref-merge-${d.id}`} defaultValue="" className="flex-1 min-w-0 rounded-lg bg-bg-elev text-xs text-fg ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                    <Select wrapperClassName="flex-1 min-w-0" id={`ref-merge-${d.id}`} defaultValue="" className="text-xs text-fg">
                       <option value="" disabled>Choose target…</option>
                       {others.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                    </select>
+                    </Select>
                     <Button size="sm" disabled={busy} onClick={() => {
                       const v = (document.getElementById(`ref-merge-${d.id}`) as HTMLSelectElement)?.value;
                       if (!v) { toast("Choose a target.", { tone: "warn" }); return; }

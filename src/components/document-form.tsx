@@ -21,7 +21,7 @@ import {
   MAX_UPLOAD_BYTES,
   type DocumentRow,
 } from "@/lib/documents-shared";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { Segmented } from "@/components/macos";
 import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
 import { uploadDirect } from "@/lib/upload-direct";
@@ -39,8 +39,11 @@ function toDateInput(d: Date | null | undefined): string {
 
 const LEAD_CHOICES = [0, 14, 30, 60, 90, 180];
 
-const FIELD =
-  "mt-1 w-full rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent";
+/* Layout only. The BOX — white fill, hairline, radius, focus ring — comes from
+   the one field rule in globals.css, so every input in the app matches. This
+   constant used to redraw it as a tinted well with its own ring, which is why
+   this form looked unlike the rest. */
+const FIELD = "mt-1 w-full px-3 py-2 text-sm";
 
 export function DocumentForm({
   mode,
@@ -255,35 +258,35 @@ export function DocumentForm({
               ]}
             />
             {owner === "company" ? (
-              <select
-                name="companyId"
-                aria-label="Company"
-                defaultValue={String(doc?.companyId ?? initialCompanyId ?? "")}
-                className="flex-1 rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent"
-              >
+              <Select wrapperClassName="flex-1"
+        name="companyId"
+        aria-label="Company"
+        defaultValue={String(doc?.companyId ?? initialCompanyId ?? "")}
+        
+       >
                 <option value="">Choose a company…</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              </Select>
             ) : (
-              <select
-                name="personId"
-                aria-label="Person"
-                defaultValue={String(doc?.personId ?? initialPersonId ?? "")}
-                className="flex-1 rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm ring-1 ring-border/60 focus:outline-none focus:ring-accent"
-              >
+              <Select wrapperClassName="flex-1"
+        name="personId"
+        aria-label="Person"
+        defaultValue={String(doc?.personId ?? initialPersonId ?? "")}
+        
+       >
                 <option value="">Choose a person…</option>
                 {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </Select>
             )}
           </div>
         </div>
 
         <div>
           <label className="block text-xs text-fg-muted" htmlFor="doc-category">Category</label>
-          <select id="doc-category" name="category" value={category} onChange={(e) => pickCategory(e.target.value)} className={FIELD}>
+          <Select id="doc-category" name="category" value={category} onChange={(e) => pickCategory(e.target.value)} className={FIELD}>
             <option value="">Choose a category…</option>
             {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          </Select>
         </div>
 
         <div>
@@ -313,7 +316,7 @@ export function DocumentForm({
 
         <div>
           <label className="block text-xs text-fg-muted" htmlFor="doc-lead">Warn me before</label>
-          <select
+          <Select
             id="doc-lead"
             name="reminderLeadDays"
             value={String(lead)}
@@ -323,7 +326,7 @@ export function DocumentForm({
             {LEAD_CHOICES.map((n) => (
               <option key={n} value={n}>{n === 0 ? "No warning" : `${n} days`}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="sm:col-span-2">
