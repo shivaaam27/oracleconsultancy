@@ -66,7 +66,12 @@ async function main() {
     // `minutes` was the polished version when it existed; keep both rather than
     // choosing for the owner — the body is the raw note, minutes appended under a
     // heading so nothing is lost.
-    const raw = ((r.raw_notes as string) ?? "").trim();
+    let raw = ((r.raw_notes as string) ?? "").trim();
+    // Drop a first line that just repeats the title. The old Workbook stored the
+    // title inside the body as well, so a straight copy opened every imported note
+    // with its own title twice — see scripts/fix-imported-note-titles.ts, which had
+    // to repair exactly that.
+    if (title && raw.startsWith(title)) raw = raw.slice(title.length).trim();
     const minutes = ((r.minutes as string) ?? "").trim();
     const text = minutes && minutes !== raw ? `${raw}\n\n— Minutes —\n\n${minutes}` : raw;
 

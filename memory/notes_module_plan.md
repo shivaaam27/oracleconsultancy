@@ -312,6 +312,26 @@ helpers)** · `app/notes/actions.ts` · `components/notes-shelf.tsx` ·
 **Also fixed on the way:** the save badge said "Saved" when idle *and* when saved, so
 it claimed credit before the first keystroke. Idle now renders nothing.
 
+### Phase 1.5 — the design pass the owner asked for (17 Aug 2026)
+
+His verdict on the first cut was "ugly and boring… there is this blue line", and he
+was right on every count. What was actually wrong, and what fixed it:
+
+| Fault | Cause | Fix |
+|---|---|---|
+| **A blue line round the writing area on click** | `*:focus-visible` in globals.css (declared **twice**) paints a 2px accent outline on anything focusable — and the canvas is a `contenteditable` filling the sheet. Tailwind's `outline-none` on the element **loses** to it. | A scoped `.note-canvas:focus` override. Safe here and nowhere else: on a text surface the **caret** is the focus indicator, which is why no serious editor outlines its own page. |
+| A stray box round the title, blue ring on click | The global "a field is a box" rule applies to every `input`/`select`. | **`.bare-field`** — the documented opt-out. Same for both selects. |
+| "Four stacked boxes" | Title box + meta box + toolbar box + body box. | **ONE sheet**: toolbar strip along its top, title INSIDE the paper, meta reduced to one quiet row of borderless controls above it. |
+| Boring toolbar | 20 identical grey icons, three of them H1/H2/H3. | One **style menu** (Body/H1/H2/H3), grouped icons at 14px, active state in **soft** accent not solid blue, and a **bubble menu** on selection. |
+| Body read like UI text | 14.5px/1.65. | **15px/1.7**, tuned heading scale, 26px title, measure 68ch inside a 58rem page. |
+| A grid of em-dashes | The shelf had "First line" and "Folder" columns that were empty for 3 of 4 notes. | **Two-line rows** — title + preview, folder as a chip. ⚠️ `RecordList`'s own `subRow` was no good here: in Compact density it **hides until hover**, which is right for a task list and wrong when the preview IS the content. |
+| Broken search box | `CaretInput` paints its own caret + placeholder for use inside a bordered row, so standalone it drew a stray caret and no field. | The kit's **`SearchInput`**. |
+| Every imported note opened with its own title twice | My import copied `title` into the first body line. | `scripts/fix-imported-note-titles.ts` (repaired 1 real case) + the import now strips it. **And a second bug inside that repair**: a naive walker gave `hardBreak` no text, welding lines together ("$600His facilitation fees") in `body_text` — the column search and AI will read. It emits `\n` now. |
+
+**Lesson worth keeping: `outline-none` cannot beat `*:focus-visible`,** and a global
+"every field is a box" rule will follow you into anything that should look like paper.
+Check computed styles on a new surface rather than assuming your classes won.
+
 **Not in Phase 1, on purpose:** the `/` menu, tables, tags, links, to-dos, AI,
 search indexing and daily notes are Phases 2–6. The toolbar carries every format for
 now, because a formatting tool you cannot find does not exist.

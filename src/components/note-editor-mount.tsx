@@ -17,9 +17,15 @@ import dynamic from "next/dynamic";
  */
 const NoteEditor = dynamic(() => import("@/components/note-editor").then((m) => m.NoteEditor), {
   ssr: false,
-  loading: () => <div className="min-h-[24rem] rounded-md border border-border bg-bg-elev" aria-hidden />,
+  // Same shape as the sheet, so nothing jumps when the editor arrives.
+  loading: () => <div className="min-h-[70vh] rounded-lg border border-border bg-bg-elev shadow-sm" aria-hidden />,
 });
 
-export function NoteEditorMount(props: { noteId: number; initialBody: unknown; initialUpdatedAt: string }) {
+export function NoteEditorMount(props: {
+  noteId: number;
+  initialTitle: string;
+  initialBody: unknown;
+  initialUpdatedAt: string;
+}) {
   return <NoteEditor {...props} />;
 }

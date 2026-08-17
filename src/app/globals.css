@@ -1122,26 +1122,32 @@ section[data-page-header] {
 
    If the Notes module is abandoned after the spike, delete this block. */
 .note-canvas {
-  font-size: 14.5px;
-  line-height: 1.65;
+  /* 15px/1.7 — prose, not a table row. The first cut was 14.5/1.65, which read as
+     "slightly big UI text" rather than as writing. */
+  font-size: 15px;
+  line-height: 1.7;
   color: hsl(var(--fg));
+  min-height: 60vh;   /* the paper keeps its shape while a note is still short */
 }
-.note-canvas > * + * { margin-top: 0.65em; }
-.note-canvas h1 { font-size: 1.5em; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; margin-top: 1.1em; }
-.note-canvas h2 { font-size: 1.25em; font-weight: 650; line-height: 1.3; margin-top: 1em; }
-.note-canvas h3 { font-size: 1.08em; font-weight: 600; margin-top: 0.9em; }
-.note-canvas ul, .note-canvas ol { padding-left: 1.35em; }
+.note-canvas > * + * { margin-top: 0.55em; }
+.note-canvas h1 { font-size: 1.45em; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; margin-top: 1.3em; }
+.note-canvas h2 { font-size: 1.22em; font-weight: 650; line-height: 1.3; margin-top: 1.2em; }
+.note-canvas h3 { font-size: 1.06em; font-weight: 600; margin-top: 1em; }
+.note-canvas h1:first-child, .note-canvas h2:first-child, .note-canvas h3:first-child { margin-top: 0; }
+.note-canvas ul, .note-canvas ol { padding-left: 1.3em; }
 .note-canvas ul { list-style: disc; }
 .note-canvas ol { list-style: decimal; }
 .note-canvas li > p { margin: 0; }
-.note-canvas li + li { margin-top: 0.2em; }
+.note-canvas li + li { margin-top: 0.15em; }
+.note-canvas a { text-underline-offset: 2px; }
+.note-canvas strong { font-weight: 650; }
 .note-canvas blockquote {
   border-left: 2px solid hsl(var(--accent));
-  padding-left: 0.85em;
+  padding-left: 0.9em;
   color: hsl(var(--fg-muted));
 }
 .note-canvas code {
-  font-size: 0.88em;
+  font-size: 0.87em;
   background: hsl(var(--bg-subtle));
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
@@ -1151,17 +1157,32 @@ section[data-page-header] {
   background: hsl(var(--bg-subtle));
   border: 1px solid hsl(var(--border));
   border-radius: 6px;
-  padding: 0.7em 0.85em;
+  padding: 0.75em 0.9em;
   overflow-x: auto;
 }
 .note-canvas pre code { background: none; border: 0; padding: 0; font-size: 0.85em; }
-.note-canvas hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.4em 0; }
-/* Checklists: the tick is a real checkbox, aligned to the first line of text. */
+.note-canvas hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.5em 0; }
+/* ⚠️ NO focus ring on the writing surface. `*:focus-visible` (twice in this file)
+   paints a 2px accent outline around anything focusable, and the canvas is a
+   contenteditable that fills the sheet — so clicking into a note drew a blue line
+   around the whole page of writing. That was the owner's first complaint about this
+   module, and Tailwind's `outline-none` on the element loses to those global rules.
+   Removing it is safe here and nowhere else: the blinking CARET is the focus
+   indicator for a text surface, which is why no editor worth copying outlines its
+   own page. */
+.note-canvas:focus,
+.note-canvas:focus-visible,
+.note-canvas *:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Checklists: a real checkbox, aligned to the first line of its text. */
 .note-canvas ul[data-type="taskList"] { list-style: none; padding-left: 0; }
-.note-canvas ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.55em; }
-.note-canvas ul[data-type="taskList"] li > label { margin-top: 0.28em; }
+.note-canvas ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.6em; }
+.note-canvas ul[data-type="taskList"] li > label { margin-top: 0.32em; }
 .note-canvas ul[data-type="taskList"] input[type="checkbox"] {
-  width: 14px; height: 14px; accent-color: hsl(var(--accent)); cursor: pointer;
+  width: 15px; height: 15px; accent-color: hsl(var(--accent)); cursor: pointer;
 }
 .note-canvas ul[data-type="taskList"] li[data-checked="true"] > div { color: hsl(var(--fg-subtle)); text-decoration: line-through; }
 /* The placeholder, on the first empty line only. */

@@ -1,56 +1,65 @@
 "use client";
 
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
-  Quote, Code2, Minus, Undo2, Redo2, Heading1, Heading2, Heading3, Link2, Check, Loader2, AlertTriangle,
+  Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { saveNoteBody } from "@/app/notes/actions";
+import { saveNoteBody, renameNote } from "@/app/notes/actions";
 
 /**
- * The note canvas. Phase 1 of memory/notes_module_plan.md.
+ * The note sheet: title and body on ONE piece of paper.
  *
- * Grown out of the Phase 0 spike, which established three things this file relies
- * on: `immediatelyRender: false` is mandatory under SSR, StarterKit v3 already
- * carries link/underline/lists/code/undo, and `getJSON()` + `getText()` give us the
- * two columns the table stores. It is mounted through `note-editor-mount.tsx`
- * because Next 16 refuses `ssr: false` inside a Server Component.
+ * The first cut of this was four stacked bordered boxes — title box, meta box,
+ * toolbar box, body box — which is what the owner rightly called ugly. A note should
+ * read as a sheet you write on, so: one surface, a quiet toolbar strip along its top,
+ * and the title living INSIDE the paper rather than in a form field above it.
  *
- * Autosave: debounced, and guarded by the row's `updated_at`. If the note changed
- * elsewhere the save is REFUSED rather than applied — the owner keeps what they are
- * typing and is told, which is the only honest way to handle two open tabs.
+ * Three specifics that were wrong and are fixed here:
+ *  • the title wore the app's global input chrome (a stray 0.8px box, and a blue ring
+ *    on click). It uses `.bare-field` now — the documented opt-out in globals.css.
+ *  • three separate H1/H2/H3 buttons became one "style" menu, which is how every
+ *    editor worth copying does it.
+ *  • selecting text now raises a small bubble menu, so the common marks are where
+ *    your eyes already are.
  */
 
 type SaveState =
   | { kind: "idle" }
   | { kind: "dirty" }
   | { kind: "saving" }
-  | { kind: "saved"; at: string }
+  | { kind: "saved" }
   | { kind: "stale" }
   | { kind: "error"; message: string };
 
 const AUTOSAVE_MS = 900;
 
-/** Desk ladder: 28px secondary controls, 6px corners. */
-const btn = "inline-flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 transition-colors";
+const STYLES = [
+  { key: "p", label: "Body" },
+  { key: "h1", label: "Heading 1" },
+  { key: "h2", label: "Heading 2" },
+  { key: "h3", label: "Heading 3" },
+] as const;
 
 export function NoteEditor({
   noteId,
+  initialTitle,
   initialBody,
   initialUpdatedAt,
 }: {
   noteId: number;
+  initialTitle: string;
   initialBody: unknown;
   initialUpdatedAt: string;
 }) {
   const [state, setState] = useState<SaveState>({ kind: "idle" });
-  // The timestamp the server last confirmed. The staleness guard compares against
-  // this, so it has to be a ref: the debounced timer closes over it.
+  const [title, setTitle] = useState(initialTitle);
   const seenUpdatedAt = useRef(initialUpdatedAt);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -67,10 +76,8 @@ export function NoteEditor({
     });
     if (res.ok) {
       seenUpdatedAt.current = res.updatedAt;
-      setState({ kind: "saved", at: res.updatedAt });
+      setState({ kind: "saved" });
     } else if (res.reason === "stale") {
-      // Deliberately do NOT overwrite and do NOT reload: what is on screen is the
-      // owner's most recent thinking. They decide.
       setState({ kind: "stale" });
     } else {
       setState({ kind: "error", message: res.message });
@@ -78,18 +85,18 @@ export function NoteEditor({
   }, [noteId]);
 
   const editor = useEditor({
-    immediatelyRender: false, // mandatory under SSR — see the Phase 0 note
+    immediatelyRender: false, // mandatory under SSR (Phase 0 finding)
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false, autolink: true, HTMLAttributes: { class: "text-accent underline underline-offset-2" } },
       }),
-      Placeholder.configure({ placeholder: "Write anything — rough is fine. Tidy it later." }),
+      Placeholder.configure({ placeholder: "Start writing. Rough is fine — tidy it later." }),
       TaskList,
       TaskItem.configure({ nested: true }),
     ],
     content: (initialBody as never) ?? "",
-    editorProps: { attributes: { class: "note-canvas outline-none min-h-[24rem]" } },
+    editorProps: { attributes: { class: "note-canvas outline-none" } },
     onCreate: ({ editor }) => { editorRef.current = editor; },
     onUpdate: () => {
       setState((s) => (s.kind === "stale" ? s : { kind: "dirty" }));
@@ -98,17 +105,11 @@ export function NoteEditor({
     },
   });
 
-  // Save on the way out: closing the tab or navigating away must not lose the last
-  // few seconds of typing.
+  // Save on the way out — closing the tab must not cost the last few seconds.
   useEffect(() => {
-    const onLeave = () => {
-      if (timer.current) { clearTimeout(timer.current); void flush(); }
-    };
+    const onLeave = () => { if (timer.current) { clearTimeout(timer.current); void flush(); } };
     window.addEventListener("beforeunload", onLeave);
-    return () => {
-      window.removeEventListener("beforeunload", onLeave);
-      onLeave();
-    };
+    return () => { window.removeEventListener("beforeunload", onLeave); onLeave(); };
   }, [flush]);
 
   // ⌘S / Ctrl+S saves now, because people press it whatever you tell them.
@@ -124,57 +125,109 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [flush]);
 
-  if (!editor) return <div className="min-h-[24rem] rounded-md border border-border bg-bg-elev" aria-hidden />;
+  const commitTitle = () => {
+    if (title.trim() === initialTitle.trim()) return;
+    void renameNote(noteId, title);
+  };
 
-  const tone = (active: boolean) => (active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-bg-muted hover:text-fg");
+  if (!editor) {
+    return <div className="min-h-[70vh] rounded-lg border border-border bg-bg-elev" aria-hidden />;
+  }
 
-  const setLink = () => {
-    const previous = editor.getAttributes("link").href as string | undefined;
-    const href = window.prompt("Link to (leave empty to remove)", previous ?? "https://");
-    if (href === null) return;
-    if (!href.trim()) { editor.chain().focus().unsetLink().run(); return; }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: href.trim() }).run();
+  const currentStyle =
+    editor.isActive("heading", { level: 1 }) ? "h1" :
+    editor.isActive("heading", { level: 2 }) ? "h2" :
+    editor.isActive("heading", { level: 3 }) ? "h3" : "p";
+
+  const setStyle = (key: string) => {
+    const chain = editor.chain().focus();
+    if (key === "p") chain.setParagraph().run();
+    else chain.setHeading({ level: Number(key.slice(1)) as 1 | 2 | 3 }).run();
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Toolbar. Phase 2 adds the `/` menu; until then every control is visible,
-          because a formatting tool you cannot find does not exist. */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev p-1">
-        <button type="button" title="Undo" onClick={() => editor.chain().focus().undo().run()} className={cn(btn, tone(false))}><Undo2 size={13} /></button>
-        <button type="button" title="Redo" onClick={() => editor.chain().focus().redo().run()} className={cn(btn, tone(false))}><Redo2 size={13} /></button>
-        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-        <button type="button" title="Heading 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={cn(btn, tone(editor.isActive("heading", { level: 1 })))}><Heading1 size={13} /></button>
-        <button type="button" title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={cn(btn, tone(editor.isActive("heading", { level: 2 })))}><Heading2 size={13} /></button>
-        <button type="button" title="Heading 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={cn(btn, tone(editor.isActive("heading", { level: 3 })))}><Heading3 size={13} /></button>
-        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-        <button type="button" title="Bold" onClick={() => editor.chain().focus().toggleBold().run()} className={cn(btn, tone(editor.isActive("bold")))}><Bold size={13} /></button>
-        <button type="button" title="Italic" onClick={() => editor.chain().focus().toggleItalic().run()} className={cn(btn, tone(editor.isActive("italic")))}><Italic size={13} /></button>
-        <button type="button" title="Underline" onClick={() => editor.chain().focus().toggleUnderline().run()} className={cn(btn, tone(editor.isActive("underline")))}><UnderlineIcon size={13} /></button>
-        <button type="button" title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()} className={cn(btn, tone(editor.isActive("strike")))}><Strikethrough size={13} /></button>
-        <button type="button" title="Link" onClick={setLink} className={cn(btn, tone(editor.isActive("link")))}><Link2 size={13} /></button>
-        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-        <button type="button" title="Bullet list" onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn(btn, tone(editor.isActive("bulletList")))}><List size={13} /></button>
-        <button type="button" title="Numbered list" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn(btn, tone(editor.isActive("orderedList")))}><ListOrdered size={13} /></button>
-        <button type="button" title="Checklist" onClick={() => editor.chain().focus().toggleTaskList().run()} className={cn(btn, tone(editor.isActive("taskList")))}><ListChecks size={13} /></button>
-        <button type="button" title="Quote" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={cn(btn, tone(editor.isActive("blockquote")))}><Quote size={13} /></button>
-        <button type="button" title="Code block" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={cn(btn, tone(editor.isActive("codeBlock")))}><Code2 size={13} /></button>
-        <button type="button" title="Divider" onClick={() => editor.chain().focus().setHorizontalRule().run()} className={cn(btn, tone(false))}><Minus size={13} /></button>
+    /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
+       not a floating box of its own. */
+    <div className="overflow-hidden rounded-lg border border-border bg-bg-elev shadow-sm">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-bg-subtle/80 px-2 py-1.5 backdrop-blur-sm">
+        <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo2 size={14} /></ToolButton>
+        <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo2 size={14} /></ToolButton>
+
+        <Divider />
+
+        {/* One style menu instead of three heading buttons. */}
+        <span className="relative">
+          <select
+            aria-label="Text style"
+            value={currentStyle}
+            onChange={(e) => setStyle(e.target.value)}
+            className="bare-field h-7 cursor-pointer appearance-none rounded-md pl-2 pr-6 text-[12px] font-medium text-fg outline-none transition-colors hover:bg-bg-muted"
+          >
+            {STYLES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+          <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+        </span>
+
+        <Divider />
+
+        <ToolButton title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={14} /></ToolButton>
+        <ToolButton title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={14} /></ToolButton>
+        <ToolButton title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={14} /></ToolButton>
+        <ToolButton title="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={14} /></ToolButton>
+        <ToolButton title="Link" active={editor.isActive("link")} onClick={() => promptLink(editor)}><Link2 size={14} /></ToolButton>
+
+        <Divider />
+
+        <ToolButton title="Bulleted list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={14} /></ToolButton>
+        <ToolButton title="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={14} /></ToolButton>
+        <ToolButton title="Checklist" active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks size={14} /></ToolButton>
+
+        <Divider />
+
+        <ToolButton title="Quote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={14} /></ToolButton>
+        <ToolButton title="Code block" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code2 size={14} /></ToolButton>
+        <ToolButton title="Divider" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus size={14} /></ToolButton>
 
         <span className="grow" />
         <SaveBadge state={state} />
       </div>
 
-      <div className="rounded-md border border-border bg-bg-elev px-4 py-3">
-        <EditorContent editor={editor} />
+      {/* Selecting text raises the marks where the eyes already are. */}
+      <BubbleMenu editor={editor} className="flex items-center gap-0.5 rounded-md border border-border bg-bg-elev p-1 shadow-md">
+        <ToolButton title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={13} /></ToolButton>
+        <ToolButton title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={13} /></ToolButton>
+        <ToolButton title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={13} /></ToolButton>
+        <ToolButton title="Link" active={editor.isActive("link")} onClick={() => promptLink(editor)}><Link2 size={13} /></ToolButton>
+      </BubbleMenu>
+
+      {/* The paper. Generous padding, and the writing measured to ~68 characters —
+          the title sits in here too, which is what makes it feel like one sheet. */}
+      <div className="px-6 py-7 sm:px-10 sm:py-9">
+        <div className="mx-auto w-full max-w-[68ch]">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitTitle(); editor.chain().focus().run(); }
+            }}
+            placeholder="Title"
+            aria-label="Note title"
+            /* `.bare-field` is the documented opt-out from the global input well +
+               focus ring (globals.css). Without it this field draws a stray box and
+               flashes blue when clicked — the owner's first complaint. */
+            className="bare-field mb-1 w-full text-[26px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60"
+          />
+          <EditorContent editor={editor} />
+        </div>
       </div>
 
       {state.kind === "stale" && (
-        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft/40 px-3 py-2 text-[12px] text-fg">
+        <p className="flex items-start gap-2 border-t border-warn/30 bg-warn-soft/40 px-6 py-3 text-[12px] text-fg">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
           <span>
-            This note was changed somewhere else — maybe another tab. <strong>Nothing you have typed here is lost</strong>,
-            and nothing has been overwritten. Copy what you need, then reload the page to see the other version.
+            This note changed somewhere else — probably another tab. <strong>Nothing you have typed is lost</strong> and
+            nothing has been overwritten. Copy what you need, then reload to see the other version.
           </span>
         </p>
       )}
@@ -182,15 +235,54 @@ export function NoteEditor({
   );
 }
 
+function promptLink(editor: Editor) {
+  const previous = editor.getAttributes("link").href as string | undefined;
+  const href = window.prompt("Link to (leave empty to remove)", previous ?? "https://");
+  if (href === null) return;
+  if (!href.trim()) { editor.chain().focus().unsetLink().run(); return; }
+  editor.chain().focus().extendMarkRange("link").setLink({ href: href.trim() }).run();
+}
+
+function Divider() {
+  return <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden />;
+}
+
+/** 28px, 6px corners — the Desk secondary tier. Active is the SOFT accent, not a
+ *  solid blue fill: a toolbar of solid blue chips shouts over the writing. */
+function ToolButton({
+  title, onClick, active = false, disabled = false, children,
+}: {
+  title: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40",
+        active ? "bg-accent-soft text-accent" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SaveBadge({ state }: { state: SaveState }) {
   const base = "inline-flex h-7 items-center gap-1.5 px-2 text-[11px] font-medium";
   if (state.kind === "saving") return <span className={cn(base, "text-fg-muted")}><Loader2 size={12} className="animate-spin" /> Saving…</span>;
   if (state.kind === "saved") return <span className={cn(base, "text-success")}><Check size={12} /> Saved</span>;
-  if (state.kind === "dirty") return <span className={cn(base, "text-fg-subtle")}>Unsaved…</span>;
+  if (state.kind === "dirty") return <span className={cn(base, "text-fg-subtle")}>Editing…</span>;
   if (state.kind === "stale") return <span className={cn(base, "text-warn")}><AlertTriangle size={12} /> Changed elsewhere</span>;
   if (state.kind === "error") return <span className={cn(base, "text-danger")} title={state.message}><AlertTriangle size={12} /> Not saved</span>;
-  // Idle renders NOTHING. It used to say "Saved", which was indistinguishable from a
-  // save that had just happened — so the badge claimed credit for work it had not
-  // done. Silence is the honest state before the first keystroke.
+  // Idle says nothing: claiming "Saved" before a keystroke is a lie.
   return null;
 }
