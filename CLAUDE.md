@@ -332,16 +332,38 @@ deliberately not being done. **`RecordList` is the lever for three of the four**
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
-## Notes module — PLANNED, not built (`memory/notes_module_plan.md`)
+## Notes — BUILT through Phase 2. **Phase 3 is next** (`memory/notes_module_plan.md`)
 
-A dedicated Notes module the owner asked for on 17 Aug 2026: rough capture, Apple-
-Notes formatting, slash commands, links into every other record, to-dos, reminders,
-AI polish/summarise/extract, MCP later. **Read the plan before writing any of it** —
-it is phased, it names the editor (Tiptap, MIT — BlockNote's AI package is GPL/paid)
-and it turns on reusing four systems COS already has (`todos` for reminders,
-`RecordList`/`ENTITY_VIEWS` for the screens, `embeddings` for recall, saved views as
-"smart folders"). Legacy notes = **4 rows** in `meetings.kind='note'`; nothing to
-protect.
+`/notes` (the shelf) and `/notes/[id]` (one note, one sheet) are live and in use,
+owner-only, behind the admin gate. **Read `memory/notes_module_plan.md` before
+touching any of it** — it holds the eight phases, every decision with its reason, and
+the traps that cost real time.
+
+- **Editor: Tiptap 3.x** (MIT). `note-editor.tsx` is the sheet;
+  `note-editor-mount.tsx` is a one-line client wrapper that exists because **Next 16
+  refuses `next/dynamic` with `ssr: false` inside a Server Component**. `immediatelyRender:
+  false` is mandatory. The editor is ~122 kB gzip in its own lazy chunk.
+- **Tables**: `notes`, `note_folders` (migration **0118**), `note_tags` (**0119**).
+  `body_json` (Tiptap JSON) is canonical; **`body_text` is derived and written in the
+  SAME statement** — if they drift, search and AI rot. `#tags` are re-derived per save
+  by `lib/note-tags.ts` (client-safe, 8 tests). Legacy notes: the 4 old
+  `meetings.kind='note'` rows were imported; the originals are untouched.
+- **Client/server split**: `lib/notes.ts` is server-only (imports `sb`);
+  **`lib/notes-shared.ts`** is what client components import. Getting this wrong kills
+  every page with "SUPABASE_SERVICE_ROLE_KEY is not set".
+- **Done**: shelf (RecordList + `ENTITY_VIEWS.note`, two-line rows), autosave with an
+  `updated_at` staleness guard, pin/folder/archive, Quick Note, the **`/` menu**
+  (`note-slash-menu.tsx` — add a command = one entry in `ITEMS`), tables, `#tags` +
+  tag rail, **daily notes** ("Today", EAT-based, partial unique index).
+- **Phase 3 = interconnection**: `note_links`, `@` mentions of task/person/company/
+  document, `[[note]]` links, a **Backlinks** panel, and a Notes tab on those records.
+- ⚠️ **Owner-only is structural**: no `visibility` column, no portal twin. `/notes`
+  must stay OUT of the proxy matcher's exclusion list. A note linked to a task is
+  still invisible to staff.
+- ⚠️ **No native `<select>`/`<datalist>`** anywhere (use `FluidSelect`/`Combobox`), and
+  **`outline-none` cannot beat `*:focus-visible`** — the writing surface needed a
+  scoped override. Tailwind v4's Lightning CSS also **silently drops** modern CSS
+  properties from `globals.css`; set those inline.
 
 **People can now be permanently deleted** (Danger zone on the person record).
 Deactivate is still the normal answer. ⚠️ Four FKs to `people` are ON DELETE NO

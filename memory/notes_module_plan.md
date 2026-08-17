@@ -1,21 +1,41 @@
 ---
 name: notes-module-plan
-description: "Plan for the COS Notes module — editor, slash commands, links, to-dos, reminders, AI, MCP. Phase-wise. Not built yet."
+description: "The COS Notes module: plan + build log. Phases 0-2 DONE (editor, shelf, slash menu, tables, tags, daily notes). Phase 3 (links/backlinks) is next."
 metadata:
   node_type: memory
   type: project
 ---
 
-# Notes — the plan (17 Aug 2026, NOT BUILT)
+# Notes — plan and build log
 
 The owner wants a **dedicated Notes module**, not a notes page: rough ideas go in
 fast and get polished later by him or by AI; Apple-Notes-grade formatting; slash
 commands; links, reminders and to-dos; interconnected with the rest of the command
 centre; reachable from MCP later.
 
-**Read this before writing any of it.** Everything below is grounded in what the
-codebase actually has (verified, see "What I checked" at the end) — the leverage is
-almost entirely in reusing four systems that already exist.
+## ▶ START HERE — handing over to a fresh chat (17 Aug 2026, end of Phase 2)
+
+**Phases 0, 1 and 2 are BUILT, verified in the browser, and committed. Phase 3 is
+next: `note_links`, `@` mentions, `[[note]]` links, a Backlinks panel, and a Notes tab
+on the task/person/company records.** §10 has the detail; §3 has the table shape.
+
+State of the machine, so nothing is rediscovered:
+
+| | |
+|---|---|
+| Branch | `claude/cos-portal-button-normalization-8146a9`, in the worktree `.claude/worktrees/ai-bulk-task-creation-95a5e7` |
+| Git | clean; local **`master` is ~17 commits ahead of `origin/master`** and deliberately **NOT pushed** (the owner asks for local commits only) |
+| Migrations | **0118** (`notes`, `note_folders`) and **0119** (`note_tags`) applied to the live database. Backups taken before each |
+| Live data | the owner's **4 imported notes** + **today's daily page**. Every test note and test edit was cleaned up |
+| This worktree | `node_modules` installed and `.env.local` copied — a fresh worktree has NEITHER, and `npm exec tsc` then exits 0 having checked nothing |
+| Dev server | may still be running on :3000 (`preview_start` / `cos-dev`). An admin session is signed in as the owner; a portal session exists as Kishan Suchak |
+
+**Read before writing code:** §2 (editor + storage), §3 (schema), §8 (owner-only is
+structural), §11 (traps), and the Phase 1/1.5/2 entries in §10 — they are a build log
+of what actually broke, not a wish list.
+
+**Everything below is grounded in what the codebase actually has** (verified — see
+"What I checked") — the leverage is almost entirely in reusing systems that exist.
 
 ---
 
