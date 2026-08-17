@@ -332,6 +332,17 @@ deliberately not being done. **`RecordList` is the lever for three of the four**
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
+## Notes module — PLANNED, not built (`memory/notes_module_plan.md`)
+
+A dedicated Notes module the owner asked for on 17 Aug 2026: rough capture, Apple-
+Notes formatting, slash commands, links into every other record, to-dos, reminders,
+AI polish/summarise/extract, MCP later. **Read the plan before writing any of it** —
+it is phased, it names the editor (Tiptap, MIT — BlockNote's AI package is GPL/paid)
+and it turns on reusing four systems COS already has (`todos` for reminders,
+`RecordList`/`ENTITY_VIEWS` for the screens, `embeddings` for recall, saved views as
+"smart folders"). Legacy notes = **4 rows** in `meetings.kind='note'`; nothing to
+protect.
+
 **People can now be permanently deleted** (Danger zone on the person record).
 Deactivate is still the normal answer. ⚠️ Four FKs to `people` are ON DELETE NO
 ACTION (`tasks.owner_id`, `tasks.created_by_person_id`,
