@@ -48,7 +48,7 @@ export function PortalTaskEdit({
         onClick={() => setEditing(true)}
         aria-label={`Edit ${code}`}
         title="Edit title & description"
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] text-fg-muted ring-1 ring-border transition-colors hover:text-accent hover:ring-accent/40"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-fg-muted ring-1 ring-border transition-colors hover:text-accent hover:ring-accent/40"
       >
         <Pencil size={13} /> Edit
       </button>
@@ -71,10 +71,10 @@ export function PortalTaskEdit({
         className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
       />
       <div className="flex items-center gap-2">
-        <button type="button" onClick={save} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
+        <button type="button" onClick={save} disabled={busy} className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
         </button>
-        <button type="button" onClick={cancel} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+        <button type="button" onClick={cancel} className="inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] text-fg-muted transition-colors hover:text-fg">
           <X size={13} /> Cancel
         </button>
       </div>

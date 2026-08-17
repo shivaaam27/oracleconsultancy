@@ -48,7 +48,7 @@ export function PortalTaskMessage({ people }: { people: { id: number; name: stri
             title={`Message ${first}`}
             aria-label={`Message ${first}`}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1.5 text-sm text-fg-muted ring-1 ring-border transition-all",
+              "inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-subtle px-2.5 text-[13px] text-fg-muted ring-1 ring-border transition-all",
               "hover:text-accent hover:ring-accent/40 active:scale-95 disabled:opacity-50",
             )}
           >

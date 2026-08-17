@@ -32,7 +32,10 @@ export function NotifyPerson({
   const [busy, start] = useTransition();
   const [scope, setScope] = useState<"task" | "all">(taskId != null ? "task" : "all");
   const first = getGivenName(name);
-  const pad = size === "sm" ? "px-2.5 py-1.5 text-[12px]" : "px-3 py-2 text-sm";
+  // Explicit height tokens, not padding: `sm` is the 28px secondary tier (a task
+  // row, the per-task page), `md` the 36px primary tier. Derived heights were how
+  // these two ended up a couple of pixels off every control beside them.
+  const pad = size === "sm" ? "h-7 px-2.5 text-[12px]" : "h-9 px-3.5 text-sm";
   const tid = scope === "task" ? taskId : undefined;
   const noun = scope === "task" ? "this task" : "summary";
 
@@ -69,13 +72,13 @@ export function NotifyPerson({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {taskId != null && (
-        <div className="inline-flex self-start items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[11px]">
+        <div className="inline-flex self-start items-center gap-0.5 rounded-md bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[11px]">
           {(["task", "all"] as const).map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => setScope(s)}
-              className={`rounded-full px-2.5 py-0.5 font-medium transition-colors ${scope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg"}`}
+              className={`inline-flex h-6 items-center rounded px-2.5 font-medium transition-colors ${scope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg"}`}
             >
               {s === "task" ? "This task" : "All tasks"}
             </button>
@@ -87,7 +90,7 @@ export function NotifyPerson({
           type="button"
           onClick={whatsapp}
           disabled={busy}
-          className={`inline-flex items-center gap-1.5 rounded-full bg-success-soft/60 font-medium text-success ring-1 ring-success/25 transition-transform hover:bg-success-soft active:scale-95 disabled:opacity-50 ${pad}`}
+          className={`inline-flex items-center gap-1.5 rounded-md bg-success-soft/60 font-medium text-success ring-1 ring-success/25 transition-transform hover:bg-success-soft active:scale-95 disabled:opacity-50 ${pad}`}
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />} WhatsApp {noun}
         </button>
@@ -95,7 +98,7 @@ export function NotifyPerson({
           type="button"
           onClick={email}
           disabled={busy}
-          className={`inline-flex items-center gap-1.5 rounded-full bg-bg-elev font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50 ${pad}`}
+          className={`inline-flex items-center gap-1.5 rounded-md bg-bg-elev font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50 ${pad}`}
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Email {noun}
         </button>

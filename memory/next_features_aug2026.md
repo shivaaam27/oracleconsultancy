@@ -187,24 +187,69 @@ token instead of deriving its height from padding. That is what collapsed things
 removes others (the per-task page briefly went 9 → 10). Convert a whole surface in
 one pass, then measure.
 
-**STILL TO DO — the per-task page's 15 buttons, already named by measurement:**
-`Complete` + `Remind Yash` (33px) · `Escalate` (27) · `WhatsApp this task`,
-`Email this task`, `Delete task`, 3 name chips (24) · `History`, `Understood` (23)
-· `Edit` (21) · the `This task`/`All tasks` toggle (16) · that page's own `Post`
-(25). They live in `portal-task-manage.tsx`, the task page itself,
-`TaskClassifyControls`/`TaskPeoplePanel`/`TaskDeleteFooter` in
-`portal-tasks-command.tsx`, and shared chrome.
+**DONE — the per-task page's 15 buttons (17 Aug 2026). 10 heights → 3.**
 
-**Judgement call, not blind normalisation:** `Complete` and `Remind Yash` are that
-page's PRIMARY pair, sitting beside the big blue Add update — they may be
-deliberately taller. Ask before shrinking them.
+The ladder, and it is a ladder on purpose:
+
+| Tier | Height | What sits there |
+|---|---|---|
+| Primary | **h-9 (36)** | `Add update` · `Complete` · `Remind X` · `Escalate` · the composer footer (attach · dictate · Status · `Post`) |
+| Secondary | **h-7 (28)** | `Edit` · `History` · `Understood` · the 3 name chips · WhatsApp/Email/Chat icon buttons · remove-person `X` · `Delete task` + its confirm pair · note `Save`/`Cancel` · `Restore` · the attachment chip · `Try again` |
+| Micro | **h-6 (24)** | the `This task`/`All tasks` toggle · the note `Delete`/`Keep` confirm |
+
+Radii: 6px (`rounded-md`) everywhere, 4px (`rounded`) on the micro tier. No
+`rounded-full` survives on a control.
+
+- **The owner's answer on the primary pair: all three at 36px** (they were
+  44/41/41). It is still the biggest thing on the page and the trio finally
+  matches the Priority/Due/Classify controls beneath it.
+- **Two heights are set by the ROW, not the tier**, and this is the rule to keep:
+  `Escalate` is h-9 because it sits in a row with the Category and Risk dropdowns
+  (CONTROL_SHELL, h-9), and the composer footer is h-9 throughout because the
+  Status `Select` is h-9. **A button in a field row takes the field's height** —
+  otherwise you get a tidy tier count and a visibly ragged row.
+- Every height is now an explicit `h-*` token; not one is left to `py-*`. That is
+  what makes it hold: the next person cannot drift it by changing padding.
+- **`notify-person.tsx` `size="sm"` is now h-7 and `md` h-9**, so this landed on
+  the Tasks list and the Team view too. `portal-conversation.tsx` is the ADMIN
+  timeline's twin, so `Understood`/`Post`/the confirms changed on both sides —
+  intended.
+
+**NOT done, and deliberately: text FIELDS still carry 8px radii** — the note
+textarea and the composer `CaretTextarea` are `rounded-xl`, the edit-box inputs
+`rounded-lg`, and shared `Select` is `rounded-lg` while `CONTROL_SHELL` is
+`rounded-md`. Fixing two of them here would have split one page's fields into two
+looks. **That is the next single-definition job** (`Select` + `.bare-field` +
+CONTROL_SHELL agreeing on 6px), and it is app-wide, not portal-only.
+
+**MEASURED on `/portal/task/PE-004` as a director** (`tsc` clean · 281 tests pass ·
+no console errors). The audit script's own count: **10 → 7** distinct heights, and
+the three that are the page's own actions are exactly the ladder above —
+`29 ×11 · 22 ×24 · 19 ×2` raw, which is 36/28/24 CSS at the portal's `zoom: 0.8`.
+Remember to divide by the zoom before comparing a measurement to a token.
+
+**The other four groups are NOT stragglers — know what they are before "fixing" them:**
+
+| Raw | CSS | What | Verdict |
+|---|---|---|---|
+| 26 ×3 | 32 | Notifications · Search · Theme, in the nav pill | Different surface (`portal-pill.tsx`), every portal page. Leave unless the pill is done as a whole. |
+| 13 ×3 | 16 | the Lead/Working toggles in `TaskPeoplePanel` | A switch, correctly switch-sized — but it is **hand-rolled**, not the kit `Switch size="sm"`. Reuse job, not a height job. |
+| 10 ×13 | 13 | Pin · Unpin · Reply · Edit note · Delete note | Bare 13px icons in the note header, no chrome, hover-revealed. **A 13px tap target — this one belongs to the mobile pass.** |
+| 0 ×1 | — | a `display:none` trigger (the `sm:hidden` FAB) | Not real. |
 
 **The audit script** (paste into the browser console on any portal page) is what
 made all of this measurable rather than guesswork:
 `[...document.querySelector('[data-portal-shell]').querySelectorAll('button')]`
 → group by `Math.round(getBoundingClientRect().height)`.
-2. The mobile pass (where `TaskRow`, kept on purpose, is the start).
-3. ⚠️ **Unreproduced**: the owner reports the per-task page sidebar "overflowing".
+
+**STILL TO DO on the portal — two things, in this order:**
+
+1. **The mobile pass.** `TaskRow` in `portal-tasks-command.tsx` is the start, and
+   it is where the remaining padded heights live: the mobile filter/select toolbar
+   (`rounded-2xl px-3.5 py-3`, ~lines 460–485), TaskRow's expanded controls
+   (~1018–1113) and the LeadMultiSelect chips (~1582). They were left alone ON
+   PURPOSE — the desktop pass stopped at the desktop surfaces.
+2. ⚠️ **Unreproduced**: the owner reports the per-task page sidebar "overflowing".
    Hit-tested to y=610 of a 620px viewport (still sidebar), no horizontal
    overflow, nothing past the viewport, 42px gap between rail and content. Needs
    his viewport size or a screenshot — the portal's desktop `zoom: 0.8`
@@ -218,6 +263,27 @@ application errors (only HMR websocket noise after a restart).
 ⚠️ **The board is SLOW in dev** — 20–30s per request in application-code, which is
 the `max: 1` pooled connection plus its many queries. Don't fire parallel requests
 at it while testing; they queue and look like a hang.
+
+### ⚠️ A fresh worktree cannot run the dev server (17 Aug 2026)
+
+A new `.claude/worktrees/*` checkout has **no `node_modules` and no `.env.local`**,
+so `npm run dev` dies with `Cannot find module .../next/dist/bin/next` — and,
+worse, `npm exec tsc --noEmit` **exits 0 with an empty report**, which reads as a
+clean type-check when nothing was checked at all. **Check that the report is
+non-empty, not just that the exit code is 0.**
+
+- **Junctioning `node_modules` to the main checkout makes `tsc` work but NOT the
+  dev server**: Turbopack panics with `Symlink [project]/node_modules is invalid,
+  it points out of the filesystem root`. Junction for a type-check, then
+  `cmd /c rmdir node_modules` to remove it (**never** `Remove-Item -Recurse` or
+  `rm -rf` on a junction — PowerShell 5.1 follows it and would delete the MAIN
+  repo's dependencies).
+- **The fix is just `npm install` in the worktree** (37s, 555 packages) plus a copy
+  of `.env.local`. Do that first, before anything else in a fresh worktree.
+- Signing in is usually NOT needed: `/api/portal/remember-token` auto-restores the
+  remembered device session, so `/portal` comes back already authenticated (it came
+  back as Pulin Manek, a director). Claude will not type a password, but it rarely
+  has to — load `/portal` and check who you are before assuming you're locked out.
 
 ### ⚠️ Dev-server trap, hit THREE times in one session
 

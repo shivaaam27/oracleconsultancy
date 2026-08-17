@@ -177,7 +177,7 @@ export function PortalConversation(props: Props) {
           <input type="hidden" name="code" value={code} />
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg px-3 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 text-[11px] font-semibold hover:opacity-90 transition-opacity"
           >
             <Check size={12} /> Understood
           </button>
@@ -257,8 +257,8 @@ export function PortalConversation(props: Props) {
           <input type="hidden" name="code" value={code} />
           <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-xl bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40" />
           <div className="flex items-center gap-2">
-            <button type="submit" className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-fg hover:opacity-90 transition-opacity"><Check size={12} /> Save</button>
-            <button type="button" onClick={() => setEditingId(null)} className="rounded-full px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg">Cancel</button>
+            <button type="submit" className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-90 transition-opacity"><Check size={12} /> Save</button>
+            <button type="button" onClick={() => setEditingId(null)} className="inline-flex h-7 items-center rounded-md px-3 text-[12px] text-fg-muted hover:text-fg">Cancel</button>
           </div>
         </form>
       ) : (
@@ -279,8 +279,8 @@ export function PortalConversation(props: Props) {
           <input type="hidden" name="code" value={code} />
           <span className="text-fg-muted">Delete this note?</span>
           <span className="grow" />
-          <button type="submit" className="inline-flex items-center gap-1 rounded-md bg-danger px-2 py-1 text-[11px] font-medium text-white hover:opacity-90"><Trash2 size={11} /> Delete</button>
-          <button type="button" onClick={() => setDeletingId(null)} className="rounded-md px-1.5 py-1 text-[11px] text-fg-muted hover:text-fg">Keep</button>
+          <button type="submit" className="inline-flex h-6 items-center gap-1 rounded bg-danger px-2 text-[11px] font-medium text-white hover:opacity-90"><Trash2 size={11} /> Delete</button>
+          <button type="button" onClick={() => setDeletingId(null)} className="inline-flex h-6 items-center rounded px-1.5 text-[11px] text-fg-muted hover:text-fg">Keep</button>
         </form>
       )}
 
@@ -289,7 +289,7 @@ export function PortalConversation(props: Props) {
           href={`/api/portal/attachment?updateId=${m.id}`}
           target="_blank"
           rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2 text-xs hover:ring-accent/40 transition-colors"
+          className="mt-2 inline-flex h-7 items-center gap-2 rounded-md bg-bg-elev ring-1 ring-border px-2.5 text-xs hover:ring-accent/40 transition-colors"
         >
           <Paperclip size={14} className="text-accent shrink-0" />
           <span className="truncate max-w-[16rem] font-medium">{m.attachment.name}</span>
@@ -389,20 +389,23 @@ export function PortalConversation(props: Props) {
                 <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg"><X size={13} /></button>
               </div>
             )}
+            {/* Composer footer — ONE height (h-9) across attach, dictate, the
+                status Select and Post. They were 32/32/36/32 and the row read as
+                four separate kits. */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   title="Attach a file or photo"
-                  className="inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border h-8 w-8 text-fg-muted hover:text-accent transition-colors"
+                  className="inline-flex items-center justify-center rounded-md bg-bg-subtle ring-1 ring-border h-9 w-9 text-fg-muted hover:text-accent transition-colors"
                 >
                   <Paperclip size={14} />
                 </button>
                 <VoiceButton
                   onResult={appendDictation}
                   title="Dictate your update"
-                  className="inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border h-8 w-8 text-fg-muted hover:text-accent transition-colors"
+                  className="inline-flex items-center justify-center rounded-md bg-bg-subtle ring-1 ring-border h-9 w-9 text-fg-muted hover:text-accent transition-colors"
                 />
                 <label className="flex items-center gap-2 text-xs text-fg-muted">
                   Status
@@ -414,7 +417,7 @@ export function PortalConversation(props: Props) {
                   </Select>
                 </label>
               </div>
-              <button type="submit" className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg px-4 py-2 text-xs font-semibold hover:opacity-90 transition-opacity">
+              <button type="submit" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-accent text-accent-fg px-3.5 text-xs font-semibold hover:opacity-90 transition-opacity">
                 <Send size={13} /> {replyTo ? "Reply" : "Post"}
               </button>
             </div>

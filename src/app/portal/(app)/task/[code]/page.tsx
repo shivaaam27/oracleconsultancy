@@ -469,7 +469,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
                   <form action={portalRestoreUpdate}>
                     <input type="hidden" name="updateId" value={d.id} />
                     <input type="hidden" name="code" value={task.code as string} />
-                    <button type="submit" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent ring-1 ring-accent/25 hover:bg-accent-soft/70 transition-colors">
+                    <button type="submit" className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-accent-soft px-2.5 text-[11px] font-medium text-accent ring-1 ring-accent/25 hover:bg-accent-soft/70 transition-colors">
                       Restore
                     </button>
                   </form>

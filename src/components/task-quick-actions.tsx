@@ -39,9 +39,13 @@ export function TaskQuickActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* The page's PRIMARY row. All three take the same explicit h-9 (36px) —
+          the record-page primary height, matching the Priority/Due/Classify
+          controls below. Heights here used to come from `py-3`, which is how
+          the trio ended up 44/41/41 and never lined up. Owner's call, 17 Aug. */}
       <a
         href="#conversation"
-        className="inline-flex min-w-[8rem] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
+        className="inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
       >
         <MessageSquarePlus size={15} /> Add update
       </a>
@@ -49,7 +53,7 @@ export function TaskQuickActions({
         <button
           type="button"
           onClick={() => setCompleteOpen(true)}
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-success-soft px-3.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
         >
           <CheckCircle2 size={15} /> Complete
         </button>
@@ -59,7 +63,7 @@ export function TaskQuickActions({
           type="button"
           onClick={remind}
           disabled={busy}
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-bg-elev px-4 py-3 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-bg-elev px-3.5 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
           Remind{ownerName ? ` ${getGivenName(ownerName)}` : ""}

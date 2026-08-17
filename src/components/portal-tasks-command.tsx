@@ -1402,7 +1402,7 @@ export function TaskPeoplePanel({
                 disabled={removeBusy || leadBusy}
                 title={`Remove ${getGivenName(m.name)} from this task`}
                 aria-label={`Remove ${m.name} from this task`}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-fg-subtle ring-1 ring-border transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle ring-1 ring-border transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
               >
                 {removeBusy ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
               </button>
@@ -1679,7 +1679,9 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
       router.push(`/portal/chat/${res.threadId}`);
     });
 
-  const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 transition-transform active:scale-90 disabled:opacity-50";
+  // Square 28px icon buttons — the same secondary height as every other action
+  // on a task row, so WhatsApp/Email/Chat line up with Edit, History and Delete.
+  const iconBtn = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 transition-transform active:scale-90 disabled:opacity-50";
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <button type="button" onClick={whatsapp} disabled={busy} title="WhatsApp this task" aria-label={`WhatsApp ${first} about this task`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
@@ -1728,7 +1730,9 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
           disabled={busy}
           title={t.escalated ? "Escalated — tap to stand down" : "Escalate this task"}
           className={cn(
-            "col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
+            // h-9, not a padded height: Escalate sits in a row with the Category
+            // and Risk dropdowns (CONTROL_SHELL, h-9) and has to match them.
+            "col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
             t.escalated ? "bg-danger-soft text-danger ring-danger/30 hover:bg-danger-soft/70" : "bg-bg-elev text-fg-muted ring-border hover:text-danger",
           )}
         >
@@ -1764,13 +1768,13 @@ export function TaskDeleteFooter({ taskId, code, onDeleted }: { taskId: number; 
         </p>
         {confirm ? (
           <span className="inline-flex items-center gap-1.5">
-            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-danger px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
               {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete the whole task
             </button>
-            <button type="button" onClick={() => setConfirm(false)} className="rounded-lg px-2 py-1.5 text-[12px] text-fg-muted hover:text-fg">Keep it</button>
+            <button type="button" onClick={() => setConfirm(false)} className="inline-flex h-7 items-center rounded-md px-2 text-[12px] text-fg-muted hover:text-fg">Keep it</button>
           </span>
         ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-danger-soft px-3 py-1.5 text-[12px] font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
+          <button type="button" onClick={() => setConfirm(true)} className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-danger-soft px-3 text-[12px] font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
             <Trash2 size={13} /> Delete task
           </button>
         )}

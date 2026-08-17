@@ -134,7 +134,7 @@ export function PortalTrace(): React.JSX.Element | null {
             <button
               type="button"
               onClick={() => load(target)}
-              className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:bg-bg-muted"
+              className="mt-1 inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-fg transition-colors hover:bg-bg-muted"
             >
               Try again
             </button>
@@ -221,7 +221,7 @@ export function PortalTraceButton({
         window.dispatchEvent(new CustomEvent("portal:trace", { detail: { kind, id, title } }))
       }
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-bg-subtle/50 px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg",
+        "inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-bg-subtle/50 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg",
         className
       )}
     >
