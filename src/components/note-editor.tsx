@@ -8,9 +8,10 @@ import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
-  Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle, ChevronDown,
+  Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { saveNoteBody, renameNote } from "@/app/notes/actions";
 
 /**
@@ -40,12 +41,12 @@ type SaveState =
 
 const AUTOSAVE_MS = 900;
 
-const STYLES = [
-  { key: "p", label: "Body" },
-  { key: "h1", label: "Heading 1" },
-  { key: "h2", label: "Heading 2" },
-  { key: "h3", label: "Heading 3" },
-] as const;
+const STYLE_OPTIONS: FluidOption[] = [
+  { value: "p", label: "Body" },
+  { value: "h1", label: "Heading 1" },
+  { value: "h2", label: "Heading 2" },
+  { value: "h3", label: "Heading 3" },
+];
 
 export function NoteEditor({
   noteId,
@@ -148,25 +149,23 @@ export function NoteEditor({
   return (
     /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
        not a floating box of its own. */
-    <div className="overflow-hidden rounded-lg border border-border bg-bg-elev shadow-sm">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-bg-subtle/80 px-2 py-1.5 backdrop-blur-sm">
+    <div className="flex h-[calc(100dvh-11rem)] min-h-[24rem] flex-col overflow-hidden rounded-lg border border-border bg-bg-elev shadow-sm">
+      <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border bg-bg-subtle/80 px-2 py-1.5">
         <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo2 size={14} /></ToolButton>
         <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo2 size={14} /></ToolButton>
 
         <Divider />
 
-        {/* One style menu instead of three heading buttons. */}
-        <span className="relative">
-          <select
-            aria-label="Text style"
-            value={currentStyle}
-            onChange={(e) => setStyle(e.target.value)}
-            className="bare-field h-7 cursor-pointer appearance-none rounded-md pl-2 pr-6 text-[12px] font-medium text-fg outline-none transition-colors hover:bg-bg-muted"
-          >
-            {STYLES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-          <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
-        </span>
+        {/* One style menu instead of three heading buttons — and the app's own
+            anchored dropdown, not a native <select>: the OS popup ignores our
+            styling and looks wrong on a flat toolbar, which is exactly why
+            combobox.tsx replaced every native datalist in this codebase. */}
+        <FluidSelect
+          value={currentStyle}
+          options={STYLE_OPTIONS}
+          onSelect={setStyle}
+          buttonClassName="h-7 min-w-[6.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[12px] font-medium text-fg hover:bg-bg-muted"
+        />
 
         <Divider />
 
@@ -202,7 +201,16 @@ export function NoteEditor({
 
       {/* The paper. Generous padding, and the writing measured to ~68 characters —
           the title sits in here too, which is what makes it feel like one sheet. */}
-      <div className="px-6 py-7 sm:px-10 sm:py-9">
+      <div
+        className="min-h-0 flex-1 cursor-text overflow-y-auto px-6 py-7 sm:px-10 sm:py-9"
+        onMouseDown={(e) => {
+          // Only when the padding itself is clicked — never steal a click aimed at
+          // the text, a link or the title.
+          if (e.target !== e.currentTarget) return;
+          e.preventDefault();
+          editor.chain().focus("end").run();
+        }}
+      >
         <div className="mx-auto w-full max-w-[68ch]">
           <input
             value={title}

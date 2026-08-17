@@ -1127,7 +1127,10 @@ section[data-page-header] {
   font-size: 15px;
   line-height: 1.7;
   color: hsl(var(--fg));
-  min-height: 60vh;   /* the paper keeps its shape while a note is still short */
+  /* No min-height: the SHEET is a fixed-height pane and the paper scrolls inside it,
+     so a 60vh floor here only made short notes scroll for nothing. Clicking the
+     padding below the text focuses the end — see the editor's onMouseDown. */
+  min-height: 8rem;
 }
 .note-canvas > * + * { margin-top: 0.55em; }
 .note-canvas h1 { font-size: 1.45em; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; margin-top: 1.3em; }

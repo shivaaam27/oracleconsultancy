@@ -332,6 +332,24 @@ was right on every count. What was actually wrong, and what fixed it:
 "every field is a box" rule will follow you into anything that should look like paper.
 Check computed styles on a new surface rather than assuming your classes won.
 
+**Two more, reported straight after (same day):**
+
+- **"The canvas extends indefinitely."** Measured first: growth was linear, one
+  paragraph per Enter — no runaway bug. The real fault was structural. The sheet had
+  no height of its own, so a long note grew the PAGE forever, and `overflow-hidden`
+  on that sheet **silently broke the sticky toolbar** (an overflow ancestor becomes
+  the sticky container, so the tools scrolled away exactly when a long note needed
+  them). The sheet is now a **writing pane**: `h-[calc(100dvh-11rem)]`, toolbar
+  pinned, paper scrolling inside it. Verified with 30 Enters — sheet 662px and page
+  838px both unchanged while the inner scroller went 453 → 1465px. Clicking the
+  padding below the text now focuses the end of the note, as every notes app does.
+- **"Dropdown buttons have some issues."** They were native `<select>`s. The OS popup
+  ignores every token in the design system, which is the very reason `combobox.tsx`
+  replaced all the native `<datalist>`s in June — I forgot the lesson and re-learned
+  it. Both are `FluidSelect` now (measured open: white surface, hairline border, 8px
+  radius, 6px below its trigger, 0px sideways drift). **FORWARD RULE: no native
+  `<select>` or `<datalist>` in this app. Use `FluidSelect` / `Combobox`.**
+
 **Not in Phase 1, on purpose:** the `/` menu, tables, tags, links, to-dos, AI,
 search indexing and daily notes are Phases 2–6. The toolbar carries every format for
 now, because a formatting tool you cannot find does not exist.

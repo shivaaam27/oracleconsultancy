@@ -3,7 +3,8 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Folder, Pin, PinOff } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Pin, PinOff } from "lucide-react";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { setNoteArchived, setNoteFolder, togglePinNote } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
@@ -36,6 +37,11 @@ export function NoteRecordBar({
 
   const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium transition-colors";
 
+  const folderOptions: FluidOption[] = [
+    { value: "", label: "No folder" },
+    ...folders.map((f) => ({ value: String(f.id), label: f.name })),
+  ];
+
   return (
     <div className="flex flex-wrap items-center gap-x-1 gap-y-2 text-fg-muted">
       <Link href="/notes" className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}>
@@ -44,25 +50,19 @@ export function NoteRecordBar({
 
       <span className="mx-1 h-4 w-px bg-border" aria-hidden />
 
-      {/* Folder as a quiet native select — no bordered control for something you
-          change once a month. It only shows its edge on hover/focus. */}
-      <span className="relative inline-flex items-center">
-        <Folder size={13} className="pointer-events-none absolute left-2 text-fg-subtle" />
-        <select
-          aria-label="Folder"
-          value={folderId != null ? String(folderId) : ""}
-          onChange={(e) => start(async () => {
-            const v = e.target.value;
-            const res = await setNoteFolder(noteId, v ? Number(v) : null);
-            if (!res.ok) { toast("Could not move the note.", { tone: "danger" }); return; }
-            router.refresh();
-          })}
-          className="bare-field h-7 cursor-pointer appearance-none rounded-md pl-7 pr-6 text-[11.5px] font-medium text-fg-muted outline-none transition-colors hover:bg-bg-muted hover:text-fg"
-        >
-          <option value="">No folder</option>
-          {folders.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
-        </select>
-      </span>
+      {/* The app's own anchored dropdown. This was a native <select>, which draws an
+          OS popup that ignores every token in the design system — the same reason
+          combobox.tsx replaced the native datalists. */}
+      <FluidSelect
+        value={folderId != null ? String(folderId) : ""}
+        options={folderOptions}
+        onSelect={(v) => start(async () => {
+          const res = await setNoteFolder(noteId, v ? Number(v) : null);
+          if (!res.ok) { toast("Could not move the note.", { tone: "danger" }); return; }
+          router.refresh();
+        })}
+        buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[11.5px] font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
+      />
 
       <button
         type="button"
