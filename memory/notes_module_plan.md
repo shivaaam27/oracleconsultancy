@@ -243,11 +243,37 @@ them simplifications:
 
 ## 10. Phases (each one ends in something usable)
 
-**Phase 0 — spike, ~½ day.** Tiptap in one throwaway route: does it render in the
-App Router with `immediatelyRender: false`, hydrate clean, and take Desk styling?
-Measure the bundle cost of the editor chunk. Decide font size + measure for the
-canvas. **Gate: if the spike is ugly or heavy, reconsider Plate before writing a
-schema.**
+**Phase 0 — ✅ DONE, 17 Aug 2026. Tiptap passes; we proceed with it.**
+Built at `/lab/notes-editor` (`src/components/lab/note-editor-spike.tsx` +
+`note-editor-mount.tsx`) — **throwaway, delete both and the `/lab` route when Phase 1
+starts.** Tiptap **3.30.1**, 49 packages.
+
+| Question | Answer (measured) |
+|---|---|
+| Renders + hydrates in the App Router? | **Yes.** Mounted, `contenteditable`, no hydration mismatch and **no Tiptap/React warning of any kind** in the console. `immediatelyRender: false` is set, as required. |
+| Takes Desk styling? | **Yes.** Canvas 14.5px / line-height 1.65 / `--fg`; h2 renders 18.1px; checkbox 14px with `accent-color`; measure capped at 72ch = 727px. All from existing tokens, all scoped to `.note-canvas`. |
+| Do `body_json` + `body_text` fall out for free? | **Yes.** Live readout from `getJSON()`/`getText()`: *json 578 chars · text 98 chars · 16 words* for a small note. The two-column plan (§2) is confirmed, not theoretical. |
+| What does it cost? | **121.6 kB gzip** (388.9 kB raw) in **one** chunk. **Not in the build manifest**, so no route loads it eagerly — exactly one other chunk references it lazily. **6.3%** of all client JS, paid only when a note is open. `npm run build` exits 0 with it in the tree. |
+
+**Two findings that change how Phase 1 is written:**
+1. ⚠️ **Next 16 rejects `ssr: false` inside a Server Component** — the build fails
+   with *"`ssr: false` is not allowed with `next/dynamic` in Server Components"*. The
+   record page must stay a Server Component (it loads the note from the database), so
+   the no-SSR lazy import lives in a **one-line client wrapper** (`note-editor-mount.tsx`).
+   Copy that shape; do not try to `dynamic()` the editor from the page itself.
+2. **StarterKit v3 already includes Link, Underline, lists, code, blockquote, hr and
+   undo/redo**, and `@tiptap/extension-list` carries TaskList/TaskItem — so the whole
+   Phase 1/2 formatting set needs **no extra packages** beyond what is installed
+   (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder`,
+   `@tiptap/extension-link`).
+
+⚠️ **Process trap hit during the spike:** running `npm run build` overwrites `.next`,
+and the dev server started afterwards then served a **stale 404** for the new route.
+Stop the server, delete `.next`, start again — in that order.
+
+**Noticed in passing, not fixed:** the ADMIN sidebar's own controls measure 23 / 30 /
+31px. The 17 Aug ladder pass covered the portal and the shared chrome, not
+`desk-sidebar.tsx`'s own buttons. Worth a small follow-up.
 
 **Phase 1 — foundation.** `notes` + `note_folders` tables; `/notes` list from
 `ENTITY_VIEWS`; `/notes/[id]` record; the editor with core formatting (headings,
@@ -349,7 +375,6 @@ Notion/Mem/Reflect: AI summaries, cited Q&A over your own notes, auto-linking).
 3. **Daily notes? Useful.** Moved forward into Phase 2 (they are thin), with
    templates in Phase 6 to make them more than a blank page.
 
-**Still open — one item, and only a spike can answer it:**
-4. **Editor weight.** Phase 0 measures the editor chunk and how Tiptap takes Desk
-   styling. It is the one finding that could still change the editor choice — Plate
-   is the fallback, on the same schema and the same phases.
+**4. Editor weight — ANSWERED by the Phase 0 spike: 121.6 kB gzip, one lazy chunk,
+6.3% of client JS, nothing eager.** Tiptap stays; Plate is no longer needed as a
+fallback. Nothing in this plan is open any more — Phase 1 can start.

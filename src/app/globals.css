@@ -1113,3 +1113,62 @@ section[data-page-header] {
 
 
 
+
+/* ---------- Note canvas (PHASE 0 SPIKE — see memory/notes_module_plan.md) -------
+   A writing surface, not a list row. Desk's 13px body is right for dense records
+   and wrong for prose, so the canvas is the ONE documented place that opts out:
+   14.5px with a 1.65 line-height, on the same tokens as everything else so it
+   still reads as COS. Everything here is scoped to .note-canvas — it cannot leak.
+
+   If the Notes module is abandoned after the spike, delete this block. */
+.note-canvas {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: hsl(var(--fg));
+}
+.note-canvas > * + * { margin-top: 0.65em; }
+.note-canvas h1 { font-size: 1.5em; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; margin-top: 1.1em; }
+.note-canvas h2 { font-size: 1.25em; font-weight: 650; line-height: 1.3; margin-top: 1em; }
+.note-canvas h3 { font-size: 1.08em; font-weight: 600; margin-top: 0.9em; }
+.note-canvas ul, .note-canvas ol { padding-left: 1.35em; }
+.note-canvas ul { list-style: disc; }
+.note-canvas ol { list-style: decimal; }
+.note-canvas li > p { margin: 0; }
+.note-canvas li + li { margin-top: 0.2em; }
+.note-canvas blockquote {
+  border-left: 2px solid hsl(var(--accent));
+  padding-left: 0.85em;
+  color: hsl(var(--fg-muted));
+}
+.note-canvas code {
+  font-size: 0.88em;
+  background: hsl(var(--bg-subtle));
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  padding: 0.08em 0.3em;
+}
+.note-canvas pre {
+  background: hsl(var(--bg-subtle));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.7em 0.85em;
+  overflow-x: auto;
+}
+.note-canvas pre code { background: none; border: 0; padding: 0; font-size: 0.85em; }
+.note-canvas hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.4em 0; }
+/* Checklists: the tick is a real checkbox, aligned to the first line of text. */
+.note-canvas ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.note-canvas ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.55em; }
+.note-canvas ul[data-type="taskList"] li > label { margin-top: 0.28em; }
+.note-canvas ul[data-type="taskList"] input[type="checkbox"] {
+  width: 14px; height: 14px; accent-color: hsl(var(--accent)); cursor: pointer;
+}
+.note-canvas ul[data-type="taskList"] li[data-checked="true"] > div { color: hsl(var(--fg-subtle)); text-decoration: line-through; }
+/* The placeholder, on the first empty line only. */
+.note-canvas p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--fg-subtle));
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
