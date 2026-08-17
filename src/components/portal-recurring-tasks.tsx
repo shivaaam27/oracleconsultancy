@@ -154,7 +154,7 @@ export function PortalRecurringTasks({
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-fg transition-transform active:scale-95"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-xs font-medium text-accent-fg transition-transform active:scale-95"
           >
             <Plus size={13} /> Add
           </button>
@@ -185,7 +185,7 @@ export function PortalRecurringTasks({
                   role="switch"
                   aria-checked={!r.paused}
                   aria-label={r.paused ? "Switch on" : "Switch off"}
-                  className="mr-1"
+                  className="mr-1 inline-flex h-6 items-center"
                 >
                   <Switch on={!r.paused} size="sm" busy={busy && togglingId === r.id} />
                 </button>

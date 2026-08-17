@@ -88,7 +88,7 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
           href={f.href}
           scroll={false}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] transition-colors",
+            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors",
             f.active
               ? "border-accent/40 bg-accent-soft font-medium text-accent"
               : "border-border bg-bg-elev text-fg-muted"
@@ -252,7 +252,7 @@ function ColumnChooser<T>({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Choose columns"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
       >
         <Columns3 size={12} /> Columns
       </button>
@@ -599,7 +599,7 @@ export function RecordList<T>({
                     finally { setRunning(false); }
                   }}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors disabled:opacity-50",
+                    "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ring-1 transition-colors disabled:opacity-50",
                     a.tone === "danger"
                       ? "bg-bg-elev text-danger ring-border hover:bg-danger hover:text-white"
                       : "bg-bg-elev text-fg ring-border hover:bg-bg-subtle"
@@ -609,7 +609,7 @@ export function RecordList<T>({
                 </button>
               ))}
               <button type="button" onClick={() => setPicked(new Set())}
-                className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg">
+                className="inline-flex h-7 items-center rounded-md px-2 text-[11px] text-fg-muted hover:text-fg">
                 Clear
               </button>
             </span>

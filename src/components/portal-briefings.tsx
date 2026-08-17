@@ -27,14 +27,14 @@ export function PortalBriefings({
   ];
   return (
     <div className="flex flex-col gap-4">
-      <div className="inline-flex self-start rounded-full bg-bg-subtle/60 p-1 ring-1 ring-border/40">
+      <div className="inline-flex self-start rounded-md bg-bg-subtle/60 p-0.5 ring-1 ring-border/40">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex h-7 items-center gap-1.5 rounded px-3 text-[13px] font-medium transition-colors",
               tab === t.key ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border/50" : "text-fg-muted hover:text-fg",
             )}
           >

@@ -435,7 +435,7 @@ export function PortalTasksCommand({
             options={statusFilterOptions}
             onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
             align="right"
-            buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[10.5rem]"
+            buttonClassName="w-full justify-between rounded-md bg-bg-elev px-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[10.5rem]"
           />
         </div>
         {(companies.length > 1 || isManagement) && (
@@ -446,7 +446,7 @@ export function PortalTasksCommand({
                 options={companyFilterOptions}
                 onSelect={setCompanyFilter}
                 align="right"
-                buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
+                buttonClassName="w-full justify-between rounded-md bg-bg-elev px-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
               />
             )}
             {/* Divider between the company dropdown and Company wise. */}
@@ -457,7 +457,7 @@ export function PortalTasksCommand({
               type="button"
               aria-pressed={groupByCompany}
               onClick={() => setGroupByCompany(!groupByCompany)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 text-sm ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+              className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
             >
               <Building2 size={15} />
               <span>Company wise</span>
@@ -469,7 +469,7 @@ export function PortalTasksCommand({
                 type="button"
                 aria-pressed={selectMode}
                 onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
               >
                 {selectMode ? <CheckSquare size={15} /> : <Square size={15} />}
                 <span className="text-[12.5px]">{selectMode ? "Done" : "Select"}</span>
@@ -482,7 +482,7 @@ export function PortalTasksCommand({
                 type="button"
                 onClick={() => { setStatusFilter("all"); setFilter("done"); }}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 sm:hidden",
+                  "inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 sm:hidden",
                   statusFilter === "all" && filter === "done" ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
                 )}
               >
@@ -1798,7 +1798,7 @@ function QuickAdd({ people, companies, role, canRepeat }: { people: BoardPerson[
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden w-full items-center gap-2 rounded-2xl border border-dashed border-border bg-bg-elev/60 px-4 py-3 text-sm text-fg-muted transition-colors hover:bg-bg-elev sm:flex"
+        className="hidden h-9 w-full items-center gap-2 rounded-md border border-dashed border-border bg-bg-elev/60 px-4 text-sm text-fg-muted transition-colors hover:bg-bg-elev sm:flex"
       >
         <Plus size={16} className="text-accent" /> Quick add a task…
       </button>

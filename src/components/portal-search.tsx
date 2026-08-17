@@ -224,7 +224,7 @@ export function PortalSearchTrigger() {
       onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-search"))}
       aria-label="Search"
       title="Search (Ctrl K)"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
     >
       <Search size={16} />
     </button>

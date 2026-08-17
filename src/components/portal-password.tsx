@@ -29,7 +29,7 @@ export function PortalPassword() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-bg-subtle ring-1 ring-border px-4 py-3 text-sm font-medium hover:ring-accent/40 transition-colors"
+        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-bg-subtle ring-1 ring-border px-4 text-sm font-medium hover:ring-accent/40 transition-colors"
       >
         <KeyRound size={15} /> Change my password
       </button>
@@ -88,14 +88,14 @@ export function PortalPassword() {
         <button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-fg hover:opacity-90 disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-accent px-4 text-sm font-semibold text-accent-fg hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Saving…" : "Update password"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="px-2 text-sm text-fg-muted hover:text-fg"
+          className="inline-flex h-9 items-center px-2 text-sm text-fg-muted hover:text-fg"
         >
           Cancel
         </button>

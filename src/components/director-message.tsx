@@ -168,7 +168,7 @@ export function DirectorMessage({
         <button
           type="button"
           onClick={() => openFor()}
-          className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-bg-elev px-3.5 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
         >
           <MessageSquarePlus size={15} /> Send a message
         </button>

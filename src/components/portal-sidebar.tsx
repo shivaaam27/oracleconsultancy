@@ -85,7 +85,7 @@ export function PortalSidebar({
           onClick={toggle}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="rounded-md p-1 text-fg-subtle transition-colors hover:bg-bg-subtle hover:text-fg"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-bg-subtle hover:text-fg"
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
@@ -100,7 +100,7 @@ export function PortalSidebar({
             onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-ori"))}
             title={collapsed ? "Search (Ctrl+K)" : undefined}
             className={cn(
-              "inline-flex w-full items-center gap-2 rounded-lg border border-border bg-bg-subtle/60 px-2.5 py-1.5 text-[12.5px] text-fg-subtle transition-colors hover:border-accent/40 hover:text-fg",
+              "inline-flex h-7 w-full items-center gap-2 rounded-md border border-border bg-bg-subtle/60 px-2.5 text-[12.5px] text-fg-subtle transition-colors hover:border-accent/40 hover:text-fg",
               collapsed && "justify-center px-0"
             )}
           >

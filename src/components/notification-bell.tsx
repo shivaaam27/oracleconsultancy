@@ -275,7 +275,7 @@ export function NotificationBell({
         onClick={toggle}
         aria-label="Notifications"
         title="Notifications"
-        className="relative inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors"
+        className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors"
       >
         <Bell size={16} />
         {count > 0 && (

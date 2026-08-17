@@ -50,7 +50,7 @@ export function DensityToggle({ className }: { className?: string }) {
       title={`Density: ${density}`}
       aria-label="Toggle density"
       className={cn(
-        "inline-flex items-center justify-center p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors",
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors",
         className
       )}
     >

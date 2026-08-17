@@ -124,14 +124,14 @@ export function DirectoryView({
   return (
     <div className="space-y-4">
       {/* Segmented control */}
-      <div className="inline-flex rounded-full bg-bg-subtle/60 p-1 ring-1 ring-border/40">
+      <div className="inline-flex rounded-md bg-bg-subtle/60 p-0.5 ring-1 ring-border/40">
         {tabs.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => selectTab(t)}
             className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors",
+              "inline-flex h-7 items-center rounded px-3 text-[13px] font-medium capitalize transition-colors",
               tab === t ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border/50" : "text-fg-muted hover:text-fg",
             )}
           >
@@ -269,7 +269,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       type="button"
       onClick={onClick}
       className={cn(
-        "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors",
+        "inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded px-2.5 text-xs font-medium transition-colors",
         active ? "bg-accent text-accent-fg" : "bg-bg-subtle/60 text-fg-muted ring-1 ring-border/40 hover:text-fg",
       )}
     >

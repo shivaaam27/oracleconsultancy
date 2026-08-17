@@ -46,14 +46,17 @@ function Segmented<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded-xl bg-bg-subtle ring-1 ring-border p-0.5">
+    // Micro tier: 24px segments inside a 28px shell, the same shape as the
+    // "This task / All tasks" toggle. Heights are explicit — from padding they
+    // came out at 27px, which matched nothing else on the page.
+    <div className="inline-flex rounded-md bg-bg-subtle ring-1 ring-border p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+            "inline-flex h-6 items-center rounded px-2.5 text-xs font-medium transition-colors",
             value === o.value ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg"
           )}
         >
@@ -111,7 +114,7 @@ export function AccessibilityControls() {
       </Row>
 
       <Row label="Density" hint="Tighter spacing fits more on screen.">
-        <div className="inline-flex items-center gap-2 rounded-xl bg-bg-subtle ring-1 ring-border px-2 py-1">
+        <div className="inline-flex h-7 items-center gap-2 rounded-md bg-bg-subtle ring-1 ring-border px-2">
           <DensityToggle />
           <span className="text-xs text-fg-muted">Tap to switch</span>
         </div>

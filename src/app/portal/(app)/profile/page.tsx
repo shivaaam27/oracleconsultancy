@@ -40,6 +40,15 @@ export default async function PortalProfile() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
+  // Directors are operators, not staff being managed — their profile is a clean
+  // account screen (details + security + the Brief). Decided FIRST, because the
+  // staff-only halves of this page are expensive: the contact row, the whole
+  // document library, the onboarding journey, the equipment list and the
+  // attendance week were all fetched for a director and then thrown away by a
+  // `!isDirector` guard further down. Five queries for nothing, one of them
+  // `listDocuments()` — the entire library, filtered in JavaScript.
+  const isDirector = me.portalRole === "director";
+
   let companyName: string | null = null;
   if (me.companyId) {
     const { data } = await sb.from("companies").select("name").eq("id", me.companyId).maybeSingle();
@@ -50,11 +59,13 @@ export default async function PortalProfile() {
   // The signed-in person's OWN editable contact details (pre-fill the form). Read
   // here, scoped to me.id; the write goes through portalStaffUpdateContact, which
   // re-scopes to the caller and only ever touches these five contact columns.
-  const { data: contactRow } = await sb
-    .from("people")
-    .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
-    .eq("id", me.id)
-    .maybeSingle();
+  const { data: contactRow } = isDirector
+    ? { data: null }
+    : await sb
+        .from("people")
+        .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
+        .eq("id", me.id)
+        .maybeSingle();
   const contact: ContactDetails = {
     phone: (contactRow?.phone as string | null) ?? "",
     whatsapp: (contactRow?.whatsapp as string | null) ?? "",
@@ -64,22 +75,27 @@ export default async function PortalProfile() {
   };
 
   // The documents filed against this person — a plain list, no checklist.
-  const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
-  const docItems: PortalDocumentItem[] = (await listDocuments())
-    .filter((d) => d.personId === me.id && !d.archived)
-    .map((d) => ({
-      id: d.id,
-      title: d.title,
-      category: d.category,
-      status: deriveDocStatus(d),
-      expiryLabel: docExpiryLabel(d),
-    }));
+  let docItems: PortalDocumentItem[] = [];
+  if (!isDirector) {
+    const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
+    docItems = (await listDocuments())
+      .filter((d) => d.personId === me.id && !d.archived)
+      .map((d) => ({
+        id: d.id,
+        title: d.title,
+        category: d.category,
+        status: deriveDocStatus(d),
+        expiryLabel: docExpiryLabel(d),
+      }));
+  }
 
-  const [journey, equipment, attendance] = await Promise.all([
-    getJourney(me.id, "onboarding"),
-    assetsForPerson(me.id),
-    personAttendanceWeek(me.id),
-  ]);
+  const [journey, equipment, attendance] = isDirector
+    ? [null, [] as Awaited<ReturnType<typeof assetsForPerson>>, { days: [] as Awaited<ReturnType<typeof personAttendanceWeek>>["days"], todayEditable: false, lockReason: null } as Awaited<ReturnType<typeof personAttendanceWeek>>] as const
+    : await Promise.all([
+        getJourney(me.id, "onboarding"),
+        assetsForPerson(me.id),
+        personAttendanceWeek(me.id),
+      ]);
   const passkeys = await listCredentials({ kind: "person", id: me.id, name: me.name });
 
   // Guides the person can replay (welcome walkthrough + past feature spotlights).
@@ -102,12 +118,6 @@ export default async function PortalProfile() {
   const initials = getInitials(me.name);
   const accessLabel =
     me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
-
-  // Directors are operators, not staff being managed — their profile is a clean
-  // account screen (details + security). The staff self-service sections
-  // (documents / attendance / leave / onboarding / equipment) stay for everyone
-  // else.
-  const isDirector = me.portalRole === "director";
 
   // Director Brief filters — gated by the owner-configurable `directorBrief`
   // capability, not the role. Both lists are scoped to what this person may see,
@@ -134,7 +144,12 @@ export default async function PortalProfile() {
   ];
 
   return (
-    <div className="flex w-full flex-col gap-5 lg:mx-auto lg:max-w-3xl">
+    // Two columns from `lg`, one on a phone. It was a single `max-w-3xl` column,
+    // which on a monitor left a director looking at three short panels down the
+    // middle of an empty screen (the portal lays out at 1.25x its window because
+    // of the 0.8 zoom, so "3xl" is barely half the width). Staff gain more: their
+    // eight sections stop being one long scroll.
+    <div className="flex w-full flex-col gap-5 lg:mx-auto lg:max-w-5xl">
       <Reveal delay={0}>
         <Hero
           title={
@@ -158,6 +173,8 @@ export default async function PortalProfile() {
         </Hero>
       </Reveal>
 
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
+      <div className="flex flex-col gap-5">
       {briefOptions && (
         <Reveal delay={0.02}>
           <PortalBriefFilters
@@ -230,6 +247,8 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
+      </div>
+      <div className="flex flex-col gap-5">
       {!isDirector && journey && journey.total > 0 && (
         <Reveal delay={0.11} className="flex flex-col gap-2.5">
           <SectionLabel icon={<RouteIcon size={13} />}>Your onboarding</SectionLabel>
@@ -319,11 +338,13 @@ export default async function PortalProfile() {
           </div>
         </Panel>
       </Reveal>
+      </div>
+      </div>
 
       <form action={portalLogout}>
         <button
           type="submit"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-bg-elev ring-1 ring-border px-4 py-3 text-sm font-medium text-danger hover:bg-danger-soft/40 transition-colors"
+          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-bg-elev ring-1 ring-border px-4 text-sm font-medium text-danger hover:bg-danger-soft/40 transition-colors"
         >
           <LogOut size={15} /> Sign out
         </button>

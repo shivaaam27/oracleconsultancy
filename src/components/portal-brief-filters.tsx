@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Download, Eye } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui";
 import { MultiSelect } from "@/components/multi-select";
 import type { BriefPersonRole } from "@/lib/brief-links";
 
@@ -42,11 +41,12 @@ export function PortalBriefFilters({
     return `/api/portal/brief-pdf?${params.toString()}`;
   }, [picked, companyIds, personIds, role]);
 
-  // Every control matches the Button `sm` secondary shape (h-8 / text-xs /
-  // rounded-lg), so the whole row sits on one baseline instead of mixing pill
-  // heights with button heights.
+  // These are control TRIGGERS in a control row, so they take the control height
+  // (h-9 / 6px radius — CONTROL_SHELL's shape), not the Button `sm` shape they
+  // used to copy. h-8 was internally consistent but made this the only 32px row
+  // in the portal, where every other field row is 36.
   const pill =
-    "h-8 px-2.5 text-xs rounded-lg font-medium border border-border bg-bg-elev text-fg hover:bg-bg-muted";
+    "h-9 px-2.5 text-xs rounded-md font-medium border border-border bg-bg-elev text-fg hover:bg-bg-muted";
 
   return (
     <div className="rounded-2xl bg-bg-subtle/50 p-3 ring-1 ring-border/60">
@@ -115,9 +115,16 @@ export function PortalBriefFilters({
             place — no blank tab, which is what works on iOS and in the installed
             app. Preview omits `download=1`, so the route sends the PDF inline
             and it OPENS in the viewer rather than saving. */}
-        <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = `${href}&download=1`; }}>
+        {/* Wears `pill`, exactly like Preview beside it. It used to be a
+            `Button size="sm"`, which is a perfectly good kit size and still left
+            it the only 32px control in a row of 36s. */}
+        <button
+          type="button"
+          onClick={() => { window.location.href = `${href}&download=1`; }}
+          className={cn("inline-flex items-center gap-1.5 transition-colors", pill)}
+        >
           <Download size={14} /> Download PDF
-        </Button>
+        </button>
         <a
           href={href}
           target="_blank"

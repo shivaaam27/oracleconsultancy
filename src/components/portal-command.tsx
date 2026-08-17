@@ -715,7 +715,7 @@ export function PortalCommandTrigger() {
       onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-ori"))}
       aria-label="ORI"
       title="ORI — search & ask (Ctrl K)"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
     >
       <Sparkles size={16} />
     </button>

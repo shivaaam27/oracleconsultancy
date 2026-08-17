@@ -237,6 +237,58 @@ Remember to divide by the zoom before comparing a measurement to a token.
 | 10 ×13 | 13 | Pin · Unpin · Reply · Edit note · Delete note | Bare 13px icons in the note header, no chrome, hover-revealed. **A 13px tap target — this one belongs to the mobile pass.** |
 | 0 ×1 | — | a `display:none` trigger (the `sm:hidden` FAB) | Not real. |
 
+### The whole portal on one ladder + Pulin's profile (17 Aug 2026)
+
+The owner asked for two things: the profile page "isn't optimized for Pulin", and
+"make sure all portals are fixed". Both done, and **every page below was measured
+as a director, before and after** — no page was assumed.
+
+**The portal ladder, now the same on every page:** 36px control rows · 28px
+secondary actions · 24px micro chips. Radii 6px, 4px on the micro tier.
+
+| Page | Before | After |
+|---|---|---|
+| profile | 7 tiers (23·26·27·28·32·36·41) | **24 · 28 · 36** |
+| tasks | 9 tiers (incl. 41 · 43 · 44) | **28 · 36** |
+| task record | 10 tiers | **24 · 28 · 36** |
+| board | 3 tiers | **28 · 36** |
+| directory | 23px chips, 30px tabs | **24 · 28** |
+| meetings (Briefings) | 29 · 33 · 36 | **28 · 36** |
+| insights · activity | already clean (4 chrome buttons) | unchanged |
+| outbox | 19 items at 65px — **person CARDS, not controls** | unchanged, correctly |
+
+**Shared chrome was the big lever** — the sidebar collapse, ⌘K/ORI trigger, search,
+the notification bell and the density toggle sit on EVERY page, and were 23/26/32.
+All 28 now, in `portal-sidebar.tsx`, `density-toggle.tsx`, `notification-bell.tsx`,
+`portal-command.tsx`, `portal-search.tsx`. The bell is shared with the admin side,
+so that one lands there too.
+
+**Deliberately exempt — do not "normalise" these:** person/meeting/activity **cards**
+(58–65px rows, they are rows not buttons), **switches** (the kit `Switch`, the
+Lead/Working toggles, the recurring-task pause), the **BottomSheet footer CTA**
+(44px, a thumb target on an overlay, not part of a page's ladder), and the mobile
+**FAB** (56px, round on purpose).
+
+**Pulin's profile — the real complaint was work, not looks.** A director's profile
+ran **five staff-only queries and threw every result away** behind `!isDirector`
+guards: the contact row, `getJourney`, `assetsForPerson`, `personAttendanceWeek`
+and — worst — `listDocuments()`, the ENTIRE document library, filtered in
+JavaScript. `isDirector` is now decided FIRST and each of those is skipped.
+**Read the guards before adding a query to a shared page**: this page renders for
+four roles and only one of them wanted any of it.
+
+It also had `lg:max-w-3xl`, a single centred column — which on a monitor left a
+director looking at three short panels down the middle of an empty screen (worse
+than it sounds: the 0.8 zoom means the portal lays out at 1.25x its window, so
+"3xl" is barely half the width). Now `max-w-5xl` and **two columns from `lg`**
+(measured 500px + 500px), which helps staff more than directors — their eight
+sections stop being one long scroll.
+
+**Not verified by rendering:** the staff/HR home (`/portal` home), because a
+director is redirected to the board — its shared pieces changed underneath it, so
+it should be right, but load it as a staff member before believing that. Chat is
+left alone on purpose (messenger scale, its own thing).
+
 **The audit script** (paste into the browser console on any portal page) is what
 made all of this measurable rather than guesswork:
 `[...document.querySelector('[data-portal-shell]').querySelectorAll('button')]`
