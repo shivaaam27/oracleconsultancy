@@ -1890,3 +1890,14 @@ export const notes = pgTable("notes", {
   index("notes_shelf_idx").on(t.archived, t.pinnedAt, t.updatedAt),
   index("notes_folder_idx").on(t.folderId),
 ]);
+
+/** Tags typed inline as `#word` in a note body. Derived on every save from the
+ *  note's text — never entered separately, so they cannot drift from what is
+ *  written. Phase 2 of memory/notes_module_plan.md. */
+export const noteTags = pgTable("note_tags", {
+  noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  tag: text("tag").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.noteId, t.tag] }),
+  index("note_tags_tag_idx").on(t.tag),
+]);

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderPlus, Pin, Plus, StickyNote } from "lucide-react";
+import { CalendarDays, FolderPlus, Pin, Plus, StickyNote } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -10,7 +10,7 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { noteTitle, type NoteFolder, type NoteListRow } from "@/lib/notes-shared";
-import { createNote, createFolder } from "@/app/notes/actions";
+import { createNote, createFolder, openTodaysNote } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -29,6 +29,8 @@ export function NotesShelf({
   counts,
   filter,
   folderId,
+  tags,
+  activeTag,
   q,
   autoCreate = false,
 }: {
@@ -38,6 +40,8 @@ export function NotesShelf({
   counts: { all: number; unfiled: number; pinned: number; archived: number };
   filter: string;
   folderId: number | null;
+  tags: { tag: string; count: number }[];
+  activeTag: string | null;
   q: string;
   autoCreate?: boolean;
 }) {
@@ -46,7 +50,7 @@ export function NotesShelf({
   const [, start] = useTransition();
   const [creating, setCreating] = useState(false);
   const { values, set, hrefFor } = useUrlFilters(
-    { filter: "all", folder: "", q: "" },
+    { filter: "all", folder: "", q: "", tag: "" },
     { debounceKeys: ["q"], debounceMs: 250 },
   );
 
@@ -81,7 +85,7 @@ export function NotesShelf({
   };
 
   const rail: RecordFilter[] = [
-    { key: "all", label: "All notes", count: counts.all, href: hrefFor({ filter: "all", folder: "" }), active: filter === "all" && folderId == null },
+    { key: "all", label: "All notes", count: counts.all, href: hrefFor({ filter: "all", folder: "", tag: "" }), active: filter === "all" && folderId == null && !activeTag },
     { key: "pinned", label: "Pinned", count: counts.pinned, href: hrefFor({ filter: "pinned", folder: "" }), active: filter === "pinned" },
     { key: "unfiled", label: "Unfiled", count: counts.unfiled, href: hrefFor({ filter: "unfiled", folder: "" }), active: filter === "unfiled" },
     ...folders.map((f) => ({
@@ -92,7 +96,15 @@ export function NotesShelf({
       active: folderId === f.id,
       group: "Folders",
     })),
-    { key: "archived", label: "Archived", count: counts.archived, href: hrefFor({ filter: "archived", folder: "" }), active: filter === "archived", group: "Archive" },
+    ...tags.map((t) => ({
+      key: `t:${t.tag}`,
+      label: `#${t.tag}`,
+      count: t.count,
+      href: hrefFor({ tag: activeTag === t.tag ? "" : t.tag, filter: "all", folder: "" }),
+      active: activeTag === t.tag,
+      group: "Tags",
+    })),
+    { key: "archived", label: "Archived", count: counts.archived, href: hrefFor({ filter: "archived", folder: "", tag: "" }), active: filter === "archived", group: "Archive" },
   ];
 
   // Columns from metadata. `displayTitle` is computed here rather than stored: an
@@ -113,6 +125,11 @@ export function NotesShelf({
             <span className="inline-flex min-w-0 items-center gap-1.5">
               {row.pinnedAt && <Pin size={11} className="shrink-0 text-accent" aria-label="Pinned" />}
               <span className="truncate text-[13px] font-medium text-fg">{noteTitle(row)}</span>
+              {row.kind === "daily" && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent">
+                  <CalendarDays size={9} /> Daily
+                </span>
+              )}
               {row.folderName && (
                 <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-[10px] font-medium text-fg-subtle">
                   {row.folderName}
@@ -153,6 +170,16 @@ export function NotesShelf({
             className="h-8 text-[12.5px]"
           />
           <span className="grow" />
+          {/* One page per day, opened or created. The partial unique index on
+              daily_date is what actually stops two pages for one day. */}
+          <button
+            type="button"
+            onClick={() => start(async () => { await openTodaysNote(); })}
+            title="Open today's page — one per day"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+          >
+            <CalendarDays size={12} /> Today
+          </button>
           <button
             type="button"
             onClick={newFolder}
@@ -173,6 +200,7 @@ export function NotesShelf({
           </button>
         </div>
       }
+      footerNote={activeTag ? `Filtered by #${activeTag}` : undefined}
       empty={
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <StickyNote size={22} className="text-fg-subtle" />

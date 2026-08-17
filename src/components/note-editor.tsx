@@ -5,10 +5,13 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
+import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
+import { SlashCommands } from "@/components/note-slash-menu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
   Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
+  Table as TableIcon, Rows3, Columns3, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
@@ -92,9 +95,16 @@ export function NoteEditor({
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false, autolink: true, HTMLAttributes: { class: "text-accent underline underline-offset-2" } },
       }),
-      Placeholder.configure({ placeholder: "Start writing. Rough is fine — tidy it later." }),
+      Placeholder.configure({ placeholder: "Start writing. Press / for headings, lists, tables…" }),
       TaskList,
       TaskItem.configure({ nested: true }),
+      // Tables: resizable columns, and a header row by default from the / menu.
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      // `/` on an empty line opens the block menu — see note-slash-menu.tsx.
+      SlashCommands,
     ],
     content: (initialBody as never) ?? "",
     editorProps: { attributes: { class: "note-canvas outline-none" } },
@@ -190,6 +200,21 @@ export function NoteEditor({
         <span className="grow" />
         <SaveBadge state={state} />
       </div>
+
+      {editor.isActive("table") && (
+        <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border bg-accent-soft/40 px-2 py-1">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-accent">
+            <TableIcon size={12} /> Table
+          </span>
+          <ToolButton title="Add row below" onClick={() => editor.chain().focus().addRowAfter().run()}><Rows3 size={13} /></ToolButton>
+          <ToolButton title="Add column right" onClick={() => editor.chain().focus().addColumnAfter().run()}><Columns3 size={13} /></ToolButton>
+          <ToolButton title="Delete row" onClick={() => editor.chain().focus().deleteRow().run()}><Rows3 size={13} className="text-danger" /></ToolButton>
+          <ToolButton title="Delete column" onClick={() => editor.chain().focus().deleteColumn().run()}><Columns3 size={13} className="text-danger" /></ToolButton>
+          <ToolButton title="Delete the whole table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} className="text-danger" /></ToolButton>
+          <span className="grow" />
+          <span className="px-1 text-[10.5px] text-fg-muted">Tab moves to the next cell</span>
+        </div>
+      )}
 
       {/* Selecting text raises the marks where the eyes already are. */}
       <BubbleMenu editor={editor} className="flex items-center gap-0.5 rounded-md border border-border bg-bg-elev p-1 shadow-md">

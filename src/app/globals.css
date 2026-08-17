@@ -1197,6 +1197,55 @@ section[data-page-header] {
   box-shadow: none;
 }
 
+/* Tables (Phase 2). Desk shapes: hairlines, a tinted header row, and a visible
+   column-resize handle so the drag target is findable. */
+.note-canvas table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 1em 0;
+  overflow: hidden;
+  font-size: 0.94em;
+}
+.note-canvas table td,
+.note-canvas table th {
+  border: 1px solid hsl(var(--border));
+  padding: 0.42em 0.6em;
+  vertical-align: top;
+  position: relative;
+}
+.note-canvas table th {
+  background: hsl(var(--bg-subtle));
+  font-weight: 600;
+  text-align: left;
+}
+.note-canvas table p { margin: 0; }
+/* The cell you are in, and a selected range. */
+.note-canvas table .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--accent) / 0.08);
+  pointer-events: none;
+}
+.note-canvas table .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: hsl(var(--accent));
+  cursor: col-resize;
+}
+.note-canvas .tableWrapper { overflow-x: auto; }
+
+/* A #tag, as it reads inside the writing. Not a link (yet — Phase 6 makes tags
+   clickable through saved views); just marked so the eye finds it. */
+.note-canvas .note-tag {
+  color: hsl(var(--accent));
+  font-weight: 550;
+}
+
 /* Checklists: a real checkbox, aligned to the first line of its text. */
 .note-canvas ul[data-type="taskList"] { list-style: none; padding-left: 0; }
 .note-canvas ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.6em; }

@@ -369,14 +369,38 @@ Check computed styles on a new surface rather than assuming your classes won.
 search indexing and daily notes are Phases 2–6. The toolbar carries every format for
 now, because a formatting tool you cannot find does not exist.
 
-**Phase 2 — blocks + slash + daily notes.** `/` menu; tables; callouts; attachments
-via `documents`; `#tags` parsed to `note_tags`; drag-to-reorder blocks; paste
-handling (HTML → clean nodes, images → attachments). **Daily notes land here, not in
-Phase 6** — the owner confirmed they are useful, and they are thin: a "Today" button
-that opens today's `kind='daily'` note or creates it, guarded by the partial unique
-index. Rough capture is the point of this module and a dated page is the lowest-
-friction place to put a thought. Templates enrich them later; an empty dated note is
-already worth having.
+**Phase 2 — ✅ MOSTLY DONE, 17 Aug 2026.** Migration **0119** (`note_tags`).
+Delivered and verified in the browser: **`/` menu · tables · `#tags` · daily notes**.
+
+- **The `/` menu** (`components/note-slash-menu.tsx`) — Tiptap's `Suggestion` +
+  a `ReactRenderer`, 12 commands in four groups (Style · Lists · Blocks · Insert),
+  fuzzy-matched on title AND keywords (`h1`, `todo`, `tbl`, `---`). Verified: typing
+  `/table` filtered to one item, Enter inserted a 3×3 table with a header row, the
+  `/table` text was consumed and the menu closed. **To add a command, add one entry to
+  `ITEMS`.** It positions through `layoutRect()`, so it is already portal-safe.
+  ⚠️ `startOfLine: true` — a `/` mid-sentence stays a slash.
+- **Tables** (`@tiptap/extension-table`, MIT): resizable columns, hairline borders, a
+  tinted header row, and a **context toolbar that only appears while the caret is in a
+  table** (add/delete row·column, delete table) — six permanent buttons that do nothing
+  99% of the time is what a lesser version would have shipped.
+- **`#tags`** (`lib/note-tags.ts`, client-safe, **8 unit tests**): derived from the text
+  on every save in the SAME action as the body, never by a job. Verified live —
+  `#permits #Visa #permits #2490ef` produced exactly `permits`, `visa`: lower-cased,
+  de-duplicated, and a hex colour correctly ignored. They fill a **Tags section in the
+  shelf rail** with counts, and `?tag=` filters the shelf ("1 of 6 shown · Filtered by
+  #permits"). An archived note's tags leave the rail with it.
+- **Daily notes** — a **Today** button on the shelf opens today's page or creates it,
+  titled "Monday, 17 August 2026", with a **Daily** chip in the list. "Today" is the
+  date in **EAT**, not the server's UTC date, or the page would roll over at 3am local.
+  The partial unique index is the real guard, and a lost race re-reads and opens the
+  winner instead of erroring.
+
+**Still to do from this phase — deliberately deferred, not forgotten:**
+- **Attachments into `documents`** (the heaviest piece: upload, storage path, link
+  rows, and paste-an-image). Next slice.
+- **Callouts** — needs a custom node; blockquote covers the need for now.
+- **Drag-to-reorder blocks** — `@tiptap/extension-drag-handle-react` is **MIT** and
+  available (checked), so this is a straight add whenever it is wanted.
 
 **Phase 3 — interconnection.** `note_links`; `@` picker for task/person/company/
 document; `[[` for notes; **Backlinks** panel; **Notes** tab on task/person/company

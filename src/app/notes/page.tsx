@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/ui";
 import { NotesShelf } from "@/components/notes-shelf";
-import { listNotes, listFolders, noteCounts } from "@/lib/notes";
+import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes";
 
 export const dynamic = "force-dynamic";
 
@@ -19,14 +19,15 @@ export const dynamic = "force-dynamic";
 export default async function NotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; folder?: string; q?: string; new?: string }>;
+  searchParams: Promise<{ filter?: string; folder?: string; q?: string; tag?: string; new?: string }>;
 }) {
   const sp = await searchParams;
   const filter = sp.filter ?? "all";
   const folderId = sp.folder ? Number(sp.folder) : null;
   const q = sp.q?.trim() || undefined;
+  const tag = sp.tag?.trim().toLowerCase() || undefined;
 
-  const [rows, folders, counts] = await Promise.all([
+  const [rows, folders, counts, tags, taggedIds] = await Promise.all([
     listNotes({
       archived: filter === "archived",
       folderId: Number.isFinite(folderId) ? folderId : null,
@@ -34,14 +35,18 @@ export default async function NotesPage({
     }),
     listFolders(),
     noteCounts(),
+    listTags(),
+    tag ? noteIdsForTag(tag) : Promise.resolve<number[]>([]),
   ]);
 
   // "Pinned" and "Unfiled" are cuts of the same query rather than separate reads —
   // the shelf is small enough that filtering in memory beats a second round trip.
-  const shown =
+  const tagged = new Set(taggedIds);
+  const shown = (
     filter === "pinned" ? rows.filter((r) => r.pinnedAt) :
     filter === "unfiled" ? rows.filter((r) => r.folderId == null) :
-    rows;
+    rows
+  ).filter((r) => (tag ? tagged.has(r.id) : true));
 
   return (
     <div className="space-y-4">
@@ -56,6 +61,8 @@ export default async function NotesPage({
         counts={counts}
         filter={filter}
         folderId={Number.isFinite(folderId) ? folderId : null}
+        tags={tags}
+        activeTag={tag ?? null}
         q={sp.q ?? ""}
         /* The global New menu points here with ?new=1; the shelf creates a note and
            goes straight to it, so "New note" is one click from anywhere. */

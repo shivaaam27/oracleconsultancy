@@ -95,6 +95,29 @@ export async function listFolders(): Promise<NoteFolder[]> {
   }));
 }
 
+/** Every tag in use, with how many notes carry it — the rail's tag section.
+ *  Ordered by use, then alphabetically, so the tags you actually use stay on top. */
+export async function listTags(): Promise<{ tag: string; count: number }[]> {
+  const { data } = await sb.from("note_tags").select("tag,notes!inner(archived)");
+  const tally = new Map<string, number>();
+  for (const row of data ?? []) {
+    const note = (row as { notes?: { archived: boolean } | { archived: boolean }[] }).notes;
+    const archived = Array.isArray(note) ? note[0]?.archived : note?.archived;
+    if (archived) continue;   // an archived note's tags leave the rail with it
+    const tag = row.tag as string;
+    tally.set(tag, (tally.get(tag) ?? 0) + 1);
+  }
+  return [...tally.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+/** The note ids carrying a tag — the shelf filters with this. */
+export async function noteIdsForTag(tag: string): Promise<number[]> {
+  const { data } = await sb.from("note_tags").select("note_id").eq("tag", tag.toLowerCase());
+  return (data ?? []).map((r) => r.note_id as number);
+}
+
 /** Counts for the filter rail: everything, unfiled, pinned, archived. */
 export async function noteCounts(): Promise<{ all: number; unfiled: number; pinned: number; archived: number }> {
   const { data } = await sb.from("notes").select("archived,folder_id,pinned_at");
