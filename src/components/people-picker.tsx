@@ -115,7 +115,7 @@ export function PeoplePicker({
             left: anchor.left,
             width: anchor.width,
             ...(anchor.openUp
-              ? { bottom: window.innerHeight - anchor.top + 6 }
+              ? { bottom: anchor.bottomOffset + 6 }
               : { top: anchor.top + 6 }),
           }}
         >

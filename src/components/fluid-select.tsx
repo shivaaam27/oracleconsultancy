@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
+import { layoutRect } from "@/lib/zoom";
 
 export type FluidOption = { value: string; label: string; dot?: string };
 
@@ -67,22 +68,26 @@ export function FluidSelect({
   useEffect(() => setMounted(true), []);
 
   const place = () => {
-    const r = btnRef.current?.getBoundingClientRect();
-    if (!r) return;
+    const el = btnRef.current;
+    if (!el) return;
+    // LAYOUT pixels, not `getBoundingClientRect()` / `window.inner*`: these numbers
+    // become CSS lengths, and on the portal (zoom 0.8) the visual ones make the menu
+    // open over its own trigger. See `lib/zoom.ts`.
+    const r = layoutRect(el);
     const menuW = Math.max(r.width, 200);
     let left = align === "right" ? r.right - menuW : r.left;
-    left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
+    left = Math.max(8, Math.min(left, r.viewportWidth - menuW - 8));
     // Open below by default; flip above when there isn't enough room below and
     // there's more above. Either way the menu height is clamped to the available
     // space so it can never run off-screen — it just scrolls inside.
     const margin = 8;
-    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceBelow = r.viewportHeight - r.bottom - margin;
     const spaceAbove = r.top - margin;
     const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(140, Math.min(window.innerHeight * 0.6, openUp ? spaceAbove : spaceBelow));
+    const maxHeight = Math.max(140, Math.min(r.viewportHeight * 0.6, openUp ? spaceAbove : spaceBelow));
     setPos(
       openUp
-        ? { bottom: window.innerHeight - r.top + 6, left, minWidth: r.width, maxHeight }
+        ? { bottom: r.bottomOffset + 6, left, minWidth: r.width, maxHeight }
         : { top: r.bottom + 6, left, minWidth: r.width, maxHeight }
     );
   };

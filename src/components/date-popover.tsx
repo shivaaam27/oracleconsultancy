@@ -111,7 +111,7 @@ export function DatePopover({
             // A modal dialog (Radix) sets body{pointer-events:none}; this menu is
             // portaled to body, so re-enable clicks on it explicitly.
             pointerEvents: "auto",
-            ...(anchor.openUp ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.top + 6 }),
+            ...(anchor.openUp ? { bottom: anchor.bottomOffset + 6 } : { top: anchor.top + 6 }),
           }}
         >
           {/* Month header + navigation */}

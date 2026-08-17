@@ -10,6 +10,7 @@ import {
   Plus, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { rootZoom } from "@/lib/zoom";
 import { NAV_ROUTES, ROUTE_BY_ID, navGroups, type NavRoute } from "@/lib/nav";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
@@ -85,8 +86,7 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
   let left = tip.cx;
   if (el) {
     const cr = el.getBoundingClientRect();
-    const zoom = el.offsetWidth ? cr.width / el.offsetWidth : 1;
-    left = (tip.cx - cr.left) / (zoom || 1);
+    left = (tip.cx - cr.left) / rootZoom();
   }
   return (
     <div

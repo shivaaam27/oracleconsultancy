@@ -285,6 +285,16 @@ non-empty, not just that the exit code is 0.**
   back as Pulin Manek, a director). Claude will not type a password, but it rarely
   has to — load `/portal` and check who you are before assuming you're locked out.
 
+### ⚠️ A killed dev server fakes two TypeScript errors
+
+Stopping the dev server mid-write leaves `.next/dev/types/validator.ts` **truncated**
+(seen 17 Aug 2026: a line reading `fig<"/portal/task/[code]">> = Specific`), and
+`tsc` then reports `TS1109 Expression expected` + `TS1128` in that file for the rest
+of the session. It is generated, not source. **`rm -rf .next/dev/types` and re-run**
+— and read the path before believing a type error you cannot explain. (Deleting only
+that folder is safe with the server stopped; do not clear all of `.next` while it is
+running.)
+
 ### ⚠️ Dev-server trap, hit THREE times in one session
 
 Adding a NEW import to a file the running dev server has already compiled gives a

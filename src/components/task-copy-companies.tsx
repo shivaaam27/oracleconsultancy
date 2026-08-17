@@ -112,7 +112,7 @@ export function TaskCopyToCompanies({
           style={{
             left: anchor.left,
             width: Math.max(anchor.width, 240),
-            ...(anchor.openUp ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.top + 6 }),
+            ...(anchor.openUp ? { bottom: anchor.bottomOffset + 6 } : { top: anchor.top + 6 }),
           }}
         >
           <p className="border-b border-border/60 px-3 py-2 text-[11px] text-fg-muted">Tick a company to create a copy of this task there.</p>

@@ -97,3 +97,75 @@ The 7-wave "ORI as the self-sustaining brain" build shipped (commit `415ef46`; m
 - **`saveSettings` builds an explicit patch object.** A new Settings field that is
   rendered but not added there will silently discard the owner's choice with no
   error. This happened on 26 Jul; check the database, not the screen.
+
+## Added 17 Aug 2026 — the portal's `zoom: 0.8` vs `getBoundingClientRect`
+
+**✅ FIXED 17 Aug 2026 — every anchored dropdown on the portal used to open in the
+WRONG PLACE**, and the error grew the further down the page you were. Kept here
+because the trap is easy to walk back into. Measured on `/portal/task/PE-004`:
+
+| Control | Before | After |
+|---|---|---|
+| Priority (`FluidSelect`) | told `top: 123.5`, rendered 99 — **over its own trigger** | 5px below it, 0 sideways |
+| Add someone (`useAnchored`) | told `top: 435`, rendered 348 — **81px above**, 46px left | 5px below it, 0 sideways |
+| Due date (`date-popover`) | same fault | 5px below it, 0 sideways |
+
+The ratio was **exactly 0.8** every time. Near the top of a page the drift was
+~24px; at y≈800 it would have been ~160px.
+
+**The fix: `src/lib/zoom.ts`** — `rootZoom()` and `layoutRect(el)`, one definition,
+and its header comment is the explanation. `use-anchored.ts` now returns LAYOUT
+pixels plus `bottomOffset` / `viewportWidth` / `viewportHeight`, **so that no
+consumer ever touches `window.innerHeight` again** — that mixing was the actual
+bug, and five call sites had copied it. `fluid-select.tsx` measures through
+`layoutRect`; `tour-guide.tsx` too (it is mounted on the portal layout, so the
+first tour ever written would have been misplaced). `portal-pill`/`top-pill` had
+each solved this locally with their own ratio sum — both now call `rootZoom()`.
+
+**FORWARD RULE: a measurement that becomes a style comes from `layoutRect()`.**
+`getBoundingClientRect()` and `window.inner*` are visual pixels; CSS lengths are
+layout pixels; on the portal those differ by 0.8.
+
+Verified: `tsc` clean, 281 tests pass, and the three controls above re-measured in
+the browser as a director. **The notification bell's panel is the one path checked
+by code + type-check only** — a synthetic click doesn't open it, so give it one
+eyeball. Admin side is `zoom: 1`, where every function in `zoom.ts` is the
+identity, so nothing there could shift.
+
+**The cause, and it is a one-line idea:** `getBoundingClientRect()` returns
+**visual** pixels (already scaled by the zoom), but those numbers are then written
+back as **CSS** pixels into a document that scales them by 0.8 again. Portal pages
+set `zoom: 0.8` (`portal-zoom.tsx` + `globals.css` ~line 584); the admin side is
+`zoom: 1`, which is why the command centre looks perfect and only the portal is
+wrong — and why this survived so long.
+
+Affected (all read a rect and write it as a style): **`lib/use-anchored.ts`**
+(Due date via `date-popover`, Companies via `task-copy-companies`, Add-someone +
+Leads in `portal-tasks-command`, `people-picker`, `notification-bell`) and
+**`fluid-select.tsx`** (Priority · Category · Risk). `use-anchored`'s `maxHeight`
+has the same fault via `window.innerHeight`, so menus are also ~25% shorter than
+the room actually available.
+
+**Fix:** divide rect values by the effective zoom before writing them. Don't read
+the CSS — derive it, exactly as `portal-pill.tsx` already does
+(`cr.width / el.offsetWidth`), then share that helper. Two files, and every portal
+dropdown comes right at once.
+
+**🟡 `vh`/`vw`/`dvh` are 20% short on portal pages** — measured `100vh` = 670px of
+an 838px screen, `100vw` = 979 of 1223. `position: fixed; inset: 0` IS correct
+(full screen), so sheets and dialogs still cover properly and the portal sidebar
+(`fixed inset-y-0`) is genuinely full height. What is smaller than intended:
+`chat-surface`'s `md:h-[calc(100dvh-13rem)]` pane and `max-h-[85dvh]` sheet, and
+`announcement-takeover`'s `max-h-[50vh]`. Cosmetic — do not "fix" it by removing
+the zoom.
+
+**What is NOT wrong, so stop re-checking it:** media queries evaluate against the
+REAL window (at a 1223px window `min-width:1024px` is true and `1280px` is false),
+so breakpoints still fire at true sizes; there is no horizontal overflow
+(`scrollWidth == clientWidth`); and content fills the window with no dead strip.
+
+**⚠️ Likely explanation for the owner's "per-task page sidebar overflowing"**
+report, which was never reproduced by measuring the sidebar: it was probably never
+the sidebar, but a dropdown opening ~80px up and to the left, over the rail. That
+is fixed now — **ask him whether the complaint has gone** before spending another
+session hunting the rail.

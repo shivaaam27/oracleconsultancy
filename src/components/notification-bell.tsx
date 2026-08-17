@@ -250,13 +250,16 @@ export function NotificationBell({
     if (!anchor) return { top: "-9999px", left: "-9999px" };
     const GAP = 8;
     const margin = 12;
-    const vw = typeof window !== "undefined" ? window.innerWidth : 0;
-    const vh = typeof window !== "undefined" ? window.innerHeight : 0;
+    // Viewport in LAYOUT pixels, from the anchor — `window.innerWidth/Height` are
+    // visual pixels and would put the panel 20% out of place on the portal, where
+    // the document is scaled to 0.8. See `lib/zoom.ts`.
+    const vw = anchor.viewportWidth;
+    const vh = anchor.viewportHeight;
     const panelW = Math.min(360, vw - margin * 2);
     let left = align === "left" ? anchor.left : anchor.left + anchor.width - panelW;
     left = Math.max(margin, Math.min(left, vw - panelW - margin));
     const style: React.CSSProperties = { left };
-    if (anchor.openUp) style.bottom = Math.max(margin, vh - anchor.top + GAP);
+    if (anchor.openUp) style.bottom = Math.max(margin, anchor.bottomOffset + GAP);
     else style.top = anchor.top + GAP;
     return style;
   })();

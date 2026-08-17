@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import type { Tour, TourStep } from "@/lib/tours";
+import { layoutRect, type LayoutRect } from "@/lib/zoom";
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Tour guide — Aurora-native guided walkthrough engine.
@@ -43,10 +44,11 @@ function findTarget(tag: string): HTMLElement | null {
 type Pos = { top: number; left: number };
 
 /** Place the bubble beside a target rect, honouring the preferred side and
- *  clamping to the viewport. */
-function placeBubble(rect: DOMRect, bubbleH: number, placement: TourStep["placement"]): Pos {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+ *  clamping to the viewport. The rect is a `layoutRect` — see `lib/zoom.ts`; a
+ *  raw `getBoundingClientRect()` would place the bubble 20% off on the portal. */
+function placeBubble(rect: LayoutRect, bubbleH: number, placement: TourStep["placement"]): Pos {
+  const vw = rect.viewportWidth;
+  const vh = rect.viewportHeight;
   const spaceAbove = rect.top;
   const spaceBelow = vh - rect.bottom;
   // Resolve "auto": prefer the side with more room (vertical first).
@@ -79,7 +81,7 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
   const reduce = useReduced();
   const [steps, setSteps] = useState<TourStep[] | null>(null);
   const [index, setIndex] = useState(0);
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [rect, setRect] = useState<LayoutRect | null>(null);
   const [pos, setPos] = useState<Pos | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +126,9 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
     if (!s || s.length === 0) return;
     const el = findTarget(s[indexRef.current].target);
     if (!el) return; // target briefly absent — keep the last position, try again
-    const r = el.getBoundingClientRect();
+    const r = layoutRect(el as HTMLElement);
+    // offsetHeight is ALREADY a layout pixel, so it needs no conversion — which is
+    // exactly why the two must not be mixed with a raw client rect.
     const bubbleH = bubbleRef.current?.offsetHeight ?? 150;
     setRect(r);
     setPos(placeBubble(r, bubbleH, s[indexRef.current].placement));

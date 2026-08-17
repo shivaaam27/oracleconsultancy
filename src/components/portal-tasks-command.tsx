@@ -1482,7 +1482,7 @@ function AddPersonPicker({
           style={{
             left: anchor.left,
             width: Math.max(anchor.width, 224),
-            ...(anchor.openUp ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.top + 6 }),
+            ...(anchor.openUp ? { bottom: anchor.bottomOffset + 6 } : { top: anchor.top + 6 }),
           }}
         >
           <label className="relative block border-b border-border/60">
@@ -1597,7 +1597,7 @@ function LeadMultiSelect({
             left: anchor.left,
             width: anchor.width,
             ...(anchor.openUp
-              ? { bottom: window.innerHeight - anchor.top + 6 }
+              ? { bottom: anchor.bottomOffset + 6 }
               : { top: anchor.top + 6 }),
           }}
         >

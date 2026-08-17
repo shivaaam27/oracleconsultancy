@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { BarChart3, CalendarClock, ClipboardList, Contact, Home, ListTodo, MessageCircle, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { rootZoom } from "@/lib/zoom";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -190,16 +191,16 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
 /** A frosted name-label that floats ABOVE the hovered icon (replaces the OS's
  *  black title tooltip). Positioned ABSOLUTELY inside the pill (which isn't
  *  clipped, unlike the inner scroll row) and zoom-corrected: the portal renders
- *  at `zoom: 0.8` on the web, so we divide the viewport delta by the pill's
- *  effective zoom to land the label dead-centre over the icon. */
+ *  at `zoom: 0.8` on the web, so the viewport delta is divided back into layout
+ *  pixels to land the label dead-centre over the icon (`lib/zoom.ts` — this file
+ *  had its own copy of that sum before there was one definition). */
 function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: React.RefObject<HTMLDivElement | null> }) {
   if (!tip) return null;
   const el = containerRef.current;
   let left = tip.cx;
   if (el) {
     const cr = el.getBoundingClientRect();
-    const zoom = el.offsetWidth ? cr.width / el.offsetWidth : 1;
-    left = (tip.cx - cr.left) / (zoom || 1);
+    left = (tip.cx - cr.left) / rootZoom();
   }
   return (
     <div
