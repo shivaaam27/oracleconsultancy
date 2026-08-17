@@ -15,12 +15,15 @@ export function AdminLoginForm({ firstRun }: { firstRun: boolean }) {
       <form action={action} className="flex flex-col gap-3">
         {!firstRun && (
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Name or email</span>
-            {/* NO placeholder. This field used to suggest the owner's real address,
-                which handed anyone who opened the sign-in screen half of the second
-                factor — the identity it is there to check. The label says what to
-                type; a stranger should learn nothing from this page. */}
-            <input name="identifier" autoComplete="username webauthn" className={authInputCls} />
+            {/* Caption for screen readers only; on screen the field says what to do
+                itself. It must never suggest a REAL address — this field is the
+                owner-identity second factor, and it used to print the owner's own
+                email, handing a stranger half of it. Same wording as the staff tab
+                so the two tabs read as one screen.
+                NOTE: a NAME still works here too, if that is what owner identity
+                was set to. */}
+            <span className="sr-only">Email</span>
+            <input name="identifier" autoComplete="username webauthn" className={authInputCls} placeholder="Write your email" />
           </label>
         )}
         <PasswordField

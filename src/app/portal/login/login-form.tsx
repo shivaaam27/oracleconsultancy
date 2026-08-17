@@ -30,17 +30,21 @@ export function LoginForm() {
         className="flex flex-col gap-3"
       >
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Name or email</span>
+          {/* The caption is for screen readers only. On screen the field says what
+              to do itself ("Write your email"), which is the owner's wording — a
+              caption plus an empty box read as two things to deal with, and the
+              box looked broken while it was empty. The hint names nobody, which is
+              why the real address had to go in the first place.
+              NOTE: the server still accepts a NAME as well as an email here; the
+              wording is deliberately narrower than the rule. */}
+          <span className="sr-only">Email</span>
           <input
             ref={nameRef}
             name="identifier"
             autoComplete="username webauthn"
             required
             className={authInputCls}
-            /* A shape, not a person. This named a real member of staff, on a page
-               anyone can open — the same fault as the owner's address on the
-               Command Centre tab. */
-            placeholder="Your first name or work email"
+            placeholder="Write your email"
           />
         </label>
         <PasswordField name="password" label="Password" autoComplete="current-password" />
