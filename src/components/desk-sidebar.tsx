@@ -27,6 +27,9 @@ import { ThemeToggle } from "./theme-toggle";
  */
 
 const STORE = "cos-sidebar";
+/** The same state as a cookie, so the server can render the right gutter — see
+ *  the note in `portal-sidebar.tsx`. */
+export const DESK_RAIL_COOKIE = "cos-desk-rail";
 
 type Item = { href: string; label: string; icon: LucideIcon };
 
@@ -47,10 +50,13 @@ const GROUPS: { label: string; items: Item[] }[] = navGroups().map((g) =>
     : g
 );
 
-export function DeskSidebar() {
+export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: boolean }) {
   const pathname = usePathname() || "/";
   const params = useSearchParams();
-  const [collapsed, setCollapsed] = useState(false);
+  // Seeded from the rail cookie by the root layout, so <main>'s gutter is right in
+  // the first paint rather than one effect later. See portal-sidebar.tsx — the
+  // portal hit this as a visible overlap and the fix is deliberately identical.
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   // At lg+ the floating pill is hidden, so the controls it used to carry —
   // Create, search, theme and density — have to live here or they exist nowhere
   // on a desktop. Create is now the split CreateMenu: the page's own action on
@@ -58,21 +64,26 @@ export function DeskSidebar() {
   const { open: openPalette } = useCommandPalette();
 
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem(STORE) === "1"); } catch { /* ignore */ }
+    try {
+      const stored = localStorage.getItem(STORE);
+      if (stored !== null) setCollapsed(stored === "1");
+    } catch { /* ignore */ }
   }, []);
 
-  // Publish the width so <main>'s gutter matches whatever state we are in.
+  // Keep <main>'s gutter in step with the live state. Written on <main> itself
+  // (where the layout also sets it server-side) and never removed on cleanup —
+  // removing it mid-life is what left the portal's twin overlapping after a
+  // Fast Refresh remount.
   useEffect(() => {
-    document.documentElement.style.setProperty("--desk-sidebar", collapsed ? "56px" : "208px");
-    return () => {
-      document.documentElement.style.removeProperty("--desk-sidebar");
-    };
+    document.querySelector<HTMLElement>("main")
+      ?.style.setProperty("--desk-sidebar", collapsed ? "56px" : "208px");
   }, [collapsed]);
 
   function toggle() {
     setCollapsed((v) => {
       const next = !v;
       try { localStorage.setItem(STORE, next ? "1" : "0"); } catch { /* ignore */ }
+      try { document.cookie = `${DESK_RAIL_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`; } catch { /* ignore */ }
       return next;
     });
   }

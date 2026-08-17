@@ -12,7 +12,7 @@ import {
   AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
-import { Button, CaretInput } from "@/components/ui";
+import { Avatar, Button, CaretInput, Switch } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DatePopover } from "@/components/date-popover";
@@ -22,7 +22,7 @@ import { type BoardPerson, type BoardCompany } from "@/components/director-board
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
 import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask, portalBulkTaskAction } from "@/app/portal/actions";
-import { getGivenName, getInitials } from "@/lib/names";
+import { getGivenName } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
@@ -129,7 +129,6 @@ function statusDot(s: string): string {
   if (s === "In Progress") return "bg-info";
   return "bg-fg-subtle";
 }
-const initials = getInitials; // honorific-stripped (Mr Pulin Manek → PM)
 
 export function PortalTasksCommand({
   tasks, people, companies, role, viewerId, canCreate, canManageAny, canRepeat, initialFilter = "all", houseList = false,
@@ -729,19 +728,18 @@ function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) 
   // Keep at most three rendered items: show 3 plain, else 2 + a "+N" badge.
   const shown = people.slice(0, people.length > 3 ? 2 : 3);
   const extra = people.length - shown.length;
-  const dot = "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9.5px] font-semibold leading-none ring-2 ring-bg-elev";
   return (
     <span className="inline-flex items-center -space-x-1.5">
       {shown.map((p, i) => (
-        <span
-          key={i}
-          title={`${p.name}${p.lead ? " · Lead" : ""}`}
-          className={cn(dot, p.lead ? "bg-accent-soft text-accent ring-accent/70" : "bg-bg-subtle text-fg-muted")}
-        >
-          {initials(p.name)}
+        <span key={i} title={`${p.name}${p.lead ? " · Lead" : ""}`} className="inline-flex">
+          <Avatar name={p.name} size="sm" lead={p.lead} stacked />
         </span>
       ))}
-      {extra > 0 && <span className={cn(dot, "bg-bg-muted text-[9px] text-fg-subtle")}>+{extra}</span>}
+      {extra > 0 && (
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-bg-muted text-[9px] font-semibold leading-none text-fg-subtle ring-2 ring-bg-elev">
+          +{extra}
+        </span>
+      )}
     </span>
   );
 }
@@ -1356,12 +1354,7 @@ export function TaskPeoplePanel({
       <ul className="divide-y divide-border/50">
         {members.map((m, i) => (
           <li key={m.id ?? `n:${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-            <span className={cn(
-              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-bg-elev",
-              m.lead ? "bg-accent-soft text-accent" : "bg-bg-subtle text-fg-muted",
-            )}>
-              {initials(m.name)}
-            </span>
+            <Avatar name={m.name} size="md" lead={m.lead} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium leading-tight">{m.name}</span>
               {/* Lead toggle: ON = Lead, OFF = Working — assign the lead inline (those
@@ -1376,10 +1369,11 @@ export function TaskPeoplePanel({
                   title={m.lead ? "Leading — tap to set as Working" : "Working — tap to make Lead"}
                   className="mt-1 inline-flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  <span className={cn("relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors", m.lead ? "bg-accent" : "bg-bg-muted ring-1 ring-border")}>
-                    <span className={cn("inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform", m.lead ? "translate-x-3.5" : "translate-x-0.5")} />
-                  </span>
-                  <span className={cn("text-[10.5px] font-medium", m.lead ? "text-accent" : "text-fg-subtle")}>{m.lead ? "Lead" : "Working"}</span>
+                  {/* The kit Switch, not a hand-rolled 16px track: this was the
+                      one toggle in the app that drew its own, at a size nothing
+                      else used. Same control as the recurring-task pause now. */}
+                  <Switch on={m.lead} size="sm" busy={leadBusy} />
+                  <span className={cn("text-[11.5px] font-medium", m.lead ? "text-accent" : "text-fg-subtle")}>{m.lead ? "Lead" : "Working"}</span>
                 </button>
               ) : (
                 <span className={cn(
@@ -1494,7 +1488,7 @@ function AddPersonPicker({
             {filtered.map((p) => (
               <li key={p.id}>
                 <button type="button" onClick={() => pick(p.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fg transition-colors hover:bg-bg-muted/60">
-                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted">{initials(p.name)}</span>
+                  <Avatar name={p.name} size="sm" />
                   {p.name}
                 </button>
               </li>

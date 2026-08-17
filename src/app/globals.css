@@ -557,10 +557,29 @@ input:disabled, select:disabled, textarea:disabled {
    keep the bottom pill. */
 @media (min-width: 1024px) {
   /* The persistent sidebar publishes its own width as --desk-sidebar (208px, or
-     56px collapsed); the gutter follows it, plus a little breathing room. The
-     fallback keeps the old pill gutter if the sidebar is ever not mounted. */
+     56px collapsed); the gutter follows it, plus a little breathing room.
+     ⚠️ The FALLBACK is the expanded width, not a guess: the rail is painted by
+     CSS the instant the HTML arrives, while the variable is only written once the
+     sidebar's effect runs. A fallback narrower than the rail therefore means the
+     first paint of every page tucks content UNDERNEATH it (this was 88px against
+     a 208px rail — 120px of overlap until hydration, and permanent overlap if
+     hydration stalls). Collapsed users get the exact width server-side from the
+     rail cookie, so this fallback is only ever the default state.
+     */
   html:not([data-portal-zoom]) main {
-    padding-left: calc(var(--desk-sidebar, 88px) + 1.25rem);
+    padding-left: calc(var(--desk-sidebar, 208px) + 1.25rem);
+  }
+
+  /* Portal pages opt OUT of the admin gutter, because the shell sets its own
+     below. This is a second rule rather than a `:not(:has(…))` on the one above
+     on purpose: if a browser lacks `:has()` it drops only this override and the
+     admin gutter survives, where a combined selector would have failed shut and
+     left the command centre tucked under its own rail. `body` earns it the
+     specificity to win. The `[data-portal-zoom]` guard above cannot do this job
+     alone — that attribute is written by an effect, so it is absent for the first
+     paint, which is exactly the moment we are fixing. */
+  body main:has([data-portal-shell]) {
+    padding-left: 1.25rem;
   }
 
   /* The portal has its own rail now (PortalSidebar), publishing its own width as
@@ -570,7 +589,10 @@ input:disabled, select:disabled, textarea:disabled {
      ever not mounted (or the person's role has no destinations) the portal keeps
      its old centred column exactly as before. */
   [data-portal-shell] {
-    padding-left: calc(var(--portal-sidebar, 0px) + 1.25rem);
+    /* Same rule as the admin gutter above: the fallback MUST be the rail's
+       expanded width. It was 0px, so every portal page began life with 80px of
+       itself hidden under the rail — the overlap the owner reported. */
+    padding-left: calc(var(--portal-sidebar, 208px) + 1.25rem);
     padding-right: 1.25rem;
   }
 }

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
-import { PortalSidebar } from "@/components/portal-sidebar";
+import { PortalSidebar, RAIL_COOKIE } from "@/components/portal-sidebar";
 import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
@@ -84,9 +85,16 @@ export default async function PortalLayout({ children }: { children: React.React
     scopedCompanyName = names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
   }
 
+  // The rail's width, decided HERE rather than after hydration. The gutter in
+  // globals.css reads this custom property, so the very first paint already has
+  // the right amount of room — no page ever starts underneath the rail, and a
+  // slow or failed hydration cannot leave it that way.
+  const railCollapsed = (await cookies()).get(RAIL_COOKIE)?.value === "1";
+
   return (
     <div
       data-portal-shell
+      style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
       className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
     >
       {/* The desktop rail. From lg up this replaces the floating pill, which
@@ -99,6 +107,7 @@ export default async function PortalLayout({ children }: { children: React.React
         name={scopedDirector && scopedCompanyName ? scopedCompanyName : "Oracle Consultancy"}
         subtitle={scopedDirector ? "Directors Board" : portalHeaderLabel(me.portalRole, me.portalDesignation)}
         tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview }}
+        initialCollapsed={railCollapsed}
       />
       <header className="flex items-center justify-between gap-3 print-hidden">
         {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it

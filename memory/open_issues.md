@@ -164,7 +164,40 @@ REAL window (at a 1223px window `min-width:1024px` is true and `1280px` is false
 so breakpoints still fire at true sizes; there is no horizontal overflow
 (`scrollWidth == clientWidth`); and content fills the window with no dead strip.
 
-**⚠️ Likely explanation for the owner's "per-task page sidebar overflowing"**
+## ✅ The sidebar overlap, finally caught (17 Aug 2026)
+
+**It was real, and it was the gutter arriving one paint late.** Proof from the raw
+server HTML: the rail ships at `w-[208px]` and is painted by CSS immediately, while
+`--portal-sidebar` (the variable the gutter reads) was written by a **`useEffect`**
+and the CSS fallback was **`0px`** — so every portal page began life with **80px of
+itself underneath the rail**, and `main` simultaneously picked up the ADMIN gutter
+(108px) because `html:not([data-portal-zoom])` was true until `PortalZoom`'s effect
+ran too. Slow hydration made it last; **failed hydration made it permanent**, which
+is what Kishan saw.
+
+**I reproduced the permanent version by accident** — a few Fast Refresh cycles left
+both markers stripped (the effects' cleanups remove them), and the page sat
+overlapped exactly as reported. **Careful: that also means a measurement taken
+mid-editing-session is not evidence about production.** Hard-reload first.
+
+The fix, in three parts:
+1. **Fallbacks are the rail's expanded width**, not a guess: `var(--portal-sidebar,
+   208px)` and `var(--desk-sidebar, 208px)`. A fallback narrower than the rail IS
+   the bug.
+2. **The width is server-rendered** from a new rail cookie (`cos-portal-rail` /
+   `cos-desk-rail`) as an inline custom property on the shell / on `main`, so the
+   first paint is already correct in both states and no hydration is required. The
+   sidebars' effects now write to **that element**, not `<html>` (an element's own
+   custom property beats an inherited one — writing to `<html>` would do nothing),
+   and they **never remove it on cleanup**.
+3. **Portal pages opt out of the admin gutter with `body main:has([data-portal-shell])`**
+   — a separate rule, so a browser without `:has()` drops only the override instead
+   of failing shut and un-guttering the command centre.
+
+**FORWARD RULE: layout geometry must not depend on an effect.** If CSS paints it
+immediately, CSS (or the server) has to size it immediately.
+
+**⚠️ Superseded — the earlier note below is what I believed before the above:**
 report, which was never reproduced by measuring the sidebar: it was probably never
 the sidebar, but a dropdown opening ~80px up and to the left, over the rail. That
 is fixed now — **ask him whether the complaint has gone** before spending another

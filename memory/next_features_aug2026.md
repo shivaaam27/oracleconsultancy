@@ -289,6 +289,30 @@ director is redirected to the board — its shared pieces changed underneath it,
 it should be right, but load it as a staff member before believing that. Chat is
 left alone on purpose (messenger scale, its own thing).
 
+### Group bands, avatars and one toggle (17 Aug 2026)
+
+Three things the owner called out after the sweep above:
+
+- **Group bands were unreadable.** The sticky company/priority/urgency heading in
+  `RecordList` was `10.5px` in `text-fg-muted` — **8.4px of grey** once the portal's
+  0.8 zoom is applied. Now **12.5px semibold in full `text-fg`** with `py-1.5`
+  (measured: 27px band). One component, so every grouped list on both sides gets it.
+  **A band you cannot read is just a stripe.**
+- **Avatars were five different things.** 32px ringed circles in the people panel,
+  24px unringed ones in its own add-picker, another in the lead chips, a 20px one in
+  the board composer. **`Avatar` in `ui.tsx` is now the one definition** — sizes are
+  the control ladder (`sm` 24 / `md` 28), radius 4px (the chip corner, which is what
+  `rounded-full` already resolved to, so the org chart and admin row stacks agree
+  without being touched), and `lead` carries the blue fill AND the blue edge
+  together so they can never disagree. `stacked` swaps the edge for the separator
+  ring used in overlapping clusters. Measured after: **one shape, 28×28 r=4px**.
+- **Lead/Working drew its own toggle** — a hand-rolled 16px track, the only one in
+  the app. It is the kit `Switch size="sm"` now, same as the recurring-task pause.
+
+Deliberately left: the 20px avatar glyph inside the board composer's person chips
+(a glyph inside a chip, not a standalone avatar) and `assignee-avatars.tsx`, whose
+stack wraps `PersonDrawerLink` — it already agrees visually.
+
 **The audit script** (paste into the browser console on any portal page) is what
 made all of this measurable rather than guesswork:
 `[...document.querySelector('[data-portal-shell]').querySelectorAll('button')]`

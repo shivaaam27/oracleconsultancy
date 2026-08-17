@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import { Loader2, ChevronDown, Search } from "lucide-react";
+import { getInitials } from "@/lib/names";
 import type { ComponentProps, ReactNode } from "react";
 
 /** Search field — leading icon + design-system input. Pass-through props
@@ -171,6 +172,57 @@ const buttonStyles = {
  */
 export const CONTROL_SHELL =
   "h-9 rounded-md border border-border bg-bg-elev hover:border-border-strong transition-colors";
+
+/**
+ * An initials avatar — ONE definition, because there were five.
+ *
+ * The per-task people panel drew 32px round avatars with a 2px ring, its own add
+ * picker drew 24px ones with no ring, the lead chips were something else again, and
+ * the board composer a fourth. The owner's words: "the icons for accountable ...
+ * all of this are inconsistent."
+ *
+ * Sizes are the control ladder, not new numbers: `sm` = 24px (menus, chips),
+ * `md` = 28px (panel rows). `lead` carries BOTH halves of the accountable look —
+ * the blue fill and the blue edge — so the two can never disagree.
+ */
+const avatarSizes = { sm: "h-6 w-6 text-[10px]", md: "h-7 w-7 text-[10.5px]" };
+
+export function Avatar({
+  name,
+  size = "sm",
+  lead = false,
+  stacked = false,
+  className,
+}: {
+  name: string;
+  size?: keyof typeof avatarSizes;
+  /** The accountable/lead tint — fill and edge together. */
+  lead?: boolean;
+  /** In an overlapping cluster the edge has a different job: it separates one
+   *  avatar from the one behind it, so it takes the page colour instead of the
+   *  tint. Use with `-space-x-1.5` on the wrapper. */
+  stacked?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        // 4px — the chip radius. Deliberately the same corner the old
+        // `rounded-full` avatars already resolved to (globals squares pills to
+        // `--radius-sm`), so every avatar in the app agrees without touching the
+        // org chart and the admin row stacks.
+        "inline-flex shrink-0 select-none items-center justify-center rounded font-semibold leading-none",
+        avatarSizes[size],
+        lead ? "bg-accent-soft text-accent" : "bg-bg-subtle text-fg-muted",
+        stacked ? "ring-2 ring-bg-elev" : lead ? "ring-1 ring-accent/30" : "ring-1 ring-border",
+        className,
+      )}
+    >
+      {getInitials(name)}
+    </span>
+  );
+}
 
 const buttonSizes = {
   /* Desk radii: 4px chips · 6px CONTROLS · 8px cards. `rounded-xl` is 8px, so the

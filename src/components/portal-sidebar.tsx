@@ -29,6 +29,9 @@ import { cn } from "@/lib/cn";
  */
 
 const STORE = "cos-portal-sidebar";
+/** Same state, as a cookie, so the SERVER can render the right gutter. localStorage
+ *  cannot be read during SSR, which is why the width used to arrive one paint late. */
+export const RAIL_COOKIE = "cos-portal-rail";
 
 export function PortalSidebar({
   role,
@@ -36,6 +39,7 @@ export function PortalSidebar({
   canOri,
   name,
   subtitle,
+  initialCollapsed = false,
 }: {
   role?: string;
   tabOverrides?: PortalTabOverrides;
@@ -43,24 +47,40 @@ export function PortalSidebar({
   canOri?: boolean;
   name: string;
   subtitle: string;
+  /** Read from the rail cookie by the layout, so the first paint is already the
+   *  right width — do NOT default this to `false` at the call site. */
+  initialCollapsed?: boolean;
 }) {
   const pathname = usePathname() || "/portal";
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   const groups = portalNavGroups(role, tabOverrides);
 
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem(STORE) === "1"); } catch { /* ignore */ }
+    // localStorage stays authoritative for anyone whose cookie predates it.
+    try {
+      const stored = localStorage.getItem(STORE);
+      if (stored !== null) setCollapsed(stored === "1");
+    } catch { /* ignore */ }
   }, []);
 
+  // Keep the gutter in step with the live state. It is written on the SHELL, not
+  // on <html>: the layout sets the same custom property inline there, and an
+  // element's own property beats one inherited from the root — so writing to
+  // <html> would silently do nothing. No cleanup that removes it, either: the
+  // shell's server-rendered value is the floor, and removing the property mid-life
+  // (a Fast Refresh remount does exactly that) is what left pages overlapped.
   useEffect(() => {
-    document.documentElement.style.setProperty("--portal-sidebar", collapsed ? "56px" : "208px");
-    return () => { document.documentElement.style.removeProperty("--portal-sidebar"); };
+    document.querySelector<HTMLElement>("[data-portal-shell]")
+      ?.style.setProperty("--portal-sidebar", collapsed ? "56px" : "208px");
   }, [collapsed]);
 
   function toggle() {
     setCollapsed((v) => {
       const next = !v;
       try { localStorage.setItem(STORE, next ? "1" : "0"); } catch { /* ignore */ }
+      // A year, path=/ so every portal route sees it, Lax because this is a
+      // preference and never travels with a cross-site request.
+      try { document.cookie = `${RAIL_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`; } catch { /* ignore */ }
       return next;
     });
   }

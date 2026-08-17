@@ -23,7 +23,8 @@ import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
-import { DeskSidebar } from "@/components/desk-sidebar";
+import { DeskSidebar, DESK_RAIL_COOKIE } from "@/components/desk-sidebar";
+import { cookies } from "next/headers";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
@@ -72,6 +73,10 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
+  // The rail's width, from its cookie, so <main>'s gutter is correct in the FIRST
+  // paint. Without this the gutter arrived an effect late and content began life
+  // underneath the rail — see the note in `portal-sidebar.tsx`.
+  const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
   return (
     <html lang="en-GB" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -104,10 +109,13 @@ export default async function RootLayout({ children, modal }: { children: React.
                     themselves narrower for readability — see RecordPage. */}
                 <HideOnPortal>
                   <Suspense>
-                    <DeskSidebar />
+                    <DeskSidebar initialCollapsed={railCollapsed} />
                   </Suspense>
                 </HideOnPortal>
-                <main className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12">
+                <main
+                  style={{ "--desk-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
+                  className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12"
+                >
                   <div className="mx-auto max-w-[1600px]">
                     <PageTransition>{children}</PageTransition>
                   </div>

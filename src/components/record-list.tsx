@@ -717,9 +717,15 @@ export function RecordList<T>({
                      * shade darker than the rows so the eye reads it as a
                      * divider rather than another record. */}
                     {starts && (
-                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-fg-muted">
+                      /* Sized like a HEADING, not like a caption. It was 10.5px in
+                         `text-fg-muted`, which on the portal is 8.4px of grey once
+                         the 0.8 zoom is applied — the owner could not read the
+                         company and priority bands, and a band you can't read is
+                         just a stripe. Now 12.5px semibold in full `text-fg`, with
+                         the room to breathe. */
+                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-fg">
                         <span className="truncate">{group}</span>
-                        <span className="tabular font-medium normal-case tracking-normal text-fg-subtle">
+                        <span className="tabular text-[11.5px] font-medium normal-case tracking-normal text-fg-muted">
                           {rows.filter((r) => (groupOf?.(r) ?? null) === group).length}
                         </span>
                       </li>
