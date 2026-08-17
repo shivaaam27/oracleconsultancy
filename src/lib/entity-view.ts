@@ -232,6 +232,21 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     defaultSort: { key: "dueDate", dir: "asc" },
     create: { label: "Application", href: "/hrms/pipeline?new=1" },
   },
+
+  /* Notes (Phase 1 — memory/notes_module_plan.md). The `create` line is the whole
+     reason this entry earns its place today: it puts "Note" in the global New menu
+     and in ⌘K at the same moment, with nothing else to edit. `?new=1` is the same
+     convention every other creatable uses. */
+  note: {
+    listColumns: [
+      { key: "displayTitle", label: "Note", width: "minmax(0,1.4fr)", format: "text", sortable: true },
+      { key: "snippet", label: "First line", width: "minmax(0,1fr)", format: "text", hideBelow: "md" },
+      { key: "folderName", label: "Folder", width: "150px", format: "text", hideBelow: "lg", sortable: true },
+      { key: "updatedAt", label: "Updated", width: "116px", format: "date", align: "right", sortable: true },
+    ],
+    defaultSort: { key: "updatedAt", dir: "desc" },
+    create: { label: "Note", href: "/notes?new=1" },
+  },
 };
 
 /* ------------------------------------------------------------ creatables --- */
@@ -248,7 +263,9 @@ const EXTRA_CREATES: { id: string; create: CreateDef }[] = [
 
 /** Menu order — the things raised most often first, not alphabetical. */
 const CREATE_ORDER = [
-  "task", "event", "person", "document", "company",
+  // "note" sits second on purpose: capturing a rough thought is the second most
+  // common thing the owner starts from scratch, after raising a task.
+  "task", "note", "event", "person", "document", "company",
   "vendor", "asset", "commitment", "pipeline", "announcement",
 ];
 

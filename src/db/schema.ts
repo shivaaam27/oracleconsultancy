@@ -1848,3 +1848,45 @@ export const activityEvents = pgTable("activity_events", {
   index("activity_events_person_idx").on(t.personId, t.at),
   index("activity_events_at_idx").on(t.at),
 ]);
+
+/* ------------------------------------------------------------------ */
+/* NOTES (Phase 1 — see memory/notes_module_plan.md)                   */
+/*                                                                     */
+/* Owner-only, deliberately: the plan settled that notes never reach   */
+/* the staff portal, which is why there is no `visibility` column and  */
+/* no person scoping. A note is also NOT "about" one company or one    */
+/* person — every association will be a `note_links` row in Phase 3,   */
+/* so there are no company_id/person_id columns here either.           */
+/* ------------------------------------------------------------------ */
+
+export const noteFolders = pgTable("note_folders", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const notes = pgTable("notes", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull().default(""),
+  /** CANONICAL body: ProseMirror/Tiptap JSON. Round-trips losslessly. */
+  bodyJson: jsonb("body_json"),
+  /** DERIVED plain text — search, previews, AI, and later the embedding.
+   *  Written in the SAME action as body_json; if these two ever drift, search
+   *  quietly rots. Never populate this from a cron. */
+  bodyText: text("body_text").notNull().default(""),
+  folderId: integer("folder_id").references(() => noteFolders.id, { onDelete: "set null" }),
+  pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+  archived: boolean("archived").notNull().default(false),
+  /** 'note' | 'daily' | 'template' — daily notes arrive in Phase 2, templates in 6. */
+  kind: text("kind").notNull().default("note"),
+  /** Set only when kind='daily'; one note per day, enforced by a partial unique. */
+  dailyDate: timestamp("daily_date", { mode: "date", withTimezone: true }),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // The list's default order: pinned first, then freshest.
+  index("notes_shelf_idx").on(t.archived, t.pinnedAt, t.updatedAt),
+  index("notes_folder_idx").on(t.folderId),
+]);

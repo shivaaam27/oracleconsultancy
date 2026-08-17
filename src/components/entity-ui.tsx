@@ -11,7 +11,7 @@
 
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
-  AlertTriangle, Workflow, ScrollText, type LucideIcon,
+  AlertTriangle, Workflow, ScrollText, StickyNote, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
@@ -30,6 +30,10 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },
+  // Notes are not searchable yet either (no EntityDef until Phase 6), but the map is
+  // exhaustive over EntityType, so the compiler demanded this row the moment "note"
+  // joined the union — which is how it should work.
+  note:       { icon: StickyNote,    tint: "text-yellow-500" },
 };
 
 /** A palette heading entry: label + type + icon/tint, ready to render. */

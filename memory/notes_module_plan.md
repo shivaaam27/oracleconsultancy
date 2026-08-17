@@ -275,12 +275,46 @@ Stop the server, delete `.next`, start again — in that order.
 31px. The 17 Aug ladder pass covered the portal and the shared chrome, not
 `desk-sidebar.tsx`'s own buttons. Worth a small follow-up.
 
-**Phase 1 — foundation.** `notes` + `note_folders` tables; `/notes` list from
-`ENTITY_VIEWS`; `/notes/[id]` record; the editor with core formatting (headings,
-bold/italic/underline/strike, lists, checklist, quote, code, divider, link);
-debounced autosave with a saved-state indicator; pin, folder, archive; Quick Note;
-import the 4 legacy notes. **Done = the owner keeps notes in COS instead of Apple
-Notes.**
+**Phase 1 — ✅ DONE, 17 Aug 2026.** Migration **0118**; `/notes` + `/notes/[id]`
+live; nav entry in Work; "Note" second in the global New menu; the 4 legacy notes
+imported (`scripts/import-legacy-notes.ts`, dry-run by default).
+
+Files: `lib/notes.ts` (server reads) · **`lib/notes-shared.ts` (client-safe types +
+helpers)** · `app/notes/actions.ts` · `components/notes-shelf.tsx` ·
+`components/note-editor.tsx` + `note-editor-mount.tsx` · `components/note-record-bar.tsx`.
+
+**Verified by measurement, not by looking:**
+- Autosave **persists both columns together** — after typing, note #4 held
+  `body_text` = "checking if it works — Phase 1 autosave test." with a 139-char
+  `body_json`, same `updated_at`.
+- **The concurrency guard actually works.** I moved `updated_at` on in the database
+  (simulating a second tab), then typed: the badge went to *"Changed elsewhere"*,
+  the warning appeared, the typing stayed on screen, and the database was **not**
+  overwritten. That is the one failure this table could have had.
+- `tsc` clean · 281 tests pass.
+
+**Three traps hit, all worth remembering:**
+1. ⚠️ **The client/server split, exactly as CLAUDE.md warns.** `notes-shelf.tsx` is a
+   client component and imported a helper from `lib/notes.ts`, which imports `sb` —
+   so `@/db/supabase` went into the browser bundle and every page died with
+   *"SUPABASE_SERVICE_ROLE_KEY is not set"*. Hence **`lib/notes-shared.ts`**. FORWARD
+   RULE: anything a client component needs from Notes goes in the `-shared` file.
+2. ⚠️ **drizzle-kit re-created four existing tables.** The generated 0118 also tried
+   to `CREATE` `event_documents` and the three `mcp_oauth_*` tables, because it diffs
+   its snapshot and not the database (0116/0117 were applied outside it). **Read every
+   generated migration before applying it** — I trimmed 0118 by hand to only the new
+   objects. The partial unique index on `daily_date` is hand-written there too, since
+   drizzle cannot express a `WHERE` clause.
+3. **A script's `config()` cannot beat a static import.** `import { sb }` is hoisted
+   above `config({ path: ".env.local" })`, so the import throws before the env
+   exists. The import has to be **dynamic**, inside the function.
+
+**Also fixed on the way:** the save badge said "Saved" when idle *and* when saved, so
+it claimed credit before the first keystroke. Idle now renders nothing.
+
+**Not in Phase 1, on purpose:** the `/` menu, tables, tags, links, to-dos, AI,
+search indexing and daily notes are Phases 2–6. The toolbar carries every format for
+now, because a formatting tool you cannot find does not exist.
 
 **Phase 2 — blocks + slash + daily notes.** `/` menu; tables; callouts; attachments
 via `documents`; `#tags` parsed to `note_tags`; drag-to-reorder blocks; paste

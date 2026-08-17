@@ -28,7 +28,11 @@ export type SourceType =
   | "governance"
   | "risk"
   | "pipeline"
-  | "commitment";
+  | "commitment"
+  /** Notes (Phase 1). Not indexed yet — the EntityDef arrives in Phase 6; this
+   *  member exists so the module can have an ENTITY_VIEWS entry like every other
+   *  record type. */
+  | "note";
 
 // Lifecycle of an indexed source row. `active` = current/live; `history` = the
 // row still EXISTS but is archived/closed/inactive (kept searchable, just

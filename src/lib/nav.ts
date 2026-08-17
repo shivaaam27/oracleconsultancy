@@ -19,6 +19,7 @@ import {
   MessageSquare,
   ClipboardList,
   KanbanSquare,
+  StickyNote,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,6 +58,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
+  { id: "notes",       href: "/notes",               label: "Notes",               icon: StickyNote },
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
   { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },
   { id: "ori-automations", href: "/ori-automations", label: "ORI Automation",      icon: Zap },
@@ -85,7 +87,7 @@ export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
 export type NavGroup = { label: string; ids: string[] };
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Work", ids: ["approvals", "outbox", "chat", "calendar", "brief", "announcements"] },
+  { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
   { label: "Records", ids: ["people", "companies", "documents", "assets"] },
   // Was "Registers" until Aug 2026 — the word meant three things at once (this
   // group, the commitments page, and the legacy /registry task list). The pages
