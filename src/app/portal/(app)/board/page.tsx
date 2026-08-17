@@ -47,23 +47,36 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   ];
   // ONE scope model: null = all companies (portfolio director / HR-less), else the
   // director's / manager's own companies.
-  const scope = await companyScope(me);
+  /* These three are INDEPENDENT of each other — they only need `me` — but they
+   * used to run one after another, and every one of them gates the whole page:
+   * nothing at all renders until the last resolves. Serially that is three
+   * round-trips of dead time before the first pixel. Overlapped, the page waits
+   * for the slowest instead of the sum.
+   *
+   * (The heavy part, the brief itself, is inside <Suspense> below and streams.
+   * Only the announcement banner and the nudge genuinely have to be resolved
+   * before the shell can be sent.) */
+  const [scope, announcements, nudge] = await Promise.all([
+    companyScope(me),
+    (async () => {
+      const attrs = await getPersonAudienceAttrs(me.id);
+      return attrs ? await feedForPerson(attrs) : [];
+    })(),
+    // Task nudge banner (above the hero) — company-wise not-started + stale tasks
+    // this operator raised. Null when nothing needs a look or it's switched off.
+    getPortalNudge(me),
+  ]);
+
   // Managers with FEW companies (<6) have a short Company-health column → shift the
   // personal to-do list up into that right column so the space isn't left empty.
   // Managers with many companies keep it as a full-width footer. Directors: none.
   const inlineTodos = isManager && (scope?.length ?? 99) < 6;
 
-  const audienceAttrs = await getPersonAudienceAttrs(me.id);
-  const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
   // Announcements now live on the Briefings page; the board only surfaces the
   // ones still needing this person as a dismissible header banner (Open → tab).
   const bannerItems = announcements
     .filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt))
     .map((a) => ({ id: a.id, title: a.title, body: a.body || null }));
-
-  // Task nudge banner (above the hero) — company-wise not-started + stale tasks
-  // this operator raised. Null when nothing needs a look or it's switched off.
-  const nudge = await getPortalNudge(me);
 
   return (
     <div className="flex flex-col gap-5">

@@ -135,7 +135,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     const k = dayKey(nb);
     if (!inRange(k, fromKey, toKey)) continue;
     const label = KIND_LABEL[(c.kind as CommitmentKind)] ?? "Commitment";
-    items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: "/hrms/registers", companyId: (c.company_id as number) ?? null });
+    items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: "/hrms/commitments", companyId: (c.company_id as number) ?? null });
   }
 
   return items;

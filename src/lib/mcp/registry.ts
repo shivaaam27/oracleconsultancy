@@ -177,7 +177,7 @@ export const MCP_TOOLS: McpTool[] = [
       "List tasks, newest deadlines first. Filter by company name, status, or overdue-only. " +
       "'Open' means anything except Completed and Closed.",
     schema: z.object({
-      company: z.string().optional().describe("Company name or part of it, e.g. 'Dar Spices'"),
+      company: z.string().optional().describe("Company name or part of it, e.g. 'DSC Ltd'"),
       status: z.string().optional().describe("Exact status, e.g. 'Blocked', 'In Progress'"),
       openOnly: z.boolean().optional().describe("Only tasks that aren't Completed/Closed (default true)"),
       overdueOnly: z.boolean().optional().describe("Only tasks past their deadline"),
@@ -572,8 +572,8 @@ export const MCP_TOOLS: McpTool[] = [
       "• pipeline — applications in progress: permits, visas, licences and where each has got to\n" +
       "• commitments — leases, insurance and contracts, with when notice is due\n" +
       "• vendors — suppliers and contractors\n" +
-      "• stock — the office consumables register (OECR)\n" +
-      "• cleaning — the daily cleaning log (OCR)\n" +
+      "• stock — the office consumables register (Supplies)\n" +
+      "• cleaning — the daily cleaning log (Cleaning)\n" +
       "• announcements — what's been posted to staff\n" +
       "• holidays — the public holiday calendar\n" +
       "• facts — the fact ledger for one company (needs a company)\n" +

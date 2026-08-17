@@ -6,7 +6,7 @@ import { setCheck, updateDay, signDay } from "@/lib/cleaning";
 
 /**
  * Portal cleaning actions — the receptionist's data-entry writes for the Office
- * Cleaning Registry. UNLIKE the admin `/hrms/ocr` actions (which have no internal
+ * Cleaning Registry. UNLIKE the admin `/hrms/cleaning` actions (which have no internal
  * auth and rely on the admin edge gate), every action here re-verifies the caller
  * with getPortalPerson() + the `cleaningLog` capability, because portal routes are
  * NOT admin-gated. It then reuses the same pure DB helpers from lib/cleaning.
@@ -20,7 +20,7 @@ type Result = { ok: true } | { ok: false; error: string };
 
 function revalidate() {
   revalidatePath("/portal/cleaning");
-  revalidatePath("/hrms/ocr"); // the Command Centre reflects her work immediately
+  revalidatePath("/hrms/cleaning"); // the Command Centre reflects her work immediately
 }
 
 async function requireCleaner() {

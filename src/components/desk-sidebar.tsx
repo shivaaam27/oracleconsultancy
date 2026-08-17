@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, CheckSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, type LucideIcon } from "lucide-react";
+import { Home, CheckSquare, LogOut, PanelLeftClose, PanelLeftOpen, Search, type LucideIcon } from "lucide-react";
+import { adminLogout } from "@/app/login/actions";
 import { navGroups } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
-import { useRegisteredActions } from "./context-actions";
+import { CreateMenu } from "./create-menu";
 import { ThemeToggle } from "./theme-toggle";
-import { DensityToggle } from "./density-toggle";
 
 /**
  * The persistent left sidebar — ERPNext's workspace rail.
@@ -29,13 +29,6 @@ import { DensityToggle } from "./density-toggle";
 const STORE = "cos-sidebar";
 
 type Item = { href: string; label: string; icon: LucideIcon };
-
-/** The filled blue Create button — same skin whether it links or fires an action. */
-const createSkin = (collapsed: boolean) =>
-  cn(
-    "inline-flex items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-[12.5px] font-medium text-accent-fg transition-opacity hover:opacity-90",
-    collapsed && "justify-center px-0"
-  );
 
 
 /* The grouping lives in lib/nav.ts so the mobile launcher shows the SAME map.
@@ -60,17 +53,9 @@ export function DeskSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   // At lg+ the floating pill is hidden, so the controls it used to carry —
   // Create, search, theme and density — have to live here or they exist nowhere
-  // on a desktop.
+  // on a desktop. Create is now the split CreateMenu: the page's own action on
+  // the left, every other record type behind the caret.
   const { open: openPalette } = useCommandPalette();
-  const { actions } = useRegisteredActions();
-  // Use the page's own create action when it HAS one — "Add asset" on Assets,
-  // "New Task" on a company. A page's primary action is not always a create,
-  // though: the task record's is "Draft email", which behind a + button read as
-  // "create a draft email". So match on intent, and fall back to New task so the
-  // button is never missing and never lies.
-  const pageCreate = actions.find((a) => /\b(new|create|add|raise)\b/i.test(a.label));
-  const create: { label: string; href?: string; onClick?: () => void } =
-    pageCreate ?? { label: "New task", href: "/task/new" };
 
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(STORE) === "1"); } catch { /* ignore */ }
@@ -127,17 +112,7 @@ export function DeskSidebar() {
 
       {/* Create + search — the two things you reach for most. */}
       <div className={cn("flex flex-col gap-1.5 border-b border-border px-2 py-2", collapsed && "px-1.5")}>
-        {create.href ? (
-          <Link href={create.href} title={collapsed ? create.label : undefined} className={createSkin(collapsed)}>
-            <Plus size={14} className="shrink-0" />
-            {!collapsed && <span className="truncate">{create.label}</span>}
-          </Link>
-        ) : (
-          <button type="button" onClick={create.onClick} title={collapsed ? create.label : undefined} className={createSkin(collapsed)}>
-            <Plus size={14} className="shrink-0" />
-            {!collapsed && <span className="truncate">{create.label}</span>}
-          </button>
-        )}
+        <CreateMenu collapsed={collapsed} />
         <button
           type="button"
           onClick={openPalette}
@@ -193,7 +168,21 @@ export function DeskSidebar() {
         ))}
       </nav>
 
-      {/* Appearance — the pill carried these below lg; on desktop they live here. */}
+      {/* The footer row: theme, then sign out beside it.
+       *
+       * The DENSITY toggle used to sit here and was removed (Aug 2026, owner's
+       * call): Compact IS the design — it is what makes this ERPNext-shaped —
+       * and a switch back to Comfortable only made the app look less like the
+       * thing it was rebuilt to be. Nothing was deleted underneath: the
+       * `data-density` CSS and `DensityScript` still run and still pin the admin
+       * side to Compact, so putting the button back is one line if it is ever
+       * wanted.
+       *
+       * Sign out used to live only at the bottom of Settings → Security, which
+       * is a long way to go to lock your own screen. `adminLogout` is the same
+       * server action that button calls — clears the cookie, sends you to
+       * /login. No confirm: it is one of the few things you undo by signing back
+       * in. */}
       <div
         className={cn(
           "flex items-center gap-1 border-t border-border px-2 py-1.5",
@@ -201,7 +190,20 @@ export function DeskSidebar() {
         )}
       >
         <ThemeToggle />
-        <DensityToggle />
+        <form action={adminLogout} className={cn(!collapsed && "flex-1")}>
+          <button
+            type="submit"
+            title="Sign out"
+            aria-label="Sign out"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md p-1.5 text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger",
+              collapsed ? "justify-center" : "w-full"
+            )}
+          >
+            <LogOut size={14} className="shrink-0" />
+            {!collapsed && <span className="truncate text-[12px]">Sign out</span>}
+          </button>
+        </form>
       </div>
     </aside>
   );

@@ -11,6 +11,7 @@ import {
   Megaphone, Plus, Paperclip, Layers as LayersIcon, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { useCreateParam } from "@/lib/use-create-param";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
 import { ANNOUNCEMENT_TYPES } from "@/lib/announcements-shared";
 import { nudgeAnnouncementAction } from "@/app/announcements/actions";
@@ -204,6 +205,8 @@ export function CalendarBoard({
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
+  // /calendar?new=1 — the global New menu's "Event".
+  useCreateParam("1", () => openNew());
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   const [view, setView] = useState<ViewMode>("agenda");
   const [needInvitesOnly, setNeedInvitesOnly] = useState(false);
@@ -1715,7 +1718,7 @@ function EventForm({
         {/* ── What ─────────────────────────────────────────────────────── */}
         <div className="sm:col-span-2">
           <FieldLabel>Title</FieldLabel>
-          <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with Dar Spices" className={cn(FIELD, "font-medium")} />
+          <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with DSC Ltd" className={cn(FIELD, "font-medium")} />
         </div>
 
         {/* ── When: start, end and all-day on ONE row ──────────────────── */}

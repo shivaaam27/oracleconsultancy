@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useCreateParam } from "@/lib/use-create-param";
 import { Select } from "./ui";
 import { Plus, Archive, Loader2, X, FileWarning, Home, ShieldCheck, FileText } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -22,7 +23,7 @@ import {
   type Commitment,
   type CommitmentKind,
 } from "@/lib/commitments-shared";
-import { createCommitmentAction, archiveCommitmentAction, linkCommitmentDocumentAction } from "@/app/hrms/registers/actions";
+import { createCommitmentAction, archiveCommitmentAction, linkCommitmentDocumentAction } from "@/app/hrms/commitments/actions";
 import { DocLinkControl, type LinkDoc } from "./doc-link-control";
 
 const KIND_ICON: Record<CommitmentKind, React.ReactNode> = {
@@ -41,6 +42,9 @@ const statusLabel = (s: string) => STATUS_LABEL[s] ?? s;
  */
 export function CommitmentsRegister({ items, companies, documents = [], savedViews = [] }: { items: Commitment[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[]; savedViews?: SavedView[] }) {
   const [adding, setAdding] = useState(false);
+  // /hrms/commitments?new=1 — the global New menu's "Commitment". The create here
+  // is an inline form rather than a dialog, so this just unfolds it.
+  useCreateParam("1", () => setAdding(true));
   const [, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
 
@@ -111,7 +115,7 @@ export function CommitmentsRegister({ items, companies, documents = [], savedVie
         initialViews={savedViews}
         currentQuery={query}
         hasFilters={dirty}
-        basePath="/hrms/registers"
+        basePath="/hrms/commitments"
         listKey="commitment"
       />
 

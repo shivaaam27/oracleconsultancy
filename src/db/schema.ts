@@ -178,7 +178,7 @@ export const jobTitles = pgTable("job_titles", {
 });
 
 // Per-company department head: the same department name can have a different
-// head in each company (e.g. Dar Spices Operations head ≠ PES Operations head).
+// head in each company (e.g. DSC Ltd Operations head ≠ PES Operations head).
 export const departmentHeads = pgTable("department_heads", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
@@ -944,7 +944,7 @@ export const undoTokens = pgTable("undo_tokens", {
   consumedAt: timestamp("consumed_at", { mode: "date", withTimezone: true }),
 });
 
-// Conversational memory for Ask COS (and any future assistant surface). Stores
+// Conversational memory for Ask ORI (and any future assistant surface). Stores
 // past Q&A ("qa"), learned working preferences ("preference"), and stable facts
 // ("fact") per recipient ("admin" = owner; a staff name on portal surfaces).
 // Recall is cheap + deterministic (recency + keyword overlap in src/lib/ai-memory.ts,

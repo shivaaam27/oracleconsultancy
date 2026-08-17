@@ -12,7 +12,7 @@ import {
   AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
-import { CaretInput } from "@/components/ui";
+import { Button, CaretInput } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DatePopover } from "@/components/date-popover";
@@ -27,6 +27,11 @@ import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { cn } from "@/lib/cn";
+import { RecordList, type RecordFilter } from "./record-list";
+import { buildColumns } from "./entity-cells";
+import { ENTITY_VIEWS } from "@/lib/entity-view";
+import { useUrlFilters } from "@/lib/use-url-filters";
+import { QuickUpdate } from "./quick-update";
 
 /* ------------------------------------------------------------------ *
  * Portal command Tasks — manager / HR / director list that mirrors the
@@ -94,6 +99,10 @@ const STATUS_COLOR: Record<string, string> = {
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 // Classification (command-centre parity). Risk shares the four-band scale;
 // category is the fixed list from CLAUDE.md. Both offer a "clear" option.
+/** The portal task list is defined in metadata, not here — the same entry the
+ *  command centre's Tasks table reads, so the two cannot drift. */
+const TASK_COLUMNS = ENTITY_VIEWS.task!.listColumns;
+
 const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 const riskOptions: FluidOption[] = [{ value: "", label: "No risk" }, ...PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }))];
 const categoryOptions: FluidOption[] = [{ value: "", label: "No category" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))];
@@ -144,16 +153,37 @@ export function PortalTasksCommand({
    *  run the page long. The full Tasks tab leaves it off (natural page scroll). */
   houseList?: boolean;
 }) {
-  const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>(initialFilter);
+  /* Filters live in the URL, not in component state (the Stage 2 rule, and what
+   * pays for saved views later — a list filtered with useState has nothing to
+   * save). `hrefFor` is what lets each rail entry be a real link rather than a
+   * button, so the rail behaves exactly like the command centre's.
+   *
+   * The params are namespaced `f`/`status`/`company`/`group` and the free-text
+   * one is debounced, so typing is not one navigation per keystroke. Anything at
+   * its default stays OUT of the address. */
+  const {
+    values: uf,
+    set: setUf,
+    hrefFor,
+  } = useUrlFilters(
+    { f: initialFilter as string, status: "all", company: "all", group: "0", q: "" },
+    { debounceKeys: ["q"] }
+  );
+  const q = uf.q;
+  const setQ = (v: string) => setUf({ q: v });
+  const filter = uf.f as Filter;
   // Status dropdown — covers the exact statuses that don't have their own quick
   // chip (Under Review / Waiting External / Blocked / Escalated), plus the full
   // set for completeness. Mutually exclusive with the chip filter: picking a
   // status here resets the chip to "all", and vice versa.
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const statusFilter = uf.status;
+  const setStatusFilter = (v: string) => setUf({ status: v, f: "all" });
+  const setFilter = (v: Filter) => setUf({ f: v, status: "all" });
+  const companyFilter = uf.company;
+  const setCompanyFilter = (v: string) => setUf({ company: v });
   // "Company wise" view: group the list by company instead of by status.
-  const [groupByCompany, setGroupByCompany] = useState(false);
+  const groupByCompany = uf.group === "1";
+  const setGroupByCompany = (v: boolean) => setUf({ group: v ? "1" : "0" });
   // Bulk multi-select (management only) — the portal's answer to the command
   // centre's select-many toolbar. The server re-checks each task's permission.
   const isManagement = role !== "staff";
@@ -161,6 +191,9 @@ export function PortalTasksCommand({
   // (keeps the everyday list clean). Turning it off clears the selection.
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Which row has its inline update composer open (one at a time).
+  const [composeFor, setComposeFor] = useState<number | null>(null);
+  const listRouter = useRouter();
   const selectable = isManagement && selectMode;
   const toggleSelect = (id: number) =>
     setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -333,6 +366,53 @@ export function PortalTasksCommand({
   // may nudge. Edit/complete is decided per-task inside TaskRow (creator/director).
   const canRemind = role !== "staff";
 
+  /* ---- feeding RecordList -------------------------------------------------
+   * The grouping logic above is kept exactly as it was (it holds all the
+   * urgency/company/status rules), and simply flattened: RecordList takes ONE
+   * list of rows plus a `groupOf` that names each row's heading, so the group
+   * boundaries fall out of the order rather than being nested markup. */
+  const rows = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const groupLabelOf = useMemo(() => {
+    const m = new Map<number, string>();
+    // Only label groups when there is more than one — a single section would
+    // otherwise draw a heading above a list that is entirely that heading.
+    if (groups.length > 1) {
+      for (const g of groups) for (const t of g.items) m.set(t.taskId, g.label);
+    }
+    return m;
+  }, [groups]);
+
+  /* The filter rail — the same quick filters that used to be rounded chips.
+   * They are links now (via `hrefFor`), which is what makes a filtered list a
+   * shareable address and, later, a saveable view. */
+  const rail: RecordFilter[] = FILTERS.map((f) => ({
+    key: f.key,
+    label: f.label,
+    count: f.n,
+    href: hrefFor({ f: f.key, status: "all" }),
+    active: statusFilter === "all" && filter === f.key,
+    group: "Show",
+    tone: f.key === "overdue" ? "danger" : f.key === "soon" ? "warn" : f.key === "done" ? "success" : undefined,
+  }));
+
+  /** The people on a row, lead first — the lead's avatar takes the accent ring.
+   *  Deduped by name; the accountable person counts as a lead. (Lifted out of
+   *  TaskRow so the dense list and the card renderer agree on who is shown.) */
+  function rowPeopleOf(t: CommandTask): { name: string; lead: boolean }[] {
+    const leadSet = new Set<number>(t.leadIds.length ? t.leadIds : (t.accountableId != null ? [t.accountableId] : []));
+    const out: { name: string; lead: boolean }[] = [];
+    const seen = new Set<string>();
+    const add = (name: string | null, id: number | null) => {
+      const k = (name ?? "").trim().toLowerCase();
+      if (!name || seen.has(k)) return;
+      seen.add(k);
+      out.push({ name, lead: id != null && leadSet.has(id) });
+    };
+    add(t.accountableName, t.accountableId);
+    t.assignees.forEach((n, i) => add(n, t.assigneeIds[i] ?? null));
+    return out.sort((a, b) => Number(b.lead) - Number(a.lead));
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -376,7 +456,7 @@ export function PortalTasksCommand({
             <button
               type="button"
               aria-pressed={groupByCompany}
-              onClick={() => setGroupByCompany((v) => !v)}
+              onClick={() => setGroupByCompany(!groupByCompany)}
               className={`inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-3 text-sm ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
             >
               <Building2 size={15} />
@@ -414,78 +494,139 @@ export function PortalTasksCommand({
         )}
       </div>
 
-      {/* Mobile keeps the horizontal scroll strip (mobile layout handled
-          separately); desktop WRAPS so every filter is visible with no scroll. */}
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
-        {FILTERS.map((f) => {
-          const active = statusFilter === "all" && filter === f.key;
-          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : f.key === "notstarted" ? "text-fg-subtle" : "text-accent";
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => { setStatusFilter("all"); setFilter(f.key); }}
-              className={cn(
-                "shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95",
-                active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
-                // Done lives next to Select on mobile (top row) — hide it here so
-                // it isn't duplicated; show it inline again from sm up.
-                f.key === "done" ? "hidden sm:inline-flex" : "inline-flex",
-              )}
-            >
-              {f.n != null && <span className={`text-[15px] font-semibold leading-none tabular ${active ? "" : tint}`}>{f.n}</span>}
-              <span className="text-[12.5px]">{f.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {canCreate && <QuickAdd people={people} companies={companies} role={role} canRepeat={canRepeat} />}
 
-      {groups.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-2xl bg-bg-elev p-5 text-sm text-fg-muted ring-1 ring-border">
-          <ListTodo size={16} className="text-fg-subtle" />
-          {q.trim()
-            ? "No tasks match your search."
-            : statusFilter !== "all" ? `No tasks with status "${statusFilter}".`
-            : filter === "overdue" ? "Nothing overdue — you're on top of it."
-            : filter === "soon" ? "Nothing due in the next week."
-            : filter === "inprogress" ? "Nothing in progress right now."
-            : filter === "fromme" ? "You haven't created any open tasks."
-            : filter === "mine" ? "You're not on any open tasks."
-            : filter === "notstarted" ? "Nothing sitting un-started."
-            : filter === "done" ? "No completed tasks yet."
-            : "No open tasks. Enjoy the calm."}
-        </div>
-      ) : (
-        <TaskListHousing housed={houseList}>
-        {/* Extra breathing room BETWEEN sections / companies (more than the tight
-            gap within a section) so each block reads as its own group. */}
-        <div className={cn("flex flex-col", groupByCompany ? "gap-8" : "gap-7")}>
-        {groups.map((g) => (
-          <div key={g.key} className="flex flex-col gap-2.5">
-            <div className={cn("flex items-center gap-2 px-1", groupByCompany && "mt-0.5")}>
-              {groupByCompany
-                ? <CompanyAvatar name={g.label} logoUrl={g.logoUrl ?? null} size={28} rounded="rounded-lg" iconSize={15} />
-                : g.dotColor != null
-                  ? <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.dotColor || "hsl(var(--accent))" }} />
-                  : <span className={`h-2.5 w-2.5 rounded-full ${g.dot}`} />}
-              <span className={cn("font-semibold text-fg", groupByCompany ? "text-lg" : "text-[15px]")}>{g.label}</span>
-              <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle">{g.items.length}</span>
-            </div>
-            {/* desktop — ONE floating card per task (info left, controls panel right). */}
-            <div className="hidden flex-col gap-2 sm:flex">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canManageAny={canManageAny} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
-            </div>
-            {/* mobile cards */}
-            <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canManageAny={canManageAny} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
-            </div>
-          </div>
-        ))}
-        </div>
-        </TaskListHousing>
-      )}
+      {/* The dense list (the portal pass, Aug 2026).
+       *
+       * This used to be one floating card per task, in two hand-written variants
+       * (desktop + mobile). It is now the SAME `RecordList` the command centre
+       * uses, so the portal gets its filter rail with live counts, its column
+       * header, its "N of M shown" footer and its keyboard navigation for free —
+       * and the columns come from ENTITY_VIEWS.task, so admin and portal cannot
+       * describe a task differently.
+       *
+       * A row now OPENS THE RECORD (`/portal/task/CODE`) rather than expanding in
+       * place: a record is a page, which is the rule the whole redesign follows,
+       * and that page already carries the full conversation, status control and
+       * people panel.
+       *
+       * The owner asked for dense on EVERY screen for now ("later we will
+       * optimize it for mobile"), so there is deliberately no phone variant here.
+       * `TaskRow` below is kept for that coming pass — it is the card renderer
+       * that work will start from. */}
+      <TaskListHousing housed={houseList}>
+        <RecordList
+          rows={rows}
+          rowKey={(t) => t.taskId}
+          rowHref={(t) => `/portal/task/${t.code}`}
+          listKey="portal-task"
+          bare={houseList}
+          filters={rail}
+          groupOf={(t) => groupLabelOf.get(t.taskId) ?? null}
+          selectionSlot={selectable ? (t) => (
+            <SelectBox checked={selected.has(t.taskId)} onToggle={() => toggleSelect(t.taskId)} />
+          ) : undefined}
+          /* The second line — company, who is waiting, and the latest update.
+           * The command centre's list has had this all along (hidden until you
+           * hover, in Compact); the portal's had none, which is why a director
+           * saw less on the same task than the owner did. Same information, same
+           * hover behaviour — what differs is only what the PERSON may see, and
+           * that is decided by the fields the server already scoped for them. */
+          subRow={(t) => (
+            composeFor === t.taskId ? (
+              <QuickUpdate
+                code={t.code}
+                post={async (text) => {
+                  const fd = new FormData();
+                  fd.set("taskId", String(t.taskId));
+                  fd.set("code", t.code);
+                  fd.set("body", text);
+                  await portalAddUpdate(fd);
+                  listRouter.refresh();
+                }}
+                onDone={() => setComposeFor(null)}
+                onCancel={() => setComposeFor(null)}
+              />
+            ) : (
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
+                {t.companyName && (
+                  <span className="inline-flex shrink-0 items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "transparent" }} />
+                    {t.companyName}
+                  </span>
+                )}
+                {t.priority && <span className="shrink-0 text-fg-subtle">{t.priority}</span>}
+                {t.note && (
+                  <span className="min-w-0 truncate">
+                    {t.updateAuthor ? <b className="font-medium text-fg">{t.updateAuthor}:</b> : null} {t.note}
+                    {t.updateAgo ? <span className="text-fg-subtle"> · {t.updateAgo}</span> : null}
+                  </span>
+                )}
+              </span>
+            )
+          )}
+          /* Post an update without leaving the list. The server action re-checks
+           * who may post, so this button does not reimplement permissions. */
+          rowActions={(t) => (
+            composeFor === t.taskId ? null : (
+              <button
+                type="button"
+                onClick={() => setComposeFor(t.taskId)}
+                title="Add an update"
+                aria-label={`Add an update on ${t.code}`}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent"
+              >
+                <MessageSquarePlus size={13} /> Update
+              </button>
+            )
+          )}
+          total={byCompany.length}
+          shown={rows.length}
+          columns={buildColumns<CommandTask & Record<string, unknown>>(TASK_COLUMNS, {
+            overrides: {
+              actionItem: (t) => (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 rounded-sm bg-bg-subtle px-1 py-0.5 font-mono text-[10.5px] text-fg-subtle">{t.code}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-medium text-fg">{t.actionItem}</span>
+                    {!groupByCompany && t.companyName && (
+                      <span className="block truncate text-[11px] text-fg-muted">{t.companyName}</span>
+                    )}
+                  </span>
+                </span>
+              ),
+              status: (t) => (
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted">
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot(t.status))} />
+                  <span className="truncate">{t.status}</span>
+                </span>
+              ),
+              deadline: (t) => (
+                <span className={cn("text-[12px]", t.overdue ? "font-medium text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted")}>
+                  {t.dueLabel || "No date"}
+                </span>
+              ),
+              assignees: (t) => <LeadAvatars people={rowPeopleOf(t)} />,
+            },
+          })}
+          empty={
+            <span className="flex items-center justify-center gap-2 text-[12px] text-fg-muted">
+              <ListTodo size={14} className="text-fg-subtle" />
+              {q.trim()
+                ? "No tasks match your search."
+                : statusFilter !== "all" ? `No tasks with status "${statusFilter}".`
+                : filter === "overdue" ? "Nothing overdue — you're on top of it."
+                : filter === "soon" ? "Nothing due in the next week."
+                : filter === "inprogress" ? "Nothing in progress right now."
+                : filter === "fromme" ? "You haven't created any open tasks."
+                : filter === "mine" ? "You're not on any open tasks."
+                : filter === "notstarted" ? "Nothing sitting un-started."
+                : filter === "done" ? "No completed tasks yet."
+                : "No open tasks. Enjoy the calm."}
+            </span>
+          }
+        />
+      </TaskListHousing>
 
       {selectable && selected.size > 0 && (
         <BulkBar taskIds={[...selected]} onClear={clearSelection} />
@@ -552,26 +693,26 @@ function BulkBar({ taskIds, onClear }: { taskIds: number[]; onClear: () => void 
         <span className="pl-1 pr-1 text-[13px] font-semibold text-fg">{taskIds.length} selected</span>
         {postponeOpen ? (
           <>
-            <button type="button" disabled={busy} onClick={() => run({ kind: "postpone", days: 7 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a week.`)} className="rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">+1 week</button>
-            <button type="button" disabled={busy} onClick={() => run({ kind: "postpone", days: 30 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a month.`)} className="rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">+1 month</button>
-            <button type="button" onClick={() => setPostponeOpen(false)} className="px-1.5 text-[12px] text-fg-muted hover:text-fg">Back</button>
+            <Button size="xs" variant="secondary" disabled={busy} onClick={() => run({ kind: "postpone", days: 7 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a week.`)}>+1 week</Button>
+            <Button size="xs" variant="secondary" disabled={busy} onClick={() => run({ kind: "postpone", days: 30 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a month.`)}>+1 month</Button>
+            <Button size="xs" variant="ghost" onClick={() => setPostponeOpen(false)}>Back</Button>
           </>
         ) : confirmDelete ? (
           <>
             <span className="text-[12px] text-fg-muted">Delete?</span>
-            <button type="button" disabled={busy} onClick={() => run({ kind: "delete" }, (n) => `${n} task${n === 1 ? "" : "s"} deleted.`)} className="inline-flex items-center gap-1 rounded-lg bg-danger px-2.5 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Confirm
-            </button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="px-1.5 text-[12px] text-fg-muted hover:text-fg">Keep</button>
+            <Button size="xs" variant="danger" loading={busy} onClick={() => run({ kind: "delete" }, (n) => `${n} task${n === 1 ? "" : "s"} deleted.`)}>
+              {!busy && <Trash2 size={12} />} Confirm
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => setConfirmDelete(false)}>Keep</Button>
           </>
         ) : (
           <>
-            <button type="button" disabled={busy} onClick={() => setPostponeOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">
+            <Button size="xs" variant="secondary" disabled={busy} onClick={() => setPostponeOpen(true)}>
               <CalendarPlus size={13} /> Postpone
-            </button>
-            <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-[12px] font-medium text-danger ring-1 ring-danger/25 hover:bg-danger-soft/70">
+            </Button>
+            <Button size="xs" variant="danger-soft" disabled={busy} onClick={() => setConfirmDelete(true)}>
               <Trash2 size={13} /> Delete
-            </button>
+            </Button>
             <button type="button" onClick={onClear} aria-label="Clear selection" className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-fg-subtle hover:text-fg"><X size={15} /></button>
           </>
         )}
@@ -1205,7 +1346,7 @@ export function TaskPeoplePanel({
             type="button"
             onClick={messageAll}
             disabled={chatBusy}
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft/70 px-2.5 py-1 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-transform hover:bg-accent-soft active:scale-95 disabled:opacity-50"
+            className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
           >
             {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message all in chat
           </button>
@@ -1328,7 +1469,7 @@ function AddPersonPicker({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy || people.length === 0}
-        className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft/70 px-3 py-1.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-transform hover:bg-accent-soft active:scale-95 disabled:opacity-50"
+        className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
         {people.length === 0 ? "Everyone's on it" : "Add someone"}

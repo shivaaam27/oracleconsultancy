@@ -16,6 +16,7 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
+import { useCreateParam } from "@/lib/use-create-param";
 
 /** The Assets list is defined in metadata, not here (Stage 3/4). */
 const ASSET_COLUMNS = ENTITY_VIEWS.asset!.listColumns;
@@ -81,6 +82,9 @@ export function AssetsTable({
   const [archivedOpen, setArchivedOpen] = useState(false);
   // Surface the primary "add" on the floating nav "+" (consistent with Tasks/People/Documents).
   useContextActions("assets", [{ id: "add-asset", label: "Add asset", icon: <Plus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
+  // /hrms/assets?new=asset — named, because the Vendors table is mounted on this
+  // same page and a bare `new=1` would open both dialogs.
+  useCreateParam("asset", () => openNew());
   const [historyAsset, setHistoryAsset] = useState<AssetRow | null>(null);
   const [editing, setEditing] = useState<AssetRow | null>(null);
   const [sharing, setSharing] = useState<AssetRow | null>(null);

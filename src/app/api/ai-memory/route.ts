@@ -1,7 +1,7 @@
 // /api/ai-memory — persist and list the assistant's conversational memory.
 //
 //   POST { question, answer }  → recordQA("admin", question, answer)
-//       Lets the STREAMING Ask COS client save the final answer once it has
+//       Lets the STREAMING Ask ORI client save the final answer once it has
 //       assembled the full text (the stream path can't store it server-side).
 //   GET                        → listMemories("admin")
 //       Backs a future management UI (review / forget stored memories).

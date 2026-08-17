@@ -158,11 +158,28 @@ const buttonStyles = {
     "bg-danger-soft text-danger hover:bg-danger hover:text-white border border-transparent hover:border-danger",
 };
 
+/**
+ * The edge of a CONTROL that is not a Button — a dropdown trigger, a date field,
+ * a picker. One definition, because there were three.
+ *
+ * `date-popover.tsx`, `task-copy-companies.tsx` and `portal-task-manage.tsx` each
+ * declared their own `fieldShell` with `ring-1 ring-border`, while `FluidSelect`
+ * drew a real `border`. A ring and a border are the same idea drawn two ways, and
+ * because only the border occupies layout space the controls also ended up 2px
+ * different in height — which is why a row of dropdowns never quite lined up.
+ * Everything uses THIS now: a real border, 6px (the Desk control radius), h-9.
+ */
+export const CONTROL_SHELL =
+  "h-9 rounded-md border border-border bg-bg-elev hover:border-border-strong transition-colors";
+
 const buttonSizes = {
+  /* Desk radii: 4px chips · 6px CONTROLS · 8px cards. `rounded-xl` is 8px, so the
+     large button was wearing a card's corner — every size is 6px now, which is
+     what made a row of buttons look like it came from two different kits. */
   xs: "h-7 px-2 text-[11px] rounded-md",
-  sm: "h-8 px-2.5 text-xs rounded-lg",
-  md: "h-9 px-3.5 text-sm rounded-lg",
-  lg: "h-10 px-4 text-sm rounded-xl",
+  sm: "h-8 px-2.5 text-xs rounded-md",
+  md: "h-9 px-3.5 text-sm rounded-md",
+  lg: "h-10 px-4 text-sm rounded-md",
 };
 
 type BtnProps = {

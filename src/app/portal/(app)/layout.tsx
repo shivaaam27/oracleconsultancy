@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
+import { PortalSidebar } from "@/components/portal-sidebar";
 import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
@@ -79,12 +80,26 @@ export default async function PortalLayout({ children }: { children: React.React
       .order("name");
     const names = (data ?? []).map((c) => ((c.legal_name as string | null)?.trim() || (c.name as string | null)?.trim())).filter(Boolean) as string[];
     // One company → its (legal) name; several → the list, so the header reads
-    // "By Oracle Consultancy / Dar Spices & PES Ltd / Directors Board".
+    // "By Oracle Consultancy / DSC Ltd & PES Ltd / Directors Board".
     scopedCompanyName = names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
   }
 
   return (
-    <div className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl" : "max-w-3xl lg:max-w-5xl"}`}>
+    <div
+      data-portal-shell
+      className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
+    >
+      {/* The desktop rail. From lg up this replaces the floating pill, which
+          hides itself at the same width — the same arrangement the command
+          centre uses. Below lg nothing changes: the pill is still the
+          navigation, because a fixed rail on a phone is dead weight. */}
+      <PortalSidebar
+        role={me.portalRole}
+        canOri={me.caps.oriAsk}
+        name={scopedDirector && scopedCompanyName ? scopedCompanyName : "Oracle Consultancy"}
+        subtitle={scopedDirector ? "Directors Board" : portalHeaderLabel(me.portalRole, me.portalDesignation)}
+        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview }}
+      />
       <header className="flex items-center justify-between gap-3 print-hidden">
         {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it
             can't be mis-tapped. */}

@@ -211,7 +211,7 @@ export const TOOLS: ToolDef[] = [
     tier: 2,
     description: "Add a progress update / note to a task, optionally moving its status.",
     params: {
-      taskCode: { type: "string", required: true, description: "The task code, e.g. DAR-007." },
+      taskCode: { type: "string", required: true, description: "The task code, e.g. DS-007." },
       body: { type: "string", required: true, description: "The update text." },
       status: { type: "string", required: false, description: "Optional new status." },
     },

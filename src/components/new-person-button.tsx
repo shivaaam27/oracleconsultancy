@@ -7,6 +7,7 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PersonForm } from "./person-form";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
+import { useCreateParam } from "@/lib/use-create-param";
 
 export function NewPersonButton({
   companies,
@@ -30,6 +31,9 @@ export function NewPersonButton({
     [{ id: "add-person", label: "Add person", icon: <UserPlus size={16} />, onClick: () => setOpen(true), primary: true, tone: "accent" }],
     []
   );
+
+  // /people?new=1 — the global New menu's "Person".
+  useCreateParam("1", () => setOpen(true));
 
   return (
     <HrmsDialog open={open} onOpenChange={setOpen} width={560} title="Add a new person">

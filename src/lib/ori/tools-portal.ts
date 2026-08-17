@@ -42,7 +42,7 @@ export const PORTAL_TOOLS: ToolDef[] = [
     tier: 2,
     description: "Post an update / note on a task, authored honestly as ORI (not as you). Optionally move the task's status. Use when you want ORI to leave a note on the record.",
     params: {
-      taskCode: { type: "string", required: true, description: "The task code, e.g. DAR-007." },
+      taskCode: { type: "string", required: true, description: "The task code, e.g. DS-007." },
       body: { type: "string", required: true, description: "The update text ORI should post." },
       status: { type: "string", required: false, description: "Optional new status to move the task to." },
     },

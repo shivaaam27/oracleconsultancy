@@ -1,5 +1,7 @@
 "use client";
 
+import { CONTROL_SHELL } from "@/components/ui";
+
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Flag, SlidersHorizontal } from "lucide-react";
@@ -25,7 +27,8 @@ const PRIORITY_HEX: Record<string, string> = {
   Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))",
 };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }));
-const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
+// One shared control edge — see CONTROL_SHELL in ui.tsx.
+const fieldShell = CONTROL_SHELL;
 
 export function PortalTaskManage({
   cmd, people, companies, canEdit, canRemind,

@@ -93,33 +93,46 @@
   color-scheme: light;
 }
 
-/* ---------- Dark ---------- */
+/* ---------- Dark ----------
+ *
+ * NEUTRAL, not blue. This palette used to be built on hue 206–210 at 12–17%
+ * saturation — including the backgrounds AND the text — so the whole screen read
+ * as dark navy rather than black, and "white" text was actually a blue-grey
+ * (#e7ebee). ERPNext's dark mode is plain dark grey with near-white type, which
+ * is what the owner asked for.
+ *
+ * The rule now: **greys carry NO hue (0% saturation)** — backgrounds, text and
+ * hairlines. Colour is reserved for meaning: the one blue accent, and the
+ * success/warn/danger set. That is the same separation the light theme keeps.
+ */
 .dark {
-  --bg:         210 12% 9%;    /* #15181b */
-  --bg-elev:    210 15% 13%;   /* #1c2126 */
-  --bg-subtle:  210 16% 15%;   /* #20262c */
-  --bg-muted:   208 15% 20%;
-  --bg-overlay: 210 15% 13%;
+  --bg:         0 0% 7%;       /* #121212 — the page */
+  --bg-elev:    0 0% 11%;      /* #1c1c1c — cards, the content surface */
+  --bg-subtle:  0 0% 14%;      /* #242424 — headers, quiet fills */
+  --bg-muted:   0 0% 18%;      /* #2e2e2e — hover */
+  --bg-overlay: 0 0% 11%;
 
-  --vibrancy:        210 15% 13%;
-  --vibrancy-strong: 210 15% 13%;
+  --vibrancy:        0 0% 11%;
+  --vibrancy-strong: 0 0% 11%;
 
-  --fg:        206 17% 92%;    /* #e7ebee */
-  --fg-muted:  207 11% 64%;    /* #9aa5ae */
-  --fg-subtle: 207 8% 51%;     /* #78838c */
+  /* Near-white, so type and icons actually look white on black. */
+  --fg:        0 0% 96%;       /* #f5f5f5 */
+  --fg-muted:  0 0% 72%;       /* #b8b8b8 */
+  --fg-subtle: 0 0% 56%;       /* #8f8f8f */
 
-  --border:        208 15% 20%; /* #2c343b */
-  --border-strong: 208 15% 28%;
-  --hairline:      0 0% 100% / 0.08;
+  --border:        0 0% 20%;   /* #333333 */
+  --border-strong: 0 0% 30%;   /* #4d4d4d */
+  --hairline:      0 0% 100% / 0.10;
 
+  /* The one blue stays blue — it is the only thing that should be. */
   --accent:       209 90% 63%;  /* #4aa3f5 */
   --accent-hover: 209 90% 70%;
   --accent-fg:    0 0% 100%;
-  --accent-soft:  210 44% 16%;  /* #17293b */
+  --accent-soft:  209 40% 18%;  /* #1b2c3f — a tinted fill, deliberately blue */
   --accent-ring:  209 90% 63%;
 
-  --glass-tint:   210 15% 13%;
-  --glass-border: 208 15% 20%;
+  --glass-tint:   0 0% 11%;
+  --glass-border: 0 0% 20%;
   --glass-rim:    0 0% 100% / 0;
 
   --success:      148 44% 56%;  /* #5cc08a */
@@ -548,6 +561,17 @@ input:disabled, select:disabled, textarea:disabled {
      fallback keeps the old pill gutter if the sidebar is ever not mounted. */
   html:not([data-portal-zoom]) main {
     padding-left: calc(var(--desk-sidebar, 88px) + 1.25rem);
+  }
+
+  /* The portal has its own rail now (PortalSidebar), publishing its own width as
+     --portal-sidebar. It is a SEPARATE variable on purpose: the admin gutter
+     above reads --desk-sidebar, and sharing one would let a portal page shove
+     the command centre's layout about. The fallback is 0 so that if the rail is
+     ever not mounted (or the person's role has no destinations) the portal keeps
+     its old centred column exactly as before. */
+  [data-portal-shell] {
+    padding-left: calc(var(--portal-sidebar, 0px) + 1.25rem);
+    padding-right: 1.25rem;
   }
 }
 
@@ -1005,6 +1029,10 @@ h1, h2, h3 { letter-spacing: normal; }
    comes back on hover: one line per row, detail still one glance away. */
 :root[data-density="compact"] [data-subrow] { display: none; }
 :root[data-density="compact"] [data-list-row]:hover [data-subrow] { display: block; }
+/* …but a row with an OPEN quick-update composer keeps its second line no matter
+   where the pointer is — otherwise moving the mouse away to think would snatch
+   the half-typed box out from under you. */
+:root[data-density="compact"] [data-list-row]:has([data-quick-update]) [data-subrow] { display: block; }
 :root[data-density="compact"] table th,
 :root[data-density="compact"] table td { padding-top: 4px; padding-bottom: 4px; }
 
@@ -1012,13 +1040,19 @@ h1, h2, h3 { letter-spacing: normal; }
    `data-list-row` / `data-list-head` mark a list built from divs rather than a
    real <table>; tag any new list with them and it inherits this automatically. */
 [data-list-row] { padding-top: 9px; padding-bottom: 9px; }
+/* Column names are a LABEL, not content. They were the same size as the rows and
+   shouting in full caps, which made "TASK STATUS DEADLINE WHO" compete with the
+   tasks themselves. Smaller, quieter, still upper-case (ERPNext's own habit) —
+   and a touch of top/bottom room so the strip reads as a header band. */
 [data-list-head],
 table th {
-  font-size: var(--text-xs);
+  font-size: 10.5px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: hsl(var(--fg-subtle));
 }
+[data-list-head] { padding-top: 6px; padding-bottom: 6px; }
 table th, table td { padding-top: 9px; padding-bottom: 9px; }
 
 /* ---------- Page headers ----------

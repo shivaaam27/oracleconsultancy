@@ -16,7 +16,6 @@ import { usePins } from "@/lib/use-pins";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
-import { DensityToggle } from "./density-toggle";
 import { FocusToggle } from "./focus-mode";
 import { NotificationBell } from "./notification-bell";
 import { useRegisteredActions } from "./context-actions";
@@ -276,7 +275,6 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
             <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
             <div className="ml-auto flex items-center gap-0.5">
               <ThemeToggle />
-              <DensityToggle />
               <FocusToggle withLabel />
             </div>
           </div>

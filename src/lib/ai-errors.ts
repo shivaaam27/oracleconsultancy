@@ -37,7 +37,7 @@ export function friendlyAIError(raw: string | null | undefined): FriendlyError {
     case "":
       return { message: "Something went wrong. Try again.", retryable: true };
     default:
-      // An already-human message (e.g. "Task DAR-007 not found") — pass through.
+      // An already-human message (e.g. "Task DS-007 not found") — pass through.
       return { message: raw as string, retryable: false };
   }
 }

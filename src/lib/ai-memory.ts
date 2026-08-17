@@ -80,7 +80,7 @@ export async function recordQA(
 
 /**
  * Remember a learned preference or a stable fact about the recipient or their
- * world (e.g. "prefers British spelling", "Dar Spices VRN is 40-xxxxxx").
+ * world (e.g. "prefers British spelling", "DSC Ltd VRN is 40-xxxxxx").
  * `kind` defaults to "preference"; pass "fact" for objective data.
  * Best-effort: never throws.
  */

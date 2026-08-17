@@ -10,12 +10,257 @@ metadata:
 The ERPNext programme is finished (see [[erpnext_redesign_plan]]). This is the
 slice the owner picked afterwards, **in his order of interest**:
 
-1. **Export any list** ← start here
-2. **A proper global New menu**
-3. **MCP Stage 4** (he asked to be told about it first — summary below)
-4. **Keyboard navigation**
+1. **Export any list** — ⬜ deferred at his word ("export we will do later")
+2. **A proper global New menu** — ✅ BUILT 16 Aug 2026
+3. **MCP Stage 4** (he asked to be told about it first — summary below) — ⬜
+4. **Keyboard navigation** — ✅ BUILT 16 Aug 2026 (lists; the record half is not done)
 
-Then: **a pass over the staff portal**, which has had none of this work.
+Then: **a pass over the staff portal** — ⏳ STARTED 16 Aug 2026, see below.
+
+### Portal pass — decisions + what is built (16 Aug 2026)
+
+The owner asked for the portal to be "modern ERPNext as we did for the command
+centre". Two decisions he made when asked:
+
+1. **Dense EVERYWHERE, including phones** — "then later we will optimize it for
+   mobile". So do NOT build a separate card layout for small screens; make it
+   dense and revisit the phone afterwards.
+2. **Yes to a desktop sidebar.**
+
+**BUILT: the portal sidebar.** `src/components/portal-sidebar.tsx`, the twin of
+`desk-sidebar.tsx` — `lg`+ only, collapsible to 56px, remembered. The pill now
+carries `lg:hidden`, the same arrangement as admin.
+
+- **`src/lib/portal-nav.ts` is the ONE map**, read by both the pill and the
+  sidebar. The admin side already lost Chat and the Director Brief to two
+  navigations drifting apart; don't repeat it. **Add a portal page → one entry
+  there.**
+- Visibility is a **capability**, never a role test: each item names a `tabs` key
+  from `portalCapabilities`, and tasks/outbox/insights/cleaning honour the
+  owner's per-role overrides. A hard-coded `role === "director"` here would
+  bypass the permissions engine.
+- ⚠️ It publishes **`--portal-sidebar`**, deliberately NOT `--desk-sidebar`; the
+  admin gutter reads the latter and sharing one variable would let a portal page
+  shove the command centre's layout about. The `[data-portal-shell]` gutter in
+  `globals.css` falls back to 0, so if the rail is ever absent the portal keeps
+  its old centred column.
+- Verified live as a director: 9 destinations, no Home (board-first roles don't
+  get one), pill hidden at lg, pill back and gutter 0 on a phone.
+
+**BUILT: the portal task list is now `RecordList`.** `portal-tasks-command.tsx`
+renders the same shell the command centre does, so the portal inherited the
+column header, the filter rail with live counts, the "N of M shown" footer and
+keyboard navigation in one change. Columns come from `ENTITY_VIEWS.task` — admin
+and portal now describe a task identically.
+
+- **Filters moved into the URL** (`useUrlFilters`, params `f`/`status`/`company`/
+  `group`/`q`, `q` debounced). That is what makes each rail entry a real link and
+  what will let saved views work here later; a list filtered with `useState` has
+  nothing to save. Verified: `?f=overdue` → 21 rows, "21 of 103 shown";
+  `?q=ice+cream` → 1 row.
+- **A row OPENS THE RECORD** (`/portal/task/CODE`) instead of expanding in place —
+  a record is a page, the rule the redesign follows, and that page already has
+  the conversation, status control and people panel. Verified end to end.
+- The grouping logic (urgency / company / status sections) was NOT rewritten: it
+  is flattened into `rows` + `groupOf`, so all its rules survive untouched.
+- **`TaskRow` is deliberately kept though nothing renders it.** It is the card
+  renderer, and the owner's "optimize it for mobile later" is exactly the job it
+  is wanted for. Delete it only when that pass decides otherwise.
+
+**Who actually got it** (checked, not assumed — `portalNavGroups` per role):
+
+| Role | Sidebar | Dense list reaches them via |
+|---|---|---|
+| director | Board · Tasks · Briefings · Outbox · Chat · Directory · Cleaning · Insights · Activity · Profile | `/portal/tasks` |
+| manager | same as director | `/portal/tasks` |
+| hr | Home instead of Board, otherwise same | `/portal/tasks` |
+| staff | Home · Briefings · Chat · Directory · Activity · Profile | **`/portal` home**, which inlines the same component (`houseList`) — staff have no Tasks tab |
+
+⚠️ **A phone had NO filters at all** for a while: `RecordList`'s rail is
+`hidden md:block`, which was survivable while every converted list was admin-and-
+desktop, and stopped being survivable the moment staff — who have no Tasks tab and
+whose only filtering is this list on their home — landed on the same shell.
+Fixed by adding **`FilterStrip`**: below `md` the same filters, counts and links
+lie on their side above the table. Every admin list gained mobile filtering from
+the same change. **Keep both in step when adding to the rail.**
+
+**BUILT: the director/manager board** (`director-board-client.tsx`).
+
+- **"Needs you" is a `RecordList`** — dense rows, Task / Status / Due, inside the
+  existing scroll housing (`bare`, no footer, no rail: the list already IS "what
+  needs you"). Server-side worst-overdue-first ordering untouched.
+- **Remind survives as a row action**, not the swipe tray. ⚠️ `rowActions` was
+  `opacity-0 group-hover` — invisible forever on a touch screen. It is now
+  hover-revealed only from `md` up and ALWAYS visible below it. Same reasoning as
+  the filter strip: a hidden action on a phone is an unreachable one.
+- **Company health tiles follow the Desk rule** — status is a dot and words, never
+  a block of colour. They were solid green/amber/red fills, which made a calm
+  portfolio look like a warning panel; they are now the ordinary elevated card
+  with a tone dot and the overdue figure in its tone.
+
+**STILL TO DO — audited page by page (Aug 2026):**
+
+| Portal page | State |
+|---|---|
+| home · board · tasks | ✅ dense list; heroes still tall |
+| meetings · outbox · directory · insights · activity · profile | ⬜ untouched, old shapes |
+| chat · cleaning · team | — no list to convert (messenger / checklist) |
+
+**BUILT: every hero is now a compact header** (measured: board header **190px+ →
+59px**, with the greeting, live stamp and both figures all kept).
+
+- **`Hero` in `surface-kit.tsx` was rewritten in place** rather than page by page.
+  Eleven portal pages and the admin home render it, and NOT ONE needed editing —
+  the props are unchanged and the shape changed underneath them all at once. That
+  is the leverage: don't convert portal headers one file at a time.
+- `accentTone` is still accepted and now ignored (the flat header does not tint),
+  purely so no caller had to be touched.
+- The two bespoke heroes — `BoardHero` (directors + managers) and
+  `portal-home-hero.tsx` (staff + HR) — were converted to match. **Keep those two
+  in step; they are twins.**
+
+**⚠️ MATCH THE COMMAND CENTRE — the owner's rule, and I got it wrong twice:**
+
+- The board's "Needs you" is a **PANEL, not a list screen**: its twin
+  (`NeedsYou` in `command-deck.tsx`) has **no column header and no Status column**
+  — a code chip, the title, the days figure, and company · person beneath. I gave
+  it a "TASK / STATUS / DUE" header; that was wrong. `showHeader={false}`.
+- The company-health tiles are **tinted** in the command centre, so they stay
+  tinted here. I "improved" them to neutral dots-and-text (the Desk rule) and that
+  was also wrong — it made the two sides differ, which is the one thing this pass
+  exists to remove. **If the tint ever goes, it goes from BOTH, together.**
+
+**Board speed.** It was 20–30s per request in dev. Three independent lookups
+(`companyScope`, the announcement feed, `getPortalNudge`) ran one after another
+and each gated the whole page — nothing rendered until the last resolved. Now
+overlapped: **measured 3–13s** (authenticated, warm; the 20s+ figures are cold
+compiles). The remainder is `getBrief` across 13 companies, which already streams
+inside `<Suspense>` and is `cache()`d — that is the floor in dev.
+
+**The remaining six pages needed NO work — verified by looking, not grepping.**
+Outbox, Directory, Briefings, Insights, Activity and Profile were all already
+Desk-shaped once the shared pieces changed, because two things had already done
+the job for them:
+
+1. the `Hero` rewrite gave every one of them a compact header, and
+2. Stage 1 had already squared the radii globally — `--radius-3xl` is **8px**, so
+   the `rounded-3xl` in `Panel` and friends was never actually round.
+
+A static grep for "rounded-3xl / Panel" made them look unconverted; the screen
+said otherwise. **Look at the page before rewriting it** — the leverage in this
+codebase is in the shared components, and by the time those are right the pages
+usually already are.
+
+### Controls: one shell, one radius (17 Aug 2026)
+
+Audited by measuring, not looking: the per-task page had **56 controls in 17
+distinct style signatures** — radii of 4/6/8px and eight different heights.
+
+- **`CONTROL_SHELL` in `ui.tsx` is now the single definition** of a non-button
+  control edge (dropdown trigger, date field, picker). `date-popover.tsx`,
+  `task-copy-companies.tsx` and `portal-task-manage.tsx` each had their OWN
+  `fieldShell` using `ring-1 ring-border`, while `FluidSelect` drew a real
+  `border`. A ring and a border are the same idea drawn two ways — and since only
+  a border occupies layout space, those controls also sat **2px shorter**, which
+  is why a row of dropdowns never lined up. Result: Priority / Due / Companies now
+  all measure `h=29 border=1px r=6px`. **Use CONTROL_SHELL; don't write a fourth.**
+- **Button radii**: `lg` used `rounded-xl` = **8px**, a CARD radius on a control.
+  All four sizes are `rounded-md` (6px) now, per Desk's 4/6/8 rule.
+
+**Headers**: column labels were row-sized and shouting — now 10.5px/500 with band
+padding. Group bands (company / priority / urgency) are **sticky** and carry their
+**count** (`OVERDUE 21`); they used to scroll away and leave rows unlabelled.
+
+**Button sweep — done on the board + list, NOT on the per-task page.**
+
+The bulk bar went through `Button` (`size="xs"`, variants secondary/danger/
+danger-soft/ghost), and every row-level action (board Remind, list Update, the
+QuickUpdate field/Post/Cancel, portal Sign out) now takes an explicit **`h-7`**
+token instead of deriving its height from padding. That is what collapsed things:
+
+| Surface | Distinct control heights |
+|---|---|
+| Director board | **3** (22 ×14 · 26 ×2 · 29 ×1) |
+| Per-task page | **10** — still to do |
+
+⚠️ **Partial conversion makes a page LOOK worse** — it adds a height before it
+removes others (the per-task page briefly went 9 → 10). Convert a whole surface in
+one pass, then measure.
+
+**STILL TO DO — the per-task page's 15 buttons, already named by measurement:**
+`Complete` + `Remind Yash` (33px) · `Escalate` (27) · `WhatsApp this task`,
+`Email this task`, `Delete task`, 3 name chips (24) · `History`, `Understood` (23)
+· `Edit` (21) · the `This task`/`All tasks` toggle (16) · that page's own `Post`
+(25). They live in `portal-task-manage.tsx`, the task page itself,
+`TaskClassifyControls`/`TaskPeoplePanel`/`TaskDeleteFooter` in
+`portal-tasks-command.tsx`, and shared chrome.
+
+**Judgement call, not blind normalisation:** `Complete` and `Remind Yash` are that
+page's PRIMARY pair, sitting beside the big blue Add update — they may be
+deliberately taller. Ask before shrinking them.
+
+**The audit script** (paste into the browser console on any portal page) is what
+made all of this measurable rather than guesswork:
+`[...document.querySelector('[data-portal-shell]').querySelectorAll('button')]`
+→ group by `Math.round(getBoundingClientRect().height)`.
+2. The mobile pass (where `TaskRow`, kept on purpose, is the start).
+3. ⚠️ **Unreproduced**: the owner reports the per-task page sidebar "overflowing".
+   Hit-tested to y=610 of a 620px viewport (still sidebar), no horizontal
+   overflow, nothing past the viewport, 42px gap between rail and content. Needs
+   his viewport size or a screenshot — the portal's desktop `zoom: 0.8`
+   (`html[data-portal-zoom]`) makes this area genuinely fiddly.
+
+### Verified (17 Aug 2026)
+`tsc` clean · `npm test` 281 pass · `npm run build` exit 0 with all 8 portal
+routes emitted · every portal page loaded in the browser as a director with no
+application errors (only HMR websocket noise after a restart).
+
+⚠️ **The board is SLOW in dev** — 20–30s per request in application-code, which is
+the `max: 1` pooled connection plus its many queries. Don't fire parallel requests
+at it while testing; they queue and look like a hang.
+
+### ⚠️ Dev-server trap, hit THREE times in one session
+
+Adding a NEW import to a file the running dev server has already compiled gives a
+runtime `ReferenceError: X is not defined` (seen with `adminLogout`,
+`PortalSidebar`, `useUrlFilters`), and a route can serve a stale 404 for the same
+reason — `/portal/task/PE-004` 404'd for ten minutes while the identical query ran
+fine from a script, then returned 200 the moment the file was touched. **It is the
+dev server, not the code. Restart it before debugging anything that "should
+work".**
+
+### What landed on 16 Aug 2026
+
+**Global New menu.** `EntityView` gained a `create` (label + href) and
+`creatables()` returns every raisable type in menu order — including `event` and
+`announcement`, which have no `EntityDef` and so sit in `EXTRA_CREATES` in the
+same file. **One place to add to.** `src/components/create-menu.tsx` is the split
+button: the page's own action stays the default click, the caret lists the rest.
+It replaced the Create button in `desk-sidebar.tsx`, and ⌘K grew a matching
+"Create" group off the same function, so keyboard and mouse cannot drift.
+
+⚠️ **Most creates are dialogs owned by a page, not routes.** The menu navigates
+to `<list>?new=1` and the owning component picks it up with the new
+**`src/lib/use-create-param.ts`** — run-once (dev double-invoke safe), strips
+only its own param (these lists are URL-filtered now, so wiping the query string
+would clear the caller's filters). Call it in the component that OWNS the dialog:
+the `?doc=ID` bug in `documents-workspace.tsx` is what happens otherwise.
+Documents reuses the older `?newdoc=1`. Assets and Vendors share `/hrms/assets`
+and BOTH tables mount, so they use named tokens (`new=asset` / `new=vendor`) —
+a bare `new=1` opened two dialogs.
+
+**Keyboard navigation** lives in `record-list.tsx`, so every converted list has
+it: `j`/`k`/↑/↓ move a highlight, `Enter` opens, `x` ticks, `/` jumps to the
+toolbar's first input, `Esc` lets go, `?` shows the card. Three guards worth
+keeping: it never fires while focus is in a field (Escape only, to blur), never
+behind any `[role="dialog"]` (⌘K included), and when two lists are mounted the
+FIRST VISIBLE `[data-record-list]` wins — that is what stops Assets and Vendors
+both answering. Scroll-into-view honours `data-motion="reduced"` and
+`prefers-reduced-motion`.
+
+**Not done:** the record half of keyboard nav (`e` for Edit). Records have no
+common "edit" tab — their `tabs` are per-page hrefs — so there is nothing generic
+to bind to yet.
 
 ---
 

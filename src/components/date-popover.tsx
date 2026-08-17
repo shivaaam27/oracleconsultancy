@@ -1,5 +1,7 @@
 "use client";
 
+import { CONTROL_SHELL } from "@/components/ui";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
@@ -11,7 +13,8 @@ import { cn } from "@/lib/cn";
  * <input type="date"> so deadlines look like every other dropdown. Value is a
  * local "yyyy-mm-dd" string (or null); onChange emits the same, "" clears. */
 
-const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
+// One shared control edge — see CONTROL_SHELL in ui.tsx.
+const fieldShell = CONTROL_SHELL;
 const pad = (n: number) => String(n).padStart(2, "0");
 const toKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];

@@ -164,7 +164,7 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
       kind: "commitment-notice",
       title: `${KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment"} notice ${urg === "overdue" ? "overdue" : "due soon"} — ${c.title}`,
       detail: urg === "overdue" ? "The notice window has passed — act now to renew or exit." : d === 0 ? "Give notice today (or it auto-renews / lapses)." : `Give notice within ${d} day${d === 1 ? "" : "s"} (or it auto-renews / lapses).`,
-      href: "/hrms/registers",
+      href: "/hrms/commitments",
     });
   }
 

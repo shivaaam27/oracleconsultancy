@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Keyboard } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -64,6 +65,46 @@ const TONE_TEXT: Record<string, string> = {
 };
 
 /* ---------------------------------------------------------------- rail --- */
+
+/**
+ * The rail as a horizontal strip, for screens too narrow for a 184px column.
+ *
+ * ⚠️ Without this the rail is simply `hidden` below `md` — which means a phone
+ * gets NO filters at all. That was survivable while every converted list was
+ * admin-only and used on a desktop; it stopped being survivable when the staff
+ * portal moved onto this shell, because a staff member has no Tasks tab and this
+ * list on their home IS their only way to filter. Same filters, same counts,
+ * same links — laid on their side.
+ */
+function FilterStrip({ filters }: { filters: RecordFilter[] }) {
+  return (
+    <nav
+      aria-label="Filters"
+      className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {filters.map((f) => (
+        <Link
+          key={f.key}
+          href={f.href}
+          scroll={false}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] transition-colors",
+            f.active
+              ? "border-accent/40 bg-accent-soft font-medium text-accent"
+              : "border-border bg-bg-elev text-fg-muted"
+          )}
+        >
+          <span className="whitespace-nowrap">{f.label}</span>
+          {f.count !== undefined && (
+            <span className={cn("tabular text-[11px]", !f.active && f.tone && TONE_TEXT[f.tone], f.active ? "text-accent" : "text-fg-subtle")}>
+              {f.count}
+            </span>
+          )}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 function FilterRail({ filters }: { filters: RecordFilter[] }) {
   const groups: { label: string | null; items: RecordFilter[] }[] = [];
@@ -248,6 +289,96 @@ function ColumnChooser<T>({
   );
 }
 
+/* ------------------------------------------------------------ keyboard --- */
+
+/**
+ * Keyboard navigation — the other half of why ERPNext feels fast.
+ *
+ * j/k (or ↑/↓) walk the rows, Enter opens, x ticks, / jumps to the search box,
+ * Escape lets go, ? explains itself. Written ONCE here, so every converted list
+ * has it: Tasks, People, Documents, Assets, Vendors, Commitments.
+ *
+ * Three things this has to get right, all of them the usual bugs:
+ *
+ * 1. NEVER swallow a key meant for a field. While you are typing in an input,
+ *    a textarea, a select or a contenteditable, "x" is the letter x. Only
+ *    Escape does anything there, and all it does is let go of the field.
+ * 2. NEVER fire behind a dialog. Half these lists open one, and so does ⌘K —
+ *    any `[role="dialog"]` on the page means the keys are not ours.
+ * 3. NEVER let two lists answer the same key. /hrms/assets mounts Assets AND
+ *    Vendors at once, so the handler asks whether it belongs to the FIRST
+ *    list actually on screen; the hidden one stays quiet without either list
+ *    knowing the other exists.
+ */
+function isTypingTarget(el: EventTarget | null): boolean {
+  const t = el as HTMLElement | null;
+  if (!t || !t.tagName) return false;
+  return t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+}
+
+/** Reduced motion, both ways COS expresses it: the OS setting and the portal's
+ *  own toggle (`data-motion="reduced"` on <html>). */
+function prefersCalm(): boolean {
+  if (typeof window === "undefined") return true;
+  return (
+    document.documentElement.dataset.motion === "reduced" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Is this the list the keys belong to? The first one that is actually rendered
+ *  (a hidden tab has no offsetParent) wins. */
+function isFrontList(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const all = Array.from(document.querySelectorAll<HTMLElement>("[data-record-list]"))
+    .filter((n) => n.offsetParent !== null);
+  return all.length === 0 ? false : all[0] === el;
+}
+
+const SHORTCUTS: { keys: string; what: string }[] = [
+  { keys: "j / ↓", what: "Next row" },
+  { keys: "k / ↑", what: "Previous row" },
+  { keys: "Enter", what: "Open the highlighted record" },
+  { keys: "x", what: "Tick the row for a bulk change" },
+  { keys: "/", what: "Jump to the search box" },
+  { keys: "Esc", what: "Let go" },
+  { keys: "?", what: "This list" },
+];
+
+function ShortcutsCard({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-label="Keyboard shortcuts"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[320px] rounded-lg border border-border bg-bg-elev p-3 shadow-lg"
+      >
+        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-fg">
+          <Keyboard size={13} className="text-fg-subtle" /> Keyboard
+        </p>
+        <ul className="space-y-1">
+          {SHORTCUTS.map((s) => (
+            <li key={s.keys} className="flex items-center justify-between gap-3 text-[12px]">
+              <span className="text-fg-muted">{s.what}</span>
+              <kbd className="rounded-sm border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-fg">
+                {s.keys}
+              </kbd>
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-3 w-full rounded-md border border-border py-1 text-[12px] text-fg-muted hover:text-fg"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- list --- */
 
 export function RecordList<T>({
@@ -334,10 +465,106 @@ export function RecordList<T>({
   const visibleColumns = columns.filter((c, i) => i === 0 || !hidden.includes(c.key));
   const gridStyle = gridFor(visibleColumns, !!tick);
 
+  /* -------------------------------------------------- keyboard ---------- */
+  const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLSpanElement>(null);
+  const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // Filtering changes the row count under the highlight; drop it rather than
+  // leave it pointing at a row that has gone.
+  useEffect(() => {
+    setCursor((c) => (c === null ? null : c < rows.length ? c : null));
+  }, [rows.length]);
+
+  const move = useCallback((delta: number) => {
+    setCursor((c) => {
+      const next = c === null ? (delta > 0 ? 0 : rows.length - 1) : c + delta;
+      if (next < 0 || next >= rows.length) return c;
+      rowRefs.current[next]?.scrollIntoView({
+        block: "nearest",
+        behavior: prefersCalm() ? "auto" : "smooth",
+      });
+      return next;
+    });
+  }, [rows.length]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // A shortcut is a bare key. ⌘K, Ctrl+F and friends stay theirs.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (isTypingTarget(e.target)) {
+        // The one thing that works inside a field: Escape gets you out of it.
+        if (e.key === "Escape") (e.target as HTMLElement).blur();
+        return;
+      }
+      // Our own help card is a dialog, so check it before the dialog guard.
+      if (helpOpen) {
+        if (e.key === "Escape") { e.preventDefault(); setHelpOpen(false); }
+        return;
+      }
+      if (document.querySelector('[role="dialog"]')) return;
+      if (!isFrontList(rootRef.current)) return;
+
+      // "?" is Shift+/ — and not every keyboard/layout reports it as "?", some
+      // send "/" with shiftKey set. Take it either way, and before the "/" case
+      // below or Shift+/ would just focus the search box.
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        e.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
+
+      switch (e.key) {
+        case "j": case "ArrowDown": e.preventDefault(); move(1); break;
+        case "k": case "ArrowUp":   e.preventDefault(); move(-1); break;
+        case "Enter": {
+          if (cursor === null || !rows[cursor]) return;
+          e.preventDefault();
+          const row = rows[cursor];
+          if (onRowClick) onRowClick(row);
+          else if (rowHref) router.push(rowHref(row));
+          break;
+        }
+        case "x": {
+          if (cursor === null || !rows[cursor] || !bulkOn) return;
+          e.preventDefault();
+          togglePick(rowKey(rows[cursor]));
+          break;
+        }
+        case "/": {
+          // The search box belongs to the caller, not to us. Usually it is in
+          // the toolbar we were handed — but not always: the Tasks list keeps
+          // its search up in the page header, above this component entirely.
+          // So fall back to the first field on the page that SAYS it searches,
+          // rather than grabbing whatever input happens to be first (which on
+          // Tasks would be the inline "add a task" box).
+          const field =
+            toolbarRef.current?.querySelector<HTMLInputElement>("input") ??
+            document.querySelector<HTMLInputElement>(
+              'input[type="search"], input[placeholder*="earch" i], input[aria-label*="earch" i]'
+            );
+          if (!field) return;
+          e.preventDefault();
+          field.focus();
+          field.select?.();
+          break;
+        }
+        case "Escape": setCursor(null); break;
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cursor, rows, rowHref, onRowClick, bulkOn, move, helpOpen, router, rowKey]);
+
   let lastGroup: string | null = null;
 
   return (
-    <div className={cn("flex gap-4", className)}>
+    <div ref={rootRef} data-record-list className={cn("flex gap-4", className)}>
+      {helpOpen && <ShortcutsCard onClose={() => setHelpOpen(false)} />}
       {filters && filters.length > 0 && (
         <aside className="hidden w-[184px] shrink-0 md:block">
           <FilterRail filters={filters} />
@@ -345,9 +572,12 @@ export function RecordList<T>({
       )}
 
       <div className="min-w-0 flex-1">
+        {/* Below md the rail cannot fit beside the table, so it lies on its side
+            above it rather than disappearing. */}
+        {filters && filters.length > 0 && <FilterStrip filters={filters} />}
         {(toolbar || listKey) && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 flex-1">{toolbar}</span>
+            <span ref={toolbarRef} className="min-w-0 flex-1">{toolbar}</span>
             {listKey && <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />}
           </div>
         )}
@@ -434,7 +664,7 @@ export function RecordList<T>({
             <div className="px-3 py-10">{empty}</div>
           ) : (
             <ul className="divide-y divide-border">
-              {rows.map((row) => {
+              {rows.map((row, i) => {
                 const key = rowKey(row);
                 const group = groupOf?.(row) ?? null;
                 const starts = group !== null && group !== lastGroup;
@@ -462,10 +692,13 @@ export function RecordList<T>({
                         {subRow(row)}
                       </div>
                     )}
+                    {/* Row actions: hover-revealed on a mouse; ALWAYS shown on a
+                        touch screen, where there is no hover and a hidden action
+                        is simply an unreachable one. */}
                     {rowActions && (
                       <span
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute right-3 top-1.5 rounded-md bg-bg-elev pl-2 opacity-0 shadow-sm ring-1 ring-border transition-opacity focus-within:opacity-100 group-hover/row:opacity-100"
+                        className="absolute right-3 top-1.5 rounded-md bg-bg-elev pl-2 shadow-sm ring-1 ring-border transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/row:opacity-100"
                       >
                         {rowActions(row)}
                       </span>
@@ -474,12 +707,33 @@ export function RecordList<T>({
                 );
                 return (
                   <Fragment key={key}>
+                    {/* Group band (company, priority, urgency…).
+                     *
+                     * It STICKS to the top of the scroll area, because the whole
+                     * point of a band is knowing which group you are looking at
+                     * — and in a long list it used to scroll away, leaving rows
+                     * with no heading. It also carries the count, so "Overdue" is
+                     * never a heading you have to count yourself, and it is a
+                     * shade darker than the rows so the eye reads it as a
+                     * divider rather than another record. */}
                     {starts && (
-                      <li className="bg-bg-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">
-                        {group}
+                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-fg-muted">
+                        <span className="truncate">{group}</span>
+                        <span className="tabular font-medium normal-case tracking-normal text-fg-subtle">
+                          {rows.filter((r) => (groupOf?.(r) ?? null) === group).length}
+                        </span>
                       </li>
                     )}
-                    <li className="transition-colors hover:bg-bg-subtle">
+                    <li
+                      ref={(el) => { rowRefs.current[i] = el; }}
+                      aria-current={i === cursor ? "true" : undefined}
+                      className={cn(
+                        "transition-colors hover:bg-bg-subtle",
+                        // The highlight is a left accent edge, not a fill: it has
+                        // to read at a glance without fighting the status dots.
+                        i === cursor && "bg-accent-soft/70 shadow-[inset_2px_0_0_0_var(--color-accent)]"
+                      )}
+                    >
                       {onRowClick ? (
                         <div role="button" tabIndex={0} onClick={() => onRowClick(row)}
                           onKeyDown={(e) => { if (e.key === "Enter") onRowClick(row); }}

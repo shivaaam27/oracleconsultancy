@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEFAULT_PINS, ROUTE_BY_ID } from "./nav";
+import { DEFAULT_PINS, ROUTE_BY_ID, resolveRouteId } from "./nav";
 
 /** Server-backed pin store with optimistic updates + debounced PUT. */
 export function usePins() {
@@ -18,8 +18,11 @@ export function usePins() {
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (!cancelled && Array.isArray(data.pins)) {
-          // Filter out unknown ids (route renamed/removed) but preserve order
-          setPinsState(data.pins.filter((id: string) => ROUTE_BY_ID[id]));
+          // Follow renames first (ocr → cleaning), THEN drop ids whose page is
+          // genuinely gone. Without the first step a rename un-pins silently.
+          setPinsState(
+            data.pins.map((id: string) => resolveRouteId(id)).filter((id: string) => ROUTE_BY_ID[id])
+          );
         }
       } catch {
         /* keep defaults */

@@ -58,7 +58,7 @@ The system replaces an Excel workbook with:
 - Baseline migration `0000_flaky_amphibian.sql` was applied manually; `scripts/baseline-migrations.ts` marks it applied.
 - Newer write paths often use `src/db/supabase.ts` and helpers in `src/lib/db-helpers.ts`.
 - All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
-- **Navigation is TWO things now (Aug 2026, ERPNext redesign).** From `lg` up a **persistent left sidebar** (`desk-sidebar.tsx`) is the navigation — 208px, collapsible to 56px, grouped Work/Records/Registers/System, built from `NAV_ROUTES`. Below `lg` it is the bottom-floating pill (`top-pill.tsx`), which still carries the page action `+`. The pill's vertical `SidePill` variant is RETIRED at `lg`+ (the sidebar replaces it). The sidebar publishes `--desk-sidebar` on `<html>`; `main`'s left gutter follows that variable.
+- **Navigation is TWO things now (Aug 2026, ERPNext redesign).** From `lg` up a **persistent left sidebar** (`desk-sidebar.tsx`) is the navigation — 208px, collapsible to 56px, grouped Work/Records/Operations/System, built from `NAV_ROUTES`. Below `lg` it is the bottom-floating pill (`top-pill.tsx`), which still carries the page action `+`. The pill's vertical `SidePill` variant is RETIRED at `lg`+ (the sidebar replaces it). The sidebar publishes `--desk-sidebar` on `<html>`; `main`'s left gutter follows that variable.
 - Admin edge auth gate lives in `src/proxy.ts` (Next-16 `proxy` convention; renamed from `middleware.ts`). The `secret()` derivation here MUST stay identical to `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). Run a backup before any migration/bulk DB change.
@@ -117,7 +117,7 @@ Letters:
 
 - letters (Draft→Issued lifecycle, frozen `letterhead_snapshot` on issue; per-company branding)
 
-Stock (OECR): stock_items, stock_purchases, stock_issues
+Stock (Supplies): stock_items, stock_purchases, stock_issues
 Cleaning (OCR): cleaning_areas, cleaning_days, cleaning_checks
 
 Outreach: reminders, outbox (persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
@@ -199,12 +199,12 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/registry` - redirects to hub Tasks table
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
 - `/hrms` - redirects to `/hrms/command-centre`. **`/hrms/command-centre` is labelled "Tax & Legal"** in the UI (launcher + page header; route path unchanged) — recurring tax/statutory/legal obligations. See `memory/hrms.md`.
-- `/hrms/oecr` - OECR (Office Equipment Control Registry) — consumable stock control
+- `/hrms/supplies` - **Supplies** — office consumables (items, purchases, issues). Renamed Aug 2026 from `/hrms/oecr` "OECR" (it never held equipment — that is Assets); the old path redirects.
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
 - `/hrms/leave` - **Attendance** — segmented **Register | Holidays** tabs. Month grid, brush-to-paint status, company filter, "mark all Present today"; Holiday auto-filled from `public_holidays` (editable on the Holidays tab). The wider Leave module (types/requests/approvals/balances) was REMOVED Jul 2026 — mark "On leave" directly on the register. See `memory/hrms.md`.
-- `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
+- `/hrms/cleaning` - **Cleaning** — daily cleaning checklist. Renamed Aug 2026 from `/hrms/ocr` "OCR", which collided with OCR the document-reading sense; the old path redirects.
 - `/hrms/pipeline` - **Applications in progress** (transfer-pack) — kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued; attach a supporting document. See `memory/localsystemautomationtooracle.md`.
-- `/hrms/registers` - **Commitments register** (transfer-pack) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
+- `/hrms/commitments` - **Commitments** (transfer-pack; renamed Aug 2026 from `/hrms/registers`, old path redirects) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
 - `/documents` - **the document library — one view, filed by hand** (Aug 2026). Search + company/category/status filters, grouped by company then category, row actions Edit · Open file · Archive · Delete. Nothing is read, named, classified or de-duplicated for you.
@@ -218,9 +218,20 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], OECR, **Assets & Vendors, Attendance**, OCR, Companies, People, Documents, Outbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], Supplies, **Assets & Vendors, Attendance**, Cleaning, Companies, People, Documents, Outbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and the standalone `/hrms/departments` (departments now a Companies-hub tab). **Removed Jul 2026 (slim-down to pure task management):** `/workbook` (+ Meetings/Notes/To-do tabs), `/meeting`, `/hrms/org` (Organogram — the per-company Org tab on `/companies/[id]` survives), `/letters` + `/letterheads`, `/requests` + `/portal/requests`, `/people/form`, and the Leave half of `/hrms/leave`. Their DB tables were KEPT (data intact, simply unreachable) — nothing was dropped. The desktop sidebar and the dedicated Companies nav tab were removed. **Removed Aug 2026 (documents back to manual):** `/inbox` + `/api/inbox`, `/suggestions`, `/api/dropbox/*`, `/api/cron/auto-sort`, `/api/ask-doc`, `/api/doc-passages`, `/api/company-requirements`, `/api/person-requirements`, `/api/requirement-templates`, and the Registrations tab on Tax & Legal. Their tables WERE dropped (migration 0114) — see "Documents — manual filing".
+
+**Renamed Aug 2026 (one word, one meaning):** `/hrms/ocr` → **`/hrms/cleaning`**
+("OCR" also means reading text off a scan), `/hrms/oecr` → **`/hrms/supplies`**
+(it holds consumables, never equipment), `/hrms/registers` → **`/hrms/commitments`**,
+and the sidebar group **"Registers" → "Operations"** ("register" had meant the
+group, that page AND the legacy `/registry` task list). All three old paths are
+redirect stubs that carry the query string across, so old links and bookmarks
+still work. **⚠️ Nav ids changed too** (`ocr`→`cleaning`, `oecr`→`supplies`,
+`registers`→`commitments`); pinned shortcuts are stored as ids and unknown ones
+are DROPPED on load, so `LEGACY_ROUTE_IDS` + `resolveRouteId()` in `src/lib/nav.ts`
+map old → new. **Rename an id, add a line there.**
 
 **⚠️ When you delete a route, delete its cron entry in `vercel.json` too.** `auto-sort`
 was removed in Aug 2026 but stayed scheduled, so Vercel fired a daily 404 at 08:00 for
@@ -383,7 +394,7 @@ Voice is now a shared product layer, not only a microphone button:
 
 ## HR & Admin Operating System (V3 — in progress)
 
-Built on the principle **reuse, don't duplicate** (tasks/todos→checklists, OECR→assets, Outbox→messages, Home/Brief→signals). Master plan in `memory/v3_plan.md`. NOTE: the document-compliance half of V3 was removed in Aug 2026 — see "Documents — manual filing".
+Built on the principle **reuse, don't duplicate** (tasks/todos→checklists, Supplies→assets, Outbox→messages, Home/Brief→signals). Master plan in `memory/v3_plan.md`. NOTE: the document-compliance half of V3 was removed in Aug 2026 — see "Documents — manual filing".
 
 - **Person types** (`src/lib/person-types.ts`): `local_staff` | `expat` | `outsider` | `candidate` (+ legacy normalisation).
 - **Onboarding/Offboarding journeys**: a checklist of `todos` tagged `kind`; auto-created for new staff (and offboarding on archive); shown in the person drawer.

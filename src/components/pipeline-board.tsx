@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useCreateParam } from "@/lib/use-create-param";
 import { Select } from "./ui";
 import { ChevronLeft, ChevronRight, Plus, Archive, Loader2, X, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -17,11 +18,17 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 
 /**
  * In-flight bureaucracy kanban — permits/visas/licences moving through the
- * government stages. Move a card with the ← / → controls; add new cases; archive
- * finished ones.
+ * government stages. Move a card with the ← / → controls; add new applications;
+ * archive finished ones.
+ *
+ * The word is APPLICATION everywhere the owner can see it — the nav, the page
+ * title and the metadata all say Application, while this board used to say
+ * "case". Same thing, two names, which is exactly the confusion to avoid.
  */
 export function PipelineBoard({ items, companies, documents = [] }: { items: PipelineItem[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[] }) {
   const [adding, setAdding] = useState(false);
+  // /hrms/pipeline?new=1 — the global New menu's "Application".
+  useCreateParam("1", () => setAdding(true));
   const [, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
 
@@ -32,7 +39,7 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
     start(async () => { await movePipelineStageAction(id, PIPELINE_STAGES[idx]); setBusy(null); });
   }
   function archive(id: number) {
-    if (!confirm("Archive this case? (Use when it's fully issued/closed.)")) return;
+    if (!confirm("Archive this application? (Use when it's fully issued/closed.)")) return;
     setBusy(id);
     start(async () => { await archivePipelineItemAction(id); setBusy(null); });
   }
@@ -50,7 +57,7 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
       <div className="flex justify-end">
         <button type="button" onClick={() => setAdding((a) => !a)}
           className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90">
-          <Plus size={14} /> New case
+          <Plus size={14} /> New application
         </button>
       </div>
 
@@ -90,12 +97,12 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronRight size={14} /></button>
                       <span className="ml-auto inline-flex items-center gap-1.5">
                         {i.taskId ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-1.5 py-0.5 text-[10px] text-accent" title="Driving task — completing it advances this case a stage">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-1.5 py-0.5 text-[10px] text-accent" title="Driving task — completing it advances this application a stage">
                             <CheckSquare size={10} /> {i.taskCode ?? "Task"}
                             <button type="button" onClick={() => unlinkTask(i.id)} disabled={busy === i.id} title="Unlink task" className="hover:text-danger"><X size={9} /></button>
                           </span>
                         ) : (
-                          <button type="button" onClick={() => createTask(i.id)} disabled={busy === i.id} title="Create a task that drives this case (completing it advances the stage)"
+                          <button type="button" onClick={() => createTask(i.id)} disabled={busy === i.id} title="Create a task that drives this application (completing it advances the stage)"
                             className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle hover:text-accent">
                             <Plus size={10} /> Task
                           </button>
@@ -140,7 +147,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   return (
     <div className="rounded-xl border border-border/70 bg-bg-subtle/30 p-3 space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">New case</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">New application</span>
         <button type="button" onClick={onDone} className="ml-auto rounded-md p-1 text-fg-subtle hover:bg-bg-muted"><X size={13} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -161,7 +168,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
       </div>
       <div className="flex items-center justify-end gap-1.5">
         <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">Cancel</button>
-        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add case"}</button>
+        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add application"}</button>
       </div>
       {error && <p className="text-[12px] text-danger">{error}</p>}
     </div>

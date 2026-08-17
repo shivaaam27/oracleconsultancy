@@ -16,7 +16,7 @@ import {
 } from "@/lib/cleaning-shared";
 import {
   toggleCheckAction, setCheckCommentAction, setAttendanceAction, setNoteAction, signDayAction,
-} from "@/app/hrms/ocr/actions";
+} from "@/app/hrms/cleaning/actions";
 
 type Person = { id: number; name: string };
 type CheckState = { done: boolean; doneAt: Date | null; comment: string | null };
@@ -48,7 +48,7 @@ function Ring({ pct, done, total }: { pct: number; done: number; total: number }
   );
 }
 
-export function OcrToday({
+export function CleaningToday({
   dateIso, today, floor, day, areas, checks, people,
 }: {
   dateIso: string;
@@ -135,7 +135,7 @@ export function OcrToday({
     <div className="space-y-4">
       {/* Date nav */}
       <div className="flex items-center justify-between gap-2">
-        <Link href={`/hrms/ocr?date=${shiftDay(dateIso, -1)}`} aria-disabled={dateIso <= floor}
+        <Link href={`/hrms/cleaning?date=${shiftDay(dateIso, -1)}`} aria-disabled={dateIso <= floor}
           className={cn("inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border",
             dateIso <= floor ? "opacity-40 pointer-events-none" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60")}>
           <ChevronLeft size={16} />
@@ -143,12 +143,12 @@ export function OcrToday({
         <div className="text-center">
           <div className="text-sm font-medium">{fmtLongDate(dateIso)}</div>
           {dateIso !== today && (
-            <Link href="/hrms/ocr" className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
+            <Link href="/hrms/cleaning" className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
               <Calendar size={11} /> Back to today
             </Link>
           )}
         </div>
-        <Link href={`/hrms/ocr?date=${shiftDay(dateIso, 1)}`}
+        <Link href={`/hrms/cleaning?date=${shiftDay(dateIso, 1)}`}
           className={cn("inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border",
             dateIso >= today ? "opacity-40 pointer-events-none" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60")}>
           <ChevronRight size={16} />

@@ -16,7 +16,7 @@ import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/a
 // Stock (OECR)
 import { createStockItemAction, recordPurchaseAction, recordIssueAction } from "@/app/hrms/actions";
 // Cleaning (OCR)
-import { toggleCheckAction, signDayAction } from "@/app/hrms/ocr/actions";
+import { toggleCheckAction, signDayAction } from "@/app/hrms/cleaning/actions";
 // Reference data (departments / sites / roles)
 import {
   createDepartment,
@@ -442,7 +442,7 @@ export const OPS_TOOLS: ToolDef[] = [
         })
       );
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: `Added stock item "${name}".`, redirect: `/hrms/oecr` };
+      return { ok: true, message: `Added stock item "${name}".`, redirect: `/hrms/supplies` };
     },
   },
   {
@@ -473,7 +473,7 @@ export const OPS_TOOLS: ToolDef[] = [
         })
       );
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: `Recorded ${qty} in for ${itemCode}.`, redirect: `/hrms/oecr` };
+      return { ok: true, message: `Recorded ${qty} in for ${itemCode}.`, redirect: `/hrms/supplies` };
     },
   },
   {
@@ -510,7 +510,7 @@ export const OPS_TOOLS: ToolDef[] = [
         })
       );
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: `Issued ${qty} of ${itemCode}.`, redirect: `/hrms/oecr` };
+      return { ok: true, message: `Issued ${qty} of ${itemCode}.`, redirect: `/hrms/supplies` };
     },
   },
 
@@ -534,7 +534,7 @@ export const OPS_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: done ? "Marked the area cleaned." : "Cleared the tick.",
-        redirect: `/hrms/ocr`,
+        redirect: `/hrms/cleaning`,
         undo: { kind: "ori.cleaning.check", payload: { dayId, areaId, before: !done } },
       };
     },
@@ -564,7 +564,7 @@ export const OPS_TOOLS: ToolDef[] = [
       if (signed && !name) return { ok: false, message: "Say who is signing off the day." };
       const res = await signDayAction(dayId, signed, name, personId);
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: signed ? `Signed off day ${dayId}.` : `Un-signed day ${dayId}.`, redirect: `/hrms/ocr` };
+      return { ok: true, message: signed ? `Signed off day ${dayId}.` : `Un-signed day ${dayId}.`, redirect: `/hrms/cleaning` };
     },
   },
 

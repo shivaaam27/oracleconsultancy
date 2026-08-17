@@ -42,10 +42,10 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "approvals",   href: "/approvals",           label: "Approvals",           icon: ListChecks },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
   { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: Scale },
-  { id: "oecr",        href: "/hrms/oecr",           label: "OECR",                icon: Package },
+  { id: "supplies",    href: "/hrms/supplies",       label: "Supplies",            icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },
   { id: "leave",       href: "/hrms/leave",          label: "Attendance",          icon: CalendarDays },
-  { id: "registers",   href: "/hrms/registers",      label: "Commitments register", icon: FileWarning },
+  { id: "commitments", href: "/hrms/commitments",    label: "Commitments",         icon: FileWarning },
   // ⚠️ "Brief" means the DIRECTOR BRIEF at /brief. This entry used to be labelled
   // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
   // and the real Brief had no entry at all.
@@ -53,7 +53,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "brief",       href: "/brief",               label: "Director Brief",      icon: ClipboardList },
   { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
-  { id: "ocr",         href: "/hrms/ocr",            label: "OCR",                 icon: Sparkles },
+  { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
@@ -87,7 +87,10 @@ export type NavGroup = { label: string; ids: string[] };
 export const NAV_GROUPS: NavGroup[] = [
   { label: "Work", ids: ["approvals", "outbox", "chat", "calendar", "brief", "announcements"] },
   { label: "Records", ids: ["people", "companies", "documents", "assets"] },
-  { label: "Registers", ids: ["tax-legal", "registers", "pipeline", "leave", "oecr", "ocr"] },
+  // Was "Registers" until Aug 2026 — the word meant three things at once (this
+  // group, the commitments page, and the legacy /registry task list). The pages
+  // in here are the day-to-day operational logs, so that is what it is called.
+  { label: "Operations", ids: ["tax-legal", "commitments", "pipeline", "leave", "supplies", "cleaning"] },
   { label: "System", ids: ["insights", "activity", "ori-automations", "settings"] },
 ];
 
@@ -108,3 +111,24 @@ export function ungroupedRouteIds(): string[] {
 // "inbox" was pinned here until Aug 2026, when the intake page was removed —
 // a pin for a route that no longer exists just silently vanishes from the rail.
 export const DEFAULT_PINS = ["approvals", "outbox", "chat"];
+
+/**
+ * Renamed route ids → their new id.
+ *
+ * Pins are stored in the database as a list of ids, and anything unrecognised is
+ * dropped on load. So renaming an id would quietly un-pin whatever the owner had
+ * pinned — the very failure the note above records. Run stored ids through
+ * `resolveRouteId` and an old pin simply follows its page to the new name.
+ *
+ * FORWARD RULE: rename a route id, add a line here. Never just rename it.
+ */
+export const LEGACY_ROUTE_IDS: Record<string, string> = {
+  ocr: "cleaning",        // Office Cleaning Registry → Cleaning (Aug 2026)
+  oecr: "supplies",       // Office Equipment Control Registry → Supplies (Aug 2026)
+  registers: "commitments", // Commitments register → Commitments (Aug 2026)
+};
+
+/** A stored id resolved to a live one, following any rename. */
+export function resolveRouteId(id: string): string {
+  return LEGACY_ROUTE_IDS[id] ?? id;
+}

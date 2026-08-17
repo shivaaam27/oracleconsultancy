@@ -22,7 +22,7 @@ import {
   updateCommitmentAction,
   archiveCommitmentAction,
   linkCommitmentDocumentAction,
-} from "@/app/hrms/registers/actions";
+} from "@/app/hrms/commitments/actions";
 import { PIPELINE_STAGES, normalizeStage, type PipelineStage } from "@/lib/pipeline-shared";
 import type { CommitmentKind } from "@/lib/commitments-shared";
 
@@ -436,7 +436,7 @@ export const GOVERNANCE_TOOLS: ToolDef[] = [
       });
       if (!res.ok) return { ok: false, message: res.error ?? "Couldn't register the commitment. Please try again." };
       // No undo: the action doesn't return the new id, so there's no clean handle to reverse.
-      return { ok: true, message: `Registered commitment: ${title}.`, redirect: `/hrms/registers` };
+      return { ok: true, message: `Registered commitment: ${title}.`, redirect: `/hrms/commitments` };
     },
   },
   {
@@ -474,7 +474,7 @@ export const GOVERNANCE_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Updated "${found.title}".`,
-        redirect: `/hrms/registers`,
+        redirect: `/hrms/commitments`,
         undo: { kind: "ori.commitment.update", payload: { commitmentId: found.id, before } },
       };
     },
@@ -494,7 +494,7 @@ export const GOVERNANCE_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Archived "${found.title}".`,
-        redirect: `/hrms/registers`,
+        redirect: `/hrms/commitments`,
         undo: { kind: "ori.commitment.archive", payload: { commitmentId: found.id } },
       };
     },
@@ -517,7 +517,7 @@ export const GOVERNANCE_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Attached "${doc.title}" to "${found.title}".`,
-        redirect: `/hrms/registers`,
+        redirect: `/hrms/commitments`,
         undo: { kind: "ori.commitment.link", payload: { commitmentId: found.id, before: found.documentId } },
       };
     },

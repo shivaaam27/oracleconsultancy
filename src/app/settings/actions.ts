@@ -69,7 +69,7 @@ export async function sendTestWhatsApp(
         "🔔 *Your tasks · Oracle Consultancy*",
         "Hi there, a quick reminder of where things stand:",
         "",
-        "*Dar Spices*",
+        "*DSC Ltd*",
         "🔴 Submit Q2 VAT return — _due 12 Jun · High_",
         "🟠 Renew fire certificate — _due 28 Jun · Medium_",
         "",

@@ -295,7 +295,7 @@ registerUndoHandler("ori.pipeline.link", async (raw) => {
 // Commitment field update — re-apply the snapshotted prior fields.
 registerUndoHandler("ori.commitment.update", async (raw) => {
   const p = raw as { commitmentId: number; before: Record<string, unknown> };
-  const { updateCommitmentAction } = await import("@/app/hrms/registers/actions");
+  const { updateCommitmentAction } = await import("@/app/hrms/commitments/actions");
   await updateCommitmentAction(p.commitmentId, p.before as never);
 });
 
@@ -309,7 +309,7 @@ registerUndoHandler("ori.commitment.archive", async (raw) => {
 // Commitment document link — restore the prior linked document (or clear it).
 registerUndoHandler("ori.commitment.link", async (raw) => {
   const p = raw as { commitmentId: number; before: number | null };
-  const { linkCommitmentDocumentAction } = await import("@/app/hrms/registers/actions");
+  const { linkCommitmentDocumentAction } = await import("@/app/hrms/commitments/actions");
   await linkCommitmentDocumentAction(p.commitmentId, p.before);
 });
 
@@ -353,7 +353,7 @@ registerUndoHandler("ori.vendor.archive", async (raw) => {
 // Cleaning check — re-apply the prior tick state.
 registerUndoHandler("ori.cleaning.check", async (raw) => {
   const p = raw as { dayId: number; areaId: number; before: boolean };
-  const { toggleCheckAction } = await import("@/app/hrms/ocr/actions");
+  const { toggleCheckAction } = await import("@/app/hrms/cleaning/actions");
   await toggleCheckAction(p.dayId, p.areaId, p.before);
 });
 

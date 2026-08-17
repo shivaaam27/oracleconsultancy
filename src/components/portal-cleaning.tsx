@@ -38,7 +38,7 @@ function Ring({ pct, done, total }: { pct: number; done: number; total: number }
 
 /** The receptionist's daily cleaning log — tick each room, add a per-room comment,
  *  then Submit the day (which marks her attendance). Portal-styled twin of the admin
- *  OcrToday: no "who cleaned" picker (she is the cleaner), inline comment editors. */
+ *  CleaningToday: no "who cleaned" picker (she is the cleaner), inline comment editors. */
 export function PortalCleaning({
   dateIso, day, areas, checks,
 }: {

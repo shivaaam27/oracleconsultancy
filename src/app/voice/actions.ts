@@ -136,7 +136,7 @@ export async function polishDictation(input: {
 
 2. FILLERS & RESTARTS. Remove um, uh, er, erm, "you know", "sort of", "kind of", and collapse stutters/repeats ("we should, we should call" -> "we should call").
 
-3. NAMES. These are the real companies/people: ${protectedTerms.join("; ") || "none"}. If a word clearly sounds like one of these misheard (e.g. "dar spaces" -> "Dar Spices", "ameena" -> "Amina"), fix it to the exact spelling. Never force an unrelated word onto this list.
+3. NAMES. These are the real companies/people: ${protectedTerms.join("; ") || "none"}. If a word clearly sounds like one of these misheard (e.g. "faraha" -> "Furaha Innovation Ltd", "ameena" -> "Amina"), fix it to the exact spelling. Never force an unrelated word onto this list.
 
 4. NUMBERS/DATES/MONEY. "five pm" -> "5pm"; "twenty fifth of march" -> "25 March"; "ten thousand shillings" -> "TZS 10,000". Keep "next Friday" as-is (don't guess a date). Never invent a currency that wasn't spoken.
 

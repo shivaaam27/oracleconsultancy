@@ -198,8 +198,8 @@ export default function DesignPage() {
           placeholder="All Companies"
           options={[
             { value: "", label: "All Companies" },
-            { value: "DS", label: "Dar Spices", dot: "#e0533d" },
-            { value: "CC", label: "Cocozuri Chocolat", dot: "#b07a3b" },
+            { value: "DS", label: "DSC Ltd", dot: "#e0533d" },
+            { value: "CC", label: "Furaha Innovation Ltd", dot: "#b07a3b" },
             { value: "TG", label: "Terra Green", dot: "#3fae6a" },
           ]}
         />
@@ -248,7 +248,7 @@ export default function DesignPage() {
         onClose={() => setPeekOpen(false)}
         onOpen={() => setLog("Peek card → Open")}
         title="Camera and Printer Issues"
-        subtitle="CO01-008 · Dar Spices · Not Started"
+        subtitle="DS-008 · DSC Ltd · Not Started"
         body="Printer issues solved by pairing the smartphone with printer wifi. A temporary fix until Gofiber resolve it."
         actions={peekActions}
       />

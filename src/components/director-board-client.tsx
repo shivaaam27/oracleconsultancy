@@ -15,6 +15,7 @@ import { SmartCaptureBar } from "@/components/smart-capture-bar";
 import { portalRemindTask } from "@/app/portal/actions";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { useToast } from "@/components/toast";
+import { RecordList } from "./record-list";
 
 /* ------------------------------------------------------------------ *
  * Director board — the command-centre client surface. Land, see, act.
@@ -155,15 +156,16 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
     setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
   }, []);
 
+  /* The compact page header (portal pass, Aug 2026). This was an aurora-lit glass
+   * slab with a 3xl greeting and a separate stats card below it — roughly 190px
+   * before the first task. The greeting, the live stamp and both figures all
+   * survive; they are simply one dense line now, the same header shape the
+   * command centre uses. */
   return (
-    <section className="relative w-full overflow-hidden rounded-3xl glass elevated p-5 sm:p-6">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="aurora-a absolute -right-20 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }} />
-        <div className="aurora-b absolute -bottom-28 -left-20 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--success) / 0.16), transparent 72%)" }} />
-      </div>
-      <div className="relative flex items-start justify-between gap-4">
+    <section data-page-header className="mb-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+          <p className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
             {label}
             <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
               <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
@@ -171,17 +173,19 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
             </span>
             <span className="normal-case tracking-normal text-success/90">live</span>
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{greeting}, {getGivenName(first)}</h1>
-          <p className="mt-1.5 text-sm text-fg-muted">{liveStamp} · across {companyCount} {companyCount === 1 ? "company" : "companies"}</p>
+          <h1 className="text-lg font-semibold tracking-tight">{greeting}, {getGivenName(first)}</h1>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-fg-muted">
+            <span>{liveStamp} · across {companyCount} {companyCount === 1 ? "company" : "companies"}</span>
+            <span className="text-fg-subtle">·</span>
+            <span className="inline-flex items-center gap-1">
+              <Target size={12} className="shrink-0 text-accent" />
+              <b className="font-semibold text-fg tabular">{needsYou}</b> need{needsYou === 1 ? "s" : ""} you
+              <span className="text-fg-subtle">·</span>
+              <b className="font-semibold text-fg tabular">{dueToday}</b> due today
+            </span>
+          </div>
         </div>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent ring-1 ring-accent/25">{initials}</span>
-      </div>
-      <div className="relative mt-4 flex items-center gap-2 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-sm text-fg-muted ring-1 ring-border">
-        <Target size={14} className="shrink-0 text-accent" />
-        <p>
-          <b className="font-semibold text-fg">{needsYou}</b> need{needsYou === 1 ? "s" : ""} you ·{" "}
-          <b className="font-semibold text-fg">{dueToday}</b> due today
-        </p>
+        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-[11px] font-semibold text-accent sm:grid">{initials}</span>
       </div>
     </section>
   );
@@ -227,6 +231,16 @@ function HealthPanel({
   );
 }
 
+/**
+ * One company's health — the twin of the command centre's `CompanyHeat` tile
+ * (`command-deck.tsx`). Owner's rule: the two surfaces MATCH.
+ *
+ * ⚠️ These tinted tiles are a deliberate exception to the Desk "status is a dot,
+ * never a block of colour" rule, and the command centre takes the same exception.
+ * They were briefly changed to neutral cards here and that was wrong — it made
+ * the portal differ from the command centre, which is the one thing this pass is
+ * meant to remove. If the tint ever goes, it goes from BOTH, together.
+ */
 function HealthTile({ c }: { c: CompanyHealth }) {
   const tone = riskTone(c.risk);
   const attention = c.overdue > 0;
@@ -324,15 +338,96 @@ function AttentionStack({ watch }: { watch: WatchItem[] }) {
   return (
     <div className="flex flex-col gap-2.5">
       <Label hint />
-      {/* Housed in a soft panel so the cards read as a contained list (not loose
-          floating tiles), with a fade at the top/bottom edges as it scrolls. The
-          inner px padding keeps the cards' ring/shadow off the clip edge. */}
-      <div className="rounded-3xl bg-bg-subtle/40 p-1.5 ring-1 ring-border/70">
-        <div className="slim-scroll scroll-fade-y max-h-[42rem] space-y-2 overflow-y-auto overscroll-contain px-1.5 py-1.5">
-          {watch.map((w) => <AttentionCard key={w.taskId} w={w} />)}
+      {/* The board's own list, on the shared shell (portal pass, Aug 2026).
+       *
+       * This was one floating card per task. It is dense rows now, so the screen
+       * directors and managers LAND on matches the Tasks page and the command
+       * centre — the point of the pass. The list is already "what needs you", so
+       * it takes no filter rail; ordering (worst overdue first) is decided
+       * server-side and left exactly as it was.
+       *
+       * Remind survives as a row action rather than the swipe tray: on a mouse it
+       * appears on hover, on a touch screen it is always visible. */}
+      <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
+        <div className="slim-scroll scroll-fade-y max-h-[42rem] overflow-y-auto overscroll-contain">
+          {/* ⚠️ NO column header, and no Status column — this is a board PANEL,
+              not a list screen, and its twin in the command centre
+              (`NeedsYou` in command-deck.tsx) shows exactly this: a code chip, the
+              title, the days figure, and the company · person line beneath.
+              Owner's instruction: the two must match. A "TASK / STATUS / DUE"
+              header here was mine and was wrong. */}
+          <RecordList
+            rows={watch}
+            rowKey={(w) => w.taskId}
+            rowHref={(w) => `/portal/task/${w.code}`}
+            bare
+            showHeader={false}
+            showFooter={false}
+            rowActions={(w) => <RemindAction w={w} />}
+            subRow={(w) => (
+              <span className="block truncate text-[11px] text-fg-subtle">
+                {w.companyName} · {w.accountableName ?? "Unassigned"}
+              </span>
+            )}
+            columns={[
+              {
+                key: "task",
+                label: "Task",
+                width: "minmax(0,1fr)",
+                render: (w) => (
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold tabular text-fg-muted">{w.code}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{w.actionItem}</span>
+                  </span>
+                ),
+              },
+              {
+                key: "due",
+                label: "Due",
+                width: "76px",
+                align: "right",
+                render: (w) => (
+                  <span className={`text-xs font-bold tabular ${w.overdue ? "text-danger" : "text-warn"}`}>
+                    {w.dueLabel || w.priority}
+                  </span>
+                ),
+              },
+            ]}
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+/** "Remind" as a row action — the same one-tap draft the swipe tray used to
+ *  offer, and the same server action behind it. */
+function RemindAction({ w }: { w: WatchItem }) {
+  const { toast } = useToast();
+  const [busy, startTransition] = useTransition();
+  const [link, setLink] = useState<string | null>(null);
+
+  if (link) {
+    return (
+      <a href={link} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-accent hover:underline">
+        <ExternalLink size={12} /> Send
+      </a>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => startTransition(async () => {
+        const res = await portalRemindTask(w.taskId);
+        if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+        setLink(res.link);
+        toast(`Reminder ready for ${getGivenName(res.name)} — tap Send on WhatsApp.`, { tone: "success" });
+      })}
+      className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-success disabled:opacity-50"
+    >
+      {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Remind
+    </button>
   );
 }
 function Label({ hint }: { hint?: boolean }) {

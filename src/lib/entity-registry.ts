@@ -734,7 +734,7 @@ export const ENTITY_DEFS: EntityDef[] = [
           type: "commitment", id: r.id as number,
           title: r.title as string,
           subtitle: [company, noticeBy ? `notice by ${noticeBy}` : null].filter(Boolean).join(" · ") || (r.kind as string) || "Commitment",
-          href: "/hrms/registers",
+          href: "/hrms/commitments",
           // live badge = kind; history badge = base(kind) ?? (ended?"Expired":"Archived").
           badge: isHistory ? (kind ?? (ended ? "Expired" : "Archived")) : (kind ?? undefined),
           lifecycle: isHistory ? "history" : "active",

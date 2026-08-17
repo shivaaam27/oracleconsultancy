@@ -190,7 +190,7 @@ export async function mcpListRecords(
     }
 
     case "stock": {
-      // OECR is one office's consumables, not per-company, so a scoped caller has
+      // Supplies is one office's consumables, not per-company, so a scoped caller has
       // no claim to it.
       if (scope != null) return { ok: false, error: "The stock register isn't something your login can read." };
       const { listStockItems } = await import("@/lib/stock");

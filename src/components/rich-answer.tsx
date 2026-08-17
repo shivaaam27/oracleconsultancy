@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { TaskActionRow } from "./linkified-answer";
 
-// Task codes like CO01-004 or DAR-007 (optionally bracketed).
+// Task codes like DS-001, or the legacy CO01-004 form (optionally bracketed).
 const TASK_CODE_RE = /\[?([A-Z]{2,8}\d{0,3}-\d{2,4})\]?/g;
 
 /**

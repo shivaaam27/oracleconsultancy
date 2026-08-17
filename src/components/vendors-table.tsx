@@ -13,6 +13,7 @@ import { VENDOR_CATEGORIES, type VendorRow } from "@/lib/vendors-shared";
 import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/app/hrms/vendors/actions";
 import { RecordList } from "./record-list";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { useCreateParam } from "@/lib/use-create-param";
 import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { buildColumns } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -66,6 +67,9 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
 
   function openNew() { setEditing(null); setDialogOpen(true); }
   function openEdit(v: VendorRow) { setEditing(v); setDialogOpen(true); }
+
+  // /hrms/assets?view=vendors&new=vendor — the global New menu's "Vendor".
+  useCreateParam("vendor", () => openNew());
 
   return (
     <div className="space-y-4">

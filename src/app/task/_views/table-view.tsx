@@ -15,6 +15,8 @@ import { TaskCard } from "@/components/task-card";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
+import { QuickUpdate } from "@/components/quick-update";
+import { addTaskUpdate } from "@/app/task/actions";
 import { TaskInlineStatus } from "@/components/task-inline-edit";
 import { DeadlineEditor } from "@/components/deadline-editor";
 import { RecordList, type RecordFilter, type RecordColumn } from "@/components/record-list";
@@ -102,6 +104,8 @@ export function TableView({
   const { toast } = useToast();
 
   const [peek, setPeek] = useState<TaskRow | null>(null);
+  // Which row has its inline update composer open (one at a time).
+  const [composeFor, setComposeFor] = useState<string | null>(null);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -198,7 +202,7 @@ export function TableView({
           total={total}
           groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
           selectionSlot={(r) => <SelectCheckbox code={r.code} />}
-          rowActions={(r) => <TaskRowActions task={r} onDone={() => router.refresh()} />}
+          rowActions={(r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}
           /* Stage 3: the columns, their order, widths, labels and sortability
              come from ENTITY_VIEWS.task in lib/entity-view.ts. Only the three
              genuinely INTERACTIVE cells are overridden here — metadata cannot
@@ -246,6 +250,15 @@ export function TableView({
             },
           }) as RecordColumn<TaskRow>[]}
           subRow={(r) => (
+            composeFor === r.code ? (
+              /* Post an update from the list — same composer the portal uses. */
+              <QuickUpdate
+                code={r.code}
+                post={async (text) => { await addTaskUpdate(r.id, r.code, text); router.refresh(); }}
+                onDone={() => setComposeFor(null)}
+                onCancel={() => setComposeFor(null)}
+              />
+            ) : (
             <div className="space-y-0.5">
               <div className="flex min-w-0 items-center gap-2">
                 {!hideCompany && (
@@ -259,6 +272,7 @@ export function TableView({
               </div>
               <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
             </div>
+            )
           )}
         />
       </div>

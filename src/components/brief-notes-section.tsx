@@ -139,7 +139,7 @@ export function BriefNotesSection({
           <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={`What else happened in ${monthLabel}? e.g. "Renewed the office lease for OECR".`}
+            placeholder={`What else happened in ${monthLabel}? e.g. "Renewed the office lease".`}
             rows={2}
             autoFocus
           />

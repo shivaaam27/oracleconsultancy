@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useCreateParam } from "@/lib/use-create-param";
 import { useRouter } from "next/navigation";
 import { Plus, Building2, X } from "lucide-react";
 import { Button } from "./ui";
@@ -14,6 +15,8 @@ export function AddCompanyCard() {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  // /companies?new=1 — the global New menu's "Company".
+  useCreateParam("1", () => setOpen(true));
   const [busy, start] = useTransition();
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
@@ -77,7 +80,7 @@ export function AddCompanyCard() {
           <input
             value={name} autoFocus onChange={(e) => onName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-            placeholder="e.g. Cocozuri Chocolat"
+            placeholder="e.g. Acme Trading Ltd"
             className="mt-1 w-full rounded-lg bg-bg-subtle text-sm text-fg ring-1 ring-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </div>

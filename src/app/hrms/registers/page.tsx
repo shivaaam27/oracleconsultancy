@@ -1,32 +1,26 @@
-import { PageHeader } from "@/components/ui";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import { CommitmentsRegister } from "@/components/commitments-register";
-import { listCommitments } from "@/lib/commitments";
-import { commitmentUrgency } from "@/lib/commitments-shared";
-import { getSavedViewsFor } from "@/lib/saved-views";
-import { sb } from "@/db/supabase";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function RegistersPage() {
-  const [items, { data: companyRows }, { data: docRows }, savedViews] = await Promise.all([
-    listCommitments(),
-    sb.from("companies").select("id,name").eq("active", true).order("name"),
-    sb.from("documents").select("id,title,company_id").eq("archived", false).order("title"),
-    getSavedViewsFor("commitment"),
-  ]);
-  const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const documents = (docRows ?? []).map((d) => ({ id: d.id as number, title: d.title as string, companyId: (d.company_id as number | null) ?? null }));
-  const due = items.filter((c) => ["overdue", "soon"].includes(commitmentUrgency(c))).length;
-
-  return (
-    <div className="space-y-4">
-      <HrmsCrumbs />
-      <PageHeader
-        title="Commitments register"
-        sub={`${items.length} lease${items.length === 1 ? "" : "s"}/policies/contracts · ${due} need notice soon`}
-      />
-      <CommitmentsRegister items={items} companies={companies} documents={documents} savedViews={savedViews} />
-    </div>
-  );
+/**
+ * Old address for the commitments register.
+ *
+ * "Register" meant three different things in the navigation: this page, the
+ * sidebar group called "Registers", and the legacy `/registry` (which is the
+ * task list). The page is `/hrms/commitments` now — it says what it holds — and
+ * the sidebar group is "Operations". This keeps old links working.
+ */
+export default async function RegistersRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Carry the query: this list is filtered through the URL and its saved views
+  // are shareable links, so dropping the query would open the wrong view.
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (typeof v === "string") qs.set(k, v);
+    else if (Array.isArray(v)) v.forEach((one) => qs.append(k, one));
+  }
+  const query = qs.toString();
+  redirect(query ? `/hrms/commitments?${query}` : "/hrms/commitments");
 }

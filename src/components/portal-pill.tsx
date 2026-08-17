@@ -275,8 +275,12 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   return (
     <>
     {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
+    {/* From lg up the PortalSidebar takes over, so the pill hides — the same
+        arrangement the command centre uses. Below lg the pill is still the
+        navigation. (`lg:hidden` has to come last so it wins over the `md:flex`
+        that the chat case sets.) */}
     <div className={cn(
-      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
+      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none lg:hidden",
       onChat ? "hidden md:flex" : "flex"
     )}>
       <motion.div

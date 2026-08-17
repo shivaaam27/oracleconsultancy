@@ -11,6 +11,7 @@ import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
+import { creatables } from "@/lib/entity-view";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
 import { derivePageContext } from "@/lib/page-context";
@@ -1308,6 +1309,28 @@ export function CommandPaletteProvider({
                         </Command.Group>
                       );
                     })}
+
+                    {/* Create — the same list the sidebar's New menu offers, so
+                        keyboard and mouse can raise exactly the same things.
+                        Both read `creatables()`; neither holds its own array. */}
+                    <Command.Group
+                      heading="Create"
+                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    >
+                      {creatables().map((c) => (
+                        <Command.Item
+                          key={`new-${c.id}`}
+                          // "New task" is what you'd type; the label alone ("Task")
+                          // would lose to every task in the index.
+                          value={`New ${c.label} create ${c.id}`}
+                          onSelect={() => go(c.href)}
+                          className="group/row px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                        >
+                          <Plus size={14} className="text-fg-subtle" />
+                          <span className="flex-1">New {c.label.toLowerCase()}</span>
+                        </Command.Item>
+                      ))}
+                    </Command.Group>
 
                     {/* Pinned */}
                     {pinnedRoutes.length > 0 && (

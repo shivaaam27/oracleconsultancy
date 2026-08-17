@@ -6,7 +6,7 @@ import { setCheck, updateDay, signDay } from "@/lib/cleaning";
 type Result = { ok: true } | { ok: false; error: string };
 
 function revalidateOcr() {
-  revalidatePath("/hrms/ocr");
+  revalidatePath("/hrms/cleaning");
   revalidatePath("/hrms");
 }
 

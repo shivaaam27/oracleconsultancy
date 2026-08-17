@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, AlertTriangle, MoreHorizontal, Pin, Clock, Trash2, Loader2 } from "lucide-react";
+import { Check, AlertTriangle, MoreHorizontal, Pin, Clock, Trash2, Loader2, MessageSquarePlus} from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { inlineUpdateTask, deleteTaskQuick, adminTogglePin } from "@/app/task/actions";
 import { useToast } from "./toast";
@@ -32,6 +32,7 @@ export function TaskRowActions({
   compact = false,
   className,
   onDone,
+  onUpdate,
 }: {
   task: TaskRow;
   /** Mobile / dense rows: collapse ✓ + ! into the `…` menu, show only `…`. */
@@ -39,6 +40,10 @@ export function TaskRowActions({
   className?: string;
   /** Called after any successful mutation (e.g. to refresh a local list). */
   onDone?: () => void;
+  /** Supplying this adds an "Update" button that asks the LIST to open its
+   *  inline composer for this row — the composer itself belongs to the list,
+   *  because it renders on the row's second line. Omit it and no button shows. */
+  onUpdate?: () => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -180,6 +185,21 @@ export function TaskRowActions({
       className={cn("inline-flex items-center gap-0.5", className)}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Add an update without opening the record. First, because "say what is
+          happening" is the commonest thing to want from a list. */}
+      {onUpdate && (
+        <IconButton
+          size="sm"
+          variant="ghost"
+          title="Add an update"
+          aria-label={`Add an update on ${task.code}`}
+          onClick={onUpdate}
+          className="hover:text-accent"
+        >
+          <MessageSquarePlus size={14} />
+        </IconButton>
+      )}
+
       {/* ✓ Complete + ! Escalate (hidden on compact rows — they live in the menu) */}
       {!compact && !done && (
         <>

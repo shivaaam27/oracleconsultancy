@@ -68,7 +68,7 @@ export function AskOri() {
 
       {turns.length === 0 && (
         <p className="px-1 text-[13px] text-fg-subtle">
-          ORI reads your live data and answers grounded in it — try “what’s outstanding for Cocozuri?” or
+          ORI reads your live data and answers grounded in it — try “what’s outstanding for Furaha?” or
           “who’s overdue this week?”. Answers arrive within a minute or two.
         </p>
       )}

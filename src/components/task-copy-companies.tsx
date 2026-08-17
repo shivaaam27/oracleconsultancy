@@ -1,5 +1,7 @@
 "use client";
 
+import { CONTROL_SHELL } from "@/components/ui";
+
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Building2, Check, ChevronDown, Loader2, Search } from "lucide-react";
@@ -15,7 +17,8 @@ import { cn } from "@/lib/cn";
  * another company creates an independent COPY there; unticking a copy made in
  * this session archives it. Mirrors the multi-company create, applied to edit. */
 
-const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
+// One shared control edge — see CONTROL_SHELL in ui.tsx.
+const fieldShell = CONTROL_SHELL;
 
 export function TaskCopyToCompanies({
   taskId, currentCompanyId, currentCompanyName, companies,

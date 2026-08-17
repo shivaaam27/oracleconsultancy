@@ -33,7 +33,7 @@ Input: need to make sure we follow up with shivam regarding the contract delay u
 Output: Follow up with Shivam on contract delay
 
 Input: dar spices packaging supplier has not responded yet we should check in with them
-Output: Chase Dar Spices packaging supplier for response
+Output: Chase DSC Ltd packaging supplier for response
 
 Input: john to send updated sales report by friday eod pls
 Output: Send updated sales report by Friday

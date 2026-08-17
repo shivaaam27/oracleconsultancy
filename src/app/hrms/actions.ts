@@ -34,7 +34,7 @@ function numOrNull(fd: FormData, key: string): number | null {
 
 function revalidateHrms() {
   revalidatePath("/hrms");
-  revalidatePath("/hrms/oecr");
+  revalidatePath("/hrms/supplies");
   revalidatePath("/");
 }
 

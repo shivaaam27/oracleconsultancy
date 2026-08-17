@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Ask ORI — routed through the cloud-agent engine (ai_jobs queue), answered by the
- * ORI worker on the Max plan. No external AI service. (The legacy ⌘K "Ask COS"
- * assistant still uses the old synchronous /api/ask; this is the new async path.)
+ * ORI worker on the Max plan. No external AI service. (The ⌘K "Ask ORI" surface
+ * still uses the old synchronous /api/ask; this is the new async path.)
  */
 export default function AskPage() {
   return (

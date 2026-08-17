@@ -58,7 +58,7 @@ export function PortalSignOut() {
       <button
         type="submit"
         onClick={() => { try { localStorage.removeItem(KEY); } catch { /* */ } }}
-        className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-elev px-2.5 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
       >
         <LogOut size={13} />
         Sign out

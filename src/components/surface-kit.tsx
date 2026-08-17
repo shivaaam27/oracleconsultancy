@@ -55,48 +55,46 @@ export function Panel({
   );
 }
 
-/** Aurora-lit page hero — title, subtitle, actions, and an optional body
- *  (e.g. a metric rail). The atmospheric glows are reduced-motion safe via the
- *  global media rule. Reuse on other pages for a consistent header. */
+/**
+ * The page header — title, subtitle, actions, and an optional body (a metric
+ * rail, usually).
+ *
+ * This WAS a 3xl title inside an aurora-lit glass slab, which cost ~190px before
+ * a single row of content and was the loudest thing on every page it appeared on.
+ * It is now the same compact header the command centre uses (`PageHeader` in
+ * ui.tsx — same markup, same `data-page-header` hook), because the portal pass
+ * has one goal: the two sides look like one product.
+ *
+ * The PROPS are unchanged on purpose. Eleven portal pages and the admin home
+ * render this, and none of them needed editing — the shape changed underneath
+ * them all at once.
+ *
+ * `accentTone` is now accepted and ignored: the header no longer tints, and
+ * removing it would have meant touching every caller for no gain.
+ */
 export function Hero({
   title,
   subtitle,
   actions,
-  accentTone = "accent",
   children,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
+  /** @deprecated The flat header does not tint. Kept so callers still compile. */
   accentTone?: Tone;
   children?: ReactNode;
 }) {
   return (
-    <section className="relative w-full overflow-hidden rounded-3xl glass elevated p-4 sm:p-6">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="aurora-a absolute -right-24 -top-28 h-80 w-80 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.28), transparent 70%)" }}
-        />
-        <div
-          className="aurora-b absolute -bottom-32 -left-24 h-72 w-72 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, hsl(var(--info) / 0.22), transparent 72%)" }}
-        />
-        <div
-          className="aurora-a absolute left-1/3 top-10 h-56 w-56 rounded-full blur-3xl"
-          style={{ background: `radial-gradient(circle, ${TONE[accentTone].stroke.replace(")", " / 0.14)")}, transparent 72%)` }}
-        />
-      </div>
-      <div className="relative flex flex-col gap-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 lg:flex-1">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight leading-tight break-words">{title}</h1>
-            {subtitle && <p className="mt-1 text-sm text-fg-muted">{subtitle}</p>}
-          </div>
-          {actions && <div className="flex flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>}
+    <section data-page-header className="mb-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+          {subtitle && <div className="mt-0.5 text-xs text-fg-muted">{subtitle}</div>}
         </div>
-        {children}
+        {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
       </div>
+      {children && <div className="mt-3">{children}</div>}
     </section>
   );
 }

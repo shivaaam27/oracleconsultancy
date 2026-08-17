@@ -74,11 +74,30 @@ export type FilterGroupDef = {
   source: "status" | "flag" | "company" | "person" | "category";
 };
 
+/**
+ * How this record type is raised — what the global New menu offers.
+ *
+ * `href` is all the metadata needs to carry: either a real create route
+ * (`/task/new`) or a list URL the owning page understands (`/documents?newdoc=1`).
+ * Most creates in COS are dialogs owned by a page, so the second form is the
+ * common one — the owning component reads the param with `useCreateParam` and
+ * opens its own dialog. No icons here: an icon is a component, and this file is
+ * plain data. The menu maps type → icon, exactly as entity-cells maps
+ * format → renderer.
+ */
+export type CreateDef = {
+  /** Menu wording. Says what you get, not what you click: "Task", not "New task". */
+  label: string;
+  href: string;
+};
+
 export type EntityView = {
   listColumns: ListColumnDef[];
   filters?: FilterGroupDef[];
   formSections?: FormSectionDef[];
   defaultSort?: { key: string; dir: "asc" | "desc" };
+  /** Offered in the global New menu. Omit for a type you cannot raise by hand. */
+  create?: CreateDef;
 };
 
 /**
@@ -111,6 +130,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       },
     ],
     defaultSort: { key: "deadline", dir: "asc" },
+    create: { label: "Task", href: "/task/new" },
   },
 
   person: {
@@ -136,6 +156,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       },
     ],
     defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Person", href: "/people?new=1" },
   },
 
   company: {
@@ -146,6 +167,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "people", label: "People", width: "80px", format: "number", align: "right", hideBelow: "md", sortable: true },
     ],
     defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Company", href: "/companies?new=1" },
   },
 
   document: {
@@ -160,6 +182,9 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { label: "Company", source: "company" },
     ],
     defaultSort: { key: "expiryDate", dir: "asc" },
+    // `newdoc=1` already existed for the old Inbox hand-off — reuse it rather
+    // than teach the page a second way to mean the same thing.
+    create: { label: "Document", href: "/documents?newdoc=1" },
   },
 
   vendor: {
@@ -170,6 +195,9 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "contact", label: "Contact", width: "170px", format: "muted", hideBelow: "md" },
     ],
     defaultSort: { key: "name", dir: "asc" },
+    // Assets and Vendors share one page and BOTH tables are mounted, so a bare
+    // `new=1` would open two dialogs at once. Name the one you mean.
+    create: { label: "Vendor", href: "/hrms/assets?view=vendors&new=vendor" },
   },
 
   asset: {
@@ -180,6 +208,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "status", label: "Status", width: "110px", format: "status", sortable: true },
     ],
     defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Asset", href: "/hrms/assets?view=assets&new=asset" },
   },
 
   commitment: {
@@ -190,6 +219,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "noticeBy", label: "Notice by", width: "116px", format: "date", align: "right", sortable: true },
     ],
     defaultSort: { key: "noticeBy", dir: "asc" },
+    create: { label: "Commitment", href: "/hrms/commitments?new=1" },
   },
 
   pipeline: {
@@ -200,8 +230,50 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "dueDate", label: "Due", width: "116px", format: "date", align: "right", sortable: true },
     ],
     defaultSort: { key: "dueDate", dir: "asc" },
+    create: { label: "Application", href: "/hrms/pipeline?new=1" },
   },
 };
+
+/* ------------------------------------------------------------ creatables --- */
+
+/**
+ * Things you can raise that are NOT indexed entities, so they have no
+ * `EntityType` and cannot live in ENTITY_VIEWS above. Kept here anyway, beside
+ * the others, so the New menu still has exactly ONE place to add to.
+ */
+const EXTRA_CREATES: { id: string; create: CreateDef }[] = [
+  { id: "event", create: { label: "Event", href: "/calendar?new=1" } },
+  { id: "announcement", create: { label: "Announcement", href: "/announcements?new=1" } },
+];
+
+/** Menu order — the things raised most often first, not alphabetical. */
+const CREATE_ORDER = [
+  "task", "event", "person", "document", "company",
+  "vendor", "asset", "commitment", "pipeline", "announcement",
+];
+
+export type Creatable = { id: string; label: string; href: string };
+
+/**
+ * Every record type the owner can raise, in menu order.
+ *
+ * FORWARD RULE: give a new record type a `create` on its ENTITY_VIEWS entry
+ * (or an EXTRA_CREATES row if it has no EntityDef) and it appears in the global
+ * New menu and in ⌘K at the same moment. Nothing else to edit.
+ */
+export function creatables(): Creatable[] {
+  const all: Creatable[] = [
+    ...Object.entries(ENTITY_VIEWS)
+      .filter(([, v]) => v?.create)
+      .map(([id, v]) => ({ id, label: v!.create!.label, href: v!.create!.href })),
+    ...EXTRA_CREATES.map((e) => ({ id: e.id, label: e.create.label, href: e.create.href })),
+  ];
+  const rank = (id: string) => {
+    const i = CREATE_ORDER.indexOf(id);
+    return i === -1 ? CREATE_ORDER.length : i;   // anything new sorts to the end
+  };
+  return all.sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label));
+}
 
 /** The view for an entity, or undefined if it hasn't been given a screen yet. */
 export function entityView(type: EntityType): EntityView | undefined {
