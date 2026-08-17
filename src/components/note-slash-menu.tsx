@@ -2,15 +2,16 @@
 
 import { Extension } from "@tiptap/core";
 import Suggestion, { type SuggestionOptions } from "@tiptap/suggestion";
+import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
 import type { Editor, Range } from "@tiptap/core";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import {
   Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code2,
-  Minus, Table as TableIcon, CalendarDays, Type, type LucideIcon,
+  Minus, Table as TableIcon, CalendarDays, Type, AtSign, Link2, Info, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { layoutRect } from "@/lib/zoom";
+import { createMenuPositioner } from "@/lib/suggestion-position";
 
 /**
  * The `/` menu. Phase 2 of memory/notes_module_plan.md.
@@ -27,6 +28,8 @@ import { layoutRect } from "@/lib/zoom";
  *  • every item is a plain command over the editor chain, so adding one is one entry
  *    in ITEMS. No new plumbing.
  */
+
+const SLASH_KEY = new PluginKey("noteSlashCommands");
 
 type SlashItem = {
   title: string;
@@ -61,6 +64,8 @@ const ITEMS: SlashItem[] = [
     run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   { title: "Table", hint: "3 × 3, with a header row", icon: TableIcon, group: "Blocks", keywords: ["table", "grid", "tbl", "rows"],
     run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: "Callout", hint: "Boxed, for the thing not to miss", icon: Info, group: "Blocks", keywords: ["callout", "box", "note", "aside", "warning", "tip"],
+    run: (e, r) => e.chain().focus().deleteRange(r).wrapIn("callout", { tone: "info" }).run() },
   { title: "Divider", hint: "A line across", icon: Minus, group: "Blocks", keywords: ["hr", "rule", "line", "---"],
     run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
 
@@ -68,6 +73,15 @@ const ITEMS: SlashItem[] = [
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent(
       new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
     ).run() },
+
+  /* These two do not link anything themselves — they type the trigger and hand
+     over to the `@` / `[[` picker in note-mention.tsx. That is the point: the
+     gesture you learn here is the one you use everywhere afterwards, and there is
+     still only ONE way a link gets made. */
+  { title: "Link a record", hint: "Task, person, company or document", icon: AtSign, group: "Insert", keywords: ["@", "mention", "link", "task", "person", "company", "doc"],
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent("@").run() },
+  { title: "Link a note", hint: "Another note in the shelf", icon: Link2, group: "Insert", keywords: ["[[", "note", "wiki", "backlink"],
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent("[[").run() },
 ];
 
 function match(item: SlashItem, query: string): boolean {
@@ -146,24 +160,6 @@ const SlashList = forwardRef<MenuHandle, { items: SlashItem[]; command: (item: S
   },
 );
 
-/** Where the menu sits: under the caret, flipped above when there is no room. */
-function place(el: HTMLElement, clientRect: DOMRect) {
-  // The caret rect comes from ProseMirror in VISUAL pixels; a style is written in
-  // LAYOUT pixels. On the admin side the zoom is 1 so they agree — but dividing by
-  // the same zoom `layoutRect` uses keeps this correct if notes ever reach the portal.
-  const zoom = layoutRect(document.body).zoom || 1;
-  const top = clientRect.bottom / zoom;
-  const left = clientRect.left / zoom;
-  const menuH = el.offsetHeight || 260;
-  const spaceBelow = window.innerHeight / zoom - top;
-  const openUp = spaceBelow < menuH + 16;
-  el.style.position = "fixed";
-  el.style.left = `${Math.max(8, left)}px`;
-  el.style.top = openUp ? "" : `${top + 6}px`;
-  el.style.bottom = openUp ? `${window.innerHeight / zoom - clientRect.top / zoom + 6}px` : "";
-  el.style.zIndex = "60";
-}
-
 /** The extension. Add it to the editor's `extensions` and `/` works. */
 export const SlashCommands = Extension.create({
   name: "slashCommands",
@@ -171,29 +167,42 @@ export const SlashCommands = Extension.create({
     return {
       suggestion: {
         char: "/",
+        // ⚠️ Its own key. `@tiptap/suggestion` defaults every instance to
+        // `PluginKey("suggestion")`, and a second one in the same editor makes
+        // ProseMirror throw "Adding different instances of a keyed plugin
+        // (suggestion$)" — which takes the whole note page down, not just the
+        // menu. `@` and `[[` in note-mention.tsx carry their own keys too.
+        pluginKey: SLASH_KEY,
         // Only at the start of an empty-ish block: a `/` mid-sentence is a slash.
         startOfLine: true,
         command: ({ editor, range, props }) => (props as SlashItem).run(editor, range),
         items: ({ query }) => ITEMS.filter((i) => match(i, query)).slice(0, 12),
         render: () => {
           let component: ReactRenderer<MenuHandle> | null = null;
+          // Positioning lives in lib/suggestion-position.ts — shared with the `@`
+          // and `[[` pickers, and the only thing that guarantees the menu cannot
+          // run off the bottom of a long note. Read its header before changing it.
+          const menu = createMenuPositioner();
+          const close = () => {
+            menu.detach();
+            (component?.element as HTMLElement | undefined)?.remove();
+          };
           return {
             onStart: (props) => {
               component = new ReactRenderer(SlashList, { editor: props.editor, props });
               const el = component.element as HTMLElement;
               document.body.appendChild(el);
-              if (props.clientRect?.()) place(el, props.clientRect()!);
+              menu.attach(el, () => props.clientRect?.());
             },
             onUpdate: (props) => {
               component?.updateProps(props);
-              const el = component?.element as HTMLElement | undefined;
-              if (el && props.clientRect?.()) place(el, props.clientRect()!);
+              menu.update(() => props.clientRect?.());
             },
             onKeyDown: (props) => {
-              if (props.event.key === "Escape") { (component?.element as HTMLElement)?.remove(); return true; }
+              if (props.event.key === "Escape") { close(); return true; }
               return component?.ref?.onKeyDown(props) ?? false;
             },
-            onExit: () => { (component?.element as HTMLElement)?.remove(); component?.destroy(); },
+            onExit: () => { close(); component?.destroy(); },
           };
         },
       } satisfies Partial<SuggestionOptions>,

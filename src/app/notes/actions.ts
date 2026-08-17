@@ -14,6 +14,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { parseTags } from "@/lib/note-tags";
+import { syncNoteLinks } from "@/lib/note-links";
+import { createNoteTodo, deleteNoteTodo, setNoteTodoDone, todoStates } from "@/lib/note-todos";
 
 const NOW = () => new Date().toISOString();
 
@@ -89,11 +91,14 @@ export async function saveNoteBody(input: {
   if (error) return { ok: false, reason: "error", message: error.message };
 
   if (data) {
-    // `#tags` are DERIVED, so they are rewritten from the text we just stored. Doing
-    // it here rather than in a job is the same rule body_text follows: if the two can
-    // be out of step, they will be. Failure is swallowed on purpose — a tag index is
-    // not worth losing the owner's writing over.
-    await syncTags(input.id, input.bodyText);
+    // `#tags` and `note_links` are both DERIVED, so they are rewritten from what we
+    // just stored. Doing it here rather than in a job is the same rule body_text
+    // follows: if two things can be out of step, they will be. Both swallow their
+    // own failures on purpose — an index is not worth losing the owner's writing.
+    await Promise.all([
+      syncTags(input.id, input.bodyText),
+      syncNoteLinks(input.id, input.bodyJson),
+    ]);
   }
 
   if (!data) {
@@ -107,14 +112,19 @@ export async function saveNoteBody(input: {
   return { ok: true, updatedAt: data.updated_at as string };
 }
 
-/** Rename. Kept separate from the body save so a title edit never carries a stale
- *  body with it, and vice versa. */
-export async function renameNote(id: number, title: string): Promise<{ ok: boolean }> {
-  const { error } = await sb.from("notes").update({ title: title.slice(0, 300), updated_at: NOW() }).eq("id", id);
-  revalidatePath("/notes");
-  revalidatePath(`/notes/${id}`);
-  return { ok: !error };
-}
+/* ⚠️ THERE IS NO `renameNote`, AND THAT IS DELIBERATE.
+ *
+ * There was one, and it was a bug. It wrote the title on its own and moved
+ * `updated_at` with it — a SECOND writer to a row whose whole safety model is a
+ * single `updated_at` precondition. The editor never saw the new timestamp, so
+ * the next keystroke saved against a stale one, the note said "Changed
+ * elsewhere", and **the body stopped saving** — after nothing more exotic than
+ * typing a title. Reproduced and measured while building Phase 3.
+ *
+ * The title now travels with the body in `saveNoteBody`, which already takes it.
+ * One row, one writer, one precondition. If you need to set a title from
+ * somewhere new, read the note, then call `saveNoteBody` with its current
+ * `updated_at` — do not add a second update path. */
 
 export async function togglePinNote(id: number): Promise<{ ok: boolean; pinned: boolean }> {
   const { data } = await sb.from("notes").select("pinned_at").eq("id", id).maybeSingle();
@@ -173,6 +183,82 @@ export async function deleteFolder(id: number): Promise<{ ok: boolean }> {
   const { error } = await sb.from("note_folders").delete().eq("id", id);
   revalidatePath("/notes");
   return { ok: !error };
+}
+
+/* ------------------------------------------------------------------ */
+/* To-dos and reminders — Phase 4                                      */
+/*                                                                     */
+/* A note's to-do is an ORDINARY `todos` row with `note_id` set, so it  */
+/* inherits the reminder cron, the push, the morning digest and the    */
+/* Home card for nothing. There is no second reminder engine here, and */
+/* there must not be one — that was the plan's rule from §1.           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Promote a line of the note into a real to-do.
+ *
+ * Returns the new id so the editor can write it onto the checklist item, which is
+ * what stops the same line being promoted twice.
+ */
+export async function promoteNoteLine(input: {
+  noteId: number;
+  title: string;
+  remindAt?: string | null;
+}): Promise<{ ok: true; todoId: number } | { ok: false; error: string }> {
+  const created = await createNoteTodo(input);
+  if (!created) return { ok: false, error: "That line is empty." };
+  revalidatePath(`/notes/${input.noteId}`);
+  revalidatePath("/");   // the Home to-do card counts it immediately
+  return { ok: true, todoId: created.id };
+}
+
+/** A reminder on the note ITSELF — "come back to this on Tuesday". Same row type;
+ *  the title is the note's, so the push reads like something a person wrote. */
+export async function remindAboutNote(input: {
+  noteId: number;
+  title: string;
+  remindAt: string;
+}): Promise<{ ok: true; todoId: number } | { ok: false; error: string }> {
+  const when = new Date(input.remindAt);
+  if (Number.isNaN(when.getTime())) return { ok: false, error: "That is not a real date." };
+  // A reminder in the past would fire on the very next cron tick, which reads as a
+  // bug rather than a reminder.
+  if (when.getTime() < Date.now() - 60_000) return { ok: false, error: "That moment has already passed." };
+
+  const created = await createNoteTodo({
+    noteId: input.noteId,
+    title: input.title.trim() || "Look at this note",
+    remindAt: when.toISOString(),
+  });
+  if (!created) return { ok: false, error: "Could not set that reminder." };
+  revalidatePath(`/notes/${input.noteId}`);
+  revalidatePath("/");
+  return { ok: true, todoId: created.id };
+}
+
+export async function toggleNoteTodo(id: number, done: boolean, noteId: number): Promise<{ ok: boolean }> {
+  const ok = await setNoteTodoDone(id, done);
+  revalidatePath(`/notes/${noteId}`);
+  revalidatePath("/");
+  return { ok };
+}
+
+/** Remove a to-do raised from a note — for a line promoted by mistake. This one
+ *  DOES delete, unlike the note itself: an unwanted to-do on the owner's plate is
+ *  noise, and it has no history worth keeping. */
+export async function removeNoteTodo(id: number, noteId: number): Promise<{ ok: boolean }> {
+  const ok = await deleteNoteTodo(id);
+  revalidatePath(`/notes/${noteId}`);
+  revalidatePath("/");
+  return { ok };
+}
+
+/** Which promoted lines still have a live to-do behind them, and whether it is
+ *  ticked. The editor asks on load: an id written into the document can go stale
+ *  when the to-do is deleted from the to-do list, which knows nothing about notes. */
+export async function noteTodoStates(ids: number[]): Promise<Record<number, boolean>> {
+  const map = await todoStates(ids);
+  return Object.fromEntries(map);
 }
 
 /** Rewrite a note's tag rows to match its text. Cheap: a note has a handful of tags,

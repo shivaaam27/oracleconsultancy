@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { RecordPage, RecordSidebarBlock, type RecordSection } from "@/components/record-page";
 import { PersonForm, type Defaults as PersonFormDefaults } from "@/components/person-form";
 import { DeletePersonDialog } from "@/components/delete-person-dialog";
+import { LinkedNotesTab } from "@/components/linked-notes";
 import { Badge } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
@@ -214,6 +215,9 @@ export function PersonRecord({
     { id: "overview", label: "Overview" },
     { id: "tasks", label: "Tasks", count: tasks.length },
     { id: "documents", label: "Documents", count: documents.length },
+    // Notes that mention this person (Phase 3). No count: it would mean loading
+    // every linked note to draw a tab nobody has opened.
+    { id: "notes", label: "Notes" },
     { id: "edit", label: "Edit" },
   ];
 
@@ -236,6 +240,17 @@ export function PersonRecord({
       sections={tab === "overview" ? sections : undefined}
       sidebar={tab === "overview" ? sidebar : undefined}
     >
+      {/* Owner-only, like the whole module — this is the admin person page, not
+          the portal, so a member of staff never sees the notes written about
+          them. Loaded on demand: the tab is the only thing that asks. */}
+      {tab === "notes" && (
+        <LinkedNotesTab
+          type="person"
+          id={person.id}
+          emptyHint={`Write @${person.name} in any note and it will appear here.`}
+        />
+      )}
+
       {tab === "tasks" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {tasks.length === 0 ? (

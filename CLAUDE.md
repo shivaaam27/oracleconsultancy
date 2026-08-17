@@ -69,8 +69,23 @@ The system replaces an Excel workbook with:
   matching rule is true, so listing `master: true` after the catch-all keeps production live.
   **Do not also push the working branch** — pushing both `HEAD:master` and the branch is what
   produced two builds of identical code (one production, one preview) and wasted a deploy.
-- **Dependency security**: `package.json` `overrides` pin patched `postcss`/`esbuild`/`sharp`/`fast-uri` (keeps `npm audit` clean without breaking downgrades — do not remove without re-checking audit). Dependabot config in `.github/dependabot.yml`.
-  - **KNOWN, ACCEPTED (Jul 2026): `brace-expansion` 2.1.2 nested under `minimatch` stays unpatched.** `npm audit` reports it as high (GHSA-mh99-v99m-4gvg, DoS). **Do NOT add a `brace-expansion` override** — the only patched release is 5.0.8, which switched to a named export, so `minimatch` throws `brace_expansion_1.default is not a function` on any `{a,b}` pattern. This was tried and reverted. There is no patched 2.x. **Where it actually sits (corrected Jul 2026):** the surviving vulnerable copy is `node_modules/minimatch/node_modules/brace-expansion`, reached via `googleapis` → `googleapis-common` → `gaxios` → `rimraf` → `glob` → `minimatch`. That is a RUNTIME chain (Google Calendar sync), not build-only — an earlier note here said "build config" and was wrong. Still not exploitable: triggering it needs an attacker-controlled brace pattern reaching `expand()`, and the only patterns on that path are ones the libraries construct internally; no user input reaches a glob pattern anywhere in this app. The top-level copy IS patched (5.0.8), so nothing else resolves to the vulnerable one. Re-check when `minimatch` ships a release accepting brace-expansion ≥5.
+- **Dependency security**: `package.json` `overrides` pin patched `postcss`/`esbuild`/`sharp`/`fast-uri`/`nanoid`/`brace-expansion` (keeps `npm audit` clean without breaking downgrades — do not remove without re-checking audit). Dependabot config in `.github/dependabot.yml`.
+  - **`npm audit --omit=dev` is CLEAN as of 17 Aug 2026 — 0 vulnerabilities.** Keep it that way.
+  - **RESOLVED (17 Aug 2026): the long-standing `brace-expansion` exception is gone.**
+    The old note here said "there is no patched 2.x, do NOT add a `brace-expansion`
+    override" — that was true when written and is **no longer true**: upstream shipped
+    **2.1.4**, which fixes GHSA-mh99-v99m-4gvg while keeping the 2.x default export that
+    `minimatch` needs. The fix is a NESTED override so `minimatch` gets the patched 2.x
+    while anything else may use 5.x:
+    `"brace-expansion": "^5.0.9", "minimatch": { "brace-expansion": "^2.1.4" }`.
+    Everything deduped to 2.1.4 in practice. **Verified, not assumed:** a direct
+    minimatch smoke test expanded `{a,b}` and `{1..3}` patterns correctly (the exact
+    `brace_expansion_1.default is not a function` failure the old note warned about),
+    `googleapis` still builds a Calendar client (that RUNTIME chain —
+    `googleapis` → `googleapis-common` → `gaxios` → `rimraf` → `glob` → `minimatch` — is
+    why it mattered), 323 tests pass and the build is clean.
+    ⚠️ If a future advisory hits the 2.x line again, check for a patched 2.x FIRST
+    before assuming the only way out is 5.x.
 
 ## Current Schema Areas
 
@@ -126,7 +141,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0117** (`event_documents` — papers attached to a calendar event). **0116 (MCP OAuth) and 0117 are both APPLIED** (verified against the live DB, 16 Aug 2026 — `event_documents`, `mcp_oauth_clients` and `mcp_oauth_tokens` all exist).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0121** (`todos.note_id` — a to-do raised from a note; see the Notes section). **0116–0121 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0121 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
 
@@ -332,7 +347,7 @@ deliberately not being done. **`RecordList` is the lever for three of the four**
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
-## Notes — BUILT through Phase 2. **Phase 3 is next** (`memory/notes_module_plan.md`)
+## Notes — BUILT through Phase 4. **Phase 5 (AI) is next** (`memory/notes_module_plan.md`)
 
 `/notes` (the shelf) and `/notes/[id]` (one note, one sheet) are live and in use,
 owner-only, behind the admin gate. **Read `memory/notes_module_plan.md` before
@@ -343,23 +358,69 @@ the traps that cost real time.
   `note-editor-mount.tsx` is a one-line client wrapper that exists because **Next 16
   refuses `next/dynamic` with `ssr: false` inside a Server Component**. `immediatelyRender:
   false` is mandatory. The editor is ~122 kB gzip in its own lazy chunk.
-- **Tables**: `notes`, `note_folders` (migration **0118**), `note_tags` (**0119**).
-  `body_json` (Tiptap JSON) is canonical; **`body_text` is derived and written in the
-  SAME statement** — if they drift, search and AI rot. `#tags` are re-derived per save
-  by `lib/note-tags.ts` (client-safe, 8 tests). Legacy notes: the 4 old
-  `meetings.kind='note'` rows were imported; the originals are untouched.
-- **Client/server split**: `lib/notes.ts` is server-only (imports `sb`);
-  **`lib/notes-shared.ts`** is what client components import. Getting this wrong kills
-  every page with "SUPABASE_SERVICE_ROLE_KEY is not set".
+- **Tables**: `notes`, `note_folders` (migration **0118**), `note_tags` (**0119**),
+  `note_links` (**0120**), plus `todos.note_id` (**0121**). `body_json` (Tiptap JSON)
+  is canonical; **`body_text`, `#tags` and `note_links` are all DERIVED and written in
+  the SAME save** — if they drift, search, AI and backlinks rot. Legacy notes: the 4
+  old `meetings.kind='note'` rows were imported; the originals are untouched.
+- **To-dos (Phase 4) are ONE nullable column, `todos.note_id`.** A note's to-do is an
+  ORDINARY `todos` row, so it inherits the reminder cron, push, morning digest and
+  Home card for nothing. **Do not build a note-only to-do store or a second reminder
+  engine.** A tick-box line promotes via `NoteTaskItem`'s `todoId` attribute — which
+  is a POINTER, not the truth: the editor re-checks live ids on load, because the
+  to-do list can delete a row and knows nothing about notes.
+- **Attachments**: the browser uploads STRAIGHT TO STORAGE on a signed URL and the
+  server only sees the path (a server action body caps at a few MB — a phone photo is
+  bigger). A file becomes an ordinary `documents` row (category "Attachment"); an
+  image renders inline, any other file becomes a document `@` chip. ⚠️ **An image's
+  `src` is the permanent `/api/notes/file/<id>` route, NEVER a signed URL** — signed
+  URLs expire and a note is read years later.
+- **Unlinked mentions** offer names typed without an `@`; **accepting rewrites the
+  text into a real mention** rather than inserting a link row, so links stay derived.
+- **Client/server split**: `lib/notes.ts` and `lib/note-links.ts` are server-only
+  (they import `sb`); **`lib/notes-shared.ts`** and **`lib/note-links-shared.ts`** are
+  what client components import. Getting this wrong kills every page with
+  "SUPABASE_SERVICE_ROLE_KEY is not set".
 - **Done**: shelf (RecordList + `ENTITY_VIEWS.note`, two-line rows), autosave with an
   `updated_at` staleness guard, pin/folder/archive, Quick Note, the **`/` menu**
   (`note-slash-menu.tsx` — add a command = one entry in `ITEMS`), tables, `#tags` +
-  tag rail, **daily notes** ("Today", EAT-based, partial unique index).
-- **Phase 3 = interconnection**: `note_links`, `@` mentions of task/person/company/
-  document, `[[note]]` links, a **Backlinks** panel, and a Notes tab on those records.
-- ⚠️ **Owner-only is structural**: no `visibility` column, no portal twin. `/notes`
-  must stay OUT of the proxy matcher's exclusion list. A note linked to a task is
-  still invisible to staff.
+  tag rail, **daily notes** ("Today", EAT-based, partial unique index), and **Phase 3:
+  `@` mentions of task/person/company/document, `[[note]]` links, a Links + Backlinks
+  rail, and a Notes tab on the task, person and company records**.
+- **A link is DERIVED FROM THE WRITING.** `note_links` is rewritten from the document
+  on every save, so the only way to make one is to `@`-mention it in the note. There is
+  deliberately **no "attach a note" button** on a task — a link made away from the
+  writing is one the writing does not know about, and the two would drift.
+- ⚠️ **Owner-only is structural**: no `visibility` column, no portal twin. `/notes`,
+  `/api/notes/linked` and `/api/note-mentions` must stay OUT of the proxy matcher's
+  exclusion list (verified: all three redirect without the admin cookie). A note linked
+  to a task is still invisible to staff.
+- ⚠️ **A Tiptap document MUST be JSON-cloned before it crosses a server action**
+  (`plainDoc()` in `note-editor.tsx`). ProseMirror builds `attrs` with
+  `Object.create(null)` and React's Server Action serialiser drops null-prototype
+  objects **silently** — mentions arrived stripped of every attribute and nothing
+  errored anywhere.
+- ⚠️ **Every `Suggestion()` in one editor needs its own `pluginKey`** — they all
+  default to `suggestion$`, and a collision takes the whole note page down. Three are
+  live (`/`, `@`, `[[`). Add a trigger, add a key.
+- ⚠️ **Caret-anchored menus position through `lib/suggestion-position.ts`**
+  (`createMenuPositioner()`), shared by all three. It **caps the menu to the room on
+  the side it opens into**, so it cannot run off the screen, and re-places on update,
+  scroll (capture) and resize. Each menu used to carry its own copy of the maths and
+  the `/` menu hung 189px below the fold at the foot of a long note. Do not hand-roll
+  it again.
+- ⚠️ **ONE ROW, ONE WRITER.** The note's whole safety model is a single `updated_at`
+  precondition, so the title travels with the body in `saveNoteBody`. The old
+  `renameNote` was a second writer and it made the body **stop saving** the moment you
+  typed a title. Do not add another update path.
+- **"Where am I?" on the page**: the caret is the **accent blue**, and a soft band
+  sits behind the block you are writing in (`note-active-line.tsx`), shown only while
+  the editor is focused and never on a selection, a table or a code block. Both exist
+  because Phase 1.5 deliberately removed the focus ring from the writing surface, which
+  left a 1px hairline caret as the only "you are here". CSS cannot thicken a caret, so
+  the fix is a bigger target for the eye, not a bigger caret. Gated on
+  **`.ProseMirror-focused`, not `:focus`** — `:focus` stops matching when the window
+  loses focus and the band would flicker on every app switch.
 - ⚠️ **No native `<select>`/`<datalist>`** anywhere (use `FluidSelect`/`Combobox`), and
   **`outline-none` cannot beat `*:focus-visible`** — the writing surface needed a
   scoped override. Tailwind v4's Lightning CSS also **silently drops** modern CSS

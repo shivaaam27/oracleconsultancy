@@ -3,6 +3,8 @@ import { CompanySummary } from "@/components/company-summary";
 import { CompanyActions } from "./_tabs/company-actions";
 import { ViewPublisher } from "@/components/view-publisher";
 import { COMPANY_TABS, COMPANY_TAB_LABELS, parseCompanyTab } from "./_tabs/tabs";
+import { notesLinkedTo } from "@/lib/note-links";
+import { LinkedNotesList } from "@/components/linked-notes";
 import { RecordPage } from "@/components/record-page";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
@@ -461,6 +463,17 @@ export default async function CompanyPage({
             </div>
           </details>
         </>
+      )}
+
+      {/* Notes that mention this company (Phase 3 of the notes plan). A server
+          read, so there is no fetch and no spinner — the page already knows.
+          Owner-only, like every note: this page is behind the admin gate and has
+          no portal twin. */}
+      {tab === "notes" && (
+        <LinkedNotesList
+          notes={await notesLinkedTo("company", companyId)}
+          emptyHint={`Write @${name} in any note and it will appear here.`}
+        />
       )}
 
       {tab === "timeline" && (

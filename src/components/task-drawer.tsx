@@ -12,7 +12,7 @@ import { SectionCard } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
 import { TimelineEntry } from "./timeline-entry";
 import {
-  History, LayoutDashboard, MessageSquare, Pencil, Save,
+  History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
   ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell,
 } from "lucide-react";
@@ -40,6 +40,7 @@ import {
   type TimelineItem, type TimelineFilter,
 } from "@/lib/timeline";
 import type { TaskRow } from "@/lib/queries";
+import { LinkedNotesTab } from "./linked-notes";
 import { cn } from "@/lib/cn";
 
 type DrawerUpdate = { id: number; body: string; created_at: string; created_by: string | null; edited_at: string | null; original_body: string | null; pinned_at: string | null; parent_update_id?: number | null; attachment_document_id?: number | null };
@@ -780,6 +781,13 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     { id: "conversation", label: "Conversation", icon: <MessageSquare size={14} />, badge: convoCount || undefined, content: conversationContent },
     { id: "overview", label: "Details", icon: <LayoutDashboard size={14} />, content: overviewContent },
     { id: "history", label: "History", icon: <History size={14} />, badge: counts.all || undefined, content: historyContent },
+    /* Notes about this task (Phase 3). Owner-only, like the whole module — the
+       route it reads sits inside the admin gate, and this component never appears
+       on a portal screen, so an assignee still cannot see the note behind the
+       task. It loads on the client because this record does. */
+    { id: "notes", label: "Notes", icon: <StickyNote size={14} />, content: (
+      <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} />
+    ) },
     { id: "edit", label: "Edit", icon: <Pencil size={14} />, content: editContent },
   ] : [];
 

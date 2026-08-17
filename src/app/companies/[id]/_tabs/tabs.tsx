@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { LayoutDashboard, IdCard, ListChecks, Activity, Network } from "lucide-react";
+import { LayoutDashboard, IdCard, ListChecks, Activity, Network, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CompanyTab = "overview" | "profile" | "tasks" | "timeline" | "org";
+export type CompanyTab = "overview" | "profile" | "tasks" | "notes" | "timeline" | "org";
 
-export const COMPANY_TABS: CompanyTab[] = ["overview", "profile", "tasks", "timeline", "org"];
+export const COMPANY_TABS: CompanyTab[] = ["overview", "profile", "tasks", "notes", "timeline", "org"];
 
 export function parseCompanyTab(v: string | undefined): CompanyTab {
-  if (v === "profile" || v === "tasks" || v === "timeline" || v === "org") return v;
+  if (v === "profile" || v === "tasks" || v === "notes" || v === "timeline" || v === "org") return v;
   // Legacy deep-links: the File tab merged into Profile; Completed folds into Tasks.
   if (v === "file") return "profile";
   if (v === "completed") return "tasks";
@@ -18,6 +18,7 @@ const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   overview: LayoutDashboard,
   profile: IdCard,
   tasks: ListChecks,
+  notes: StickyNote,
   timeline: Activity,
   org: Network,
 };
@@ -26,6 +27,7 @@ export const COMPANY_TAB_LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
   profile: "Profile",
   tasks: "Tasks",
+  notes: "Notes",
   timeline: "Timeline",
   org: "Org",
 };

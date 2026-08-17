@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
       // else (owner to-dos, even if tagged to a person) pings the owner.
       const staff = r.kind === "self" && r.personId != null;
       const recipient = staff ? `person:${r.personId}` : "admin";
-      const url = staff ? "/portal" : "/";
+      // A reminder raised from a note opens THAT note. Owner-only by definition —
+      // notes never reach the portal — so a staff reminder can never land here.
+      const url = staff ? "/portal" : r.noteId != null ? `/notes/${r.noteId}` : "/";
       const n = await sendToRecipient(recipient, {
         title: "Reminder",
         body: r.title,

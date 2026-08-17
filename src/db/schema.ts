@@ -1013,9 +1013,19 @@ export const todos = pgTable("todos", {
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
+  /** Phase 4 of the notes module: the to-do came out of a note — a ticked line
+   *  promoted, or a reminder set on the note itself. ON DELETE SET NULL, so
+   *  deleting a note never destroys a real commitment; the to-do simply loses its
+   *  origin. This is the WHOLE to-do integration: no second reminder engine, no
+   *  second digest — a note's to-do is an ordinary `todos` row. */
+  noteId: integer("note_id").references(() => notes.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
-}, (t) => [index("todos_person_idx").on(t.personId), index("todos_remind_idx").on(t.done, t.remindAt)]);
+}, (t) => [
+  index("todos_person_idx").on(t.personId),
+  index("todos_remind_idx").on(t.done, t.remindAt),
+  index("todos_note_idx").on(t.noteId),
+]);
 
 // Director Brief notes — free narrative the operator writes by hand: Admin/HR
 // "updates" that aren't tasks (e.g. "Renewed the office lease", "Onboarded two
@@ -1900,4 +1910,36 @@ export const noteTags = pgTable("note_tags", {
 }, (t) => [
   primaryKey({ columns: [t.noteId, t.tag] }),
   index("note_tags_tag_idx").on(t.tag),
+]);
+
+/**
+ * What a note points at — the interconnection. Phase 3 of the notes plan.
+ *
+ * Same shape as `document_links`: a row says "this note refers to that record".
+ * It is DERIVED, exactly like `note_tags` and `body_text`: the owner writes an
+ * `@mention` (or a `[[note]]`) in the body and the link falls out of the document
+ * on save. There is no second way to add one, on purpose — a link you can create
+ * from two places is a link that can disagree with the writing.
+ *
+ * `target_id` is deliberately NOT a foreign key. It points at five different
+ * tables depending on `target_type`, which no single FK can express; the reads in
+ * `lib/note-links.ts` resolve the label per type and simply drop a row whose
+ * target has gone. `target_code` is a display convenience (task codes) so a list
+ * of links can be drawn without joining.
+ *
+ * The `(target_type, target_id)` index is what makes the reverse question — "which
+ * notes mention this task?" — cheap, which is the whole point of the table.
+ */
+export const noteLinks = pgTable("note_links", {
+  id: serial("id").primaryKey(),
+  noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  /** 'task' | 'person' | 'company' | 'document' | 'note' */
+  targetType: text("target_type").notNull(),
+  targetId: integer("target_id").notNull(),
+  targetCode: text("target_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("note_links_unique").on(t.noteId, t.targetType, t.targetId),
+  index("note_links_target_idx").on(t.targetType, t.targetId),
+  index("note_links_note_idx").on(t.noteId),
 ]);

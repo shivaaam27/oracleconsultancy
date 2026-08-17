@@ -4,18 +4,30 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { TaskList, TaskItem } from "@tiptap/extension-list";
+import { TaskList } from "@tiptap/extension-list";
+import { NoteTaskItem } from "@/components/note-task-item";
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { SlashCommands } from "@/components/note-slash-menu";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Mention, MentionPickers } from "@/components/note-mention";
+import { ActiveLine } from "@/components/note-active-line";
+import { NoteImage } from "@/components/note-image";
+import { Callout, CALLOUT_TONES, CALLOUT_TONE_LABELS } from "@/components/note-callout";
+import { attachFileAtCaret, filesFrom } from "@/lib/note-upload";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
   Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
-  Table as TableIcon, Rows3, Columns3, Trash2,
+  Table as TableIcon, Rows3, Columns3, Trash2, ListPlus, Bell, Paperclip, Info, GripVertical,
+  Sparkles, X,
 } from "lucide-react";
+import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
-import { saveNoteBody, renameNote } from "@/app/notes/actions";
+import { extractMentions } from "@/lib/note-links-shared";
+import { findUnlinked, findWholeWord, type LinkCandidate } from "@/lib/note-unlinked-shared";
+import { useToast } from "@/components/toast";
+import { noteTodoStates, promoteNoteLine, removeNoteTodo, saveNoteBody } from "@/app/notes/actions";
 
 /**
  * The note sheet: title and body on ONE piece of paper.
@@ -56,37 +68,282 @@ export function NoteEditor({
   initialTitle,
   initialBody,
   initialUpdatedAt,
+  candidates,
 }: {
   noteId: number;
   initialTitle: string;
   initialBody: unknown;
   initialUpdatedAt: string;
+  candidates: LinkCandidate[];
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const [title, setTitle] = useState(initialTitle);
+  /** The title as `flush` should send it. A ref as well as state because `flush`
+   *  is a `useCallback` and would otherwise close over a stale title. */
+  const titleRef = useRef(initialTitle);
   const seenUpdatedAt = useRef(initialUpdatedAt);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  /** Which records the note mentions, as one comparable string. Seeded from the
+   *  body we were given, so the first save after a reload does not refresh for
+   *  nothing. */
+  const seenMentions = useRef(mentionSignature(initialBody));
+  /** A save is in the air / another was asked for while it was. See `flush`. */
+  const saving = useRef(false);
+  const pendingSave = useRef(false);
 
   const flush = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor) return;
+
+    /* ⚠️ ONE SAVE AT A TIME. Without this guard the editor reports "Changed
+       elsewhere" against ITSELF, which is the worst possible false alarm: the
+       warning exists to mean "another tab has your note", and it was firing while
+       one person typed in one window.
+
+       How it happened: save A goes out carrying timestamp T0 and is still in
+       flight when the debounce fires save B — which also carries T0, because A has
+       not come back yet to move it on. A lands and the row becomes T1, so B's
+       precondition no longer matches and the server correctly calls it stale. The
+       concurrency guard was doing its job; there were simply two writers, and both
+       of them were us.
+
+       So saves are serialised. A save asked for while one is running does not
+       queue up behind it — it just sets a flag, and ONE more save runs at the end
+       with whatever the document says by then, which is the only version that
+       matters. Found while testing Phase 3; it predates it. */
+    if (saving.current) { pendingSave.current = true; return; }
+    saving.current = true;
+
     setState({ kind: "saving" });
+    const bodyJson = plainDoc(editor.getJSON());
+    const bodyText = editor.getText();
+    // The unlinked-mention scan runs off this, so it refreshes once per save
+    // rather than once per keystroke.
+    setDocText(bodyText);
     const res = await saveNoteBody({
       id: noteId,
-      bodyJson: editor.getJSON(),
-      bodyText: editor.getText(),
+      bodyJson,
+      bodyText,
+      /* ⚠️ THE TITLE GOES WITH THE BODY, in the same statement. It used to have
+         its own `renameNote` action, and that made the title a SECOND writer to
+         the row: renaming bumped `updated_at` where the editor could not see it,
+         so the very next keystroke saved against a timestamp that had moved and
+         came back stale. The note then showed "Changed elsewhere" and **stopped
+         saving the body** — after nothing more unusual than typing a title, which
+         is what everyone does first. Measured and reproduced, Phase 3.
+         One row, one writer, one precondition. Do not split them again. */
+      title: titleRef.current,
       expectedUpdatedAt: seenUpdatedAt.current,
     });
+    saving.current = false;
+
     if (res.ok) {
       seenUpdatedAt.current = res.updatedAt;
       setState({ kind: "saved" });
+      // The Links rail is server-rendered, so it would sit stale until a reload.
+      // Refresh it — but ONLY when the set of mentions actually changed, never on
+      // an ordinary keystroke batch: `router.refresh()` re-runs the page's server
+      // components, and doing that every 900ms while someone is writing is both
+      // wasteful and a good way to make the editor feel laggy. (It preserves
+      // client state, so the editor itself is untouched either way.)
+      const signature = mentionSignature(bodyJson);
+      if (signature !== seenMentions.current) {
+        seenMentions.current = signature;
+        router.refresh();
+      }
     } else if (res.reason === "stale") {
       setState({ kind: "stale" });
     } else {
       setState({ kind: "error", message: res.message });
     }
-  }, [noteId]);
+
+    // Someone asked to save while that one was in the air. Run once more, now.
+    // Not after a stale or an error though: repeating a save the server has just
+    // refused would spin, and the owner needs to see the warning stay put.
+    if (pendingSave.current) {
+      pendingSave.current = false;
+      if (res.ok) void flushRef.current?.();
+    }
+  }, [noteId, router]);
+
+  // `flush` calls itself for the queued save, so it needs a stable handle on its
+  // own latest version — a plain recursive reference would capture a stale one.
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+
+  /* -------- "you wrote it but did not link it" (unlinked mentions) -------- */
+
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [docText, setDocText] = useState("");
+
+  /** Recomputed from the plain text on every save, not every keystroke — scanning
+   *  the whole note against every company, person and open task code on each
+   *  character would be work nobody asked for. */
+  const unlinked = useMemo(() => {
+    if (candidates.length === 0 || !docText.trim()) return [];
+    const linked = new Set(mentionSignature(editorRef.current?.getJSON()).split(",").filter(Boolean));
+    return findUnlinked(docText, candidates, linked).filter((c) => !dismissed.has(`${c.entity}:${c.id}`));
+  }, [candidates, docText, dismissed]);
+
+  /**
+   * Accept a suggestion: find where the name is written and turn THAT TEXT into a
+   * real mention.
+   *
+   * ⚠️ It deliberately does not just insert a link row. Links are derived from the
+   * document, so a row written on the side would be wiped by the next save — and
+   * more importantly the note would then claim a link its own words knew nothing
+   * about. Rewriting the text keeps one mechanism and one source of truth.
+   */
+  const linkSuggestion = (c: LinkCandidate) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    let found: { from: number; to: number } | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (found || !node.isText || !node.text) return true;
+      const at = findWholeWord(node.text, c.needle);
+      if (at === -1) return true;
+      found = { from: pos + at, to: pos + at + c.needle.length };
+      return false;
+    });
+
+    if (!found) {
+      // The words moved between the scan and the click.
+      toast("That text has changed — it is not there any more.", { tone: "danger" });
+      setDismissed((s) => new Set(s).add(`${c.entity}:${c.id}`));
+      return;
+    }
+
+    const { from, to } = found;
+    editor
+      .chain()
+      .focus()
+      .insertContentAt({ from, to }, {
+        type: "mention",
+        attrs: { entity: c.entity, id: c.id, code: c.code, label: c.label },
+      })
+      .run();
+
+    if (timer.current) clearTimeout(timer.current);
+    void flush();
+    toast(`Linked ${c.label}.`, { tone: "success" });
+  };
+
+  /* ---------------- attachments: files and pictures ---------------- */
+
+  const [uploading, setUploading] = useState(0);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * One file at a time, in the order they were given. Sequential rather than
+   * parallel on purpose: each insert moves the caret, and firing several uploads
+   * at once would race to insert at a position the others had already shifted.
+   */
+  const attachFiles = useCallback(async (files: File[]) => {
+    const editor = editorRef.current;
+    if (!editor || files.length === 0) return;
+    setUploading((n) => n + files.length);
+    try {
+      for (const file of files) {
+        const res = await attachFileAtCaret(editor, noteId, file);
+        if (!res.ok) { toast(res.error, { tone: "danger" }); continue; }
+        // Save straight away. The picture asks `/api/notes/file/<id>` for its bytes
+        // immediately, and that route only serves files a note actually links to —
+        // so the document must not be left waiting on the next autosave.
+        if (timer.current) clearTimeout(timer.current);
+        await flushRef.current?.();
+        router.refresh();
+      }
+    } finally {
+      setUploading((n) => Math.max(0, n - files.length));
+    }
+  }, [noteId, router, toast]);
+
+  /** Shared by paste and drop. Returns true when it has taken the files, which
+   *  tells ProseMirror not to also handle the event. */
+  const takeFiles = useCallback((data: DataTransfer | null): boolean => {
+    const files = filesFrom(data);
+    if (files.length === 0) return false;
+    void attachFiles(files);
+    return true;
+  }, [attachFiles]);
+
+  /* ---------------- checklist lines → real to-dos (Phase 4) ---------------- */
+
+  /**
+   * Which promoted lines still have a live to-do behind them, keyed by id.
+   *
+   * ⚠️ The `todoId` written into the document is a POINTER, not the truth. The
+   * owner can delete a to-do from the to-do list, which knows nothing about notes,
+   * and the line would then claim to be on a list it had fallen off. So the ids in
+   * the document are checked against the database when the note opens, and a line
+   * whose to-do has gone simply offers to promote again — the safe way round.
+   */
+  const [livePromotions, setLivePromotions] = useState<Record<number, boolean>>({});
+  const [promoting, setPromoting] = useState(false);
+
+  useEffect(() => {
+    const ids = promotedIds(initialBody);
+    if (ids.length === 0) return;
+    let live = true;
+    void noteTodoStates(ids)
+      .then((states) => { if (live) setLivePromotions(states); })
+      .catch(() => { /* a stale badge is not worth an error */ });
+    return () => { live = false; };
+  }, [initialBody]);
+
+  const promoteLine = async (target: TaskLine, when: "tomorrow" | null) => {
+    setPromoting(true);
+    try {
+      // 09:00 tomorrow, local — the hour the owner's day starts, and the same hour
+      // the morning digest goes out, so a reminder lands with everything else.
+      let remindAt: string | null = null;
+      if (when === "tomorrow") {
+        const at = new Date();
+        at.setDate(at.getDate() + 1);
+        at.setHours(9, 0, 0, 0);
+        remindAt = at.toISOString();
+      }
+      const res = await promoteNoteLine({ noteId, title: target.text, remindAt });
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+
+      // Write the id onto the line, then save at once — if the note were closed
+      // before the next autosave the to-do would exist with nothing pointing at it,
+      // and the line would offer to promote all over again.
+      editorRef.current
+        ?.chain()
+        .focus()
+        .command(({ tr }) => { tr.setNodeAttribute(target.pos, "todoId", res.todoId); return true; })
+        .run();
+      setLivePromotions((m) => ({ ...m, [res.todoId]: false }));
+      if (timer.current) clearTimeout(timer.current);
+      void flush();
+
+      toast(remindAt ? "On your to-do list — you'll be reminded at 9am." : "On your to-do list.", { tone: "success" });
+      router.refresh();
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const unpromoteLine = async (target: TaskLine) => {
+    if (target.todoId == null) return;
+    const res = await removeNoteTodo(target.todoId, noteId);
+    if (!res.ok) { toast("Could not remove that to-do.", { tone: "danger" }); return; }
+    editorRef.current
+      ?.chain()
+      .focus()
+      .command(({ tr }) => { tr.setNodeAttribute(target.pos, "todoId", null); return true; })
+      .run();
+    setLivePromotions((m) => { const next = { ...m }; delete next[target.todoId!]; return next; });
+    if (timer.current) clearTimeout(timer.current);
+    void flush();
+    toast("Taken off your to-do list.", { tone: "success" });
+    router.refresh();
+  };
 
   const editor = useEditor({
     immediatelyRender: false, // mandatory under SSR (Phase 0 finding)
@@ -95,9 +352,13 @@ export function NoteEditor({
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false, autolink: true, HTMLAttributes: { class: "text-accent underline underline-offset-2" } },
       }),
-      Placeholder.configure({ placeholder: "Start writing. Press / for headings, lists, tables…" }),
+      // The placeholder is where `/` and `@` are actually discovered — there is no
+      // other tutorial, and a gesture nobody knows about does not exist.
+      Placeholder.configure({ placeholder: "Start writing. Press / for headings and tables, @ to link a task or person…" }),
       TaskList,
-      TaskItem.configure({ nested: true }),
+      // TaskItem + a `todoId`, so a ticked line can be promoted to a real to-do
+      // and cannot be promoted twice — see note-task-item.tsx.
+      NoteTaskItem.configure({ nested: true }),
       // Tables: resizable columns, and a header row by default from the / menu.
       Table.configure({ resizable: true }),
       TableRow,
@@ -105,9 +366,31 @@ export function NoteEditor({
       TableCell,
       // `/` on an empty line opens the block menu — see note-slash-menu.tsx.
       SlashCommands,
+      // `@` links a task/person/company/document, `[[` links another note. The
+      // `note_links` rows are derived from these nodes on save, the same way
+      // `#tags` come out of the text — see note-mention.tsx.
+      Mention,
+      MentionPickers.configure({ noteId }),
+      // A soft band behind the line you are on, so your place is findable on a big
+      // white sheet — see note-active-line.tsx. Drop this line to remove it.
+      ActiveLine,
+      // Pictures. The src is a permanent route, never a signed URL — see
+      // note-image.tsx for why that matters to a note read years later.
+      NoteImage,
+      // The boxed aside — blockquote says "someone said this", a callout says
+      // "do not miss this". Three tones, styled entirely from `data-tone` in CSS.
+      Callout,
     ],
+    editorProps: {
+      attributes: { class: "note-canvas outline-none" },
+      /* Paste a screenshot, drop a file. Both go through the SAME upload path as
+         the toolbar button (lib/note-upload.ts), so there is one place where a
+         file becomes a document and a link. Returning false for anything without
+         files leaves ordinary text paste and drag-to-reorder untouched. */
+      handlePaste: (_view, event) => takeFiles(event.clipboardData),
+      handleDrop: (_view, event) => takeFiles((event as DragEvent).dataTransfer),
+    },
     content: (initialBody as never) ?? "",
-    editorProps: { attributes: { class: "note-canvas outline-none" } },
     onCreate: ({ editor }) => { editorRef.current = editor; },
     onUpdate: () => {
       setState((s) => (s.kind === "stale" ? s : { kind: "dirty" }));
@@ -136,9 +419,35 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [flush]);
 
+  // Clicking an @mention opens that record. The chip raises a window event rather
+  // than navigating itself, because a ProseMirror plugin has no router — and a
+  // `location.assign` would throw away the client router for a full page load.
+  // The pending edit is flushed FIRST: leaving a note by clicking a link inside it
+  // must not cost the sentence you were writing.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const href = (e as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+      if (timer.current) clearTimeout(timer.current);
+      void flush().finally(() => router.push(href));
+    };
+    window.addEventListener("cos:note-open", onOpen);
+    return () => window.removeEventListener("cos:note-open", onOpen);
+  }, [flush, router]);
+
+  /** Typing the title marks the note dirty and rides the same debounce as the
+   *  body — one writer, one save. Blur just brings that save forward. */
+  const onTitleChange = (value: string) => {
+    setTitle(value);
+    titleRef.current = value;
+    setState((s) => (s.kind === "stale" ? s : { kind: "dirty" }));
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { void flush(); }, AUTOSAVE_MS);
+  };
+
   const commitTitle = () => {
-    if (title.trim() === initialTitle.trim()) return;
-    void renameNote(noteId, title);
+    if (timer.current) clearTimeout(timer.current);
+    void flush();
   };
 
   if (!editor) {
@@ -155,6 +464,12 @@ export function NoteEditor({
     if (key === "p") chain.setParagraph().run();
     else chain.setHeading({ level: Number(key.slice(1)) as 1 | 2 | 3 }).run();
   };
+
+  /* The checklist line the caret is in — the thing "Make a to-do" acts on. Read
+     fresh on each render rather than held in state: the caret moves constantly and
+     a stale copy would promote the wrong line. */
+  const line = currentTaskItem(editor);
+  const linePromoted = line != null && line.todoId != null && livePromotions[line.todoId] !== undefined;
 
   return (
     /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
@@ -197,9 +512,111 @@ export function NoteEditor({
         <ToolButton title="Code block" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code2 size={14} /></ToolButton>
         <ToolButton title="Divider" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus size={14} /></ToolButton>
 
+        <Divider />
+
+        {/* You can also just paste a screenshot or drop a file onto the page —
+            this is the discoverable version of the same thing. */}
+        <ToolButton
+          title="Attach a file or picture — or just paste one in"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading > 0}
+        >
+          {uploading > 0 ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+        </ToolButton>
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";   // so picking the same file twice still fires
+            void attachFiles(files);
+          }}
+        />
+
         <span className="grow" />
         <SaveBadge state={state} />
       </div>
+
+      {/* A checklist line can become a real to-do — Phase 4. The bar only appears
+          while the caret is IN a tick-box line, the same discipline the table bar
+          follows: a permanent button that does nothing 99% of the time is what a
+          lesser version ships. */}
+      {line && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-accent-soft/40 px-2 py-1">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-accent">
+            <ListChecks size={12} /> Checklist
+          </span>
+          {linePromoted ? (
+            <>
+              <span className="inline-flex items-center gap-1 text-[11px] text-success">
+                <Check size={12} /> On your to-do list
+              </span>
+              <button
+                type="button"
+                onClick={() => void unpromoteLine(line)}
+                className="inline-flex h-6 items-center rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+              >
+                Take it off
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={!line.text.trim() || promoting}
+                onClick={() => void promoteLine(line, null)}
+                className="inline-flex h-6 items-center gap-1.5 rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <ListPlus size={12} /> Make a to-do
+              </button>
+              <button
+                type="button"
+                disabled={!line.text.trim() || promoting}
+                onClick={() => void promoteLine(line, "tomorrow")}
+                className="inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40"
+              >
+                <Bell size={12} /> Remind me tomorrow
+              </button>
+              {!line.text.trim() && <span className="px-1 text-[10.5px] text-fg-subtle">Write the line first</span>}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Callout tone — again, only while the caret is inside one. */}
+      {editor.isActive("callout") && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border bg-bg-subtle/70 px-2 py-1">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-fg-muted">
+            <Info size={12} /> Callout
+          </span>
+          {CALLOUT_TONES.map((tone) => (
+            <button
+              key={tone}
+              type="button"
+              onClick={() => editor.chain().focus().updateAttributes("callout", { tone }).run()}
+              aria-pressed={editor.isActive("callout", { tone })}
+              className={cn(
+                "h-6 rounded-md px-2 text-[11px] font-medium transition-colors",
+                editor.isActive("callout", { tone })
+                  ? "bg-accent-soft text-accent"
+                  : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+              )}
+            >
+              {CALLOUT_TONE_LABELS[tone]}
+            </button>
+          ))}
+          <span className="grow" />
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().lift("callout").run()}
+            className="h-6 rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            Remove the box
+          </button>
+        </div>
+      )}
 
       {editor.isActive("table") && (
         <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border bg-accent-soft/40 px-2 py-1">
@@ -215,6 +632,20 @@ export function NoteEditor({
           <span className="px-1 text-[10.5px] text-fg-muted">Tab moves to the next cell</span>
         </div>
       )}
+
+      {/* Grab a block and move it. The handle floats beside whichever block the
+          mouse is over, so nothing is added to the page until you reach for it —
+          which is the only way to put a control on every paragraph without the
+          note turning into a builder UI. */}
+      <DragHandle editor={editor}>
+        <div
+          className="mr-1 flex h-6 w-4 cursor-grab items-center justify-center rounded text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg-muted active:cursor-grabbing"
+          title="Drag to move this block"
+          aria-hidden
+        >
+          <GripVertical size={13} />
+        </div>
+      </DragHandle>
 
       {/* Selecting text raises the marks where the eyes already are. */}
       <BubbleMenu editor={editor} className="flex items-center gap-0.5 rounded-md border border-border bg-bg-elev p-1 shadow-md">
@@ -249,7 +680,7 @@ export function NoteEditor({
         <div className="mx-auto w-full max-w-[68ch]">
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             onBlur={commitTitle}
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); commitTitle(); editor.chain().focus().run(); }
@@ -259,11 +690,44 @@ export function NoteEditor({
             /* `.bare-field` is the documented opt-out from the global input well +
                focus ring (globals.css). Without it this field draws a stray box and
                flashes blue when clicked — the owner's first complaint. */
-            className="bare-field mb-1 w-full text-[26px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60"
+            className="bare-field note-title-field mb-1 w-full text-[26px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60"
           />
           <EditorContent editor={editor} />
         </div>
       </div>
+
+      {/* Names you wrote without linking. A quiet strip at the FOOT of the sheet,
+          so it never pushes the writing about, and every chip can be waved away.
+          It offers; it never links by itself — see lib/note-unlinked-shared.ts. */}
+      {unlinked.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border bg-bg-subtle/60 px-3 py-1.5">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle">
+            <Sparkles size={11} /> Mentioned, not linked:
+          </span>
+          {unlinked.map((c) => (
+            <span key={`${c.entity}:${c.id}`} className="inline-flex items-center overflow-hidden rounded-md border border-border bg-bg-elev">
+              <button
+                type="button"
+                onClick={() => linkSuggestion(c)}
+                title={`Link ${c.label}`}
+                className="inline-flex h-6 items-center gap-1 px-1.5 text-[11px] font-medium text-fg transition-colors hover:bg-accent-soft hover:text-accent"
+              >
+                <Link2 size={10} />
+                {c.entity === "task" && c.code ? c.code : c.label}
+              </button>
+              <button
+                type="button"
+                aria-label={`Ignore ${c.label}`}
+                title="Not this one"
+                onClick={() => setDismissed((s) => new Set(s).add(`${c.entity}:${c.id}`))}
+                className="inline-flex h-6 w-5 items-center justify-center border-l border-border text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {state.kind === "stale" && (
         <p className="flex items-start gap-2 border-t border-warn/30 bg-warn-soft/40 px-6 py-3 text-[12px] text-fg">
@@ -276,6 +740,71 @@ export function NoteEditor({
       )}
     </div>
   );
+}
+
+/**
+ * ⚠️ THE DOCUMENT MUST BE CLONED BEFORE IT CROSSES A SERVER ACTION.
+ *
+ * ProseMirror builds every node's `attrs` with `Object.create(null)`, and React's
+ * Server Action serialiser drops a null-prototype object — **silently**. The note
+ * saved perfectly; `body_text` was right; and every `mention` node arrived on the
+ * server as a bare `{"type":"mention"}` with its entity, id and label gone, so
+ * `note_links` came out empty and no link, backlink or Notes tab ever appeared.
+ * Nothing errored anywhere.
+ *
+ * A JSON round-trip rebuilds the same data with ordinary object prototypes. It
+ * costs one serialise of a small document per save — which is what gets stored
+ * anyway — and it is the only thing standing between the editor and this bug.
+ *
+ * If a future node type carries attributes and its links stop appearing, look
+ * here first.
+ */
+function plainDoc(doc: unknown): unknown {
+  return JSON.parse(JSON.stringify(doc));
+}
+
+/** The checklist line the caret is sitting in. */
+type TaskLine = { pos: number; text: string; todoId: number | null };
+
+/**
+ * Find the tick-box line under the caret, if there is one.
+ *
+ * Walks OUT from the caret rather than searching the document, so it is O(depth)
+ * and cannot pick the wrong line when two say the same thing.
+ */
+function currentTaskItem(editor: Editor): TaskLine | null {
+  const { $from } = editor.state.selection;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth);
+    if (node.type.name === "taskItem") {
+      const raw = (node.attrs as { todoId?: unknown }).todoId;
+      const todoId = Number.isInteger(raw) && Number(raw) > 0 ? Number(raw) : null;
+      return { pos: $from.before(depth), text: node.textContent.trim(), todoId };
+    }
+  }
+  return null;
+}
+
+/** Every `todoId` already written into the document — the ids to check are live. */
+function promotedIds(doc: unknown): number[] {
+  const ids: number[] = [];
+  const walk = (node: unknown, depth: number): void => {
+    if (depth > 60 || node == null || typeof node !== "object") return;
+    if (Array.isArray(node)) { for (const c of node) walk(c, depth + 1); return; }
+    const n = node as Record<string, unknown>;
+    const raw = (n.attrs as { todoId?: unknown } | undefined)?.todoId;
+    if (n.type === "taskItem" && Number.isInteger(raw) && Number(raw) > 0) ids.push(Number(raw));
+    if (Array.isArray(n.content)) walk(n.content, depth + 1);
+  };
+  walk(doc, 0);
+  return ids;
+}
+
+/** The note's links, flattened to a string so "did the links change?" is one
+ *  comparison. Uses the same extractor the server derives `note_links` from, so
+ *  the two can never disagree about what counts as a link. */
+function mentionSignature(body: unknown): string {
+  return extractMentions(body).map((m) => `${m.entity}:${m.id}`).join(",");
 }
 
 function promptLink(editor: Editor) {

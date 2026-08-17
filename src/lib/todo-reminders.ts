@@ -55,13 +55,16 @@ export async function listSelfTodos(personId: number): Promise<TodoCardItem[]> {
   return ((data ?? []) as any[]).map(mapCard).sort(sortTodoCard);
 }
 
-export type DueReminder = { id: number; personId: number | null; kind: string | null; title: string };
+export type DueReminder = { id: number; personId: number | null; kind: string | null; title: string; noteId: number | null };
 
 /** Cron: reminder to-dos whose time has passed and still need a push. */
 export async function dueTodoRemindersForPush(now = new Date()): Promise<DueReminder[]> {
   const { data, error } = await sb
     .from("todos")
-    .select("id,person_id,kind,title")
+    // `note_id` so a reminder raised from a note can open THAT NOTE rather than
+    // the home page (Phase 4 of the notes plan). A reminder that lands you
+    // somewhere you then have to search from is half a reminder.
+    .select("id,person_id,kind,title,note_id")
     .not("remind_at", "is", null)
     .eq("done", false)
     .eq("pushed", false)
@@ -69,7 +72,13 @@ export async function dueTodoRemindersForPush(now = new Date()): Promise<DueRemi
     .order("remind_at", { ascending: true })
     .limit(200);
   if (error) throw new Error(error.message);
-  return ((data ?? []) as any[]).map((r) => ({ id: r.id, personId: (r.person_id as number | null) ?? null, kind: (r.kind as string | null) ?? null, title: r.title }));
+  return ((data ?? []) as any[]).map((r) => ({
+    id: r.id,
+    personId: (r.person_id as number | null) ?? null,
+    kind: (r.kind as string | null) ?? null,
+    title: r.title,
+    noteId: (r.note_id as number | null) ?? null,
+  }));
 }
 
 export async function markTodosPushed(ids: number[]): Promise<void> {

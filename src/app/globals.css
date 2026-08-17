@@ -1182,6 +1182,44 @@ section[data-page-header] {
   overscroll-behavior: contain;
 }
 
+/* "Where am I?" — the owner could not find his place on the page (17 Aug 2026).
+   Two parts, and neither reintroduces the blue box round the writing that Phase 1.5
+   removed.
+
+   1. A caret in the ACCENT colour. The default is a 1px near-black hairline on a
+      white sheet; blue is far easier to catch out of the corner of the eye, and it
+      is the one blue the rest of Desk already uses. (CSS can recolour a caret but
+      cannot thicken one — there is no `caret-width`, and drawing our own would mean
+      hiding the native caret and tracking the selection by hand, which breaks IME.)
+   2. A soft band behind the block the caret is in — see note-active-line.tsx for
+      why a bigger target beats a bigger caret.
+
+   The band shows ONLY while the surface is focused, so a note you are reading is
+   clean paper. Delete these two rules and the extension to remove it. */
+.note-canvas,
+.note-canvas * {
+  caret-color: hsl(var(--accent));
+}
+
+/* Gated on ProseMirror's OWN focus class, not `:focus`. Two reasons, and the second
+   is the one that matters: `:focus` stops matching whenever the WINDOW loses focus,
+   so the band would flicker off every time you clicked another app and back — and
+   `.ProseMirror-focused` is the hook the library maintains for exactly this. */
+.note-canvas.ProseMirror-focused .note-active-line {
+  background: hsl(var(--accent) / 0.05);
+  border-radius: 3px;
+  /* Reaches a little past the text on both sides WITHOUT touching layout — a real
+     padding here would shift every line the moment the caret arrived. */
+  box-shadow:
+    -0.55rem 0 0 hsl(var(--accent) / 0.05),
+    0.55rem 0 0 hsl(var(--accent) / 0.05);
+}
+
+/* The title is part of the same sheet, so it gets the same caret. */
+.note-title-field {
+  caret-color: hsl(var(--accent));
+}
+
 /* ⚠️ NO focus ring on the writing surface. `*:focus-visible` (twice in this file)
    paints a 2px accent outline around anything focusable, and the canvas is a
    contenteditable that fills the sheet — so clicking into a note drew a blue line
@@ -1239,11 +1277,68 @@ section[data-page-header] {
 }
 .note-canvas .tableWrapper { overflow-x: auto; }
 
+/* Callouts. All three tones share one rule and differ only by a colour variable,
+   so the tone lives in `data-tone` and there is no colour logic in the editor code.
+   A tinted left edge and a soft wash — Desk keeps semantic colour separate from the
+   one blue, and a fully filled block would shout over the writing. */
+.note-canvas .note-callout {
+  --callout: var(--accent);
+  border-left: 3px solid hsl(var(--callout));
+  background: hsl(var(--callout) / 0.06);
+  border-radius: 0 6px 6px 0;
+  padding: 0.7em 0.9em;
+  margin: 1em 0;
+}
+.note-canvas .note-callout[data-tone="warn"] { --callout: var(--warn); }
+.note-canvas .note-callout[data-tone="success"] { --callout: var(--success); }
+.note-canvas .note-callout > * + * { margin-top: 0.45em; }
+.note-canvas .note-callout > :first-child { margin-top: 0; }
+.note-canvas .note-callout > :last-child { margin-bottom: 0; }
+
+/* A picture in a note. Held to the measure, never wider than the paper, and given
+   a hairline so a screenshot with a white background does not bleed into the page. */
+.note-canvas .note-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.9em 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+}
+.note-canvas .note-image.ProseMirror-selectednode {
+  box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5);
+}
+
 /* A #tag, as it reads inside the writing. Not a link (yet — Phase 6 makes tags
    clickable through saved views); just marked so the eye finds it. */
 .note-canvas .note-tag {
   color: hsl(var(--accent));
   font-weight: 550;
+}
+
+/* An @mention / [[note]] link (Phase 3). Deliberately NOT a chip with a filled
+   background: a paragraph with three mentions in it would turn into a row of
+   badges and stop reading like a sentence. It is the accent colour, a soft tint
+   and a hairline underline — enough for the eye to find it and for a finger to
+   know it is tappable, quiet enough to read straight past. */
+.note-canvas .note-mention {
+  color: hsl(var(--accent));
+  font-weight: 550;
+  background: hsl(var(--accent) / 0.08);
+  border-radius: 4px;
+  padding: 0.05em 0.28em;
+  cursor: pointer;
+  /* An atom node: never let a caret or a selection land inside the chip. */
+  white-space: nowrap;
+  transition: background-color 120ms ease;
+}
+.note-canvas .note-mention:hover {
+  background: hsl(var(--accent) / 0.16);
+}
+/* ProseMirror's own selected-node state, when you arrow onto the chip. */
+.note-canvas .note-mention.ProseMirror-selectednode {
+  background: hsl(var(--accent) / 0.22);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.45);
 }
 
 /* Checklists: a real checkbox, aligned to the first line of its text. */
@@ -1254,6 +1349,20 @@ section[data-page-header] {
   width: 15px; height: 15px; accent-color: hsl(var(--accent)); cursor: pointer;
 }
 .note-canvas ul[data-type="taskList"] li[data-checked="true"] > div { color: hsl(var(--fg-subtle)); text-decoration: line-through; }
+/* A line that has been promoted to a real to-do (Phase 4). A small accent dot in
+   the margin, not a badge: you want to know at a glance which lines are already on
+   your plate, without the note turning into a status board. */
+.note-canvas ul[data-type="taskList"] li[data-todo-id] { position: relative; }
+.note-canvas ul[data-type="taskList"] li[data-todo-id]::before {
+  content: "";
+  position: absolute;
+  left: -0.72em;
+  top: 0.72em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+}
 /* The placeholder, on the first empty line only. */
 .note-canvas p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

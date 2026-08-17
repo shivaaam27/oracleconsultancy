@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { LinkCandidate } from "@/lib/note-unlinked-shared";
 
 /**
  * The client boundary that lazy-loads the note canvas.
@@ -26,6 +27,8 @@ export function NoteEditorMount(props: {
   initialTitle: string;
   initialBody: unknown;
   initialUpdatedAt: string;
+  /** Names to watch for in the text — see lib/note-unlinked-shared.ts. */
+  candidates: LinkCandidate[];
 }) {
   return <NoteEditor {...props} />;
 }

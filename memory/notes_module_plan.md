@@ -1,6 +1,6 @@
 ---
 name: notes-module-plan
-description: "The COS Notes module: plan + build log. Phases 0-2 DONE (editor, shelf, slash menu, tables, tags, daily notes). Phase 3 (links/backlinks) is next."
+description: "The COS Notes module: plan + build log. Phases 0-3 DONE (editor, shelf, slash menu, tables, tags, daily notes, @/[[ links + backlinks). Phase 4 (to-dos/reminders) is next."
 metadata:
   node_type: memory
   type: project
@@ -13,26 +13,34 @@ fast and get polished later by him or by AI; Apple-Notes-grade formatting; slash
 commands; links, reminders and to-dos; interconnected with the rest of the command
 centre; reachable from MCP later.
 
-## ▶ START HERE — handing over to a fresh chat (17 Aug 2026, end of Phase 2)
+## ▶ START HERE — handing over to a fresh chat (17 Aug 2026, end of Phase 4)
 
-**Phases 0, 1 and 2 are BUILT, verified in the browser, and committed. Phase 3 is
-next: `note_links`, `@` mentions, `[[note]]` links, a Backlinks panel, and a Notes tab
-on the task/person/company records.** §10 has the detail; §3 has the table shape.
+**Phases 0–4 are BUILT and verified in the browser, and everything owed from Phases 2
+and 3 is done too** (attachments, callouts, drag-to-reorder, unlinked mentions).
+**Phase 5 is next: AI — the table in §6, one action at a time, each with its own
+accept/discard step.** §10 has the detail.
 
 State of the machine, so nothing is rediscovered:
 
 | | |
 |---|---|
-| Branch | `claude/cos-portal-button-normalization-8146a9`, in the worktree `.claude/worktrees/ai-bulk-task-creation-95a5e7` |
-| Git | clean; local **`master` is ~17 commits ahead of `origin/master`** and deliberately **NOT pushed** (the owner asks for local commits only) |
-| Migrations | **0118** (`notes`, `note_folders`) and **0119** (`note_tags`) applied to the live database. Backups taken before each |
-| Live data | the owner's **4 imported notes** + **today's daily page**. Every test note and test edit was cleaned up |
-| This worktree | `node_modules` installed and `.env.local` copied — a fresh worktree has NEITHER, and `npm exec tsc` then exits 0 having checked nothing |
-| Dev server | may still be running on :3000 (`preview_start` / `cos-dev`). An admin session is signed in as the owner; a portal session exists as Kishan Suchak |
+| Branch | `claude/notes-phase-3-preview-0cc4c6`, in the worktree `.claude/worktrees/notes-phase-3-preview-0cc4c6` |
+| Git | local commits only — deliberately **NOT pushed** (the owner asks for local commits) |
+| Migrations | **0118** (`notes`, `note_folders`), **0119** (`note_tags`), **0120** (`note_links`) and **0121** (`todos.note_id`) applied to the live database. A backup was taken before each |
+| Live data | the owner's **4 imported notes**, a daily page, and one untitled note he made himself while this was being built = 6 rows. Every test note, link, to-do and uploaded file was cleaned up |
+| ⚠️ Shared use | the owner works in the app WHILE you build. A note that appears mid-session is probably his. **Read a row before deleting it** — one of his was destroyed this way |
+| A fresh worktree | has NEITHER `node_modules` NOR `.env.local`. Copy `.env.local` from the main checkout and `npm install` FIRST — otherwise `npm exec tsc` exits 0 having checked nothing, and every page 500s |
+| Dev server | `preview_start` / `cos-dev` on :3000, signed in as the owner |
 
 **Read before writing code:** §2 (editor + storage), §3 (schema), §8 (owner-only is
-structural), §11 (traps), and the Phase 1/1.5/2 entries in §10 — they are a build log
-of what actually broke, not a wish list.
+structural), §11 (traps), and the Phase 1/1.5/2/3 entries in §10 — they are a build
+log of what actually broke, not a wish list.
+
+**The three traps most likely to cost you a day**, all found by measurement and all
+in §10/§11: a Tiptap document must be **JSON-cloned before it crosses a server
+action** (null-prototype `attrs` are dropped silently); **every `Suggestion()` needs
+its own `pluginKey`**; and **only one thing may ever write to a `notes` row**, because
+the whole safety model is a single `updated_at` precondition.
 
 **Everything below is grounded in what the codebase actually has** (verified — see
 "What I checked") — the leverage is almost entirely in reusing systems that exist.
@@ -422,13 +430,222 @@ Delivered and verified in the browser: **`/` menu · tables · `#tags` · daily 
 - **Drag-to-reorder blocks** — `@tiptap/extension-drag-handle-react` is **MIT** and
   available (checked), so this is a straight add whenever it is wanted.
 
-**Phase 3 — interconnection.** `note_links`; `@` picker for task/person/company/
-document; `[[` for notes; **Backlinks** panel; **Notes** tab on task/person/company
-records; "unlinked mentions" (text that names an entity, offered as a link).
+### Phase 3 — ✅ DONE, 17 Aug 2026. Interconnection. Migration **0120** (`note_links`).
 
-**Phase 4 — to-dos + reminders.** `todos.note_id`; a checklist line promotes to a
-real to-do; note-level reminders through the existing cron and push; the note's
-to-dos surface in the morning digest exactly like every other to-do.
+Delivered and verified in the browser: **`@` mentions · `[[note]]` links · a Links +
+Backlinks rail on the note · a Notes tab on the task, person and company records.**
+
+**The one design decision worth defending: a link is DERIVED FROM THE WRITING.**
+`note_links` is rewritten from the document on every save, in the same action as
+`body_text` and `#tags` — so there is exactly ONE way a link comes to exist: you
+mention something in the note. There is deliberately no "attach a note" button on a
+task, because a link made away from the writing is a link the writing does not know
+about, and the two would drift the moment either was edited. The cost is stated
+plainly: to link a note from a task you must open the note and type `@`. That is the
+right trade, and it is what keeps the Backlinks panel trustworthy.
+
+Files: **`lib/note-links-shared.ts`** (client-safe: types, `linkHref`, `mentionText`,
+and `extractMentions` — **16 unit tests**) · `lib/note-links.ts` (server: `syncNoteLinks`,
+`resolveLinks`, `outgoingLinks`, `backlinks`, `notesLinkedTo`) ·
+`components/note-mention.tsx` (the `Mention` node + both pickers) ·
+`components/note-links-panel.tsx` (the rail) · `components/linked-notes.tsx` (the
+record tab, in a server and a client form) · `api/note-mentions` (picker search) ·
+`api/notes/linked` (the task record's tab).
+
+**Three specifics that were decided, not defaulted:**
+- **The label is snapshotted into the document, and re-resolved in the panels.** The
+  sentence keeps the words that were written; the Links rail shows the live name. A
+  renamed company reads correctly in both places.
+- **A dead link is shown, struck through, not hidden.** "This pointed at something
+  that is gone" is information; dropping the row would hide it.
+- **`allowSpaces: false`** on both pickers. With spaces allowed, an email address
+  ("write to sam@oracle.co.tz about…") holds the menu open for the rest of the
+  sentence. One word against a five-item shortlist is plenty, and the API matches
+  `%word%`, so `@suchak` still finds "Kishan Suchak".
+
+**⚠️ THREE REAL BUGS, all found by measurement. Two of them predate Phase 3.**
+
+1. **A Tiptap document must be JSON-cloned before it crosses a server action.**
+   ProseMirror builds every node's `attrs` with `Object.create(null)`, and React's
+   Server Action serialiser **silently drops a null-prototype object**. The note saved
+   perfectly, `body_text` was right, and every mention arrived on the server as a bare
+   `{"type":"mention"}` with its entity, id and label gone — so `note_links` came out
+   empty and no link, backlink or Notes tab ever appeared. **Nothing errored anywhere.**
+   Fixed by `plainDoc()` in `note-editor.tsx`. If a future node carries attributes and
+   its links stop appearing, look there first.
+2. **Every `Suggestion()` in one editor needs its own `pluginKey`.**
+   `@tiptap/suggestion` defaults each instance to `PluginKey("suggestion")`, so adding
+   `@` and `[[` alongside the `/` menu made ProseMirror throw *"Adding different
+   instances of a keyed plugin (suggestion$)"* — which took the whole note page down to
+   "Something went wrong", not just the menu. All three now carry distinct keys. **Add
+   a fourth trigger, add a key.**
+3. **The title was a SECOND writer to the row, and it stopped the body saving.**
+   (A Phase 1 bug, reproduced and measured.) `renameNote` wrote the title on its own
+   and moved `updated_at` where the editor could not see it, so the very next keystroke
+   saved against a stale timestamp, the note showed **"Changed elsewhere"**, and the
+   body stopped saving — after nothing more exotic than typing a title, which is what
+   everyone does first. **`renameNote` has been deleted**; the title travels with the
+   body in `saveNoteBody`. There is now a comment where it used to be saying why.
+   ⚠️ **One row, one writer, one precondition.** To set a title from somewhere new,
+   read the note and call `saveNoteBody` with its current `updated_at`.
+   - Found alongside it: **overlapping autosaves** made the editor report "Changed
+     elsewhere" against *itself* — save A in flight, the debounce fires save B carrying
+     the same timestamp, A lands, B is correctly refused. Saves are serialised now
+     (`saving` / `pendingSave` refs in `flush`).
+
+**Verified by measurement, not by looking:** the picker returns real rows for
+`@terra` / `@khadija` / `@TG-006` / `[[permit`; Enter and click both insert; the three
+link rows land in `note_links` with the task's `target_code`; `outgoingLinks` resolves
+live labels and sublabels; `backlinks(3)` finds the note pointing at it;
+`notesLinkedTo("task", 83)` drives the record tab; the rail updates **without a
+reload** (a `router.refresh()` fired only when the set of mentions changes, never on an
+ordinary keystroke); and `/notes`, `/api/notes/linked` and `/api/note-mentions` all
+redirect when the admin cookie is withheld — the owner-only model in §8 holds.
+
+**⚠️ A FOURTH BUG, reported by the owner and fixed the same day: on a long note the
+`/` menu ran off the bottom of the screen.** Typing `/` on the last line of a note
+that had grown past one screen put the menu at y=723, height 304, in an 838px
+viewport — **189px of it below the fold**, so the lower half of the list could not be
+reached (measured). Each menu had its own copy of the same fragile placement maths:
+
+1. **It measured a height that was not there yet** — `place()` ran the instant the
+   element was appended and fell back to a hard-coded `260` when `offsetHeight` came
+   back 0. A guess about the size decided whether to flip above the caret.
+2. **Nothing clamped the result.** Flip-or-not was the only lever, so a wrong guess
+   put the menu off-screen with no second line of defence.
+3. **It decided once** — the list shortens as you type and the note scrolls under
+   you, and the position from the moment of opening went stale.
+
+Fixed in **`lib/suggestion-position.ts`**, now shared by all three menus (`/`, `@`,
+`[[`): the menu is **capped to the room on the side it opens into**, so it physically
+cannot overflow — 120px of space means a 120px menu that scrolls its own list; it
+re-places on update, on scroll (capture phase, so the note's own scroller counts) and
+on resize; and it places again on the next animation frame, once the element really
+has a height. **FORWARD RULE: any new caret-anchored popover uses `createMenuPositioner()`
+— do not hand-roll the maths a fourth time.**
+Verified at 838px (flips up, 180px clearance), at 460px, and at 300px (capped to
+267px, sits at the 8px margin, scrolls inside); and the menu now follows the caret
+when the note is scrolled underneath it (332 → 516px, measured).
+
+**⚠️ A FIFTH, also reported by the owner: "the cursor disappears… hard to place or
+see where I am" on the white sheet.** Measured before changing anything — the mouse
+pointer is a normal I-beam at every point over the note, so nothing was hiding it.
+What was hard to see was the **caret**, and for a reason we chose ourselves: Phase 1.5
+removed the focus ring from the writing surface (the blue box he hated), on the
+grounds that "the blinking caret is the focus indicator". That left a **1px near-black
+hairline as the only signal of where you are**, on a 68ch sheet.
+
+CSS can recolour a caret but **cannot thicken one** — there is no `caret-width`, and
+`caret-shape` is not usable; drawing our own means hiding the native caret and tracking
+the selection by hand, which breaks IME (the same trick already caused trouble in
+`CaretInput`). So the answer is a bigger **target for the eye**, not a bigger caret:
+
+- the caret is now the **accent blue**;
+- a **soft band sits behind the block the caret is in** (`components/note-active-line.tsx`,
+  a ProseMirror decoration), the way iA Writer and Ulysses do it. It shows only while
+  the editor is focused, vanishes on any selection (a selection is its own, louder
+  marker), and skips tables, code blocks and rules, where a band reads as a bug.
+
+⚠️ Gated on **`.ProseMirror-focused`, not `:focus`** — `:focus` stops matching when the
+WINDOW loses focus, so the band would flicker off every time you switched app and back.
+Verified: class lands on the caret's block and moves with it (block 0 → 1), exactly one
+at a time, none inside a table, painting `rgba(37,144,239,0.05)` with the bleed shadow,
+caret `rgb(37,144,239)` — **and the three rules survived Lightning CSS** (checked in the
+served stylesheet, per the §11 trap). To remove: drop `ActiveLine` from the editor's
+extensions and the two rules from globals.css.
+
+**⚠️ Testing note for the next session:** the browser-automation `key Return` does
+**not** reach the note's contenteditable (two presses, still one paragraph — measured).
+It is not an app bug. Dispatch the event instead:
+`el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,bubbles:true,cancelable:true}))`.
+Likewise a dispatched `blur` does not fire React's `onBlur` — use `focusout`.
+
+**Deferred from this phase, on purpose:** **"unlinked mentions"** (text that happens to
+name an entity, offered as a link). It needs a matcher over every company, person and
+task name against the note text, and it is the one part of Phase 3 that edges toward
+the AI-that-tidies temptation in §6 — it belongs with Phase 5, where a suggestion has
+an accept/discard step to live in. **`target_code` is only populated for tasks**; the
+other types resolve by id, which is what the panels use.
+
+**Also still open from Phase 2:** attachments into `documents`, callouts, and
+drag-to-reorder blocks.
+
+### Phase 4 — ✅ DONE, 17 Aug 2026. To-dos + reminders. Migration **0121** (`todos.note_id`).
+
+**The whole integration is ONE nullable column.** A note's to-do is an ORDINARY
+`todos` row with `note_id` set — so it arrives already wired into the reminder cron,
+the push, the morning digest, "Your day" and the Home card, with no second engine and
+no second list to keep in step. That was §1's rule from the first draft and it paid
+off exactly as hoped.
+
+- **A tick-box line promotes to a real to-do.** A context bar appears only while the
+  caret is in a checklist line (the same discipline the table bar follows) offering
+  *Make a to-do* and *Remind me tomorrow* (09:00 — when the day starts here and when
+  the digest goes out). `NoteTaskItem` (`components/note-task-item.tsx`) extends
+  TaskItem with ONE attribute, `todoId`, so a line cannot be promoted twice and shows
+  a small accent dot in the margin once it is.
+  ⚠️ **That id is a POINTER, not the truth.** The owner can delete the to-do from the
+  to-do list, which knows nothing about notes, so the editor asks the server which ids
+  are still live (`noteTodoStates`) rather than believing its own document. A stale
+  pointer reads as un-promoted — the safe way round.
+- **A To-dos panel in the rail**, above Links: tick, remove, and *Remind me about this
+  note* with Tomorrow / Monday / In a week / a real `datetime-local`. A reminder in the
+  past is refused — it would fire on the next cron tick and read as a bug.
+- **The push opens the note.** `DueReminder` carries `noteId` and
+  `/api/cron/reminders` sends the owner to `/notes/<id>` instead of `/`. A reminder
+  that lands you somewhere you then have to search from is half a reminder.
+- **The morning digest needed no change at all** — `ownerReminderTodosDueBy` filters
+  `kind IS NULL`, and note to-dos are `kind` NULL by design. Verified, not assumed.
+
+Files: `lib/note-todos.ts` (server) · **`lib/note-todos-shared.ts`** (client-safe types
++ `whenLabel`/`isOverdue`) · `components/note-todos-panel.tsx` ·
+`components/note-task-item.tsx` · the actions in `app/notes/actions.ts`.
+
+### Also delivered, 17 Aug 2026 — everything still owed from Phases 2 and 3
+
+**Attachments** (`app/notes/attachment-actions.ts`, `lib/note-upload.ts`,
+`components/note-image.tsx`, `api/notes/file/[id]`). Toolbar button, **drag-and-drop
+and paste-a-screenshot**, all through one path.
+- ⚠️ **The bytes never touch the server.** The browser uploads straight to storage on
+  a one-shot signed URL (`createUploadSlotAction`, shared with Documents) and the
+  server only ever sees the path — a server action caps its body at a few megabytes
+  and a phone photo is bigger, so the files people most want to attach are exactly the
+  ones that would fail. Ceiling 25 MB, and over it the message says to file it in
+  Documents and link with `@`.
+- ⚠️ **An image's `src` is a PERMANENT ROUTE, never a signed URL** — `/api/notes/file/<id>`
+  mints a fresh signature per request. A signed URL dies within the hour and a note is
+  meant to be read years later. That route is owner-only AND refuses any document not
+  actually linked to a note, so it cannot be used to walk the library by id.
+- A picture renders inline; **any other file becomes a document `@` chip**, so there is
+  one kind of link in a note and not two. Both derive a `document` row in `note_links`
+  — `extractMentions` now understands `noteImage` as well as `mention` (3 more tests).
+- The attach action writes its link row itself as a **head start** (so a freshly pasted
+  picture does not 404 before the first save); the derive still owns the steady state,
+  **verified** by watching an orphaned link disappear on the next save.
+
+**Callouts** (`components/note-callout.tsx`) — a custom node, no dependency. Three
+tones (Note / Careful / Good) on a `data-tone` attribute so all the colour lives in
+CSS; `/callout` inserts one and a context bar switches tone or removes the box.
+⚠️ Found by measurement: a callout is a top-level block, so the **active-line band
+painted over its own tint** and a "Careful" callout kept looking blue. `callout` is in
+the active-line SKIP set now, with tables and code blocks.
+
+**Drag-to-reorder** — `@tiptap/extension-drag-handle-react` **3.30.1, MIT**, 9 packages.
+The handle appears only beside the block under the mouse. ⚠️ **Verified that the handle
+mounts and positions on hover; the drag gesture itself was NOT simulated** (HTML5 drag
+needs real OS input) — it is the library's own behaviour.
+
+**Unlinked mentions** (`lib/note-unlinked-shared.ts`, **15 tests**) — the piece
+deferred from Phase 3. Names written without an `@` are offered in a quiet strip at the
+foot of the sheet, each dismissible.
+- ⚠️ **Accepting REWRITES THE TEXT into a real `@` mention**, it does not quietly
+  insert a link row. A row written on the side would be wiped by the next save, and the
+  note would be claiming a link its own words knew nothing about. One mechanism.
+- Candidates are companies, active people and **open task CODES only** — never a task's
+  wording, which is ordinary English and would match half the shelf. Whole-word,
+  case-insensitive, longest name first, min 4 characters (3 for a code — "TG-006" is
+  unambiguous), capped at 5 so it can always be ignored.
+- The scan runs **once per save, not once per keystroke**.
 
 **Phase 5 — AI.** The table in §6, one action at a time, each with its accept/
 discard step. Then **Ask your notes** once the `EntityDef` is indexing bodies.
