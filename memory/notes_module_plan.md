@@ -72,13 +72,11 @@ notes
   id, title, body_json jsonb, body_text text,
   folder_id → note_folders (null = unfiled),
   pinned_at, archived bool, kind ('note' | 'daily' | 'template'),
-  daily_date date (null unless kind='daily'; unique with created_by_person_id),
-  company_id → companies (null), person_id → people (null)   -- what it is ABOUT
-  created_by text, created_by_person_id → people (null = owner),
-  visibility ('private' | 'shared')   -- see §8; ship the column in Phase 1 even
-                                      -- though the portal UI is Phase 8
+  daily_date date (null unless kind='daily'),
+  created_by text ('web-ui' | 'ai-command' | …, the existing convention),
   created_at, updated_at
-  indexes: (archived, pinned_at desc, updated_at desc), (folder_id), (company_id)
+  indexes: (archived, pinned_at desc, updated_at desc), (folder_id)
+  partial unique: (daily_date) WHERE kind='daily'   -- one note per day, no more
 
 note_folders
   id, name, sort_order, created_at            -- flat. NOT a tree (see §9)
@@ -102,9 +100,20 @@ Plus **one column on an existing table**: `todos.note_id` → notes (nullable, O
 DELETE SET NULL). That is the whole to-do integration — the 373 existing to-dos,
 their reminders, their push and their digest all keep working untouched.
 
-⚠️ Adding a 2nd FK from `notes` to `companies`/`people` is fine, but remember the
-PostgREST trap in CLAUDE.md: an embed like `companies(name)` needs
-`companies!company_id(name)` once a table has two FKs to the same table.
+**Three columns the first draft had and this one does not** — the owner's answers on
+17 Aug removed them, and each removal is a simplification worth keeping:
+
+- **No `visibility`.** Notes are owner-only (answer: no staff notes), so a
+  visibility flag would have exactly one value forever. If staff notes are ever
+  wanted, that is a migration *and* a design conversation then — not a column
+  guessed at now.
+- **No `company_id` / `person_id`.** A note can be about anything (his words), so
+  there is no primary axis to model: **every association is a `note_links` row**,
+  including to a company or a person. One mechanism, not two, and it drops the
+  PostgREST two-FK embed trap from CLAUDE.md entirely.
+  ⚠️ The cost, stated plainly: filtering the list by company becomes a join on
+  `note_links` rather than a column read. That is a query, not a redesign — and it
+  is the right trade for keeping ONE way to link.
 
 ---
 
@@ -192,20 +201,21 @@ having. Staff keys stay inside their portal ceiling (§8).
 
 ---
 
-## 8. Who can see a note (decide before Phase 1 — the column ships either way)
+## 8. Who can see a note — SETTLED: the owner, and nobody else
 
-`visibility` + `created_by_person_id` are in the table from day one so this is a UI
-decision later, not a migration:
+The owner's answer (17 Aug 2026): **no staff notes.** Notes live entirely on the
+admin side, behind the existing owner gate in `src/proxy.ts`. Consequences, all of
+them simplifications:
 
-- **Owner notes** are owner-only by default. This is the safe default and what I
-  would ship.
-- **Staff notes in the portal** (Phase 8) would be personal-only: a member of staff
-  sees their own notes and nothing else, routed through the **existing scope
-  helpers** (`companyScope` / `seesAllCompanies` in `portal-auth.ts`) and a new
-  `CapabilityKey` (`notes`) so the owner can switch it on per role. Never a raw
-  `=== "director"` check.
-- A note linked to a task does **not** become visible to that task's assignees.
-  Linking is not sharing. Say so in the UI.
+- No `visibility` column, no portal twin, no new `CapabilityKey`, no portal
+  permission row, no scope helpers to route through.
+- **`/notes` and `/notes/[id]` must sit INSIDE the admin gate** — i.e. not in the
+  proxy matcher's exclusion list. Getting this wrong is the whole security model.
+- **Linking is not sharing, and now it never can be.** A note linked to a task is
+  still invisible to that task's assignees — the note simply does not exist on the
+  portal. The link is one-way: staff see the task, never the note behind it.
+- If staff notes are ever wanted, do NOT retrofit this table quietly. It needs its
+  own decision (personal-only? manager-visible? capability-gated?) and a migration.
 
 ---
 
@@ -246,9 +256,14 @@ debounced autosave with a saved-state indicator; pin, folder, archive; Quick Not
 import the 4 legacy notes. **Done = the owner keeps notes in COS instead of Apple
 Notes.**
 
-**Phase 2 — blocks + slash.** `/` menu; tables; callouts; attachments via
-`documents`; `#tags` parsed to `note_tags`; drag-to-reorder blocks; paste handling
-(HTML → clean nodes, images → attachments).
+**Phase 2 — blocks + slash + daily notes.** `/` menu; tables; callouts; attachments
+via `documents`; `#tags` parsed to `note_tags`; drag-to-reorder blocks; paste
+handling (HTML → clean nodes, images → attachments). **Daily notes land here, not in
+Phase 6** — the owner confirmed they are useful, and they are thin: a "Today" button
+that opens today's `kind='daily'` note or creates it, guarded by the partial unique
+index. Rough capture is the point of this module and a dated page is the lowest-
+friction place to put a thought. Templates enrich them later; an empty dated note is
+already worth having.
 
 **Phase 3 — interconnection.** `note_links`; `@` picker for task/person/company/
 document; `[[` for notes; **Backlinks** panel; **Notes** tab on task/person/company
@@ -268,16 +283,16 @@ TypeScript *refuses to compile* until you do — a rare case of the type system
 enforcing the forward rule for you), then the `EntityDef` itself. **No migration:**
 `embeddings.source_type` is plain `text` with no CHECK constraint and the
 `hybrid_search`/`upsert_embedding` RPCs take it as text, so the database accepts a
-new type as-is. Then: saved views as smart folders; templates (`kind='template'`);
-daily notes;
-saved views as smart folders; templates (`kind='template'`); daily notes;
+new type as-is. Then: saved views as smart folders; templates (`kind='template'`,
+which is what turns a daily note from an empty page into a prompt); and
 `note_revisions` with a simple "restore this version".
 
 **Phase 7 — MCP + automation.** §7's two tools. Optional: morning-run drops a daily
 note; a meeting/event can spawn a linked note.
 
-**Phase 8 — portal + mobile.** Staff personal notes behind the new capability; the
-mobile pass on the editor (a floating format bar beats a slash menu on a phone).
+**Phase 8 — mobile.** The editor on a phone: a floating format bar beats a slash
+menu when there is no keyboard, and Quick Note should be one tap from the launcher.
+(The portal half of this phase is **gone** — see §8. Notes are owner-only.)
 
 ---
 
@@ -325,11 +340,16 @@ Notion/Mem/Reflect: AI summaries, cited Q&A over your own notes, auto-linking).
   it. **There is none** — it is plain `text`, and the RPCs pass it through. One less
   migration than feared.
 
-**Still open — needs the owner, or a spike:**
-1. **Staff notes in the portal: yes or no?** Changes nothing in the schema (the
-   column ships regardless) but decides whether Phase 8 exists.
-2. **Are notes usually *about* a company?** If yes, `company_id` earns a place in
-   the list rail and the Director Brief; if not, it stays an optional link.
-3. **Daily notes / journal** — wanted, or clutter?
-4. **Editor weight** — Phase 0 answers this, and it is the one thing that could
-   change the editor choice.
+**Answered by the owner, 17 Aug 2026 — these are settled, do not re-ask:**
+1. **Staff notes in the portal? NO.** Owner-only. Dropped: `visibility`, the portal
+   twin, the capability key, the whole portal half of Phase 8. See §8.
+2. **Are notes about a company? "Not really, can be anything."** So there is no
+   primary axis: no `company_id`/`person_id` columns, every association is a
+   `note_links` row. See §3.
+3. **Daily notes? Useful.** Moved forward into Phase 2 (they are thin), with
+   templates in Phase 6 to make them more than a blank page.
+
+**Still open — one item, and only a spike can answer it:**
+4. **Editor weight.** Phase 0 measures the editor chunk and how Tiptap takes Desk
+   styling. It is the one finding that could still change the editor choice — Plate
+   is the fallback, on the same schema and the same phases.
