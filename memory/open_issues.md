@@ -164,6 +164,25 @@ REAL window (at a 1223px window `min-width:1024px` is true and `1280px` is false
 so breakpoints still fire at true sizes; there is no horizontal overflow
 (`scrollWidth == clientWidth`); and content fills the window with no dead strip.
 
+## ✅ Real identities were being used as placeholders (17 Aug 2026)
+
+The Command Centre tab's "Name or email" field carried
+`placeholder="admin@oracle.co.tz"` — the owner's **actual** sign-in identifier,
+shown to anyone who opened `/login`. When owner identity is configured that field
+IS the second factor, so the page was giving away half of it. Now no placeholder at
+all; the label is the instruction.
+
+Two of the same fault, found by grepping for the domain rather than assuming it was
+one slip:
+- `/portal/login` suggested `"e.g. Shivam"` — a real member of staff.
+- `/mcp/connect` (which sits OUTSIDE the admin gate, by design — see the matcher in
+  `src/proxy.ts`) suggested a real staff address.
+
+**FORWARD RULE: on any page reachable without signing in — `/login`,
+`/portal/login`, `/mcp/connect`, `/e/`, `/r/` — a placeholder, example or default
+must be a SHAPE ("Your first name or work email"), never a real person, address or
+company identifier.** Settings placeholders are fine: only the owner sees them.
+
 ## ✅ The sidebar overlap, finally caught (17 Aug 2026)
 
 **It was real, and it was the gutter arriving one paint late.** Proof from the raw

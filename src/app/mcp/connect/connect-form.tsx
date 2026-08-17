@@ -111,7 +111,10 @@ export function ConnectForm({
                 name="identifier"
                 autoComplete="username"
                 className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
-                placeholder={who === "staff" ? "e.g. nayan@oracle.co.tz" : "Leave blank if you haven't"}
+                /* Never a real address here: this consent screen sits OUTSIDE the
+                   admin gate (see the matcher in `src/proxy.ts`), so a placeholder
+                   is public. It used to name an actual member of staff. */
+                placeholder={who === "staff" ? "" : "Leave blank if you haven't"}
               />
             </label>
 

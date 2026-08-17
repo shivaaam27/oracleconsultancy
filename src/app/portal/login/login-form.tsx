@@ -37,7 +37,10 @@ export function LoginForm() {
             autoComplete="username webauthn"
             required
             className={authInputCls}
-            placeholder="e.g. Shivam"
+            /* A shape, not a person. This named a real member of staff, on a page
+               anyone can open — the same fault as the owner's address on the
+               Command Centre tab. */
+            placeholder="Your first name or work email"
           />
         </label>
         <PasswordField name="password" label="Password" autoComplete="current-password" />

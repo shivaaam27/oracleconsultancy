@@ -16,7 +16,11 @@ export function AdminLoginForm({ firstRun }: { firstRun: boolean }) {
         {!firstRun && (
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Name or email</span>
-            <input name="identifier" autoComplete="username webauthn" className={authInputCls} placeholder="admin@oracle.co.tz" />
+            {/* NO placeholder. This field used to suggest the owner's real address,
+                which handed anyone who opened the sign-in screen half of the second
+                factor — the identity it is there to check. The label says what to
+                type; a stranger should learn nothing from this page. */}
+            <input name="identifier" autoComplete="username webauthn" className={authInputCls} />
           </label>
         )}
         <PasswordField
