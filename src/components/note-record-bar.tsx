@@ -3,10 +3,10 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Pin, PinOff } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, LayoutTemplate, Pin, PinOff } from "lucide-react";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
-import { setNoteArchived, setNoteFolder, togglePinNote } from "@/app/notes/actions";
+import { applyTemplateToNote, setNoteArchived, setNoteFolder, setNoteIsTemplate, togglePinNote } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -23,6 +23,8 @@ export function NoteRecordBar({
   folderId,
   folders,
   updatedAt,
+  isTemplate,
+  templates,
 }: {
   noteId: number;
   pinned: boolean;
@@ -30,6 +32,8 @@ export function NoteRecordBar({
   folderId: number | null;
   folders: { id: number; name: string }[];
   updatedAt: string;
+  isTemplate: boolean;
+  templates: { id: number; title: string }[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -87,6 +91,45 @@ export function NoteRecordBar({
       >
         {archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {archived ? "Restore" : "Archive"}
       </button>
+
+      {/* Templates are just notes with kind='template' — no new table, no new
+          screen. Marking one puts it in the "Use a template" list on every other
+          note. Phase 6. */}
+      <button
+        type="button"
+        onClick={() => start(async () => {
+          const res = await setNoteIsTemplate(noteId, !isTemplate);
+          if (!res.ok) { toast("Could not change that.", { tone: "danger" }); return; }
+          toast(isTemplate ? "Back to an ordinary note." : "Saved as a template.", { tone: "success" });
+          router.refresh();
+        })}
+        className={cn(act, isTemplate ? "text-accent hover:bg-accent-soft" : "hover:bg-bg-muted hover:text-fg")}
+      >
+        <LayoutTemplate size={13} /> {isTemplate ? "Template" : "Make a template"}
+      </button>
+
+      {templates.length > 0 && !isTemplate && (
+        <FluidSelect
+          value=""
+          options={[
+            { value: "", label: "Use a template" },
+            ...templates.map((t) => ({ value: String(t.id), label: t.title })),
+          ]}
+          onSelect={(v) => {
+            if (!v) return;
+            start(async () => {
+              const res = await applyTemplateToNote(noteId, Number(v));
+              if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+              // The editor holds the body, so a full reload is the honest way to
+              // put the template in front of the owner — see the Versions panel
+              // for the same reasoning about refs the render does not reset.
+              toast("Template applied. The old text is in Versions.", { tone: "success" });
+              window.location.reload();
+            });
+          }}
+          buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[11.5px] font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
+        />
+      )}
 
       <span className="grow" />
       <span className="px-1 text-[11px] text-fg-subtle">

@@ -4,7 +4,9 @@ import { backlinks, linkCandidates, outgoingLinks } from "@/lib/note-links";
 import { NoteEditorMount } from "@/components/note-editor-mount";
 import { NoteLinksPanel } from "@/components/note-links-panel";
 import { NoteTodosPanel } from "@/components/note-todos-panel";
+import { NoteVersionsPanel } from "@/components/note-versions-panel";
 import { noteTodos } from "@/lib/note-todos";
+import { listTemplates, noteRevisions } from "@/lib/note-versions";
 import { NoteRecordBar } from "@/components/note-record-bar";
 
 export const dynamic = "force-dynamic";
@@ -24,13 +26,15 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
   const noteId = Number(id);
   if (!Number.isFinite(noteId)) notFound();
 
-  const [note, folders, links, incoming, todos, candidates] = await Promise.all([
+  const [note, folders, links, incoming, todos, candidates, revisions, templates] = await Promise.all([
     getNote(noteId),
     listFolders(),
     outgoingLinks(noteId),
     backlinks(noteId),
     noteTodos(noteId),
     linkCandidates(),
+    noteRevisions(noteId),
+    listTemplates(),
   ]);
   if (!note) notFound();
 
@@ -50,6 +54,9 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
           folderId={note.folderId}
           folders={folders.map((f) => ({ id: f.id, name: f.name }))}
           updatedAt={note.updatedAt}
+          isTemplate={note.kind === "template"}
+          /* A template cannot be applied to itself, and the list is short. */
+          templates={templates.filter((t) => t.id !== note.id).map((t) => ({ id: t.id, title: t.title }))}
         />
 
         <NoteEditorMount
@@ -73,6 +80,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
         {/* To-dos first: a thing you have to DO outranks a thing you linked. */}
         <NoteTodosPanel noteId={note.id} noteTitle={note.title} todos={todos} />
         <NoteLinksPanel links={links} incoming={incoming} />
+        <NoteVersionsPanel noteId={note.id} revisions={revisions} />
       </div>
     </div>
   );

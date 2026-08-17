@@ -546,6 +546,58 @@ export const ENTITY_DEFS: EntityDef[] = [
     },
   },
   {
+    /**
+     * Notes — Phase 6 of memory/notes_module_plan.md. Archived = history.
+     *
+     * ⚠️ OWNER-ONLY, and that has a consequence here that no other def has: notes
+     * never reach the staff portal, so anything that surfaces a note must be an
+     * admin surface. The command palette and ORI Ask are, which is why this is
+     * safe; if a portal search is ever built it must NOT read this type.
+     *
+     * The indexed text is `body_text`, the DERIVED plain-text column — never
+     * `body_json`, which is a tree of ProseMirror braces and would embed as noise.
+     * That is exactly why the two columns exist (§2 of the plan).
+     */
+    type: "note",
+    table: "notes",
+    idColumn: "id",
+    selectColumns: ["id", "title", "archived", "kind", "updated_at"],
+    // The body is only pulled on the embed path, so keyword search and the
+    // per-write hooks never drag a long note's text around.
+    indexSelectColumns: ["id", "title", "body_text", "archived", "kind", "updated_at"],
+    textFor: (r) => join(str(r.title), str(r.body_text)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Notes",
+    searchOrder: 5,
+    trace: { mode: "generic", table: "notes" },
+    search: {
+      select: "id,title,body_text,archived,kind,updated_at",
+      currentFilter: { column: "archived", value: false },
+      order: { column: "updated_at", ascending: false },
+      dateColumn: "updated_at",
+      limit: 300,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        const title = str(r.title).trim();
+        const body = str(r.body_text).replace(/\s+/g, " ").trim();
+        // An untitled note is NORMAL in this module — the owner types the body
+        // first and the title later, or never. Falling back to the first line is
+        // the same rule `noteTitle()` follows on the shelf.
+        const shown = title || body.slice(0, 60) || "Untitled note";
+        return {
+          type: "note", id: r.id as number,
+          title: shown,
+          subtitle: (title ? body.slice(0, 90) : "") || (str(r.kind) === "daily" ? "Daily page" : "Note"),
+          href: `/notes/${r.id}`,
+          badge: archived ? "Archived" : str(r.kind) === "daily" ? "Daily" : undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [shown, body],
+        };
+      },
+    },
+  },
+  {
     // Vendors — inactive = history.
     type: "vendor",
     table: "vendors",

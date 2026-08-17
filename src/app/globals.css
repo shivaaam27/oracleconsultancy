@@ -381,6 +381,68 @@ input:disabled, select:disabled, textarea:disabled {
    placeholder overlay). A plain class beats the element rule above, so this wins
    without !important. NB: name must NOT start with `caret-`, or tailwind-merge
    (via cn()) folds it into `caret-accent` and drops it. */
+/* ------------------------------------------------------------------ *
+ * ⚠️ THERE IS NO HOVER ON A TOUCH SCREEN.
+ *
+ * Nine components reveal a control with `opacity-0 group-hover:opacity-100`
+ * — Reply on a message, remove on a row, the actions on a saved view. It is
+ * a good pattern with a mouse: the control is there when you reach for it
+ * and out of the way when you are reading. On a phone it means the control
+ * **never appears and cannot be used at all** — measured on the task
+ * conversation, where Reply was simply unreachable.
+ *
+ * `(hover: none)` is the honest test: it asks whether the device can hover,
+ * not how wide the window is. A desktop browser reports `hover: hover` at
+ * every size, so **the web view is untouched** — including when it is
+ * resized narrow.
+ *
+ * Two classes, so it beats the `.opacity-0` it overrides without
+ * `!important`.
+ *
+ * ⚠️ Written in the ESCAPED-CLASS form Tailwind itself emits
+ * (`.group-hover\:opacity-100`). An `[class*="group-hover:opacity-100"]`
+ * attribute selector reads more clearly and was the first attempt — Tailwind
+ * v4's Lightning CSS **silently dropped the whole rule**, exactly the trap
+ * this file has hit before. It was verified present in the served stylesheet
+ * afterwards, not assumed.
+ * ------------------------------------------------------------------ */
+@media (hover: none) {
+  .opacity-0.group-hover\:opacity-100 {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * `.tap-target` — a finger-sized place to tap, on PHONES ONLY.
+ *
+ * Desk is a dense desk-first interface: 16px tick-boxes and 17px inline
+ * buttons are right with a mouse and genuinely hard to hit with a thumb
+ * (measured across the task list — 121 controls under 28px). The obvious
+ * answer, making them bigger, would wreck the density the whole design is
+ * built on.
+ *
+ * So the control keeps its size and gains an invisible 40×40 area to be
+ * tapped in. It costs no layout — the pseudo-element is absolutely
+ * positioned — and it is inside a `max-width: 639px` block, so **the web
+ * view is not touched at all**.
+ *
+ * Where two of these sit close together the later one in the DOM wins the
+ * overlap, which is the harmless way round: each still gains room on the
+ * side where there is nothing.
+ * ------------------------------------------------------------------ */
+@media (max-width: 639px) {
+  .tap-target { position: relative; }
+  .tap-target::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 40px);
+    height: max(100%, 40px);
+  }
+}
+
 .bare-field,
 .bare-field:hover,
 .bare-field:focus {

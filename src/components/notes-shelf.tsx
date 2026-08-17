@@ -8,6 +8,7 @@ import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { SearchInput } from "@/components/ui";
+import { AskNotes } from "@/components/ask-notes";
 import { useToast } from "@/components/toast";
 import { noteTitle, type NoteFolder, type NoteListRow } from "@/lib/notes-shared";
 import { createNote, createFolder, openTodaysNote } from "@/app/notes/actions";
@@ -169,6 +170,10 @@ export function NotesShelf({
             wrapperClassName="w-[15rem]"
             className="h-8 text-[12.5px]"
           />
+          {/* Ask a question of everything you have written — Phase 5. It sits on
+              the shelf, not inside a note, because the question is nearly always
+              "which note said…", which is a corpus question. */}
+          <AskNotes />
           <span className="grow" />
           {/* One page per day, opened or created. The partial unique index on
               daily_date is what actually stops two pages for one day. */}

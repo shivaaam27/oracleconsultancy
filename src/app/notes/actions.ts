@@ -16,6 +16,8 @@ import { sb } from "@/db/supabase";
 import { parseTags } from "@/lib/note-tags";
 import { syncNoteLinks } from "@/lib/note-links";
 import { createNoteTodo, deleteNoteTodo, setNoteTodoDone, todoStates } from "@/lib/note-todos";
+import { reindexEntity } from "@/lib/index-hooks";
+import { restoreNoteRevision, snapshotNote, templateBody } from "@/lib/note-versions";
 
 const NOW = () => new Date().toISOString();
 
@@ -150,9 +152,33 @@ export async function setNoteFolder(id: number, folderId: number | null): Promis
  *  a danger zone, once there is anything worth deleting.) */
 export async function setNoteArchived(id: number, archived: boolean): Promise<{ ok: boolean }> {
   const { error } = await sb.from("notes").update({ archived, updated_at: NOW() }).eq("id", id);
+  // Archiving changes the note's LIFECYCLE (active ↔ history), which the index
+  // records — so unlike an ordinary edit this one re-indexes immediately. It is a
+  // single deliberate action, not a keystroke, so there is nothing to debounce.
+  if (!error) await reindexEntity("note", id);
   revalidatePath("/notes");
   revalidatePath(`/notes/${id}`);
   return { ok: !error };
+}
+
+/**
+ * Put this note into the search index. Phase 6.
+ *
+ * ⚠️ CALLED ON A LONG IDLE, NEVER FROM `saveNoteBody`. Autosave fires ~1s after
+ * you stop typing; embedding on that cadence is money on fire for no benefit,
+ * because nobody searches for a sentence they are still writing. The editor calls
+ * this after a much longer pause and when the note is closed, and the nightly
+ * `/api/cron/reindex` sweep is the backstop for anything missed.
+ *
+ * Silent by design — indexing is a convenience, and a failure must never surface
+ * as an error over someone's writing.
+ */
+export async function reindexNote(id: number): Promise<void> {
+  try {
+    await reindexEntity("note", id);
+  } catch {
+    /* the nightly sweep will catch it */
+  }
 }
 
 /* ----------------------------- folders ----------------------------- */
@@ -259,6 +285,64 @@ export async function removeNoteTodo(id: number, noteId: number): Promise<{ ok: 
 export async function noteTodoStates(ids: number[]): Promise<Record<number, boolean>> {
   const map = await todoStates(ids);
   return Object.fromEntries(map);
+}
+
+/* ------------------------------------------------------------------ */
+/* Versions and templates — Phase 6                                    */
+/* ------------------------------------------------------------------ */
+
+/** "Save a version" — a deliberate bookmark before you change your mind. */
+export async function saveNoteVersion(noteId: number): Promise<{ ok: boolean }> {
+  const ok = await snapshotNote(noteId, "manual");
+  revalidatePath(`/notes/${noteId}`);
+  return { ok };
+}
+
+/**
+ * Put an older version back.
+ *
+ * Returns the new `updated_at` so the open editor can adopt it — otherwise its
+ * next keystroke would save against a timestamp this action has just moved and
+ * come back "changed elsewhere". That is the same one-writer trap the title field
+ * fell into in Phase 1; a restore is simply the other path to it.
+ */
+export async function restoreNoteVersion(
+  noteId: number,
+  revisionId: number,
+): Promise<{ ok: true; updatedAt: string } | { ok: false; error: string }> {
+  const res = await restoreNoteRevision(noteId, revisionId);
+  if (res.ok) {
+    await reindexNote(noteId);
+    revalidatePath(`/notes/${noteId}`);
+    revalidatePath("/notes");
+  }
+  return res;
+}
+
+/** Turn this note into a template, or back into an ordinary note. Templates are
+ *  just notes with `kind='template'` — no new table, no new screen. */
+export async function setNoteIsTemplate(id: number, isTemplate: boolean): Promise<{ ok: boolean }> {
+  const { error } = await sb
+    .from("notes")
+    .update({ kind: isTemplate ? "template" : "note", updated_at: NOW() })
+    .eq("id", id);
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${id}`);
+  return { ok: !error };
+}
+
+/** The body of a template, for the editor to drop in. Snapshots the note first,
+ *  because applying a template over existing writing is exactly the kind of thing
+ *  someone does by accident. */
+export async function applyTemplateToNote(
+  noteId: number,
+  templateId: number,
+): Promise<{ ok: true; bodyJson: unknown } | { ok: false; error: string }> {
+  const body = await templateBody(templateId);
+  if (!body) return { ok: false, error: "That template is gone." };
+  await snapshotNote(noteId, "template");
+  revalidatePath(`/notes/${noteId}`);
+  return { ok: true, bodyJson: body.bodyJson };
 }
 
 /** Rewrite a note's tag rows to match its text. Cheap: a note has a handful of tags,

@@ -25,15 +25,11 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   governance: { uiLabel: "Governance",   searchOrder: 2 },
   risk:       { uiLabel: "Risks",        searchOrder: 3 },
   document:   { uiLabel: "Documents",    searchOrder: 4 },
+  note:       { uiLabel: "Notes",        searchOrder: 5 },
   vendor:     { uiLabel: "Vendors",      searchOrder: 7 },
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },
   commitment: { uiLabel: "Commitments",  searchOrder: 10 },
-  /** searchOrder -1 = deliberately absent from the deep-index groups: notes have no
-   *  `EntityDef` until Phase 6, so there is nothing for the palette to search yet.
-   *  TypeScript forced this line the moment "note" joined SourceType, which is the
-   *  good kind of chore — it is impossible to add a type and forget its label. */
-  note:       { uiLabel: "Notes",        searchOrder: -1 },
 };
 
 /** The searchable types in display order, with their headings — what the command

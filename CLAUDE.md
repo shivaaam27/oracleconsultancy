@@ -141,7 +141,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0121** (`todos.note_id` — a to-do raised from a note; see the Notes section). **0116–0121 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0121 applied 17 Aug 2026, each after a `db:backup`).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0122** (`note_revisions` — a note's version history; see the Notes section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
 
@@ -165,7 +165,7 @@ the owner be able to ask Claude to do this?** "No" is a fine and common answer
 (admin plumbing, settings, anything dangerous → do nothing). "Yes" → add ONE entry
 to `src/lib/mcp/registry.ts`. Group by SUBJECT, not per button (one tool with an
 `action` argument, like `bulk_task_action`) — every description sits in every
-conversation's prompt, so 19 is fine and 150 would wreck tool-picking.
+conversation's prompt, so **26 (as of Aug 2026)** is fine and 150 would wreck tool-picking.
 Three things already flow automatically and need no work: **new rows** in existing
 tables, **permission changes** in Settings (re-resolved per request), and a new
 `EntityDef` in `entity-registry.ts` (makes it searchable via `search_cos` free).
@@ -347,7 +347,7 @@ deliberately not being done. **`RecordList` is the lever for three of the four**
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
-## Notes — BUILT through Phase 4. **Phase 5 (AI) is next** (`memory/notes_module_plan.md`)
+## Notes — BUILT through Phase 7. **Only Phase 8 (mobile) is left** (`memory/notes_module_plan.md`)
 
 `/notes` (the shelf) and `/notes/[id]` (one note, one sheet) are live and in use,
 owner-only, behind the admin gate. **Read `memory/notes_module_plan.md` before
@@ -377,6 +377,23 @@ the traps that cost real time.
   URLs expire and a note is read years later.
 - **Unlinked mentions** offer names typed without an `@`; **accepting rewrites the
   text into a real mention** rather than inserting a link row, so links stay derived.
+- **AI (Phase 5)**: Tidy · Summarise · Find the jobs · Name it, plus **Ask your
+  notes** on the shelf. ⚠️ **Every action is a PROPOSAL — none of them writes.**
+  Accepting a rewrite snapshots a version first. A whole-note polish returns plain
+  prose, so the panel warns when the note holds a table/picture/callout.
+- **Search (Phase 6)**: notes are a first-class indexed type. ⚠️ Besides the
+  `EntityDef`, **`SearchResultType` in `search.ts` is a separate hand-maintained
+  union** that also needs the type. Re-index on a **20s idle and on close, never on
+  save** — autosave is ~1s and embedding at that rate is money on fire.
+- **Versions** (`note_revisions`, migration **0122**) are taken before an AI rewrite,
+  before a template, and on "Save a version" — never per autosave. Restore snapshots
+  the current text first. ⚠️ Restore and apply-template **reload the page**: the open
+  editor holds body + `updated_at` in refs a re-render does not reset.
+- **Templates** are notes with `kind='template'` — no new table, no new screen.
+- **MCP (Phase 7)**: `notes` (list|get|search) + `note_write` (create|append|archive).
+  ⚠️ **Owner-only, enforced twice** (no capability AND a `caller.kind` refusal) — a
+  note may hold what the owner thinks about a member of staff. **`append` never
+  replaces; there is no delete.**
 - **Client/server split**: `lib/notes.ts` and `lib/note-links.ts` are server-only
   (they import `sb`); **`lib/notes-shared.ts`** and **`lib/note-links-shared.ts`** are
   what client components import. Getting this wrong kills every page with

@@ -42,6 +42,7 @@ import { listCalendarEvents } from "@/lib/calendar";
 import { listDocuments } from "@/lib/documents";
 import { getBrief } from "@/lib/director-brief";
 import { unifiedSearch } from "@/lib/search";
+import { mcpNotes, mcpNoteWrite } from "@/lib/mcp/notes";
 
 /* --------------------------------------------------------------- *
  * Tool shape
@@ -308,6 +309,50 @@ export const MCP_TOOLS: McpTool[] = [
           attendees: e.attendees.map((a) => a.name),
         }));
     },
+  },
+
+  /* Notes — Phase 7 of memory/notes_module_plan.md. TWO tools, grouped by
+     subject rather than one per button, as this file requires: every description
+     sits in every conversation's prompt.
+     ⚠️ Both are OWNER-ONLY and say so twice — no `capability` here (undefined =
+     owner-only), and the handlers refuse a staff caller outright. That belt and
+     braces is deliberate: a note may hold what the owner thinks about a member of
+     staff, and no permission toggle should be able to hand it over. */
+  {
+    name: "notes",
+    title: "Read the owner's notes",
+    description:
+      "The owner's private notes: list the most recent, read one in full, or search them. " +
+      "`get` also returns what the note links to — the tasks, people, companies and documents it mentions. " +
+      "These are personal notes, not shared records; they are the owner's own and no member of staff can see them.",
+    schema: z.object({
+      action: z.enum(["list", "get", "search"]).describe("list the recent ones, get one by id, or search"),
+      noteId: z.number().int().optional().describe("For 'get' — the note's id"),
+      query: z.string().optional().describe("For 'search' — what to look for"),
+      includeArchived: z.boolean().optional().describe("Include notes taken off the shelf (default false)"),
+      limit: z.number().int().optional().describe("How many to return, up to 50"),
+    }),
+    run: async (args, caller) => await mcpNotes(caller, args as Parameters<typeof mcpNotes>[1]),
+  },
+
+  {
+    name: "note_write",
+    title: "Make a note, or add to one",
+    description:
+      "Write in the owner's notes. 'create' starts a new one; 'append' ADDS to the end of an existing " +
+      "note and never replaces what is already there — this is what \"add that to Monday's note\" means. " +
+      "'archive' takes a note off the shelf, which is the only form of removal there is: nothing is " +
+      "ever deleted, and archiving is undone by calling it again with archived: false. " +
+      "Say the note id back to the owner afterwards.",
+    schema: z.object({
+      action: z.enum(["create", "append", "archive"]).describe("What to do"),
+      noteId: z.number().int().optional().describe("For 'append' and 'archive'"),
+      title: z.string().optional().describe("For 'create' — optional; a note may be untitled"),
+      text: z.string().optional().describe("The words. Blank lines separate paragraphs."),
+      archived: z.boolean().optional().describe("For 'archive' — default true; false puts it back"),
+    }),
+    write: true,
+    run: async (args, caller) => await mcpNoteWrite(caller, args as Parameters<typeof mcpNoteWrite>[1]),
   },
 
   {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import type { Content } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -12,6 +13,7 @@ import { Mention, MentionPickers } from "@/components/note-mention";
 import { ActiveLine } from "@/components/note-active-line";
 import { NoteImage } from "@/components/note-image";
 import { Callout, CALLOUT_TONES, CALLOUT_TONE_LABELS } from "@/components/note-callout";
+import { NoteAiPanel } from "@/components/note-ai-panel";
 import { attachFileAtCaret, filesFrom } from "@/lib/note-upload";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,7 +29,7 @@ import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { extractMentions } from "@/lib/note-links-shared";
 import { findUnlinked, findWholeWord, type LinkCandidate } from "@/lib/note-unlinked-shared";
 import { useToast } from "@/components/toast";
-import { noteTodoStates, promoteNoteLine, removeNoteTodo, saveNoteBody } from "@/app/notes/actions";
+import { noteTodoStates, promoteNoteLine, reindexNote, removeNoteTodo, saveNoteBody } from "@/app/notes/actions";
 
 /**
  * The note sheet: title and body on ONE piece of paper.
@@ -55,6 +57,9 @@ type SaveState =
   | { kind: "error"; message: string };
 
 const AUTOSAVE_MS = 900;
+/** How long the writing must stop before the note is re-embedded. Deliberately far
+ *  longer than the autosave — see `scheduleReindex`. */
+const REINDEX_IDLE_MS = 20_000;
 
 const STYLE_OPTIONS: FluidOption[] = [
   { value: "p", label: "Body" },
@@ -83,6 +88,7 @@ export function NoteEditor({
   /** The title as `flush` should send it. A ref as well as state because `flush`
    *  is a `useCallback` and would otherwise close over a stale title. */
   const titleRef = useRef(initialTitle);
+  const titleField = useRef<HTMLTextAreaElement | null>(null);
   const seenUpdatedAt = useRef(initialUpdatedAt);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -154,6 +160,8 @@ export function NoteEditor({
         seenMentions.current = signature;
         router.refresh();
       }
+      // The writing changed, so the index is now behind. Start the long idle clock.
+      scheduleReindex();
     } else if (res.reason === "stale") {
       setState({ kind: "stale" });
     } else {
@@ -399,6 +407,25 @@ export function NoteEditor({
     },
   });
 
+  /* Put the note in the search index once the writing has genuinely stopped.
+     ⚠️ NOT on save. Autosave fires about a second after the last keystroke, and
+     re-embedding on that cadence is money on fire for no benefit — nobody searches
+     for a sentence they are still typing. 20 seconds of quiet, and again when the
+     note is closed; the nightly reindex sweep is the backstop. */
+  const indexTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReindex = useCallback(() => {
+    if (indexTimer.current) clearTimeout(indexTimer.current);
+    indexTimer.current = setTimeout(() => { void reindexNote(noteId); }, REINDEX_IDLE_MS);
+  }, [noteId]);
+
+  useEffect(() => {
+    return () => {
+      if (indexTimer.current) clearTimeout(indexTimer.current);
+      // Closing the note is the clearest "I have finished" there is.
+      void reindexNote(noteId);
+    };
+  }, [noteId]);
+
   // Save on the way out — closing the tab must not cost the last few seconds.
   useEffect(() => {
     const onLeave = () => { if (timer.current) { clearTimeout(timer.current); void flush(); } };
@@ -450,6 +477,28 @@ export function NoteEditor({
     void flush();
   };
 
+  /* Grow the title box to its own content. `height: auto` first, or the box can
+     only ever get taller — measuring `scrollHeight` against a height already set
+     never reports a SMALLER number. Runs on every title change, and once on mount
+     for a note that arrives with a long title already. It also has to re-run when
+     the window narrows, because that is when a title starts needing two lines. */
+  useEffect(() => {
+    const el = titleField.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      /* `scrollHeight` measures the CONTENT box, but the element is `border-box`
+         (Tailwind's default), so `height: scrollHeight` leaves the border eating
+         the last 2px and clipping the descenders on the final line — measured.
+         Add whatever the border and padding take. */
+      const chrome = el.offsetHeight - el.clientHeight;
+      el.style.height = `${el.scrollHeight + chrome}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [title, editor]);
+
   if (!editor) {
     return <div className="min-h-[70vh] rounded-lg border border-border bg-bg-elev" aria-hidden />;
   }
@@ -475,7 +524,12 @@ export function NoteEditor({
     /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
        not a floating box of its own. */
     <div className="flex h-[calc(100dvh-11rem)] min-h-[24rem] flex-col overflow-hidden rounded-lg border border-border bg-bg-elev shadow-sm">
-      <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border bg-bg-subtle/80 px-2 py-1.5">
+      {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up. At 375px this toolbar
+          wrapped to THREE rows — 71px of controls above a note before a word was
+          written, on the screen with the least room to give. It scrolls sideways
+          instead, so every tool is still reachable and the writing keeps its
+          height. (`slim-scroll` hides the bar until it is used.) */}
+      <div className="slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-bg-subtle/80 px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
         <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo2 size={14} /></ToolButton>
         <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo2 size={14} /></ToolButton>
 
@@ -678,7 +732,15 @@ export function NoteEditor({
         }}
       >
         <div className="mx-auto w-full max-w-[68ch]">
-          <input
+          {/* ⚠️ A TEXTAREA, NOT AN INPUT — the title has to WRAP.
+              As a single-line input, a long title just scrolled sideways inside its
+              own box: on a 375px phone the field was 294px wide holding 759px of
+              text, so the owner could never see the title he had written (measured).
+              A title on paper wraps, so this one does; it auto-grows to fit and
+              Enter still moves to the body rather than making a second line. */}
+          <textarea
+            ref={titleField}
+            rows={1}
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             onBlur={commitTitle}
@@ -689,12 +751,64 @@ export function NoteEditor({
             aria-label="Note title"
             /* `.bare-field` is the documented opt-out from the global input well +
                focus ring (globals.css). Without it this field draws a stray box and
-               flashes blue when clicked — the owner's first complaint. */
-            className="bare-field note-title-field mb-1 w-full text-[26px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60"
+               flashes blue when clicked — the owner's first complaint.
+               22px on a phone: 26px is a lot of the screen when the line is short. */
+            className="bare-field note-title-field mb-1 w-full resize-none overflow-hidden break-words text-[22px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60 sm:text-[26px]"
           />
           <EditorContent editor={editor} />
         </div>
       </div>
+
+      {/* AI (Phase 5). Every action is a PROPOSAL — nothing here touches the note
+          until Accept, and accepting a rewrite snapshots the old version first. */}
+      <NoteAiPanel
+        noteId={noteId}
+        getText={() => editorRef.current?.getText() ?? ""}
+        hasRichBlocks={() => {
+          const ed = editorRef.current;
+          if (!ed) return false;
+          // A whole-note rewrite comes back as plain paragraphs, so anything with
+          // its own shape would be flattened. Warn rather than forbid.
+          let rich = false;
+          ed.state.doc.descendants((node) => {
+            if (rich) return false;
+            if (RICH_BLOCKS.has(node.type.name)) { rich = true; return false; }
+            return true;
+          });
+          return rich;
+        }}
+        onApplyPolish={(text) => {
+          const ed = editorRef.current;
+          if (!ed) return;
+          ed.chain().focus().setContent(textToDoc(text)).run();
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+        onInsertSummary={(points) => {
+          const ed = editorRef.current;
+          if (!ed) return;
+          // As a callout at the very top — which is what callouts were built for.
+          ed.chain().focus().insertContentAt(0, {
+            type: "callout",
+            attrs: { tone: "info" },
+            content: [{
+              type: "bulletList",
+              content: points.map((p) => ({
+                type: "listItem",
+                content: [{ type: "paragraph", content: [{ type: "text", text: p }] }],
+              })),
+            }],
+          }).run();
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+        onApplyTitle={(next) => {
+          setTitle(next);
+          titleRef.current = next;
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+      />
 
       {/* Names you wrote without linking. A quiet strip at the FOOT of the sheet,
           so it never pushes the writing about, and every chip can be waved away.
@@ -761,6 +875,25 @@ export function NoteEditor({
  */
 function plainDoc(doc: unknown): unknown {
   return JSON.parse(JSON.stringify(doc));
+}
+
+/** Blocks a whole-note rewrite would flatten — the AI returns plain prose, so a
+ *  table, a picture or a callout would not survive being replaced by it. */
+const RICH_BLOCKS = new Set(["table", "noteImage", "callout", "codeBlock", "taskList"]);
+
+/** Plain text back into a document: blank lines separate paragraphs, the way
+ *  anybody writing prose expects. */
+function textToDoc(text: string): Content {
+  const paras = text
+    .split(/\n{2,}/)
+    .map((p) => p.replace(/\n/g, " ").trim())
+    .filter(Boolean);
+  return {
+    type: "doc",
+    content: paras.length
+      ? paras.map((p) => ({ type: "paragraph", content: [{ type: "text", text: p }] }))
+      : [{ type: "paragraph" }],
+  } as Content;
 }
 
 /** The checklist line the caret is sitting in. */

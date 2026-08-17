@@ -1930,6 +1930,34 @@ export const noteTags = pgTable("note_tags", {
  * The `(target_type, target_id)` index is what makes the reverse question — "which
  * notes mention this task?" — cheap, which is the whole point of the table.
  */
+/**
+ * A snapshot of a note's body. Phase 6 of memory/notes_module_plan.md.
+ *
+ * Deliberately LIGHT: one row per snapshot, taken when something is about to
+ * replace what the owner wrote — an AI rewrite accepted, or a template applied —
+ * and on a manual "save a version". NOT one per autosave: this table would then
+ * grow by a row a second and be worth nothing, because a hundred versions of the
+ * same paragraph is not history.
+ *
+ * `body_text` is stored alongside `body_json` for the same reason the note itself
+ * carries both: a version list wants to show what it was without parsing a
+ * ProseMirror tree.
+ */
+export const noteRevisions = pgTable("note_revisions", {
+  id: serial("id").primaryKey(),
+  noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default(""),
+  bodyJson: jsonb("body_json"),
+  bodyText: text("body_text").notNull().default(""),
+  /** Why this snapshot exists: 'manual' | 'ai' | 'template'. Shown in the list, so
+   *  "before the AI touched it" is findable at a glance. */
+  reason: text("reason").notNull().default("manual"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("note_revisions_note_idx").on(t.noteId, t.createdAt),
+]);
+
 export const noteLinks = pgTable("note_links", {
   id: serial("id").primaryKey(),
   noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),

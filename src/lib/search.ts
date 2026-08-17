@@ -37,6 +37,9 @@ import {
 
 export type SearchResultType =
   | "person" | "company" | "document" | "vendor" | "asset"
+  // `note` joined in Phase 6 of the notes plan. ⚠️ Notes are OWNER-ONLY: this
+  // search runs behind the admin gate, and a portal search must never read it.
+  | "note"
   | "governance" | "risk" | "pipeline" | "commitment";
 
 export type SearchResult = {

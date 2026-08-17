@@ -13,12 +13,15 @@ fast and get polished later by him or by AI; Apple-Notes-grade formatting; slash
 commands; links, reminders and to-dos; interconnected with the rest of the command
 centre; reachable from MCP later.
 
-## ▶ START HERE — handing over to a fresh chat (17 Aug 2026, end of Phase 4)
+## ▶ START HERE — handing over to a fresh chat (17 Aug 2026)
 
-**Phases 0–4 are BUILT and verified in the browser, and everything owed from Phases 2
-and 3 is done too** (attachments, callouts, drag-to-reorder, unlinked mentions).
-**Phase 5 is next: AI — the table in §6, one action at a time, each with its own
-accept/discard step.** §10 has the detail.
+**ALL EIGHT PHASES ARE BUILT AND VERIFIED LIVE.** The module is complete as planned:
+editor, shelf, slash menu, tables, tags, daily notes, links + backlinks, to-dos and
+reminders, attachments, callouts, drag-to-reorder, unlinked mentions, AI, search,
+versions, templates, MCP, and the phone.
+
+**There is no Phase 9 in this plan.** What comes next is a fresh decision — see
+§13 for the candidates that came out of building it.
 
 State of the machine, so nothing is rediscovered:
 
@@ -26,7 +29,7 @@ State of the machine, so nothing is rediscovered:
 |---|---|
 | Branch | `claude/notes-phase-3-preview-0cc4c6`, in the worktree `.claude/worktrees/notes-phase-3-preview-0cc4c6` |
 | Git | local commits only — deliberately **NOT pushed** (the owner asks for local commits) |
-| Migrations | **0118** (`notes`, `note_folders`), **0119** (`note_tags`), **0120** (`note_links`) and **0121** (`todos.note_id`) applied to the live database. A backup was taken before each |
+| Migrations | **0118** (`notes`, `note_folders`), **0119** (`note_tags`), **0120** (`note_links`), **0121** (`todos.note_id`) and **0122** (`note_revisions`) applied to the live database. A backup was taken before each |
 | Live data | the owner's **4 imported notes**, a daily page, and one untitled note he made himself while this was being built = 6 rows. Every test note, link, to-do and uploaded file was cleaned up |
 | ⚠️ Shared use | the owner works in the app WHILE you build. A note that appears mid-session is probably his. **Read a row before deleting it** — one of his was destroyed this way |
 | A fresh worktree | has NEITHER `node_modules` NOR `.env.local`. Copy `.env.local` from the main checkout and `npm install` FIRST — otherwise `npm exec tsc` exits 0 having checked nothing, and every page 500s |
@@ -647,8 +650,82 @@ foot of the sheet, each dismissible.
   unambiguous), capped at 5 so it can always be ignored.
 - The scan runs **once per save, not once per keystroke**.
 
-**Phase 5 — AI.** The table in §6, one action at a time, each with its accept/
-discard step. Then **Ask your notes** once the `EntityDef` is indexing bodies.
+### Phase 5 — ✅ DONE, 17 Aug 2026. AI, every action a proposal.
+
+`lib/note-ai.ts` (the model calls) · `app/notes/ai-actions.ts` (the server actions) ·
+`components/note-ai-panel.tsx` (the strip) · `components/ask-notes.tsx` (the shelf).
+
+**Tidy the writing · Summarise · Find the jobs · Name it**, plus **Ask your notes**
+on the shelf. Everything runs on the existing `callAIText`/`callAIJson` harness, so
+it inherits the Gemini ladder, retries, the spend ledger and the cap for nothing.
+
+⚠️ **NOT ONE OF THEM WRITES.** Every action returns a proposal; the owner presses
+Accept and the EDITOR applies it. AI-off, out-of-budget and unreachable all come back
+as a plain sentence, never an error. Accepting a rewrite **snapshots the old version
+first**, so it is one click from being put back.
+
+**Verified live against the real model:** "Find the jobs" pulled three real
+commitments out of a rough dictated note *with its reasons* ("because: he wants
+payment before he starts") and accepting made three ordinary to-dos; "Tidy the
+writing" fixed the prose while keeping **every figure and name** ($600, $100,
+Sulleiman, Amal); "Ask your notes" answered "how much is Sulleiman charging" correctly
+**and cited the note it came from**.
+
+⚠️ A whole-note polish returns PLAIN PROSE, so tables, pictures and callouts would be
+flattened. The panel checks for them and says so before you accept — a warning, not a
+refusal, and the old version is kept either way.
+
+### Phase 6 — ✅ DONE, 17 Aug 2026. Recall + shape. Migration **0122** (`note_revisions`).
+
+**Notes are a first-class indexed type.** The three edits the plan predicted turned
+out to be **one and a half**: a previous session had already added `note` to
+`SourceType` and to `ENTITY_LABELS_ORDER` (parked at `searchOrder: -1`), so this was
+the `EntityDef` plus promoting that number. **One thing the plan did not foresee:
+`SearchResultType` in `search.ts` is a SEPARATE hand-maintained union** and also
+needed `note` — the compiler caught it.
+- It indexes **`body_text`, never `body_json`** — a tree of ProseMirror braces would
+  embed as noise. That is what the two columns are for.
+- ⚠️ **Re-indexed on a LONG idle (20s) and on close, never on save.** Autosave fires
+  a second after the last keystroke and embedding on that cadence is money on fire.
+  Archiving re-indexes immediately, because that changes lifecycle.
+- Verified: `unifiedSearch("sulleiman permits")` returned the note FIRST, above every
+  document.
+
+**Versions** (`lib/note-versions.ts`, `components/note-versions-panel.tsx`) — taken at
+the moments that matter (before an AI rewrite, before a template, or "Save a
+version"), **never per autosave**: a row a second is a log nobody can read.
+⚠️ Restoring **snapshots the current text first**, so a restore is itself undoable —
+verified live: restore brought the rough original back and left the polished one in
+the list.
+⚠️ Restore and apply-template **reload the page** rather than `router.refresh()`. The
+open editor holds the body and `updated_at` in refs a re-render does not reset, so it
+would save over the restore and then cry "changed elsewhere" — the same one-writer
+trap the title field fell into in Phase 1.
+
+**Templates** are just notes with `kind='template'` — no new table, no new screen.
+Mark one on the record bar; every other note then offers "Use a template".
+
+### Phase 7 — ✅ DONE, 17 Aug 2026. MCP.
+
+`lib/mcp/notes.ts`, two registry entries: **`notes`** (list | get | search) and
+**`note_write`** (create | append | archive).
+
+⚠️ **OWNER-ONLY, and it says so TWICE** — no `capability` (undefined = owner-only)
+AND the handlers refuse a staff caller on `caller.kind`. This is the one place where
+"the owner can configure it" is the wrong answer: a note may hold what the owner
+thinks about a member of staff, and no permission toggle should be able to hand that
+over.
+⚠️ **`append` ADDS TO THE END and never replaces** — that is the whole point of "add
+that to Monday's note". **There is no delete**; archive is the only removal and it
+un-archives. `#tags` and the index are kept in step after an MCP write, so the two
+write paths cannot disagree.
+**No undo token, deliberately:** all three actions are additive or reversible by the
+same tool. (A future `replace` MUST snapshot into `note_revisions` and register one.)
+
+**Verified live through the real endpoint** with a bearer key: 26 tools advertised
+including both; create → append (the original text survived, verified by `get`) →
+search → archive ("nothing is deleted") → and `action: "delete"` **rejected by the
+schema**.
 
 **Phase 6 — recall + shape.** Make notes a first-class indexed type — **three
 edits**: add `"note"` to the `SourceType` union in `src/lib/embeddings.ts`, add its
@@ -664,11 +741,125 @@ which is what turns a daily note from an empty page into a prompt); and
 **Phase 7 — MCP + automation.** §7's two tools. Optional: morning-run drops a daily
 note; a meeting/event can spawn a linked note.
 
-**Phase 8 — mobile.** The editor on a phone: a floating format bar beats a slash
-menu when there is no keyboard, and Quick Note should be one tap from the launcher.
-(The portal half of this phase is **gone** — see §8. Notes are owner-only.)
+### Phase 8 — ✅ DONE, 17 Aug 2026. The editor on a phone.
+
+Measured at 375px first, as always. Two real faults, both fixed:
+
+- **The toolbar wrapped to THREE ROWS — 71px of controls above the note**, on the
+  screen with the least room to give. It is now ONE row that scrolls sideways below
+  `sm` (and still wraps from `sm` up, so the desktop is untouched). Measured: toolbar
+  **71px → 41px**, writing area **499px → 529px**; desktop unchanged.
+- ⚠️ **The `/` and `@` menus would have opened BEHIND the on-screen keyboard.**
+  `window.innerHeight` does not change when the keyboard appears — only
+  `visualViewport` knows where it is — so a menu measured against `innerHeight` is
+  placed in the part of the screen the keyboard is covering, and typing `/` on a
+  phone looks like it does nothing. `suggestion-position.ts` now measures the room
+  against the **visible band** and re-places on `visualViewport` resize/scroll (the
+  keyboard fires neither `resize` nor `scroll` on the window).
+  ⚠️ **Layout vs visual coordinates are kept strictly apart** in that file — `position:
+  fixed` is laid out against the LAYOUT viewport while the band comes from the visual
+  one, and mixing them is the easy mistake.
+
+**Quick Note was already one tap**: `ENTITY_VIEWS.note.create` put "Note" second in
+the global New menu and in ⌘K back in Phase 1, so there was nothing to build.
+
+**A floating format bar** turned out to be unnecessary: the **bubble menu** built in
+Phase 1.5 already appears on selection, which is the same gesture on touch.
+
+**Not done, and honest about it:** the drag handle is hover-driven and therefore
+inert on touch (it is a mouse affordance, not a broken one — blocks can still be
+moved by cut and paste). The right touch answer is a long-press drag, which is its
+own piece of work.
+
+**A third fault, reported by the owner straight after: the TITLE overflowed on a
+phone.** It was an `<input>` — a single line — so a long title just scrolled sideways
+inside its own box: on a 375px screen the field was 294px wide holding **759px** of
+text, and the owner could never see the title he had written. It is a `<textarea>`
+now, because a title on paper WRAPS. It auto-grows to fit (verified 84 → 29 → 111px
+as the text changed), Enter still moves to the body rather than making a second line,
+and it is 22px on a phone / 26px from `sm` up — 26px eats a lot of a small screen.
+⚠️ **The auto-grow must add the border back.** `scrollHeight` measures the CONTENT
+box while the element is `border-box`, so `height = scrollHeight` left the border
+eating 2px and clipping the descenders of the last line (measured). It sets
+`scrollHeight + (offsetHeight - clientHeight)`.
 
 ---
+
+## 13. What could come next (17 Aug 2026, after all eight phases)
+
+Written down so the next decision starts from a list rather than a blank page. **None
+of this is agreed** — it is what building the module suggested was worth having.
+
+**Worth doing, cheap, and it reuses what is already there:**
+- **A note from a meeting.** The big one — see §14.
+- **Voice into a note.** `voice-button.tsx` and "speak rough, save polished" already
+  exist and were listed in §1 as a reuse. Nothing has wired them to the note editor
+  yet; it is a button and a call to the polish action already built.
+- **Smart folders.** `RecordList` already carries saved views (`listKey="note"`), so
+  the shelf can save "everything tagged #permits, updated this month" with no new
+  storage. §10's Phase 6 assumed this and it was never switched on.
+- **A note from a task, and back.** The Notes tab exists on a task; a "make a note
+  about this" button that opens a new note with the task already `@`-mentioned would
+  close the loop.
+- **Daily note templates.** `kind='template'` exists and daily notes exist; joining
+  them (a template that becomes tomorrow's page automatically) is one setting.
+
+**Worth doing but real work:**
+- **Long-press drag on touch** — the one Phase 8 gap.
+- **AI "suggest links"** — §6 listed it and it is the only AI action not built.
+  Different from unlinked mentions: that matches names exactly, this would read the
+  meaning ("the permit chap" → Sulleiman).
+- **Note-to-note relationships beyond links** — a "related notes" strip driven by the
+  embedding index, which now exists.
+
+**Deliberately still NOT doing** (§9 stands): real-time collaboration, nested folder
+trees, a graph view, handwriting, per-note passwords, offline editing, public share
+links, block-level transclusion.
+
+## 14. A note from a Google Meet — the plan (17 Aug 2026)
+
+The owner asked for "a bot that joins and takes notes". **The right answer here is
+NOT a bot.** Google already transcribes its own meetings, and there is an official API
+to fetch the result. A third-party bot that joins the call is the gimmick version: it
+needs a paid seat per meeting, it shows up as a stranger in the participant list, and
+it is one more vendor holding the group's private conversations.
+
+**What already exists in COS:** Google OAuth (`src/lib/google.ts`), Meet links created
+and stored on `calendar_events.meet_link`, the notes module, the AI polish/summarise/
+extract actions, note links, and to-dos. The only genuinely new part is the fetch.
+
+**How it would work:**
+1. COS creates the meeting (it already does) **and turns transcription on in the
+   invite** — Google has allowed pre-configuring that on the Calendar event since Jul
+   2024, so nobody has to remember to press record.
+2. The meeting happens. **Google transcribes it**, with speaker names.
+3. A cron picks up events whose end time has passed, and asks the **Meet REST API v2**
+   for `conferenceRecords.transcripts.entries` — structured lines with who said what.
+4. COS makes a **note**, linked to the event and its company/people, holding the
+   transcript.
+5. The owner presses the buttons that already exist: **Tidy the writing** for readable
+   minutes, **Find the jobs** for the actions, **Summarise** for the top.
+
+**Two things must be true, and they are not ours to decide:**
+- **The Workspace plan must be Business Standard or higher.** Business Starter and
+  personal Gmail have no transcription at all. ⚠️ **CHECK THIS FIRST — the whole idea
+  dies here otherwise.**
+- **Transcription must be on for that meeting.** Step 1 handles the meetings COS
+  creates; a meeting someone else organised is *their* Drive and *their* transcript,
+  and COS cannot reach it.
+
+**New scopes needed** beyond today's `calendar.events`: the Meet API's
+`meetings.space.readonly` (and Drive read if the Google Doc version is wanted). That
+means the owner re-consents once in Settings.
+
+**Where it will disappoint, said plainly:** Google's transcription is good on clear
+English and noticeably worse on names, Swahili, and heavy accents on a bad line. The
+AI can tidy grammar but **cannot recover a word that was never heard** — so a
+transcript is a first draft to correct, not minutes to trust unread. Anyone promising
+otherwise is selling something.
+
+**Rough size:** the fetch + cron + note creation is a small piece of work, because
+every other part is built. Confirming the licence and the scopes is the slow bit.
 
 ## 11. Risks and the traps I already know about
 

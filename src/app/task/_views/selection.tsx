@@ -121,7 +121,9 @@ export function SelectCheckbox({ code, className }: { code: string; className?: 
         toggle(code, { shift: e.shiftKey });
       }}
       className={cn(
-        "inline-flex items-center justify-center w-4 h-4 rounded transition-colors",
+        // `tap-target` gives this 16px box a 40px place to be tapped on a phone,
+        // without changing its size or the density anywhere else (globals.css).
+        "tap-target inline-flex items-center justify-center w-4 h-4 rounded transition-colors",
         checked ? "text-accent" : "text-fg-subtle hover:text-fg",
         className
       )}

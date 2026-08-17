@@ -38,6 +38,21 @@ const GAP = 6;
 const EDGE = 8;
 
 /**
+ * The part of the screen the reader can actually SEE.
+ *
+ * ⚠️ ON A PHONE THIS IS NOT `window.innerHeight`. When the on-screen keyboard
+ * opens, `innerHeight` does not change — so a menu measured against it is placed
+ * in the half of the screen the keyboard is covering, and typing `/` on a phone
+ * appears to do nothing at all. `visualViewport` is the only thing that knows
+ * where the keyboard is. Falls back to `innerHeight` where it is unavailable.
+ */
+function visibleViewport(): { height: number; width: number; offsetTop: number } {
+  const vv = typeof window !== "undefined" ? window.visualViewport : null;
+  if (!vv) return { height: window.innerHeight, width: window.innerWidth, offsetTop: 0 };
+  return { height: vv.height, width: vv.width, offsetTop: vv.offsetTop };
+}
+
+/**
  * Place `el` against the caret rectangle `rect`.
  *
  * `el` is the renderer's wrapper; its first child is the panel that scrolls, and it
@@ -46,8 +61,19 @@ const EDGE = 8;
  */
 export function placeMenu(el: HTMLElement, rect: DOMRect): void {
   const zoom = layoutRect(document.body).zoom || 1;
-  const vh = window.innerHeight / zoom;
-  const vw = window.innerWidth / zoom;
+
+  /* Everything below is in LAYOUT pixels, because `position: fixed` is laid out
+     against the LAYOUT viewport. The visual viewport only tells us which BAND of
+     that is currently visible — which is the part the keyboard changes. Mixing the
+     two coordinate systems is the easy mistake here; they are kept apart on
+     purpose. */
+  const layoutH = window.innerHeight / zoom;
+  const layoutW = window.innerWidth / zoom;
+
+  const view = visibleViewport();
+  const bandTop = view.offsetTop / zoom;
+  const bandBottom = bandTop + view.height / zoom;
+
   const caretTop = rect.top / zoom;
   const caretBottom = rect.bottom / zoom;
 
@@ -62,8 +88,9 @@ export function placeMenu(el: HTMLElement, rect: DOMRect): void {
   panel.style.maxHeight = "";
   const natural = panel.offsetHeight || el.offsetHeight || 0;
 
-  const below = vh - caretBottom - GAP - EDGE;
-  const above = caretTop - GAP - EDGE;
+  // Room measured against the VISIBLE band, so the keyboard counts.
+  const below = bandBottom - caretBottom - GAP - EDGE;
+  const above = caretTop - bandTop - GAP - EDGE;
 
   // Below by default — that is where the eye already is. Above only when it does
   // not fit below AND there is genuinely more room up there.
@@ -77,12 +104,12 @@ export function placeMenu(el: HTMLElement, rect: DOMRect): void {
   // Keep it inside the left and right edges too — a caret near the right-hand side
   // of a wide window would otherwise push the panel off.
   const width = el.offsetWidth || panel.offsetWidth || 280;
-  const left = Math.min(Math.max(EDGE, rect.left / zoom), Math.max(EDGE, vw - width - EDGE));
+  const left = Math.min(Math.max(EDGE, rect.left / zoom), Math.max(EDGE, layoutW - width - EDGE));
   el.style.left = `${left}px`;
 
   if (up) {
     el.style.top = "";
-    el.style.bottom = `${vh - caretTop + GAP}px`;
+    el.style.bottom = `${layoutH - caretTop + GAP}px`;
   } else {
     el.style.bottom = "";
     el.style.top = `${caretBottom + GAP}px`;
@@ -125,6 +152,11 @@ export function createMenuPositioner() {
       // the window — on a long note that is the one that actually moves.
       window.addEventListener("scroll", reposition, true);
       window.addEventListener("resize", reposition);
+      // The keyboard opening does NOT fire `resize` on a phone — it moves the
+      // visual viewport instead. Without these the menu stays where it was and
+      // ends up behind the keyboard.
+      window.visualViewport?.addEventListener("resize", reposition);
+      window.visualViewport?.addEventListener("scroll", reposition);
     },
     update(rectFn: () => DOMRect | null | undefined) {
       getRect = rectFn;
@@ -134,6 +166,8 @@ export function createMenuPositioner() {
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
       el = null;
       getRect = null;
     },
