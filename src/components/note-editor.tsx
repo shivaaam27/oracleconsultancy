@@ -202,7 +202,17 @@ export function NoteEditor({
       {/* The paper. Generous padding, and the writing measured to ~68 characters —
           the title sits in here too, which is what makes it feel like one sheet. */}
       <div
-        className="min-h-0 flex-1 cursor-text overflow-y-auto px-6 py-7 sm:px-10 sm:py-9"
+        /* `overflow-y-scroll`, not `auto`: the gutter is then reserved at ALL times,
+           so the centred measure cannot re-centre when a note grows past one screen —
+           the text used to jump 7.6px left mid-sentence (measured). `slim-scroll`
+           keeps the bar invisible until you hover, so nothing is gained visually by
+           letting it appear and disappear.
+           ⚠️ `scrollbarGutter` is set INLINE because Tailwind v4's Lightning CSS
+           strips it out of globals.css entirely — the `.note-scroller` rule never
+           reached the browser (verified: absent from the served stylesheet, while
+           neighbouring rules arrived). An inline style bypasses that pipeline. */
+        style={{ scrollbarGutter: "stable both-edges" }}
+        className="note-scroller slim-scroll min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9"
         onMouseDown={(e) => {
           // Only when the padding itself is clicked — never steal a click aimed at
           // the text, a link or the title.

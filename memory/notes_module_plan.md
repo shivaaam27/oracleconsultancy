@@ -343,6 +343,21 @@ Check computed styles on a new surface rather than assuming your classes won.
   pinned, paper scrolling inside it. Verified with 30 Enters — sheet 662px and page
   838px both unchanged while the inner scroller went 453 → 1465px. Clicking the
   padding below the text now focuses the end of the note, as every notes app does.
+- **"The note shifts when the scrollbar appears."** Real, and measured: the text
+  jumped **7.6px left** the moment a note outgrew one screen, because the scroller's
+  content box narrowed and the `mx-auto` measure re-centred inside it. Fixed with
+  `overflow-y: scroll` (the gutter is then reserved always, and `slim-scroll` keeps
+  the bar invisible until hover, so nothing is lost by not letting it appear) plus
+  `scrollbar-gutter: stable both-edges` for symmetric centring. Verified **0px** shift
+  across short → long → short.
+  ⚠️ **And a real trap found on the way: Tailwind v4's Lightning CSS silently DROPPED
+  both properties out of `globals.css`.** The `.note-scroller` rule was absent from the
+  served stylesheet entirely (checked by fetching it), while its neighbours arrived —
+  Lightning CSS removes declarations the project's browser targets do not cover, and an
+  emptied rule then disappears. `scrollbar-gutter` is therefore set **inline on the
+  element**, which bypasses that pipeline. **If a modern CSS property seems to do
+  nothing, fetch the built stylesheet and check it is actually there before debugging
+  specificity.**
 - **"Dropdown buttons have some issues."** They were native `<select>`s. The OS popup
   ignores every token in the design system, which is the very reason `combobox.tsx`
   replaced all the native `<datalist>`s in June — I forgot the lesson and re-learned

@@ -1165,6 +1165,23 @@ section[data-page-header] {
 }
 .note-canvas pre code { background: none; border: 0; padding: 0; font-size: 0.85em; }
 .note-canvas hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.5em 0; }
+/* The note's scrolling paper.
+   ⚠️ `scrollbar-gutter: stable both-edges` is the whole point of this class. Without
+   it, the moment a note grows past one screen the scrollbar appears, the scroller's
+   content box narrows by ~15px, and the `mx-auto` column re-centres — the text jumps
+   7.6px to the left mid-sentence (measured). Reserving the gutter on BOTH edges keeps
+   the measure centred and perfectly still whether the bar is there or not.
+   `both-edges` rather than plain `stable` because plain `stable` reserves only the
+   right, which stops the jump but leaves the column sitting off-centre. */
+.note-scroller {
+  /* `scrollbar-gutter` and `overscroll-behavior` BOTH used to live here and neither
+     survived the build: Tailwind v4 runs Lightning CSS, which drops declarations the
+     project's browser targets do not cover, and an empty rule then vanishes. The
+     gutter is set inline on the element instead — see note-editor.tsx. Kept as a
+     hook for anything that does survive. */
+  overscroll-behavior: contain;
+}
+
 /* ⚠️ NO focus ring on the writing surface. `*:focus-visible` (twice in this file)
    paints a 2px accent outline around anything focusable, and the canvas is a
    contenteditable that fills the sheet — so clicking into a note drew a blue line
