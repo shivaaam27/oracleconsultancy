@@ -20,7 +20,7 @@ import {
   ClipboardList,
   KanbanSquare,
   StickyNote,
-  HardHat,
+  DraftingCompass,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,7 +56,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
-  { id: "projects",    href: "/projects",            label: "Projects",            icon: HardHat },
+  { id: "projects",    href: "/projects",            label: "Projects",            icon: DraftingCompass },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },

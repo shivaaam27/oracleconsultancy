@@ -77,10 +77,24 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg">
-        <Pencil size={13} /> Edit details
-      </button>
+      <span className="inline-flex items-center gap-2">
+        <button type="button" onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg">
+          <Pencil size={13} /> Edit details
+        </button>
+        {/* ⚠️ The save itself is instant; re-rendering the record from the
+            server takes a few seconds on this link. Without this line the old
+            figure sits there looking like a save that did not happen — which
+            is exactly how it read during testing. `pending` covers the whole
+            transition, `router.refresh()` included, so it clears when the new
+            numbers are actually on screen. */}
+        {pending && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
+            <Loader2 size={12} className="animate-spin" /> Updating the record…
+          </span>
+        )}
+        {saved && !pending && <span className="text-[11px] text-success">Saved</span>}
+      </span>
     );
   }
 

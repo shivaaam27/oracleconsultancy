@@ -16,7 +16,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Loader2, X, Archive, HardHat } from "lucide-react";
+import { Plus, Loader2, X, Archive, DraftingCompass } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList, type RecordFilter } from "./record-list";
 import { FluidSelect } from "./fluid-select";
@@ -67,6 +67,8 @@ export function ProjectsList({
   // /projects?new=1 — how the global New menu opens this page's own form.
   // The create is an inline form rather than a dialog, so this just unfolds it.
   const [adding, setAdding] = useState(false);
+  /** The name of a project just saved, shown until the list carries it. */
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   useCreateParam("1", () => setAdding(true));
   const { values: f, set: setFilter, dirty, query } = useUrlFilters(
     { company: "all", status: "all", q: "" },
@@ -157,7 +159,22 @@ export function ProjectsList({
         listKey="project"
       />
 
-      {adding && <NewProjectForm companies={companies} onDone={() => setAdding(false)} />}
+      {adding && (
+        <NewProjectForm
+          companies={companies}
+          onDone={() => setAdding(false)}
+          onAdding={setJustAdded}
+        />
+      )}
+
+      {/* ⚠️ The row appears when the server re-renders the list, which is a few
+          seconds after the save on this link. Saying so is the difference
+          between "it is coming" and "it did not work". */}
+      {justAdded && !ranked.some((p) => p.name.trim() === justAdded.trim()) && (
+        <p className="flex items-center gap-1.5 text-[12px] text-fg-subtle">
+          <Loader2 size={12} className="animate-spin" /> Adding {justAdded}…
+        </p>
+      )}
 
       <RecordList
         rows={ranked}
@@ -173,7 +190,7 @@ export function ProjectsList({
         }]}
         empty={
           <div className="py-6 text-center">
-            <HardHat size={20} className="mx-auto mb-2 text-fg-subtle" />
+            <DraftingCompass size={20} className="mx-auto mb-2 text-fg-subtle" />
             <p className="text-[13px] font-medium">No projects yet</p>
             <p className="mt-1 text-[12px] text-fg-subtle">
               Add one with “New project”. Nothing is filled in for you — every figure is typed.
@@ -242,10 +259,12 @@ export function ProjectsList({
  * day it is won, when the PO number and programme are not yet known.
  */
 function NewProjectForm({
-  companies, onDone,
+  companies, onDone, onAdding,
 }: {
   companies: Array<{ id: number; name: string }>;
   onDone: () => void;
+  /** Handed the name that was just saved, so the list can say it is coming. */
+  onAdding: (name: string | null) => void;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -295,7 +314,15 @@ function NewProjectForm({
             whtRate: String(fd.get("whtRate") ?? ""),
           });
           if (!res.ok) setError(res.error ?? "Couldn't save.");
-          else { setCompanyId(""); setQuotationValue(""); setPoValue(""); router.refresh(); onDone(); }
+          // ⚠️ onDone() LAST and outside nothing: the form closes, then the
+          // list re-renders from the server a few seconds later. The caller
+          // shows "Adding the project…" in between, or the empty list reads as
+          // a failed save.
+          else {
+            onAdding(String(fd.get("name") ?? "").trim());
+            setCompanyId(""); setQuotationValue(""); setPoValue("");
+            onDone(); router.refresh();
+          }
         });
       }}
     >
