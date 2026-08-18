@@ -43,6 +43,7 @@ import { listDocuments } from "@/lib/documents";
 import { getBrief } from "@/lib/director-brief";
 import { unifiedSearch } from "@/lib/search";
 import { mcpNotes, mcpNoteWrite } from "@/lib/mcp/notes";
+import { mcpOps, OPS_TYPES } from "@/lib/mcp/ops";
 
 /* --------------------------------------------------------------- *
  * Tool shape
@@ -606,6 +607,40 @@ export const MCP_TOOLS: McpTool[] = [
    * a typed tool for each of the four that are worth writing to.
    * =============================================================== */
 
+  {
+    // ⚠️ ONE tool for the whole trading module, with a `type` argument — every
+    // description here sits in every conversation's prompt, so five tools for
+    // one module would cost five descriptions (the MCP forward rule).
+    //
+    // ⚠️ READ ONLY. The figures come from order lines several people type by
+    // hand, and a write on the wrong PO is worse than a question.
+    name: "pes_trading",
+    title: "The PES trading and import business",
+    description:
+      "Read the PES trading module — buying engineering parts, mostly imported, and selling " +
+      "them to the mines. Pick a type. " +
+      "REPORT: the whole business at once — what is open, what is late, what is sitting on " +
+      "nobody's desk, what is owed to suppliers, what duty is still to pay. " +
+      "ORDERS: PO lines, worst-overdue first. " +
+      "SHIPMENTS: bills of lading, where each has got to and what customs wants. " +
+      "ENQUIRIES: RFQs and quotes, and what became of them. " +
+      "DELIVERIES: what went out and what was billed. " +
+      "BALANCES: what each PO still owes us — ordered less billed. " +
+      "CONVERSION: enquiry-to-order by month, measured against the month the CLIENT ASKED, " +
+      "so no rate can pass 100%. " +
+      "Amounts are in shillings at the rate frozen on each line. Where something could not be " +
+      "priced it says so — quote that rather than a total that quietly leaves lines out. " +
+      "This tool cannot change anything.",
+    schema: z.object({
+      type: z.enum(OPS_TYPES).describe("Which part of the trading module to read"),
+      company: z.string().optional().describe("Which company — defaults to PES, the trading business"),
+      search: z.string().optional().describe("Filter by PO, item, client, supplier or reference"),
+      openOnly: z.boolean().optional().describe("Only what is still outstanding — default true"),
+      limit: z.number().int().min(1).max(100).optional().describe("Max rows (default 30)"),
+    }),
+    capability: "navTasks",
+    run: async (args, caller) => await mcpOps(caller, args as Parameters<typeof mcpOps>[1]),
+  },
   {
     name: "list_records",
     title: "Look at the other registers",

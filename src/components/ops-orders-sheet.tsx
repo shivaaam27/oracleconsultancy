@@ -26,6 +26,10 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Plus, Check, X, Pencil, Archive, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+// The same saved-view bar Projects, Assets, Documents and Commitments use —
+// a saved view is just a query string, which is why every filter on this
+// screen goes through `useUrlFilters` (CLAUDE.md, the forward rule).
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { Combobox } from "./combobox";
 import { MoneyInput } from "./money-input";
 import {
@@ -36,6 +40,10 @@ import {
   createOrderLineAction, updateOrderLineAction, archiveOrderLineAction,
 } from "@/app/ops/order-actions";
 import { setLineShipmentAction } from "@/app/ops/shipment-actions";
+// ⚠️ Every dropdown that maps to a Setup list can ADD to it from inside the
+// menu — ERPNext's "+ Create a new Item". The owner asked for this twice:
+// "do not build a dropdown that dead-ends into a setup screen".
+import { createOpsRefAction } from "@/app/ops/actions";
 import { setLineInvoiceAction } from "@/app/ops/invoice-actions";
 import { FluidSelect } from "./fluid-select";
 
@@ -53,9 +61,11 @@ type Suggest = {
 };
 
 export function OpsOrdersSheet({
-  companyId, lines: serverLines, suggest, defaultExRate, flag, shipments = [], despatches = [],
+  companyId, savedViews = [], lines: serverLines, suggest, defaultExRate, flag, shipments = [], despatches = [],
 }: {
   companyId: number;
+  /** Views the owner has saved for this list. */
+  savedViews?: SavedView[];
   lines: OrderLine[];
   suggest: Suggest;
   /** Every open shipment, so a line can be put on one. Nothing is copied onto
@@ -83,7 +93,7 @@ export function OpsOrdersSheet({
    * looking at. `hrefFor` patches one key and keeps the rest — the same way the
    * projects list has always done it.
    */
-  const { values: view, hrefFor } = useUrlFilters(
+  const { values: view, hrefFor, query, dirty } = useUrlFilters(
     { flag: "all", sort: "received", dir: "desc", co: "" },
   );
   const [rows, setRows] = useState(serverLines);
@@ -164,6 +174,14 @@ export function OpsOrdersSheet({
           {error}
         </p>
       )}
+
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/ops"
+        listKey="ops-orders"
+      />
 
       <RecordList
         rows={shown}
@@ -303,6 +321,7 @@ export function OpsOrdersSheet({
           editing === v.line.id ? (
             <div data-quick-update>
               <EditLine
+                companyId={companyId}
                 line={v.line}
                 suggest={suggest}
                 shipments={shipments}
@@ -440,7 +459,8 @@ function AddLine({
             placeholder="24235" className={cn(inputCls, "font-mono")} />
         </Cell>
         <Cell className="sm:col-span-2" label="Client" hint="stays">
-          <Combobox key={`c${comboKey}`} options={suggest.clients} defaultValue={client}
+          <Combobox key={`c${comboKey}`} options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={client}
             placeholder="who ordered" onInput={setClient} onCommit={setClient} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-4" label="Item" hint="suggests what you have typed before">
@@ -529,9 +549,9 @@ function Cell({ label, hint, className, children }: {
 /* ───────────────────────────────────────────────────────────── the rest ──── */
 
 function EditLine({
-  line, suggest, shipments, despatches, onDone, onCancel, onError,
+  companyId, line, suggest, shipments, despatches, onDone, onCancel, onError,
 }: {
-  line: OrderLine;
+  companyId: number; line: OrderLine;
   suggest: Suggest;
   shipments: Array<{ id: number; blNo: string }>;
   despatches: Array<{ id: number; label: string }>;
@@ -602,11 +622,13 @@ function EditLine({
       {/* what we bought, and from whom — the half the strip does not ask for */}
       <Section title="What it cost us">
         <Cell className="sm:col-span-3" label="Supplier">
-          <Combobox options={suggest.suppliers} defaultValue={f.supplier} placeholder=""
+          <Combobox options={suggest.suppliers}
+              onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier" defaultValue={f.supplier} placeholder=""
             onInput={(v) => set("supplier", v)} onCommit={(v) => set("supplier", v)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Origin">
-          <Combobox options={suggest.origins} defaultValue={f.origin} placeholder=""
+          <Combobox options={suggest.origins}
+              onCreate={(v) => createOpsRefAction(companyId, "origin", v)} createNoun="origin" defaultValue={f.origin} placeholder=""
             onInput={(v) => set("origin", v)} onCommit={(v) => set("origin", v)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Local / import">
@@ -662,7 +684,8 @@ function EditLine({
 
       <Section title="Where it has got to">
         <Cell className="sm:col-span-3" label="Status">
-          <Combobox options={suggest.statuses} defaultValue={f.status} placeholder=""
+          <Combobox options={suggest.statuses}
+              onCreate={(v) => createOpsRefAction(companyId, "delivery_status", v)} createNoun="status" defaultValue={f.status} placeholder=""
             onInput={(v) => set("status", v)} onCommit={(v) => set("status", v)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-3" label="Pending with" hint="person or department">
@@ -692,7 +715,8 @@ function EditLine({
           />
         </Cell>
         <Cell className="sm:col-span-2" label="Cost centre">
-          <Combobox options={suggest.costCentres} defaultValue={f.costCentre} placeholder=""
+          <Combobox options={suggest.costCentres}
+              onCreate={(v) => createOpsRefAction(companyId, "cost_centre", v)} createNoun="cost centre" defaultValue={f.costCentre} placeholder=""
             onInput={(v) => set("costCentre", v)} onCommit={(v) => set("costCentre", v)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-4" label="Shipment" hint="its ETA and duty come from there">
@@ -731,7 +755,8 @@ function EditLine({
             <input value={f.poNo} onChange={(e) => set("poNo", e.target.value)} className={cn(inputCls, "font-mono")} />
           </Cell>
           <Cell className="sm:col-span-3" label="Client">
-            <Combobox options={suggest.clients} defaultValue={f.client} placeholder=""
+            <Combobox options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={f.client} placeholder=""
               onInput={(v) => set("client", v)} onCommit={(v) => set("client", v)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-4" label="Item">

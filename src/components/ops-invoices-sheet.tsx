@@ -24,6 +24,10 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Check, X, Pencil, Archive, Truck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+// The same saved-view bar Projects, Assets, Documents and Commitments use —
+// a saved view is just a query string, which is why every filter on this
+// screen goes through `useUrlFilters` (CLAUDE.md, the forward rule).
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { Combobox } from "./combobox";
 import { MoneyInput } from "./money-input";
 import { lineView, money, fmtDate, type OrderLine } from "@/lib/ops-orders-shared";
@@ -35,6 +39,10 @@ import { PoBalances } from "./ops-po-balances";
 import {
   createInvoiceAction, updateInvoiceAction, archiveInvoiceAction,
 } from "@/app/ops/invoice-actions";
+// ⚠️ Every dropdown that maps to a Setup list can ADD to it from inside the
+// menu — ERPNext's "+ Create a new Item". The owner asked for this twice:
+// "do not build a dropdown that dead-ends into a setup screen".
+import { createOpsRefAction } from "@/app/ops/actions";
 
 type Suggest = {
   clients: string[];
@@ -43,9 +51,11 @@ type Suggest = {
 };
 
 export function OpsInvoicesSheet({
-  companyId, invoices: serverRows, lines, suggest, defaultExRate,
+  companyId, savedViews = [], invoices: serverRows, lines, suggest, defaultExRate,
 }: {
   companyId: number;
+  /** Views the owner has saved for this list. */
+  savedViews?: SavedView[];
   invoices: Invoice[];
   /** The order lines, so a document can be valued from what is ON it rather
    *  than from a figure copied onto every row. */
@@ -58,7 +68,7 @@ export function OpsInvoicesSheet({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [pending, start] = useTransition();
-  const { values: view, hrefFor } = useUrlFilters(
+  const { values: view, hrefFor, query, dirty } = useUrlFilters(
     { state: "all", sort: "delivered", dir: "desc", co: "" },
   );
 
@@ -164,6 +174,14 @@ export function OpsInvoicesSheet({
       )}
 
       <PoBalances rows={balances} totals={balTotals} companyId={companyId} />
+
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/ops/invoices"
+        listKey="ops-invoices"
+      />
 
       <RecordList
         rows={shown}
@@ -307,6 +325,7 @@ export function OpsInvoicesSheet({
           editing === v.invoice.id ? (
             <div data-quick-update>
               <EditInvoice
+                companyId={companyId}
                 invoice={v.invoice} view={v} suggest={suggest} defaultExRate={defaultExRate}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
@@ -413,7 +432,8 @@ function AddInvoice({
           <input type="date" value={deliveredDate} onChange={(e) => setDelivered(e.target.value)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-3" label="Client" hint="stays">
-          <Combobox key={`c${comboKey}`} options={suggest.clients} defaultValue={client}
+          <Combobox key={`c${comboKey}`} options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={client}
             placeholder="" onInput={setClient} onCommit={setClient} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Invoice no." hint="if billed already">
@@ -441,9 +461,9 @@ function AddInvoice({
 /* ───────────────────────────────────────────────────── and then billed ──── */
 
 function EditInvoice({
-  invoice, view, suggest, defaultExRate, onDone, onCancel, onError,
+  companyId, invoice, view, suggest, defaultExRate, onDone, onCancel, onError,
 }: {
-  invoice: Invoice; view: InvoiceView; suggest: Suggest; defaultExRate: number;
+  companyId: number; invoice: Invoice; view: InvoiceView; suggest: Suggest; defaultExRate: number;
   onDone: (d: Invoice) => void; onCancel: () => void; onError: (e: string | null) => void;
 }) {
   const [pending, start] = useTransition();
@@ -508,11 +528,13 @@ function EditInvoice({
             <input type="date" value={f.deliveredDate} onChange={(e) => set("deliveredDate", e.target.value)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-3" label="Client">
-            <Combobox options={suggest.clients} defaultValue={f.client} placeholder=""
+            <Combobox options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={f.client} placeholder=""
               onInput={(v) => set("client", v)} onCommit={(v) => set("client", v)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-3" label="Status">
-            <Combobox options={suggest.statuses} defaultValue={f.status} placeholder=""
+            <Combobox options={suggest.statuses}
+              onCreate={(v) => createOpsRefAction(companyId, "delivery_status", v)} createNoun="status" defaultValue={f.status} placeholder=""
               onInput={(v) => set("status", v)} onCommit={(v) => set("status", v)} className={inputCls} />
           </Cell>
         </div>

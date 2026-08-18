@@ -33,6 +33,12 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },
   commitment: { uiLabel: "Commitments",  searchOrder: 10 },
+  // The PES trading module. Each is a reference-number lookup: a PO, a BL, an
+  // RFQ, an invoice.
+  ops_order:    { uiLabel: "Order lines",  searchOrder: 11 },
+  ops_shipment: { uiLabel: "Shipments",    searchOrder: 12 },
+  ops_enquiry:  { uiLabel: "Enquiries",    searchOrder: 13 },
+  ops_invoice:  { uiLabel: "Deliveries",   searchOrder: 14 },
 };
 
 /** The searchable types in display order, with their headings — what the command

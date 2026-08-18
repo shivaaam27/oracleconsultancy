@@ -12,6 +12,7 @@ import { listOrderLines, usedValues } from "@/lib/ops-orders";
 import { listInvoices } from "@/lib/ops-invoices";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { getAppSettings } from "@/lib/settings";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsFunnelSheet } from "@/components/ops-funnel-sheet";
 
@@ -47,7 +48,7 @@ export default async function OpsFunnelPage({
     );
   }
 
-  const [enquiries, lines, despatches, refs, settings, assignedTo, descriptions, outcomes] = await Promise.all([
+  const [enquiries, lines, despatches, refs, settings, assignedTo, descriptions, outcomes, savedViews] = await Promise.all([
     listEnquiries(chosen.id),
     // ⚠️ The order lines come along so a won enquiry can be priced FROM THEM.
     // The workbook types that figure onto both sheets and they disagree.
@@ -60,6 +61,7 @@ export default async function OpsFunnelPage({
     usedEnquiryValues(chosen.id, "assigned_to"),
     usedEnquiryValues(chosen.id, "description"),
     usedEnquiryValues(chosen.id, "outcome"),
+    getSavedViewsFor("ops-enquiries"),
   ]);
 
   // What has already been typed as an item on an order line is just as good a
@@ -75,6 +77,7 @@ export default async function OpsFunnelPage({
       />
       <OpsTabs active="funnel" company={chosen.id} companies={companies} />
       <OpsFunnelSheet
+        savedViews={savedViews}
         companyId={chosen.id}
         enquiries={enquiries}
         lines={lines}

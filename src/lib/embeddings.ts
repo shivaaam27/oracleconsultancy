@@ -33,6 +33,13 @@ export type SourceType =
    *  member exists so the module can have an ENTITY_VIEWS entry like every other
    *  record type. */
   | "note"
+  /** The PES trading module (Stages 2–5). Four record types, each carrying a
+   *  reference number somebody quotes down the phone — a PO, a bill of lading,
+   *  an RFQ, an invoice — which is exactly what a search box is for. */
+  | "ops_order"
+  | "ops_shipment"
+  | "ops_enquiry"
+  | "ops_invoice"
   /** Capital projects — the construction jobs rebuilt from the PES workbook
    *  (Phase 1). Same arrangement as `note` above: NOT indexed yet, so there is
    *  deliberately no EntityDef in entity-registry.ts. The member exists so the

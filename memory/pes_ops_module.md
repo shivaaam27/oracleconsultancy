@@ -123,7 +123,7 @@ Verified in the source on this PC (`Documents/OCERP/reference/`):
 | **3** | **Imports and clearance** ✅ BUILT | large |
 | **4** | **The funnel (INFO-RFQ)** — enquiry → quote → order → invoice ✅ BUILT | medium |
 | **5** | **Delivery and invoicing** — what went out, what was billed, PO balance ✅ BUILT | medium |
-| 6 | The executive report — PENDING, purchase analysis, forecasts, all generated | medium |
+| **6** | **The executive report** — PENDING, purchase analysis, forecasts, all generated ✅ BUILT | medium |
 
 Imports sit ahead of the funnel deliberately: that is where the frozen columns and
 the money are.
@@ -642,6 +642,127 @@ evidence of split despatches, and supporting them properly needs a link table
 with a quantity on it. If it turns out to happen, the answer that needs no
 schema is to **split the line** — two rows on the same PO — and that is already
 allowed. Do not add a second delivery column to the line.
+
+---
+
+---
+
+# STAGE 6 — the executive report ✅ BUILT (Aug 2026)
+
+`/ops/report`, tab **"Report"**. **No new table and no new typing** — that is the
+whole stage. Everything is worked out from the order lines, the shipments and
+the despatch documents each time the page is opened.
+
+It replaces the four sheets that hold no data of their own and rotted anyway:
+
+| Sheet | Formulas | Typed | State |
+|---|---|---|---|
+| PENDING | 32,273 | 27 | 223 dead cells, including the whole ITEM column |
+| PURCHASE ANALYSIS | 14,839 | 463 | |
+| DAILY ANALYSIS | pure SUMIF | 378 | |
+| PAYMENTS FORECAST | — | 8 | abandoned |
+
+### What is on it
+
+- **Five tiles, each a door**: still open · overdue · on nobody's desk · owed to
+  suppliers · duty to pay. Clicking one opens the rows behind it.
+- **Where the open work is sitting** — grouped by **whose desk** or by **status**
+  (a link, so it survives a refresh). ⚠️ **The unclaimed lines are a GROUP, not a
+  gap.** PENDING WITH is the most useful column on the sheet and the most often
+  left blank; showing "nobody's name on it" with a count is what makes that
+  visible.
+- **The ten most overdue**, by line.
+- **What we owe our suppliers** — PURCHASE ANALYSIS's PAID/BALANCE columns and
+  the PAYMENTS FORECAST the workbook gave up on.
+
+### The rules, pinned by 14 tests
+
+1. **Open means not invoiced**, the same meaning the rest of COS gives it.
+2. **A line with no due date sorts LAST, not first.** It is not the most urgent
+   thing in the business; it is a line nobody gave a date to.
+3. **⚠️ "Paid" is a DATE, not an amount.** The order line records
+   `supplier_payment_date` and nothing else, so a purchase is either settled or
+   it is not — there are no part-payments in the data. Stated on the screen
+   rather than papered over with a column nobody would fill in. If part payments
+   turn out to matter they are an amount on the line, not a guess in the report.
+4. **A foreign duty balance with no rate is left OUT of the shilling total**
+   rather than added as though 400 dollars were 400 shillings.
+5. Unpriced lines are counted and shown as `+n?` beside the group's value.
+6. A supplier with nothing costed is **unknown**, not nil.
+
+**DAILY ANALYSIS was deliberately not rebuilt.** It is the monthly conversion at
+a one-day grain, and the same-period fault is worse there, not better: on 4
+enquiries a day a "conversion rate" is noise. The honest version by month lives
+on the Funnel tab and the report links to it.
+
+### Verified in the browser, then cleared
+
+Two lines (56 vent ducts at 100,000 for GGM due 1 Jul, one gasket set for
+SHANTA) with MAT HELLAS as supplier, one purchase paid and one not. The report
+came out: 2 open · 6,100,000 of work · 1 overdue · 1 on nobody's desk · owed to
+suppliers 3,920,000 · BALOS holding a line 48 days late · MAT HELLAS oldest
+unpaid 110 days. Grouping by status showed UNDER CLEARANCE instead. Deleted
+afterwards.
+
+---
+
+# SEARCH AND MCP — the module is findable now (Aug 2026)
+
+Stages 1–5 shipped with **nothing in ⌘K and no MCP tool**, which was never
+decided, only skipped. Both were added after Stage 6.
+
+- **Four `EntityDef`s** in `entity-registry.ts`: `ops_order`, `ops_shipment`,
+  `ops_enquiry`, `ops_invoice`. Each exists because it carries a **reference
+  number somebody quotes down the phone** — a PO, a bill of lading, an RFQ, an
+  invoice. Everything else in the module is worked out on its own screen and has
+  nothing to index.
+  ⚠️ Four places, not one: `SourceType` in `embeddings.ts`, `ENTITY_LABELS_ORDER`
+  in `entity-meta.ts`, `ENTITY_UI` in `entity-ui.tsx`, and the hand-maintained
+  `SearchResultType` union in `search.ts` — the trap the Notes module hit.
+  ⚠️ They link to a **filtered list**, not a record page, because these records
+  open in place. When the module is split up, only those hrefs change.
+- **ONE MCP tool, `pes_trading`**, with a `type` argument (report · orders ·
+  shipments · enquiries · deliveries · balances · conversion). Grouped by
+  subject because every description sits in every conversation's prompt.
+  **⚠️ READ ONLY on purpose** — the figures come from lines several people type
+  by hand, and a write on the wrong PO is worse than a question. Its description
+  tells Claude to quote what could not be priced rather than a total that
+  quietly leaves lines out, and that a conversion rate can be a floor.
+  Scope goes through `companyScope`, so the door is never wider than the
+  caller's portal.
+
+---
+
+# ⚠️ CONSISTENCY WITH THE REST OF THE ERP (Aug 2026)
+
+The owner's rule: *"all ERP related things should look similar so anyone using
+it doesn't feel new."* Audited against the projects module and the ERPNext
+redesign. What was missing, and is now fixed:
+
+1. **⚠️ NOT ONE DROPDOWN IN THE MODULE COULD ADD TO ITS OWN LIST.** All five
+   project sheets could; the owner had asked for it twice; the Stage 1 note even
+   says *"do not build a dropdown that dead-ends into a setup screen"* — and
+   then Stages 2–5 built eleven of them. **17 dropdowns** now carry
+   `onCreate` + `createNoun`, so typing a client that does not exist offers
+   `+ Add client "NORTH MARA"` inside the menu, saves it to the Setup list and
+   selects it without leaving the form. Verified live end to end.
+2. **Saved views** on all four lists (`SavedViewsBar`, the same one Projects,
+   Assets, Documents and Commitments use). They work because every ops filter
+   already goes through `useUrlFilters` — a saved view is just a query string.
+
+Already consistent, and left alone: the search box, paging, the totals row and
+the column chooser (all `RecordList`, since Stage 0).
+
+**Still inconsistent, deliberately:** the ops sheets have **no bulk actions**,
+and neither do the project sheets — the two are the same shape (inline add + an
+edit row) and should gain them together rather than one drifting ahead. And
+**export does not exist anywhere in COS yet**; it is the next item on the
+roadmap, so ops is not behind.
+
+**⚠️ When `/ops` is split into separate sections** (the owner's plan), the parts
+that change are: the tab strip in `ops-tabs.tsx`, the `href`s in those four
+`EntityDef`s, and the links in the report and the PO-balance table. The data,
+the maths and the tests do not move.
 
 ---
 

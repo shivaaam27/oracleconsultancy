@@ -165,7 +165,7 @@ the owner be able to ask Claude to do this?** "No" is a fine and common answer
 (admin plumbing, settings, anything dangerous → do nothing). "Yes" → add ONE entry
 to `src/lib/mcp/registry.ts`. Group by SUBJECT, not per button (one tool with an
 `action` argument, like `bulk_task_action`) — every description sits in every
-conversation's prompt, so **26 (as of Aug 2026)** is fine and 150 would wreck tool-picking.
+conversation's prompt, so **27 (as of Aug 2026)** is fine and 150 would wreck tool-picking.
 Three things already flow automatically and need no work: **new rows** in existing
 tables, **permission changes** in Settings (re-resolved per request), and a new
 `EntityDef` in `entity-registry.ts` (makes it searchable via `search_cos` free).
@@ -237,8 +237,11 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   over another month's quotes, which is what has the workbook reading 132%) ·
   **Imports** (a bill of lading and what customs does to it) · **Delivery &
   billing** (what went out, what was billed, and each PO's balance — the invoice
-  is its own record, so one covering 24 lines is typed once) · **Setup** (eight
-  master lists). Migrations 0130–0135. **Read
+  is its own record, so one covering 24 lines is typed once) · **Report**
+  (PENDING, purchase analysis and the payments forecast, all worked out — no new
+  table, nothing typed on it) · **Setup** (eight master lists). Migrations
+  0130–0135. Searchable via four `EntityDef`s (`ops_order`/`ops_shipment`/
+  `ops_enquiry`/`ops_invoice`) and ONE read-only MCP tool, `pes_trading`. **Read
   `memory/pes_ops_module.md` before touching any of it** — it holds the workbook
   analysis, the owner's decisions, and the stages still to come (the funnel,
   delivery and invoicing, the executive report).

@@ -20,6 +20,10 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Plus, Check, X, Pencil, Archive, Ship } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+// The same saved-view bar Projects, Assets, Documents and Commitments use —
+// a saved view is just a query string, which is why every filter on this
+// screen goes through `useUrlFilters` (CLAUDE.md, the forward rule).
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { Combobox } from "./combobox";
 import { MoneyInput } from "./money-input";
 import { money, fmtDate } from "@/lib/ops-orders-shared";
@@ -29,6 +33,10 @@ import {
 import {
   createShipmentAction, updateShipmentAction, archiveShipmentAction,
 } from "@/app/ops/shipment-actions";
+// ⚠️ Every dropdown that maps to a Setup list can ADD to it from inside the
+// menu — ERPNext's "+ Create a new Item". The owner asked for this twice:
+// "do not build a dropdown that dead-ends into a setup screen".
+import { createOpsRefAction } from "@/app/ops/actions";
 
 type Suggest = {
   suppliers: string[];
@@ -40,9 +48,11 @@ type Suggest = {
 };
 
 export function OpsShipmentsSheet({
-  companyId, shipments: serverRows, lineCounts, suggest, defaultExRate,
+  companyId, savedViews = [], shipments: serverRows, lineCounts, suggest, defaultExRate,
 }: {
   companyId: number;
+  /** Views the owner has saved for this list. */
+  savedViews?: SavedView[];
   shipments: Shipment[];
   /** How many order lines travel on each — a shipment nobody has linked is a
    *  clue, not a mistake, so it is shown rather than hidden. */
@@ -55,7 +65,7 @@ export function OpsShipmentsSheet({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [pending, start] = useTransition();
-  const { values: view, hrefFor } = useUrlFilters(
+  const { values: view, hrefFor, query, dirty } = useUrlFilters(
     { state: "all", sort: "eta", dir: "desc", co: "" },
   );
 
@@ -129,6 +139,14 @@ export function OpsShipmentsSheet({
           {error}
         </p>
       )}
+
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/ops/imports"
+        listKey="ops-shipments"
+      />
 
       <RecordList
         rows={shown}
@@ -260,6 +278,7 @@ export function OpsShipmentsSheet({
           editing === v.shipment.id ? (
             <div data-quick-update>
               <EditShipment
+                companyId={companyId}
                 shipment={v.shipment} view={v} suggest={suggest}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
@@ -362,19 +381,23 @@ function AddShipment({
             placeholder="MEDUG9676552" className={cn(inputCls, "font-mono")} />
         </Cell>
         <Cell className="sm:col-span-3" label="Supplier" hint="stays">
-          <Combobox key={`s${comboKey}`} options={suggest.suppliers} defaultValue={supplier}
+          <Combobox key={`s${comboKey}`} options={suggest.suppliers}
+              onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier" defaultValue={supplier}
             placeholder="" onInput={setSupplier} onCommit={setSupplier} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Origin" hint="stays">
-          <Combobox key={`o${comboKey}`} options={suggest.origins} defaultValue={origin}
+          <Combobox key={`o${comboKey}`} options={suggest.origins}
+              onCreate={(v) => createOpsRefAction(companyId, "origin", v)} createNoun="origin" defaultValue={origin}
             placeholder="" onInput={setOrigin} onCommit={setOrigin} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Mode" hint="stays">
-          <Combobox key={`m${comboKey}`} options={suggest.modes} defaultValue={mode}
+          <Combobox key={`m${comboKey}`} options={suggest.modes}
+              onCreate={(v) => createOpsRefAction(companyId, "mode", v)} createNoun="mode" defaultValue={mode}
             placeholder="" onInput={setMode} onCommit={setMode} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Agent" hint="stays">
-          <Combobox key={`a${comboKey}`} options={suggest.agents} defaultValue={agent}
+          <Combobox key={`a${comboKey}`} options={suggest.agents}
+              onCreate={(v) => createOpsRefAction(companyId, "clearing_agent", v)} createNoun="clearing agent" defaultValue={agent}
             placeholder="" onInput={setAgent} onCommit={setAgent} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="BL date">
@@ -401,9 +424,9 @@ function AddShipment({
 /* ───────────────────────────────────────────────── the customs paperwork ─── */
 
 function EditShipment({
-  shipment, view, suggest, onDone, onCancel, onError,
+  companyId, shipment, view, suggest, onDone, onCancel, onError,
 }: {
-  shipment: Shipment; view: ShipmentView; suggest: Suggest;
+  companyId: number; shipment: Shipment; view: ShipmentView; suggest: Suggest;
   onDone: (s: Shipment) => void; onCancel: () => void; onError: (e: string | null) => void;
 }) {
   const [pending, start] = useTransition();
@@ -466,7 +489,8 @@ function EditShipment({
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">Getting it off the ship</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <Cell className="sm:col-span-3" label="Clearing agent">
-            <Combobox options={suggest.agents} defaultValue={f.clearingAgent} placeholder=""
+            <Combobox options={suggest.agents}
+              onCreate={(v) => createOpsRefAction(companyId, "clearing_agent", v)} createNoun="clearing agent" defaultValue={f.clearingAgent} placeholder=""
               onInput={(v) => set("clearingAgent", v)} onCommit={(v) => set("clearingAgent", v)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-2" label="Dox lodged">
@@ -544,7 +568,8 @@ function EditShipment({
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">Where it stands</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <Cell className="sm:col-span-3" label="Status">
-            <Combobox options={suggest.statuses} defaultValue={f.status} placeholder=""
+            <Combobox options={suggest.statuses}
+              onCreate={(v) => createOpsRefAction(companyId, "delivery_status", v)} createNoun="status" defaultValue={f.status} placeholder=""
               onInput={(v) => set("status", v)} onCommit={(v) => set("status", v)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-3" label="Pending with">

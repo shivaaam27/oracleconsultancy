@@ -833,6 +833,141 @@ export const ENTITY_DEFS: EntityDef[] = [
       },
     },
   },
+  // ── The PES trading module (Stages 2–5) ────────────────────────────────────
+  //
+  // ⚠️ These four exist because each carries a REFERENCE NUMBER somebody quotes
+  // down the phone: "where is PO 24322", "what happened to that bill of lading",
+  // "has SS/26/1 been paid". A search box that cannot answer those is not a
+  // search box. Everything else in the module — the balances, the conversion,
+  // the report — is worked out on its own screen and has nothing to index.
+  //
+  // ⚠️ They link to a FILTERED LIST, not to a record page, because these records
+  // open in place on their list. When the module is split up and each gets its
+  // own page, only these hrefs change.
+  {
+    type: "ops_order",
+    table: "ops_order_lines",
+    idColumn: "id",
+    selectColumns: ["id", "po_no", "description", "client", "supplier", "status", "archived"],
+    textFor: (r) => join(str(r.po_no), str(r.description), str(r.client), str(r.supplier),
+      str(r.quotation_no), str(r.prof_no), str(r.status)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Order lines",
+    searchOrder: 11,
+    trace: { mode: "generic", table: "ops_order_lines" },
+    search: {
+      select: "id,po_no,description,client,cost_centre,supplier,quotation_no,prof_no,status,company_id,archived",
+      ilikeColumns: ["po_no", "description", "client", "supplier", "quotation_no", "prof_no", "status"],
+      limit: 120,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        const po = r.po_no as string;
+        return {
+          type: "ops_order", id: r.id as number,
+          title: (r.description as string) || po,
+          subtitle: [sx(po), sx(r.client), sx(r.supplier)].filter(Boolean).join(" · ") || "Order line",
+          href: `/ops?co=${r.company_id as number}&oq=${encodeURIComponent(po)}`,
+          badge: archived ? "Archived" : sx(r.status) ?? undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [po, r.description as string, sx(r.client), sx(r.supplier), sx(r.quotation_no), sx(r.prof_no)],
+        };
+      },
+    },
+  },
+  {
+    type: "ops_shipment",
+    table: "ops_shipments",
+    idColumn: "id",
+    selectColumns: ["id", "bl_no", "supplier", "origin", "clearing_agent", "status", "archived"],
+    textFor: (r) => join(str(r.bl_no), str(r.supplier), str(r.origin), str(r.clearing_agent), str(r.status)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Shipments",
+    searchOrder: 12,
+    trace: { mode: "generic", table: "ops_shipments" },
+    search: {
+      select: "id,bl_no,supplier,origin,mode,clearing_agent,status,company_id,archived",
+      ilikeColumns: ["bl_no", "supplier", "origin", "clearing_agent", "status"],
+      limit: 80,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        const bl = r.bl_no as string;
+        return {
+          type: "ops_shipment", id: r.id as number,
+          title: bl,
+          subtitle: [sx(r.supplier), sx(r.origin), sx(r.clearing_agent)].filter(Boolean).join(" · ") || "Shipment",
+          href: `/ops/imports?co=${r.company_id as number}&sq=${encodeURIComponent(bl)}`,
+          badge: archived ? "Archived" : sx(r.status) ?? undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [bl, sx(r.supplier), sx(r.origin), sx(r.clearing_agent)],
+        };
+      },
+    },
+  },
+  {
+    type: "ops_enquiry",
+    table: "ops_enquiries",
+    idColumn: "id",
+    selectColumns: ["id", "rfq_no", "client", "description", "quotation_no", "po_no", "archived"],
+    textFor: (r) => join(str(r.rfq_no), str(r.client), str(r.description), str(r.quotation_no), str(r.po_no)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Enquiries",
+    searchOrder: 13,
+    trace: { mode: "generic", table: "ops_enquiries" },
+    search: {
+      select: "id,rfq_no,client,description,quotation_no,po_no,assigned_to,outcome,company_id,archived",
+      ilikeColumns: ["rfq_no", "client", "description", "quotation_no", "po_no", "assigned_to"],
+      limit: 80,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        const rfq = r.rfq_no as string;
+        return {
+          type: "ops_enquiry", id: r.id as number,
+          title: (r.description as string) || rfq,
+          subtitle: [sx(rfq), sx(r.client), sx(r.quotation_no)].filter(Boolean).join(" · ") || "Enquiry",
+          href: `/ops/funnel?co=${r.company_id as number}&fq=${encodeURIComponent(rfq)}`,
+          badge: archived ? "Archived" : sx(r.outcome) ?? (r.po_no ? "Won" : undefined),
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [rfq, sx(r.description), sx(r.client), sx(r.quotation_no), sx(r.po_no)],
+        };
+      },
+    },
+  },
+  {
+    type: "ops_invoice",
+    table: "ops_invoices",
+    idColumn: "id",
+    selectColumns: ["id", "delivery_note_no", "invoice_no", "client", "status", "archived"],
+    textFor: (r) => join(str(r.delivery_note_no), str(r.invoice_no), str(r.client), str(r.status)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Deliveries",
+    searchOrder: 14,
+    trace: { mode: "generic", table: "ops_invoices" },
+    search: {
+      select: "id,delivery_note_no,invoice_no,client,status,company_id,archived",
+      ilikeColumns: ["delivery_note_no", "invoice_no", "client", "status"],
+      limit: 80,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        // Whichever reference it has — a delivery that has not been billed yet
+        // has no invoice number at all.
+        const ref = (r.invoice_no as string | null) ?? (r.delivery_note_no as string | null) ?? "";
+        return {
+          type: "ops_invoice", id: r.id as number,
+          title: ref,
+          subtitle: [sx(r.client), r.invoice_no ? "invoiced" : "not billed yet"]
+            .filter(Boolean).join(" · ") || "Delivery",
+          href: `/ops/invoices?co=${r.company_id as number}&iq=${encodeURIComponent(ref)}`,
+          badge: archived ? "Archived" : sx(r.status) ?? undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [ref, sx(r.delivery_note_no), sx(r.client)],
+        };
+      },
+    },
+  },
 ];
 
 const DEF_BY_TYPE = new Map<EntityType, EntityDef>(ENTITY_DEFS.map((d) => [d.type, d]));

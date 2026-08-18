@@ -10,6 +10,7 @@ import { listShipments, linesPerShipment } from "@/lib/ops-shipments";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { usedValues } from "@/lib/ops-orders";
 import { getAppSettings } from "@/lib/settings";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsShipmentsSheet } from "@/components/ops-shipments-sheet";
 
@@ -45,12 +46,13 @@ export default async function OpsImportsPage({
     );
   }
 
-  const [shipments, counts, refs, settings, pendingWith] = await Promise.all([
+  const [shipments, counts, refs, settings, pendingWith, savedViews] = await Promise.all([
     listShipments(chosen.id),
     linesPerShipment(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
     usedValues(chosen.id, "pending_with"),
+    getSavedViewsFor("ops-shipments"),
   ]);
 
   return (
@@ -61,6 +63,7 @@ export default async function OpsImportsPage({
       />
       <OpsTabs active="imports" company={chosen.id} companies={companies} />
       <OpsShipmentsSheet
+        savedViews={savedViews}
         companyId={chosen.id}
         shipments={shipments}
         lineCounts={Object.fromEntries(counts)}

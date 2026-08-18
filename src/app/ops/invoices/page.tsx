@@ -10,6 +10,7 @@ import { listInvoices } from "@/lib/ops-invoices";
 import { listOrderLines, usedValues } from "@/lib/ops-orders";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { getAppSettings } from "@/lib/settings";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsInvoicesSheet } from "@/components/ops-invoices-sheet";
 
@@ -45,7 +46,7 @@ export default async function OpsInvoicesPage({
     );
   }
 
-  const [invoices, lines, refs, settings, pendingWith] = await Promise.all([
+  const [invoices, lines, refs, settings, pendingWith, savedViews] = await Promise.all([
     listInvoices(chosen.id),
     // ⚠️ The order lines come along so a document can be valued from what is ON
     // it, and so each PO's balance is a subtraction rather than a typed figure.
@@ -53,6 +54,7 @@ export default async function OpsInvoicesPage({
     listOpsRefs(chosen.id),
     getAppSettings(),
     usedValues(chosen.id, "pending_with"),
+    getSavedViewsFor("ops-invoices"),
   ]);
 
   return (
@@ -63,6 +65,7 @@ export default async function OpsInvoicesPage({
       />
       <OpsTabs active="invoices" company={chosen.id} companies={companies} />
       <OpsInvoicesSheet
+        savedViews={savedViews}
         companyId={chosen.id}
         invoices={invoices}
         lines={lines}

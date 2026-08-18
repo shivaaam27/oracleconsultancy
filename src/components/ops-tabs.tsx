@@ -20,6 +20,8 @@ const TABS = [
   { key: "imports", label: "Imports", href: "/ops/imports" },
   // The end of the road: what went out, what was billed, what is still owed.
   { key: "invoices", label: "Delivery & billing", href: "/ops/invoices" },
+  // Everything above, added up. Nothing on it is typed.
+  { key: "report", label: "Report", href: "/ops/report" },
   // Last on purpose: the lists are set up once and then rarely touched.
   { key: "setup", label: "Setup", href: "/ops/setup" },
 ] as const;

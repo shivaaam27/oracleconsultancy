@@ -11,7 +11,8 @@
 
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
-  AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass, type LucideIcon,
+  AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass,
+  ShoppingCart, Ship, MessageSquareQuote, Receipt, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
@@ -28,6 +29,11 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   pipeline:   { icon: Workflow,      tint: "text-cyan-600" },
   commitment: { icon: ScrollText,    tint: "text-lime-600" },
   project:    { icon: DraftingCompass,       tint: "text-orange-500" },
+  // The PES trading module — one row per record type it can find.
+  ops_order:    { icon: ShoppingCart,       tint: "text-emerald-600" },
+  ops_shipment: { icon: Ship,               tint: "text-blue-600" },
+  ops_enquiry:  { icon: MessageSquareQuote, tint: "text-fuchsia-600" },
+  ops_invoice:  { icon: Receipt,            tint: "text-yellow-600" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },

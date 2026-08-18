@@ -23,6 +23,10 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Check, X, Pencil, Archive, MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
+// The same saved-view bar Projects, Assets, Documents and Commitments use —
+// a saved view is just a query string, which is why every filter on this
+// screen goes through `useUrlFilters` (CLAUDE.md, the forward rule).
+import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { Combobox } from "./combobox";
 import { MoneyInput } from "./money-input";
 import { money, fmtDate, type OrderLine } from "@/lib/ops-orders-shared";
@@ -35,6 +39,10 @@ import { FunnelCohorts } from "./ops-funnel-cohorts";
 import {
   createEnquiryAction, updateEnquiryAction, archiveEnquiryAction,
 } from "@/app/ops/funnel-actions";
+// ⚠️ Every dropdown that maps to a Setup list can ADD to it from inside the
+// menu — ERPNext's "+ Create a new Item". The owner asked for this twice:
+// "do not build a dropdown that dead-ends into a setup screen".
+import { createOpsRefAction } from "@/app/ops/actions";
 
 type Suggest = {
   clients: string[];
@@ -45,9 +53,11 @@ type Suggest = {
 };
 
 export function OpsFunnelSheet({
-  companyId, enquiries: serverRows, lines, despatches = [], suggest, defaultExRate,
+  companyId, savedViews = [], enquiries: serverRows, lines, despatches = [], suggest, defaultExRate,
 }: {
   companyId: number;
+  /** Views the owner has saved for this list. */
+  savedViews?: SavedView[];
   enquiries: Enquiry[];
   /** The order lines, so a won enquiry can be priced from them rather than
    *  from a second copy of the figure. */
@@ -66,7 +76,7 @@ export function OpsFunnelSheet({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [pending, start] = useTransition();
-  const { values: view, hrefFor } = useUrlFilters(
+  const { values: view, hrefFor, query, dirty } = useUrlFilters(
     { state: "all", sort: "rfq", dir: "desc", co: "" },
   );
 
@@ -156,6 +166,14 @@ export function OpsFunnelSheet({
       )}
 
       <FunnelCohorts cohorts={cohorts} />
+
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={query}
+        hasFilters={dirty}
+        basePath="/ops/funnel"
+        listKey="ops-enquiries"
+      />
 
       <RecordList
         rows={shown}
@@ -299,6 +317,7 @@ export function OpsFunnelSheet({
           editing === v.enquiry.id ? (
             <div data-quick-update>
               <EditEnquiry
+                companyId={companyId}
                 enquiry={v.enquiry} view={v} suggest={suggest} defaultExRate={defaultExRate}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
@@ -402,7 +421,8 @@ function AddEnquiry({
           <input type="date" value={rfqDate} onChange={(e) => setRfqDate(e.target.value)} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-2" label="Client" hint="stays">
-          <Combobox key={`c${comboKey}`} options={suggest.clients} defaultValue={client}
+          <Combobox key={`c${comboKey}`} options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={client}
             placeholder="" onInput={setClient} onCommit={setClient} className={inputCls} />
         </Cell>
         <Cell className="sm:col-span-3" label="What they asked for" hint="suggests what you have typed">
@@ -430,9 +450,9 @@ function AddEnquiry({
 /* ─────────────────────────────────────────── what became of the enquiry ─── */
 
 function EditEnquiry({
-  enquiry, view, suggest, defaultExRate, onDone, onCancel, onError,
+  companyId, enquiry, view, suggest, defaultExRate, onDone, onCancel, onError,
 }: {
-  enquiry: Enquiry; view: EnquiryView; suggest: Suggest; defaultExRate: number;
+  companyId: number; enquiry: Enquiry; view: EnquiryView; suggest: Suggest; defaultExRate: number;
   onDone: (e: Enquiry) => void; onCancel: () => void; onError: (e: string | null) => void;
 }) {
   const [pending, start] = useTransition();
@@ -502,7 +522,8 @@ function EditEnquiry({
             <input type="date" value={f.rfqDate} onChange={(e) => set("rfqDate", e.target.value)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-2" label="Client">
-            <Combobox options={suggest.clients} defaultValue={f.client} placeholder=""
+            <Combobox options={suggest.clients}
+              onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={f.client} placeholder=""
               onInput={(v) => set("client", v)} onCommit={(v) => set("client", v)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-4" label="What they asked for">

@@ -44,7 +44,9 @@ export type SearchResultType =
   // registry — adding an EntityDef alone is not enough, as the Notes module
   // found out. A type missing here compiles and then never appears.
   | "project"
-  | "governance" | "risk" | "pipeline" | "commitment";
+  | "governance" | "risk" | "pipeline" | "commitment"
+  // The PES trading module (Stages 2–5).
+  | "ops_order" | "ops_shipment" | "ops_enquiry" | "ops_invoice";
 
 export type SearchResult = {
   type: SearchResultType;

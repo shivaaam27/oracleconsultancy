@@ -10,6 +10,7 @@ import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { listShipments } from "@/lib/ops-shipments";
 import { listInvoices } from "@/lib/ops-invoices";
 import { getAppSettings } from "@/lib/settings";
+import { getSavedViewsFor } from "@/lib/saved-views";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsOrdersSheet } from "@/components/ops-orders-sheet";
 
@@ -45,7 +46,7 @@ export default async function OpsOrdersPage({
     );
   }
 
-  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments, despatches] = await Promise.all([
+  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments, despatches, savedViews] = await Promise.all([
     listOrderLines(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
@@ -58,6 +59,7 @@ export default async function OpsOrdersPage({
     // ⚠️ A line reads whether it has gone out and been billed off the DOCUMENT
     // it points at (Stage 5), so the documents have to travel with the lines.
     listInvoices(chosen.id),
+    getSavedViewsFor("ops-orders"),
   ]);
 
   return (
@@ -68,6 +70,7 @@ export default async function OpsOrdersPage({
       />
       <OpsTabs active="orders" company={chosen.id} companies={companies} />
       <OpsOrdersSheet
+        savedViews={savedViews}
         companyId={chosen.id}
         lines={lines}
         defaultExRate={settings.opsDefaultExRate}
