@@ -11,7 +11,7 @@
 // Aug 2026) — and it is offered by the FORM, not applied here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { sb } from "@/db/supabase";
+import { sb, fetchAllRows } from "@/db/supabase";
 import type { OrderLine } from "@/lib/ops-orders-shared";
 
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
@@ -65,12 +65,18 @@ function mapRow(r: Record<string, unknown>): OrderLine {
 export async function listOrderLines(
   companyId: number, opts: { includeArchived?: boolean } = {},
 ): Promise<OrderLine[]> {
-  let q = sb.from("ops_order_lines").select(COLS).eq("company_id", companyId);
-  if (!opts.includeArchived) q = q.eq("archived", false);
-  const { data } = await q
-    .order("received_date", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: false });
-  return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+  // ⚠️ Every page, not the first thousand. PostgREST caps a plain select at
+  // 1,000 rows and says nothing; importing the workbook put 2,600 enquiries in
+  // and this returned 1,000 of them, silently. See `fetchAllRows`.
+  const rows = await fetchAllRows((from, to) => {
+    let q = sb.from("ops_order_lines").select(COLS).eq("company_id", companyId);
+    if (!opts.includeArchived) q = q.eq("archived", false);
+    return q
+      .order("received_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+  });
+  return rows.map((r) => mapRow(r as Record<string, unknown>));
 }
 
 export async function getOrderLine(id: number): Promise<OrderLine | null> {

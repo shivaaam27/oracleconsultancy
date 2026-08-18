@@ -16,12 +16,14 @@ import * as fs from "fs";
 XLSX.set_fs(fs);
 
 const num = (v: unknown) => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
   const s = String(v ?? "").trim().replace(/[\s,]/g, "");
   if (!s || s === "-" || s.startsWith("#")) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 };
 const txt = (v: unknown) => {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
   const t = String(v ?? "").trim();
   return !t || t.startsWith("#") || t === "-" ? null : t;
 };
@@ -31,9 +33,11 @@ async function main() {
   const file = args.find((a) => !a.startsWith("--"))!;
   const companyId = Number(args[args.indexOf("--company") + 1]) || 5;
   const { sb } = await import("../src/db/supabase");
-  const wb = XLSX.readFile(file, { raw: false, cellDates: false });
+  // ⚠️ Raw, like the import — comparing against the DISPLAYED text would be
+  // comparing against the very rounding this is meant to catch.
+  const wb = XLSX.readFile(file, { raw: true, cellDates: true });
   const grid = (n: string) => XLSX.utils.sheet_to_json(
-    wb.Sheets[n] ?? wb.Sheets[n + " "], { header: 1, raw: false, defval: null }) as unknown[][];
+    wb.Sheets[n] ?? wb.Sheets[n + " "], { header: 1, raw: true, defval: null }) as unknown[][];
   const rowsOf = (g: unknown[][], from: number) =>
     g.slice(from).filter((r) => r && r.some((c) => c !== null && String(c).trim() !== ""));
 
@@ -144,8 +148,11 @@ async function main() {
   /* ── what is NOT filled in ─────────────────────────────────────────────── */
   console.log("\n\n═══ HOW COMPLETE IS WHAT LANDED ═══\n");
   const fill = async (table: string, cols: string[]) => {
-    const { data } = await sb.from(table).select(cols.join(",")).eq("company_id", companyId);
-    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+    // ⚠️ Paged. This helper had the very fault it is here to check: a plain
+    // select stopped at 1,000, so the enquiry percentages were a sample.
+    const { fetchAllRows } = await import("../src/db/supabase");
+    const rows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+      sb.from(table).select(cols.join(",")).eq("company_id", companyId).range(from, to) as never);
     console.log(`${table} (${rows.length} rows)`);
     for (const c of cols) {
       const n = rows.filter((r) => r[c] !== null && String(r[c]).trim() !== "").length;

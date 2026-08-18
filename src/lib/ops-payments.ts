@@ -10,7 +10,7 @@
 // wrote on the transfer. That is how IMP PMT AND FREIGHT is actually kept.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { sb } from "@/db/supabase";
+import { sb, fetchAllRows } from "@/db/supabase";
 // ⚠️ Shared with every other ops writer: a re-save must not report a change
 // nobody made. See its comment in `ops-orders.ts`.
 import { sameAuditValue } from "@/lib/ops-orders";
@@ -44,12 +44,18 @@ function mapRow(r: Record<string, unknown>): Payment {
 export async function listPayments(
   companyId: number, opts: { includeArchived?: boolean } = {},
 ): Promise<Payment[]> {
-  let q = sb.from("ops_payments").select(COLS).eq("company_id", companyId);
-  if (!opts.includeArchived) q = q.eq("archived", false);
-  const { data } = await q
-    .order("paid_date", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: false });
-  return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+  // ⚠️ Every page, not the first thousand. PostgREST caps a plain select at
+  // 1,000 rows and says nothing; importing the workbook put 2,600 enquiries in
+  // and this returned 1,000 of them, silently. See `fetchAllRows`.
+  const rows = await fetchAllRows((from, to) => {
+    let q = sb.from("ops_payments").select(COLS).eq("company_id", companyId);
+    if (!opts.includeArchived) q = q.eq("archived", false);
+    return q
+      .order("paid_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+  });
+  return rows.map((r) => mapRow(r as Record<string, unknown>));
 }
 
 /** Payments grouped by the order line they are against. */

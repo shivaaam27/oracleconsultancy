@@ -13,7 +13,7 @@
 // workbook duplicates a figure across two sheets, and the two disagree.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { sb } from "@/db/supabase";
+import { sb, fetchAllRows } from "@/db/supabase";
 // ⚠️ Shared with the order lines and the shipments: a re-save must not report
 // a change nobody made. See its comment in `ops-orders.ts`.
 import { sameAuditValue } from "@/lib/ops-orders";
@@ -51,12 +51,18 @@ function mapRow(r: Record<string, unknown>): Enquiry {
 export async function listEnquiries(
   companyId: number, opts: { includeArchived?: boolean } = {},
 ): Promise<Enquiry[]> {
-  let q = sb.from("ops_enquiries").select(COLS).eq("company_id", companyId);
-  if (!opts.includeArchived) q = q.eq("archived", false);
-  const { data } = await q
-    .order("rfq_date", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: false });
-  return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+  // ⚠️ Every page, not the first thousand. PostgREST caps a plain select at
+  // 1,000 rows and says nothing; importing the workbook put 2,600 enquiries in
+  // and this returned 1,000 of them, silently. See `fetchAllRows`.
+  const rows = await fetchAllRows((from, to) => {
+    let q = sb.from("ops_enquiries").select(COLS).eq("company_id", companyId);
+    if (!opts.includeArchived) q = q.eq("archived", false);
+    return q
+      .order("rfq_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+  });
+  return rows.map((r) => mapRow(r as Record<string, unknown>));
 }
 
 export async function getEnquiry(id: number): Promise<Enquiry | null> {

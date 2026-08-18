@@ -36,6 +36,16 @@ const skipped = { dates: 0, amounts: 0 };
  *  which way round it is, because 18 cannot be a month. */
 function date(v: unknown): string | null {
   if (v === null || v === undefined) return null;
+  // With `cellDates: true` a real date cell arrives as a Date.
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    const y = v.getUTCFullYear();
+    if (y < 2015 || y > 2035) { skipped.dates += 1; return null; }
+    return `${y}-${String(v.getUTCMonth() + 1).padStart(2, "0")}-${String(v.getUTCDate()).padStart(2, "0")}`;
+  }
+  // A numeric cell here is an Excel serial that was not date-formatted. Not
+  // safe to guess at, so it is counted rather than converted.
+  if (typeof v === "number") { skipped.dates += 1; return null; }
   const raw = String(v).trim();
   if (!raw || raw.startsWith("#") || raw === "-") return null;
   // The month helper columns hold "Dec-99" for an empty date. Not a date.
@@ -49,9 +59,15 @@ function date(v: unknown): string | null {
     if (raw) skipped.dates += 1;
     return null;
   }
-  const mm = Number(m[1]), dd = Number(m[2]);
+  let mm = Number(m[1]), dd = Number(m[2]);
   let yy = Number(m[3]);
   if (yy < 100) yy += 2000;
+  // ⚠️ FAULT C. The file is month/day/year almost everywhere, but a handful of
+  // cells were typed day/month/year — "21/1/2026". Where the first number
+  // cannot be a month and the second can, it is unambiguous, so read it the
+  // other way round. Where BOTH could be a month it stays month/day, because
+  // that is what the rest of the file is and guessing would be worse.
+  if (mm > 12 && dd <= 12) { const t = mm; mm = dd; dd = t; }
   if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 2015 || yy > 2035) { skipped.dates += 1; return null; }
   return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
@@ -59,6 +75,9 @@ function date(v: unknown): string | null {
 /** A workbook amount. Handles " 19,698 ", " -   ", "#N/A", "#VALUE!". */
 function amount(v: unknown): string | null {
   if (v === null || v === undefined) return null;
+  // With `raw: true` a money cell arrives as a NUMBER and needs no cleaning —
+  // this is the path that keeps 19,698.30 from becoming 19,698.
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : null;
   const raw = String(v).trim();
   if (!raw || raw === "-" || raw.startsWith("#")) return null;
   const cleaned = raw.replace(/[\s,]/g, "");
@@ -88,11 +107,15 @@ async function main() {
   const wipe = args.includes("--wipe");
 
   const { sb } = await import("../src/db/supabase");
-  const wb = XLSX.readFile(file, { raw: false, cellDates: false });
+  // ⚠️ FAULT B, found by the audit. `raw: false` hands back what the cell
+  // DISPLAYS, so " 19,698 " arrived instead of the 19,698.30 the file
+  // actually holds — 582 of 1,507 money cells were rounded on the way in.
+  // `raw: true` + `cellDates: true` gives real numbers and real dates.
+  const wb = XLSX.readFile(file, { raw: true, cellDates: true });
   const grid = (name: string): unknown[][] => {
     const sheet = wb.Sheets[name] ?? wb.Sheets[name + " "] ?? wb.Sheets[name.trim()];
     if (!sheet) { console.warn(`  ! sheet "${name}" not found`); return []; }
-    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: null }) as unknown[][];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null }) as unknown[][];
   };
   const rowsOf = (g: unknown[][], from: number) =>
     g.slice(from).filter((r) => r && r.some((c) => c !== null && String(c).trim() !== ""));
@@ -345,6 +368,23 @@ async function main() {
         created_by: BY,
       });
     }
+    // ⚠️ Block 1 (cols 1-9) also carries the supplier's DUE DATE, which the
+    // first import missed entirely — so ageing had nothing to run from. It goes
+    // onto the order line, matched on the proforma number.
+    let dueDates = 0;
+    const seenDue = new Set<number>();
+    for (const r of src) {
+      const ref = text(r[1]);
+      const due = date(r[7]);
+      if (!ref || !due) continue;
+      const id = lineByProf.get(ref.toUpperCase());
+      if (!id || seenDue.has(id)) continue;
+      seenDue.add(id);
+      const { error } = await sb.from("ops_order_lines").update({ supplier_due_date: due }).eq("id", id);
+      if (!error) dueDates += 1;
+    }
+    report.supplierDueDatesSet = dueDates;
+
     report.impPmtRows = src.length;
     report.payments = await insert("ops_payments", rows);
     report.paymentsSkippedNoAmount = noAmount;
