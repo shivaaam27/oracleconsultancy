@@ -626,6 +626,9 @@ export const MCP_TOOLS: McpTool[] = [
       "ENQUIRIES: RFQs and quotes, and what became of them. " +
       "DELIVERIES: what went out and what was billed. " +
       "BALANCES: what each PO still owes us — ordered less billed. " +
+      "PAYMENTS: money out, one row per payment. " +
+      "OWED: what we still owe each supplier, agent and forwarder, with how old it is. " +
+      "TENDERS: bids being chased, and any deadline that passed with nothing submitted. " +
       "CONVERSION: enquiry-to-order by month, measured against the month the CLIENT ASKED, " +
       "so no rate can pass 100%. " +
       "Amounts are in shillings at the rate frozen on each line. Where something could not be " +

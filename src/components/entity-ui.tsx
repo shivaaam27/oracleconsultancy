@@ -12,7 +12,7 @@
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
   AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass,
-  ShoppingCart, Ship, MessageSquareQuote, Receipt, type LucideIcon,
+  ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
@@ -34,6 +34,8 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   ops_shipment: { icon: Ship,               tint: "text-blue-600" },
   ops_enquiry:  { icon: MessageSquareQuote, tint: "text-fuchsia-600" },
   ops_invoice:  { icon: Receipt,            tint: "text-yellow-600" },
+  ops_payment:  { icon: Banknote,           tint: "text-lime-600" },
+  ops_tender:   { icon: Gavel,              tint: "text-orange-600" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },

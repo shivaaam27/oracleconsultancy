@@ -40,6 +40,9 @@ export type SourceType =
   | "ops_shipment"
   | "ops_enquiry"
   | "ops_invoice"
+  /** Stage 7 — money out, and bids being chased. */
+  | "ops_payment"
+  | "ops_tender"
   /** Capital projects — the construction jobs rebuilt from the PES workbook
    *  (Phase 1). Same arrangement as `note` above: NOT indexed yet, so there is
    *  deliberately no EntityDef in entity-registry.ts. The member exists so the

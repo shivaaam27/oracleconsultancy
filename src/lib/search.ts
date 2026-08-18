@@ -46,7 +46,8 @@ export type SearchResultType =
   | "project"
   | "governance" | "risk" | "pipeline" | "commitment"
   // The PES trading module (Stages 2–5).
-  | "ops_order" | "ops_shipment" | "ops_enquiry" | "ops_invoice";
+  | "ops_order" | "ops_shipment" | "ops_enquiry" | "ops_invoice"
+  | "ops_payment" | "ops_tender";
 
 export type SearchResult = {
   type: SearchResultType;

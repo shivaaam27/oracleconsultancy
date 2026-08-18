@@ -39,6 +39,8 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   ops_shipment: { uiLabel: "Shipments",    searchOrder: 12 },
   ops_enquiry:  { uiLabel: "Enquiries",    searchOrder: 13 },
   ops_invoice:  { uiLabel: "Deliveries",   searchOrder: 14 },
+  ops_payment:  { uiLabel: "Payments",     searchOrder: 15 },
+  ops_tender:   { uiLabel: "Tenders",      searchOrder: 16 },
 };
 
 /** The searchable types in display order, with their headings — what the command

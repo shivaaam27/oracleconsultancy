@@ -968,6 +968,71 @@ export const ENTITY_DEFS: EntityDef[] = [
       },
     },
   },
+  {
+    // ⚠️ A payment is searched by WHO and by the reference written on it — the
+    // proforma or BL number is how anyone asks about it ("did we pay 02044?").
+    type: "ops_payment",
+    table: "ops_payments",
+    idColumn: "id",
+    selectColumns: ["id", "payee", "kind", "reference", "amount", "archived"],
+    textFor: (r) => join(str(r.payee), str(r.kind), str(r.reference), str(r.notes)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Payments",
+    searchOrder: 15,
+    trace: { mode: "generic", table: "ops_payments" },
+    search: {
+      select: "id,payee,kind,reference,amount,currency,paid_date,company_id,archived",
+      ilikeColumns: ["payee", "kind", "reference", "notes"],
+      limit: 80,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        const ref = (r.reference as string | null) ?? "";
+        const payee = (r.payee as string | null) ?? "a payment";
+        return {
+          type: "ops_payment", id: r.id as number,
+          title: payee,
+          subtitle: [sx(ref), sx(r.kind), sx(r.paid_date)?.slice(0, 10)]
+            .filter(Boolean).join(" · ") || "Payment",
+          href: `/ops/payments?co=${r.company_id as number}&pq=${encodeURIComponent(ref || payee)}`,
+          badge: archived ? "Archived" : sx(r.kind) ?? undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [payee, ref, sx(r.kind)],
+        };
+      },
+    },
+  },
+  {
+    type: "ops_tender",
+    table: "ops_tenders",
+    idColumn: "id",
+    selectColumns: ["id", "description", "client", "quote_type", "outcome", "archived"],
+    textFor: (r) => join(str(r.description), str(r.client), str(r.quote_type), str(r.outcome)),
+    lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
+    uiLabel: "Tenders",
+    searchOrder: 16,
+    trace: { mode: "generic", table: "ops_tenders" },
+    search: {
+      select: "id,description,client,quote_type,deadline,outcome,company_id,archived",
+      ilikeColumns: ["description", "client", "quote_type", "outcome"],
+      limit: 80,
+      toResult: (r, ctx) => {
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        return {
+          type: "ops_tender", id: r.id as number,
+          title: r.description as string,
+          subtitle: [sx(r.client), sx(r.quote_type), sx(r.deadline)?.slice(0, 10)]
+            .filter(Boolean).join(" · ") || "Tender",
+          // Tenders live on the Funnel tab, in a panel of their own.
+          href: `/ops/funnel?co=${r.company_id as number}`,
+          badge: archived ? "Archived" : sx(r.outcome) ?? "Live",
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [r.description as string, sx(r.client), sx(r.quote_type)],
+        };
+      },
+    },
+  },
 ];
 
 const DEF_BY_TYPE = new Map<EntityType, EntityDef>(ENTITY_DEFS.map((d) => [d.type, d]));

@@ -24,9 +24,16 @@ import { shipmentView } from "@/lib/ops-shipments-shared";
 import { invoiceView, poBalances, balanceTotals } from "@/lib/ops-invoices-shared";
 import { enquiryView, funnelCohorts, linesByPo, rateText } from "@/lib/ops-funnel-shared";
 import { pendingLines, byDesk, supplierBalances, reportTotals } from "@/lib/ops-report-shared";
+import { listPayments } from "@/lib/ops-payments";
+import { listTenders } from "@/lib/ops-tenders";
+import {
+  paymentTzs, purchaseDebt, shipmentDebt, payeeBalances, payableTotals,
+} from "@/lib/ops-payments-shared";
+import { tenderView, tenderTotals } from "@/lib/ops-tenders-shared";
 
 export const OPS_TYPES = [
   "orders", "shipments", "enquiries", "deliveries", "balances", "report", "conversion",
+  "payments", "owed", "tenders",
 ] as const;
 
 export type OpsArgs = {
@@ -210,6 +217,83 @@ export async function mcpOps(caller: McpCaller, args: OpsArgs): Promise<unknown>
           stillOpen: c.open, finished: c.settled,
           typicalDaysToOrder: c.medianDaysToOrder,
         })),
+      };
+    }
+
+    case "payments": {
+      const rows = (await listPayments(company.id))
+        .filter((p) => hit(args.search, p.payee, p.reference, p.kind))
+        .slice(0, limit)
+        .map((p) => ({
+          paidTo: p.payee, what: p.kind, on: p.paidDate?.slice(0, 10) ?? null,
+          amount: money(paymentTzs(p)), currency: p.currency ?? "TZS",
+          reference: p.reference,
+          matchedTo: p.orderLineId === null && p.shipmentId === null
+            ? "not matched to any purchase or shipment" : undefined,
+          note: paymentTzs(p) === null
+            ? "no exchange rate on it, so it is in no shilling total" : undefined,
+        }));
+      return { ...head, showing: rows.length, payments: rows };
+    }
+
+    case "owed": {
+      const all = await listPayments(company.id);
+      const byL = new Map<number, typeof all>();
+      const byS = new Map<number, typeof all>();
+      for (const p of all) {
+        if (p.orderLineId !== null) {
+          const b = byL.get(p.orderLineId); if (b) b.push(p); else byL.set(p.orderLineId, [p]);
+        }
+        if (p.shipmentId !== null) {
+          const b = byS.get(p.shipmentId); if (b) b.push(p); else byS.set(p.shipmentId, [p]);
+        }
+      }
+      const purchases = views
+        .filter((v) => v.line.supplier?.trim() || v.purchaseTotalTzs !== null)
+        .map((v) => purchaseDebt(v, byL.get(v.line.id) ?? []));
+      const ships = (await listShipments(company.id))
+        .map((s) => shipmentView(s))
+        .map((v) => shipmentDebt(v, byS.get(v.shipment.id) ?? []));
+      const rows = payeeBalances(
+        purchases, ships, all.filter((p) => p.orderLineId === null && p.shipmentId === null));
+      const t = payableTotals(rows, purchases);
+      return {
+        ...head,
+        // ⚠️ Say what cannot be worked out. A payables figure that quietly
+        // leaves out uncosted purchases is the workbook's habit, not ours.
+        totals: {
+          owed: money(t.owed), paid: money(t.paid), billed: money(t.billed),
+          paidInAdvance: money(t.advance),
+          couldNotWorkOut: t.unknown || undefined,
+        },
+        payees: rows.filter((r) => (r.owedTzs ?? 0) > 0 || r.billedTzs === null)
+          .slice(0, limit)
+          .map((r) => ({
+            payee: r.payee,
+            billed: r.billedTzs === null ? "not costed" : money(r.billedTzs),
+            paid: money(r.paidTzs), stillOwed: r.owedTzs === null ? "not known" : money(r.owedTzs),
+            payments: r.payments, oldest: r.worstAgeing, daysOverdue: r.oldestOverdueDays,
+          })),
+      };
+    }
+
+    case "tenders": {
+      const views2 = (await listTenders(company.id)).map((t) => tenderView(t));
+      const t = tenderTotals(views2);
+      return {
+        ...head,
+        summary: { live: t.open, dueThisWeek: t.dueSoon, submitted: t.submitted,
+          won: t.won, deadlinesMissed: t.missed },
+        tenders: views2
+          .filter((v) => (openOnly ? v.open : true))
+          .filter((v) => hit(args.search, v.tender.description, v.tender.client))
+          .slice(0, limit)
+          .map((v) => ({
+            what: v.tender.description, client: v.tender.client,
+            type: v.tender.quoteType, deadline: v.tender.deadline?.slice(0, 10) ?? null,
+            daysLeft: v.daysLeft, submitted: v.submitted,
+            outcome: v.tender.outcome, waitingOn: v.waitingOn,
+          })),
       };
     }
 
