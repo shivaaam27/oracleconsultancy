@@ -18,7 +18,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type (learned in lib/projects.ts).
-const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,status,pending_with,remarks,invoice_no,invoice_date,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,status,pending_with,remarks,invoice_no,invoice_date,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): OrderLine {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -54,6 +54,7 @@ function mapRow(r: Record<string, unknown>): OrderLine {
     remarks: s("remarks"),
     invoiceNo: s("invoice_no"),
     invoiceDate: s("invoice_date"),
+    shipmentId: (r.shipment_id as number | null) ?? null,
     archived: Boolean(r.archived),
   };
 }

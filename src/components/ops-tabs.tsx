@@ -15,6 +15,7 @@ import { FluidSelect } from "./fluid-select";
 
 const TABS = [
   { key: "orders", label: "Orders", href: "/ops" },
+  { key: "imports", label: "Imports", href: "/ops/imports" },
   // Last on purpose: the lists are set up once and then rarely touched.
   { key: "setup", label: "Setup", href: "/ops/setup" },
 ] as const;
@@ -64,7 +65,8 @@ export function OpsTabs({
           <FluidSelect
             value={String(company)}
             options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
-            onSelect={(v) => router.push(withCompany(active === "setup" ? "/ops/setup" : "/ops", Number(v)))}
+            onSelect={(v) => router.push(withCompany(
+              TABS.find((t) => t.key === active)?.href ?? "/ops", Number(v)))}
             buttonClassName="h-7"
           />
         </span>

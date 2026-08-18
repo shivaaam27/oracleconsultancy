@@ -120,7 +120,7 @@ Verified in the source on this PC (`Documents/OCERP/reference/`):
 | **0** | **The lists** — search, paging, totals, projects into ⌘K | small |
 | **1** | **The master lists** — clients, suppliers, agents, origins, statuses | small |
 | **2** | **The order line (POS STATUS) — the spine** ✅ BUILT | large |
-| 3 | Imports and clearance — BL, agent, assessment, duty, freight, ageing | large |
+| **3** | **Imports and clearance** ✅ BUILT | large |
 | 4 | The funnel (INFO-RFQ) — enquiry → quote → order → invoice, measured properly | medium |
 | 5 | Delivery and invoicing — what went out, what was billed, PO balance | medium |
 | 6 | The executive report — PENDING, purchase analysis, forecasts, all generated | medium |
@@ -384,3 +384,50 @@ supplier and a cost produced four entries, one per field.
 ### Still to come on this row
 The import and clearance columns (BL, agent, dox lodged, assessment, duty, ETA,
 berth date, freight) are **Stage 3** and land on this same table.
+
+
+---
+
+# STAGE 3 — imports and clearance ✅ BUILT (Aug 2026)
+
+`/ops/imports`, a third tab. Migration **0132**: `ops_shipments`, plus
+`ops_order_lines.shipment_id`.
+
+### ⚠️ A shipment is its OWN record, not more columns on the line
+
+One bill of lading carries many order lines. The workbook pretends otherwise and
+pays for it three times over: the agent, ETA and duty are copied onto every
+line; POS STATUS and ASSESSMENTS look each other up in BOTH directions; and 653
+cells of the customs money are frozen formulas — including the amount-payable
+column, where **106 of 107 no longer recalculate**.
+
+Here the shipment is typed once and lines POINT at it (`shipment_id`, nullable —
+a local purchase never has one). Setting it copies nothing.
+
+### Each charge on its own line
+
+Duty · VAT · wharfage · agency fees · other C&F · freight, each its own field
+with its own currency and a rate frozen on the shipment. The workbook adds them
+in one cell with a formula that has since died, so nobody can see what the total
+is made of. The screen shows the parts and the sum.
+
+### The rules, pinned by 14 tests
+
+1. **An unassessed shipment costs an UNKNOWN amount, not nothing.** Null, never
+   zero — zero reads as "it was free" and gets summed.
+2. **A cleared shipment stops counting days.** Otherwise one delivered last year
+   sits at "300 days past ETA" and buries what is still at the port.
+3. **Foreign charges with no rate are not reported as shillings.**
+4. **`heldUpBy` names the FIRST thing missing**, in the order the paperwork
+   really happens: no agent → documents not lodged → not assessed → duty not
+   paid → not berthed.
+5. **The landed cost is the real charges over the value of the goods**, and is
+   null unless BOTH are known — the honest version of the workbook's typed
+   LC FACTOR of 1.32. `shareOfCosts` splits a shipment's costs across its lines
+   by value.
+6. A shipment with **no lines pointing at it says so on the row** — that is a
+   clue, not a mistake to hide.
+
+### ⚠️ Trap hit while building
+`rows.map(shipmentView)` hands the ARRAY INDEX in as the `today` argument, so
+row 1 would be dated 1 January 1970. Always `rows.map((s) => shipmentView(s))`.

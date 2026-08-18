@@ -1,25 +1,26 @@
-// Orders & Imports — the order lines (Stage 2).
+// Orders & Imports — the shipments (Stage 3).
 //
-// One row is one PO line, the way POS STATUS keeps it. See
-// `memory/pes_ops_module.md`.
+// One bill of lading, typed once, with the order lines pointing at it. Replaces
+// the ASSESSMENTS, PENDING and clearance sheets, which are three views of the
+// same journey. See `memory/pes_ops_module.md`.
 
 import { sb } from "@/db/supabase";
 import { PageHeader } from "@/components/ui";
-import { listOrderLines, usedValues } from "@/lib/ops-orders";
+import { listShipments, linesPerShipment } from "@/lib/ops-shipments";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
-import { listShipments } from "@/lib/ops-shipments";
+import { usedValues } from "@/lib/ops-orders";
 import { getAppSettings } from "@/lib/settings";
 import { OpsTabs } from "@/components/ops-tabs";
-import { OpsOrdersSheet } from "@/components/ops-orders-sheet";
+import { OpsShipmentsSheet } from "@/components/ops-shipments-sheet";
 
 export const dynamic = "force-dynamic";
 
-export default async function OpsOrdersPage({
+export default async function OpsImportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ company?: string; flag?: string }>;
+  searchParams: Promise<{ company?: string }>;
 }) {
-  const { company, flag } = await searchParams;
+  const { company } = await searchParams;
 
   const { data: companyRows } = await sb
     .from("companies").select("id,name").eq("active", true).order("name");
@@ -40,41 +41,33 @@ export default async function OpsOrdersPage({
     );
   }
 
-  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments] = await Promise.all([
-    listOrderLines(chosen.id),
+  const [shipments, counts, refs, settings, pendingWith] = await Promise.all([
+    listShipments(chosen.id),
+    linesPerShipment(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
-    // The "middle path" on items: the box offers what has been typed before.
-    // These SUGGEST; nothing is ever filled in from them.
-    usedValues(chosen.id, "description"),
     usedValues(chosen.id, "pending_with"),
-    usedValues(chosen.id, "uom"),
-    listShipments(chosen.id),
   ]);
 
   return (
     <div className="space-y-3">
       <PageHeader
         title="Orders & Imports"
-        sub={`${chosen.name} · ${lines.length} line${lines.length === 1 ? "" : "s"}`}
+        sub={`${chosen.name} · ${shipments.length} shipment${shipments.length === 1 ? "" : "s"}`}
       />
-      <OpsTabs active="orders" company={chosen.id} companies={companies} />
-      <OpsOrdersSheet
+      <OpsTabs active="imports" company={chosen.id} companies={companies} />
+      <OpsShipmentsSheet
         companyId={chosen.id}
-        lines={lines}
+        shipments={shipments}
+        lineCounts={Object.fromEntries(counts)}
         defaultExRate={settings.opsDefaultExRate}
-        flag={flag ?? "all"}
-        shipments={shipments.map((s) => ({ id: s.id, blNo: s.blNo }))}
         suggest={{
-          // From the Setup lists first, so a name somebody agreed on leads.
-          clients: opsNamesOf(refs, "client"),
-          costCentres: opsNamesOf(refs, "cost_centre"),
           suppliers: opsNamesOf(refs, "supplier"),
           origins: opsNamesOf(refs, "origin"),
+          agents: opsNamesOf(refs, "clearing_agent"),
+          modes: opsNamesOf(refs, "mode"),
           statuses: opsNamesOf(refs, "delivery_status"),
-          descriptions,
           pendingWith,
-          uoms,
         }}
       />
     </div>

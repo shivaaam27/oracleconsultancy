@@ -2630,6 +2630,16 @@ export const opsOrderLines = pgTable("ops_order_lines", {
   supplierPaymentDate: timestamp("supplier_payment_date", { mode: "date", withTimezone: true }),
 
   /* ── where it has got to ───────────────────────────────────────────────── */
+  /**
+   * The shipment this line travels on — Stage 3.
+   *
+   * ⚠️ Nullable, and stays nullable. A local purchase never has one, and an
+   * import has none until somebody knows the BL number. Setting it is how a
+   * line inherits the ETA, the agent and its share of the duty; nothing is
+   * copied onto the line itself.
+   */
+  shipmentId: integer("shipment_id").references(() => opsShipments.id, { onDelete: "set null" }),
+
   status: text("status"),
   /** Column BH — whose desk it is sitting on. Free text with suggestions; it may
    *  be a person or a department and the owner cannot say which, so it is not
@@ -2677,4 +2687,72 @@ export const opsAudit = pgTable("ops_audit", {
 }, (t) => [
   index("ops_audit_company_idx").on(t.companyId, t.createdAt),
   index("ops_audit_entity_idx").on(t.companyId, t.entity, t.entityId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS SHIPMENTS — a bill of lading, and everything customs does to it (Stage 3).
+//
+// This is the ASSESSMENTS sheet, and it is deliberately its OWN table rather
+// than fifteen more columns on the order line. One BL carries many order lines,
+// and the workbook proves the cost of pretending otherwise: the same clearing
+// agent, ETA and duty are copied onto every line of a shipment, POS STATUS and
+// ASSESSMENTS look each other up in BOTH directions, and 653 cells of the
+// customs money are frozen formulas that no longer recalculate.
+//
+// Here the shipment is typed once and the lines point at it.
+//
+// ⚠️ NOTHING IS DERIVED INTO STORAGE. Days in transit, days to berth, the C&F
+// total and what is still payable are all computed on read in
+// `ops-shipments-shared.ts`.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsShipments = pgTable("ops_shipments", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /** The bill of lading (sea) or airway bill (air). The handle everybody uses. */
+  blNo: text("bl_no").notNull(),
+  blDate: timestamp("bl_date", { mode: "date", withTimezone: true }),
+  supplier: text("supplier"),
+  origin: text("origin"),
+  /** BY SEA | BY AIR | BY ROAD — from the Setup list, not fixed in code. */
+  mode: text("mode"),
+
+  /* ── getting it off the ship ───────────────────────────────────────────── */
+  clearingAgent: text("clearing_agent"),
+  /** Documents handed to the agent. */
+  doxLodged: timestamp("dox_lodged", { mode: "date", withTimezone: true }),
+  eta: timestamp("eta", { mode: "date", withTimezone: true }),
+  berthDate: timestamp("berth_date", { mode: "date", withTimezone: true }),
+  /** When the goods actually reached us. Ends every countdown on the record. */
+  clearedDate: timestamp("cleared_date", { mode: "date", withTimezone: true }),
+
+  /* ── what the government wants ─────────────────────────────────────────── */
+  assessmentDate: timestamp("assessment_date", { mode: "date", withTimezone: true }),
+  /** ⚠️ Each cost is its own field. The workbook adds them into one cell with a
+   *  formula that has since frozen, so nobody can see what the total is made of. */
+  dutyAmount: numeric("duty_amount", { precision: 14, scale: 2 }),
+  vatAmount: numeric("vat_amount", { precision: 14, scale: 2 }),
+  wharfage: numeric("wharfage", { precision: 14, scale: 2 }),
+  agencyFees: numeric("agency_fees", { precision: 14, scale: 2 }),
+  otherCosts: numeric("other_costs", { precision: 14, scale: 2 }),
+  freightAmount: numeric("freight_amount", { precision: 14, scale: 2 }),
+  /** The currency those charges are in, and the rate used on this shipment. */
+  costCurrency: text("cost_currency"),
+  exRate: numeric("ex_rate", { precision: 14, scale: 4 }),
+
+  /* ── paying it ─────────────────────────────────────────────────────────── */
+  amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
+  paidDate: timestamp("paid_date", { mode: "date", withTimezone: true }),
+
+  status: text("status"),
+  pendingWith: text("pending_with"),
+  notes: text("notes"),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("ops_shipments_bl_unique").on(t.companyId, t.blNo),
+  index("ops_shipments_company_idx").on(t.companyId, t.archived, t.eta),
 ]);

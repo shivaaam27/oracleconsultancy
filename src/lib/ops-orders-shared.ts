@@ -44,6 +44,8 @@ export type OrderLine = {
   remarks: string | null;
   invoiceNo: string | null;
   invoiceDate: string | null;
+  /** The shipment it travels on, or null — a local purchase never has one. */
+  shipmentId: number | null;
   archived: boolean;
 };
 

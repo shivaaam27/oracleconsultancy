@@ -35,6 +35,8 @@ import {
 import {
   createOrderLineAction, updateOrderLineAction, archiveOrderLineAction,
 } from "@/app/ops/order-actions";
+import { setLineShipmentAction } from "@/app/ops/shipment-actions";
+import { FluidSelect } from "./fluid-select";
 
 type Suggest = {
   clients: string[];
@@ -50,11 +52,14 @@ type Suggest = {
 };
 
 export function OpsOrdersSheet({
-  companyId, lines: serverLines, suggest, defaultExRate, flag,
+  companyId, lines: serverLines, suggest, defaultExRate, flag, shipments = [],
 }: {
   companyId: number;
   lines: OrderLine[];
   suggest: Suggest;
+  /** Every open shipment, so a line can be put on one. Nothing is copied onto
+   *  the line — it points, and reads the ETA and duty from there. */
+  shipments?: Array<{ id: number; blNo: string }>;
   /** From Setup. OFFERED on a chip; never written into the box by itself. */
   defaultExRate: number;
   /** Which group the filter rail is showing (the server read it too). */
@@ -285,6 +290,7 @@ export function OpsOrdersSheet({
               <EditLine
                 line={v.line}
                 suggest={suggest}
+                shipments={shipments}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
                   setEditing(null);
@@ -390,7 +396,7 @@ function AddLine({
         supplier: null, origin: null, profNo: null, purchaseDate: null, purchaseCurrency: null,
         purchaseQty: null, purchaseUnitPrice: null, supplierPaymentDate: null,
         status: null, pendingWith: null, remarks: null, invoiceNo: null, invoiceDate: null,
-        archived: false,
+        shipmentId: null, archived: false,
       });
       // Clear the line, keep the header: PO, client, currency, rate and dates
       // belong to the whole order, the rest to this item.
@@ -507,10 +513,11 @@ function Cell({ label, hint, className, children }: {
 /* ───────────────────────────────────────────────────────────── the rest ──── */
 
 function EditLine({
-  line, suggest, onDone, onCancel, onError,
+  line, suggest, shipments, onDone, onCancel, onError,
 }: {
   line: OrderLine;
   suggest: Suggest;
+  shipments: Array<{ id: number; blNo: string }>;
   onDone: (patched: OrderLine) => void;
   onCancel: () => void;
   onError: (e: string | null) => void;
@@ -535,6 +542,7 @@ function EditLine({
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   const [openSale, setOpenSale] = useState(false);
+  const [shipmentId, setShipmentId] = useState<number | null>(line.shipmentId);
 
   const submit = () =>
     start(async () => {
@@ -644,6 +652,23 @@ function EditLine({
         <Cell className="sm:col-span-2" label="Cost centre">
           <Combobox options={suggest.costCentres} defaultValue={f.costCentre} placeholder=""
             onInput={(v) => set("costCentre", v)} onCommit={(v) => set("costCentre", v)} className={inputCls} />
+        </Cell>
+        <Cell className="sm:col-span-4" label="Shipment" hint="its ETA and duty come from there">
+          {/* ⚠️ Saved on the spot rather than with the rest of the form: putting
+              a line on a shipment is one decision, and it must not wait behind
+              a form somebody may abandon. */}
+          <FluidSelect
+            value={shipmentId === null ? "" : String(shipmentId)}
+            options={[{ value: "", label: "Not on a shipment" },
+              ...shipments.map((s) => ({ value: String(s.id), label: s.blNo }))]}
+            onSelect={(v) => {
+              const next = v === "" ? null : Number(v);
+              setShipmentId(next);
+              void setLineShipmentAction(line.id, next);
+            }}
+            buttonClassName="h-8 w-full justify-between"
+            className="w-full"
+          />
         </Cell>
         <Cell className="sm:col-span-12" label="Remarks">
           <input value={f.remarks} onChange={(e) => set("remarks", e.target.value)}

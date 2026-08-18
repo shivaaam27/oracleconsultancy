@@ -19,7 +19,7 @@ function line(over: Partial<OrderLine> & { id: number }): OrderLine {
     supplier: null, origin: null, profNo: null, purchaseDate: null,
     purchaseCurrency: null, purchaseQty: null, purchaseUnitPrice: null,
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
-    invoiceNo: null, invoiceDate: null, archived: false, ...over,
+    invoiceNo: null, invoiceDate: null, shipmentId: null, archived: false, ...over,
   };
 }
 
