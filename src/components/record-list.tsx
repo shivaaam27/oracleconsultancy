@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Keyboard, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Download, Keyboard, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { toCsv, listFileName, downloadCsv, nodeText } from "@/lib/csv";
 
 /**
  * RecordList — the ONE list screen (Stage 2 of the ERPNext redesign).
@@ -41,6 +42,16 @@ export type RecordColumn<T> = {
    *  and paged — because a total that silently covers rows you cannot see is
    *  worse than no total at all. */
   total?: (rows: T[]) => ReactNode;
+  /**
+   * The value this column exports.
+   *
+   * ⚠️ `render` returns React, so an export without this falls back to reading
+   * the text out of the rendered cell — fine for a plain one, wrong for a
+   * figure that was formatted with separators or a dash. Any column carrying a
+   * NUMBER should give one, so the spreadsheet gets 98491500 rather than
+   * "98,491,500" (which Excel reads as text and will not sum).
+   */
+  csv?: (row: T) => string | number | null;
 };
 
 /** One entry in the left rail. Groups are separated by their `group` label. */
@@ -247,6 +258,38 @@ function useHiddenColumns(listKey?: string) {
   return { hidden, toggle };
 }
 
+/**
+ * Download what is on screen.
+ *
+ * ⚠️ Exports the rows AFTER filtering, searching and sorting, and only the
+ * columns still showing — what you are looking at is what you get. Exporting
+ * the unfiltered table from a filtered screen is the kind of surprise that
+ * makes somebody stop trusting the button.
+ *
+ * ⚠️ Paging is deliberately IGNORED: "Showing 100 of 251" means the other 151
+ * are still part of what you filtered to, and an export that silently stopped
+ * at 100 would be wrong in a way nobody would notice.
+ */
+function ExportButton<T>({
+  rows, columns, name,
+}: { rows: T[]; columns: RecordColumn<T>[]; name: string }) {
+  return (
+    <button
+      type="button"
+      title={`Download these ${rows.length} row${rows.length === 1 ? "" : "s"} as a spreadsheet`}
+      onClick={() => {
+        const headers = columns.map((c) => c.label);
+        const body = rows.map((r) =>
+          columns.map((c) => (c.csv ? c.csv(r) : nodeText(c.render(r)))));
+        downloadCsv(listFileName(name), toCsv(headers, body));
+      }}
+      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+    >
+      <Download size={12} /> Export
+    </button>
+  );
+}
+
 function ColumnChooser<T>({
   columns, hidden, onToggle,
 }: { columns: RecordColumn<T>[]; hidden: string[]; onToggle: (k: string) => void }) {
@@ -409,6 +452,7 @@ export function RecordList<T>({
   showFooter = true,
   bare = false,
   listKey,
+  exportName,
   bulkActions,
   className,
 }: {
@@ -465,6 +509,8 @@ export function RecordList<T>({
   /** Turns on the column chooser and remembers the choice under this key
    *  (Stage 5). Omit for a list whose columns are not the user's business. */
   listKey?: string;
+  /** What the exported file is called. Defaults to the listKey. */
+  exportName?: string;
   /** Supplying these turns on built-in ticking: a box on every row, select-all
    *  in the header, and a bar of actions while anything is selected (Stage 5).
    *  A list that already owns its own selection passes `selectionSlot` instead. */
@@ -658,6 +704,9 @@ export function RecordList<T>({
               </label>
             )}
             <span ref={toolbarRef} className={cn("min-w-0", search ? "" : "flex-1")}>{toolbar}</span>
+            {listKey && (
+              <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} />
+            )}
             {listKey && <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />}
           </div>
         )}

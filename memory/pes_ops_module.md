@@ -766,6 +766,93 @@ the maths and the tests do not move.
 
 ---
 
+---
+
+# EXPORT — every list gives you a spreadsheet back (Aug 2026)
+
+Built into **`RecordList`**, so it arrived on every converted list at once —
+Tasks, People, Documents, Assets, Vendors, Commitments, Projects and all four
+ops lists — not just this module.
+
+- Exports the rows **after** filtering, searching and sorting, and only the
+  columns still showing. What you are looking at is what you get.
+- ⚠️ **Paging is ignored on purpose.** "Showing 100 of 251" means the other 151
+  are still part of what you filtered to; an export that stopped at 100 would be
+  wrong in a way nobody would notice.
+- A column carrying a figure gives its own `csv:` so the file gets `98491500`,
+  not `"98,491,500"` — which Excel reads as text and will not add up.
+- ⚠️ **A cell starting `=`, `+`, `-` or `@` is a FORMULA to Excel.** An item
+  called "-SPACER 10MM" would run as a subtraction and a crafted one can run a
+  command on whoever opens it. `csvCell` prefixes a tab. This matters more now
+  than it did for the projects export, because a list exports whatever somebody
+  typed into it.
+
+⚠️ **`src/lib/csv.ts` already existed** (the projects export route uses
+`csvResponse`/`csvFileName`). The browser half — `listFileName`, `downloadCsv`,
+`nodeText` — was ADDED to it. Do not create a second CSV module.
+
+---
+
+# ⚠️ IS THE WORKBOOK FULLY COVERED? NO — read this before retiring the file
+
+Audited column by column against all 13 sheets, Aug 2026. **Five real gaps**,
+listed worst first. Everything else maps, and the derived columns (MONTH, SCALE,
+CHECK, OVERDUE DAYS, the totals) are all worked out rather than stored.
+
+### 1. Supplier payments as AMOUNTS — the one that actually blocks him
+
+**IMP PMT AND FREIGHT, 353 rows**, which turns out to be four blocks:
+SUPPLIER PAYMENT DETAILS (prof/BL no · supplier · freight · total · **amt paid ·
+balance · due date · overdue by · ageing**), FREIGHT CHARGES, IMPORT PAYMENTS
+(**pmt date · amount paid USD**) and OUTSTANDING PAYMENTS AND ADVANCE PAID
+(**total payable · total paid · balance payable · advance paid**).
+
+COS records **`supplier_payment_date` and nothing else** — a date, no amount. So
+a purchase is settled or it is not. There is no part payment, no advance, no
+supplier due date and no ageing of what is owed by amount. The Report says so
+plainly rather than pretending otherwise, but it is a real hole: **this is the
+accounts-payable half of the business.**
+
+### 2. Freight as its own invoice, from a forwarder
+
+The same sheet bills freight from PRISMA LOGISTICS, and separately from the
+goods supplier. COS has **one `freight_amount` on the shipment** — no forwarder
+as a party, no freight invoice number, no separate balance.
+
+### 3. `tenders` — not built at all
+
+80 rows, 4 columns: tender description · type of quote · deadline · client.
+Bids being chased BEFORE an RFQ exists. Nothing in COS holds it.
+
+### 4. Production dates
+
+`EXPECTED DATE TO FINISH PRODUCTION` (POS STATUS col 36, 64 filled; PENDING col
+14, 386 filled) and `PRODUCTION COMPLETED DATE` (PENDING col 13, 355 filled).
+For a part being made to order, when it will leave the factory. Not stored.
+
+### 5. ASSESSMENTS `REF NO`
+
+105 filled — a customs reference on the shipment, alongside the BL number. Not
+stored.
+
+### ⚠️ Checked and NOT a gap
+
+**POS STATUS has TWO supplier columns** (25 and 26). They are the same name
+typed twice: 332 rows identical, and every one of the 393 "different" ones is a
+spelling drift — `RELIANT EXIM &CONSULTING LLC` against
+`RELIANT EXIM & CONSULTING LLC`. That is the fault `ops_refs` +
+`normaliseOpsRefName` exists to prevent, so it is fixed rather than missing.
+**Do not add a second supplier field to the line.**
+
+### The honest answer
+
+**He cannot put the workbook away yet.** Orders, imports, the funnel, delivery,
+billing and the report are all covered. **Supplier payments are not**, and that
+is a weekly job with money in it. Gap 1 (with 2 folded in) is the next stage;
+3, 4 and 5 are small and can follow.
+
+---
+
 # ⚠️ `?company=` IS A GLOBAL PARAMETER — use `?co=`
 
 Found by clicking, Aug 2026: every click on Orders, Imports or Setup slid a

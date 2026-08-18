@@ -186,6 +186,7 @@ export function OpsInvoicesSheet({
       <RecordList
         rows={shown}
         rowKey={(v) => v.invoice.id}
+        exportName="Delivery and billing"
         listKey="ops-invoices"
         total={shown.length}
         search={{
@@ -215,6 +216,7 @@ export function OpsInvoicesSheet({
         columns={[
           {
             key: "delivered", label: "Went out", width: "minmax(0,1fr)",
+            csv: (v) => [v.invoice.deliveryNoteNo, v.invoice.deliveredDate?.slice(0, 10), v.invoice.client].filter(Boolean).join(" — "),
             sortHref: sortHref("delivered"), sorted: sortedAs("delivered"),
             render: (v) => (
               <span className="min-w-0">
@@ -237,6 +239,7 @@ export function OpsInvoicesSheet({
           },
           {
             key: "invoice", label: "Billed", width: "150px",
+            csv: (v) => [v.invoice.invoiceNo, v.invoice.invoiceDate?.slice(0, 10)].filter(Boolean).join(" — ") || null,
             sortHref: sortHref("invoice"), sorted: sortedAs("invoice"),
             render: (v) => (
               <span className="min-w-0">
@@ -256,6 +259,7 @@ export function OpsInvoicesSheet({
           },
           {
             key: "value", label: "Value", width: "150px", align: "right",
+            csv: (v) => v.billedTzs,
             sortHref: sortHref("value"), sorted: sortedAs("value"),
             render: (v) => (
               <span className="min-w-0">
@@ -284,6 +288,7 @@ export function OpsInvoicesSheet({
           },
           {
             key: "waiting", label: "To bill", width: "90px", align: "right", hideBelow: "lg",
+            csv: (v) => v.unbilledDays ?? v.daysToBill,
             sortHref: sortHref("waiting"), sorted: sortedAs("waiting"),
             render: (v) => (
               <span className="tabular text-[12px] text-fg-muted">

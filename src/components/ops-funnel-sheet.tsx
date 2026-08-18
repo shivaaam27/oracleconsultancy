@@ -178,6 +178,7 @@ export function OpsFunnelSheet({
       <RecordList
         rows={shown}
         rowKey={(v) => v.enquiry.id}
+        exportName="Enquiries"
         listKey="ops-enquiries"
         total={shown.length}
         search={{
@@ -208,6 +209,7 @@ export function OpsFunnelSheet({
         columns={[
           {
             key: "rfq", label: "RFQ / client", width: "minmax(0,1fr)",
+            csv: (v) => `${v.enquiry.rfqNo} — ${v.enquiry.client ?? ""}`.trim(),
             sortHref: sortHref("rfq"), sorted: sortedAs("rfq"),
             render: (v) => (
               <span className="min-w-0">
@@ -224,6 +226,7 @@ export function OpsFunnelSheet({
           },
           {
             key: "quote", label: "Quoted", width: "140px", align: "right",
+            csv: (v) => v.quoteValueTzs,
             sortHref: sortHref("quote"), sorted: sortedAs("quote"),
             render: (v) => (
               <span className="min-w-0">
@@ -244,6 +247,7 @@ export function OpsFunnelSheet({
           },
           {
             key: "order", label: "Order", width: "150px", align: "right",
+            csv: (v) => v.orderValueTzs,
             sortHref: sortHref("order"), sorted: sortedAs("order"),
             render: (v) => (
               <span className="min-w-0">
@@ -268,6 +272,7 @@ export function OpsFunnelSheet({
           },
           {
             key: "age", label: "Waiting", width: "100px", align: "right", hideBelow: "lg",
+            csv: (v) => v.ageDays,
             sortHref: sortHref("age"), sorted: sortedAs("age"),
             render: (v) => (
               <span className="tabular text-[12px] text-fg-muted">
@@ -277,6 +282,7 @@ export function OpsFunnelSheet({
           },
           {
             key: "stage", label: "Stage", width: "150px", hideBelow: "md",
+            csv: (v) => (v.lost ? v.enquiry.outcome ?? "Closed" : STAGE_LABEL[v.stage]),
             render: (v) => (
               <span className="min-w-0">
                 <span className={cn("block truncate text-[12px]",

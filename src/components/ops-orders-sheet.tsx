@@ -186,6 +186,7 @@ export function OpsOrdersSheet({
       <RecordList
         rows={shown}
         rowKey={(v) => v.line.id}
+        exportName="Order lines"
         listKey="ops-orders"
         /* The denominator is what this VIEW holds, not every line in the
            company — "9 of 140" while looking at 28 overdue ones reads wrong. */
@@ -217,6 +218,7 @@ export function OpsOrdersSheet({
         columns={[
           {
             key: "item", label: "PO / item", width: "minmax(0,1fr)",
+            csv: (v) => `${v.line.poNo} — ${v.line.description}`,
             sortHref: sortHref("po"), sorted: sortedAs("po"),
             render: (v) => (
               <span className="min-w-0">
@@ -233,6 +235,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "due", label: "Due", width: "120px", hideBelow: "md",
+            csv: (v) => v.line.dueDate?.slice(0, 10) ?? null,
             sortHref: sortHref("due"), sorted: sortedAs("due"),
             render: (v) => {
               const f = lineFlag(v);
@@ -251,6 +254,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "sale", label: "Sale", width: "130px", align: "right",
+            csv: (v) => v.saleTotalTzs,
             sortHref: sortHref("sale"), sorted: sortedAs("sale"),
             render: (v) => (
               <span className="tabular text-[12px]">
@@ -266,6 +270,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "margin", label: "Margin", width: "120px", align: "right", hideBelow: "lg",
+            csv: (v) => v.margin,
             sortHref: sortHref("margin"), sorted: sortedAs("margin"),
             render: (v) => (
               <span className={cn("tabular text-[12px]",
@@ -281,6 +286,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "status", label: "Status", width: "140px", hideBelow: "md",
+            csv: (v) => v.line.status ?? FLAG_LABEL[lineFlag(v)],
             render: (v) => (
               <span className="min-w-0">
                 <span className="block truncate text-[12px]">{v.line.status ?? "—"}</span>

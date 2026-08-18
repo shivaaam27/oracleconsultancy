@@ -151,6 +151,7 @@ export function OpsShipmentsSheet({
       <RecordList
         rows={shown}
         rowKey={(v) => v.shipment.id}
+        exportName="Shipments"
         listKey="ops-shipments"
         total={shown.length}
         search={{
@@ -179,6 +180,7 @@ export function OpsShipmentsSheet({
         columns={[
           {
             key: "bl", label: "BL / supplier", width: "minmax(0,1fr)",
+            csv: (v) => `${v.shipment.blNo} — ${v.shipment.supplier ?? ""}`.trim(),
             sortHref: sortHref("bl"), sorted: sortedAs("bl"),
             render: (v) => (
               <span className="min-w-0">
@@ -201,6 +203,7 @@ export function OpsShipmentsSheet({
           },
           {
             key: "eta", label: "ETA", width: "130px", hideBelow: "md",
+            csv: (v) => v.shipment.eta?.slice(0, 10) ?? null,
             sortHref: sortHref("eta"), sorted: sortedAs("eta"),
             render: (v) => (
               <span className="min-w-0">
@@ -218,6 +221,7 @@ export function OpsShipmentsSheet({
           },
           {
             key: "transit", label: "In transit", width: "90px", align: "right", hideBelow: "lg",
+            csv: (v) => v.daysInTransit,
             sortHref: sortHref("transit"), sorted: sortedAs("transit"),
             render: (v) => (
               <span className="tabular text-[12px] text-fg-muted">
@@ -227,6 +231,7 @@ export function OpsShipmentsSheet({
           },
           {
             key: "cost", label: "Duty & charges", width: "130px", align: "right",
+            csv: (v) => v.costTotalTzs ?? v.costTotal,
             sortHref: sortHref("cost"), sorted: sortedAs("cost"),
             render: (v) => (
               <span className="tabular text-[12px]"
@@ -243,6 +248,7 @@ export function OpsShipmentsSheet({
           },
           {
             key: "owed", label: "Still to pay", width: "120px", align: "right",
+            csv: (v) => v.balance,
             sortHref: sortHref("owed"), sorted: sortedAs("owed"),
             render: (v) => (
               <span className={cn("tabular text-[12px]",
