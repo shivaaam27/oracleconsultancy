@@ -292,8 +292,7 @@ perfectly.
 
 ## ⚠️ Found, NOT fixed — they are not mobile-only
 
-Left alone on purpose: fixing them would change the desktop, which the rule below
-forbids. Each is real and worth a decision from the owner.
+Left alone on purpose. Each is real and worth a decision from the owner.
 
 - **The board still loses its column heading on a PHONE** — see round 3. The desk
   is fixed; the phone would need a nested scroller 460px down the page, which is
@@ -304,18 +303,23 @@ forbids. Each is real and worth a decision from the owner.
 
 ## Not started at all
 
-`/people` and the person record · `/companies` and every tab · `/documents` ·
-`/hrms/*` (Tax & Legal, Commitments, Applications, Attendance, Supplies, Cleaning,
-Assets & Vendors) · `/calendar` · `/chat` · `/outbox` · `/brief` · `/insights` ·
-`/settings` (its rail is the most likely to be cramped) · `/approvals` ·
-`/announcements` · `/activity` · `/notes` and `/notes/[id]`.
+`/companies` and every tab · `/documents` · `/hrms/*` (Tax & Legal, Commitments,
+Applications, Attendance, Supplies, Cleaning, Assets & Vendors) · `/calendar` ·
+`/chat` · `/outbox` · `/brief` · `/insights` · `/settings` (its rail is the most
+likely to be cramped) · `/approvals` · `/announcements` · `/activity` · `/notes`
+and `/notes/[id]` · the whole staff portal.
 
 Home · the command palette · the bottom nav pill were passed on geometry alone by
 the first attempt. **Treat them as unchecked.**
 
-**Resume at `/people`.** `RecordPage` and `RecordList` are already fixed, so the
-converted lists and records should start from a better place than Tasks did — but
-look anyway.
+Left over on `/people` itself: the **Documents and Notes tabs** on a person record,
+and the **Edit form's 2-column grid**, which gives each field ~155px at 375px so a
+long job title reads "TRA and Governme…". Editable, not broken — his call.
+
+**Wherever you resume, the shared shells are already fixed** (`RecordList`'s grid
+template, `RecordPage`'s header, `FilterChips`, `BottomSheet` filter sheets), so
+every converted list and record starts from a better place than Tasks did. Look
+anyway.
 
 ## Things noticed but NOT yet judged
 
@@ -334,10 +338,11 @@ look anyway.
 
 | | |
 |---|---|
-| Branch | `claude/notes-phase-3-preview-0cc4c6`; **`master` is at `9c75e08`, 20 commits ahead of origin, NOT pushed** |
-| Committed | Notes Phases 3 and 4 (`9c75e08`) |
-| **UNCOMMITTED** | Notes Phases 5, 6, 7 and 8, migration **0122** (`note_revisions`, already applied to the live DB), and the two mobile fixes above. `tsc` clean, 323 tests pass, build passes |
-| Live data | the owner's 4 imported notes, a daily page, and one untitled note he wrote himself = 6 rows. All test data cleaned up |
+| Branch | `claude/mobile-sweep-task-management-9eb936`, **NOT pushed** |
+| Committed | The whole sweep so far — rounds 1–4 — as **`eefc420`**, on top of `ed12e82` (Notes Phases 5–8) |
+| Uncommitted | Nothing |
+| Checks | `tsc` clean, 23 test files / 323 tests pass |
+| Worktree setup | Needs its own `npm install` and a copy of `.env.local` from the main repo. ⚠️ A `node_modules` JUNCTION does not work — Turbopack rejects it ("Symlink points out of the filesystem root") |
 
 ⚠️ **The owner uses the app while you work.** A note that appears mid-session is
 probably his — read a row before deleting it. One of his was destroyed this way.
