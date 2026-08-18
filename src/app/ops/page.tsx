@@ -56,7 +56,7 @@ export default async function OpsOrdersPage({
         title="Orders & Imports"
         sub={`${chosen.name} · ${lines.length} line${lines.length === 1 ? "" : "s"}`}
       />
-      <OpsTabs active="orders" company={chosen.id} />
+      <OpsTabs active="orders" company={chosen.id} companies={companies} />
       <OpsOrdersSheet
         companyId={chosen.id}
         lines={lines}

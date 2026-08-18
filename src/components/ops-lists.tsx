@@ -71,19 +71,11 @@ export function OpsLists({
 
   return (
     <div className="space-y-3">
-      {/* ── which company: one line, no box ── */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px]">
-        <span className="text-fg-muted">Company</span>
-        <FluidSelect
-          value={String(companyId)}
-          options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
-          onSelect={(v) => router.push(`/ops/setup?company=${v}`)}
-          buttonClassName="h-7"
-        />
-        <span className="text-[11px] text-fg-subtle">
-          Each company keeps its own lists. Orders raised under it pick from these.
-        </span>
-      </div>
+      {/* ⚠️ No company picker here — it moved into the tabs, where it covers
+          both screens. Two pickers on one page is two places to disagree. */}
+      <p className="text-[11px] text-fg-subtle">
+        Each company keeps its own lists. Orders raised under it pick from these.
+      </p>
 
       {(note || error) && (
         <p role="alert" className={cn("rounded-md px-2.5 py-1.5 text-[12px]",

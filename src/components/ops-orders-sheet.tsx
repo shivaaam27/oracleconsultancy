@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Plus, Check, X, Pencil, Archive, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
@@ -56,10 +57,22 @@ export function OpsOrdersSheet({
   suggest: Suggest;
   /** From Setup. OFFERED on a chip; never written into the box by itself. */
   defaultExRate: number;
-  /** Which group the filter rail is showing. */
+  /** Which group the filter rail is showing (the server read it too). */
   flag: string;
 }) {
   const router = useRouter();
+
+  /**
+   * ⚠️ The rail, the sort and the search share ONE query string.
+   *
+   * The first version hand-wrote `/ops?flag=overdue` on every rail link, which
+   * threw away whatever was typed in the search box and the company you were
+   * looking at. `hrefFor` patches one key and keeps the rest — the same way the
+   * projects list has always done it.
+   */
+  const { values: view, hrefFor } = useUrlFilters(
+    { flag: "all", sort: "received", dir: "desc", company: "" },
+  );
   const [rows, setRows] = useState(serverLines);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
@@ -76,10 +89,36 @@ export function OpsOrdersSheet({
   }, [companyId, serverLines]);
 
   const views = useMemo(() => rows.map((l) => lineView(l)), [rows]);
-  const shown = useMemo(
-    () => (flag === "all" ? views : views.filter((v) => lineFlag(v) === flag)),
-    [views, flag],
-  );
+
+  const shown = useMemo(() => {
+    const picked = flag === "all" ? views : views.filter((v) => lineFlag(v) === flag);
+    const dir = view.dir === "asc" ? 1 : -1;
+    // ⚠️ Nulls always sink, whichever way the column is sorted. A line nobody
+    // has priced is not "the cheapest", and a line with no due date is not the
+    // most urgent thing on the page.
+    const val = (v: LineView): number | string | null => {
+      switch (view.sort) {
+        case "due": return v.line.dueDate ?? null;
+        case "sale": return v.saleTotalTzs;
+        case "margin": return v.margin;
+        case "po": return v.line.poNo;
+        default: return v.line.receivedDate ?? null;
+      }
+    };
+    return [...picked].sort((a, b) => {
+      const x = val(a), y = val(b);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * dir;
+    });
+  }, [views, flag, view.sort, view.dir]);
+
+  /** A column header link: same column flips the direction, a new one starts descending. */
+  const sortHref = (key: string) =>
+    hrefFor({ sort: key, dir: view.sort === key && view.dir === "desc" ? "asc" : "desc" });
+  const sortedAs = (key: string): "asc" | "desc" | undefined =>
+    view.sort === key ? (view.dir === "asc" ? "asc" : "desc") : undefined;
   const totals = useMemo(() => orderTotals(shown), [shown]);
 
   const counts = useMemo(() => {
@@ -110,7 +149,9 @@ export function OpsOrdersSheet({
         rows={shown}
         rowKey={(v) => v.line.id}
         listKey="ops-orders"
-        total={views.length}
+        /* The denominator is what this VIEW holds, not every line in the
+           company — "9 of 140" while looking at 28 overdue ones reads wrong. */
+        total={shown.length}
         search={{
           placeholder: "Search PO, item, client, supplier…",
           param: "oq",
@@ -121,11 +162,11 @@ export function OpsOrdersSheet({
               .some((x) => (x ?? "").toLowerCase().includes(q)),
         }}
         filters={[
-          { key: "all", label: "All lines", count: counts.all, href: "/ops", active: flag === "all" },
-          { key: "overdue", label: "Overdue", count: counts.overdue, href: "/ops?flag=overdue", active: flag === "overdue", tone: "danger" },
-          { key: "due-soon", label: "Due soon", count: counts["due-soon"], href: "/ops?flag=due-soon", active: flag === "due-soon", tone: "warn" },
-          { key: "open", label: "Open", count: counts.open, href: "/ops?flag=open", active: flag === "open" },
-          { key: "invoiced", label: "Invoiced", count: counts.invoiced, href: "/ops?flag=invoiced", active: flag === "invoiced", tone: "success" },
+          { key: "all", label: "All lines", count: counts.all, href: hrefFor({ flag: "all" }), active: flag === "all" },
+          { key: "overdue", label: "Overdue", count: counts.overdue, href: hrefFor({ flag: "overdue" }), active: flag === "overdue", tone: "danger" },
+          { key: "due-soon", label: "Due soon", count: counts["due-soon"], href: hrefFor({ flag: "due-soon" }), active: flag === "due-soon", tone: "warn" },
+          { key: "open", label: "Open", count: counts.open, href: hrefFor({ flag: "open" }), active: flag === "open" },
+          { key: "invoiced", label: "Invoiced", count: counts.invoiced, href: hrefFor({ flag: "invoiced" }), active: flag === "invoiced", tone: "success" },
         ]}
         empty={
           <div className="py-6 text-center">
@@ -138,6 +179,7 @@ export function OpsOrdersSheet({
         columns={[
           {
             key: "item", label: "PO / item", width: "minmax(0,1fr)",
+            sortHref: sortHref("po"), sorted: sortedAs("po"),
             render: (v) => (
               <span className="min-w-0">
                 <span className="block truncate text-[12px]">
@@ -153,6 +195,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "due", label: "Due", width: "120px", hideBelow: "md",
+            sortHref: sortHref("due"), sorted: sortedAs("due"),
             render: (v) => {
               const f = lineFlag(v);
               return (
@@ -170,6 +213,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "sale", label: "Sale", width: "130px", align: "right",
+            sortHref: sortHref("sale"), sorted: sortedAs("sale"),
             render: (v) => (
               <span className="tabular text-[12px]">
                 {/* Unknown stays a dash. A line nobody has priced has no value. */}
@@ -184,6 +228,7 @@ export function OpsOrdersSheet({
           },
           {
             key: "margin", label: "Margin", width: "120px", align: "right", hideBelow: "lg",
+            sortHref: sortHref("margin"), sorted: sortedAs("margin"),
             render: (v) => (
               <span className={cn("tabular text-[12px]",
                 v.margin !== null && v.margin < 0 ? "text-danger" : "text-fg-muted")}>

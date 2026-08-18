@@ -49,7 +49,7 @@ export default async function OpsPage({
         title="Orders & Imports"
         sub={`${chosen.name} · ${refs.filter((r) => r.active).length} entries across 8 lists`}
       />
-      <OpsTabs active="setup" company={chosen.id} />
+      <OpsTabs active="setup" company={chosen.id} companies={companies} />
       <p className="max-w-2xl text-[12px] text-fg-muted">
         The lists every order will pick from. Filling these in first is what stops the same
         supplier being typed three ways and the analysis quietly splitting in two.
