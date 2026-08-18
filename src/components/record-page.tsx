@@ -148,8 +148,19 @@ export function RecordPage({
   return (
     <div className={cn("space-y-3", className)}>
       {/* Header — who am I, what state am I in, what is the one thing to do */}
+      {/* ⚠️ `max-sm:basis-full` is doing real work, not tidying.
+       *
+       * The header is "identity on the left, actions on the right, wrap if you
+       * must" — but it could never wrap, because `flex-1` gives the identity a
+       * flex-basis of ZERO. Nothing ever overflowed the line, so nothing ever
+       * moved to a second one: the identity simply took whatever the actions
+       * left it. On a phone with two buttons and a bin that was 64px, and the
+       * task record — the page a task actually lives on — opened with its title
+       * set one word per line, six lines tall, above a company name broken
+       * across three. Below `sm` the identity claims a full line, which is what
+       * pushes the actions onto their own row underneath. */}
       <header className="flex flex-wrap items-start gap-x-3 gap-y-2 border-b border-border pb-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 max-sm:basis-full">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {code && (
               <span className="tabular shrink-0 rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border">
@@ -167,13 +178,19 @@ export function RecordPage({
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* Tabs. Five of them come to 357px, and a phone's content column is 343 —
+          so "Edit" hung off the right edge looking clipped, and a record with a
+          sixth tab would lose more. They scroll sideways below `sm` instead;
+          from `sm` up there is room for them all and nothing changes. */}
       {tabs && tabs.length > 0 && (
-        <div role="tablist" className="-mt-1 flex gap-1 border-b border-border">
+        <div
+          role="tablist"
+          className="-mt-1 flex gap-1 border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:overflow-x-auto"
+        >
           {tabs.map((t) => {
             const active = t.id === activeTab;
             const cls = cn(
-              "-mb-px border-b-2 px-2.5 py-1.5 text-[13px] transition-colors",
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-[13px] transition-colors",
               active ? "border-accent font-medium text-fg" : "border-transparent text-fg-muted hover:text-fg"
             );
             const inner = (

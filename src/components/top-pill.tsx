@@ -211,11 +211,32 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
         <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm
           data-[state=open]:animate-in data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[61] w-[min(420px,calc(100vw-2rem))]
-          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-pill outline-none
+        {/* ⚠️ THREE PARTS, and the middle one is the only thing that scrolls.
+         *
+         * This was one `p-4` box with everything stacked inside it, no height
+         * cap and no overflow rule — so it grew to whatever its contents needed.
+         * With 26 destinations that is 1218px, and centred on an 812px phone it
+         * put its own title and close button 203px ABOVE the top of the screen
+         * and Settings, ORI Automation and the whole Preferences row below the
+         * bottom, with no way to scroll to any of them. (A 1280×800 desktop
+         * window overflowed too — the cap is not phone-only for that reason. It
+         * costs nothing on a window tall enough to hold the list.)
+         *
+         * So: a fixed header, a scrolling middle, a fixed footer. And on a phone
+         * it stops pretending to be a centred dialog and sits on the bottom edge
+         * where a thumb is, full width, rising from the bottom. */}
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[61] flex max-h-[85svh] w-[min(420px,calc(100vw-2rem))] flex-col
+          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl shadow-pill outline-none
+          max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:w-full max-sm:max-h-[88svh] max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none
           data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
-          <div className="flex items-center gap-1.5 mb-3 px-1">
+          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95
+          max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=open]:slide-in-from-bottom-6
+          max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=closed]:slide-out-to-bottom-6">
+          {/* Grabber — the phone's "this came up from the bottom, it goes back
+              down" cue, matching the kit's BottomSheet. */}
+          <div aria-hidden className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
+
+          <div className="flex shrink-0 items-center gap-1.5 px-5 pb-3 pt-4 sm:px-5">
             <Dialog.Title className="text-sm font-semibold">Go to</Dialog.Title>
             <Dialog.Close asChild>
               <button type="button" aria-label="Close" className="ml-auto h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
@@ -224,6 +245,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
             </Dialog.Close>
           </div>
 
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 [scrollbar-width:thin]">
           {(pinRoutes.length > 0 || recentRoutes.length > 0) && (
             <div className="mb-3 space-y-2.5">
               {pinRoutes.length > 0 && <QuickRow label="Pinned" routes={pinRoutes} onGo={go} />}
@@ -268,14 +290,19 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
               );
             })}
           </div>
+          </div>
 
           {/* Preferences — appearance + comfort controls, consolidated here so
-              the nav pill stays minimal (especially on mobile). */}
-          <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
-            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
-            <div className="ml-auto flex items-center gap-0.5">
-              <ThemeToggle />
-              <FocusToggle withLabel />
+              the nav pill stays minimal (especially on mobile). Outside the
+              scroller: it is the one row you always want reachable, and it used
+              to be the first casualty when the list grew. */}
+          <div className="shrink-0 px-4 pb-4 pt-3 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
+              <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
+              <div className="ml-auto flex items-center gap-0.5">
+                <ThemeToggle />
+                <FocusToggle withLabel />
+              </div>
             </div>
           </div>
         </Dialog.Content>

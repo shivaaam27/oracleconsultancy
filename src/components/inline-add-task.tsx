@@ -106,8 +106,10 @@ export function InlineAddTask({
         "border-border/70 bg-transparent focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15",
       )}
     >
-      {/* leading + */}
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
+      {/* Leading + — decoration, not a control. It goes on a phone: it was
+          sitting seven pixels from the assignee circle, which is a REAL "+",
+          and between them they left the box you actually type in 174px wide. */}
+      <span className="hidden h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent sm:grid">
         <Plus size={15} />
       </span>
 

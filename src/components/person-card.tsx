@@ -43,6 +43,7 @@ export function PersonCard({
   hint,
   directReports = 0,
   accentColor,
+  hideCompany = false,
   selectMode = false,
   selected = false,
   onPointerDown,
@@ -58,6 +59,13 @@ export function PersonCard({
   directReports?: number;
   /** Company brand colour for the left rail. */
   accentColor?: string | null;
+  /**
+   * Drop the company from the meta line. Set when the directory is grouped BY
+   * company, where every card in the housing repeats the name already written
+   * across the top of it — and on a phone that repetition is what pushed the
+   * person's ROLE into an ellipsis ("Operations Manager · Furaha Innovatio…").
+   */
+  hideCompany?: boolean;
   selectMode?: boolean;
   selected?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
@@ -79,7 +87,7 @@ export function PersonCard({
 
   const role = p.portalRole ?? "staff";
   const metaPrimary = p.role || "—";
-  const metaCompany = [p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" · ");
+  const metaCompany = [hideCompany ? null : p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" · ");
 
   return (
     <EntityCard
@@ -113,7 +121,10 @@ export function PersonCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-medium text-[14.5px] leading-tight truncate group-hover:text-accent transition-colors">{p.name}</span>
+          {/* A name is the whole point of a directory row, so on a phone it wraps
+              rather than truncates — "Mr Gangadhar Mathankar" needed 177px and
+              had 176, and came out as "Mr Gangadhar Mathan…". */}
+          <span className="min-w-0 font-medium text-[14.5px] leading-tight truncate group-hover:text-accent transition-colors max-sm:whitespace-normal">{p.name}</span>
           <StaffIdChip id={p.staffId} className="shrink-0" />
           {p.portalEnabled ? (
             <span title={`Portal access · ${portalRoleBadge(role, p.portalDesignation)}`}

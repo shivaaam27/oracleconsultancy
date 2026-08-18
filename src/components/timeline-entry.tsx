@@ -279,7 +279,12 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
     const u = item as TimelineUpdate;
     return (
       <div className="rounded-xl bg-accent/5 ring-1 ring-accent/20 px-3 py-2.5 space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
+        {/* Which task, and when. Side by side there is room for both on a desk;
+            on a phone the actor pill, the time and the ⋯ take 128px of a 287px
+            card and the task title is left with about 96, so it came out as
+            "SA 189 · Pulin — …". Below `sm` the two stack: the title gets the
+            whole first line, the when goes underneath. */}
+        <div className="flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
           {taskChip ?? <span className="text-[11px] font-medium text-accent inline-flex items-center gap-1">{u.pinnedAt && <Pin size={9} className="fill-accent" />}Update</span>}
           {meta}
         </div>
@@ -301,7 +306,7 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
     const safeLabel = distinctFields.length === 0 ? "Updated" : label;
     return (
       <div className="rounded-xl bg-bg-subtle/60 ring-1 ring-border/50 px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
           <div className="min-w-0">{taskChip}</div>
           {meta}
         </div>
@@ -330,7 +335,7 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
   const isCorrection = item.entryType === "CORRECTION" || item.field === "Correction";
   return (
     <div className="rounded-xl bg-bg-subtle/50 ring-1 ring-border/50 px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
         <div className="min-w-0">{taskChip}</div>
         {meta}
       </div>

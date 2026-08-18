@@ -166,11 +166,45 @@ const HIDE: Record<string, string> = {
   lg: "hidden lg:block",
 };
 
-/** Grid template for a column set — shared by the header and every row so they
- *  line up exactly. */
+/**
+ * Grid template for a column set — shared by the header and every row so they
+ * line up exactly.
+ *
+ * ⚠️ FOUR templates, one per breakpoint, and that is not over-engineering.
+ *
+ * `hideBelow` hides a CELL with `display: none`, but this template used to list
+ * every column's width at every width. Two things then went wrong at once on a
+ * narrow screen, and both were invisible until you looked at a real phone:
+ *
+ *  1. A hidden cell's TRACK survives. On the People directory in Compact, the
+ *     hidden Manager (150px) and Portal (86px) tracks still ate 236px of a
+ *     344px row, and Name — a `minmax(0,1fr)` — was squeezed to ZERO.
+ *  2. A `display:none` element is not a grid item, so auto-placement moves
+ *     everything after it UP a track. Open landed in Manager's 150px column.
+ *
+ * The result was a directory of people with no names in it: a column of bare
+ * numbers, centred in the wrong place.
+ *
+ * So each breakpoint gets a template of exactly the columns visible AT that
+ * breakpoint, published as custom properties and switched by media queries in
+ * globals.css (keyed on `data-list-grid`). At `lg` the template is identical to
+ * the old single one, so the desktop is untouched.
+ */
 function gridFor<T>(columns: RecordColumn<T>[], hasSelection: boolean) {
-  const cols = columns.map((c) => c.width).join(" ");
-  return { gridTemplateColumns: hasSelection ? `28px ${cols}` : cols };
+  const RANK = { sm: 1, md: 2, lg: 3 } as const;
+  const template = (bp: 0 | 1 | 2 | 3) => {
+    const cols = columns
+      .filter((c) => !c.hideBelow || RANK[c.hideBelow] <= bp)
+      .map((c) => c.width)
+      .join(" ");
+    return hasSelection ? `28px ${cols}` : cols;
+  };
+  return {
+    "--rl-cols": template(0),
+    "--rl-cols-sm": template(1),
+    "--rl-cols-md": template(2),
+    "--rl-cols-lg": template(3),
+  } as React.CSSProperties;
 }
 
 /**
@@ -186,6 +220,7 @@ export function RecordListHeader<T>({
   return (
     <div
       data-list-head
+      data-list-grid
       style={gridFor(columns, hasSelection)}
       className={cn("grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3", className)}
     >
@@ -620,6 +655,7 @@ export function RecordList<T>({
           {showHeader && (
             <div
               data-list-head
+              data-list-grid
               style={gridStyle}
               className="grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3"
             >
@@ -671,7 +707,7 @@ export function RecordList<T>({
                 if (starts) lastGroup = group;
                 const cells = (
                   <div data-list-row className="group/row relative px-3">
-                    <div style={gridStyle} className="grid items-center gap-x-3">
+                    <div data-list-grid style={gridStyle} className="grid items-center gap-x-3">
                       {tick && (
                         <span onClick={(e) => e.stopPropagation()}>{tick(row)}</span>
                       )}

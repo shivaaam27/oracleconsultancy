@@ -190,7 +190,12 @@ export function TimelineView({
         ) : (
           activityDays.map((day) => (
             <section key={day.label}>
-              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm">
+              {/* The day heading sticks to the top as you scroll. Its 80%
+                  background was meant to be finished off by the blur behind it,
+                  and Desk switched backdrop blur off — so entries scrolling past
+                  read straight through the heading. Solid on a phone, where the
+                  heading sits right on top of the densest part of the page. */}
+              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm max-sm:bg-bg">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{day.label} <span className="text-fg-subtle font-normal">· {day.items.length}</span></h3>
               </div>
               <ol className="mt-1">
@@ -238,10 +243,14 @@ export function TimelineView({
         <button type="button" onClick={() => openTask(r.code)} className="w-full text-left elevated bg-bg-elev rounded-xl p-3 mb-2 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
+              {/* The company is the one thing here allowed to give ground: it
+                  truncates. The code and the date must not, and without
+                  `shrink-0` they did — at 375px "OC-040" broke across two lines
+                  at its hyphen and "· Tue 11 Aug" after "Tue 11". */}
               <div className="flex items-center gap-2 text-xs text-fg-muted mb-0.5">
-                <span className="font-mono">{r.code}</span>
+                <span className="shrink-0 font-mono">{r.code}</span>
                 <span className="truncate">{r.companyName}</span>
-                {d && <span className="text-fg-subtle">· {dayLabel(d)}</span>}
+                {d && <span className="shrink-0 whitespace-nowrap text-fg-subtle">· {dayLabel(d)}</span>}
               </div>
               <div className="text-sm leading-snug line-clamp-2">{r.actionItem}</div>
             </div>

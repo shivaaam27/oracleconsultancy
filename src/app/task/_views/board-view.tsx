@@ -177,7 +177,32 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
       <OrderRegistrar codes={orderedCodes} />
       <LayoutGroup>
       <Panel className="p-2 sm:p-3">
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+      {/* On a phone only one column fits, so a sideways swipe snaps to the next
+          one rather than parking half-way across two. `proximity`, not
+          `mandatory`: a deliberate nudge to peek at the column next door is
+          still allowed.
+
+          ⚠️ From `sm` up the board is BOUNDED and each column scrolls its own
+          cards. The headings were marked `sticky top-0` and never once stuck:
+          `overflow-x: auto` makes this element a scroll container on BOTH axes
+          (a `visible` on the other axis computes to `auto`), so a heading
+          resolved against a box with no vertical overflow to move within, and
+          scrolled away with the page. Columns run to ~3800px, so the heading
+          was gone almost immediately and you could not tell which status you
+          were reading.
+
+          Sticky is not the fix — a heading that sits OUTSIDE the scrolling part
+          is. Each column is a flex column: heading fixed at the top, cards in a
+          `flex-1 min-h-0 overflow-y-auto` body under it. Columns still stretch
+          to the full height, so an empty column is still a full-size drop
+          target. `overflow-y-hidden` on this row stops it scrolling vertically
+          as well and giving you two bars.
+
+          NOT on a phone: there the board starts ~460px down the page, and a
+          nested vertical scroller that far down fights the page's own scroll
+          under a thumb. A phone shows one column at a time and still loses its
+          heading — noted in memory/mobile_sweep_handover.md as open. */}
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 max-sm:snap-x max-sm:snap-proximity sm:max-h-[calc(100svh-19rem)] sm:min-h-[26rem] sm:overflow-y-hidden">
         {columns.map((col) => (
           <div
             key={col.status}
@@ -190,11 +215,14 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
               setDragCode(null); setOverStatus(null);
             }}
             className={
-              "w-[244px] sm:w-[268px] shrink-0 rounded-2xl transition-colors " +
+              "w-[244px] sm:w-[268px] shrink-0 rounded-2xl transition-colors max-sm:snap-start sm:flex sm:flex-col sm:min-h-0 " +
               (overStatus === col.status ? "bg-accent/8 ring-1 ring-accent/40" : "")
             }
           >
-            <div className="flex items-center gap-2 px-2 py-1.5 sticky top-0">
+            {/* Outside the scrolling part of the column, so it is simply always
+                there. It used to be `sticky top-0`, which did nothing — see the
+                note on the row above. */}
+            <div className="flex shrink-0 items-center gap-2 px-2 py-1.5">
               <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: `hsl(var(--${toneVar(statusTone(col.status))}))` }} />
               <div className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted truncate">{col.status}</div>
               <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">{col.items.length}</div>
@@ -228,7 +256,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
               />
             )}
 
-            <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1">
+            <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto slim-scroll">
               {col.items.map((r, i) => {
                 const done = r.status === "Completed" || r.status === "Closed";
                 return (

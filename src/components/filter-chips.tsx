@@ -16,10 +16,18 @@ export type FilterChipItem<K extends string> = {
 };
 
 /**
- * Canonical Aurora filter row: icon + count chips that collapse to icon-only on
- * mobile (the active chip always shows its label, so you know what's applied)
- * and expand to full labels from sm up. Reuse this for any list page's status
- * filters instead of hand-rolling chips.
+ * Canonical filter row: icon + count + label chips.
+ *
+ * ⚠️ These used to drop their LABELS below `sm` and show icon + count alone,
+ * on the theory that the active chip's label was enough to tell you what was
+ * applied. On the People directory that produced eight anonymous chips —
+ * "✂ 2", "⏱ 0", "🔥 7", "⏳ 1", "🛡 30" — wrapped over two rows, and the
+ * `title` tooltip that explained each one does not exist on a touch screen.
+ * A filter you cannot name is a filter you cannot use.
+ *
+ * They keep their labels at every width now and the row scrolls sideways on a
+ * phone instead of wrapping, which is both shorter and legible. From `sm` up it
+ * wraps as before.
  */
 export function FilterChips<K extends string>({
   items,
@@ -33,8 +41,17 @@ export function FilterChips<K extends string>({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
-      <Filter size={11} className="text-fg-subtle" />
+    <div
+      className={cn(
+        // See the note in task-filter-bar.tsx: `py-1` because a chip's ring is a
+        // box-shadow and `overflow-x: auto` clips it — top edge first.
+        "chip-scroll-fade -ml-4 flex items-center gap-1.5 overflow-x-auto py-1 pl-4",
+        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "sm:ml-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:pl-0",
+        className,
+      )}
+    >
+      <Filter size={11} className="shrink-0 text-fg-subtle" />
       {items.map(({ key, label, icon: Icon, count, tone = "default" }) => {
         const active = value === key;
         const tint = active
@@ -54,14 +71,13 @@ export function FilterChips<K extends string>({
             aria-label={`${label} (${count})`}
             aria-pressed={active}
             className={cn(
-              "inline-flex items-center gap-1.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm",
-              active ? "pl-2 pr-3" : "px-2 sm:pl-2 sm:pr-3",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full py-1.5 pl-2 pr-3 text-xs transition-all backdrop-blur-md hover:shadow-sm",
               tint
             )}
           >
             <Icon size={13} className="shrink-0" />
             <CountPill count={count} tone="inherit" />
-            <span className={cn("font-medium", active ? "inline" : "hidden sm:inline")}>{label}</span>
+            <span className="whitespace-nowrap font-medium">{label}</span>
           </button>
         );
       })}
