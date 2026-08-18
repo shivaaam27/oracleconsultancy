@@ -21,8 +21,15 @@ import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { currencySymbol } from "@/lib/money-format";
 
-/** "1234567.5" → "1,234,567.5". Leaves a trailing "." alone while typing. */
-export function withCommas(raw: string): string {
+/** "1234567.5" → "1,234,567.5". Leaves a trailing "." alone while typing.
+ *
+ *  ⚠️ Coerces first. A Postgres `numeric` comes back from PostgREST as a JSON
+ *  NUMBER, not a string, and several callers pass it straight through under a
+ *  `string` type annotation — which TypeScript believes and the browser does
+ *  not. `raw.startsWith is not a function` took the whole edit panel down on
+ *  any project that had a price on it. */
+export function withCommas(input: string | number): string {
+  const raw = input === null || input === undefined ? "" : String(input);
   if (raw === "" || raw === "-") return raw;
   const neg = raw.startsWith("-");
   const body = neg ? raw.slice(1) : raw;
@@ -33,15 +40,16 @@ export function withCommas(raw: string): string {
 }
 
 /** Anything a person might type → a plain number string the server can store. */
-export function stripCommas(v: string): string {
-  return v.replace(/[^\d.-]/g, "");
+export function stripCommas(v: string | number): string {
+  return String(v ?? "").replace(/[^\d.-]/g, "");
 }
 
 export function MoneyInput({
   value, onChange, currency, className, placeholder, disabled, inputRef, onKeyDown,
 }: {
-  /** A plain number string, e.g. "165899292.12". Never formatted. */
-  value: string;
+  /** A plain number string, e.g. "165899292.12". Never formatted.
+   *  Accepts a number too, because a `numeric` column arrives as one. */
+  value: string | number;
   onChange: (plain: string) => void;
   /** ISO code — TZS, USD. Omit for a bare number (quantities, rates). */
   currency?: string | null;
