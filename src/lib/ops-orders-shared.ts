@@ -50,6 +50,11 @@ export type OrderLine = {
   invoiceId: number | null;
   /** How many of `qty` actually went out. Blank = nobody has said. */
   deliveredQty: string | null;
+  /** When the factory says it will be finished, and when it was. */
+  productionDueDate: string | null;
+  productionDoneDate: string | null;
+  /** When the SUPPLIER'S invoice falls due — what our payables age against. */
+  supplierDueDate: string | null;
   archived: boolean;
 };
 

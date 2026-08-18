@@ -17,7 +17,8 @@ function ship(over: Partial<Shipment> & { id: number }): Shipment {
     clearingAgent: null, doxLodged: null, eta: null, berthDate: null, clearedDate: null,
     assessmentDate: null, dutyAmount: null, vatAmount: null, wharfage: null, agencyFees: null,
     otherCosts: null, freightAmount: null, costCurrency: null, exRate: null,
-    amountPaid: null, paidDate: null, status: null, pendingWith: null, notes: null,
+    amountPaid: null, paidDate: null, refNo: null, freightSupplier: null,
+    freightInvoiceNo: null, status: null, pendingWith: null, notes: null,
     archived: false, ...over,
   };
 }

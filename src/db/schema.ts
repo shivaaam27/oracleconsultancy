@@ -2658,6 +2658,16 @@ export const opsOrderLines = pgTable("ops_order_lines", {
    *  not the same as none. */
   deliveredQty: numeric("delivered_qty", { precision: 14, scale: 3 }),
 
+  /* ── being made to order ───────────────────────────────────────────────── */
+  /** POS STATUS col 36 / PENDING col 14 — when the factory says it will be
+   *  finished, and when it actually was. For a part made to order these are the
+   *  only dates that exist before a bill of lading does. */
+  productionDueDate: timestamp("production_due_date", { mode: "date", withTimezone: true }),
+  productionDoneDate: timestamp("production_done_date", { mode: "date", withTimezone: true }),
+  /** When the SUPPLIER'S invoice for this purchase falls due — what the
+   *  workbook ages its payables against. Ours to pay, not the client's. */
+  supplierDueDate: timestamp("supplier_due_date", { mode: "date", withTimezone: true }),
+
   archived: boolean("archived").notNull().default(false),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2752,6 +2762,17 @@ export const opsShipments = pgTable("ops_shipments", {
   /* ── paying it ─────────────────────────────────────────────────────────── */
   amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
   paidDate: timestamp("paid_date", { mode: "date", withTimezone: true }),
+
+  /** ASSESSMENTS col 12 — the customs reference, which is NOT the bill of
+   *  lading and is what the agent quotes back at you. */
+  refNo: text("ref_no"),
+
+  /* ── freight is billed by somebody else ────────────────────────────────── */
+  /** ⚠️ The forwarder is rarely the supplier. IMP PMT AND FREIGHT bills freight
+   *  from PRISMA LOGISTICS while the goods come from RELIANT EXIM, and until
+   *  these existed there was one `freight_amount` with nobody attached to it. */
+  freightSupplier: text("freight_supplier"),
+  freightInvoiceNo: text("freight_invoice_no"),
 
   status: text("status"),
   pendingWith: text("pending_with"),
@@ -2882,4 +2903,98 @@ export const opsInvoices = pgTable("ops_invoices", {
   uniqueIndex("ops_invoices_no_unique").on(t.companyId, t.invoiceNo),
   index("ops_invoices_company_idx").on(t.companyId, t.archived, t.invoiceDate),
   index("ops_invoices_delivered_idx").on(t.companyId, t.deliveredDate),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS — PAYMENTS: money going OUT, one row per payment (Stage 7).
+//
+// ⚠️ ONE PURCHASE, MANY PAYMENTS. That is the whole point. Until now the order
+// line carried `supplier_payment_date` and nothing else, so a purchase was
+// settled or it was not — while IMP PMT AND FREIGHT (353 rows) has been
+// tracking amount paid, balance, due date, overdue-by, ageing band AND advances
+// against the same invoice all along. A 40% advance could not be recorded.
+//
+// ⚠️ It is DELIBERATELY LOOSE about what a payment is against. The workbook
+// keys on "PROF INV/BL NO" — sometimes a proforma, sometimes a bill of lading —
+// and bills freight from a forwarder who is not the supplier. So a payment may
+// point at an order line, at a shipment, at both, or at neither and carry only
+// the reference somebody wrote on it. Only the amount really matters.
+//
+// ⚠️ Nothing is derived into storage. What is still owed, what was paid in
+// advance and how old the debt is are all worked out on read in
+// `ops-payments-shared.ts`.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsPayments = pgTable("ops_payments", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /** Who was paid — a supplier, a clearing agent, a forwarder, the revenue
+   *  authority. Free text with suggestions, like every other name here. */
+  payee: text("payee"),
+  /** What it was for: GOODS | FREIGHT | DUTY | ADVANCE | anything typed.
+   *  ⚠️ Free text, not an enum. The owner cannot answer what the categories
+   *  ought to be, so the list builds itself out of what gets used. */
+  kind: text("kind"),
+  paidDate: timestamp("paid_date", { mode: "date", withTimezone: true }),
+  amount: numeric("amount", { precision: 14, scale: 2 }),
+  currency: text("currency"),
+  /** Frozen on the payment, like every other rate in this module. */
+  exRate: numeric("ex_rate", { precision: 14, scale: 4 }),
+
+  /** What it was written against — the workbook's PROF INV/BL NO. */
+  reference: text("reference"),
+  /** ⚠️ Both optional, and both allowed at once. Goods point at the line; duty
+   *  and freight point at the shipment; one payment covering several lines of a
+   *  proforma may point at neither and carry only the reference. */
+  orderLineId: integer("order_line_id").references(() => opsOrderLines.id, { onDelete: "set null" }),
+  shipmentId: integer("shipment_id").references(() => opsShipments.id, { onDelete: "set null" }),
+
+  notes: text("notes"),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ops_payments_company_idx").on(t.companyId, t.archived, t.paidDate),
+  index("ops_payments_line_idx").on(t.orderLineId),
+  index("ops_payments_shipment_idx").on(t.shipmentId),
+  index("ops_payments_payee_idx").on(t.companyId, t.payee),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS — TENDERS: bids being chased before any enquiry exists (Stage 7).
+//
+// The workbook's `tenders` sheet — 80 rows, four columns. It sits BEFORE the
+// funnel: a tender is advertised, we decide whether to quote, and only if it
+// comes off does an RFQ or a PO follow.
+//
+// ⚠️ Its own table rather than folded into `ops_enquiries`. A tender has no RFQ
+// number and no client asking us directly, and putting it in the funnel would
+// drag it into the conversion figures — which are about enquiries a client
+// actually sent. `enquiry_id` links the two if one does become the other.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsTenders = pgTable("ops_tenders", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  description: text("description").notNull(),
+  client: text("client"),
+  /** "QUOTE", "EOI", "PREQUALIFICATION" — whatever they call it. */
+  quoteType: text("quote_type"),
+  deadline: timestamp("deadline", { mode: "date", withTimezone: true }),
+  /** Null while it is still live; SUBMITTED / WON / LOST / NOT BID once decided. */
+  outcome: text("outcome"),
+  outcomeReason: text("outcome_reason"),
+  submittedDate: timestamp("submitted_date", { mode: "date", withTimezone: true }),
+  /** The enquiry it became, if it became one. */
+  enquiryId: integer("enquiry_id").references(() => opsEnquiries.id, { onDelete: "set null" }),
+  notes: text("notes"),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ops_tenders_company_idx").on(t.companyId, t.archived, t.deadline),
 ]);

@@ -18,7 +18,7 @@ import type { Shipment } from "@/lib/ops-shipments-shared";
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
 
 // ⚠️ One string literal on one line — see the note in lib/projects.ts.
-const COLS = "id,company_id,bl_no,bl_date,supplier,origin,mode,clearing_agent,dox_lodged,eta,berth_date,cleared_date,assessment_date,duty_amount,vat_amount,wharfage,agency_fees,other_costs,freight_amount,cost_currency,ex_rate,amount_paid,paid_date,status,pending_with,notes,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,bl_no,bl_date,supplier,origin,mode,clearing_agent,dox_lodged,eta,berth_date,cleared_date,assessment_date,duty_amount,vat_amount,wharfage,agency_fees,other_costs,freight_amount,cost_currency,ex_rate,ref_no,freight_supplier,freight_invoice_no,amount_paid,paid_date,status,pending_with,notes,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): Shipment {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -44,6 +44,9 @@ function mapRow(r: Record<string, unknown>): Shipment {
     freightAmount: s("freight_amount"),
     costCurrency: s("cost_currency"),
     exRate: s("ex_rate"),
+    refNo: s("ref_no"),
+    freightSupplier: s("freight_supplier"),
+    freightInvoiceNo: s("freight_invoice_no"),
     amountPaid: s("amount_paid"),
     paidDate: s("paid_date"),
     status: s("status"),
@@ -100,6 +103,9 @@ export type ShipmentFields = {
   freightAmount?: string | number | null;
   costCurrency?: string | null;
   exRate?: string | number | null;
+  refNo?: string | null;
+  freightSupplier?: string | null;
+  freightInvoiceNo?: string | null;
   amountPaid?: string | number | null;
   paidDate?: string | null;
   status?: string | null;

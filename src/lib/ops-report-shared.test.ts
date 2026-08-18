@@ -20,7 +20,9 @@ function line(over: Partial<OrderLine> & { id: number; poNo: string }): OrderLin
     source: null, supplier: null, origin: null, profNo: null, purchaseDate: null,
     purchaseCurrency: null, purchaseQty: null, purchaseUnitPrice: null,
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
-    shipmentId: null, invoiceId: null, deliveredQty: null, archived: false, ...over,
+    shipmentId: null, invoiceId: null, deliveredQty: null,
+    productionDueDate: null, productionDoneDate: null, supplierDueDate: null,
+    archived: false, ...over,
   };
 }
 
@@ -30,7 +32,9 @@ function ship(over: Partial<Shipment> & { id: number }): Shipment {
     clearingAgent: null, doxLodged: null, eta: null, berthDate: null, clearedDate: null,
     assessmentDate: null, dutyAmount: null, vatAmount: null, wharfage: null, agencyFees: null,
     otherCosts: null, freightAmount: null, costCurrency: null, exRate: null,
-    amountPaid: null, paidDate: null, status: null, pendingWith: null, notes: null,
+    amountPaid: null, paidDate: null,
+    refNo: null, freightSupplier: null, freightInvoiceNo: null,
+    status: null, pendingWith: null, notes: null,
     archived: false, ...over,
   };
 }

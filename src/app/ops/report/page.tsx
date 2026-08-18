@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui";
 import { listOrderLines } from "@/lib/ops-orders";
 import { listShipments } from "@/lib/ops-shipments";
 import { listInvoices } from "@/lib/ops-invoices";
+import { listPayments } from "@/lib/ops-payments";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsReportSheet } from "@/components/ops-report-sheet";
 
@@ -42,10 +43,11 @@ export default async function OpsReportPage({
     );
   }
 
-  const [lines, shipments, despatches] = await Promise.all([
+  const [lines, shipments, despatches, payments] = await Promise.all([
     listOrderLines(chosen.id),
     listShipments(chosen.id),
     listInvoices(chosen.id),
+    listPayments(chosen.id),
   ]);
 
   return (
@@ -63,6 +65,7 @@ export default async function OpsReportPage({
           id: d.id, deliveredDate: d.deliveredDate,
           invoiceNo: d.invoiceNo, invoiceDate: d.invoiceDate,
         }))}
+        payments={payments}
         groupBy={group ?? "desk"}
       />
     </div>

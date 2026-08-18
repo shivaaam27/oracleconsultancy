@@ -141,7 +141,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0135** (the PES delivery-and-billing record; see the `/ops` section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0136** (PES payments + tenders; see the `/ops` section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
 
@@ -239,8 +239,10 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   billing** (what went out, what was billed, and each PO's balance — the invoice
   is its own record, so one covering 24 lines is typed once) · **Report**
   (PENDING, purchase analysis and the payments forecast, all worked out — no new
-  table, nothing typed on it) · **Setup** (eight master lists). Migrations
-  0130–0135. Searchable via four `EntityDef`s (`ops_order`/`ops_shipment`/
+  table, nothing typed on it) · **Payments** (money OUT: one purchase takes many
+  payments, so a 40% advance and the balance are two rows; ageing in the
+  workbook's own bands) · **Setup** (eight master lists). Tenders sit on the
+  Funnel tab. Migrations 0130–0136. Searchable via four `EntityDef`s (`ops_order`/`ops_shipment`/
   `ops_enquiry`/`ops_invoice`) and ONE read-only MCP tool, `pes_trading`. **Read
   `memory/pes_ops_module.md` before touching any of it** — it holds the workbook
   analysis, the owner's decisions, and the stages still to come (the funnel,

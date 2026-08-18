@@ -437,6 +437,7 @@ function AddLine({
         supplier: null, origin: null, profNo: null, purchaseDate: null, purchaseCurrency: null,
         purchaseQty: null, purchaseUnitPrice: null, supplierPaymentDate: null,
         status: null, pendingWith: null, remarks: null, invoiceId: null, deliveredQty: null,
+        productionDueDate: null, productionDoneDate: null, supplierDueDate: null,
         shipmentId: null, archived: false,
       });
       // Clear the line, keep the header: PO, client, currency, rate and dates
@@ -582,6 +583,9 @@ function EditLine({
     supplierPaymentDate: line.supplierPaymentDate?.slice(0, 10) ?? "",
     status: line.status ?? "", pendingWith: line.pendingWith ?? "", remarks: line.remarks ?? "",
     deliveredQty: line.deliveredQty ?? "",
+    productionDueDate: line.productionDueDate?.slice(0, 10) ?? "",
+    productionDoneDate: line.productionDoneDate?.slice(0, 10) ?? "",
+    supplierDueDate: line.supplierDueDate?.slice(0, 10) ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   const [openSale, setOpenSale] = useState(false);
@@ -618,6 +622,9 @@ function EditLine({
         supplierPaymentDate: f.supplierPaymentDate || null,
         status: f.status || null, pendingWith: f.pendingWith || null, remarks: f.remarks || null,
         deliveredQty: clean(f.deliveredQty),
+        productionDueDate: f.productionDueDate || null,
+        productionDoneDate: f.productionDoneDate || null,
+        supplierDueDate: f.supplierDueDate || null,
       });
     });
 
@@ -683,8 +690,19 @@ function EditLine({
         <Cell className="sm:col-span-2" label="Ordered on">
           <input type="date" value={f.purchaseDate} onChange={(e) => set("purchaseDate", e.target.value)} className={inputCls} />
         </Cell>
-        <Cell className="sm:col-span-2" label="Supplier paid">
+        <Cell className="sm:col-span-2" label="Supplier paid" hint="the amounts live on Payments">
           <input type="date" value={f.supplierPaymentDate} onChange={(e) => set("supplierPaymentDate", e.target.value)} className={inputCls} />
+        </Cell>
+        <Cell className="sm:col-span-2" label="Their invoice due" hint="what our payables age against">
+          <input type="date" value={f.supplierDueDate} onChange={(e) => set("supplierDueDate", e.target.value)} className={inputCls} />
+        </Cell>
+        {/* ⚠️ For a part made to order these are the only dates that exist
+            before a bill of lading does — POS STATUS col 36, PENDING col 14. */}
+        <Cell className="sm:col-span-2" label="Production due" hint="factory's date">
+          <input type="date" value={f.productionDueDate} onChange={(e) => set("productionDueDate", e.target.value)} className={inputCls} />
+        </Cell>
+        <Cell className="sm:col-span-2" label="Production done">
+          <input type="date" value={f.productionDoneDate} onChange={(e) => set("productionDoneDate", e.target.value)} className={inputCls} />
         </Cell>
       </Section>
 

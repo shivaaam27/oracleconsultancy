@@ -844,12 +844,104 @@ spelling drift — `RELIANT EXIM &CONSULTING LLC` against
 `normaliseOpsRefName` exists to prevent, so it is fixed rather than missing.
 **Do not add a second supplier field to the line.**
 
-### The honest answer
+### The honest answer (SUPERSEDED — all five were built; see Stage 7 below)
 
 **He cannot put the workbook away yet.** Orders, imports, the funnel, delivery,
 billing and the report are all covered. **Supplier payments are not**, and that
 is a weekly job with money in it. Gap 1 (with 2 folded in) is the next stage;
 3, 4 and 5 are small and can follow.
+
+---
+
+---
+
+# STAGE 7 — the five gaps, closed ✅ BUILT (Aug 2026)
+
+Migration **0136**: `ops_payments`, `ops_tenders`, three columns on
+`ops_order_lines` and three on `ops_shipments`. All additive, so it went
+straight in.
+
+## ⚠️ Why there were gaps at all — worth remembering
+
+The module was built to **the stage plan**, and the stage plan never contained
+`IMP PMT AND FREIGHT` or `tenders`. The first analysis COUNTED those sheets
+(1,366 and 322 typed cells) and then never assigned them a stage. Nobody checked
+the workbook column by column until the owner asked "is the whole Excel
+covered?" — six stages in.
+
+**The lesson: count the sheets, then map every COLUMN, and only then write the
+stage plan.** A sheet that appears in a cell-count table but in no stage is a
+sheet nobody has decided about.
+
+## 1. Payments — one purchase, MANY payments
+
+`/ops/payments`, a new tab. This is the half of the business COS could not hold:
+the order line carried `supplier_payment_date` and nothing else, so a purchase
+was settled or it was not, while IMP PMT AND FREIGHT has been tracking amount
+paid, balance, due date, overdue-by, ageing band and advances against the same
+invoice across 353 rows. **A 40% advance had nowhere to go.**
+
+- **`ops_payments` is deliberately loose about what a payment is against.** The
+  workbook keys on "PROF INV/BL NO" — sometimes a proforma, sometimes a bill of
+  lading — so a payment may point at an order line, at a shipment, at both, or
+  at neither and carry only the reference. **Only the amount is required.**
+- Payments against nothing are a **filter and a tile** ("not matched up"), not a
+  silent omission — money out that nobody has matched is worth seeing.
+- **Ageing uses the workbook's own bands** (CURRENT / 0-30 / 31-60 / 61-90 /
+  OVER 90) so a figure here can be checked against a figure there, and runs from
+  a new `ops_order_lines.supplier_due_date`.
+- **An overpayment shows as a negative** ("in credit"), never clamped — the
+  workbook has a real row at −1,080.
+- ⚠️ **The Report now reads THIS**, not the old date-only guess.
+  `supplierBalances` in `ops-report-shared.ts` survives because it answers a
+  different question — which purchases nobody has recorded any payment against —
+  and its header says so. **Do not quote its `owedTzs` as what is owed.**
+
+## 2. Freight, billed by somebody who is not the supplier
+
+`ops_shipments.freight_supplier` + `freight_invoice_no`. IMP PMT AND FREIGHT
+bills freight from PRISMA LOGISTICS while the goods come from RELIANT EXIM;
+until now the freight figure had nobody attached to it. Freight payments are
+ordinary payments pointed at the shipment.
+
+## 3. Tenders
+
+`ops_tenders`, shown as a collapsible panel **on the Funnel tab** — same story
+(what might become an order), separate record.
+
+⚠️ **Deliberately NOT folded into `ops_enquiries`.** A tender has no RFQ number
+and no client asking directly, and putting it in the funnel would drag it into
+the conversion figures, which are about enquiries a client actually sent.
+Verified: with a tender on the screen the enquiry tiles still read 0.
+
+The panel exists for one thing — **the missed bid**: live, deadline gone,
+nothing submitted, nobody closed it. It says so in red at the top.
+
+## 4. Production dates
+
+`production_due_date` + `production_done_date` on the line (POS STATUS col 36,
+PENDING cols 13–14). For a part made to order these are the only dates that
+exist before a bill of lading does.
+
+## 5. The customs reference
+
+`ops_shipments.ref_no` — ASSESSMENTS col 12, which is NOT the bill of lading and
+is what the agent quotes back at you.
+
+### Verified in the browser, then cleared
+
+A 3,000,000 purchase from MAT HELLAS due 15 Jun, paid 1,200,000 as an advance
+and 800,000 later: **still owed 1,000,000, aged 61 - 90 DAYS (64d), 2,000,000
+shown as paid in advance** — and the same figure on the Report. A tender with a
+1 Aug deadline read **"1 deadline passed with nothing submitted"** and did not
+touch the enquiry figures. All deleted afterwards.
+
+### Still to do on these two
+
+**Search and MCP do not know about payments or tenders yet.** Four `EntityDef`s
+cover orders, shipments, enquiries and deliveries; these two would be two more,
+and `pes_trading` would gain two `type` values. Small, and worth doing before
+anybody relies on asking Claude about what is owed.
 
 ---
 

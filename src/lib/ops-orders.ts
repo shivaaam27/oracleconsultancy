@@ -18,7 +18,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type (learned in lib/projects.ts).
-const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,invoice_id,delivered_qty,status,pending_with,remarks,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,invoice_id,delivered_qty,production_due_date,production_done_date,supplier_due_date,status,pending_with,remarks,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): OrderLine {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -55,6 +55,9 @@ function mapRow(r: Record<string, unknown>): OrderLine {
     shipmentId: (r.shipment_id as number | null) ?? null,
     invoiceId: (r.invoice_id as number | null) ?? null,
     deliveredQty: s("delivered_qty"),
+    productionDueDate: s("production_due_date"),
+    productionDoneDate: s("production_done_date"),
+    supplierDueDate: s("supplier_due_date"),
     archived: Boolean(r.archived),
   };
 }
@@ -130,6 +133,9 @@ export type OrderLineFields = {
   /** How many of `qty` went out. ⚠️ The delivery note and the invoice itself
    *  live on `ops_invoices`; the line only points at one. */
   deliveredQty?: string | number | null;
+  productionDueDate?: string | null;
+  productionDoneDate?: string | null;
+  supplierDueDate?: string | null;
 };
 
 function text(v: string | null | undefined): string | null {
@@ -184,6 +190,9 @@ function toRow(f: Partial<OrderLineFields>): Record<string, unknown> {
   if (f.pendingWith !== undefined) put("pending_with", text(f.pendingWith));
   if (f.remarks !== undefined) put("remarks", text(f.remarks));
   if (f.deliveredQty !== undefined) put("delivered_qty", amount(f.deliveredQty));
+  if (f.productionDueDate !== undefined) put("production_due_date", text(f.productionDueDate));
+  if (f.productionDoneDate !== undefined) put("production_done_date", text(f.productionDoneDate));
+  if (f.supplierDueDate !== undefined) put("supplier_due_date", text(f.supplierDueDate));
   return row;
 }
 

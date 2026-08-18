@@ -35,6 +35,11 @@ export type Shipment = {
   exRate: string | null;
   amountPaid: string | null;
   paidDate: string | null;
+  /** The customs reference — NOT the bill of lading. */
+  refNo: string | null;
+  /** Freight is billed by a forwarder, who is rarely the supplier. */
+  freightSupplier: string | null;
+  freightInvoiceNo: string | null;
   status: string | null;
   pendingWith: string | null;
   notes: string | null;

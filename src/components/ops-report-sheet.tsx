@@ -22,13 +22,22 @@ import {
   pendingLines, byDesk, byStatus, supplierBalances, reportTotals,
   type DeskGroup,
 } from "@/lib/ops-report-shared";
+// ⚠️ Since Stage 7 what we OWE comes from the real payments, not from a
+// payment date. `supplierBalances` above still answers a different question:
+// which purchases nobody has recorded a payment against at all.
+import {
+  purchaseDebt, shipmentDebt, payeeBalances, payableTotals, type Payment,
+} from "@/lib/ops-payments-shared";
+import { OpsPayables } from "./ops-payables";
 
 export function OpsReportSheet({
-  companyId, lines, shipments, despatches, groupBy,
+  companyId, lines, shipments, despatches, payments = [], groupBy,
 }: {
   companyId: number;
   lines: OrderLine[];
   shipments: Shipment[];
+  /** Money out, so "owed to suppliers" is a real balance and not a guess. */
+  payments?: Payment[];
   despatches: Array<{ id: number } & DespatchLite>;
   /** "desk" (whose it is) or "status" — a link, so it survives a refresh. */
   groupBy: string;
@@ -43,6 +52,33 @@ export function OpsReportSheet({
     () => (groupBy === "status" ? byStatus(pending) : byDesk(pending)), [pending, groupBy]);
   const suppliers = useMemo(() => supplierBalances(views), [views]);
   const shipViews = useMemo(() => shipments.map((s) => shipmentView(s)), [shipments]);
+
+  const byLine = useMemo(() => {
+    const m = new Map<number, Payment[]>();
+    for (const p of payments) {
+      if (p.orderLineId === null) continue;
+      const b = m.get(p.orderLineId); if (b) b.push(p); else m.set(p.orderLineId, [p]);
+    }
+    return m;
+  }, [payments]);
+  const byShip = useMemo(() => {
+    const m = new Map<number, Payment[]>();
+    for (const p of payments) {
+      if (p.shipmentId === null) continue;
+      const b = m.get(p.shipmentId); if (b) b.push(p); else m.set(p.shipmentId, [p]);
+    }
+    return m;
+  }, [payments]);
+  const purchases = useMemo(
+    () => views.filter((v) => v.line.supplier?.trim() || v.purchaseTotalTzs !== null)
+      .map((v) => purchaseDebt(v, byLine.get(v.line.id) ?? [])), [views, byLine]);
+  const payees = useMemo(
+    () => payeeBalances(
+      purchases,
+      shipViews.map((v) => shipmentDebt(v, byShip.get(v.shipment.id) ?? [])),
+      payments.filter((p) => p.orderLineId === null && p.shipmentId === null),
+    ), [purchases, shipViews, byShip, payments]);
+  const payable = useMemo(() => payableTotals(payees, purchases), [payees, purchases]);
   const totals = useMemo(
     () => reportTotals(pending, suppliers, shipViews), [pending, suppliers, shipViews]);
 
@@ -72,9 +108,11 @@ export function OpsReportSheet({
         <Tile label="On nobody's desk" value={String(totals.unclaimed)}
           sub="no name against them"
           tone={totals.unclaimed > 0 ? "warn" : undefined} />
-        <Tile label="Owed to suppliers" value={money(totals.owedToSuppliers) ?? "—"}
-          sub={totals.suppliersUnknown > 0 ? `${totals.suppliersUnknown} not costed` : "for goods"}
-          tone={totals.owedToSuppliers > 0 ? "warn" : undefined} />
+        <Tile label="Owed to suppliers" value={money(payable.owed) ?? "—"}
+          href={`/ops/payments?${co}`}
+          sub={payable.unknown > 0 ? `${payable.unknown} not costed`
+            : `${payable.payees} payee${payable.payees === 1 ? "" : "s"}`}
+          tone={payable.owed > 0 ? "warn" : undefined} />
         <Tile label="Duty to pay" value={money(totals.dutyToPay) ?? "—"} href={`/ops/imports?${co}&state=owing`}
           sub={`${totals.atPort} still moving`}
           tone={totals.dutyToPay > 0 ? "warn" : undefined} />
@@ -168,66 +206,8 @@ export function OpsReportSheet({
         )}
       </section>
 
-      {/* ── PURCHASE ANALYSIS + PAYMENTS FORECAST ────────────────────────── */}
-      <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
-        <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-          <h3 className="text-[12px] font-medium">What we owe our suppliers</h3>
-          <p className="text-[11px] text-fg-subtle">
-            A purchase counts as settled once it has a payment date — the line records a date, not
-            an amount, so there are no part-payments
-          </p>
-        </header>
-        {suppliers.length === 0 ? (
-          <p className="px-3 py-3 text-[12px] text-fg-subtle">
-            No supplier has been named on an order line yet.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse text-[12px]">
-              <thead>
-                <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
-                  <Th className="text-left">Supplier</Th>
-                  <Th>Lines</Th>
-                  <Th>Unpaid</Th>
-                  <Th>Oldest</Th>
-                  <Th className="text-right">Bought</Th>
-                  <Th className="text-right">Paid</Th>
-                  <Th className="text-right">Still owed</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers.map((s) => (
-                  <tr key={s.supplier} className="border-b border-border/60 last:border-0">
-                    <Td className="text-left">
-                      <Link href={`/ops?${co}&oq=${encodeURIComponent(s.supplier)}`}
-                        className="text-accent hover:underline">{s.supplier}</Link>
-                    </Td>
-                    <Td className="tabular">{s.lines}</Td>
-                    <Td className="tabular">{s.unpaidLines || "—"}</Td>
-                    <Td className="tabular text-fg-muted">
-                      {s.oldestDays === null ? "—" : `${s.oldestDays}d`}
-                    </Td>
-                    <Td className="tabular text-right">
-                      {s.boughtTzs === null
-                        ? <span className="text-fg-subtle" title={
-                            `${s.uncosted} line${s.uncosted === 1 ? "" : "s"} from this supplier have no cost on them.`
-                          }>not costed</span>
-                        : money(s.boughtTzs)}
-                    </Td>
-                    <Td className="tabular text-right text-fg-muted">
-                      {s.paidTzs === null ? "—" : money(s.paidTzs)}
-                    </Td>
-                    <Td className={cn("tabular text-right",
-                      s.owedTzs === null ? "text-fg-subtle" : s.owedTzs > 0.005 ? "text-warn" : "text-success")}>
-                      {s.owedTzs === null ? "—" : s.owedTzs <= 0.005 ? "settled" : money(s.owedTzs)}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {/* ── what we owe, from the real payments (Stage 7) ────────────────── */}
+      <OpsPayables rows={payees} totals={payable} companyId={companyId} />
 
       <p className="px-1 text-[11px] text-fg-subtle">
         Nothing on this screen is stored. It is worked out from the orders, the shipments and the

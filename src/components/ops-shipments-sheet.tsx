@@ -367,7 +367,8 @@ function AddShipment({
         eta: eta || null, berthDate: null, clearedDate: null, assessmentDate: null,
         dutyAmount: null, vatAmount: null, wharfage: null, agencyFees: null,
         otherCosts: null, freightAmount: null, costCurrency: null, exRate: null,
-        amountPaid: null, paidDate: null, status: null, pendingWith: null, notes: null,
+        amountPaid: null, paidDate: null, refNo: null, freightSupplier: null,
+        freightInvoiceNo: null, status: null, pendingWith: null, notes: null,
         archived: false,
       });
       setBlNo(""); setBlDate(""); setEta(""); setComboKey((k) => k + 1);
@@ -443,6 +444,9 @@ function EditShipment({
     eta: shipment.eta?.slice(0, 10) ?? "", berthDate: shipment.berthDate?.slice(0, 10) ?? "",
     clearedDate: shipment.clearedDate?.slice(0, 10) ?? "",
     assessmentDate: shipment.assessmentDate?.slice(0, 10) ?? "",
+    refNo: shipment.refNo ?? "",
+    freightSupplier: shipment.freightSupplier ?? "",
+    freightInvoiceNo: shipment.freightInvoiceNo ?? "",
     dutyAmount: shipment.dutyAmount ?? "", vatAmount: shipment.vatAmount ?? "",
     wharfage: shipment.wharfage ?? "", agencyFees: shipment.agencyFees ?? "",
     otherCosts: shipment.otherCosts ?? "", freightAmount: shipment.freightAmount ?? "",
@@ -474,6 +478,8 @@ function EditShipment({
         clearingAgent: f.clearingAgent || null, doxLodged: f.doxLodged || null,
         eta: f.eta || null, berthDate: f.berthDate || null, clearedDate: f.clearedDate || null,
         assessmentDate: f.assessmentDate || null,
+        refNo: f.refNo || null, freightSupplier: f.freightSupplier || null,
+        freightInvoiceNo: f.freightInvoiceNo || null,
         dutyAmount: clean(f.dutyAmount), vatAmount: clean(f.vatAmount),
         wharfage: clean(f.wharfage), agencyFees: clean(f.agencyFees),
         otherCosts: clean(f.otherCosts), freightAmount: clean(f.freightAmount),
@@ -519,6 +525,9 @@ function EditShipment({
           What customs wants — each charge on its own
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
+          <Cell className="sm:col-span-2" label="Customs ref" hint="not the BL number">
+            <input value={f.refNo} onChange={(e) => set("refNo", e.target.value)} className={inputCls} />
+          </Cell>
           <Cell className="sm:col-span-2" label="Assessed on">
             <input type="date" value={f.assessmentDate} onChange={(e) => set("assessmentDate", e.target.value)} className={inputCls} />
           </Cell>
@@ -539,6 +548,18 @@ function EditShipment({
           </Cell>
           <Cell className="sm:col-span-2" label="Freight">
             <MoneyInput value={f.freightAmount} onChange={(v) => set("freightAmount", v)} />
+          </Cell>
+          {/* ⚠️ The forwarder is rarely the goods supplier — IMP PMT AND FREIGHT
+              bills freight from PRISMA LOGISTICS and the goods from RELIANT
+              EXIM. Until this existed the freight figure had nobody attached. */}
+          <Cell className="sm:col-span-3" label="Freight billed by" hint="the forwarder">
+            <Combobox options={suggest.suppliers}
+              onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier"
+              defaultValue={f.freightSupplier} placeholder=""
+              onInput={(v) => set("freightSupplier", v)} onCommit={(v) => set("freightSupplier", v)} className={inputCls} />
+          </Cell>
+          <Cell className="sm:col-span-3" label="Freight invoice no.">
+            <input value={f.freightInvoiceNo} onChange={(e) => set("freightInvoiceNo", e.target.value)} className={inputCls} />
           </Cell>
           <Cell className="sm:col-span-2" label="Currency">
             <div className="flex gap-1">

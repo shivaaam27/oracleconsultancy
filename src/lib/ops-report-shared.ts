@@ -160,12 +160,15 @@ export type SupplierBalance = {
  * This is PAYMENTS FORECAST, which the workbook gave up on after eight cells,
  * and the PAID / BALANCE columns of PURCHASE ANALYSIS.
  *
- * ⚠️ **Paid is a DATE here, not an amount.** The order line records
- * `supplier_payment_date` and nothing else, so a line is either settled or it
- * is not — there are no part-payments in the data. That is a real limit and it
- * is better stated than papered over with a column nobody fills in. If part
- * payments turn out to matter, they are an amount on the line, not a guess
- * made here.
+ * ⚠️ **This is the OLD, date-only view, and it is kept for one reason.** Stage 7
+ * added `ops_payments`, so real amounts now exist and `payeeBalances` in
+ * `ops-payments-shared.ts` is the figure to trust. This function still answers
+ * "which purchases have never been marked paid at all", which is a different
+ * and still useful question — a line with no payment date and no payment row is
+ * one nobody has touched.
+ *
+ * ⚠️ Do not quote its `owedTzs` as what is owed. The Report screen reads the
+ * payments version.
  */
 export function supplierBalances(views: LineView[], today: Date = new Date()): SupplierBalance[] {
   const groups = new Map<string, LineView[]>();

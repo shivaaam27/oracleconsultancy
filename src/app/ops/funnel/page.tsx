@@ -10,11 +10,13 @@ import { PageHeader } from "@/components/ui";
 import { listEnquiries, usedEnquiryValues } from "@/lib/ops-funnel";
 import { listOrderLines, usedValues } from "@/lib/ops-orders";
 import { listInvoices } from "@/lib/ops-invoices";
+import { listTenders } from "@/lib/ops-tenders";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { getAppSettings } from "@/lib/settings";
 import { getSavedViewsFor } from "@/lib/saved-views";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsFunnelSheet } from "@/components/ops-funnel-sheet";
+import { OpsTendersPanel } from "@/components/ops-tenders-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +50,7 @@ export default async function OpsFunnelPage({
     );
   }
 
-  const [enquiries, lines, despatches, refs, settings, assignedTo, descriptions, outcomes, savedViews] = await Promise.all([
+  const [enquiries, lines, despatches, tenders, refs, settings, assignedTo, descriptions, outcomes, savedViews] = await Promise.all([
     listEnquiries(chosen.id),
     // ⚠️ The order lines come along so a won enquiry can be priced FROM THEM.
     // The workbook types that figure onto both sheets and they disagree.
@@ -56,6 +58,9 @@ export default async function OpsFunnelPage({
     // ⚠️ "Invoiced" lives on the despatch document since Stage 5, not on the
     // line, so the funnel needs them to know which of its orders were billed.
     listInvoices(chosen.id),
+    // The bids being chased BEFORE any enquiry exists — the workbook's
+    // `tenders` sheet, which nothing in COS held until Stage 7.
+    listTenders(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
     usedEnquiryValues(chosen.id, "assigned_to"),
@@ -76,6 +81,11 @@ export default async function OpsFunnelPage({
         sub={`${chosen.name} · ${enquiries.length} enquir${enquiries.length === 1 ? "y" : "ies"}`}
       />
       <OpsTabs active="funnel" company={chosen.id} companies={companies} />
+      <OpsTendersPanel
+        companyId={chosen.id}
+        tenders={tenders}
+        clients={opsNamesOf(refs, "client")}
+      />
       <OpsFunnelSheet
         savedViews={savedViews}
         companyId={chosen.id}
