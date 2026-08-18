@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Check, X, Pencil, Archive, Banknote } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { FieldCell } from "@/components/ui";
 import { RecordList } from "./record-list";
 import { SavedViewsBar, type SavedView } from "./saved-views-bar";
 import { Combobox } from "./combobox";
@@ -357,20 +358,6 @@ function Tile({ label, value, sub, tone }: {
 const inputCls =
   "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
 
-function Cell({ label, hint, className, children }: {
-  label: string; hint?: string; className?: string; children: React.ReactNode;
-}) {
-  return (
-    <label className={cn("block min-w-0", className)}>
-      <span title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
-        <span className="shrink-0">{label}</span>
-        {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 type Opt = { value: string; label: string };
 
@@ -427,23 +414,23 @@ function AddPayment({
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
-        <Cell className="sm:col-span-3" label="Paid to" hint="stays">
+        <FieldCell className="sm:col-span-3" label="Paid to">
           <Combobox key={`p${comboKey}`} options={suggest.payees} defaultValue={payee}
             onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier"
             placeholder="" onInput={setPayee} onCommit={setPayee} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="What for" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="What for">
           <Combobox key={`k${comboKey}`}
             options={suggest.kinds.length ? suggest.kinds : PAYMENT_KINDS}
             defaultValue={kind} placeholder="" onInput={setKind} onCommit={setKind} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Paid on" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Paid on">
           <input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Amount">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Amount">
           <MoneyInput inputRef={amountRef} value={amount} onChange={setAmount} />
-        </Cell>
-        <Cell className="sm:col-span-1" label="Cur." hint="blank = shillings">
+        </FieldCell>
+        <FieldCell className="sm:col-span-1" label="Cur." hint="blank = shillings">
           <div className="flex gap-1">
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
@@ -454,8 +441,8 @@ function AddPayment({
               </button>
             ))}
           </div>
-        </Cell>
-        <Cell className="sm:col-span-2" label="Rate" hint="frozen here">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Rate" hint="frozen here">
           <div className="flex gap-1">
             <input value={exRate} onChange={(e) => setExRate(e.target.value)} inputMode="decimal"
               className={cn(inputCls, "tabular text-right")} />
@@ -467,12 +454,12 @@ function AddPayment({
               </button>
             )}
           </div>
-        </Cell>
-        <Cell className="sm:col-span-4" label="Reference" hint="proforma or BL number">
+        </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Reference" hint="proforma or BL number">
           <Combobox key={`r${comboKey}`} options={suggest.references} defaultValue={reference}
             placeholder="SAM00SOR2506148" onInput={setReference} onCommit={setReference} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-8" label="Against which purchase" hint="optional — can be matched up later">
+        </FieldCell>
+        <FieldCell className="sm:col-span-8" label="Against which purchase" hint="optional — can be matched up later">
           <FluidSelect
             value={orderLineId === null ? "" : String(orderLineId)}
             options={[{ value: "", label: "Not against a purchase" }, ...lineOptions]}
@@ -480,7 +467,7 @@ function AddPayment({
             buttonClassName="h-8 w-full justify-between"
             className="w-full"
           />
-        </Cell>
+        </FieldCell>
       </div>
       <div className="mt-2 flex items-center gap-2">
         <button type="button" onClick={save} disabled={pending}
@@ -488,7 +475,8 @@ function AddPayment({
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Record it
         </button>
         <span className="text-[11px] text-fg-subtle">
-          A purchase can take as many payments as it needs — an advance now, the balance later.
+          The payee, date and currency carry to the next payment. A purchase can take as many
+          as it needs — an advance now, the balance later.
         </span>
       </div>
       {needsRate && (
@@ -549,23 +537,23 @@ function EditPayment({
     <div className="space-y-3 rounded-md border border-accent/30 bg-bg-subtle p-3"
       onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-        <Cell className="sm:col-span-3" label="Paid to">
+        <FieldCell className="sm:col-span-3" label="Paid to">
           <Combobox options={suggest.payees} defaultValue={f.payee}
             onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier"
             placeholder="" onInput={(v) => set("payee", v)} onCommit={(v) => set("payee", v)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="What for">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="What for">
           <Combobox options={suggest.kinds.length ? suggest.kinds : PAYMENT_KINDS}
             defaultValue={f.kind} placeholder=""
             onInput={(v) => set("kind", v)} onCommit={(v) => set("kind", v)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Paid on">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Paid on">
           <input type="date" value={f.paidDate} onChange={(e) => set("paidDate", e.target.value)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Amount">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Amount">
           <MoneyInput value={f.amount} onChange={(v) => set("amount", v)} />
-        </Cell>
-        <Cell className="sm:col-span-1" label="Cur.">
+        </FieldCell>
+        <FieldCell className="sm:col-span-1" label="Cur.">
           <div className="flex gap-1">
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
@@ -576,8 +564,8 @@ function EditPayment({
               </button>
             ))}
           </div>
-        </Cell>
-        <Cell className="sm:col-span-2" label="Rate">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Rate">
           <div className="flex gap-1">
             <input value={f.exRate} onChange={(e) => set("exRate", e.target.value)} inputMode="decimal"
               className={cn(inputCls, "tabular text-right")} />
@@ -588,30 +576,30 @@ function EditPayment({
               </button>
             )}
           </div>
-        </Cell>
-        <Cell className="sm:col-span-4" label="Reference">
+        </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Reference">
           <Combobox options={suggest.references} defaultValue={f.reference} placeholder=""
             onInput={(v) => set("reference", v)} onCommit={(v) => set("reference", v)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-4" label="Against a purchase">
+        </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Against a purchase">
           <FluidSelect
             value={orderLineId === null ? "" : String(orderLineId)}
             options={[{ value: "", label: "Not against a purchase" }, ...lineOptions]}
             onSelect={(v) => setOrderLineId(v === "" ? null : Number(v))}
             buttonClassName="h-8 w-full justify-between" className="w-full"
           />
-        </Cell>
-        <Cell className="sm:col-span-4" label="Against a shipment" hint="duty, clearing, freight">
+        </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Against a shipment" hint="duty, clearing, freight">
           <FluidSelect
             value={shipmentId === null ? "" : String(shipmentId)}
             options={[{ value: "", label: "Not against a shipment" }, ...shipOptions]}
             onSelect={(v) => setShipmentId(v === "" ? null : Number(v))}
             buttonClassName="h-8 w-full justify-between" className="w-full"
           />
-        </Cell>
-        <Cell className="sm:col-span-4" label="Notes">
+        </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Notes">
           <input value={f.notes} onChange={(e) => set("notes", e.target.value)} className={inputCls} />
-        </Cell>
+        </FieldCell>
       </div>
 
       <div className="flex items-center gap-2">

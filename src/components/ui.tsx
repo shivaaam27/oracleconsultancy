@@ -906,3 +906,43 @@ export function Textarea(p: ComponentProps<"textarea">) {
 export function Divider({ className }: { className?: string }) {
   return <div className={cn("h-px bg-border", className)} />;
 }
+
+/**
+ * FieldCell — a labelled box on a data-entry form.
+ *
+ * ⚠️ THE LABEL IS THE ONLY THING ON SCREEN. `hint` becomes the hover tooltip,
+ * not a second line of grey text beside the label.
+ *
+ * The ops and projects forms grew a running commentary — "stays", "its own",
+ * "their reference", "suggests what you have typed before" — sixty of them,
+ * on every box. Read once it explains; read every day it is noise, and it made
+ * a professional entry screen look like a tutorial. A hint that describes how
+ * the FORM behaves (rather than what the field means) belongs in one sentence
+ * under the form, said once.
+ *
+ * Replaced six near-identical private copies of this component.
+ */
+export function FieldCell({
+  label, hint, className, children,
+}: {
+  label: string;
+  /** Shown on hover only. Leave it out unless it genuinely adds something. */
+  hint?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className={cn("block min-w-0", className)}>
+      <span
+        title={hint ? `${label} — ${hint}` : undefined}
+        className={cn(
+          "mb-1 flex h-4 items-center overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle",
+          hint && "cursor-help decoration-dotted underline-offset-2 hover:underline",
+        )}
+      >
+        <span className="truncate">{label}</span>
+      </span>
+      {children}
+    </label>
+  );
+}

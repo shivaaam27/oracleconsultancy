@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Check, X, Pencil, Archive, MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { FieldCell } from "@/components/ui";
 import { RecordList } from "./record-list";
 // The same saved-view bar Projects, Assets, Documents and Commitments use —
 // a saved view is just a query string, which is why every filter on this
@@ -357,20 +358,6 @@ function Tile({ label, value, sub, tone }: {
 const inputCls =
   "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
 
-function Cell({ label, hint, className, children }: {
-  label: string; hint?: string; className?: string; children: React.ReactNode;
-}) {
-  return (
-    <label className={cn("block min-w-0", className)}>
-      <span title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
-        <span className="shrink-0">{label}</span>
-        {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 /* ──────────────────────────────────────────────────── an enquiry arrives ─── */
 
@@ -419,26 +406,26 @@ function AddEnquiry({
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
-        <Cell className="sm:col-span-3" label="RFQ number" hint="their reference">
+        <FieldCell className="sm:col-span-3" label="RFQ number">
           <input ref={rfqRef} value={rfqNo} onChange={(e) => setRfqNo(e.target.value)}
             placeholder="6000173251" className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Asked on" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Asked on">
           <input type="date" value={rfqDate} onChange={(e) => setRfqDate(e.target.value)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Client" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Client">
           <Combobox key={`c${comboKey}`} options={suggest.clients}
               onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={client}
             placeholder="" onInput={setClient} onCommit={setClient} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-3" label="What they asked for" hint="suggests what you have typed">
+        </FieldCell>
+        <FieldCell className="sm:col-span-3" label="What they asked for">
           <Combobox key={`d${comboKey}`} options={suggest.descriptions} defaultValue={description}
             placeholder="" onInput={setDescription} onCommit={setDescription} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Assigned to" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Assigned to">
           <Combobox key={`a${comboKey}`} options={suggest.assignedTo} defaultValue={assignedTo}
             placeholder="" onInput={setAssignedTo} onCommit={setAssignedTo} className={inputCls} />
-        </Cell>
+        </FieldCell>
       </div>
       <div className="mt-2 flex items-center gap-2">
         <button type="button" onClick={save} disabled={pending}
@@ -446,7 +433,8 @@ function AddEnquiry({
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Log the enquiry
         </button>
         <span className="text-[11px] text-fg-subtle">
-          The quote, the PO and the outcome are filled in on the row itself, later.
+          The date, client and owner carry to the next enquiry. The quote, the PO and the
+          outcome are filled in on the row itself, later.
         </span>
       </div>
     </div>
@@ -521,42 +509,42 @@ function EditEnquiry({
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">The enquiry</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-2" label="RFQ number">
+          <FieldCell className="sm:col-span-2" label="RFQ number">
             <input value={f.rfqNo} onChange={(e) => set("rfqNo", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Asked on">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Asked on">
             <input type="date" value={f.rfqDate} onChange={(e) => set("rfqDate", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Client">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Client">
             <Combobox options={suggest.clients}
               onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client" defaultValue={f.client} placeholder=""
               onInput={(v) => set("client", v)} onCommit={(v) => set("client", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-4" label="What they asked for">
+          </FieldCell>
+          <FieldCell className="sm:col-span-4" label="What they asked for">
             <Combobox options={suggest.descriptions} defaultValue={f.description} placeholder=""
               onInput={(v) => set("description", v)} onCommit={(v) => set("description", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Assigned to">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Assigned to">
             <Combobox options={suggest.assignedTo} defaultValue={f.assignedTo} placeholder=""
               onInput={(v) => set("assignedTo", v)} onCommit={(v) => set("assignedTo", v)} className={inputCls} />
-          </Cell>
+          </FieldCell>
         </div>
       </div>
 
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">What we quoted</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-2" label="Quotation no">
+          <FieldCell className="sm:col-span-2" label="Quotation no">
             <input value={f.quotationNo} onChange={(e) => set("quotationNo", e.target.value)}
               placeholder="PE-Q1466" className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Quoted on">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Quoted on">
             <input type="date" value={f.quotationDate} onChange={(e) => set("quotationDate", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Value">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Value">
             <MoneyInput value={f.quoteValue} onChange={(v) => set("quoteValue", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Currency" hint="blank = shillings">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Currency" hint="blank = shillings">
             <div className="flex gap-1">
               {["TZS", "USD"].map((c) => (
                 <button key={c} type="button"
@@ -567,8 +555,8 @@ function EditEnquiry({
                 </button>
               ))}
             </div>
-          </Cell>
-          <Cell className="sm:col-span-3" label="Exchange rate" hint="frozen here">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Exchange rate" hint="frozen here">
             <div className="flex gap-1">
               <input value={f.quoteExRate} onChange={(e) => set("quoteExRate", e.target.value)}
                 inputMode="decimal" className={cn(inputCls, "tabular text-right")} />
@@ -580,7 +568,7 @@ function EditEnquiry({
                 </button>
               )}
             </div>
-          </Cell>
+          </FieldCell>
         </div>
         {needsRate && (
           <p className="mt-1 text-[11px] text-warn">
@@ -593,22 +581,22 @@ function EditEnquiry({
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">What became of it</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-3" label="PO number" hint="won — links to the order lines">
+          <FieldCell className="sm:col-span-3" label="PO number" hint="won — links to the order lines">
             <Combobox options={suggest.poNumbers} defaultValue={f.poNo} placeholder=""
               onInput={(v) => set("poNo", v)} onCommit={(v) => set("poNo", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Or closed as" hint="only if it died">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Or closed as" hint="only if it died">
             <Combobox options={suggest.outcomes.length ? suggest.outcomes : OUTCOME_SUGGESTIONS}
               defaultValue={f.outcome} placeholder=""
               onInput={(v) => set("outcome", v)} onCommit={(v) => set("outcome", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Why">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Why">
             <input value={f.outcomeReason} onChange={(e) => set("outcomeReason", e.target.value)}
               placeholder="Client didn't come back" className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Remarks">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Remarks">
             <input value={f.remarks} onChange={(e) => set("remarks", e.target.value)} className={inputCls} />
-          </Cell>
+          </FieldCell>
         </div>
         {/* ⚠️ The order's value is REPORTED here, never typed. It is the sum of
             the order lines carrying this PO number. */}

@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { Loader2, Plus, Check, X, Pencil, Archive, Ship } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { FieldCell } from "@/components/ui";
 import { RecordList } from "./record-list";
 // The same saved-view bar Projects, Assets, Documents and Commitments use —
 // a saved view is just a query string, which is why every filter on this
@@ -318,20 +319,6 @@ function Tile({ label, value, sub, tone }: {
 const inputCls =
   "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
 
-function Cell({ label, hint, className, children }: {
-  label: string; hint?: string; className?: string; children: React.ReactNode;
-}) {
-  return (
-    <label className={cn("block min-w-0", className)}>
-      <span title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
-        <span className="shrink-0">{label}</span>
-        {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 /* ─────────────────────────────────────────────────────── add a shipment ──── */
 
@@ -383,36 +370,36 @@ function AddShipment({
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
-        <Cell className="sm:col-span-3" label="BL / airway bill">
+        <FieldCell className="sm:col-span-3" label="BL / airway bill">
           <input ref={blRef} value={blNo} onChange={(e) => setBlNo(e.target.value)}
             placeholder="MEDUG9676552" className={cn(inputCls, "font-mono")} />
-        </Cell>
-        <Cell className="sm:col-span-3" label="Supplier" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-3" label="Supplier">
           <Combobox key={`s${comboKey}`} options={suggest.suppliers}
               onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier" defaultValue={supplier}
             placeholder="" onInput={setSupplier} onCommit={setSupplier} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Origin" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Origin">
           <Combobox key={`o${comboKey}`} options={suggest.origins}
               onCreate={(v) => createOpsRefAction(companyId, "origin", v)} createNoun="origin" defaultValue={origin}
             placeholder="" onInput={setOrigin} onCommit={setOrigin} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Mode" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Mode">
           <Combobox key={`m${comboKey}`} options={suggest.modes}
               onCreate={(v) => createOpsRefAction(companyId, "mode", v)} createNoun="mode" defaultValue={mode}
             placeholder="" onInput={setMode} onCommit={setMode} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="Agent" hint="stays">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="Agent">
           <Combobox key={`a${comboKey}`} options={suggest.agents}
               onCreate={(v) => createOpsRefAction(companyId, "clearing_agent", v)} createNoun="clearing agent" defaultValue={agent}
             placeholder="" onInput={setAgent} onCommit={setAgent} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="BL date">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="BL date">
           <input type="date" value={blDate} onChange={(e) => setBlDate(e.target.value)} className={inputCls} />
-        </Cell>
-        <Cell className="sm:col-span-2" label="ETA">
+        </FieldCell>
+        <FieldCell className="sm:col-span-2" label="ETA">
           <input type="date" value={eta} onChange={(e) => setEta(e.target.value)} className={inputCls} />
-        </Cell>
+        </FieldCell>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <button type="button" onClick={save} disabled={pending}
@@ -500,23 +487,23 @@ function EditShipment({
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">Getting it off the ship</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-3" label="Clearing agent">
+          <FieldCell className="sm:col-span-3" label="Clearing agent">
             <Combobox options={suggest.agents}
               onCreate={(v) => createOpsRefAction(companyId, "clearing_agent", v)} createNoun="clearing agent" defaultValue={f.clearingAgent} placeholder=""
               onInput={(v) => set("clearingAgent", v)} onCommit={(v) => set("clearingAgent", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Dox lodged">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Dox lodged">
             <input type="date" value={f.doxLodged} onChange={(e) => set("doxLodged", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="ETA">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="ETA">
             <input type="date" value={f.eta} onChange={(e) => set("eta", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Berthed">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Berthed">
             <input type="date" value={f.berthDate} onChange={(e) => set("berthDate", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Cleared" hint="stops every countdown">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Cleared" hint="stops every countdown">
             <input type="date" value={f.clearedDate} onChange={(e) => set("clearedDate", e.target.value)} className={inputCls} />
-          </Cell>
+          </FieldCell>
         </div>
       </div>
 
@@ -525,43 +512,43 @@ function EditShipment({
           What customs wants — each charge on its own
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-2" label="Customs ref" hint="not the BL number">
+          <FieldCell className="sm:col-span-2" label="Customs ref" hint="not the BL number">
             <input value={f.refNo} onChange={(e) => set("refNo", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Assessed on">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Assessed on">
             <input type="date" value={f.assessmentDate} onChange={(e) => set("assessmentDate", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Duty">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Duty">
             <MoneyInput value={f.dutyAmount} onChange={(v) => set("dutyAmount", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="VAT">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="VAT">
             <MoneyInput value={f.vatAmount} onChange={(v) => set("vatAmount", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Wharfage">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Wharfage">
             <MoneyInput value={f.wharfage} onChange={(v) => set("wharfage", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Agency fees">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Agency fees">
             <MoneyInput value={f.agencyFees} onChange={(v) => set("agencyFees", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Other C&F">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Other C&F">
             <MoneyInput value={f.otherCosts} onChange={(v) => set("otherCosts", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Freight">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Freight">
             <MoneyInput value={f.freightAmount} onChange={(v) => set("freightAmount", v)} />
-          </Cell>
+          </FieldCell>
           {/* ⚠️ The forwarder is rarely the goods supplier — IMP PMT AND FREIGHT
               bills freight from PRISMA LOGISTICS and the goods from RELIANT
               EXIM. Until this existed the freight figure had nobody attached. */}
-          <Cell className="sm:col-span-3" label="Freight billed by" hint="the forwarder">
+          <FieldCell className="sm:col-span-3" label="Freight billed by" hint="the forwarder">
             <Combobox options={suggest.suppliers}
               onCreate={(v) => createOpsRefAction(companyId, "supplier", v)} createNoun="supplier"
               defaultValue={f.freightSupplier} placeholder=""
               onInput={(v) => set("freightSupplier", v)} onCommit={(v) => set("freightSupplier", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Freight invoice no.">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Freight invoice no.">
             <input value={f.freightInvoiceNo} onChange={(e) => set("freightInvoiceNo", e.target.value)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Currency">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Currency">
             <div className="flex gap-1">
               {["TZS", "USD"].map((c) => (
                 <button key={c} type="button"
@@ -572,17 +559,17 @@ function EditShipment({
                 </button>
               ))}
             </div>
-          </Cell>
-          <Cell className="sm:col-span-2" label="Rate" hint="frozen here">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Rate" hint="frozen here">
             <input value={f.exRate} onChange={(e) => set("exRate", e.target.value)} inputMode="decimal"
               className={cn(inputCls, "tabular text-right")} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Paid">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Paid">
             <MoneyInput value={f.amountPaid} onChange={(v) => set("amountPaid", v)} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Paid on">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Paid on">
             <input type="date" value={f.paidDate} onChange={(e) => set("paidDate", e.target.value)} className={inputCls} />
-          </Cell>
+          </FieldCell>
         </div>
         <p className="mt-1 text-[11px] text-fg-subtle">
           {view.costTotal === null
@@ -594,18 +581,18 @@ function EditShipment({
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-fg-muted">Where it stands</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
-          <Cell className="sm:col-span-3" label="Status">
+          <FieldCell className="sm:col-span-3" label="Status">
             <Combobox options={suggest.statuses}
               onCreate={(v) => createOpsRefAction(companyId, "delivery_status", v)} createNoun="status" defaultValue={f.status} placeholder=""
               onInput={(v) => set("status", v)} onCommit={(v) => set("status", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-3" label="Pending with">
+          </FieldCell>
+          <FieldCell className="sm:col-span-3" label="Pending with">
             <Combobox options={suggest.pendingWith} defaultValue={f.pendingWith} placeholder=""
               onInput={(v) => set("pendingWith", v)} onCommit={(v) => set("pendingWith", v)} className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-6" label="Notes">
+          </FieldCell>
+          <FieldCell className="sm:col-span-6" label="Notes">
             <input value={f.notes} onChange={(e) => set("notes", e.target.value)} className={inputCls} />
-          </Cell>
+          </FieldCell>
         </div>
       </div>
 

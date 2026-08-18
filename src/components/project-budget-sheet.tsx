@@ -26,6 +26,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Check, Pencil, X, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { FieldCell } from "@/components/ui";
 import { RecordList } from "./record-list";
 import { Combobox } from "./combobox";
 import { SetupNeeded } from "./setup-needed";
@@ -520,7 +521,7 @@ function AddLineRow({
           if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
         }}
       >
-        <Cell className="sm:col-span-2" label="Category" hint="PATAMELA col C">
+        <FieldCell className="sm:col-span-2" label="Category" hint="PATAMELA col C">
           {/* Combobox, NOT a native <datalist> — CLAUDE.md bans both <select>
               and <datalist> because their popups mis-render. This is the piece
               built for exactly this case: type a new value OR pick one already
@@ -540,9 +541,9 @@ function AddLineRow({
             // and sitting on top of the Sub-job field.
             className={inputCls}
           />
-        </Cell>
+        </FieldCell>
 
-        <Cell className="sm:col-span-3" label="Sub-job" hint="PATAMELA col D">
+        <FieldCell className="sm:col-span-3" label="Sub-job" hint="PATAMELA col D">
           {/* Also a master list. Typing a new value is still allowed — the
               Setup tab is where they are curated, not a gate on entry. */}
           <Combobox
@@ -556,25 +557,25 @@ function AddLineRow({
             onCommit={setSubJob}
             className={inputCls}
           />
-        </Cell>
+        </FieldCell>
 
-        <Cell className="sm:col-span-3" label="Item code" hint="fills itself in — editable">
+        <FieldCell className="sm:col-span-3" label="Item code">
           <input
             value={effectiveCode}
             onChange={(e) => { setCodeTouched(true); setCode(e.target.value); }}
             placeholder="CEMENT-STRIP-FOUNDATION"
             className={cn(inputCls, "font-mono", !codeTouched && effectiveCode && "text-fg-muted")}
           />
-        </Cell>
+        </FieldCell>
 
-        <Cell className="sm:col-span-2" label="Description" hint="PATAMELA col B">
+        <FieldCell className="sm:col-span-2" label="Description" hint="PATAMELA col B">
           <input value={description} onChange={(e) => setDescription(e.target.value)}
             placeholder="optional" className={inputCls} />
-        </Cell>
+        </FieldCell>
 
-        <Cell className="sm:col-span-2" label="Amount" hint="PATAMELA col M">
+        <FieldCell className="sm:col-span-2" label="Amount" hint="PATAMELA col M">
           <MoneyInput value={amount} onChange={setAmount} currency={currency} placeholder="175,000" />
-        </Cell>
+        </FieldCell>
       </div>
 
       {extras && (
@@ -582,20 +583,20 @@ function AddLineRow({
           className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 sm:grid-cols-12"
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}
         >
-          <Cell className="sm:col-span-2" label="Quantity" hint="PATAMELA col G">
+          <FieldCell className="sm:col-span-2" label="Quantity" hint="PATAMELA col G">
             <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal"
               placeholder="25" className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-2" label="Unit" hint="bags, trips, m2">
+          </FieldCell>
+          <FieldCell className="sm:col-span-2" label="Unit" hint="bags, trips, m2">
             <input value={unit} onChange={(e) => setUnit(e.target.value)}
               placeholder="EA" className={inputCls} />
-          </Cell>
-          <Cell className="sm:col-span-4" label="Materials" hint="PATAMELA col J">
+          </FieldCell>
+          <FieldCell className="sm:col-span-4" label="Materials" hint="PATAMELA col J">
             <MoneyInput value={materials} onChange={setMaterials} currency={currency} placeholder="optional" />
-          </Cell>
-          <Cell className="sm:col-span-4" label="Labour" hint="PATAMELA col L">
+          </FieldCell>
+          <FieldCell className="sm:col-span-4" label="Labour" hint="PATAMELA col L">
             <MoneyInput value={labour} onChange={setLabour} currency={currency} placeholder="optional" />
-          </Cell>
+          </FieldCell>
           <p className="sm:col-span-12 text-[11px] text-fg-subtle">
             All four are optional and none of them changes the amount. Nothing here is
             multiplied out — the amount above stays the figure.
@@ -633,22 +634,6 @@ const inputCls =
  * inputs in the same row sat at different heights and the strip looked broken.
  * The hint is a `title` as well, so it is still readable when truncated.
  */
-function Cell({ label, hint, className, children }: {
-  label: string; hint?: string; className?: string; children: React.ReactNode;
-}) {
-  return (
-    <label className={cn("block min-w-0", className)}>
-      <span
-        title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle"
-      >
-        <span className="shrink-0">{label}</span>
-        {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 /* ─────────────────────────────────────────────────────────── edit a line ─── */
 
