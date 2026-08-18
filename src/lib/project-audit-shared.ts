@@ -46,6 +46,9 @@ const FIELD_LABELS: Record<string, string> = {
   status: "Status", notes: "Notes", archived: "Archived", currency: "Currency",
   meal_rate: "Meal rate",
   item_code: "Item code", category: "Category", sub_job: "Sub-job",
+  materials_amount: "Materials", labour_amount: "Labour",
+  total_payable: "Invoice total",
+  ipc_submitted: "IPC submitted", ipc_processed: "IPC processed", efd_issued: "EFD receipt",
   description: "Description", amount: "Amount", qty: "Quantity", unit: "Unit",
   batch_no: "Batch no.", requested_date: "Requested on", qty_requested: "Quantity requested",
   rate: "Rate", amount_requested: "Amount requested", route: "Who pays",
@@ -59,12 +62,22 @@ const FIELD_LABELS: Record<string, string> = {
   invoice_date: "Invoiced on", invoice_amount: "Invoiced", 
   designation: "Job", kind: "Type", daily_rate: "Daily rate", phone: "Phone",
   meals_eligible: "Gets meals", active: "Active",
-  meal: "Meal", labour_amount: "Wage", day: "Day",
+  meal: "Meal", day: "Day",
 };
 
-export function fieldLabel(field: string | null): string {
+/**
+ * ⚠️ `labour_amount` means two different things in two different tables — the
+ * labour half of a budget line, and a day's wage on the site sheet — so it
+ * cannot live in the map above (one object, one key). The entity decides.
+ */
+const PER_ENTITY: Record<string, Record<string, string>> = {
+  site_day: { labour_amount: "Wage" },
+};
+
+export function fieldLabel(field: string | null, entity?: string): string {
   if (!field) return "";
-  return FIELD_LABELS[field] ?? field.replace(/_/g, " ");
+  const perEntity = entity ? PER_ENTITY[entity]?.[field] : undefined;
+  return perEntity ?? FIELD_LABELS[field] ?? field.replace(/_/g, " ");
 }
 
 /** Money-ish fields are shown with thousands separators; the rest as typed. */
@@ -128,7 +141,7 @@ export function describeAudit(r: AuditRow): string {
   const who = r.label ? ` ${r.label}` : "";
   const word = ACTION_WORDS[r.action] ?? r.action;
   if (r.action === "updated" && r.field) {
-    return `${what}${who} — ${fieldLabel(r.field)} changed`;
+    return `${what}${who} — ${fieldLabel(r.field, r.entity)} changed`;
   }
   return `${word} ${what.toLowerCase()}${who}`;
 }

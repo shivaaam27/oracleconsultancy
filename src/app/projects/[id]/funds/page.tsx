@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { getProject } from "@/lib/projects";
 import { listBudgetLines } from "@/lib/project-budget";
 import { listRequisitions } from "@/lib/project-requisitions";
+import { listPayments } from "@/lib/project-cash";
 import { fundsByBatch } from "@/lib/project-funds-shared";
 import { num } from "@/lib/projects-shared";
 import { ProjectTabs } from "@/components/project-tabs";
@@ -18,8 +19,8 @@ export default async function ProjectFundsPage({ params }: { params: Promise<{ i
   const n = Number(id);
   if (!Number.isFinite(n)) notFound();
 
-  const [project, lines, requisitions] = await Promise.all([
-    getProject(n), listBudgetLines(n), listRequisitions(n),
+  const [project, lines, requisitions, payments] = await Promise.all([
+    getProject(n), listBudgetLines(n), listRequisitions(n), listPayments(n),
   ]);
   if (!project) notFound();
 
@@ -36,6 +37,10 @@ export default async function ProjectFundsPage({ params }: { params: Promise<{ i
       status: r.status,
     })),
     budget,
+    // The cash side of the same batches — FUNDS ANALYSIS columns E, G, H and I.
+    payments.map((p) => ({
+      batchNo: p.batchNo, route: p.route, amountPaid: p.amountPaid, paidDate: p.paidDate,
+    })),
   );
 
   return (

@@ -2101,7 +2101,25 @@ export const projectBudgetLines = pgTable("project_budget_lines", {
   /** PATAMELA column M — the priced total. THE figure; everything sums from it. */
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
 
-  /** ⚠️ Unused in Phase 2 — see the note above. Do not read these yet. */
+  /**
+   * PATAMELA J and L — the total split into what the stuff cost and what the
+   * fitting of it cost. BOTH OPTIONAL, and neither drives `amount`: the total
+   * is what the owner typed and stays the truth. When a split is filled in and
+   * does not add up, the screen SAYS SO rather than quietly correcting either
+   * figure — the workbook has that disagreement on many rows and hides it.
+   */
+  materialsAmount: numeric("materials_amount", { precision: 14, scale: 2 }),
+  labourAmount: numeric("labour_amount", { precision: 14, scale: 2 }),
+
+  /**
+   * Quantity and unit — switched ON in Aug 2026 at the owner's request.
+   *
+   * ⚠️ Optional, and money is still the truth: nothing multiplies qty by a rate
+   * to produce an amount. In the workbook those columns disagree with the
+   * priced total on many lines (25 EA × 3,500 printed beside 175,000), and a
+   * "balance qty" built on them told the site 15 remained while 45 were being
+   * requested. A quantity here is a fact HE typed, or it is blank.
+   */
   qty: numeric("qty", { precision: 14, scale: 3 }),
   unit: text("unit"),
 
@@ -2242,6 +2260,17 @@ export const projectPayments = pgTable("project_payments", {
   supplier: text("supplier"),
   paidDate: timestamp("paid_date", { mode: "date", withTimezone: true }),
   amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull().default("0"),
+  /**
+   * PAYMENTS column D — what the invoice or batch came to IN FULL, so a part
+   * payment can be seen as one. Left blank the system works it out from the
+   * requisitions head office approved against the same reference or batch;
+   * typed, the typed figure wins, because an invoice can legitimately differ
+   * from what was approved and the paper is the paper.
+   *
+   * The balance and the PAID / PARTIALLY PAID / NOT PAID status are DERIVED
+   * from it — never stored, so they cannot drift.
+   */
+  totalPayable: numeric("total_payable", { precision: 14, scale: 2 }),
   notes: text("notes"),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2327,6 +2356,20 @@ export const projectPaymentStages = pgTable("project_payment_stages", {
   invoiceAmount: numeric("invoice_amount", { precision: 14, scale: 2 }),
   receivedDate: timestamp("received_date", { mode: "date", withTimezone: true }),
   amountReceived: numeric("amount_received", { precision: 14, scale: 2 }),
+
+  /**
+   * The paperwork behind a stage — SNAPSHOT columns E, F and I.
+   *
+   * A stage can be billable, invoiced and still unpaid because the certificate
+   * has not been submitted or the fiscal receipt was never issued, and the
+   * workbook tracks exactly that with YES/NO cells. Kept as three plain
+   * yes/no marks rather than dates: the sheet is filled in as YES in practice,
+   * and a date box nobody can answer gets left empty, which reads as "no".
+   */
+  ipcSubmitted: boolean("ipc_submitted").notNull().default(false),
+  ipcProcessed: boolean("ipc_processed").notNull().default(false),
+  /** The fiscal (EFD) receipt has been issued — SNAPSHOT column I. */
+  efdIssued: boolean("efd_issued").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

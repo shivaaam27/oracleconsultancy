@@ -16,7 +16,7 @@ import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/li
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
 
 // ⚠️ One string literal on one line — see the note in lib/projects.ts.
-const COLS = "id,project_id,item_code,category,sub_job,description,amount,qty,unit,sort_order,notes,created_by,created_at,updated_at";
+const COLS = "id,project_id,item_code,category,sub_job,description,amount,materials_amount,labour_amount,qty,unit,sort_order,notes,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): BudgetLine {
   return {
@@ -27,7 +27,8 @@ function mapRow(r: Record<string, unknown>): BudgetLine {
     subJob: (r.sub_job as string | null) ?? null,
     description: (r.description as string | null) ?? null,
     amount: (r.amount as string | null) ?? "0",
-    // Present, deliberately unread — see the schema note.
+    materialsAmount: (r.materials_amount as string | null) ?? null,
+    labourAmount: (r.labour_amount as string | null) ?? null,
     qty: (r.qty as string | null) ?? null,
     unit: (r.unit as string | null) ?? null,
     sortOrder: (r.sort_order as number | null) ?? 0,
@@ -91,6 +92,12 @@ export type BudgetLineFields = {
   subJob?: string | null;
   description?: string | null;
   amount?: string | number | null;
+  /** Optional split of the total. Blank leaves the line unsplit. */
+  materialsAmount?: string | number | null;
+  labourAmount?: string | number | null;
+  /** Optional quantity and unit. Nothing multiplies them into money. */
+  qty?: string | number | null;
+  unit?: string | null;
   notes?: string | null;
 };
 
@@ -105,6 +112,21 @@ function amountOf(v: string | number | null | undefined): string {
   const cleaned = typeof v === "string" ? v.replace(/[\s,]/g, "") : String(v);
   const n = Number(cleaned);
   return Number.isFinite(n) ? String(n) : "0";
+}
+
+/**
+ * The same, but blank stays BLANK.
+ *
+ * ⚠️ Not `amountOf`. A materials split or a quantity nobody typed must be null,
+ * never 0 — "no quantity recorded" and "a quantity of nothing" are different
+ * facts, and it is the second one that made the workbook tell the site 15 bags
+ * remained when nobody had counted.
+ */
+function optionalAmount(v: string | number | null | undefined): string | null {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const cleaned = typeof v === "string" ? v.replace(/[\s,]/g, "") : String(v);
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? String(n) : null;
 }
 
 export async function addBudgetLine(f: BudgetLineFields, createdBy = "web-ui"): Promise<WriteResult> {
@@ -129,6 +151,10 @@ export async function addBudgetLine(f: BudgetLineFields, createdBy = "web-ui"): 
     sub_job: text(f.subJob),
     description: text(f.description),
     amount: amountOf(f.amount),
+    materials_amount: optionalAmount(f.materialsAmount),
+    labour_amount: optionalAmount(f.labourAmount),
+    qty: optionalAmount(f.qty),
+    unit: text(f.unit),
     notes: text(f.notes),
     sort_order: ((last?.sort_order as number | undefined) ?? 0) + 10,
     created_by: createdBy,
@@ -156,6 +182,10 @@ export async function updateBudgetLine(id: number, patch: Partial<BudgetLineFiel
   if (patch.subJob !== undefined) row.sub_job = text(patch.subJob);
   if (patch.description !== undefined) row.description = text(patch.description);
   if (patch.amount !== undefined) row.amount = amountOf(patch.amount);
+  if (patch.materialsAmount !== undefined) row.materials_amount = optionalAmount(patch.materialsAmount);
+  if (patch.labourAmount !== undefined) row.labour_amount = optionalAmount(patch.labourAmount);
+  if (patch.qty !== undefined) row.qty = optionalAmount(patch.qty);
+  if (patch.unit !== undefined) row.unit = text(patch.unit);
   if (patch.notes !== undefined) row.notes = text(patch.notes);
 
   const before = await snapshotRow("project_budget_lines", id);

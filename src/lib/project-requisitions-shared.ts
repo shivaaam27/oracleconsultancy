@@ -58,6 +58,7 @@ export type Requisition = {
 export function itemBalance(
   budgetAmount: number | null,
   requisitions: Requisition[],
+  budgetQty: number | null = null,
 ): {
   budget: number | null;
   approved: number;
@@ -65,14 +66,29 @@ export function itemBalance(
   remaining: number | null;
   /** Approved is over the budget for this item. */
   overspent: boolean;
+  /**
+   * The same sum in units, and ONLY when a quantity was typed on the budget
+   * line — REQUISITIONS column C, done honestly.
+   *
+   * ⚠️ This is the workbook's most expensive single bug. There the balance
+   * quantity is built on PATAMELA column G, which disagrees with the priced
+   * total on most lines, and on one item it told the site 15 remained while 45
+   * were being requested. Null here means "no quantity was recorded", and the
+   * screen must say nothing rather than show a zero.
+   */
+  qtyBudget: number | null;
+  qtyRequestedSoFar: number;
+  qtyRemaining: number | null;
 } {
   let approved = 0;
   let pending = 0;
+  let qtyUsed = 0;
   for (const r of requisitions) {
     if (r.status === "Rejected" || r.status === "Cancelled") continue;
     const a = num(r.amountApproved);
     if (a === null) pending += num(r.amountRequested) ?? 0;
     else approved += a;
+    qtyUsed += num(r.qtyRequested) ?? 0;
   }
   const remaining = budgetAmount === null ? null : budgetAmount - approved;
   return {
@@ -81,6 +97,9 @@ export function itemBalance(
     pending,
     remaining,
     overspent: remaining !== null && remaining < 0,
+    qtyBudget: budgetQty,
+    qtyRequestedSoFar: qtyUsed,
+    qtyRemaining: budgetQty === null ? null : budgetQty - qtyUsed,
   };
 }
 

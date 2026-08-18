@@ -24,6 +24,20 @@
 
 import { num } from "@/lib/projects-shared";
 
+/**
+ * A payment, as this screen needs it — FUNDS ANALYSIS columns E, G, H and I.
+ *
+ * The workbook splits each batch into DIRECT and SHAO and dates the head-office
+ * payment. Here the split is worked out from whatever routes the payments
+ * actually carry, so a fourth route (ALANDO) appears without a code change.
+ */
+export type BatchPayment = {
+  batchNo: string | null;
+  route: string | null;
+  amountPaid: string;
+  paidDate: string | null;
+};
+
 export type BatchInput = {
   batchNo: string | null;
   amountRequested: string;
@@ -64,6 +78,22 @@ export type BatchRow = {
   pending: number;
   /** Nothing in this batch has been approved yet. */
   awaitingApproval: boolean;
+
+  /** Cash actually released against this batch, per route (DIRECT, SHAO, HQ…). */
+  releasedBy: Record<string, number>;
+  released: number;
+  /** The last date money went out for this batch — the workbook's DATE PAID (HQ). */
+  lastPaidDate: string | null;
+  /**
+   * Approved but not yet released. Positive means head office has said yes and
+   * the money has not gone.
+   *
+   * ⚠️ Null when NOTHING has been released against the batch, rather than the
+   * full approved figure: a batch may legitimately be settled outside this
+   * ledger, and printing the whole amount as "not sent" would be an accusation
+   * the data cannot support.
+   */
+  notYetReleased: number | null;
 };
 
 export type FundsSummary = {
@@ -75,6 +105,8 @@ export type FundsSummary = {
     /** Asked for and still undecided — neither approved nor refused. */
     pending: number;
     actual: number;
+    /** Cash actually released against these batches. */
+    released: number;
     /** What is left of the budget after every approval. */
     remaining: number | null;
     utilisation: number | null;
@@ -94,7 +126,21 @@ export type FundsSummary = {
 export function fundsByBatch(
   requisitions: BatchInput[],
   budget: number | null,
+  payments: BatchPayment[] = [],
 ): FundsSummary {
+  // Cash released, gathered by batch first so each row is one lookup.
+  const paidByBatch = new Map<string, { byRoute: Record<string, number>; total: number; last: string | null }>();
+  for (const p of payments) {
+    const key = (p.batchNo ?? "").trim() || "(no batch)";
+    const cur = paidByBatch.get(key) ?? { byRoute: {}, total: 0, last: null };
+    const amt = num(p.amountPaid) ?? 0;
+    const route = (p.route ?? "OTHER").toUpperCase();
+    cur.byRoute[route] = (cur.byRoute[route] ?? 0) + amt;
+    cur.total += amt;
+    if (p.paidDate && (cur.last === null || p.paidDate > cur.last)) cur.last = p.paidDate;
+    paidByBatch.set(key, cur);
+  }
+
   const groups = new Map<string, BatchInput[]>();
   for (const r of requisitions) {
     if (r.status === "Rejected" || r.status === "Cancelled") continue;
@@ -135,9 +181,15 @@ export function fundsByBatch(
     cumulative += underSpent;
     if (diminishing !== null) diminishing -= approved;
 
+    const paid = paidByBatch.get(batchNo);
+
     rows.push({
       batchNo,
       firstDate: earliest(items),
+      releasedBy: paid?.byRoute ?? {},
+      released: paid?.total ?? 0,
+      lastPaidDate: paid?.last ?? null,
+      notYetReleased: paid ? approved - paid.total : null,
       requests: items.length,
       requested,
       approved,
@@ -161,8 +213,9 @@ export function fundsByBatch(
       trimmed: acc.trimmed + r.trimmed,
       pending: acc.pending + r.pending,
       actual: acc.actual + r.actual,
+      released: acc.released + r.released,
     }),
-    { requested: 0, approved: 0, trimmed: 0, pending: 0, actual: 0 },
+    { requested: 0, approved: 0, trimmed: 0, pending: 0, actual: 0, released: 0 },
   );
 
   return {

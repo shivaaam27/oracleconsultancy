@@ -75,7 +75,8 @@ describe("the payment plan", () => {
     return {
       label: "S", thresholdPct: null, sharePct: null, amount: null,
       invoiceDate: null, invoiceAmount: null, receivedDate: null,
-      amountReceived: null, sortOrder: over.id, notes: null, ...over,
+      amountReceived: null, ipcSubmitted: false, ipcProcessed: false, efdIssued: false,
+      sortOrder: over.id, notes: null, ...over,
     };
   }
 

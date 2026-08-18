@@ -19,12 +19,52 @@ export type BudgetLine = {
   description: string | null;
   /** Postgres `numeric` arrives as a string; converted at the point of use. */
   amount: string;
-  /** ⚠️ Always null in Phase 2 — the column exists but is not tracked. */
+  /** PATAMELA J and L. Optional, and they never drive `amount`. */
+  materialsAmount: string | null;
+  labourAmount: string | null;
+  /** Optional since Aug 2026. Nothing multiplies these into money. */
   qty: string | null;
   unit: string | null;
   sortOrder: number;
   notes: string | null;
 };
+
+/**
+ * Does a typed materials + labour split agree with the typed total?
+ *
+ * Returns null when no split was entered (nothing to check) and the difference
+ * otherwise, so the screen can SHOW the disagreement. This is the workbook's
+ * fault 9 turned into a visible flag instead of a silent one: PATAMELA row 13
+ * prints 6 × 120,000 next to a total of 2,070,000 and nothing anywhere says a
+ * word about it.
+ *
+ * ⚠️ Neither figure is corrected. The owner types both; only he knows which one
+ * is right.
+ */
+export function splitDifference(line: Pick<BudgetLine, "amount" | "materialsAmount" | "labourAmount">): number | null {
+  const materials = num(line.materialsAmount);
+  const labour = num(line.labourAmount);
+  if (materials === null && labour === null) return null;
+  const total = num(line.amount) ?? 0;
+  const diff = (materials ?? 0) + (labour ?? 0) - total;
+  return Math.abs(diff) < 0.005 ? 0 : diff;
+}
+
+export type SplitTotals = { materials: number; labour: number; unsplit: number; lines: number };
+
+/** What the whole budget is made of: stuff, fitting it, and lines not split. */
+export function splitTotals(lines: BudgetLine[]): SplitTotals {
+  let materials = 0, labour = 0, unsplit = 0, split = 0;
+  for (const l of lines) {
+    const m = num(l.materialsAmount);
+    const lab = num(l.labourAmount);
+    if (m === null && lab === null) { unsplit += num(l.amount) ?? 0; continue; }
+    materials += m ?? 0;
+    labour += lab ?? 0;
+    split += 1;
+  }
+  return { materials, labour, unsplit, lines: split };
+}
 
 export type CategoryTotal = {
   category: string;

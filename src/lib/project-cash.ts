@@ -8,7 +8,7 @@ import type { Payment, Expenditure } from "@/lib/project-cash-shared";
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
 
 // ⚠️ One string literal on one line — see the note in lib/projects.ts.
-const PAY_COLS = "id,project_id,route,reference_no,batch_no,supplier,paid_date,amount_paid,notes";
+const PAY_COLS = "id,project_id,route,reference_no,batch_no,supplier,paid_date,amount_paid,total_payable,notes";
 const EXP_COLS = "id,project_id,spent_date,item_code,description,payer,amount,source,mobile_no,batch_no,notes";
 
 function text(v: string | null | undefined): string | null {
@@ -37,6 +37,7 @@ export async function listPayments(projectId: number): Promise<Payment[]> {
     supplier: (r.supplier as string | null) ?? null,
     paidDate: (r.paid_date as string | null) ?? null,
     amountPaid: (r.amount_paid as string | null) ?? "0",
+    totalPayable: (r.total_payable as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
   }));
 }
@@ -49,8 +50,18 @@ export type PaymentFields = {
   supplier?: string | null;
   paidDate?: string | null;
   amountPaid: string | number;
+  /** The invoice in full. Blank = work it out from what was approved. */
+  totalPayable?: string | number | null;
   notes?: string | null;
 };
+
+/** Blank stays blank — an untyped invoice total is unknown, not zero. */
+function optionalAmount(v: string | number | null | undefined): string | null {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const cleaned = typeof v === "string" ? v.replace(/[\s,]/g, "") : String(v);
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? String(n) : null;
+}
 
 export async function createPayment(f: PaymentFields, createdBy = "web-ui"): Promise<WriteResult> {
   const row = {
@@ -61,6 +72,7 @@ export async function createPayment(f: PaymentFields, createdBy = "web-ui"): Pro
     supplier: text(f.supplier),
     paid_date: text(f.paidDate),
     amount_paid: amount(f.amountPaid),
+    total_payable: optionalAmount(f.totalPayable),
     notes: text(f.notes),
     created_by: createdBy,
   };
@@ -122,6 +134,8 @@ export type ExpenditureFields = {
   source?: string | null;
   mobileNo?: string | null;
   batchNo?: string | null;
+  /** EXPENDITURES column H — the remarks box. */
+  notes?: string | null;
 };
 
 export async function createExpenditure(f: ExpenditureFields, createdBy = "web-ui"): Promise<WriteResult> {
@@ -137,6 +151,7 @@ export async function createExpenditure(f: ExpenditureFields, createdBy = "web-u
     source: text(f.source),
     mobile_no: text(f.mobileNo),
     batch_no: text(f.batchNo),
+    notes: text(f.notes),
     created_by: createdBy,
   };
   const { data, error } = await sb.from("project_expenditures").insert(row).select("id").single();

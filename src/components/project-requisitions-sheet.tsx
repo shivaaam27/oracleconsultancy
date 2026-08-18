@@ -41,7 +41,11 @@ const TONE_CHIP: Record<string, string> = {
   muted: "bg-bg-muted text-fg-muted",
 };
 
-export type BudgetItem = { itemCode: string; category: string; amount: number };
+export type BudgetItem = {
+  itemCode: string; category: string; amount: number;
+  /** Null when no quantity was recorded on the budget line. */
+  qty: number | null; unit: string | null;
+};
 
 export function ProjectRequisitionsSheet({
   projectId, requisitions: serverRows, budgetItems, routes, suppliers, currency,
@@ -305,7 +309,7 @@ function RaiseRequest({
   const balance = useMemo(() => {
     const b = budgetItems.find((x) => x.itemCode === itemCode);
     if (!b) return null;
-    return itemBalance(b.amount, rows.filter((r) => r.itemCode === itemCode));
+    return itemBalance(b.amount, rows.filter((r) => r.itemCode === itemCode), b.qty);
   }, [itemCode, budgetItems, rows]);
 
   const asking = num(effectiveAmount.replace(/[\s,]/g, "")) ?? 0;
@@ -404,6 +408,14 @@ function RaiseRequest({
           {" "}(budget {money(balance.budget)} − approved {money(balance.approved)})
           {balance.pending > 0 && <> · {money(balance.pending)} already requested but not yet approved</>}
           {wouldOverspend && <> — this request would take it over.</>}
+          {/* Quantities appear ONLY when the budget line carries one. No
+              quantity means silence, never a zero — see itemBalance. */}
+          {balance.qtyRemaining !== null && (
+            <span className="block">
+              {balance.qtyRemaining} {unitOf(budgetItems, itemCode)} left of {balance.qtyBudget}
+              {balance.qtyRequestedSoFar > 0 && <> · {balance.qtyRequestedSoFar} requested so far</>}
+            </span>
+          )}
         </div>
       )}
 
@@ -418,6 +430,12 @@ function RaiseRequest({
       </div>
     </div>
   );
+}
+
+/** The unit typed on a budget line, for the quantity balance line. Blank when
+ *  nobody recorded one — never a made-up "units". */
+function unitOf(items: BudgetItem[], itemCode: string): string {
+  return items.find((i) => i.itemCode === itemCode)?.unit ?? "";
 }
 
 const inputCls =

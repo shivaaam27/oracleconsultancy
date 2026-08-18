@@ -40,6 +40,8 @@ export type Payment = {
   supplier: string | null;
   paidDate: string | null;
   amountPaid: string;
+  /** The invoice in full, when it was typed. Null = work it out. */
+  totalPayable: string | null;
   notes: string | null;
 };
 
@@ -207,4 +209,87 @@ export function unallocatedSpend(expenditures: Expenditure[]): number {
   return expenditures
     .filter((e) => !e.itemCode)
     .reduce((s, e) => s + (num(e.amount) ?? 0), 0);
+}
+
+/* ─────────────────────────────────────────────── what is still owed ──────── */
+
+export type ApprovedRequisition = {
+  referenceNo: string | null;
+  batchNo: string | null;
+  route: string | null;
+  amountApproved: string | null;
+  status: string;
+};
+
+export type PaymentView = {
+  payment: Payment;
+  /** The invoice in full: typed if typed, else the approved money behind it. */
+  payable: number | null;
+  /** Where that figure came from, so the screen can say. */
+  payableFrom: "typed" | "approved" | null;
+  /** payable minus paid. Positive = still owed. Null when payable is unknown. */
+  balance: number | null;
+  status: "PAID" | "PARTIALLY PAID" | "NOT PAID" | "";
+};
+
+export function paymentViews(
+  payments: Payment[],
+  requisitions: ApprovedRequisition[],
+): PaymentView[] {
+  return payments.map((p) => {
+    const paid = num(p.amountPaid) ?? 0;
+    const typed = num(p.totalPayable);
+    const derived = payableFor(requisitions, {
+      route: (p.route as PaymentRoute) ?? "DIRECT",
+      referenceNo: p.referenceNo,
+      batchNo: p.batchNo,
+    });
+    const payable = typed ?? (derived > 0 ? derived : null);
+    return {
+      payment: p,
+      payable,
+      payableFrom: typed !== null ? "typed" : payable !== null ? "approved" : null,
+      balance: payable === null ? null : payable - paid,
+      status: payable === null ? "" : paymentStatus(payable, paid),
+    };
+  });
+}
+
+/**
+ * What the job still owes, and to whom.
+ *
+ * ⚠️ Only rows where the invoice total is KNOWN are counted. A payment with
+ * nothing to measure against is listed separately rather than treated as fully
+ * settled — silently assuming a blank means "paid in full" is exactly the kind
+ * of flattering guess the workbook makes elsewhere.
+ */
+export type OwedSummary = {
+  owed: number;
+  overpaid: number;
+  settled: number;
+  unknown: number;
+  bySupplier: Array<{ supplier: string; owed: number }>;
+};
+
+export function owedSummary(views: PaymentView[]): OwedSummary {
+  let owed = 0, overpaid = 0, settled = 0, unknown = 0;
+  const by = new Map<string, number>();
+  for (const v of views) {
+    if (v.balance === null) { unknown += 1; continue; }
+    if (v.balance > 0.005) {
+      owed += v.balance;
+      const who = v.payment.supplier ?? v.payment.referenceNo ?? v.payment.batchNo ?? "Unnamed";
+      by.set(who, (by.get(who) ?? 0) + v.balance);
+    } else if (v.balance < -0.005) {
+      overpaid += -v.balance;
+    } else {
+      settled += 1;
+    }
+  }
+  return {
+    owed, overpaid, settled, unknown,
+    bySupplier: [...by.entries()]
+      .map(([supplier, amount]) => ({ supplier, owed: amount }))
+      .sort((a, b) => b.owed - a.owed),
+  };
 }

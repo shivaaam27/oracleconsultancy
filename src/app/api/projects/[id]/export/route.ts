@@ -19,6 +19,7 @@ import { listPayments, listExpenditures } from "@/lib/project-cash";
 import { listSitePeople, listSiteDays, listPaymentStages } from "@/lib/project-site";
 import { listProjectAudit } from "@/lib/project-audit";
 import { fundsByBatch } from "@/lib/project-funds-shared";
+import { paymentViews } from "@/lib/project-cash-shared";
 import { num, money, pct, fmtDate } from "@/lib/projects-shared";
 import { groupByCategory } from "@/lib/project-budget-shared";
 import { fieldLabel, displayValue, actorLabel, summarise, ENTITY_LABELS } from "@/lib/project-audit-shared";
@@ -91,8 +92,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     case "budget": {
       const lines = await listBudgetLines(n);
       return file(toCsv(
-        ["Item code", "Category", "Sub-job", "Description", "Amount", "Notes"],
-        lines.map((l) => [l.itemCode, l.category, l.subJob, l.description, num(l.amount), l.notes]),
+        ["Item code", "Category", "Sub-job", "Description", "Amount",
+          "Materials", "Labour", "Qty", "Unit", "Notes"],
+        lines.map((l) => [
+          l.itemCode, l.category, l.subJob, l.description, num(l.amount),
+          num(l.materialsAmount), num(l.labourAmount), num(l.qty), l.unit, l.notes,
+        ]),
       ));
     }
 
@@ -110,23 +115,39 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     case "payments": {
-      const ps = await listPayments(n);
+      // The requisitions come too: an invoice total left blank is worked out
+      // from the money approved against the same reference or batch.
+      const [ps, rs] = await Promise.all([listPayments(n), listRequisitions(n)]);
+      const views = paymentViews(ps, rs.map((r) => ({
+        referenceNo: r.referenceNo, batchNo: r.batchNo, route: r.route,
+        amountApproved: r.amountApproved, status: r.status,
+      })));
       return file(toCsv(
-        ["Route", "Reference", "Batch", "Supplier", "Paid on", "Amount paid", "Notes"],
-        ps.map((p) => [p.route, p.referenceNo, p.batchNo, p.supplier, onDay(p.paidDate), num(p.amountPaid), p.notes]),
+        ["Route", "Reference", "Batch", "Supplier", "Paid on", "Amount paid",
+          "Invoice total", "From", "Still owed", "Status", "Notes"],
+        views.map((v) => [
+          v.payment.route, v.payment.referenceNo, v.payment.batchNo, v.payment.supplier,
+          onDay(v.payment.paidDate), num(v.payment.amountPaid),
+          v.payable, v.payableFrom === "approved" ? "approved requisitions" : v.payableFrom === "typed" ? "typed" : "",
+          v.balance, v.status, v.payment.notes,
+        ]),
       ));
     }
 
     case "expenditures": {
       const es = await listExpenditures(n);
       return file(toCsv(
-        ["Spent on", "Item code", "Description", "Whose float", "Amount", "Money from", "Batch", "Mobile no."],
-        es.map((e) => [onDay(e.spentDate), e.itemCode, e.description, e.payer, num(e.amount), e.source, e.batchNo, e.mobileNo]),
+        ["Spent on", "Item code", "Description", "Whose float", "Amount", "Money from",
+          "Batch", "Mobile no.", "Remarks"],
+        es.map((e) => [onDay(e.spentDate), e.itemCode, e.description, e.payer, num(e.amount),
+          e.source, e.batchNo, e.mobileNo, e.notes]),
       ));
     }
 
     case "funds": {
-      const [lines, rs] = await Promise.all([listBudgetLines(n), listRequisitions(n)]);
+      const [lines, rs, ps] = await Promise.all([
+        listBudgetLines(n), listRequisitions(n), listPayments(n),
+      ]);
       const budget = lines.length ? lines.reduce((s, l) => s + (num(l.amount) ?? 0), 0) : null;
       const funds = fundsByBatch(
         rs.map((r) => ({
@@ -134,13 +155,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
           amountReceived: r.amountReceived, requestedDate: r.requestedDate, status: r.status,
         })),
         budget,
+        ps.map((p) => ({
+          batchNo: p.batchNo, route: p.route, amountPaid: p.amountPaid, paidDate: p.paidDate,
+        })),
       );
       return file(toCsv(
         ["Batch", "First request", "Requests", "Requested", "Approved", "Trimmed", "Undecided",
-          "Received", "Not yet received", "Budget left", "Used %"],
+          "Received", "Not yet received", "Cash released", "Released by route", "Last paid",
+          "Approved not sent", "Budget left", "Used %"],
         funds.rows.map((b) => [
           b.batchNo, onDay(b.firstDate), b.requests, b.requested, b.approved, b.trimmed, b.pending,
-          b.actual, b.underSpent, b.diminishing,
+          b.actual, b.underSpent, b.released,
+          Object.entries(b.releasedBy).map(([r, a]) => `${r} ${a}`).join(" / "),
+          onDay(b.lastPaidDate), b.notYetReleased, b.diminishing,
           b.utilisation === null ? "" : (b.utilisation * 100).toFixed(1),
         ]),
       ));
@@ -172,12 +199,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     case "plan": {
       const stages = await listPaymentStages(n);
       return file(toCsv(
-        ["Stage", "At completion %", "Share %", "Amount", "Invoiced on", "Invoiced", "Received on", "Received"],
+        ["Stage", "At completion %", "Share %", "Amount", "Invoiced on", "Invoiced",
+          "Received on", "Received", "IPC submitted", "IPC processed", "EFD receipt"],
         stages.map((s) => [
           s.label,
           s.thresholdPct === null ? "" : ((num(s.thresholdPct) ?? 0) * 100).toFixed(0),
           s.sharePct === null ? "" : ((num(s.sharePct) ?? 0) * 100).toFixed(0),
           num(s.amount), onDay(s.invoiceDate), num(s.invoiceAmount), onDay(s.receivedDate), num(s.amountReceived),
+          s.ipcSubmitted, s.ipcProcessed, s.efdIssued,
         ]),
       ));
     }
@@ -205,7 +234,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         ["When", "Who", "Sheet", "Record", "What happened", "Field", "Was", "Became"],
         rows.map((r) => [
           atTime(r.createdAt), actorLabel(r.createdBy), ENTITY_LABELS[r.entity] ?? r.entity, r.label,
-          r.action, fieldLabel(r.field), displayValue(r.field, r.oldValue),
+          r.action, fieldLabel(r.field, r.entity), displayValue(r.field, r.oldValue),
           r.field ? displayValue(r.field, r.newValue) : summarise(r.newValue),
         ]),
       ));

@@ -192,6 +192,12 @@ function GaugeLine({ row }: { row: GaugeRow }) {
       <span className="tabular w-24 shrink-0 text-right text-[11px] text-fg-subtle">
         {row.budget > 0 ? money(row.budget) : "no budget"}
       </span>
+      {/* The workbook calls this COST CONT — how much of the whole budget this
+          category is. It says which overspends actually matter. */}
+      <span className="tabular hidden w-12 shrink-0 text-right text-[11px] text-fg-subtle sm:block"
+        title="Share of the whole budget">
+        {row.share > 0 ? pct(row.share, row.share < 0.01 ? 1 : 0) : "—"}
+      </span>
       <span className={cn("tabular w-14 shrink-0 text-right text-[11px] font-medium", TONE_TEXT[tone])}>
         {row.utilisation === null ? "—" : pct(row.utilisation, 0)}
       </span>
@@ -213,6 +219,9 @@ function StageLine({
   const [invoiceDate, setInvoiceDate] = useState(view.stage.invoiceDate?.slice(0, 10) ?? "");
   const [amountReceived, setAmountReceived] = useState(view.stage.amountReceived ?? "");
   const [receivedDate, setReceivedDate] = useState(view.stage.receivedDate?.slice(0, 10) ?? "");
+  const [ipcSubmitted, setIpcSubmitted] = useState(view.stage.ipcSubmitted);
+  const [ipcProcessed, setIpcProcessed] = useState(view.stage.ipcProcessed);
+  const [efdIssued, setEfdIssued] = useState(view.stage.efdIssued);
 
   const s = view.stage;
   return (
@@ -234,15 +243,22 @@ function StageLine({
         <span className="tabular w-28 shrink-0 text-right text-[11px] text-fg-muted">
           {view.received > 0 ? `${money(view.received)} in` : "nothing in"}
         </span>
+        <span className="flex shrink-0 items-center gap-1">
+          <Mark on={s.ipcSubmitted} label="IPC in" title="Certificate submitted" />
+          <Mark on={s.ipcProcessed} label="IPC done" title="Certificate processed" />
+          <Mark on={s.efdIssued} label="EFD" title="Fiscal receipt issued" />
+        </span>
         <button type="button" onClick={() => setOpen((v) => !v)}
           className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-fg-muted hover:text-fg">
           {open ? "Close" : "Invoice"}
         </button>
       </div>
 
-      {view.billable && !view.invoiced && (
+      {/* One phrase naming the FIRST thing holding the money up — the question
+          the workbook has the columns for and never asks. */}
+      {view.heldUpBy && (
         <p className="mt-1 text-[11px] text-warn">
-          Billable now and not yet invoiced — {money(view.amount)}.
+          {money(view.balance ?? view.amount)} outstanding — {view.heldUpBy}.
         </p>
       )}
 
@@ -256,10 +272,16 @@ function StageLine({
             onChange={(e) => setReceivedDate(e.target.value)} className={smallInput} /></Small>
           <Small label="Amount received"><input value={amountReceived} inputMode="decimal"
             onChange={(e) => setAmountReceived(e.target.value)} className={cn(smallInput, "tabular text-right")} /></Small>
+          <span className="flex items-end gap-1 pb-0.5">
+            <Toggle on={ipcSubmitted} onChange={setIpcSubmitted} label="IPC submitted" />
+            <Toggle on={ipcProcessed} onChange={setIpcProcessed} label="IPC processed" />
+            <Toggle on={efdIssued} onChange={setEfdIssued} label="EFD receipt" />
+          </span>
           <button type="button" disabled={pending}
             onClick={() => start(async () => {
               const res = await updatePaymentStageAction(s.id, projectId, {
                 invoiceAmount, invoiceDate, amountReceived, receivedDate,
+                ipcSubmitted, ipcProcessed, efdIssued,
               });
               if (!res.ok) { onError(res.error!); return; }
               onSaved({
@@ -268,6 +290,7 @@ function StageLine({
                 invoiceDate: invoiceDate || null,
                 amountReceived: amountReceived.replace(/[\s,]/g, "") || null,
                 receivedDate: receivedDate || null,
+                ipcSubmitted, ipcProcessed, efdIssued,
               });
               setOpen(false);
             })}
@@ -282,6 +305,28 @@ function StageLine({
         </div>
       )}
     </div>
+  );
+}
+
+/** A yes/no mark on the stage row — SNAPSHOT columns E, F and I. */
+function Mark({ on, label, title }: { on: boolean; label: string; title: string }) {
+  return (
+    <span title={`${title}: ${on ? "yes" : "no"}`}
+      className={cn("rounded-sm px-1 py-0.5 text-[10px] font-medium",
+        on ? "bg-success-soft text-success" : "bg-bg-muted text-fg-subtle")}>
+      {label}
+    </span>
+  );
+}
+
+/** The same three, as buttons, inside the editor. */
+function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)}
+      className={cn("h-8 rounded-md border px-2 text-[11px]",
+        on ? "border-success/40 bg-success-soft text-success" : "border-border bg-bg text-fg-muted")}>
+      {on ? "✓ " : ""}{label}
+    </button>
   );
 }
 

@@ -11,7 +11,8 @@ import { suggestItemCode, money, groupByCategory, normaliseCode, type BudgetLine
 function line(id: number, itemCode: string, category: string, amount: string): BudgetLine {
   return {
     id, projectId: 1, itemCode, category, subJob: null, description: null,
-    amount, qty: null, unit: null, sortOrder: id * 10, notes: null,
+    amount, materialsAmount: null, labourAmount: null,
+    qty: null, unit: null, sortOrder: id * 10, notes: null,
   };
 }
 

@@ -9,7 +9,8 @@ import {
 function pay(over: Partial<Payment> = {}): Payment {
   return {
     id: 1, projectId: 1, route: "DIRECT", referenceNo: null, batchNo: null,
-    supplier: null, paidDate: "2026-02-03", amountPaid: "0", notes: null, ...over,
+    supplier: null, paidDate: "2026-02-03", amountPaid: "0",
+    totalPayable: null, notes: null, ...over,
   };
 }
 function exp(over: Partial<Expenditure> = {}): Expenditure {

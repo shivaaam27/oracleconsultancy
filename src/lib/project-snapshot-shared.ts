@@ -98,6 +98,10 @@ export type PaymentStage = {
   invoiceAmount: string | null;
   receivedDate: string | null;
   amountReceived: string | null;
+  /** SNAPSHOT E, F and I — the certificate and the fiscal receipt. */
+  ipcSubmitted: boolean;
+  ipcProcessed: boolean;
+  efdIssued: boolean;
   sortOrder: number;
   notes: string | null;
 };
@@ -111,6 +115,14 @@ export type StageView = {
   /** SNAPSHOT D40: threshold reached by physical completion. */
   billable: boolean | null;
   invoiced: boolean;
+  /**
+   * What is holding the money up, in one phrase, or null when nothing is.
+   *
+   * A stage can be billable, invoiced and still unpaid because the certificate
+   * was never submitted or no fiscal receipt was issued. The workbook records
+   * those as YES/NO cells and then never asks the question.
+   */
+  heldUpBy: string | null;
 };
 
 /**
@@ -136,14 +148,29 @@ export function stageViews(
       const amount = typed ?? (share !== null && opts.totalContract !== null ? share * opts.totalContract : null);
       const received = num(s.amountReceived) ?? 0;
       const threshold = num(s.thresholdPct);
+      const billable =
+        threshold === null || opts.completionPct === null ? null : threshold < opts.completionPct;
+      const invoiced = num(s.invoiceAmount) !== null;
+      const outstanding = amount === null ? true : amount - received > 0.005;
+
+      // Worked out in the order the paperwork actually happens, so the phrase
+      // names the FIRST thing missing rather than all of them.
+      let heldUpBy: string | null = null;
+      if (outstanding) {
+        if (billable && !invoiced) heldUpBy = "not invoiced yet";
+        else if (invoiced && !s.ipcSubmitted) heldUpBy = "certificate not submitted";
+        else if (s.ipcSubmitted && !s.ipcProcessed) heldUpBy = "certificate not processed";
+        else if (invoiced && !s.efdIssued) heldUpBy = "no fiscal receipt (EFD)";
+      }
+
       return {
         stage: s,
         amount,
         received,
         balance: amount === null ? null : amount - received,
-        billable:
-          threshold === null || opts.completionPct === null ? null : threshold < opts.completionPct,
-        invoiced: num(s.invoiceAmount) !== null,
+        billable,
+        invoiced,
+        heldUpBy,
       };
     });
 }

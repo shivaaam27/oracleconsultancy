@@ -78,7 +78,7 @@ export function ProjectFundsSheet({
 
       {/* ── the sheet ── */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[900px] border-collapse bg-bg-elev text-[12px]">
+        <table className="w-full min-w-[1040px] border-collapse bg-bg-elev text-[12px]">
           <thead>
             <tr className="border-b border-border bg-bg-subtle text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
               <th className="px-2 py-1.5 text-left font-medium">Batch</th>
@@ -88,6 +88,9 @@ export function ProjectFundsSheet({
               <th className="px-2 py-1.5 text-right font-medium">Undecided</th>
               <th className="px-2 py-1.5 text-right font-medium">Received</th>
               <th className="px-2 py-1.5 text-right font-medium">Not yet received</th>
+              <th className="px-2 py-1.5 text-right font-medium" title="Cash actually released against this batch, and who it went through">
+                Cash released
+              </th>
               <th className="px-2 py-1.5 text-right font-medium">Budget left</th>
               <th className="px-2 py-1.5 text-right font-medium">Used</th>
             </tr>
@@ -118,6 +121,29 @@ export function ProjectFundsSheet({
                 <td className={cn("px-2 py-1.5 text-right tabular", r.underSpent > 0 && "text-warn")}>
                   {r.underSpent > 0 ? m(r.underSpent) : "—"}
                 </td>
+                <td className="px-2 py-1.5 text-right">
+                  {/* Nothing released is a dash, not a zero: a batch settled
+                      outside this ledger must not read as money withheld. */}
+                  {r.released === 0 ? (
+                    <span className="text-fg-subtle">—</span>
+                  ) : (
+                    <>
+                      <span className="block tabular">{m(r.released)}</span>
+                      <span className="block text-[10px] text-fg-subtle">
+                        {Object.entries(r.releasedBy)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([route, amt]) => `${route} ${m(amt)}`)
+                          .join(" · ")}
+                        {r.lastPaidDate && ` · ${fmtDate(r.lastPaidDate)}`}
+                      </span>
+                      {r.notYetReleased !== null && r.notYetReleased > 0.005 && (
+                        <span className="block text-[10px] text-warn">
+                          {m(r.notYetReleased)} approved, not sent
+                        </span>
+                      )}
+                    </>
+                  )}
+                </td>
                 <td className={cn("px-2 py-1.5 text-right tabular",
                   r.diminishing !== null && r.diminishing < 0 && "text-danger")}>
                   {m(r.diminishing)}
@@ -137,6 +163,7 @@ export function ProjectFundsSheet({
               <td className="px-2 py-1.5 text-right tabular">{m(totals.pending)}</td>
               <td className="px-2 py-1.5 text-right tabular">{m(totals.actual)}</td>
               <td className="px-2 py-1.5 text-right tabular">{m(last.cumulative)}</td>
+              <td className="px-2 py-1.5 text-right tabular">{m(totals.released)}</td>
               <td className="px-2 py-1.5 text-right tabular">{m(totals.remaining)}</td>
               <td className="px-2 py-1.5 text-right tabular">{pct(totals.utilisation, 0) ?? "—"}</td>
             </tr>

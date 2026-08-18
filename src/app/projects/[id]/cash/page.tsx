@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { getProject } from "@/lib/projects";
 import { listBudgetLines } from "@/lib/project-budget";
 import { listPayments, listExpenditures } from "@/lib/project-cash";
+import { listRequisitions } from "@/lib/project-requisitions";
 import { listRefs, namesOf } from "@/lib/project-refs";
 import { ProjectTabs } from "@/components/project-tabs";
 import { ProjectCashSheet } from "@/components/project-cash-sheet";
@@ -17,8 +18,9 @@ export default async function ProjectCashPage({ params }: { params: Promise<{ id
   const n = Number(id);
   if (!Number.isFinite(n)) notFound();
 
-  const [project, lines, payments, expenditures, refs] = await Promise.all([
-    getProject(n), listBudgetLines(n), listPayments(n), listExpenditures(n), listRefs(n),
+  const [project, lines, payments, expenditures, requisitions, refs] = await Promise.all([
+    getProject(n), listBudgetLines(n), listPayments(n), listExpenditures(n),
+    listRequisitions(n), listRefs(n),
   ]);
   if (!project) notFound();
 
@@ -39,6 +41,12 @@ export default async function ProjectCashPage({ params }: { params: Promise<{ id
         payments={payments}
         expenditures={expenditures}
         itemCodes={lines.map((l) => l.itemCode)}
+        /* Only what is needed to work out an invoice total from the money head
+           office approved — not the whole requisition. */
+        requisitions={requisitions.map((r) => ({
+          referenceNo: r.referenceNo, batchNo: r.batchNo, route: r.route,
+          amountApproved: r.amountApproved, status: r.status,
+        }))}
         floatHolders={namesOf(refs, "float_holder")}
         suppliers={namesOf(refs, "supplier")}
         currency={project.currency}

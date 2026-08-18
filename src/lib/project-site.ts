@@ -12,7 +12,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 // ⚠️ One string literal on one line — see the note in lib/projects.ts.
 const PEOPLE_COLS = "id,project_id,name,designation,kind,daily_rate,phone,meals_eligible,active,sort_order";
 const DAYS_COLS = "id,person_id,day,meal,labour_amount";
-const STAGE_COLS = "id,project_id,label,threshold_pct,share_pct,amount,invoice_date,invoice_amount,received_date,amount_received,sort_order,notes";
+const STAGE_COLS = "id,project_id,label,threshold_pct,share_pct,amount,invoice_date,invoice_amount,received_date,amount_received,ipc_submitted,ipc_processed,efd_issued,sort_order,notes";
 
 function text(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();
@@ -162,6 +162,9 @@ export async function listPaymentStages(projectId: number): Promise<PaymentStage
     invoiceAmount: (r.invoice_amount as string | null) ?? null,
     receivedDate: (r.received_date as string | null) ?? null,
     amountReceived: (r.amount_received as string | null) ?? null,
+    ipcSubmitted: Boolean(r.ipc_submitted),
+    ipcProcessed: Boolean(r.ipc_processed),
+    efdIssued: Boolean(r.efd_issued),
     sortOrder: (r.sort_order as number | null) ?? 0,
     notes: (r.notes as string | null) ?? null,
   }));
@@ -201,6 +204,7 @@ export async function updatePaymentStage(id: number, patch: {
   label?: string; amount?: string | number | null;
   invoiceDate?: string | null; invoiceAmount?: string | number | null;
   receivedDate?: string | null; amountReceived?: string | number | null;
+  ipcSubmitted?: boolean; ipcProcessed?: boolean; efdIssued?: boolean;
 }): Promise<WriteResult> {
   const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.label !== undefined) row.label = patch.label.trim();
@@ -209,6 +213,12 @@ export async function updatePaymentStage(id: number, patch: {
   if (patch.invoiceAmount !== undefined) row.invoice_amount = amount(patch.invoiceAmount);
   if (patch.receivedDate !== undefined) row.received_date = text(patch.receivedDate);
   if (patch.amountReceived !== undefined) row.amount_received = amount(patch.amountReceived);
+  // Booleans are only ever written as real booleans — a NOT NULL column with a
+  // default rejects an explicit null, which is the bug that lost a whole typed
+  // project in Phase 1.
+  if (patch.ipcSubmitted !== undefined) row.ipc_submitted = Boolean(patch.ipcSubmitted);
+  if (patch.ipcProcessed !== undefined) row.ipc_processed = Boolean(patch.ipcProcessed);
+  if (patch.efdIssued !== undefined) row.efd_issued = Boolean(patch.efdIssued);
   const before = await snapshotRow("project_payment_stages", id);
   const { error } = await sb.from("project_payment_stages").update(row).eq("id", id);
   if (error) {

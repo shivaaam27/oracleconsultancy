@@ -586,3 +586,65 @@ Nothing here is a bug; each is a decision waiting to be made.
 
 Nothing in the workbook was found that COS *silently* gets wrong; these are
 absences, and 1, 2 and 3 are the ones that would be felt on a live job.
+
+## Those gaps, closed — Aug 2026 (migration 0129)
+
+The owner asked for 2, 3, 4, 6, 7, 8 and 9. All are built. **1 (store issues /
+stock on hand) is deliberately PARKED**: those sheets are empty and broken in the
+workbook, and he will send a file that has real data before it is designed. **5
+(job status per line) was not asked for and is not built.**
+
+New columns: `project_payments.total_payable`; `project_payment_stages`
+`ipc_submitted` / `ipc_processed` / `efd_issued`; `project_budget_lines`
+`materials_amount` / `labour_amount`. Nothing was dropped or rewritten.
+
+- **2 · What is still owed.** `paymentViews()` gives every payment an invoice
+  total — the TYPED one if there is one, otherwise the approved requisitions
+  behind the same reference or batch — plus balance and PAID / PART / UNPAID.
+  `owedSummary()` adds the balances up and names the suppliers, worst first.
+  ⚠️ **A payment with no invoice total is counted as UNKNOWN, never settled**;
+  the screen says "N with no invoice total" rather than implying nil owed.
+- **3 · The paperwork.** Three yes/no marks per stage (IPC submitted, IPC
+  processed, EFD receipt) on the row and in the editor, and `heldUpBy` names the
+  FIRST thing blocking the money: not invoiced → certificate not submitted →
+  certificate not processed → no fiscal receipt. It goes quiet once a stage is
+  paid. Kept as marks, not dates: the workbook fills those cells with YES.
+- **4 · Materials vs labour.** Optional on a budget line, and **neither drives
+  the amount**. `splitDifference()` reports a split that does not add up and the
+  row shows a warning triangle — the workbook has that disagreement on many rows
+  and hides it. `splitTotals()` prints materials / labour / not-split.
+- **6 · Remarks on spending.** A full-width box on the form (EXPENDITURES col H);
+  shows on the row and in the CSV.
+- **7 · Who paid, per batch.** Funds gains a Cash released column: the total, the
+  split by route (DIRECT / SHAO / HQ, worked out from the payments, so a new
+  route needs no code), the last date paid, and "approved, not sent".
+  ⚠️ **A batch with NO payments shows a dash and `notYetReleased` is null** — it
+  may have been settled outside this ledger, and printing the whole approved
+  figure as "not sent" would be an accusation the data cannot support.
+- **8 · Cost contribution.** The gauge gains the category's share of the whole
+  budget (SNAPSHOT F/K), which is what says whether an overspend matters.
+- **9 · Quantities are ON.** Optional quantity + unit on a budget line, behind a
+  "Quantity & split" fold on the add-row (remembered in localStorage). The
+  requisition balance now shows "5 EA left of 25" — **but only when a quantity
+  was typed on the budget line**; otherwise it says nothing at all. That is the
+  whole difference from the workbook, where the balance quantity is built on a
+  dead column and told the site 15 remained while 45 were being requested.
+  ⚠️ **Nothing multiplies quantity by rate into money.** The amount is typed.
+
+Exports carry every new column; the print view carries the paperwork column.
+**18 new tests** in `project-extras-shared.test.ts` (482 pass); type-check and
+`npm run build` clean.
+
+### Verified in the browser, then deleted
+A throwaway project ("ZZ SMOKE TEST") with invented figures: budget line with
+quantity + a deliberately wrong split (flagged), requisition, spending with
+remarks, part payment 100,000 against a 150,000 invoice (read "50,000 · PART"),
+the standard plan seeded, IPC submitted toggled (message moved to "certificate
+not processed"), all eleven CSVs, and every tab loaded clean. Deleted afterwards:
+**0 projects, 0 audit rows.**
+
+⚠️ **One unexplained observation, not reproduced:** on the very first save the
+budget list stayed empty while the row WAS written; every later save appeared
+instantly. Watch for it — the list is deliberately owned by the component
+(see the long note in `project-budget-sheet.tsx`) and a real fault there would
+show as a saved line that does not appear until the page is reloaded.

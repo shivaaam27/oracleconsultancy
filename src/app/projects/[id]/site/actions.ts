@@ -59,6 +59,7 @@ export async function seedDefaultStagesAction(
 export async function updatePaymentStageAction(id: number, projectId: number, patch: {
   label?: string; amount?: string | null; invoiceDate?: string | null;
   invoiceAmount?: string | null; receivedDate?: string | null; amountReceived?: string | null;
+  ipcSubmitted?: boolean; ipcProcessed?: boolean; efdIssued?: boolean;
 }): Promise<Result> {
   const res = await updatePaymentStage(id, patch);
   if (!res.ok) return { ok: false, error: res.error };

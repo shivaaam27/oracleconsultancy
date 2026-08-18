@@ -25,6 +25,8 @@ export default async function ProjectRequisitionsPage({ params }: { params: Prom
 
   const budgetItems: BudgetItem[] = lines.map((l) => ({
     itemCode: l.itemCode, category: l.category, amount: num(l.amount) ?? 0,
+    // Null unless a quantity was actually typed — see itemBalance.
+    qty: num(l.qty), unit: l.unit,
   }));
 
   return (

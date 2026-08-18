@@ -24,7 +24,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Check, Pencil, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, Pencil, X, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RecordList } from "./record-list";
 import { Combobox } from "./combobox";
@@ -32,7 +32,8 @@ import { SetupNeeded } from "./setup-needed";
 import { createRefAction } from "@/app/projects/[id]/setup/actions";
 import { MoneyInput } from "./money-input";
 import {
-  money, suggestItemCode, groupByCategory, normaliseCode, type BudgetLine,
+  money, suggestItemCode, groupByCategory, normaliseCode, splitDifference, splitTotals,
+  type BudgetLine,
 } from "@/lib/project-budget-shared";
 import { num } from "@/lib/projects-shared";
 import {
@@ -123,6 +124,8 @@ export function ProjectBudgetSheet({
         margin={margin}
       />
 
+      <SplitSummary lines={lines} />
+
       <SetupNeeded projectId={projectId} missing={[
         ...(categoryOptions.length ? [] : ["Categories"]),
         ...(subJobOptions.length ? [] : ["Sub-jobs"]),
@@ -183,6 +186,37 @@ export function ProjectBudgetSheet({
             render: (l) => <span className="truncate text-[12px]">{l.category}</span>,
           },
           {
+            key: "qty", label: "Qty", width: "90px", align: "right", hideBelow: "lg",
+            render: (l) => (
+              <span className="tabular text-[12px] text-fg-muted">
+                {/* Blank, never 0 — a quantity nobody typed is not a quantity of none. */}
+                {l.qty === null ? "—" : `${num(l.qty)}${l.unit ? ` ${l.unit}` : ""}`}
+              </span>
+            ),
+          },
+          {
+            key: "split", label: "Materials / labour", width: "150px", align: "right", hideBelow: "lg",
+            render: (l) => {
+              const diff = splitDifference(l);
+              if (diff === null) return <span className="text-[12px] text-fg-subtle">—</span>;
+              return (
+                <span className="inline-flex items-center justify-end gap-1 text-[12px]">
+                  <span className="tabular text-fg-muted">
+                    {money(num(l.materialsAmount) ?? 0)} / {money(num(l.labourAmount) ?? 0)}
+                  </span>
+                  {diff !== 0 && (
+                    <span
+                      title={`The split is ${money(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than the amount. Neither figure has been changed — check which is right.`}
+                      className="text-warn"
+                    >
+                      <AlertTriangle size={12} />
+                    </span>
+                  )}
+                </span>
+              );
+            },
+          },
+          {
             key: "amount", label: "Amount", width: "120px", align: "right",
             render: (l) => <span className="tabular text-[12px]">{money(num(l.amount)) ?? "—"}</span>,
           },
@@ -240,6 +274,34 @@ export function ProjectBudgetSheet({
         </p>
       )}
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────── what the budget is made of ─── */
+
+/**
+ * Materials against labour, and how much of the budget has not been split.
+ *
+ * One line rather than tiles: it is only meaningful once some lines carry a
+ * split, so it says nothing at all until they do.
+ */
+function SplitSummary({ lines }: { lines: BudgetLine[] }) {
+  const t = splitTotals(lines);
+  const mismatched = lines.filter((l) => (splitDifference(l) ?? 0) !== 0).length;
+  if (t.lines === 0) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-muted">
+      <span>Materials <span className="tabular text-fg">{money(t.materials)}</span></span>
+      <span>Labour <span className="tabular text-fg">{money(t.labour)}</span></span>
+      <span>Split on {t.lines} line{t.lines === 1 ? "" : "s"}</span>
+      {t.unsplit > 0 && <span>Not split <span className="tabular text-fg">{money(t.unsplit)}</span></span>}
+      {mismatched > 0 && (
+        <span className="inline-flex items-center gap-1 text-warn">
+          <AlertTriangle size={12} />
+          {mismatched} line{mismatched === 1 ? " does" : "s do"} not add up to the amount
+        </span>
+      )}
+    </p>
   );
 }
 
@@ -359,7 +421,26 @@ function AddLineRow({
   const [codeTouched, setCodeTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  // The optional half: quantity, unit and the materials/labour split. Folded
+  // away by default — 270 lines are typed through the four fields above, and
+  // the owner asked not to be shown a wall of boxes. The choice is remembered,
+  // so somebody entering quantities does not re-open it every visit.
+  const [extras, setExtras] = useState(false);
+  const [qty, setQty] = useState("");
+  const [unit, setUnit] = useState("");
+  const [materials, setMaterials] = useState("");
+  const [labour, setLabour] = useState("");
   const [justSaved, setJustSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    try { setExtras(localStorage.getItem("project-budget-extras") === "1"); } catch {}
+  }, []);
+  const toggleExtras = () => {
+    setExtras((v) => {
+      try { localStorage.setItem("project-budget-extras", v ? "0" : "1"); } catch {}
+      return !v;
+    });
+  };
   // ⚠️ Sub-job is a Combobox now, which owns its own input, so there is no ref
   // to focus. Remounting it on `comboKey` clears it; the cursor stays where the
   // person put it rather than being yanked about.
@@ -378,6 +459,7 @@ function AddLineRow({
       const res = await addBudgetLineAction({
         projectId, itemCode: effectiveCode, category,
         subJob, description, amount,
+        qty, unit, materialsAmount: materials, labourAmount: labour,
       });
       if (!res.ok) { onError(res.error ?? "Couldn't save the line."); return; }
       // Keep the category, clear the rest, go back to the top of the row.
@@ -388,10 +470,17 @@ function AddLineRow({
         projectId, itemCode: saved, category: normaliseCode(category),
         subJob: subJob || null, description: description || null,
         amount: amount.replace(/[\s,]/g, "") || "0",
-        qty: null, unit: null, sortOrder: 9e6, notes: null,
+        materialsAmount: materials.replace(/[\s,]/g, "") || null,
+        labourAmount: labour.replace(/[\s,]/g, "") || null,
+        qty: qty.replace(/[\s,]/g, "") || null,
+        unit: unit || null,
+        sortOrder: 9e6, notes: null,
       });
       setSubJob(""); setCode(""); setCodeTouched(false); setComboKey((k) => k + 1);
       setDescription(""); setAmount("");
+      // Quantity and the split clear too; the UNIT stays, because a run of
+      // lines is measured the same way (bags, then trips, then metres).
+      setQty(""); setMaterials(""); setLabour("");
       setTimeout(() => setJustSaved(null), 2000);
       nextFieldRef.current?.focus();
     });
@@ -472,10 +561,41 @@ function AddLineRow({
         </Cell>
       </div>
 
+      {extras && (
+        <div
+          className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 sm:grid-cols-12"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}
+        >
+          <Cell className="sm:col-span-2" label="Quantity" hint="PATAMELA col G">
+            <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal"
+              placeholder="25" className={inputCls} />
+          </Cell>
+          <Cell className="sm:col-span-2" label="Unit" hint="bags, trips, m2">
+            <input value={unit} onChange={(e) => setUnit(e.target.value)}
+              placeholder="EA" className={inputCls} />
+          </Cell>
+          <Cell className="sm:col-span-4" label="Materials" hint="PATAMELA col J">
+            <MoneyInput value={materials} onChange={setMaterials} currency={currency} placeholder="optional" />
+          </Cell>
+          <Cell className="sm:col-span-4" label="Labour" hint="PATAMELA col L">
+            <MoneyInput value={labour} onChange={setLabour} currency={currency} placeholder="optional" />
+          </Cell>
+          <p className="sm:col-span-12 text-[11px] text-fg-subtle">
+            All four are optional and none of them changes the amount. Nothing here is
+            multiplied out — the amount above stays the figure.
+          </p>
+        </div>
+      )}
+
       <div className="mt-2.5 flex items-center gap-2">
         <button type="button" onClick={save} disabled={pending}
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add line
+        </button>
+        <button type="button" onClick={toggleExtras}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] text-fg-muted hover:text-fg">
+          <ChevronDown size={12} className={cn("transition-transform", extras && "rotate-180")} />
+          {extras ? "Hide quantity & split" : "Quantity & split"}
         </button>
         <span className="text-[11px] text-fg-subtle">
           Press <kbd className="rounded border border-border px-1">Enter</kbd> to save and start the next line.
@@ -529,6 +649,10 @@ function EditLine({
   const [category, setCategory] = useState(line.category);
   const [description, setDescription] = useState(line.description ?? "");
   const [amount, setAmount] = useState(line.amount);
+  const [qty, setQty] = useState(line.qty ?? "");
+  const [unit, setUnit] = useState(line.unit ?? "");
+  const [materials, setMaterials] = useState(line.materialsAmount ?? "");
+  const [labour, setLabour] = useState(line.labourAmount ?? "");
 
   return (
     <div
@@ -542,12 +666,35 @@ function EditLine({
       <input value={description} onChange={(e) => setDescription(e.target.value)}
         placeholder="description" className={cn(inputCls, "sm:col-span-3")} />
       <MoneyInput value={amount} onChange={setAmount} currency={currency} className="sm:col-span-2" />
+
+      <div className="grid grid-cols-2 gap-2 sm:col-span-11 sm:grid-cols-12">
+        <label className="sm:col-span-2 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+          Qty
+          <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal"
+            placeholder="—" className={cn(inputCls, "mt-0.5 normal-case tracking-normal")} />
+        </label>
+        <label className="sm:col-span-2 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+          Unit
+          <input value={unit} onChange={(e) => setUnit(e.target.value)}
+            placeholder="—" className={cn(inputCls, "mt-0.5 normal-case tracking-normal")} />
+        </label>
+        <label className="sm:col-span-4 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+          Materials
+          <MoneyInput value={materials} onChange={setMaterials} currency={currency} className="mt-0.5" />
+        </label>
+        <label className="sm:col-span-4 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+          Labour
+          <MoneyInput value={labour} onChange={setLabour} currency={currency} className="mt-0.5" />
+        </label>
+      </div>
+
       <div className="flex items-center gap-1 sm:col-span-1">
         <button
           type="button" disabled={pending} title="Save"
           onClick={() => start(async () => {
             const res = await updateBudgetLineAction(line.id, projectId, {
               itemCode, category, description, amount,
+              qty, unit, materialsAmount: materials, labourAmount: labour,
             });
             if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
             onDone({
@@ -556,6 +703,10 @@ function EditLine({
               category: normaliseCode(category),
               description: description || null,
               amount: amount.replace(/[\s,]/g, "") || "0",
+              qty: qty.replace(/[\s,]/g, "") || null,
+              unit: unit || null,
+              materialsAmount: materials.replace(/[\s,]/g, "") || null,
+              labourAmount: labour.replace(/[\s,]/g, "") || null,
             });
           })}
           className="rounded bg-accent p-1.5 text-accent-fg disabled:opacity-60"

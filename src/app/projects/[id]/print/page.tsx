@@ -168,6 +168,7 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
                   <th className="py-1 text-right font-normal">Invoiced</th>
                   <th className="py-1 text-right font-normal">Received</th>
                   <th className="py-1 font-normal">Billable now</th>
+                  <th className="py-1 font-normal">Paperwork</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,6 +179,13 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
                     <td className="py-1 text-right">{m(num(v.stage.invoiceAmount))}</td>
                     <td className="py-1 text-right">{m(v.received)}</td>
                     <td className="py-1">{v.billable ? "Yes" : "Not yet"}</td>
+                    <td className="py-1">
+                      {/* The certificate and the fiscal receipt — on paper, the
+                          person reading this is usually chasing exactly these. */}
+                      {[v.stage.ipcSubmitted && "IPC in", v.stage.ipcProcessed && "IPC done",
+                        v.stage.efdIssued && "EFD"].filter(Boolean).join(", ") || "—"}
+                      {v.heldUpBy && <span className="block text-fg-muted">{v.heldUpBy}</span>}
+                    </td>
                   </tr>
                 ))}
                 <tr className="font-medium">
@@ -185,6 +193,7 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
                   <td className="py-1 text-right">{m(plan.planned)}</td>
                   <td className="py-1 text-right">{m(plan.invoiced)}</td>
                   <td className="py-1 text-right">{m(plan.received)}</td>
+                  <td className="py-1" />
                   <td className="py-1" />
                 </tr>
               </tbody>
