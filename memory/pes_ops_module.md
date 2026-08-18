@@ -218,7 +218,31 @@ total that matches the sheet, and typing "Patamela" into ⌘K finds the project.
 
 ---
 
-# STAGE 1 — the master lists
+# STAGE 1 — the master lists ✅ BUILT (Aug 2026)
+
+Live at **`/ops`** — nav entry "Orders & Imports", in the Operations group.
+Migration **0130** (`ops_refs`), plus one setting, `ops.defaultExRate`.
+
+Verified in the browser: a client typed as "shanta mining" saved as **SHANTA
+MINING**, renamed to **SHANTA**, then deleted; the starter button added 14
+entries (6 statuses, 3 modes, 5 ageing bands) and the rate saved as 2,500.
+The three system lists were left in place; **no client, supplier, agent or
+origin was entered** — those are the owner's data to type.
+
+- The add / rename / merge / delete manager is the SHARED `ReferenceAdmin`
+  (Sites and Roles use the same one). No fourth copy of that widget.
+- `POINTS_AT` in `ops-refs.ts` is **deliberately empty until Stage 2** and
+  documented as such — the moment order tables exist they go in there, or a
+  rename will stop following the orders.
+- ⚠️ **Editing a lucide icon import while the dev server runs can leave a stale
+  bundle** — the sidebar died with "Ship is not defined" although the import was
+  correct and `tsc` was clean. Restarting the dev server fixed it. Do not go
+  hunting for a code fault first.
+- ⚠️ **Do not run `npm run build` while the dev server is running.** It failed
+  type-checking on `.next/dev/types/routes.d.ts`, a file the dev server was
+  writing at that moment. Stop it, `rm -rf .next/dev`, then build.
+
+
 
 Every later stage picks from these, so names stop being typed four ways. Today
 the workbook's MASTER sheet holds them and nothing enforces them: 57 import

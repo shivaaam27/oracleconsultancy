@@ -75,6 +75,14 @@ export type AppSettings = {
    */
   aiMonthlySpendCap: number;
   /**
+   * The exchange rate the trading module offers on a new order line.
+   *
+   * ⚠️ A DEFAULT, never a conversion. Every line stores its own rate, frozen at
+   * entry and editable afterwards (the owner's decision, Aug 2026) — so an old
+   * order never changes value because today's rate moved.
+   */
+  opsDefaultExRate: number;
+  /**
    * Tier-3 "send" guardrails (see lib/guardrails.ts). Whether automated code may
    * auto-send on each channel WITHOUT a human tap. Defaults preserve today:
    *  - email follows the existing email-automation setup (auto-send stays ON when
@@ -246,6 +254,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   emailSignature: "",
   emailSignatureImagePath: "",
   aiMonthlySpendCap: 0, // 0 = unlimited; never disable AI by default
+  opsDefaultExRate: 0,  // 0 = none offered; the workbook has been using 2,500
   autoSendEmail: true, // mirror today: email auto-send follows the email-automation setup
   autoSendWhatsapp: false,
   autoSendSms: false,
@@ -305,6 +314,7 @@ const KEY: Record<keyof AppSettings, string> = {
   emailSignature: "v2.emailSignature",
   emailSignatureImagePath: "v2.emailSignatureImagePath",
   aiMonthlySpendCap: "ai.monthlySpendCap",
+  opsDefaultExRate: "ops.defaultExRate",
   autoSendEmail: "v2.autoSendEmail",
   autoSendWhatsapp: "v2.autoSendWhatsapp",
   autoSendSms: "v2.autoSendSms",
@@ -381,6 +391,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     emailSignature: map.get(KEY.emailSignature) ?? d.emailSignature,
     emailSignatureImagePath: map.get(KEY.emailSignatureImagePath) ?? d.emailSignatureImagePath,
     aiMonthlySpendCap: toNum(map.get(KEY.aiMonthlySpendCap), d.aiMonthlySpendCap),
+    opsDefaultExRate: toNum(map.get(KEY.opsDefaultExRate), d.opsDefaultExRate),
     autoSendEmail: toBool(map.get(KEY.autoSendEmail), d.autoSendEmail),
     autoSendWhatsapp: toBool(map.get(KEY.autoSendWhatsapp), d.autoSendWhatsapp),
     autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),

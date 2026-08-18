@@ -2511,3 +2511,50 @@ export const projectAudit = pgTable("project_audit", {
   index("project_audit_project_idx").on(t.projectId, t.createdAt),
   index("project_audit_entity_idx").on(t.projectId, t.entity, t.entityId),
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS REFERENCE LISTS — the MASTER sheet of the PES trading workbook.
+//
+// Clients, cost centres, suppliers, clearing agents, origins, delivery
+// statuses, modes and ageing buckets. In the workbook these sit on one sheet
+// and nothing enforces them, so the same agent is typed three ways and the
+// analysis quietly splits in two.
+//
+// ONE table, many lists, separated by `kind` — the same shape as
+// `project_refs`, which has already proved itself. Eight near-identical tables
+// would have been eight migrations and eight screens.
+//
+// ⚠️ Scoped to a COMPANY, not to a project: these lists belong to the business
+// doing the trading, and every order raised under it picks from them.
+//
+// ⚠️ Nothing seeds itself. The starter lists (statuses, modes, ageing bands)
+// arrive when the owner presses a button — see `memory/pes_ops_module.md`.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsRefs = pgTable("ops_refs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /**
+   * Which list this belongs to:
+   *   client          the mine that buys              (SHANTA, GGM, BARRICK)
+   *   cost_centre     their site                      (NORTH MARA, BULY)
+   *   supplier        who we buy from                 (DFC, MAT HELLAS)
+   *   clearing_agent  who clears it through customs   (ALMOL, SGET)
+   *   origin          where it ships from             (INDIA, SOUTH AFRICA)
+   *   delivery_status where it has got to             (UNDER PRODUCTION, TRANSIT)
+   *   mode            how it travels                  (BY SEA, BY AIR, BY ROAD)
+   *   ageing_bucket   how overdue a payment is        (CURRENT, 31 - 60 DAYS)
+   */
+  kind: text("kind").notNull(),
+  name: text("name").notNull(),
+  /** Free text — an agent's contact, a supplier's country, whatever helps. */
+  note: text("note"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  /** Retired rather than deleted once orders point at it. */
+  active: boolean("active").notNull().default(true),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One entry per name per list per company — the whole point of a master.
+  uniqueIndex("ops_refs_unique").on(t.companyId, t.kind, t.name),
+  index("ops_refs_lookup").on(t.companyId, t.kind, t.active),
+]);
