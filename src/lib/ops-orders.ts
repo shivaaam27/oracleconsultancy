@@ -18,7 +18,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type (learned in lib/projects.ts).
-const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,status,pending_with,remarks,invoice_no,invoice_date,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,invoice_id,delivered_qty,status,pending_with,remarks,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): OrderLine {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -52,9 +52,9 @@ function mapRow(r: Record<string, unknown>): OrderLine {
     status: s("status"),
     pendingWith: s("pending_with"),
     remarks: s("remarks"),
-    invoiceNo: s("invoice_no"),
-    invoiceDate: s("invoice_date"),
     shipmentId: (r.shipment_id as number | null) ?? null,
+    invoiceId: (r.invoice_id as number | null) ?? null,
+    deliveredQty: s("delivered_qty"),
     archived: Boolean(r.archived),
   };
 }
@@ -127,8 +127,9 @@ export type OrderLineFields = {
   status?: string | null;
   pendingWith?: string | null;
   remarks?: string | null;
-  invoiceNo?: string | null;
-  invoiceDate?: string | null;
+  /** How many of `qty` went out. ⚠️ The delivery note and the invoice itself
+   *  live on `ops_invoices`; the line only points at one. */
+  deliveredQty?: string | number | null;
 };
 
 function text(v: string | null | undefined): string | null {
@@ -182,8 +183,7 @@ function toRow(f: Partial<OrderLineFields>): Record<string, unknown> {
   if (f.status !== undefined) put("status", text(f.status));
   if (f.pendingWith !== undefined) put("pending_with", text(f.pendingWith));
   if (f.remarks !== undefined) put("remarks", text(f.remarks));
-  if (f.invoiceNo !== undefined) put("invoice_no", text(f.invoiceNo));
-  if (f.invoiceDate !== undefined) put("invoice_date", text(f.invoiceDate));
+  if (f.deliveredQty !== undefined) put("delivered_qty", amount(f.deliveredQty));
   return row;
 }
 
@@ -209,6 +209,43 @@ const asText = (v: unknown): string | null => {
   const s = String(v).trim();
   return s === "" ? null : s;
 };
+
+/** A calendar date, when the string is one — including one Postgres has read
+ *  back as a timestamp at midnight UTC. */
+const ISO_MIDNIGHT = /^(\d{4}-\d{2}-\d{2})(?:T00:00:00(?:\.0+)?(?:Z|\+00:?00))?$/;
+
+/**
+ * Are these two the SAME VALUE, as far as the trail is concerned?
+ *
+ * ⚠️ Plain string comparison cries wolf, and a trail that reports changes
+ * nobody made is worth no more than no trail at all. Two cases arise on every
+ * re-save, because the form sends what a person typed and the database returns
+ * what it stored:
+ *
+ *   · a date        `2026-06-04` came back as `2026-06-04T00:00:00+00:00`
+ *   · a number      `2500` came back from `numeric(14,4)` as `2500.0000`
+ *
+ * ⚠️ The numeric rule needs ONE SIDE TO CARRY A DECIMAL POINT, so it can only
+ * ever collapse trailing zeros. Without that guard it would also call PO
+ * `024235` the same as PO `24235`, and quietly hide a real correction — most
+ * of the reference numbers in this module look like integers.
+ *
+ * Shared by all three ops writers (order lines, shipments, enquiries).
+ */
+export function sameAuditValue(a: unknown, b: unknown): boolean {
+  const x = asText(a), y = asText(b);
+  if (x === y) return true;
+  if (x === null || y === null) return false;
+
+  const dx = ISO_MIDNIGHT.exec(x), dy = ISO_MIDNIGHT.exec(y);
+  if (dx && dy) return dx[1] === dy[1];
+
+  if (x.includes(".") || y.includes(".")) {
+    const nx = Number(x), ny = Number(y);
+    if (Number.isFinite(nx) && Number.isFinite(ny)) return nx === ny;
+  }
+  return false;
+}
 
 /* ──────────────────────────────────────────────────────────────── writes ─── */
 
@@ -256,7 +293,7 @@ export async function updateOrderLine(
     const b = before as Record<string, unknown>;
     const entries = Object.entries(row)
       .filter(([k]) => !NOISE.has(k) && k !== "updated_at")
-      .filter(([k, v]) => asText(b[k]) !== asText(v))
+      .filter(([k, v]) => !sameAuditValue(b[k], v))
       .map(([k, v]) => ({
         company_id: b.company_id as number, entity: "order_line", entity_id: id,
         label: (b.po_no as string) ?? null, action: "updated",

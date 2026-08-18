@@ -15,7 +15,11 @@ import { FluidSelect } from "./fluid-select";
 
 const TABS = [
   { key: "orders", label: "Orders", href: "/ops" },
+  // Where an order comes from, so it sits next to the orders it produces.
+  { key: "funnel", label: "Funnel", href: "/ops/funnel" },
   { key: "imports", label: "Imports", href: "/ops/imports" },
+  // The end of the road: what went out, what was billed, what is still owed.
+  { key: "invoices", label: "Delivery & billing", href: "/ops/invoices" },
   // Last on purpose: the lists are set up once and then rarely touched.
   { key: "setup", label: "Setup", href: "/ops/setup" },
 ] as const;

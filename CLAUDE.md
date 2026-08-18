@@ -141,7 +141,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0122** (`note_revisions` — a note's version history; see the Notes section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0135** (the PES delivery-and-billing record; see the `/ops` section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
 
@@ -232,8 +232,13 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/outbox` - **live, per-person** (Jun 2026): generated fresh from open tasks each load (one card per person, full task list + WhatsApp/Email send); reminders are NOT stored as drafts anymore. Per-task vs all-tasks toggle under each task. See `memory/reminders_outbox_chat_jun2026.md`.
 - `/ops` - **Orders & Imports** — the PES trading and import business, rebuilt from
   `PES OPS EXECUTIVE REPORT.xlsx`. Tabs: **Orders** (one row per PO line, the
-  POS STATUS spine) · **Imports** (a bill of lading and what customs does to it) ·
-  **Setup** (eight master lists). Migrations 0130–0132. **Read
+  POS STATUS spine) · **Funnel** (enquiry → quote → order → invoice, with the
+  conversion measured against the enquiry's OWN month — never one month's orders
+  over another month's quotes, which is what has the workbook reading 132%) ·
+  **Imports** (a bill of lading and what customs does to it) · **Delivery &
+  billing** (what went out, what was billed, and each PO's balance — the invoice
+  is its own record, so one covering 24 lines is typed once) · **Setup** (eight
+  master lists). Migrations 0130–0135. **Read
   `memory/pes_ops_module.md` before touching any of it** — it holds the workbook
   analysis, the owner's decisions, and the stages still to come (the funnel,
   delivery and invoicing, the executive report).

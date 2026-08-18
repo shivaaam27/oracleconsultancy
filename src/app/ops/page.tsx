@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui";
 import { listOrderLines, usedValues } from "@/lib/ops-orders";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { listShipments } from "@/lib/ops-shipments";
+import { listInvoices } from "@/lib/ops-invoices";
 import { getAppSettings } from "@/lib/settings";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsOrdersSheet } from "@/components/ops-orders-sheet";
@@ -44,7 +45,7 @@ export default async function OpsOrdersPage({
     );
   }
 
-  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments] = await Promise.all([
+  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments, despatches] = await Promise.all([
     listOrderLines(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
@@ -54,6 +55,9 @@ export default async function OpsOrdersPage({
     usedValues(chosen.id, "pending_with"),
     usedValues(chosen.id, "uom"),
     listShipments(chosen.id),
+    // ⚠️ A line reads whether it has gone out and been billed off the DOCUMENT
+    // it points at (Stage 5), so the documents have to travel with the lines.
+    listInvoices(chosen.id),
   ]);
 
   return (
@@ -69,6 +73,13 @@ export default async function OpsOrdersPage({
         defaultExRate={settings.opsDefaultExRate}
         flag={flag ?? "all"}
         shipments={shipments.map((s) => ({ id: s.id, blNo: s.blNo }))}
+        despatches={despatches.map((d) => ({
+          id: d.id,
+          // Whichever reference it has — a delivery going out today has no
+          // invoice number yet, and the picker still has to name it.
+          label: [d.deliveryNoteNo, d.invoiceNo].filter(Boolean).join(" · ") || `#${d.id}`,
+          deliveredDate: d.deliveredDate, invoiceNo: d.invoiceNo, invoiceDate: d.invoiceDate,
+        }))}
         suggest={{
           // From the Setup lists first, so a name somebody agreed on leads.
           clients: opsNamesOf(refs, "client"),

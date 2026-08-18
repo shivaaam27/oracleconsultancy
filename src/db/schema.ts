@@ -2646,8 +2646,17 @@ export const opsOrderLines = pgTable("ops_order_lines", {
    *  tied to a staff record. */
   pendingWith: text("pending_with"),
   remarks: text("remarks"),
-  invoiceNo: text("invoice_no"),
-  invoiceDate: timestamp("invoice_date", { mode: "date", withTimezone: true }),
+
+  /** ⚠️ WHAT WENT OUT AND WHAT WAS BILLED LIVE ON `ops_invoices` (Stage 5), not
+   *  here. `invoice_no` and `invoice_date` were columns on this line until then,
+   *  so one invoice covering 24 lines was typed 24 times — the same fault
+   *  Stage 3 fixed for the bill of lading. They were dropped while empty.
+   *
+   *  Only the QUANTITY stays per-line, because only a quantity can be partial. */
+  invoiceId: integer("invoice_id").references(() => opsInvoices.id, { onDelete: "set null" }),
+  /** How many of `qty` actually went out. Blank means nobody has said, which is
+   *  not the same as none. */
+  deliveredQty: numeric("delivered_qty", { precision: 14, scale: 3 }),
 
   archived: boolean("archived").notNull().default(false),
   createdBy: text("created_by").notNull().default("web-ui"),
@@ -2755,4 +2764,122 @@ export const opsShipments = pgTable("ops_shipments", {
 }, (t) => [
   uniqueIndex("ops_shipments_bl_unique").on(t.companyId, t.blNo),
   index("ops_shipments_company_idx").on(t.companyId, t.archived, t.eta),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS — ENQUIRIES: the funnel (Stage 4). One row is one enquiry (RFQ).
+//
+// The workbook's INFO - RFQ sheet, which is 2,639 rows carrying an enquiry all
+// the way to an invoice: 2,601 have an RFQ number, 1,859 got a quote, 336
+// became a PO and 268 were invoiced.
+//
+// ⚠️ THE PO IS NAMED HERE, NOT COPIED HERE. The sheet types the order's value
+// on this row AND again on POS STATUS, and the two disagree. This row stores
+// `po_no` only — a pointer — and the order's value, date and invoice are read
+// from the `ops_order_lines` that carry that PO number. A fact is typed once.
+//
+// ⚠️ Nothing about the conversion is stored. "Quoted", "ordered", how long it
+// took and what share of a month's enquiries converted are all worked out on
+// read in `ops-funnel-shared.ts`, against the enquiry's OWN cohort — never a
+// month of orders divided by a different month of quotes, which is the fault
+// that has Aug-26 reading 132% in the sheet.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsEnquiries = pgTable("ops_enquiries", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /* ── the enquiry ───────────────────────────────────────────────────────── */
+  /** The client's own reference. The handle everybody quotes back. */
+  rfqNo: text("rfq_no").notNull(),
+  rfqDate: timestamp("rfq_date", { mode: "date", withTimezone: true }),
+  client: text("client"),
+  /** What was asked for, in their words. Suggests what has been typed before. */
+  description: text("description"),
+  /** Whose enquiry it is — free text, so it needs no staff record to work. */
+  assignedTo: text("assigned_to"),
+
+  /* ── the quotation ─────────────────────────────────────────────────────── */
+  quotationNo: text("quotation_no"),
+  quotationDate: timestamp("quotation_date", { mode: "date", withTimezone: true }),
+  quoteCurrency: text("quote_currency"),
+  quoteValue: numeric("quote_value", { precision: 14, scale: 2 }),
+  /** Frozen on this row, as everywhere else in the module. */
+  quoteExRate: numeric("quote_ex_rate", { precision: 14, scale: 4 }),
+
+  /* ── what became of it ─────────────────────────────────────────────────── */
+  /** ⚠️ A POINTER, not a copy. The value comes from the order lines that carry
+   *  this number; matching is on the trimmed, upper-cased text so "24322 " and
+   *  "24322" are the same PO. Deliberately not a foreign key: one quotation can
+   *  produce several POs and a PO may be typed here before its lines exist. */
+  poNo: text("po_no"),
+  /** Only for one that died: LOST, NO QUOTE, or whatever they type. Null means
+   *  it is still live — which is why a young month's conversion is a floor. */
+  outcome: text("outcome"),
+  outcomeReason: text("outcome_reason"),
+  remarks: text("remarks"),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // ⚠️ Not unique. Clients reuse their own reference numbers and two mines can
+  // land on the same one; refusing the second is refusing a real enquiry.
+  index("ops_enquiries_company_idx").on(t.companyId, t.archived, t.rfqDate),
+  index("ops_enquiries_rfq_idx").on(t.companyId, t.rfqNo),
+  index("ops_enquiries_po_idx").on(t.companyId, t.poNo),
+]);
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS — INVOICES: what went out and what was billed (Stage 5).
+//
+// ⚠️ ONE DOCUMENT, MANY LINES — the same shape as the shipment, for the same
+// reason. The Deliveries sheet holds 579 rows against 197 POs (up to 24 lines
+// on one) and 184 delivery references, so the reference, the date and the value
+// are copied down every line of the group. Here the document is typed once and
+// the order lines point at it through `ops_order_lines.invoice_id`.
+//
+// ⚠️ DELIVERED AND BILLED ARE TWO DATES, NOT ONE. POS STATUS has a single
+// "INV/DEL DATE" column, so a thing delivered in September and billed in
+// November can only be recorded as one of the two. Both are here.
+//
+// ⚠️ The billed VALUE is optional. Left blank it is the sum of the lines on the
+// document; typed, the typed figure is what was billed and the difference from
+// the lines is SHOWN. Those are two different facts — the workbook keeps both
+// (its PO BALANCE is `W - AJ`, order value less invoice value) and so does this.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsInvoices = pgTable("ops_invoices", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /* ── what went out ─────────────────────────────────────────────────────── */
+  /** The delivery note / proof of delivery that travelled with the goods. */
+  deliveryNoteNo: text("delivery_note_no"),
+  deliveredDate: timestamp("delivered_date", { mode: "date", withTimezone: true }),
+
+  /* ── what was billed ───────────────────────────────────────────────────── */
+  invoiceNo: text("invoice_no"),
+  invoiceDate: timestamp("invoice_date", { mode: "date", withTimezone: true }),
+  /** Optional. Blank = whatever the lines on it come to. */
+  invoiceValue: numeric("invoice_value", { precision: 14, scale: 2 }),
+  invoiceCurrency: text("invoice_currency"),
+  exRate: numeric("ex_rate", { precision: 14, scale: 4 }),
+
+  client: text("client"),
+  status: text("status"),
+  pendingWith: text("pending_with"),
+  notes: text("notes"),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // ⚠️ Postgres allows many NULLs under a unique index, which is what makes this
+  // safe: a delivery that has not been billed yet has no invoice number, and
+  // there can be any number of those.
+  uniqueIndex("ops_invoices_no_unique").on(t.companyId, t.invoiceNo),
+  index("ops_invoices_company_idx").on(t.companyId, t.archived, t.invoiceDate),
+  index("ops_invoices_delivered_idx").on(t.companyId, t.deliveredDate),
 ]);

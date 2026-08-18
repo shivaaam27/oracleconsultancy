@@ -19,7 +19,7 @@ function line(over: Partial<OrderLine> & { id: number }): OrderLine {
     supplier: null, origin: null, profNo: null, purchaseDate: null,
     purchaseCurrency: null, purchaseQty: null, purchaseUnitPrice: null,
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
-    invoiceNo: null, invoiceDate: null, shipmentId: null, archived: false, ...over,
+    shipmentId: null, invoiceId: null, deliveredQty: null, archived: false, ...over,
   };
 }
 
@@ -95,7 +95,11 @@ describe("how late it is", () => {
     // ⚠️ Otherwise a delivered order sits at "400 days late" for ever and
     // buries the ones that still need chasing — the workbook's clearance sheet
     // shows exactly that, 477 overdue days on a settled line.
-    const v = lineView(line({ id: 1, dueDate: "2025-05-01", invoiceNo: "INV-1" }), TODAY);
+    // ⚠️ Since Stage 5 the invoice is a DOCUMENT the line points at, not two
+    // columns on the line — so being invoiced is something the caller looks up
+    // and hands in, and a line on its own knows nothing about it.
+    const v = lineView(line({ id: 1, dueDate: "2025-05-01", invoiceId: 7 }), TODAY,
+      { deliveredDate: "2025-06-01", invoiceNo: "INV-1", invoiceDate: null });
     expect(v.overdueDays).toBeNull();
     expect(lineFlag(v)).toBe("invoiced");
   });

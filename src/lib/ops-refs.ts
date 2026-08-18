@@ -36,22 +36,39 @@ function mapRow(r: Record<string, unknown>): OpsRef {
 /**
  * Where each list is USED, so a rename can follow it.
  *
- * ⚠️ Empty until Stage 2 builds the order line. It is here now, named and
- * documented, because the projects module learned this the expensive way: the
- * transactions store these values as TEXT on purpose — an order raised against
- * ALMOL must still say ALMOL in ten years — so a rename has to be applied in
- * both places or the books quietly disagree with the list.
+ * The transactions store these values as TEXT on purpose — an order raised
+ * against ALMOL must still say ALMOL in ten years — so a rename has to be
+ * applied in both places or the books quietly disagree with the list.
  *
- * **Add the order tables here the moment they exist.**
+ * ⚠️ **A new table with one of these columns on it goes in here.** This sat
+ * empty through Stages 2 and 3 while it was written as a Stage 2 job, so a
+ * rename moved the list and left every order behind. Filled in with Stage 4.
  */
 const POINTS_AT: Record<string, Array<{ table: string; column: string }>> = {
-  client: [],
-  cost_centre: [],
-  supplier: [],
-  clearing_agent: [],
-  origin: [],
-  delivery_status: [],
-  mode: [],
+  client: [
+    { table: "ops_order_lines", column: "client" },
+    { table: "ops_enquiries", column: "client" },
+    { table: "ops_invoices", column: "client" },
+  ],
+  cost_centre: [{ table: "ops_order_lines", column: "cost_centre" }],
+  supplier: [
+    { table: "ops_order_lines", column: "supplier" },
+    { table: "ops_shipments", column: "supplier" },
+  ],
+  clearing_agent: [{ table: "ops_shipments", column: "clearing_agent" }],
+  origin: [
+    { table: "ops_order_lines", column: "origin" },
+    { table: "ops_shipments", column: "origin" },
+  ],
+  delivery_status: [
+    { table: "ops_order_lines", column: "status" },
+    { table: "ops_shipments", column: "status" },
+    { table: "ops_invoices", column: "status" },
+  ],
+  mode: [{ table: "ops_shipments", column: "mode" }],
+  // ⚠️ Deliberately empty. An ageing band is worked out from a date when a
+  // report is read; no row stores which band it is in, so there is nothing to
+  // re-point and nothing that can hold a rename back.
   ageing_bucket: [],
 };
 

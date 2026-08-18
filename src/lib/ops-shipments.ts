@@ -10,6 +10,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sb } from "@/db/supabase";
+// ⚠️ Shared with the order lines and the enquiries: a re-save must not report
+// a change nobody made. See its comment in `ops-orders.ts`.
+import { sameAuditValue } from "@/lib/ops-orders";
 import type { Shipment } from "@/lib/ops-shipments-shared";
 
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
@@ -193,7 +196,7 @@ export async function updateShipment(
     const b = before as Record<string, unknown>;
     await log(Object.entries(row)
       .filter(([k]) => !NOISE.has(k) && k !== "updated_at")
-      .filter(([k, v]) => asText(b[k]) !== asText(v))
+      .filter(([k, v]) => !sameAuditValue(b[k], v))
       .map(([k, v]) => ({
         company_id: b.company_id as number, entity: "shipment", entity_id: id,
         label: (b.bl_no as string) ?? null, action: "updated",

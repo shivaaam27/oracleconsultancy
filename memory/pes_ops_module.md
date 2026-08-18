@@ -121,8 +121,8 @@ Verified in the source on this PC (`Documents/OCERP/reference/`):
 | **1** | **The master lists** — clients, suppliers, agents, origins, statuses | small |
 | **2** | **The order line (POS STATUS) — the spine** ✅ BUILT | large |
 | **3** | **Imports and clearance** ✅ BUILT | large |
-| 4 | The funnel (INFO-RFQ) — enquiry → quote → order → invoice, measured properly | medium |
-| 5 | Delivery and invoicing — what went out, what was billed, PO balance | medium |
+| **4** | **The funnel (INFO-RFQ)** — enquiry → quote → order → invoice ✅ BUILT | medium |
+| **5** | **Delivery and invoicing** — what went out, what was billed, PO balance ✅ BUILT | medium |
 | 6 | The executive report — PENDING, purchase analysis, forecasts, all generated | medium |
 
 Imports sit ahead of the funnel deliberately: that is where the frozen columns and
@@ -432,6 +432,216 @@ is made of. The screen shows the parts and the sum.
 `rows.map(shipmentView)` hands the ARRAY INDEX in as the `today` argument, so
 row 1 would be dated 1 January 1970. Always `rows.map((s) => shipmentView(s))`.
 
+
+---
+
+---
+
+# STAGE 4 — the funnel ✅ BUILT (Aug 2026)
+
+`/ops/funnel`, a fourth tab (Orders · **Funnel** · Imports · Setup). Migration
+**0133**: `ops_enquiries`. One row is one enquiry, as INFO - RFQ keeps it —
+2,639 rows there, of which 1,859 got a quote, 336 became a PO and 268 were
+invoiced.
+
+### ⚠️ The PO is NAMED here, not COPIED here
+
+The sheet types the order's value on the enquiry row AND again on POS STATUS,
+and the two disagree: PO 24235 is **98,491,475** on INFO - RFQ and
+**98,491,500** on POS STATUS. Same order, two typings, nobody knows which is
+right.
+
+Here the enquiry stores `po_no` and nothing else about the order. Its value,
+its date and its invoice are read from the `ops_order_lines` carrying that
+number. **A fact is typed once** — the module's own rule 2, finally paid for.
+
+- Matching is on the trimmed, upper-cased text (`poKey`), because both sides are
+  typed by hand months apart. Verified live: an enquiry saved with `" 24235"`
+  found the line saved as `"24235"`.
+- **Deliberately not a foreign key.** One quotation can produce several POs, and
+  a PO is often written on the enquiry before its lines are entered. A won PO
+  with no lines yet reads **"no order lines typed yet"** and its value is
+  **unknown, not zero** — the same rule as an unassessed shipment.
+- The PO box offers every number already on an order line, so linking is a pick
+  rather than a retype.
+
+### ⚠️ The conversion, rebuilt — this is the point of the stage
+
+The sheet's fault is two formulas:
+
+```
+G6  = F6/C6     POs raised in June ÷ quotes sent in June
+K24 = H24/E24   PO value in Aug-26 ÷ quotation value in Aug-26  →  132%
+```
+
+An order almost never comes from that month's quote, so the two halves are about
+**different enquiries**. Aug-26 reads 132% not because more was won than quoted
+but because August's orders came from June and July's quotes.
+
+The rebuilt version measures **an enquiry against its own cohort**: a quote sent
+in June and won in August counts in **June**, the month the client asked. No
+ratio divides one month by another, which is why **none can exceed 100%**.
+
+⚠️ **And a month with live enquiries in it is NOT FINISHED.** Its conversion can
+only rise, so it is shown as a floor — `≥21%`, "at least 21%" — until every
+enquiry has either become an order or been closed. The sheet prints last week's
+month at 4% next to last year's 21% and invites you to conclude the business is
+collapsing.
+
+### The rules, pinned by 18 tests
+
+1. An order counts in the month of its **enquiry**, never the month it landed.
+2. A rate **cannot exceed 100%**, by construction.
+3. A month still holding live enquiries reports a **floor**, not a figure.
+4. A won PO with no lines is of **unknown** value, not nil.
+5. A foreign quote with no rate is **not** reported in shillings.
+6. An enquiry with **no date is left out of the months** and counted separately —
+   guessing one would move real money into a month it did not happen in.
+7. The clock stops once an enquiry settles, won or lost.
+8. `unvalued` is **reported** (the `+n?` on a row), never quietly dropped.
+
+⚠️ The tiles and the month table read the WHOLE funnel, not the filtered list. A
+conversion rate that changes when you click a filter is a rate about the filter.
+
+### Dead enquiries are countable now
+
+The sheet's REMARKS column holds the real reasons — "Supplier didnt get back",
+"Request ignored", "CLIENT DIDNT PROVIDE ENOUGH INFO" — in **43 cells out of
+2,639**. Here it is an `outcome` + `outcome_reason` pair, free text suggesting
+what has been typed before, so closing one is a keystroke and the reasons build
+into a list nobody had to design.
+
+## Three faults fixed on the way through
+
+**1. `POINTS_AT` was still empty** — the Stage 1 note said "add the order tables
+the moment they exist" and Stages 2 and 3 both went by without it. Renaming a
+client in Setup moved the list and **left every order behind**. Now filled for
+all three tables. ⚠️ A new table with a `client`/`supplier`/`origin`/`status`/
+`mode`/`cost_centre`/`clearing_agent` column on it goes in there.
+(`ageing_bucket` stays empty on purpose — no row stores which band it is in.)
+
+**2. The audit trail cried wolf on every re-save.** The comparison was plain
+string equality, so opening a row and pressing Save with nothing changed logged
+four changes nobody made: the form sends `2026-06-04` and the column hands back
+`2026-06-04T00:00:00+00:00`; the form sends `2500` and `numeric(14,4)` hands back
+`2500.0000`. One shared `sameAuditValue()` in `ops-orders.ts` now serves all
+three writers. ⚠️ Its numeric rule **requires a decimal point on one side**, so
+it can only collapse trailing zeros — without that guard it would also call PO
+`024235` the same as PO `24235` and hide a real correction.
+
+Verified live: a no-op save now adds **nothing** to `ops_audit`.
+
+**3. Opening a PRICED row a second time killed the panel.** `clean()` in the
+edit form assumed a string, but a Postgres `numeric` comes back from PostgREST
+as a JSON **number** — so `v.trim is not a function` and the whole edit panel
+died in the error boundary. It only bites on the SECOND open, once the value has
+been round-tripped through the server, which is why Stage 2 and Stage 3 shipped
+with it. All three sheets now coerce first. This is the exact trap already
+documented at the top of `money-input.tsx`; **read that note before writing any
+handler that treats a money column as a string.**
+
+⚠️ It also invalidated a verification: the first "no spurious audit rows" check
+passed because the save had CRASHED, not because nothing changed. Re-done
+afterwards against a row holding `2500.5` and `2500` read back as numbers — one
+create, three real field changes, and a no-op save adds nothing.
+
+## Verified in the browser, then cleared
+
+An enquiry (SWALA, 4 Jun 2026) quoted at 39,397 USD × 2,500 = 98,492,500, then
+linked to PO 24235, whose single order line reads **98,491,500** — the figure
+POS STATUS column Q carries. The month row came out `Jun 2026 · 1 · 1 · 100% ·
+1 · 100% · 9d · finished`, and with the enquiry still open beforehand it read
+`≥0% · 1 live`. **Both rows were then deleted** — the funnel is empty, and the
+enquiries are the owner's data to type.
+
+---
+
+---
+
+# STAGE 5 — delivery and billing ✅ BUILT (Aug 2026)
+
+`/ops/invoices`, tab **"Delivery & billing"**. Migrations **0134** (`ops_invoices`,
+plus `ops_order_lines.invoice_id` and `delivered_qty`) and **0135** (dropping
+`ops_order_lines.invoice_no` / `invoice_date`).
+
+### ⚠️ The invoice is its OWN record — the Stage 3 lesson, applied again
+
+The Deliveries sheet is 579 rows against **197 POs**, up to **24 lines on one**,
+with 184 delivery references — and the reference, the date and the value are
+copied down every line of the group. Only the first row of a group carries the
+value, so the sheet is really a document record pretending to be a line record.
+
+Until Stage 5 COS had the same fault in a smaller way: `invoice_no` and
+`invoice_date` were COLUMNS ON THE ORDER LINE, so one invoice covering 24 lines
+was typed 24 times. They were dropped (empty — `ops_order_lines` had 0 rows, so
+no backup was needed) and the line now points at a document with `invoice_id`.
+
+### ⚠️ Delivered and billed are TWO dates
+
+POS STATUS has one column, **"INV/DEL DATE"**, for both. Goods delivered in
+September and billed in November can only be recorded as one of the two, so the
+sheet cannot answer *"what has gone out that we have not billed for"* — which is
+the question the cash depends on. Both dates are here, and "Out, not billed" is a
+tile, a filter and a countdown that stops the moment it is billed.
+
+### ⚠️ Only the QUANTITY is per-line, because only a quantity can be partial
+
+The sheet's "Delivered" column holds two distinct values across 560 rows:
+`DELIVERED` and `delivered`. A part-delivery cannot be recorded at all. Here
+`delivered_qty` is optional on the line — record it when it differs, ignore it
+when it does not — and "6 of 10 out" is worked out. **Blank is not zero:** nobody
+saying how many went out is not the same as saying none did.
+
+### The billed value: typed wins, and the gap is SHOWN
+
+Blank = whatever the lines on the document come to. Typed = that is what was
+billed, and the difference from the lines is displayed on the row and has its own
+filter ("Value disagrees"). It is either a discount somebody agreed or a typing
+mistake, and both deserve a second look. The workbook keeps both figures too —
+its PO BALANCE is `W - AJ`, order value less invoice value — it just never shows
+you when they disagree.
+
+### The PO balance, done properly — 16 tests
+
+1. **A PO nobody has billed owes the WHOLE order**, not zero. That is the money
+   nobody has asked the client for yet.
+2. **An invoice counts ONCE however many lines it covers.** Verified live: one
+   invoice of 10,500 across two lines leaves a balance of **500**, not −10,000.
+3. **A PO with an unpriced line has an UNKNOWN balance**, and says so, and is
+   counted out of the totals with a footnote. The sheet subtracts anyway and
+   prints a figure that reads as though somebody checked it.
+4. **Over-billing shows as a negative** rather than being clamped at nil.
+5. Worst first — the biggest unbilled balance leads.
+6. A document with no lines on it says so on the row.
+
+### The knock-on: `lineView` needed a third argument
+
+"Invoiced" is no longer readable from a line on its own, so
+`lineView(line, today, doc)` takes the despatch document and the CALLER looks it
+up. Passing nothing means "not despatched", which is right. `enquiryView` gained
+the same `docOf` argument so the funnel still knows which of its won orders were
+billed. **⚠️ A new screen that shows lines must pass the documents in**, or every
+line will read as never delivered and never invoiced.
+
+### Verified in the browser, then cleared
+
+PO 24322 for SWALA: 10 valves at 1,000 and 5 gaskets at 200 = **11,000**. Both
+lines put on delivery note **D-001** (1 Jul 2026), 6 of the 10 valves marked as
+gone out. Before billing: *"2 of 2 part · ordered 11,000 · billed — · still to
+bill 11,000"*, and the document read *"48 days since it went"*. Billed as
+SS/26/1 at a typed 10,500: the row showed **"−500 vs its lines"**, the balance
+became **500**, and the orders screen read both lines as **Invoiced** — off the
+document, since the line no longer carries an invoice number. All of it was then
+deleted; the module is empty again apart from the 14 Setup entries.
+
+## What this stage deliberately cannot do
+
+**Goods going out in two batches against one line.** A line points at ONE
+document, exactly as it points at one shipment. The Deliveries sheet has no
+evidence of split despatches, and supporting them properly needs a link table
+with a quantity on it. If it turns out to happen, the answer that needs no
+schema is to **split the line** — two rows on the same PO — and that is already
+allowed. Do not add a second delivery column to the line.
 
 ---
 

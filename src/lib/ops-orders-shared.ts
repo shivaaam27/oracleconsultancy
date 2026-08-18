@@ -42,10 +42,14 @@ export type OrderLine = {
   status: string | null;
   pendingWith: string | null;
   remarks: string | null;
-  invoiceNo: string | null;
-  invoiceDate: string | null;
   /** The shipment it travels on, or null — a local purchase never has one. */
   shipmentId: number | null;
+  /** ⚠️ The delivery note / invoice it went out on (Stage 5). What was billed
+   *  is NOT on this line: one invoice covers many lines, so it is a record of
+   *  its own and this points at it. */
+  invoiceId: number | null;
+  /** How many of `qty` actually went out. Blank = nobody has said. */
+  deliveredQty: string | null;
   archived: boolean;
 };
 
@@ -71,6 +75,15 @@ export function day(v: string | Date | null | undefined): Date | null {
 
 const DAY_MS = 86_400_000;
 
+/** The half of a delivery note / invoice a line needs to know where it stands.
+ *  ⚠️ Declared here rather than imported from `ops-invoices-shared.ts`, which
+ *  imports THIS file — the other direction would be a cycle. */
+export type DespatchLite = {
+  deliveredDate: string | null;
+  invoiceNo: string | null;
+  invoiceDate: string | null;
+};
+
 export type LineView = {
   line: OrderLine;
   /** qty × unit price, in the currency the sale was priced in. */
@@ -88,6 +101,13 @@ export type LineView = {
   /** Days since the order came in, whatever has happened since. */
   ageDays: number | null;
   invoiced: boolean;
+  /** Went out — in full or in part. Read from the document, not from the line. */
+  delivered: boolean;
+  /** Ordered less delivered. Null unless BOTH are known — "no quantity
+   *  recorded" is not "none went out". */
+  outstandingQty: number | null;
+  /** Some of it went out and some did not. */
+  partlyDelivered: boolean;
 };
 
 /**
@@ -106,7 +126,18 @@ export function toTzs(amount: number | null, currency: string | null, exRate: nu
   return amount * exRate;
 }
 
-export function lineView(line: OrderLine, today: Date = new Date()): LineView {
+/**
+ * Everything derived about one line.
+ *
+ * ⚠️ `doc` is the delivery note / invoice the line went out on, and it must be
+ * looked up by the CALLER — `invoiceId` is a pointer and this file does no
+ * database work. Passing nothing means "no document", so a line reads as
+ * neither delivered nor invoiced, which is exactly right for one nobody has
+ * despatched.
+ */
+export function lineView(
+  line: OrderLine, today: Date = new Date(), doc?: DespatchLite | null,
+): LineView {
   const qty = num(line.qty);
   const price = num(line.saleUnitPrice);
   const rate = num(line.exRate);
@@ -123,7 +154,13 @@ export function lineView(line: OrderLine, today: Date = new Date()): LineView {
 
   const due = day(line.dueDate);
   const now = day(today)!;
-  const invoiced = Boolean(line.invoiceNo || line.invoiceDate);
+  // ⚠️ Read off the DOCUMENT now, not the line. Until Stage 5 these were two
+  // columns here, so one invoice covering 24 lines was typed 24 times.
+  const invoiced = Boolean(doc?.invoiceNo?.trim() || doc?.invoiceDate);
+  const delivered = Boolean(doc?.deliveredDate);
+
+  const outQty = num(line.deliveredQty);
+  const outstandingQty = qty === null || outQty === null ? null : qty - outQty;
   // An invoiced line is finished; leaving it "400 days late" for ever buries
   // the ones that still need chasing.
   const overdueDays = due === null || invoiced ? null : Math.round((now.getTime() - due.getTime()) / DAY_MS);
@@ -142,6 +179,9 @@ export function lineView(line: OrderLine, today: Date = new Date()): LineView {
     overdueDays,
     ageDays,
     invoiced,
+    delivered,
+    outstandingQty,
+    partlyDelivered: outstandingQty !== null && outstandingQty > 0 && outQty !== null && outQty > 0,
   };
 }
 

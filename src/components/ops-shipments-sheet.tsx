@@ -429,7 +429,15 @@ function EditShipment({
       onError(null);
       const res = await updateShipmentAction(shipment.id, f);
       if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
-      const clean = (v: string) => (v.trim() === "" ? null : v.replace(/[\s,]/g, ""));
+      // ⚠️ Coerce FIRST. A Postgres `numeric` comes back from PostgREST as a JSON
+      // NUMBER, not a string, even though the row type says `string | null` —
+      // so the second time a priced row is opened, `v.trim` is not a function
+      // and the whole panel dies in the error boundary. The same trap is
+      // documented at the top of `money-input.tsx`.
+      const clean = (v: string | number | null) => {
+        const s = v === null || v === undefined ? "" : String(v);
+        return s.trim() === "" ? null : s.replace(/[\s,]/g, "");
+      };
       onDone({
         ...shipment,
         blNo: f.blNo.trim(), blDate: f.blDate || null,

@@ -36,6 +36,7 @@ import {
   createOrderLineAction, updateOrderLineAction, archiveOrderLineAction,
 } from "@/app/ops/order-actions";
 import { setLineShipmentAction } from "@/app/ops/shipment-actions";
+import { setLineInvoiceAction } from "@/app/ops/invoice-actions";
 import { FluidSelect } from "./fluid-select";
 
 type Suggest = {
@@ -52,7 +53,7 @@ type Suggest = {
 };
 
 export function OpsOrdersSheet({
-  companyId, lines: serverLines, suggest, defaultExRate, flag, shipments = [],
+  companyId, lines: serverLines, suggest, defaultExRate, flag, shipments = [], despatches = [],
 }: {
   companyId: number;
   lines: OrderLine[];
@@ -60,6 +61,13 @@ export function OpsOrdersSheet({
   /** Every open shipment, so a line can be put on one. Nothing is copied onto
    *  the line — it points, and reads the ETA and duty from there. */
   shipments?: Array<{ id: number; blNo: string }>;
+  /** Every delivery note / invoice, so a line can be put on one AND can read
+   *  whether it has gone out and been billed. ⚠️ Nothing is copied onto the
+   *  line — those facts live on the document (Stage 5). */
+  despatches?: Array<{
+    id: number; label: string;
+    deliveredDate: string | null; invoiceNo: string | null; invoiceDate: string | null;
+  }>;
   /** From Setup. OFFERED on a chip; never written into the box by itself. */
   defaultExRate: number;
   /** Which group the filter rail is showing (the server read it too). */
@@ -93,7 +101,14 @@ export function OpsOrdersSheet({
     }
   }, [companyId, serverLines]);
 
-  const views = useMemo(() => rows.map((l) => lineView(l)), [rows]);
+  const docById = useMemo(
+    () => new Map(despatches.map((d) => [d.id, d])), [despatches]);
+  // ⚠️ `lineView(l)` alone would report every line as never delivered and never
+  // invoiced: since Stage 5 those two facts live on the document the line
+  // points at, and the lookup is the caller's job.
+  const views = useMemo(
+    () => rows.map((l) => lineView(l, undefined, l.invoiceId === null ? null : docById.get(l.invoiceId) ?? null)),
+    [rows, docById]);
 
   const shown = useMemo(() => {
     const picked = flag === "all" ? views : views.filter((v) => lineFlag(v) === flag);
@@ -162,7 +177,7 @@ export function OpsOrdersSheet({
           param: "oq",
           match: (v, q) =>
             [v.line.poNo, v.line.description, v.line.client, v.line.supplier,
-             v.line.quotationNo, v.line.profNo, v.line.invoiceNo, v.line.costCentre,
+             v.line.quotationNo, v.line.profNo, v.line.costCentre,
              v.line.pendingWith, v.line.remarks]
               .some((x) => (x ?? "").toLowerCase().includes(q)),
         }}
@@ -291,6 +306,7 @@ export function OpsOrdersSheet({
                 line={v.line}
                 suggest={suggest}
                 shipments={shipments}
+                despatches={despatches}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
                   setEditing(null);
@@ -395,7 +411,7 @@ function AddLine({
         kind: null, quotationNo: null, quotedUnitBp: null, lcFactor: null, source: null,
         supplier: null, origin: null, profNo: null, purchaseDate: null, purchaseCurrency: null,
         purchaseQty: null, purchaseUnitPrice: null, supplierPaymentDate: null,
-        status: null, pendingWith: null, remarks: null, invoiceNo: null, invoiceDate: null,
+        status: null, pendingWith: null, remarks: null, invoiceId: null, deliveredQty: null,
         shipmentId: null, archived: false,
       });
       // Clear the line, keep the header: PO, client, currency, rate and dates
@@ -513,11 +529,12 @@ function Cell({ label, hint, className, children }: {
 /* ───────────────────────────────────────────────────────────── the rest ──── */
 
 function EditLine({
-  line, suggest, shipments, onDone, onCancel, onError,
+  line, suggest, shipments, despatches, onDone, onCancel, onError,
 }: {
   line: OrderLine;
   suggest: Suggest;
   shipments: Array<{ id: number; blNo: string }>;
+  despatches: Array<{ id: number; label: string }>;
   onDone: (patched: OrderLine) => void;
   onCancel: () => void;
   onError: (e: string | null) => void;
@@ -538,18 +555,27 @@ function EditLine({
     purchaseUnitPrice: line.purchaseUnitPrice ?? "",
     supplierPaymentDate: line.supplierPaymentDate?.slice(0, 10) ?? "",
     status: line.status ?? "", pendingWith: line.pendingWith ?? "", remarks: line.remarks ?? "",
-    invoiceNo: line.invoiceNo ?? "", invoiceDate: line.invoiceDate?.slice(0, 10) ?? "",
+    deliveredQty: line.deliveredQty ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   const [openSale, setOpenSale] = useState(false);
   const [shipmentId, setShipmentId] = useState<number | null>(line.shipmentId);
+  const [invoiceId, setInvoiceId] = useState<number | null>(line.invoiceId);
 
   const submit = () =>
     start(async () => {
       onError(null);
       const res = await updateOrderLineAction(line.id, f);
       if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
-      const clean = (v: string) => (v.trim() === "" ? null : v.replace(/[\s,]/g, ""));
+      // ⚠️ Coerce FIRST. A Postgres `numeric` comes back from PostgREST as a JSON
+      // NUMBER, not a string, even though the row type says `string | null` —
+      // so the second time a priced row is opened, `v.trim` is not a function
+      // and the whole panel dies in the error boundary. The same trap is
+      // documented at the top of `money-input.tsx`.
+      const clean = (v: string | number | null) => {
+        const s = v === null || v === undefined ? "" : String(v);
+        return s.trim() === "" ? null : s.replace(/[\s,]/g, "");
+      };
       onDone({
         ...line,
         poNo: f.poNo.trim(), description: f.description.trim(),
@@ -565,7 +591,7 @@ function EditLine({
         purchaseQty: clean(f.purchaseQty), purchaseUnitPrice: clean(f.purchaseUnitPrice),
         supplierPaymentDate: f.supplierPaymentDate || null,
         status: f.status || null, pendingWith: f.pendingWith || null, remarks: f.remarks || null,
-        invoiceNo: f.invoiceNo || null, invoiceDate: f.invoiceDate || null,
+        deliveredQty: clean(f.deliveredQty),
       });
     });
 
@@ -643,11 +669,27 @@ function EditLine({
           <Combobox options={suggest.pendingWith} defaultValue={f.pendingWith} placeholder=""
             onInput={(v) => set("pendingWith", v)} onCommit={(v) => set("pendingWith", v)} className={inputCls} />
         </Cell>
-        <Cell className="sm:col-span-2" label="Invoice no.">
-          <input value={f.invoiceNo} onChange={(e) => set("invoiceNo", e.target.value)} className={inputCls} />
+        <Cell className="sm:col-span-2" label="Delivered qty" hint="only if part of it went">
+          <input value={f.deliveredQty} onChange={(e) => set("deliveredQty", e.target.value)}
+            inputMode="decimal" className={cn(inputCls, "tabular text-right")} />
         </Cell>
-        <Cell className="sm:col-span-2" label="Invoiced on">
-          <input type="date" value={f.invoiceDate} onChange={(e) => set("invoiceDate", e.target.value)} className={inputCls} />
+        <Cell className="sm:col-span-4" label="Delivery / invoice" hint="what it went out on">
+          {/* ⚠️ Saved on the spot, like the shipment. And it copies NOTHING:
+              the delivery date, the invoice number and what was billed stay on
+              the document — one invoice covers many lines, which is why it is a
+              record of its own (Stage 5). */}
+          <FluidSelect
+            value={invoiceId === null ? "" : String(invoiceId)}
+            options={[{ value: "", label: "Not despatched yet" },
+              ...despatches.map((d) => ({ value: String(d.id), label: d.label }))]}
+            onSelect={(v) => {
+              const next = v === "" ? null : Number(v);
+              setInvoiceId(next);
+              void setLineInvoiceAction(line.id, next);
+            }}
+            buttonClassName="h-8 w-full justify-between"
+            className="w-full"
+          />
         </Cell>
         <Cell className="sm:col-span-2" label="Cost centre">
           <Combobox options={suggest.costCentres} defaultValue={f.costCentre} placeholder=""
