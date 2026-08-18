@@ -192,22 +192,112 @@ Steps 1-3 are worth doing whatever happens. Step 4 is the fork in the road.
 
 ---
 
-# ⚠️ The question that decides steps 4 onwards
+# ✅ ANSWERED (owner, Aug 2026): COS IS the book of record
 
-**Is COS meant to be the book of record for the accounts, or does an accountant
-own that in their own software?**
+He was asked whether COS should hold the accounts or whether an accountant owns
+them elsewhere. His answer: **"build the ledger since we want to transition to
+using erp now and nothing else."**
 
-- If COS is the book of record: build the ledger, and everything posts to it.
-  That is a real ERP and it is a lot of work done carefully.
-- If the accountant owns it: do NOT build a ledger. Build good **exports**
-  instead — sales, purchases, payments, VAT — in whatever shape their software
-  eats. Weeks instead of months, and no risk of two sets of books disagreeing.
+So COS becomes the accounting system. Not an operations tracker with exports —
+the books themselves. **Build the ledger.** The phases are below.
 
-**This has not been asked and must not be assumed.** Every estimate above
-changes depending on the answer.
+**Still unanswered, and must be ASKED not assumed:**
 
-Two smaller questions with it:
+- **Is stock actually held?** Decides the items/stock step entirely. "STOCK" is
+  one of the three order kinds on every line, which suggests yes, but nobody has
+  confirmed it.
+- **One chart of accounts across all 13 companies, or one each?** ERPNext
+  supports both. Consolidation across the group is much easier with a shared
+  one; a shared one is harder if the companies keep genuinely different books.
+- **Who files the VAT returns, and what are the rules?** Zero-rated items,
+  withholding by supplier type, whether imports differ. Getting VAT wrong is not
+  a display bug.
+- **What date should the books open from?** See Phase 6.
 
-- **Is stock actually held?** Decides step 5 entirely.
-- **Do you want one chart of accounts across all 13 companies, or one each?**
-  ERPNext supports both; consolidation is much easier with a shared one.
+---
+
+# THE LEDGER — the phases, in order
+
+Nothing below is built yet. Phase 1 is the next piece of work.
+
+## Phase 1 — the spine
+
+- `gl_accounts`: a chart of accounts per company. Tree (parent/child), with a
+  `root_type` (Asset · Liability · Income · Expense · Equity) and an
+  `account_type` (Bank · Cash · Receivable · Payable · Tax · Stock · …), and a
+  default flag so the posting engine can find "the debtors account".
+- `gl_entries`: posting date, account, party, **debit**, **credit**, currency
+  and frozen rate, cost centre, project, and which document made it.
+- `journal_entries` + lines: manual postings, so anything can be corrected.
+- The posting engine, and the pure arithmetic with tests.
+
+**Five rules the code must enforce — get these wrong and the rest is worthless:**
+
+1. **Every voucher balances.** Debits equal credits, checked before it is
+   written, refused otherwise.
+2. **A posted entry is NEVER edited.** To change it you post a reversal. This is
+   the accounting rule and it happens to match COS's never-delete habit exactly.
+3. **Balances are DERIVED, never stored.** The entries are the stored fact; a
+   balance, a trial balance and a P&L are all worked out on read. This is COS's
+   founding principle holding one level up — do not add a `balance` column.
+4. **Base currency is TZS and the rate is frozen on the entry**, like every
+   other rate in this system.
+5. **Posting is explicit and reversible.** A document is not silently in the
+   books; somebody posts it, and un-posting writes a reversal rather than
+   deleting anything.
+
+⚠️ **Use `fetchAllRows`** (`src/db/supabase.ts`). The ledger will pass 1,000 rows
+almost immediately, and PostgREST stops there without saying so — the fault that
+hid a whole year of enquiries in Aug 2026.
+
+## Phase 2 — the reports that read it
+
+General ledger · trial balance · profit and loss · balance sheet · customer and
+supplier statements. Per company, and **consolidated across all 13**, which is
+what a group like this actually wants and what the owner cannot get today.
+
+## Phase 3 — VAT and withholding
+
+Must land before Phase 5, or documents post the wrong numbers. Tanzania: 18% VAT
+and withholding on some payments. Projects already models both
+(`projects.vat_rate`, `wht_rate`); ops models neither. Add the EFD (fiscal
+receipt) number too — projects tracks it, ops does not.
+
+## Phase 4 — money in
+
+Ops tracks every shilling out and not one in. Build the receipts record as the
+mirror of `ops_payments`, **posting-aware from the first line of code** rather
+than retrofitted. The maths is `ops-payments-shared.ts` in the other direction.
+
+## Phase 5 — wire the documents to post
+
+- An ops sales invoice: Dr Debtors, Cr Sales, Cr VAT.
+- An ops payment: Dr Creditors, Cr Bank.
+- Project payments and payment stages likewise.
+
+⚠️ Do this AFTER the spine, not before. Retrofitting a ledger under documents
+that already exist means rewriting them, which is why ERPNext designed every one
+of its 18 posting doctypes knowing it had to post.
+
+## Phase 6 — opening balances and the back history
+
+There is already imported history in the system: **791 order lines, 347
+invoices, 262 payments, 2,600 enquiries.** A decision is needed, and it is the
+owner's:
+
+- **post the history**, so the ledger goes back to the start; or
+- **open the books at a date** with opening balances, and leave what came before
+  as operational records only.
+
+The second is what most businesses do and is far less risky. Ask.
+
+## Phase 7 — customers and suppliers as real records
+
+Today they are names on a list. A Tanzanian invoice needs the customer's **TIN
+and VRN**, which COS does not hold — so it cannot print a compliant invoice.
+Promote them, reusing the `vendors` register rather than making a third thing.
+
+## Then, from the earlier list
+
+Stock (if held) · selling documents · buying documents · price lists · company
+budgets · bank reconciliation · timesheets.

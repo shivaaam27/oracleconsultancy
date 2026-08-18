@@ -353,6 +353,36 @@ are served by the generic **`/api/prefs/list-views?list=<key>`** (the task-only
 `<key>.savedViews` is unchanged, so views saved on Tasks still load).
 Commitments had NO filters at all — it gained company/kind/urgency.
 
+## ⚠️ NEXT UP: the general ledger — read `memory/erp_gap_plan.md` FIRST
+
+**Decided by the owner, Aug 2026: COS becomes the accounting system.** Asked
+whether COS should hold the accounts or whether an accountant owns them
+elsewhere, he chose COS — *"build the ledger since we want to transition to
+using erp now and nothing else."*
+
+COS today has **no ledger, no chart of accounts and no journal**. It works every
+figure out by scanning documents, which is why nothing in it can go stale — and
+also why it can say what is still to bill on a PO but not what a company earned
+last quarter. ERPNext, by contrast, has **18 document types that post to a
+General Ledger** (verified in `Documents/OCERP/reference/erpnext`).
+
+`memory/erp_gap_plan.md` holds the seven phases, starting with the spine. **Five
+rules the ledger code must enforce**, and they are not negotiable:
+
+1. **Every voucher balances** — debits equal credits, checked before writing.
+2. **A posted entry is never edited** — you post a reversal. (Which is also
+   COS's never-delete habit.)
+3. **Balances are DERIVED, never stored** — the entries are the fact; trial
+   balance, P&L and balance sheet are worked out on read. Do NOT add a `balance`
+   column.
+4. **Base currency TZS, rate frozen on the entry**, like every other rate here.
+5. **Posting is explicit and reversible** — nothing lands in the books silently.
+
+⚠️ **Three questions are still UNANSWERED and must be asked, not assumed:** is
+stock actually held; do the thirteen companies share one chart of accounts or
+have one each; and what date should the books open from (the system already
+holds 791 imported order lines, 347 invoices and 262 payments — see Phase 6).
+
 ## What's next — read `memory/next_features_aug2026.md`
 
 The ERPNext programme is done. The agreed next slice, in the owner's order:
