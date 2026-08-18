@@ -415,12 +415,12 @@ asked about first.** Everything is empty now; he starts fresh.
 
 # ▶ START HERE — handover, Aug 2026
 
-**One line for a new chat:** *The PES construction workbook is rebuilt as
-`/projects` in COS (7 phases, migrations 0123–0127, 426 tests, all on branch
-`claude/pes-capital-project-excel-27f073`, never deployed, database empty) — the
-maths is done and verified against the spreadsheet, but it is admin-only with no
-permissions, so the next jobs are the Funds Analysis screen, deploying it, and
-entering one real project alongside the Excel before anything is switched off.*
+**One line for a new chat:** *PES construction workbook rebuilt as `/projects` in
+COS — committed locally (`53e9658`), never pushed, still being tested; read this
+file.*
+
+⚠️ **IT STAYS LOCAL. Do not offer to deploy or push.** His decision, 18 Aug 2026:
+he wants to keep testing on his own machine first.
 
 ## Where it stands
 
@@ -457,8 +457,8 @@ requisitions), and there is no import — he chose to type.
 Work proceeds from item 2:
 
 - [x] **2. Funds Analysis screen** — DONE. `/projects/[id]/funds`, 14 tests
-- [ ] **3. Deploy it** ← NEXT — must exist somewhere other than one laptop
-- [ ] **4. Enter one real project** end to end (Patamela). ⚠️ HE types it, never Claude
+- [x] ~~**3. Deploy it**~~ — **CANCELLED.** He wants it local while he tests.
+- [ ] **4. Enter one real project** end to end (Patamela) ← NEXT. ⚠️ HE types it, never Claude
 - [ ] **5. Run in parallel with the Excel for a month** — Excel stays the record
 - [ ] **6. Audit trail, then export/print**
 - [ ] **(1). Portal access + permissions** — deferred, but nothing can be handed
