@@ -795,6 +795,44 @@ export const ENTITY_DEFS: EntityDef[] = [
       },
     },
   },
+  {
+    // Capital projects — archived = history. Added Aug 2026: a project could be
+    // opened from its own screen but could not be FOUND from the search bar,
+    // which is the one place the owner starts from.
+    //
+    // ⚠️ The project record only. Budget lines and requisitions stay out until
+    // there is a reason to index 900 of them per job — the palette is for
+    // finding the thing, and the thing is the project.
+    type: "project",
+    table: "projects",
+    idColumn: "id",
+    selectColumns: ["id", "name", "variant", "client", "location", "po_number", "status", "archived"],
+    textFor: (r) =>
+      join(str(r.name), str(r.variant), str(r.client), str(r.location), str(r.po_number)),
+    lifecycleFor: (r) => ((r.archived as boolean) === true ? "history" : "active"),
+    uiLabel: "Projects",
+    searchOrder: 6,
+    trace: { mode: "generic", table: "projects" },
+    search: {
+      select: "id,name,variant,client,location,po_number,status,company_id,archived, companies(name)",
+      ilikeColumns: ["name", "variant", "client", "location", "po_number", "status"],
+      limit: 200,
+      toResult: (r, ctx) => {
+        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
+        const archived = (r.archived as boolean) === true;
+        if (archived && !ctx.includeHistory) return null;
+        return {
+          type: "project", id: r.id as number,
+          title: r.name as string,
+          subtitle: [sx(r.client), sx(r.location), company].filter(Boolean).join(" · ") || "Project",
+          href: `/projects/${r.id as number}`,
+          badge: archived ? "Archived" : sx(r.status) ?? undefined,
+          lifecycle: archived ? "history" : "active",
+          scoreParts: [r.name as string, sx(r.client), sx(r.location), sx(r.po_number), company],
+        };
+      },
+    },
+  },
 ];
 
 const DEF_BY_TYPE = new Map<EntityType, EntityDef>(ENTITY_DEFS.map((d) => [d.type, d]));

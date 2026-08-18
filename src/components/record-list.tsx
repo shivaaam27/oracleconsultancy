@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Keyboard } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Keyboard, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useUrlFilters } from "@/lib/use-url-filters";
 
 /**
  * RecordList — the ONE list screen (Stage 2 of the ERPNext redesign).
@@ -36,6 +37,10 @@ export type RecordColumn<T> = {
   /** Hide below `sm` / `md` — keeps a dense list usable on a phone. */
   hideBelow?: "sm" | "md" | "lg";
   render: (row: T) => ReactNode;
+  /** A figure for the totals row. Handed the rows ACTUALLY on screen — filtered
+   *  and paged — because a total that silently covers rows you cannot see is
+   *  worse than no total at all. */
+  total?: (rows: T[]) => ReactNode;
 };
 
 /** One entry in the left rail. Groups are separated by their `group` label. */
@@ -382,13 +387,15 @@ function ShortcutsCard({ onClose }: { onClose: () => void }) {
 /* ---------------------------------------------------------------- list --- */
 
 export function RecordList<T>({
-  rows,
+  rows: allRows,
   columns,
   rowKey,
   rowHref,
   onRowClick,
   filters,
   toolbar,
+  search,
+  pageSize = 100,
   selectionSlot,
   bulkBar,
   subRow,
@@ -415,6 +422,26 @@ export function RecordList<T>({
   filters?: RecordFilter[];
   /** Search box, view switcher, saved views — anything above the table. */
   toolbar?: ReactNode;
+  /**
+   * Turns on a search box over these rows.
+   *
+   * ⚠️ The text lives in the URL, never in component state — the forward rule in
+   * CLAUDE.md, and what lets a saved view remember a search. `param` namespaces
+   * it when two lists share a page (Assets and Vendors already do this).
+   */
+  search?: {
+    placeholder?: string;
+    /** Query-string key. Defaults to `q`. */
+    param?: string;
+    match: (row: T, needle: string) => boolean;
+  };
+  /**
+   * How many rows reach the page at once. 0 turns paging off.
+   *
+   * Default 100, which is what ERPNext settles on. A 251-line budget was
+   * shipping 799 KB of HTML before this existed.
+   */
+  pageSize?: number;
   /** Per-row tick box (wire to your selection context). */
   selectionSlot?: (row: T) => ReactNode;
   /** Rendered above the list when a selection exists. */
@@ -445,11 +472,44 @@ export function RecordList<T>({
   className?: string;
 }) {
   const { hidden, toggle } = useHiddenColumns(listKey);
+
+  /* ------------------------------------------- search, then paging ------ */
+  // ⚠️ Filter BEFORE paging. The other way round pages the whole list and then
+  // searches one page of it, which quietly hides matches.
+  const searchParam = search?.param ?? "q";
+  const { values: searchValues, set: setSearch } = useUrlFilters(
+    { [searchParam]: "" } as Record<string, string>,
+    { debounceKeys: [searchParam] },
+  );
+  const needle = (search ? searchValues[searchParam] : "").trim();
+  const rows = useMemo(() => {
+    if (!search || !needle) return allRows;
+    const q = needle.toLowerCase();
+    return allRows.filter((r) => search.match(r, q));
+  }, [allRows, search, needle]);
+
+  const [limit, setLimit] = useState(pageSize);
+  // A new search starts at the top of its own results.
+  useEffect(() => { setLimit(pageSize); }, [needle, pageSize]);
+  // ⚠️ A row added optimistically can land outside the current page (the
+  // budget sheet appends). Growing the limit with the list keeps it visible —
+  // otherwise a line you just typed appears to have vanished.
+  const grew = useRef(allRows.length);
+  useEffect(() => {
+    if (allRows.length > grew.current && pageSize > 0) setLimit((n) => Math.max(n, allRows.length));
+    grew.current = allRows.length;
+  }, [allRows.length, pageSize]);
+
+  const paged = pageSize > 0 && rows.length > limit ? rows.slice(0, limit) : rows;
+  const more = rows.length - paged.length;
+
   const [picked, setPicked] = useState<Set<string | number>>(new Set());
   const [running, setRunning] = useState(false);
   const bulkOn = !!bulkActions?.length;
-  const pickedRows = bulkOn ? rows.filter((r) => picked.has(rowKey(r))) : [];
-  const allPicked = bulkOn && rows.length > 0 && rows.every((r) => picked.has(rowKey(r)));
+  // Ticking, keyboard and rendering all work on what is ON SCREEN (`paged`).
+  // Select-all takes the page, the way ERPNext takes the loaded rows.
+  const pickedRows = bulkOn ? paged.filter((r) => picked.has(rowKey(r))) : [];
+  const allPicked = bulkOn && paged.length > 0 && paged.every((r) => picked.has(rowKey(r)));
   function togglePick(k: string | number) {
     setPicked((prev) => { const next = new Set(prev); if (next.has(k)) next.delete(k); else next.add(k); return next; });
   }
@@ -476,20 +536,20 @@ export function RecordList<T>({
   // Filtering changes the row count under the highlight; drop it rather than
   // leave it pointing at a row that has gone.
   useEffect(() => {
-    setCursor((c) => (c === null ? null : c < rows.length ? c : null));
-  }, [rows.length]);
+    setCursor((c) => (c === null ? null : c < paged.length ? c : null));
+  }, [paged.length]);
 
   const move = useCallback((delta: number) => {
     setCursor((c) => {
-      const next = c === null ? (delta > 0 ? 0 : rows.length - 1) : c + delta;
-      if (next < 0 || next >= rows.length) return c;
+      const next = c === null ? (delta > 0 ? 0 : paged.length - 1) : c + delta;
+      if (next < 0 || next >= paged.length) return c;
       rowRefs.current[next]?.scrollIntoView({
         block: "nearest",
         behavior: prefersCalm() ? "auto" : "smooth",
       });
       return next;
     });
-  }, [rows.length]);
+  }, [paged.length]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -522,17 +582,17 @@ export function RecordList<T>({
         case "j": case "ArrowDown": e.preventDefault(); move(1); break;
         case "k": case "ArrowUp":   e.preventDefault(); move(-1); break;
         case "Enter": {
-          if (cursor === null || !rows[cursor]) return;
+          if (cursor === null || !paged[cursor]) return;
           e.preventDefault();
-          const row = rows[cursor];
+          const row = paged[cursor];
           if (onRowClick) onRowClick(row);
           else if (rowHref) router.push(rowHref(row));
           break;
         }
         case "x": {
-          if (cursor === null || !rows[cursor] || !bulkOn) return;
+          if (cursor === null || !paged[cursor] || !bulkOn) return;
           e.preventDefault();
-          togglePick(rowKey(rows[cursor]));
+          togglePick(rowKey(paged[cursor]));
           break;
         }
         case "/": {
@@ -558,7 +618,7 @@ export function RecordList<T>({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cursor, rows, rowHref, onRowClick, bulkOn, move, helpOpen, router, rowKey]);
+  }, [cursor, paged, rowHref, onRowClick, bulkOn, move, helpOpen, router, rowKey]);
 
   let lastGroup: string | null = null;
 
@@ -575,9 +635,29 @@ export function RecordList<T>({
         {/* Below md the rail cannot fit beside the table, so it lies on its side
             above it rather than disappearing. */}
         {filters && filters.length > 0 && <FilterStrip filters={filters} />}
-        {(toolbar || listKey) && (
+        {(toolbar || listKey || search) && (
           <div className="flex flex-wrap items-center gap-2">
-            <span ref={toolbarRef} className="min-w-0 flex-1">{toolbar}</span>
+            {search && (
+              <label className="relative min-w-0 flex-1 sm:max-w-xs">
+                <Search size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
+                <input
+                  type="search"
+                  value={searchValues[searchParam] ?? ""}
+                  onChange={(e) => setSearch({ [searchParam]: e.target.value })}
+                  placeholder={search.placeholder ?? "Search this list…"}
+                  aria-label={search.placeholder ?? "Search this list"}
+                  className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-7 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+                />
+                {needle && (
+                  <button type="button" onClick={() => setSearch({ [searchParam]: "" })}
+                    aria-label="Clear the search"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-subtle hover:text-fg">
+                    <X size={12} />
+                  </button>
+                )}
+              </label>
+            )}
+            <span ref={toolbarRef} className={cn("min-w-0", search ? "" : "flex-1")}>{toolbar}</span>
             {listKey && <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />}
           </div>
         )}
@@ -627,7 +707,7 @@ export function RecordList<T>({
                 <span>
                   {bulkOn && !selectionSlot && (
                     <button type="button" aria-label="Select all"
-                      onClick={() => setPicked(allPicked ? new Set() : new Set(rows.map(rowKey)))}
+                      onClick={() => setPicked(allPicked ? new Set() : new Set(paged.map(rowKey)))}
                       className={cn("flex h-4 w-4 items-center justify-center rounded-sm border transition-colors",
                         allPicked ? "border-accent bg-accent text-accent-fg" : "border-border-strong")}>
                       {allPicked && <Check size={11} strokeWidth={3} />}
@@ -661,10 +741,21 @@ export function RecordList<T>({
           )}
 
           {rows.length === 0 ? (
-            <div className="px-3 py-10">{empty}</div>
+            <div className="px-3 py-10">
+              {/* A search that matches nothing is not an empty list — saying
+                  "none yet" there sends someone hunting for data that is
+                  sitting right behind the box they typed in. */}
+              {needle ? (
+                <p className="text-center text-[12px] text-fg-subtle">
+                  Nothing matches “{needle}”.{" "}
+                  <button type="button" onClick={() => setSearch({ [searchParam]: "" })}
+                    className="text-accent hover:underline">Clear the search</button>
+                </p>
+              ) : empty}
+            </div>
           ) : (
             <ul className="divide-y divide-border">
-              {rows.map((row, i) => {
+              {paged.map((row, i) => {
                 const key = rowKey(row);
                 const group = groupOf?.(row) ?? null;
                 const starts = group !== null && group !== lastGroup;
@@ -726,7 +817,7 @@ export function RecordList<T>({
                       <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-fg">
                         <span className="truncate">{group}</span>
                         <span className="tabular text-[11.5px] font-medium normal-case tracking-normal text-fg-muted">
-                          {rows.filter((r) => (groupOf?.(r) ?? null) === group).length}
+                          {paged.filter((r) => (groupOf?.(r) ?? null) === group).length}
                         </span>
                       </li>
                     )}
@@ -760,14 +851,44 @@ export function RecordList<T>({
             </ul>
           )}
 
+          {/* The totals row, when any column asks for one. Aligned to the same
+              grid as the rows, so a figure sits under its own column. */}
+          {showFooter && paged.length > 0 && visibleColumns.some((c) => c.total) && (
+            <div data-list-total className="border-t border-border bg-bg-subtle px-3 py-1.5">
+              <div style={gridStyle} className="grid items-center gap-x-3 text-[12px] font-medium">
+                {tick && <span />}
+                {visibleColumns.map((c) => (
+                  <div key={c.key} className={cn("min-w-0 truncate", c.align === "right" && "text-right",
+                    HIDE[c.hideBelow ?? ""] ?? "")}>
+                    {c.total ? c.total(paged) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Footer: how many of how many — ERPNext tells you, always. */}
           {showFooter && rows.length > 0 && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle px-3 py-1.5 text-[11px] text-fg-muted">
               <span>
-                <b className="tabular font-semibold text-fg">{shown ?? rows.length}</b>
-                {total !== undefined && total !== (shown ?? rows.length) ? <> of <b className="tabular font-semibold text-fg">{total}</b></> : null}
-                {" "}shown
+                <b className="tabular font-semibold text-fg">{shown ?? paged.length}</b>
+                {" of "}
+                <b className="tabular font-semibold text-fg">{total ?? allRows.length}</b>
+                {" shown"}
+                {needle && <span className="text-fg-subtle"> · matching “{needle}”</span>}
               </span>
+              {more > 0 && (
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={() => setLimit((n) => n + pageSize)}
+                    className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-fg hover:bg-bg-subtle">
+                    Show {Math.min(more, pageSize)} more
+                  </button>
+                  <button type="button" onClick={() => setLimit(rows.length)}
+                    className="text-[11px] text-accent hover:underline">
+                    Show all {rows.length}
+                  </button>
+                </span>
+              )}
               {footerNote && <span className="ml-auto">{footerNote}</span>}
             </div>
           )}

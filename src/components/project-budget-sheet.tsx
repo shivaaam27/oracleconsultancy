@@ -159,8 +159,14 @@ export function ProjectBudgetSheet({
         rows={lines}
         rowKey={(l) => l.id}
         listKey="project-budget"
+        search={{
+          placeholder: "Search item code, category, description…",
+          param: "bq",
+          match: (l, q) =>
+            [l.itemCode, l.category, l.subJob, l.description, l.notes]
+              .some((v) => (v ?? "").toLowerCase().includes(q)),
+        }}
         total={lines.length}
-        shown={lines.length}
         empty={
           <div className="py-6 text-center">
             <p className="text-[13px] font-medium">No budget lines yet</p>
@@ -196,6 +202,11 @@ export function ProjectBudgetSheet({
           },
           {
             key: "split", label: "Materials / labour", width: "150px", align: "right", hideBelow: "lg",
+            total: (shown) => {
+              const t = splitTotals(shown);
+              if (t.lines === 0) return null;
+              return <span className="tabular text-fg-muted">{money(t.materials)} / {money(t.labour)}</span>;
+            },
             render: (l) => {
               const diff = splitDifference(l);
               if (diff === null) return <span className="text-[12px] text-fg-subtle">—</span>;
@@ -219,6 +230,11 @@ export function ProjectBudgetSheet({
           {
             key: "amount", label: "Amount", width: "120px", align: "right",
             render: (l) => <span className="tabular text-[12px]">{money(num(l.amount)) ?? "—"}</span>,
+            // Sums what is on screen. On Patamela the whole list must reach
+            // 146,801,556 — the figure to check against the spreadsheet.
+            total: (shown) => (
+              <span className="tabular">{money(shown.reduce((s, l) => s + (num(l.amount) ?? 0), 0))}</span>
+            ),
           },
         ]}
         rowActions={(l) => (

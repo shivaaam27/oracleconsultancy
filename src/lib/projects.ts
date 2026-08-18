@@ -14,6 +14,7 @@
 
 import { sb } from "@/db/supabase";
 import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/lib/project-audit";
+import { reindexEntity } from "@/lib/index-hooks";
 import {
   programme, contract, num,
   type ProjectInput, type Programme, type Contract,
@@ -252,6 +253,7 @@ export async function createProject(f: ProjectFields, createdBy = "web-ui"): Pro
   }
   const id = data?.id as number;
   await logRowCreated({ projectId: id, entity: "project", entityId: id, label: f.name, row, by: createdBy });
+  void reindexEntity("project", id); // best-effort, never throws
   return { ok: true, id };
 }
 
@@ -269,6 +271,7 @@ export async function updateProject(id: number, patch: Partial<ProjectFields>): 
     projectId: id, entity: "project", entityId: id,
     label: (before?.name as string | null) ?? null, before, patch: row,
   });
+  void reindexEntity("project", id);
   return { ok: true, id };
 }
 
@@ -289,5 +292,8 @@ export async function archiveProject(id: number, archived = true): Promise<Write
     projectId: id, entity: "project", entityId: id,
     action: archived ? "archived" : "restored",
   });
+  // Re-stamps lifecycle="history" rather than deleting the row — archived
+  // projects still turn up under "Include history".
+  void reindexEntity("project", id);
   return { ok: true, id };
 }

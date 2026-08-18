@@ -130,7 +130,25 @@ the money are.
 
 ---
 
-# STAGE 0 — the lists stop hurting at 250 rows
+# STAGE 0 — the lists stop hurting at 250 rows ✅ BUILT (Aug 2026)
+
+Measured after: the 251-line budget renders **100 rows, 464 KB** (was 251 rows,
+799 KB), searching "SAND" leaves 20 rows with the total following them down to
+16,748,000, and `/api/search?q=patamela` now answers `project: PATAMELA VILLA`.
+
+⚠️ **The search box is a `RecordList` prop, not a page-level input.** A list that
+wants one passes `search={{ placeholder, param, match }}`; the text goes to the
+URL under `param`, so two lists on one page must use different params (Budget
+`bq`, Requisitions `rq`, Spending `sq`, Payments `pq`) — the collision Assets and
+Vendors already taught us.
+
+⚠️ **Paging is on by DEFAULT (100)** for every list in COS, not only these. A list
+that must render everything passes `pageSize={0}`.
+
+⚠️ **A newly added row grows the page** so an optimistic insert cannot land
+outside the visible window and look lost.
+
+
 
 Nothing here is about the new module. It is the ground everything else stands on,
 and it fixes a complaint the capital-projects work already produced.
@@ -256,9 +274,37 @@ following), merged and retired from one screen, and the default ex-rate is set.
 
 ---
 
-## Open questions for the owner, before Stage 2
+## ⚠️ Flexibility is the design rule — the owner cannot answer domain questions
 
-1. Does a PO ever change client or cost centre mid-life, or is it fixed at entry?
-2. "PENDING WITH" — is that a person, or a department?
-3. Is the quotation number always one-to-one with a PO, or can one quote produce
-   several POs?
+He did not write this workbook and does not run this business day to day. He said
+so plainly: *"I really can't answer, so you can make it flexible."* That is a
+design instruction, not a shrug, and it replaces the three questions that stood
+here. Each one is answered by building so the answer does not have to be known:
+
+| The question | How it is answered |
+|---|---|
+| Can a PO change client or cost centre later? | **Every field stays editable**, and the change is recorded with who made it. No rule is enforced either way. |
+| Is "PENDING WITH" a person or a department? | **Free text that suggests what has been typed before** — the same middle path as items. Type a name or a department; the list builds itself. No link to a staff record is forced. |
+| Can one quotation produce several POs? | The quotation number is **a field on the line, not a hard one-to-one link**, so one quote can appear on many lines and nothing breaks either way. |
+
+**The general rule: assume nothing, require little, record everything.**
+
+- **Almost every field is optional.** Only what identifies the line is required —
+  the PO number, the client and the description. A half-known order can still be
+  entered, which is how the workbook is actually used.
+- **Lists are data, not code.** A new delivery status or clearing agent is a row
+  somebody adds, never a deployment.
+- **Free text with suggestions** beats a forced master list everywhere in this
+  module.
+- **Nothing is converted or computed into storage.** Rates, totals and balances
+  are derived on read, so a rule we guessed wrong can be changed without
+  rewriting history.
+
+**⚠️ What must NOT be flexible**, or this becomes a spreadsheet again:
+
+1. **One row is one PO line.** That shape is fixed; everything hangs off it.
+2. **A fact is typed once.** No sheet-style second copy of the same figure.
+3. **Every change carries who and when.**
+
+When the people who run PES do have an answer, it arrives as a setting or an edit
+— not as a rebuild.

@@ -40,6 +40,10 @@ export type SearchResultType =
   // `note` joined in Phase 6 of the notes plan. ⚠️ Notes are OWNER-ONLY: this
   // search runs behind the admin gate, and a portal search must never read it.
   | "note"
+  // ⚠️ This union is maintained BY HAND and is separate from the entity
+  // registry — adding an EntityDef alone is not enough, as the Notes module
+  // found out. A type missing here compiles and then never appears.
+  | "project"
   | "governance" | "risk" | "pipeline" | "commitment";
 
 export type SearchResult = {

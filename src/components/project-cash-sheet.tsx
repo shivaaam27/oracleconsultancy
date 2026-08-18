@@ -116,8 +116,15 @@ export function ProjectCashSheet({
             rows={[...state.rows].reverse()}
             rowKey={(r) => r.expenditure.id}
             listKey="project-expenditures"
+            search={{
+              placeholder: "Search item, description, remarks…",
+              param: "sq",
+              match: (r, q) =>
+                [r.expenditure.description, r.expenditure.itemCode, r.expenditure.payer,
+                 r.expenditure.notes, r.expenditure.batchNo]
+                  .some((v) => (v ?? "").toLowerCase().includes(q)),
+            }}
             total={expenditures.length}
-            shown={expenditures.length}
             empty={<p className="py-6 text-center text-[12px] text-fg-subtle">Nothing spent yet.</p>}
             columns={[
               {
@@ -137,6 +144,9 @@ export function ProjectCashSheet({
               {
                 key: "amount", label: "Spent", width: "110px", align: "right",
                 render: (r) => <span className="tabular text-[12px]">{money(num(r.expenditure.amount))}</span>,
+                total: (rows) => (
+                  <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.expenditure.amount) ?? 0), 0))}</span>
+                ),
               },
               {
                 key: "balance", label: "Float left", width: "120px", align: "right", hideBelow: "md",
@@ -173,8 +183,14 @@ export function ProjectCashSheet({
             rows={views}
             rowKey={(v) => v.payment.id}
             listKey="project-payments"
+            search={{
+              placeholder: "Search supplier, reference, batch…",
+              param: "pq",
+              match: (v, q) =>
+                [v.payment.supplier, v.payment.referenceNo, v.payment.batchNo, v.payment.route, v.payment.notes]
+                  .some((x) => (x ?? "").toLowerCase().includes(q)),
+            }}
             total={views.length}
-            shown={views.length}
             empty={<p className="py-6 text-center text-[12px] text-fg-subtle">No payments recorded yet.</p>}
             columns={[
               {
@@ -205,6 +221,9 @@ export function ProjectCashSheet({
               {
                 key: "amount", label: "Released", width: "120px", align: "right",
                 render: (v) => <span className="tabular text-[12px]">{money(num(v.payment.amountPaid))}</span>,
+                total: (rows) => (
+                  <span className="tabular">{money(rows.reduce((s, v) => s + (num(v.payment.amountPaid) ?? 0), 0))}</span>
+                ),
               },
               {
                 key: "balance", label: "Still owed", width: "130px", align: "right",

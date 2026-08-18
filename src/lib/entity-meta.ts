@@ -26,11 +26,9 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   risk:       { uiLabel: "Risks",        searchOrder: 3 },
   document:   { uiLabel: "Documents",    searchOrder: 4 },
   note:       { uiLabel: "Notes",        searchOrder: 5 },
-  // searchOrder −1 = has a screen, but is not yet its own group in the command
-  // palette. It has no EntityDef and therefore nothing indexed to find; a
-  // heading with permanently zero results is worse than no heading. Give it a
-  // real position when the EntityDef lands.
-  project:    { uiLabel: "Projects",     searchOrder: -1 },
+  // The EntityDef landed in Stage 0 of the ops programme, so this took a real
+  // position. (searchOrder −1 still means "has a screen, nothing indexed yet".)
+  project:    { uiLabel: "Projects",     searchOrder: 6 },
   vendor:     { uiLabel: "Vendors",      searchOrder: 7 },
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },

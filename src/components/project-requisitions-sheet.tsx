@@ -152,8 +152,14 @@ export function ProjectRequisitionsSheet({
         rows={shown}
         rowKey={(r) => r.id}
         listKey="project-requisitions"
+        search={{
+          placeholder: "Search item, batch, supplier, reference…",
+          param: "rq",
+          match: (r, q) =>
+            [r.itemCode, r.batchNo, r.supplier, r.referenceNo, r.remarks, r.grnNo, r.status]
+              .some((v) => (v ?? "").toLowerCase().includes(q)),
+        }}
         total={rows.length}
-        shown={shown.length}
         empty={
           <div className="py-6 text-center">
             <p className="text-[13px] font-medium">No requests yet</p>
@@ -177,6 +183,9 @@ export function ProjectRequisitionsSheet({
           {
             key: "requested", label: "Requested", width: "110px", align: "right",
             render: (r) => <span className="tabular text-[12px]">{money(num(r.amountRequested)) ?? "—"}</span>,
+            total: (rows) => (
+              <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.amountRequested) ?? 0), 0))}</span>
+            ),
           },
           {
             key: "approved", label: "Approved", width: "110px", align: "right",
@@ -185,6 +194,9 @@ export function ProjectRequisitionsSheet({
                 {r.amountApproved === null ? "not yet" : money(num(r.amountApproved))}
               </span>
             ),
+            total: (rows) => (
+              <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.amountApproved) ?? 0), 0))}</span>
+            ),
           },
           {
             key: "received", label: "Received", width: "110px", align: "right", hideBelow: "md",
@@ -192,6 +204,9 @@ export function ProjectRequisitionsSheet({
               <span className={cn("tabular text-[12px]", r.amountReceived === null && "text-fg-subtle")}>
                 {r.amountReceived === null ? "—" : money(num(r.amountReceived))}
               </span>
+            ),
+            total: (rows) => (
+              <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.amountReceived) ?? 0), 0))}</span>
             ),
           },
           {
