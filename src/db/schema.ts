@@ -2558,3 +2558,123 @@ export const opsRefs = pgTable("ops_refs", {
   uniqueIndex("ops_refs_unique").on(t.companyId, t.kind, t.name),
   index("ops_refs_lookup").on(t.companyId, t.kind, t.active),
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS ORDER LINES — the POS STATUS sheet, which is the spine of the trading
+// business (Stage 2).
+//
+// ONE ROW IS ONE PO LINE. In the workbook that sheet carries 839 lines against
+// 340 PO numbers — a purchase order from a mine lists many items, and each item
+// is bought, shipped and invoiced separately. Every other sheet in that file is
+// a lookup back to this one.
+//
+// ⚠️ NOTHING DERIVED IS STORED. No line total, no margin, no overdue days, no
+// month label, no converted amount. They are all computed on read in
+// `ops-orders-shared.ts`. The workbook stores them as cells, which is why a
+// stale formula there is indistinguishable from a fact, and why its own header
+// totals disagree with the sum of its rows.
+//
+// ⚠️ Almost everything is NULLABLE on purpose. A half-known order still has to
+// go in — that is how the sheet is really used — so only the PO number and the
+// description are required.
+//
+// The import and clearance columns (BL, clearing agent, assessment, duty,
+// freight) are Stage 3 and will be added to this same row.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsOrderLines = pgTable("ops_order_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /* ── the sale ──────────────────────────────────────────────────────────── */
+  /** The client's purchase order number. Repeats across the lines of one PO. */
+  poNo: text("po_no").notNull(),
+  client: text("client"),
+  /** Which of the client's sites it is for — NORTH MARA, BULY. */
+  costCentre: text("cost_centre"),
+  receivedDate: timestamp("received_date", { mode: "date", withTimezone: true }),
+  dueDate: timestamp("due_date", { mode: "date", withTimezone: true }),
+  description: text("description").notNull(),
+  qty: numeric("qty", { precision: 14, scale: 3 }),
+  uom: text("uom"),
+  saleCurrency: text("sale_currency"),
+  saleUnitPrice: numeric("sale_unit_price", { precision: 14, scale: 2 }),
+  /**
+   * The rate THIS line was priced at, frozen when it was entered and editable
+   * afterwards (the owner's decision, Aug 2026).
+   *
+   * ⚠️ Never re-read from settings on display. An order agreed at 2,500 must
+   * still read at 2,500 in a year, whatever the rate has done since.
+   */
+  exRate: numeric("ex_rate", { precision: 14, scale: 4 }),
+  /** LOCAL | IMPORT | STOCK — where it is coming from. Free text; the workbook
+   *  column R uses exactly those three but nothing here enforces them. */
+  kind: text("kind"),
+
+  /* ── what it cost us ───────────────────────────────────────────────────── */
+  quotationNo: text("quotation_no"),
+  /** The buying price the quotation was built on — column U. */
+  quotedUnitBp: numeric("quoted_unit_bp", { precision: 14, scale: 2 }),
+  /** Landed-cost factor — column V. What freight and duty add, as a multiplier. */
+  lcFactor: numeric("lc_factor", { precision: 10, scale: 4 }),
+  source: text("source"),
+  supplier: text("supplier"),
+  origin: text("origin"),
+  /** Proforma invoice number — how a payment finds its order. */
+  profNo: text("prof_no"),
+  purchaseDate: timestamp("purchase_date", { mode: "date", withTimezone: true }),
+  purchaseCurrency: text("purchase_currency"),
+  /** ⚠️ Deliberately its own quantity. The workbook copies the sale quantity
+   *  across; where the two differ, that difference is real information. */
+  purchaseQty: numeric("purchase_qty", { precision: 14, scale: 3 }),
+  purchaseUnitPrice: numeric("purchase_unit_price", { precision: 14, scale: 2 }),
+  supplierPaymentDate: timestamp("supplier_payment_date", { mode: "date", withTimezone: true }),
+
+  /* ── where it has got to ───────────────────────────────────────────────── */
+  status: text("status"),
+  /** Column BH — whose desk it is sitting on. Free text with suggestions; it may
+   *  be a person or a department and the owner cannot say which, so it is not
+   *  tied to a staff record. */
+  pendingWith: text("pending_with"),
+  remarks: text("remarks"),
+  invoiceNo: text("invoice_no"),
+  invoiceDate: timestamp("invoice_date", { mode: "date", withTimezone: true }),
+
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ops_order_lines_company_idx").on(t.companyId, t.archived, t.dueDate),
+  index("ops_order_lines_po_idx").on(t.companyId, t.poNo),
+  index("ops_order_lines_status_idx").on(t.companyId, t.status),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPS AUDIT — who changed which figure on an order line, and what it was.
+//
+// The same append-only shape as `project_audit`, and for the same reason: a
+// spreadsheet cell is retyped and the old number is gone. Kept separate from
+// the project trail because it hangs off a COMPANY, not a project.
+//
+// ⚠️ Written by the write functions in `lib/ops-orders.ts`, not by the screens.
+// ⚠️ Logging must never break a write — a missing audit line is a gap; a
+// refused order entry is a lie about the day's work.
+// ─────────────────────────────────────────────────────────────────────────────
+export const opsAudit = pgTable("ops_audit", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** order_line | ref */
+  entity: text("entity").notNull(),
+  entityId: integer("entity_id"),
+  /** A human handle: the PO number, the supplier. */
+  label: text("label"),
+  action: text("action").notNull(),
+  field: text("field"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ops_audit_company_idx").on(t.companyId, t.createdAt),
+  index("ops_audit_entity_idx").on(t.companyId, t.entity, t.entityId),
+]);

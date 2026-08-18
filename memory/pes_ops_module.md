@@ -119,7 +119,7 @@ Verified in the source on this PC (`Documents/OCERP/reference/`):
 |---|---|---|
 | **0** | **The lists** — search, paging, totals, projects into ⌘K | small |
 | **1** | **The master lists** — clients, suppliers, agents, origins, statuses | small |
-| 2 | The order line (POS STATUS) — the spine | large |
+| **2** | **The order line (POS STATUS) — the spine** ✅ BUILT | large |
 | 3 | Imports and clearance — BL, agent, assessment, duty, freight, ageing | large |
 | 4 | The funnel (INFO-RFQ) — enquiry → quote → order → invoice, measured properly | medium |
 | 5 | Delivery and invoicing — what went out, what was billed, PO balance | medium |
@@ -332,3 +332,55 @@ here. Each one is answered by building so the answer does not have to be known:
 
 When the people who run PES do have an answer, it arrives as a setting or an edit
 — not as a rebuild.
+
+
+---
+
+# STAGE 2 — the order line ✅ BUILT (Aug 2026)
+
+`/ops` is now the order lines; the master lists moved to `/ops/setup` behind a
+tab. Migration **0131**: `ops_order_lines` + `ops_audit`.
+
+One row is one PO line, as in POS STATUS. The sale half is on a permanent strip
+(PO · client · item · qty · unit · price · currency · rate · dates); everything
+filled in later — supplier, cost, proforma, quotation, LC factor, status,
+pending-with, invoice — opens on the row itself.
+
+### ⚠️ Nothing is filled in. Verified line by line.
+
+- No status, no currency, no date, no quantity is assumed. **The purchase
+  quantity is its own field** — the workbook copies the sale quantity across,
+  and where the two differ that difference is real information.
+- The exchange rate is **offered on a chip** showing the Setup default. One
+  press puts it in; ignoring it leaves the box empty. That is the owner's
+  decision 5 honoured without filling anything in.
+- The item box **suggests what has been typed before**, most-used first
+  (`usedValues`) — the middle path he chose. It suggests; it never fills.
+- **Blank stays blank, never 0**, right through `amount()` in `ops-orders.ts`.
+
+### Everything derived, nothing stored
+
+`ops-orders-shared.ts` computes line totals, the shilling conversion, margin,
+overdue days and the flag. **13 tests**, checked against POS STATUS row 4:
+2 × 19,698.30 USD at 2,500 = **98,491,500 TZS**, which is what the sheet's
+column Q says. Verified again in the browser on a typed line, and the margin
+came out 23,991,500 against a 14,900 unit cost.
+
+Three rules the tests pin down:
+1. **No quantity means no total** — null, not zero.
+2. **Dollars with no rate on the line are not reported as shillings** — the
+   total is unknown, and says so.
+3. **An invoiced line stops counting overdue days.** The workbook's clearance
+   sheet shows 477 days late on a settled line, which buries the ones that
+   still need chasing.
+4. The summary says **how many lines it could not price** rather than quietly
+   leaving them out of the total.
+
+### The trail
+Every write goes through `ops_audit` — created with what was filled in, then one
+row per field that actually moved, with who and when. Verified: typing a
+supplier and a cost produced four entries, one per field.
+
+### Still to come on this row
+The import and clearance columns (BL, agent, dox lodged, assessment, duty, ETA,
+berth date, freight) are **Stage 3** and land on this same table.

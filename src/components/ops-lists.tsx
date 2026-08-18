@@ -77,7 +77,7 @@ export function OpsLists({
         <FluidSelect
           value={String(companyId)}
           options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
-          onSelect={(v) => router.push(`/ops?company=${v}`)}
+          onSelect={(v) => router.push(`/ops/setup?company=${v}`)}
           buttonClassName="h-7"
         />
         <span className="text-[11px] text-fg-subtle">
