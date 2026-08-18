@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, foreignKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -1970,4 +1970,462 @@ export const noteLinks = pgTable("note_links", {
   uniqueIndex("note_links_unique").on(t.noteId, t.targetType, t.targetId),
   index("note_links_target_idx").on(t.targetType, t.targetId),
   index("note_links_note_idx").on(t.noteId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAPITAL PROJECTS — the construction job (Phase 1 of the PES workbook rebuild).
+//
+// One row = one building contract, e.g. "PATAMELA VILLA" for client SHANTA.
+// This replaces the header of the workbook's SNAPSHOT sheet (cells A1:B20 and
+// A48:C50) — the block a director reads first.
+//
+// ⚠️ THE RULE THIS TABLE IS BUILT ON: **store what is typed, never what can be
+// worked out.** The spreadsheet mixes the two — B11 (expected completion) and
+// B16 (budgeted profit) sit in the same column as B9 (start date), so a reader
+// cannot tell a fact from a calculation, and a calculation that breaks looks
+// exactly like a fact. Here, every derived figure lives in
+// `src/lib/projects-shared.ts` and NOTHING derived is stored. See its header
+// for the cell-by-cell mapping.
+//
+// ⚠️ VAT AND WHT ARE FIELDS, NOT CONSTANTS. The workbook hard-codes them inside
+// one formula — `=(C46/1.18)*10%`. That is fine until a rate changes or a job is
+// zero-rated, at which point the number is silently wrong and there is nothing
+// on screen to question. They are stored per project so the figure can always be
+// traced back to a rate you can see.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  /** Which of the portfolio companies is doing the work (PES Ltd for this one). */
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /* ---- identity (SNAPSHOT B1:B3, B8) ---- */
+  name: text("name").notNull(),              // B1  PATAMELA VILLA
+  variant: text("variant"),                  // C1  DUPLEX HOUSE — the build type
+  client: text("client"),                    // B2  SHANTA
+  location: text("location"),                // B3  SONGWE DC
+  poNumber: text("po_number"),               // B8  the client's purchase-order reference
+
+  /* ---- programme (SNAPSHOT B9:B10) ----
+   * Only these two are stored. Expected completion, days elapsed and days
+   * remaining (B11/B12/B13) are all worked out from them at read time. */
+  startDate: timestamp("start_date", { mode: "date", withTimezone: true }),
+  durationDays: integer("duration_days"),
+
+  /* ---- contract money (SNAPSHOT B14, C48:C50) ----
+   * numeric(14,2), matching how money is stored everywhere else in COS. Amounts
+   * are Tanzanian shillings. `quotationValue` EXCLUDES VAT; `poValue` and
+   * `additionalWork` INCLUDE it — that is how the workbook labels them, and
+   * mixing the two up is the single easiest way to get the tax wrong. */
+  quotationValue: numeric("quotation_value", { precision: 14, scale: 2 }),   // B14 excl. VAT
+  poValue: numeric("po_value", { precision: 14, scale: 2 }),                 // C48 incl. VAT
+  additionalWork: numeric("additional_work", { precision: 14, scale: 2 }),   // C49 incl. VAT
+
+  /* ---- tax rates (were hard-coded in SNAPSHOT C47) ---- */
+  vatRate: numeric("vat_rate", { precision: 6, scale: 4 }).notNull().default("0.18"),
+  whtRate: numeric("wht_rate", { precision: 6, scale: 4 }).notNull().default("0.10"),
+
+  /* ---- progress (SNAPSHOT B36) ----
+   * Physical completion as a fraction: 0.98 = 98%. Typed by the person who has
+   * been to site — nothing infers it. It drives the payment-plan stages in a
+   * later phase, exactly as B36 drives D40:D43 in the workbook. */
+  completionPct: numeric("completion_pct", { precision: 6, scale: 4 }).notNull().default("0"),
+
+  /** ISO code of the one currency this project is priced and paid in — TZS or
+   *  USD. There is deliberately NO conversion: a contract is agreed, invoiced
+   *  and paid in a single currency, and an exchange rate would be a number
+   *  nobody typed silently changing what the figures mean. */
+  currency: text("currency").notNull().default("TZS"),
+
+  /** Cost of feeding one person for one day - MEALS!C39, typed (7,000 on
+   *  Patamela). Lives here rather than in the grid so changing it re-prices
+   *  every day at once, which is how the workbook behaves. */
+  mealRate: numeric("meal_rate", { precision: 14, scale: 2 }),
+
+  /** Active | On hold | Completed | Closed. Open = anything but Completed/Closed,
+   *  the same convention tasks use. */
+  status: text("status").notNull().default("Active"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("projects_company_idx").on(t.companyId),
+  index("projects_list_idx").on(t.archived, t.status, t.startDate),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT BUDGET LINES — the Bill of Quantities (Phase 2).
+//
+// One row = one priced line of the PATAMELA sheet. ~270 of them make up the
+// 146,801,556 budget that every other figure in the workbook is measured
+// against.
+//
+// ── The item code is the spine ───────────────────────────────────────────────
+// `item_code` is what the whole system joins on — the workbook builds it as
+// `CONCATENATE(job code, sub-job)`, e.g. `TIMBER2X2-SETTING OUT`. Cement is
+// bought twenty times for twenty different parts of the building; only this code
+// tells you WHICH part overspent. Requisitions (Phase 3) and expenditure
+// (Phase 4) both point at it, so it is unique per project.
+//
+// ── ⚠️ QUANTITY AND UNIT ARE DELIBERATELY EMPTY ──────────────────────────────
+// The owner's decision, Aug 2026, and the reason is worth keeping: in the
+// workbook, quantity comes from PATAMELA column G and money from column M, and
+// THE TWO DISAGREE ON EVERY SINGLE LINE. The timber line reads 25 EA at 3,500 —
+// which is 87,500 — beside a stated total of 175,000. The money is sound (it
+// reconciles to the budget exactly); the quantity is not, and the "balance
+// quantity" site is shown in REQUISITIONS is built on it. Real evidence it is
+// not trusted: on that same item the sheet said 15 remained and site requested
+// 45.
+//
+// So Phase 2 tracks MONEY ONLY. These two columns exist, nullable and unused, so
+// that deciding later to track quantities properly is a form change rather than
+// a migration. **Nothing may read them until they are deliberately populated
+// with figures someone has checked** — a half-filled quantity column is worse
+// than none, because it looks authoritative.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectBudgetLines = pgTable("project_budget_lines", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+  /** PATAMELA column E — `TIMBER2X2-SETTING OUT`. The join key for every later phase. */
+  itemCode: text("item_code").notNull(),
+  /** PATAMELA column C — the broad bucket the dashboard groups by (`TIMBER2X2`). */
+  category: text("category").notNull(),
+  /** PATAMELA column D — where in the build it is used (`SETTING OUT`). */
+  subJob: text("sub_job"),
+  /** PATAMELA column B — the human sentence ("Timber for setting out (2x2\")"). */
+  description: text("description"),
+
+  /** PATAMELA column M — the priced total. THE figure; everything sums from it. */
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+
+  /** ⚠️ Unused in Phase 2 — see the note above. Do not read these yet. */
+  qty: numeric("qty", { precision: 14, scale: 3 }),
+  unit: text("unit"),
+
+  /** Keeps the BOQ in the builder's order (substructure → roof → finishes). */
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One line per item code per project — the workbook allows duplicates and that
+  // is precisely how a budget gets double-counted.
+  uniqueIndex("project_budget_item_unique").on(t.projectId, t.itemCode),
+  index("project_budget_project_idx").on(t.projectId, t.sortOrder),
+  index("project_budget_category_idx").on(t.projectId, t.category),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT REQUISITIONS — request → approve → receive (Phase 3).
+//
+// The workbook's REQUISITIONS sheet, which is three jobs laid side by side and
+// labelled in row 1 with WHO OWNS EACH:
+//
+//   A–E  balances          (derived)   what is left before you ask
+//   F–R  the request       (SHAO)      what site asked for, what HQ approved
+//   S–X  goods received    (KELVIN)    what actually turned up
+//
+// Keeping those three apart is the whole control. The person who asks for the
+// money is not the person who confirms the goods.
+//
+// ── ⚠️ THE GRN COLUMNS START EMPTY. This is the owner's decision, Aug 2026 ────
+// In the workbook the receiving columns PRE-FILL from the request (`T=G`, `V=H`,
+// `W=I`), so a row nobody has checked looks exactly like a row that was checked.
+// The result: 94,481,950 approved against 4,964,400 ever confirmed received —
+// **5%**. Here they are null until somebody records a delivery, so "not yet
+// received" is visible instead of invisible.
+//
+// ── ⚠️ WHY qty/rate EXIST HERE BUT NOT ON THE BUDGET ─────────────────────────
+// Phase 2 dropped quantities because PATAMELA's qty/rate columns contradict its
+// own totals. That verdict does NOT extend to this table: a requisition is site
+// typing "40 bags at 22,000" TODAY. It is fresh, first-hand data, not inherited
+// rubbish. What we cannot do is show a budget BALANCE in bags — that would need
+// the dead column — so the balance offered before requesting is in MONEY.
+//
+// ── ⚠️ THE COMPOSITE FOREIGN KEY IS DELIBERATE ───────────────────────────────
+// (project_id, item_code) points at project_budget_lines, ON DELETE RESTRICT.
+// Two things fall out of it for free: a requisition cannot be raised against an
+// item that is not in the budget (the workbook allows exactly that, which is one
+// way its balances drift), and the Phase 2 note — "once a requisition points at
+// an item code, deleting that budget line must be REFUSED" — is now enforced by
+// the database rather than by remembering.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectRequisitions = pgTable("project_requisitions", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+  /** The budget line this is spending against — REQUISITIONS column B. */
+  itemCode: text("item_code").notNull(),
+
+  /* ---- the request (SHAO), columns F–N ---- */
+  /** `PT-01`, `PT-02` … the batch a request belongs to. Column G. */
+  batchNo: text("batch_no"),
+  requestedDate: timestamp("requested_date", { mode: "date", withTimezone: true }),
+  qtyRequested: numeric("qty_requested", { precision: 14, scale: 3 }),
+  rate: numeric("rate", { precision: 14, scale: 2 }),
+  /** Column J (`=H*I`). Stored because site may agree a price that is not
+   *  exactly qty × rate, and the figure they signed for is the fact. */
+  amountRequested: numeric("amount_requested", { precision: 14, scale: 2 }).notNull().default("0"),
+  /** Who pays: SHAO | SUPPLIER | HQ | ALANDO — column K. */
+  route: text("route"),
+  supplier: text("supplier"),
+  /** Invoice / proforma number — column M, what PAYMENTS joins on in Phase 4. */
+  referenceNo: text("reference_no"),
+  remarks: text("remarks"),
+
+  /* ---- the approval (HQ), column Q ----
+   * ⚠️ NULL until somebody approves. The workbook defaults Q to `=J`, i.e. it
+   * treats every request as approved in full until edited — so "approved" and
+   * "not looked at yet" are the same cell value. Every downstream total then
+   * counts unreviewed requests as authorised. Here null means exactly what it
+   * says, and the screens show it as awaiting approval. */
+  amountApproved: numeric("amount_approved", { precision: 14, scale: 2 }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedBy: text("approved_by"),
+
+  /* ---- goods received (KELVIN), columns S–X — ALL NULL BY DEFAULT ---- */
+  receivedDate: timestamp("received_date", { mode: "date", withTimezone: true }),
+  grnNo: text("grn_no"),
+  qtyReceived: numeric("qty_received", { precision: 14, scale: 3 }),
+  amountReceived: numeric("amount_received", { precision: 14, scale: 2 }),
+  receivedBy: text("received_by"),
+
+  /** Requested | Approved | Rejected | Received | Cancelled. Derived from the
+   *  fields above on write, so a list can be filtered without recomputing. */
+  status: text("status").notNull().default("Requested"),
+
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({
+    columns: [t.projectId, t.itemCode],
+    foreignColumns: [projectBudgetLines.projectId, projectBudgetLines.itemCode],
+    name: "project_requisitions_budget_line_fk",
+  }).onDelete("restrict"),
+  index("project_requisitions_project_idx").on(t.projectId, t.status),
+  index("project_requisitions_item_idx").on(t.projectId, t.itemCode),
+  index("project_requisitions_batch_idx").on(t.projectId, t.batchNo),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT PAYMENTS — money actually released (Phase 4).
+//
+// The workbook's PAYMENTS sheet is three ledgers laid side by side, identical in
+// shape, differing only in WHO the money went to:
+//
+//   B–H  DIRECT      paid straight to the supplier   (keyed on invoice no.)
+//   L–Q  SHAO        cash handed to the site manager (keyed on batch no.)
+//   U–Z  HQ          paid by head office             (keyed on batch no.)
+//
+// One table with a `route` column, because they are the same thing three times.
+//
+// ⚠️ "TOTAL PAYABLE" IS NOT STORED. In the workbook it is a SUMIF over the
+// approved requisitions, and it is derived here too — see lib/project-payments.
+// Storing it would be a second copy of a fact that changes whenever an approval
+// changes.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectPayments = pgTable("project_payments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  /** DIRECT | SHAO | HQ — which of the three ledgers this belongs to. */
+  route: text("route").notNull(),
+  /** Invoice / proforma number. How a DIRECT payment finds its requisitions. */
+  referenceNo: text("reference_no"),
+  /** PT-01 … How a SHAO or HQ payment finds its requisitions. */
+  batchNo: text("batch_no"),
+  supplier: text("supplier"),
+  paidDate: timestamp("paid_date", { mode: "date", withTimezone: true }),
+  amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("project_payments_project_idx").on(t.projectId, t.route),
+  index("project_payments_ref_idx").on(t.projectId, t.referenceNo),
+  index("project_payments_batch_idx").on(t.projectId, t.batchNo),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT EXPENDITURES — money actually spent, line by line (Phase 4).
+//
+// The workbook's EXPENDITURES sheet is a running cash float. Row 6 seeds the
+// opening balance from PAYMENTS, and every row below subtracts what was spent,
+// so column P is a live chequebook: how much unspent cash is on site right now.
+//
+// Two people hold float — SHAO (column I) and MAURICE (column J) — each with
+// their own running balance. `payer` is which of them spent it.
+//
+// ⚠️ THE RUNNING BALANCE IS NOT STORED. In the workbook each row holds a formula
+// chaining off the row above, so one bad row corrupts every row beneath it. Here
+// the balance is computed by walking the rows in date order, and a corrected
+// entry simply re-computes.
+//
+// ⚠️ `item_code` is nullable ON PURPOSE. Real site spending includes fuel, food
+// and taxis that belong to no budget line, and forcing a code would either block
+// the entry or invite a junk one. When it IS set it must be a real budget line,
+// which is what the composite foreign key enforces.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectExpenditures = pgTable("project_expenditures", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  spentDate: timestamp("spent_date", { mode: "date", withTimezone: true }),
+  /** Optional link to the budget line this spending belongs to. */
+  itemCode: text("item_code"),
+  description: text("description"),
+  /** SHAO | MAURICE — whose float it came out of. */
+  payer: text("payer").notNull().default("SHAO"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  /** HQ | SITE — where the money was handed over (workbook column K). */
+  source: text("source"),
+  /** Mobile-money reference (workbook column L). */
+  mobileNo: text("mobile_no"),
+  batchNo: text("batch_no"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({
+    columns: [t.projectId, t.itemCode],
+    foreignColumns: [projectBudgetLines.projectId, projectBudgetLines.itemCode],
+    name: "project_expenditures_budget_line_fk",
+  }).onDelete("restrict"),
+  index("project_expenditures_project_idx").on(t.projectId, t.spentDate),
+  index("project_expenditures_item_idx").on(t.projectId, t.itemCode),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT PAYMENT STAGES — how the client pays (Phase 5).
+//
+// SNAPSHOT rows 39–46: Advance 30% · Interim 1 25% · Interim 2 25% · Practical
+// completion 20%. Each stage carries a THRESHOLD — the physical completion at
+// which it becomes billable — and the workbook flips its status by comparing
+// that threshold to the project's typed completion percentage. One number drives
+// the whole billing schedule, which is genuinely elegant and is kept.
+//
+// The right-hand half of that block is the invoice trail: IPC dates, invoice
+// amount, date of payment, amount received, balance.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectPaymentStages = pgTable("project_payment_stages", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  /** Completion at which this stage becomes billable: 0.5 = 50%. */
+  thresholdPct: numeric("threshold_pct", { precision: 6, scale: 4 }),
+  /** The stage's share of the contract: 0.30 = 30%. */
+  sharePct: numeric("share_pct", { precision: 6, scale: 4 }),
+  /** Typed, or worked out from share_pct times the total contract if empty. */
+  amount: numeric("amount", { precision: 14, scale: 2 }),
+  invoiceDate: timestamp("invoice_date", { mode: "date", withTimezone: true }),
+  invoiceAmount: numeric("invoice_amount", { precision: 14, scale: 2 }),
+  receivedDate: timestamp("received_date", { mode: "date", withTimezone: true }),
+  amountReceived: numeric("amount_received", { precision: 14, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("project_payment_stages_idx").on(t.projectId, t.sortOrder),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SITE PEOPLE AND THEIR DAYS — the MEALS and LABOUR tick-sheets (Phase 6).
+//
+// Both workbook sheets are the same shape: names down the side, ONE COLUMN PER
+// CALENDAR DAY across the top (~110 days on Patamela). A spreadsheet has to
+// spread a date across columns; a database does not, so one row per person per
+// day carries both facts — whether they ate and what they were paid.
+//
+// ⚠️ These are NOT the `people` table. Site casuals are hired by the day and are
+// not staff of any portfolio company; putting them in `people` would put them in
+// the HR system, the org chart and the staff portal. They belong to the project.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectSitePeople = pgTable("project_site_people", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  designation: text("designation"),
+  /** PERMANENT | CASUAL LABOUR — the workbook's own two values. */
+  kind: text("kind").notNull().default("CASUAL LABOUR"),
+  dailyRate: numeric("daily_rate", { precision: 14, scale: 2 }),
+  phone: text("phone"),
+  /** Whether this person is fed on site (MEALS column E). */
+  mealsEligible: boolean("meals_eligible").notNull().default(true),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("project_site_people_idx").on(t.projectId, t.active),
+]);
+
+export const projectSiteDays = pgTable("project_site_days", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  personId: integer("person_id").notNull().references(() => projectSitePeople.id, { onDelete: "cascade" }),
+  day: timestamp("day", { mode: "date", withTimezone: true }).notNull(),
+  /** MEALS: did they eat. LABOUR: what they were paid. Either may stand alone. */
+  meal: boolean("meal").notNull().default(false),
+  labourAmount: numeric("labour_amount", { precision: 14, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One row per person per day — the grid cannot hold two marks for one square.
+  uniqueIndex("project_site_days_unique").on(t.personId, t.day),
+  index("project_site_days_project_idx").on(t.projectId, t.day),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT REFERENCE LISTS — the "masters" half of an ERP (Phase 7).
+//
+// ERPNext is two kinds of data: MASTERS, which are fixed lists defined once
+// (Item, Supplier, Cost Center), and TRANSACTIONS, which are the daily events
+// that point at them (an order, a payment). Phases 1–6 built only the
+// transactions, which is why category, sub-job, supplier, who-pays and
+// whose-float were free text or lists frozen inside the code — to add a fifth
+// person who pays, somebody had to edit a file and redeploy. That is not an ERP.
+//
+// ── ⚠️ ONE TABLE, NOT SEVEN ──────────────────────────────────────────────────
+// Every list here is the same shape: a name, an order, and whether it is still
+// in use. Seven near-identical tables would mean seven migrations, seven
+// libraries and seven screens. `kind` separates them, and the whole set is then
+// driven by ONE `ReferenceAdmin` — the add/rename/merge/delete manager COS
+// already uses for Sites and Roles.
+//
+// ── ⚠️ SCOPED TO ONE PROJECT — the owner's decision, Aug 2026 ────────────────
+// He chose per-project lists over shared ones, so nothing can leak between jobs.
+// The cost is that a new project starts with empty dropdowns, which is why
+// `copyRefsFrom()` exists: set up the first villa properly, then copy it.
+// **Do not "helpfully" seed these on create** — a list nobody chose is the
+// auto-filling he has asked twice not to have. Seeding is a button he presses.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectRefs = pgTable("project_refs", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  /**
+   * Which list this belongs to:
+   *   category      the job code on a budget line     (CEMENT)
+   *   sub_job       where in the build                (STRIP-FOUNDATION)
+   *   supplier      who sells it                      (Nelly&Mushy)
+   *   route         who pays a requisition            (SHAO / SUPPLIER / HQ)
+   *   float_holder  whose cash a spend came from      (SHAO / MAURICE)
+   *   designation   a site person's job               (Site foreman)
+   */
+  kind: text("kind").notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  /** Retired rather than deleted once transactions point at it. */
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One entry per name per list per project — the whole point of a master is
+  // that CEMENT means one thing.
+  uniqueIndex("project_refs_unique").on(t.projectId, t.kind, t.name),
+  index("project_refs_lookup").on(t.projectId, t.kind, t.active),
 ]);

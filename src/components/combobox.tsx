@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
  */
 export function Combobox({
   name, options, defaultValue = "", placeholder, className, onCommit, onInput, clearOnCommit = false,
+  onCreate, createNoun,
 }: {
   name?: string;
   options: string[];
@@ -25,12 +26,25 @@ export function Combobox({
   /** Fires on every keystroke (for controlled-ish callers like the notes folder). */
   onInput?: (value: string) => void;
   clearOnCommit?: boolean;
+  /**
+   * Makes this dropdown able to ADD to its own list — ERPNext's "+ Create a new
+   * Item" inside a link field. When the typed text matches nothing, a create row
+   * appears at the foot of the menu; choosing it saves the new entry and selects
+   * it, without leaving the form.
+   *
+   * Return `{ ok: false, error }` and the message is shown in the menu.
+   */
+  onCreate?: (name: string) => Promise<{ ok: boolean; error?: string; name?: string }>;
+  /** What is being created, for the menu wording: `+ Add category "CEMENT"`. */
+  createNoun?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -43,6 +57,24 @@ export function Combobox({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  // Offer to create only when there is something typed and no option matches it
+  // exactly — otherwise the row would sit there inviting a duplicate.
+  const typed = query.trim();
+  const canCreate = Boolean(
+    onCreate && typed && !options.some((o) => o.toLowerCase() === typed.toLowerCase()),
+  );
+
+  const create = async () => {
+    if (!onCreate || !typed) return;
+    setCreating(true);
+    setCreateError(null);
+    const res = await onCreate(typed);
+    setCreating(false);
+    if (!res.ok) { setCreateError(res.error ?? "Couldn't add that."); return; }
+    // Show what was SAVED, which may have been tidied (upper-cased, spacing).
+    commit(res.name ?? typed);
+  };
 
   const commit = (value: string) => {
     if (inputRef.current) inputRef.current.value = clearOnCommit ? "" : value;
@@ -67,12 +99,13 @@ export function Combobox({
           else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)); }
           else if (e.key === "Enter") {
             if (open && filtered[highlight]) { e.preventDefault(); commit(filtered[highlight]); }
+            else if (canCreate) { e.preventDefault(); void create(); }
             else if (onCommit) { e.preventDefault(); commit((e.target as HTMLInputElement).value.trim()); }
           } else if (e.key === "Escape") { setOpen(false); }
         }}
       />
       <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
-      {open && filtered.length > 0 && (
+      {open && (filtered.length > 0 || canCreate) && (
         <ul className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-auto rounded-xl bg-bg-elev ring-1 ring-border shadow-lg py-1">
           {filtered.map((o, i) => (
             <li key={o}>
@@ -86,6 +119,24 @@ export function Combobox({
               </button>
             </li>
           ))}
+          {canCreate && (
+            <li className={cn(filtered.length > 0 && "mt-1 border-t border-border pt-1")}>
+              <button
+                type="button"
+                disabled={creating}
+                onMouseDown={(e) => { e.preventDefault(); void create(); }}
+                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-sm text-accent hover:bg-accent-soft disabled:opacity-60"
+              >
+                {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                <span className="truncate">
+                  Add {createNoun ?? "entry"} <strong>{typed}</strong>
+                </span>
+              </button>
+            </li>
+          )}
+          {createError && (
+            <li className="px-3 py-1.5 text-[11px] text-danger">{createError}</li>
+          )}
         </ul>
       )}
     </div>

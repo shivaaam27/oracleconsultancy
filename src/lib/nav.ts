@@ -20,6 +20,7 @@ import {
   ClipboardList,
   KanbanSquare,
   StickyNote,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -55,6 +56,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
+  { id: "projects",    href: "/projects",            label: "Projects",            icon: HardHat },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
@@ -88,7 +90,7 @@ export type NavGroup = { label: string; ids: string[] };
 
 export const NAV_GROUPS: NavGroup[] = [
   { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
-  { label: "Records", ids: ["people", "companies", "documents", "assets"] },
+  { label: "Records", ids: ["people", "companies", "projects", "documents", "assets"] },
   // Was "Registers" until Aug 2026 — the word meant three things at once (this
   // group, the commitments page, and the legacy /registry task list). The pages
   // in here are the day-to-day operational logs, so that is what it is called.

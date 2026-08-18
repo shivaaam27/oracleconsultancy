@@ -11,7 +11,7 @@
 
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
-  AlertTriangle, Workflow, ScrollText, StickyNote, type LucideIcon,
+  AlertTriangle, Workflow, ScrollText, StickyNote, HardHat, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
@@ -27,6 +27,7 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   risk:       { icon: AlertTriangle, tint: "text-rose-600" },
   pipeline:   { icon: Workflow,      tint: "text-cyan-600" },
   commitment: { icon: ScrollText,    tint: "text-lime-600" },
+  project:    { icon: HardHat,       tint: "text-orange-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },

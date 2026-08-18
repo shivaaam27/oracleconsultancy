@@ -32,7 +32,14 @@ export type SourceType =
   /** Notes (Phase 1). Not indexed yet — the EntityDef arrives in Phase 6; this
    *  member exists so the module can have an ENTITY_VIEWS entry like every other
    *  record type. */
-  | "note";
+  | "note"
+  /** Capital projects — the construction jobs rebuilt from the PES workbook
+   *  (Phase 1). Same arrangement as `note` above: NOT indexed yet, so there is
+   *  deliberately no EntityDef in entity-registry.ts. The member exists so the
+   *  module can have an ENTITY_VIEWS entry and inherit the standard list and
+   *  record screens. Making it searchable later is one EntityDef and nothing
+   *  else — see the FORWARD RULE in CLAUDE.md. */
+  | "project";
 
 // Lifecycle of an indexed source row. `active` = current/live; `history` = the
 // row still EXISTS but is archived/closed/inactive (kept searchable, just

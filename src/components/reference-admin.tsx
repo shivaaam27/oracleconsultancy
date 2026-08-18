@@ -13,10 +13,13 @@ type Res = { ok: boolean; error?: string };
 /** Generic add / rename / merge / delete manager for a simple named list
  *  (sites, job titles, …). Mirrors the Departments admin. */
 export function ReferenceAdmin({
-  items, noun, addPlaceholder, onCreate, onRename, onMerge, onDelete, mergeNote, deleteNote,
+  items, noun, plural, addPlaceholder, onCreate, onRename, onMerge, onDelete, mergeNote, deleteNote,
 }: {
   items: RefItem[];
   noun: string;
+  /** Plural, when adding an "s" is wrong — Category/Categories, Entry/Entries.
+   *  Defaults to `noun + "s"`, which is right for Sites, Roles and Suppliers. */
+  plural?: string;
   addPlaceholder: string;
   onCreate: (name: string) => Promise<Res>;
   onRename: (id: number, name: string) => Promise<Res>;
@@ -25,6 +28,7 @@ export function ReferenceAdmin({
   mergeNote: string;
   deleteNote: string;
 }) {
+  const many = plural ?? `${noun}s`;
   const router = useRouter();
   const { toast } = useToast();
   const [, start] = useTransition();
@@ -56,7 +60,7 @@ export function ReferenceAdmin({
       </div>
 
       {items.length === 0 ? (
-        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">No {noun}s yet.</div>
+        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">No {many.toLowerCase()} yet.</div>
       ) : (
         <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
           {items.map((d) => {
@@ -95,7 +99,7 @@ export function ReferenceAdmin({
                     <Button size="sm" disabled={busy} onClick={() => {
                       const v = (document.getElementById(`ref-merge-${d.id}`) as HTMLSelectElement)?.value;
                       if (!v) { toast("Choose a target.", { tone: "warn" }); return; }
-                      run(() => onMerge(d.id, Number(v)), `Merged ${noun}s`);
+                      run(() => onMerge(d.id, Number(v)), `Merged ${many.toLowerCase()}`);
                     }}><GitMerge size={13} /> Merge</Button>
                     <span className="text-[11px] text-fg-subtle">{mergeNote}</span>
                   </div>

@@ -211,6 +211,90 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Asset", href: "/hrms/assets?view=assets&new=asset" },
   },
 
+  /**
+   * Capital projects — the construction jobs (Phase 1 of the PES workbook).
+   *
+   * The columns are the SNAPSHOT sheet's header block, which is what the owner
+   * reads first: which job, for whom, where it is up to, and how much time is
+   * left. Money is deliberately NOT in the list. The contract is 195 million and
+   * the budget 146 million; two nine-digit figures side by side in a dense row
+   * are unreadable at a glance and invite mistaking one for the other. They
+   * belong on the record, laid out and labelled.
+   *
+   * `daysRemaining` is derived, not stored (see lib/projects-shared.ts). It is
+   * still a real column: the page computes it for every row and sorts on it,
+   * which is how "what is running late" becomes one click instead of a read
+   * through the list.
+   */
+  project: {
+    /**
+     * ⚠️ WATCH THE TOTAL FIXED WIDTH. The flexible first column gets whatever is
+     * left, and there is far less room than the screen suggests: the desk
+     * sidebar takes 208px and the filter rail another 184px, so a 1186px window
+     * leaves the list about **725px**. Every 12px gap counts too.
+     *
+     * The first draft had six columns totalling 620px of fixed width; with the
+     * tick box and six gaps that came to 720px, the project name was allotted
+     * the remaining 5px and **collapsed to zero** — an unreadable list of blank
+     * rows. Commitments, by comparison, fixes only 392px.
+     *
+     * Now: 434px fixed + 28 + 60 of gaps = 522, leaving ~200px for the name.
+     * Company is deliberately NOT a column — the second line of the name cell
+     * already carries it, and it is a filter in the rail.
+     */
+    listColumns: [
+      { key: "name", label: "Project", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "client", label: "Client", width: "140px", format: "text", hideBelow: "md", sortable: true },
+      { key: "status", label: "Status", width: "110px", format: "status", sortable: true },
+      { key: "completionPct", label: "Complete", width: "88px", format: "number", align: "right", sortable: true },
+      { key: "daysRemaining", label: "Days left", width: "96px", format: "number", align: "right", sortable: true },
+    ],
+    filters: [
+      { label: "Status", source: "status" },
+      { label: "Company", source: "company" },
+    ],
+    formSections: [
+      {
+        id: "identity",
+        title: "Project",
+        fields: [
+          { key: "name", label: "Project" },
+          { key: "variant", label: "Build type" },
+          { key: "client", label: "Client" },
+          { key: "location", label: "Location" },
+          { key: "companyName", label: "Company", format: "company" },
+          { key: "poNumber", label: "PO number", format: "code" },
+        ],
+      },
+      {
+        id: "programme",
+        title: "Programme",
+        fields: [
+          { key: "startDate", label: "Start date", format: "date" },
+          { key: "durationDays", label: "Duration (days)", format: "number" },
+          { key: "expectedCompletion", label: "Expected completion", format: "date" },
+          { key: "daysElapsed", label: "Days in progress", format: "number" },
+          { key: "daysRemaining", label: "Days remaining", format: "number" },
+          { key: "completionPct", label: "Work completed", format: "number" },
+        ],
+      },
+      {
+        id: "contract",
+        title: "Contract",
+        fields: [
+          { key: "quotationValue", label: "Quotation (excl. VAT)", format: "number" },
+          { key: "poValue", label: "PO value (incl. VAT)", format: "number" },
+          { key: "additionalWork", label: "Additional work (incl. VAT)", format: "number" },
+          { key: "totalContract", label: "Total contract", format: "number" },
+          { key: "vatRate", label: "VAT rate", format: "number" },
+          { key: "whtRate", label: "Withholding tax rate", format: "number" },
+        ],
+      },
+    ],
+    defaultSort: { key: "daysRemaining", dir: "asc" },  // worst-first, per DESIGN_SYSTEM.md §12
+    create: { label: "Project", href: "/projects?new=1" },
+  },
+
   commitment: {
     listColumns: [
       { key: "title", label: "Commitment", width: "minmax(0,1fr)", format: "text", sortable: true },
