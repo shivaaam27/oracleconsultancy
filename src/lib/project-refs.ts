@@ -2,6 +2,7 @@
 // ⚠️ SERVER-ONLY (imports `sb`). Client half: project-refs-shared.ts.
 
 import { sb } from "@/db/supabase";
+import { logProjectChange } from "@/lib/project-audit";
 import {
   normaliseRefName, STARTER_LISTS,
   type ProjectRef, type RefKind,
@@ -59,6 +60,10 @@ export async function createRef(projectId: number, kind: string, name: string): 
     console.error("[refs] create failed:", error.message);
     return { ok: false, error: error.message };
   }
+  await logProjectChange({
+    projectId, entity: "ref", entityId: data?.id as number,
+    label: kind, action: "created", newValue: clean,
+  });
   return { ok: true, id: data?.id as number, name: clean };
 }
 
@@ -124,6 +129,12 @@ export async function renameAndRepoint(projectId: number, id: number, name: stri
       .eq("project_id", projectId).eq(target.column, from);
     if (error) console.error(`[refs] repoint ${target.table}.${target.column} failed:`, error.message);
   }
+  // A rename moves every transaction that named the old value, so it is a
+  // change to the books, not just to a dropdown.
+  await logProjectChange({
+    projectId, entity: "ref", entityId: id, label: kind,
+    action: "updated", field: "name", oldValue: from, newValue: to,
+  });
   return { ok: true, id };
 }
 
@@ -143,6 +154,10 @@ export async function mergeRefs(projectId: number, fromId: number, intoId: numbe
   }
   const { error } = await sb.from("project_refs").delete().eq("id", fromId);
   if (error) return { ok: false, error: error.message };
+  await logProjectChange({
+    projectId, entity: "ref", entityId: intoId, label: from.kind as string,
+    action: "updated", field: "name", oldValue: from.name, newValue: into.name,
+  });
   return { ok: true, id: intoId };
 }
 
@@ -168,10 +183,18 @@ export async function deleteRef(projectId: number, id: number): Promise<{ ok: tr
   if (inUse > 0) {
     const { error } = await sb.from("project_refs").update({ active: false }).eq("id", id);
     if (error) return { ok: false, error: error.message };
+    await logProjectChange({
+      projectId, entity: "ref", entityId: id, label: row.kind as string,
+      action: "updated", field: "active", oldValue: true, newValue: false,
+    });
     return { ok: true, retired: true };
   }
   const { error } = await sb.from("project_refs").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  await logProjectChange({
+    projectId, entity: "ref", entityId: id, label: row.kind as string,
+    action: "deleted", oldValue: row.name,
+  });
   return { ok: true, retired: false };
 }
 

@@ -2,6 +2,7 @@
 // ⚠️ SERVER-ONLY (imports `sb`). Client half: project-cash-shared.ts.
 
 import { sb } from "@/db/supabase";
+import { logProjectChange, logRowCreated, snapshotRow } from "@/lib/project-audit";
 import type { Payment, Expenditure } from "@/lib/project-cash-shared";
 
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
@@ -68,12 +69,25 @@ export async function createPayment(f: PaymentFields, createdBy = "web-ui"): Pro
     console.error("[payments] create failed:", error.message, row);
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: data?.id as number };
+  const id = data?.id as number;
+  await logRowCreated({
+    projectId: f.projectId, entity: "payment", entityId: id,
+    label: row.reference_no ?? row.batch_no ?? row.route, row, by: createdBy,
+  });
+  return { ok: true, id };
 }
 
 export async function deletePayment(id: number): Promise<WriteResult> {
+  const before = await snapshotRow("project_payments", id);
   const { error } = await sb.from("project_payments").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  if (before) {
+    await logProjectChange({
+      projectId: before.project_id as number, entity: "payment", entityId: id,
+      label: (before.reference_no as string | null) ?? (before.batch_no as string | null) ?? (before.route as string),
+      action: "deleted", field: "amount_paid", oldValue: before.amount_paid,
+    });
+  }
   return { ok: true, id };
 }
 
@@ -126,6 +140,12 @@ export async function createExpenditure(f: ExpenditureFields, createdBy = "web-u
     created_by: createdBy,
   };
   const { data, error } = await sb.from("project_expenditures").insert(row).select("id").single();
+  if (!error) {
+    await logRowCreated({
+      projectId: f.projectId, entity: "expenditure", entityId: data?.id as number,
+      label: row.item_code ?? row.description ?? row.payer, row, by: createdBy,
+    });
+  }
   if (error) {
     console.error("[expenditures] create failed:", error.message, row);
     if (error.code === "23503") {
@@ -140,8 +160,16 @@ export async function createExpenditure(f: ExpenditureFields, createdBy = "web-u
 }
 
 export async function deleteExpenditure(id: number): Promise<WriteResult> {
+  const before = await snapshotRow("project_expenditures", id);
   const { error } = await sb.from("project_expenditures").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  if (before) {
+    await logProjectChange({
+      projectId: before.project_id as number, entity: "expenditure", entityId: id,
+      label: (before.item_code as string | null) ?? (before.description as string | null) ?? (before.payer as string),
+      action: "deleted", field: "amount", oldValue: before.amount,
+    });
+  }
   return { ok: true, id };
 }
 

@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sb } from "@/db/supabase";
+import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/lib/project-audit";
 import { num } from "@/lib/projects-shared";
 import {
   deriveStatus, type Requisition, type RequisitionStatus,
@@ -118,7 +119,9 @@ export async function createRequisition(f: RequisitionFields, createdBy = "web-u
     }
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: data?.id as number };
+  const id = data?.id as number;
+  await logRowCreated({ projectId: f.projectId, entity: "requisition", entityId: id, label: itemCode, row, by: createdBy });
+  return { ok: true, id };
 }
 
 /**
@@ -130,19 +133,25 @@ export async function approveRequisition(
 ): Promise<WriteResult> {
   const value = amount(approved);
   if (value === null) return { ok: false, error: "Enter the amount being approved." };
-  const { error } = await sb
-    .from("project_requisitions")
-    .update({
+  const before = await snapshotRow("project_requisitions", id);
+  const patch = {
       amount_approved: value,
       approved_at: new Date().toISOString(),
       approved_by: approvedBy,
       status: deriveStatus({ amountApproved: value, amountReceived: null }),
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  };
+  const { error } = await sb.from("project_requisitions").update(patch).eq("id", id);
   if (error) {
     console.error("[requisitions] approve failed:", error.message);
     return { ok: false, error: error.message };
+  }
+  if (before) {
+    await logRowUpdate({
+      projectId: before.project_id as number, entity: "requisition", entityId: id,
+      label: (before.item_code as string) ?? null, before, patch,
+      action: "approved", by: approvedBy,
+    });
   }
   return { ok: true, id };
 }
@@ -162,9 +171,8 @@ export async function receiveRequisition(
 ): Promise<WriteResult> {
   const value = amount(f.amountReceived);
   if (value === null) return { ok: false, error: "Enter the value of what was received." };
-  const { error } = await sb
-    .from("project_requisitions")
-    .update({
+  const before = await snapshotRow("project_requisitions", id);
+  const patch = {
       grn_no: text(f.grnNo),
       received_date: text(f.receivedDate) ?? new Date().toISOString().slice(0, 10),
       qty_received: amount(f.qtyReceived),
@@ -172,22 +180,36 @@ export async function receiveRequisition(
       received_by: text(f.receivedBy),
       status: "Received",
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  };
+  const { error } = await sb.from("project_requisitions").update(patch).eq("id", id);
   if (error) {
     console.error("[requisitions] receive failed:", error.message);
     return { ok: false, error: error.message };
+  }
+  if (before) {
+    await logRowUpdate({
+      projectId: before.project_id as number, entity: "requisition", entityId: id,
+      label: (before.item_code as string) ?? null, before, patch, action: "received",
+    });
   }
   return { ok: true, id };
 }
 
 /** Reject or cancel — a decision, so it is stored rather than derived. */
 export async function setRequisitionStatus(id: number, status: "Rejected" | "Cancelled" | "Requested"): Promise<WriteResult> {
+  const before = await snapshotRow("project_requisitions", id);
   const { error } = await sb
     .from("project_requisitions")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
+  if (before) {
+    await logProjectChange({
+      projectId: before.project_id as number, entity: "requisition", entityId: id,
+      label: (before.item_code as string) ?? null, action: status.toLowerCase(),
+      field: "status", oldValue: before.status, newValue: status,
+    });
+  }
   return { ok: true, id };
 }
 

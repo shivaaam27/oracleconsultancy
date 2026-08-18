@@ -426,10 +426,10 @@ he wants to keep testing on his own machine first.
 
 | | |
 |---|---|
-| Built | Phases 1–7: project record · budget · requisitions · cash · snapshot · site · masters |
-| Screens | `/projects`, and per project: Overview · Budget · Requisitions · Cash · Snapshot · Site · Setup |
-| Migrations | **0123–0127**, all applied |
-| Tests | **426 passing**; type-check clean |
+| Built | Phases 1–8: project record · budget · requisitions · cash · snapshot · site · masters · audit + export/print |
+| Screens | `/projects`, and per project: Overview · Budget · Requisitions · Cash · Funds · Snapshot · Site · History · Setup (+ `/print`) |
+| Migrations | **0123–0128**, all applied |
+| Tests | **464 passing**; type-check clean |
 | Data | **empty** — every project table is at zero |
 | Deployed | **NO.** Branch only, localhost |
 
@@ -460,7 +460,7 @@ Work proceeds from item 2:
 - [x] ~~**3. Deploy it**~~ — **CANCELLED.** He wants it local while he tests.
 - [ ] **4. Enter one real project** end to end (Patamela) ← NEXT. ⚠️ HE types it, never Claude
 - [ ] **5. Run in parallel with the Excel for a month** — Excel stays the record
-- [ ] **6. Audit trail, then export/print**
+- [x] **6. Audit trail, then export/print** — DONE, 18 Aug 2026. See Phase 8 below.
 - [ ] **(1). Portal access + permissions** — deferred, but nothing can be handed
       over to staff until it is done
 
@@ -496,3 +496,93 @@ One row per batch (PT-01, PT-02 …): requested · approved · trimmed · **unde
    head office had refused every shilling. Only requests with a decision count
    towards `trimmed`; the rest are `pending`. On the demo this took the trimmed
    total from a misleading 650,000 to a correct 150,000.
+
+
+## Phase 8 — the audit trail, export and print (Aug 2026)
+
+Item 6 of the agreed order, built 18 Aug 2026. Migration **0128** (`project_audit`),
+applied after a full backup (107 tables, 18,332 rows).
+
+### The trail
+
+`project_audit` is append-only: one row per FIELD that actually moved, carrying
+what it was, what it became, who did it and when. It answers the question a
+spreadsheet cannot — a cell is retyped and the old number is gone.
+
+- **Written by the write functions, never by the screens** (`lib/project-*.ts`).
+  A new write path that does not log leaves a hole exactly where somebody was
+  careless. `logRowCreated` / `logRowUpdate` / `logProjectChange` +
+  `snapshotRow`, all in **`lib/project-audit.ts`**; the client-safe labels and
+  wording are in **`lib/project-audit-shared.ts`** (the usual hard split).
+- ⚠️ **Read BEFORE the update.** `snapshotRow()` runs first; reading afterwards
+  records the new value twice and the trail says nothing changed.
+- ⚠️ **Logging never breaks the write.** Failures are swallowed to the console.
+  A missing audit line is a gap; a refused payment entry is a lie about the day.
+- ⚠️ **Append-only by design** — no update, no delete, not even for an assistant.
+  Deleting a budget line leaves its history behind (verified in the smoke test).
+- Covered: project create/update/archive · budget line add/edit/delete ·
+  requisition raise/approve/receive/reject/cancel · payment + spending
+  add/delete · site person, wages and meal ticks · payment stages · every master
+  list, including a **rename, which re-points real transactions**.
+- Screen: **`/projects/[id]/history`** (tab **History**) — filter chips per sheet
+  with counts, WHEN / WHO / WHAT CHANGED / WAS / BECAME. Filtering is by URL.
+
+### Export
+
+**`/api/projects/[id]/export?what=…`** returns a CSV of any sheet, built from the
+SAME functions the screens read, so an export can never disagree with what is on
+screen. Eleven of them: summary · budget · requisitions · payments ·
+expenditures · funds · snapshot · plan · site-people · site-days · history.
+
+- **`lib/csv.ts`** is deliberately generic (RFC-4180 quoting, CRLF, a BOM so
+  Excel on Windows reads UTF-8) — the roadmap's "export any list" reuses it.
+- Dates are cut to the day (`onDay`), or Excel reads a timestamp as text.
+- The menu lives in **the tab bar** (`project-export-menu.tsx`), so it is in the
+  same place on every screen, and the export matching the current tab is listed
+  first and marked "this tab".
+
+### Print
+
+**`/projects/[id]/print`** — contract · programme · money · budget against actual
+(worst first) · payment plan · a printed-on footer. Print styling is the app's
+existing global CSS (`.print-hidden`, dark theme remapped to light), so there is
+no second stylesheet to keep in step.
+
+### ⚠️ How it was verified, and what was done with the data
+
+A project named **ZZ SMOKE TEST — delete me** was created by script with invented
+figures (1,000 / 500 / 300), every write path exercised, the trail read back
+(18 entries, all correct), all 11 exports fetched, the print page read, and then
+**the whole project was hard-deleted**. The database is back to **0 projects, 0
+audit rows**. No real figure was ever typed by Claude — the standing rule holds.
+
+
+## What the Excel still has that COS does not — checked 18 Aug 2026
+
+Read against `PES CAPITAL PROJECT Site Work.xlsx` (repo root), sheet by sheet.
+Nothing here is a bug; each is a decision waiting to be made.
+
+1. **Store issues and stock on hand** — MAT ISSUE + INVENTORY. Never built, and
+   broken in the workbook too (INVENTORY points at a deleted sheet), so nothing
+   was lost. It is the only whole sheet with no home in COS.
+2. **What is still OWED on an invoice.** PAYMENTS carries `TOTAL PAYABLE`,
+   `BALANCE` and `STATUS` per invoice/batch; `project_payments` records only what
+   was paid. A part-paid supplier invoice therefore cannot be seen.
+3. **Payment-plan paperwork.** SNAPSHOT rows 39–48 track IPC submitted / IPC
+   processed, **EFD (Y/N)** (the fiscal receipt), balance to invoice and net
+   receivable. COS keeps invoice date + amount and received date + amount only.
+4. **Materials vs labour split on a budget line** — PATAMELA J (materials) and L
+   (labour charge) add up to M (total). COS stores the one total.
+5. **Job status per line** — PATAMELA N and REQUISITIONS E. COS has a requisition
+   workflow status but nothing that says how a *piece of work* stands.
+6. **A remarks box on spending.** `project_expenditures.notes` exists in the
+   table but the form has no field for it (EXPENDITURES H). One-line fix.
+7. **Who paid, per batch** — FUNDS ANALYSIS splits each batch into DIRECT / SHAO
+   and a date paid by HQ. The data is in Cash; the Funds screen does not show it.
+8. **Cost contribution %** — SNAPSHOT F/K, each category as a share of the whole
+   budget. Purely derived, not shown.
+9. **Quantities** — deliberately excluded (Phase 2 decision, money only). The
+   columns exist and nothing reads them.
+
+Nothing in the workbook was found that COS *silently* gets wrong; these are
+absences, and 1, 2 and 3 are the ones that would be felt on a live job.

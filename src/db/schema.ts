@@ -2429,3 +2429,42 @@ export const projectRefs = pgTable("project_refs", {
   uniqueIndex("project_refs_unique").on(t.projectId, t.kind, t.name),
   index("project_refs_lookup").on(t.projectId, t.kind, t.active),
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT AUDIT — who changed which figure, and what it was before.
+//
+// The workbook's biggest missing control: a spreadsheet cell can be retyped by
+// anyone and the old number is gone the moment they press Enter. 94m released
+// against 55m accounted for, and no way to ask when a figure moved or who moved
+// it. This is that answer — append-only, one row per FIELD changed, never
+// edited and never deleted.
+//
+// ⚠️ It is written by the write functions in `lib/project-*.ts`, NOT by the
+// screens. A new write path must log here too, or the trail quietly develops a
+// hole exactly where someone was careless.
+//
+// Deliberately its own table rather than the task-shaped `audit_log`: that one
+// is keyed on a task and would need every project row to pretend to be one.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectAudit = pgTable("project_audit", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  /** Which sheet: project | budget_line | requisition | payment | expenditure |
+   *  payment_stage | site_person | site_day | ref */
+  entity: text("entity").notNull(),
+  /** The row's id. Kept even after that row is deleted — the trail outlives it. */
+  entityId: integer("entity_id"),
+  /** A human handle: the item code, the batch no, the person's name. */
+  label: text("label"),
+  /** created | updated | deleted | approved | received | rejected | cancelled */
+  action: text("action").notNull(),
+  /** Set on `updated` only: one row per field that actually moved. */
+  field: text("field"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("project_audit_project_idx").on(t.projectId, t.createdAt),
+  index("project_audit_entity_idx").on(t.projectId, t.entity, t.entityId),
+]);

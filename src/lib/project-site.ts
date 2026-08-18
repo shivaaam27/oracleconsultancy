@@ -2,6 +2,7 @@
 // ⚠️ SERVER-ONLY (imports `sb`). Client half: project-site-shared.ts.
 
 import { sb } from "@/db/supabase";
+import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/lib/project-audit";
 import type { SitePerson, SiteDay } from "@/lib/project-site-shared";
 import type { PaymentStage } from "@/lib/project-snapshot-shared";
 import { DEFAULT_STAGES } from "@/lib/project-snapshot-shared";
@@ -68,12 +69,22 @@ export async function addSitePerson(f: {
     console.error("[site people] create failed:", error.message, row);
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: data?.id as number };
+  const id = data?.id as number;
+  await logRowCreated({ projectId: f.projectId, entity: "site_person", entityId: id, label: row.name, row });
+  return { ok: true, id };
 }
 
 export async function setSitePersonActive(id: number, active: boolean): Promise<WriteResult> {
+  const before = await snapshotRow("project_site_people", id);
   const { error } = await sb.from("project_site_people").update({ active }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  if (before) {
+    await logProjectChange({
+      projectId: before.project_id as number, entity: "site_person", entityId: id,
+      label: before.name as string, action: "updated",
+      field: "active", oldValue: before.active, newValue: active,
+    });
+  }
   return { ok: true, id };
 }
 
@@ -112,6 +123,13 @@ export async function setSiteDay(f: {
   if (f.meal !== undefined) patch.meal = f.meal;
   if (f.labourAmount !== undefined) patch.labour_amount = amount(f.labourAmount);
 
+  // A wage typed into the grid is money, so it is logged like any other figure,
+  // under the person's NAME — a trail full of ids is a trail nobody reads.
+  const [{ data: existing }, { data: person }] = await Promise.all([
+    sb.from("project_site_days").select("*").eq("person_id", f.personId).eq("day", f.day).maybeSingle(),
+    sb.from("project_site_people").select("name").eq("id", f.personId).maybeSingle(),
+  ]);
+
   const { error } = await sb
     .from("project_site_days")
     .upsert(patch, { onConflict: "person_id,day" });
@@ -119,6 +137,12 @@ export async function setSiteDay(f: {
     console.error("[site days] upsert failed:", error.message, patch);
     return { ok: false, error: error.message };
   }
+  await logRowUpdate({
+    projectId: f.projectId, entity: "site_day", entityId: f.personId,
+    label: String(person?.name ?? "Someone") + " · " + f.day,
+    before: (existing as Record<string, unknown> | null) ?? null,
+    patch: { meal: patch.meal, labour_amount: patch.labour_amount },
+  });
   return { ok: true };
 }
 
@@ -162,6 +186,10 @@ export async function seedDefaultStages(
   }));
   const { error } = await sb.from("project_payment_stages").insert(rows);
   if (error) return { ok: false, error: error.message };
+  await logProjectChange({
+    projectId, entity: "payment_stage", action: "created",
+    label: "Standard plan", newValue: rows.map((r) => r.label).join(", "),
+  });
   // ⚠️ The created rows are RETURNED, not just written. The screen owns its list
   // (see project-budget-sheet.tsx) so a `router.refresh()` alone leaves it
   // showing "no payment plan" while the plan sits in the database — which is
@@ -181,10 +209,17 @@ export async function updatePaymentStage(id: number, patch: {
   if (patch.invoiceAmount !== undefined) row.invoice_amount = amount(patch.invoiceAmount);
   if (patch.receivedDate !== undefined) row.received_date = text(patch.receivedDate);
   if (patch.amountReceived !== undefined) row.amount_received = amount(patch.amountReceived);
+  const before = await snapshotRow("project_payment_stages", id);
   const { error } = await sb.from("project_payment_stages").update(row).eq("id", id);
   if (error) {
     console.error("[stages] update failed:", error.message, row);
     return { ok: false, error: error.message };
+  }
+  if (before) {
+    await logRowUpdate({
+      projectId: before.project_id as number, entity: "payment_stage", entityId: id,
+      label: (before.label as string) ?? null, before, patch: row,
+    });
   }
   return { ok: true, id };
 }

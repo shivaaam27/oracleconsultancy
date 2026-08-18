@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { ProjectExportMenu } from "@/components/project-export-menu";
 
 const TABS = [
   { key: "overview", label: "Overview", href: (id: number) => `/projects/${id}` },
@@ -18,6 +19,9 @@ const TABS = [
   { key: "funds", label: "Funds", href: (id: number) => `/projects/${id}/funds` },
   { key: "snapshot", label: "Snapshot", href: (id: number) => `/projects/${id}/snapshot` },
   { key: "site", label: "Site", href: (id: number) => `/projects/${id}/site` },
+  // The trail of who changed which figure. Read-only, so it sits after the
+  // sheets that produce it.
+  { key: "history", label: "History", href: (id: number) => `/projects/${id}/history` },
   // Last on purpose: the masters are set up once and then rarely touched.
   { key: "setup", label: "Setup", href: (id: number) => `/projects/${id}/setup` },
 ] as const;
@@ -40,6 +44,9 @@ export function ProjectTabs({ projectId, active }: { projectId: number; active: 
           {t.label}
         </Link>
       ))}
+      {/* Export and print live in the tab bar so they are in the same place on
+          every screen, rather than a button hiding on each sheet. */}
+      <ProjectExportMenu projectId={projectId} tab={active} />
     </nav>
   );
 }

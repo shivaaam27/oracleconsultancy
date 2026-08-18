@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sb } from "@/db/supabase";
+import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/lib/project-audit";
 import {
   programme, contract, num,
   type ProjectInput, type Programme, type Contract,
@@ -249,16 +250,25 @@ export async function createProject(f: ProjectFields, createdBy = "web-ui"): Pro
     console.error("[projects] create failed:", error.message, row);
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: data?.id as number };
+  const id = data?.id as number;
+  await logRowCreated({ projectId: id, entity: "project", entityId: id, label: f.name, row, by: createdBy });
+  return { ok: true, id };
 }
 
 export async function updateProject(id: number, patch: Partial<ProjectFields>): Promise<WriteResult> {
   const row = { ...toRow(patch), updated_at: new Date().toISOString() };
+  // Read first: after the update the old figure is gone, and "what was it
+  // before?" is the whole question the trail exists to answer.
+  const before = await snapshotRow("projects", id);
   const { error } = await sb.from("projects").update(row).eq("id", id);
   if (error) {
     console.error("[projects] update failed:", error.message, row);
     return { ok: false, error: error.message };
   }
+  await logRowUpdate({
+    projectId: id, entity: "project", entityId: id,
+    label: (before?.name as string | null) ?? null, before, patch: row,
+  });
   return { ok: true, id };
 }
 
@@ -275,5 +285,9 @@ export async function archiveProject(id: number, archived = true): Promise<Write
     .update({ archived, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
+  await logProjectChange({
+    projectId: id, entity: "project", entityId: id,
+    action: archived ? "archived" : "restored",
+  });
   return { ok: true, id };
 }

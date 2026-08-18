@@ -11,6 +11,7 @@
 import { sb } from "@/db/supabase";
 import { num } from "@/lib/projects-shared";
 import { normaliseCode, type BudgetLine } from "@/lib/project-budget-shared";
+import { logProjectChange, logRowCreated, logRowUpdate, snapshotRow } from "@/lib/project-audit";
 
 export type WriteResult = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -143,7 +144,9 @@ export async function addBudgetLine(f: BudgetLineFields, createdBy = "web-ui"): 
     }
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: data?.id as number };
+  const id = data?.id as number;
+  await logRowCreated({ projectId: f.projectId, entity: "budget_line", entityId: id, label: itemCode, row, by: createdBy });
+  return { ok: true, id };
 }
 
 export async function updateBudgetLine(id: number, patch: Partial<BudgetLineFields>): Promise<WriteResult> {
@@ -155,11 +158,18 @@ export async function updateBudgetLine(id: number, patch: Partial<BudgetLineFiel
   if (patch.amount !== undefined) row.amount = amountOf(patch.amount);
   if (patch.notes !== undefined) row.notes = text(patch.notes);
 
+  const before = await snapshotRow("project_budget_lines", id);
   const { error } = await sb.from("project_budget_lines").update(row).eq("id", id);
   if (error) {
     console.error("[budget] update failed:", error.message, row);
     if (error.code === "23505") return { ok: false, error: "Another line on this project already has that item code." };
     return { ok: false, error: error.message };
+  }
+  if (before) {
+    await logRowUpdate({
+      projectId: before.project_id as number, entity: "budget_line", entityId: id,
+      label: before.item_code as string, before, patch: row,
+    });
   }
   return { ok: true, id };
 }
@@ -174,7 +184,17 @@ export async function updateBudgetLine(id: number, patch: Partial<BudgetLineFiel
  * the line they refer to must be refused, not silently allowed.
  */
 export async function deleteBudgetLine(id: number): Promise<WriteResult> {
+  // Snapshot first: the line is about to stop existing, and the trail has to
+  // keep what it was worth.
+  const before = await snapshotRow("project_budget_lines", id);
   const { error } = await sb.from("project_budget_lines").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  if (before) {
+    await logProjectChange({
+      projectId: before.project_id as number, entity: "budget_line", entityId: id,
+      label: before.item_code as string, action: "deleted",
+      field: "amount", oldValue: before.amount,
+    });
+  }
   return { ok: true, id };
 }
