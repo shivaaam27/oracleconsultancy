@@ -18,15 +18,19 @@ export const dynamic = "force-dynamic";
 export default async function OpsImportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ company?: string }>;
+  searchParams: Promise<{ co?: string }>;
 }) {
-  const { company } = await searchParams;
+  const { co } = await searchParams;
 
   const { data: companyRows } = await sb
     .from("companies").select("id,name").eq("active", true).order("name");
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
-  const asked = Number(company);
+  // ⚠️ `co`, NOT `company`. `?company=<id>` is a GLOBAL parameter: CompanyDrawer
+  // watches for it and slides the company preview open over whatever you were
+  // doing. The Director Brief learned this first and uses `?co=` for the same
+  // reason. Do not rename this back.
+  const asked = Number(co);
   const chosen =
     companies.find((c) => c.id === asked) ??
     companies.find((c) => /^PES\b/i.test(c.name)) ??

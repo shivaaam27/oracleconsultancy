@@ -56,7 +56,7 @@ export function OpsShipmentsSheet({
   const [editing, setEditing] = useState<number | null>(null);
   const [pending, start] = useTransition();
   const { values: view, hrefFor } = useUrlFilters(
-    { state: "all", sort: "eta", dir: "desc", company: "" },
+    { state: "all", sort: "eta", dir: "desc", co: "" },
   );
 
   const seededFor = useRef(companyId);

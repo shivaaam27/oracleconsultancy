@@ -76,7 +76,7 @@ export function OpsOrdersSheet({
    * projects list has always done it.
    */
   const { values: view, hrefFor } = useUrlFilters(
-    { flag: "all", sort: "received", dir: "desc", company: "" },
+    { flag: "all", sort: "received", dir: "desc", co: "" },
   );
   const [rows, setRows] = useState(serverLines);
   const [error, setError] = useState<string | null>(null);

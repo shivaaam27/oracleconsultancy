@@ -32,10 +32,18 @@ export function OpsTabs({
   const router = useRouter();
   const params = useSearchParams();
 
-  /** Keep everything else in the address — the filter, the sort, the search. */
+  /**
+   * Keep everything else in the address — the filter, the sort, the search.
+   *
+   * ⚠️ The key is `co`, NOT `company`. `?company=<id>` is watched globally by
+   * CompanyDrawer, so writing it here slid a company preview open every time
+   * somebody clicked Orders, Imports or Setup. The Director Brief already uses
+   * `co` for exactly this reason.
+   */
   const withCompany = (base: string, id: number) => {
     const p = new URLSearchParams(params.toString());
-    p.set("company", String(id));
+    p.delete("company");
+    p.set("co", String(id));
     return `${base}?${p.toString()}`;
   };
 

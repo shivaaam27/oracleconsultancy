@@ -431,3 +431,24 @@ is made of. The screen shows the parts and the sum.
 ### ⚠️ Trap hit while building
 `rows.map(shipmentView)` hands the ARRAY INDEX in as the `today` argument, so
 row 1 would be dated 1 January 1970. Always `rows.map((s) => shipmentView(s))`.
+
+
+---
+
+# ⚠️ `?company=` IS A GLOBAL PARAMETER — use `?co=`
+
+Found by clicking, Aug 2026: every click on Orders, Imports or Setup slid a
+**company preview drawer** open over the page. Nothing was wrong with the tabs.
+`CompanyDrawer` (mounted globally through `global-drawers.tsx`) watches
+`searchParams.get("company")` and opens whenever it is present on ANY route
+except `/companies/<id>`.
+
+The Director Brief hit this first and has carried a note ever since: its filter
+"navigates with the brief's own `?co=` parameter — never `?company=`".
+
+The ops module now does the same. `OpsTabs.withCompany()` deletes any `company`
+key and writes `co`; the three pages read `co`; the two sheets keep `co` in
+their filter defaults so it survives every rail and sort link.
+
+**Forward rule: a new module that needs a company in the address uses `co`.**
+`company` belongs to the drawer.
