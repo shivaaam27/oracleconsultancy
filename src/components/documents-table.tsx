@@ -409,6 +409,15 @@ export function DocumentsTable({
      overridden, because metadata cannot describe them. Rendered bare and
      headerless inside the existing company/shelf housings, with one shared
      header above the whole list. */
+  /** The expiry's colour, so the folded phone line and the Expires column cannot
+   *  disagree about whether something is overdue. */
+  function expiryTone(d: DocumentRow) {
+    const dte = daysToExpiry(d);
+    if (dte !== null && dte < 0) return "font-medium text-danger";
+    if (dte !== null && dte <= d.reminderLeadDays) return "text-warn";
+    return "text-fg-subtle";
+  }
+
   function docColumns(opts: { hideCompany?: boolean; hidePerson?: boolean } = {}) {
     return buildColumns<DocumentRow & Record<string, unknown>>(DOC_COLUMNS, {
       overrides: {
@@ -427,6 +436,15 @@ export function DocumentsTable({
                   {d.personId && <span className="shrink-0 rounded-sm bg-info-soft px-1 py-0.5 text-[10px] text-info">Person file</span>}
                   {openLinkedTask && <span className="shrink-0 rounded-sm bg-accent-soft px-1 py-0.5 text-[10px] text-accent">{openLinkedTask.code}</span>}
                 </span>
+                {/* Below `sm` the Expires column is folded away (entity-view.ts) so the
+                    NAME can have the row — five licences all reading
+                    "PES_Business-Lic…" is not a list you can use. The expiry is far
+                    too important to lose with the column, so it leads this line on a
+                    phone, keeping its colour. */}
+                <span className="mt-0.5 block text-[11px] sm:hidden">
+                  <span className={cn(expiryTone(d))}>{expiryLabel(d) || "No expiry"}</span>
+                  {fmtDate(d.expiryDate) && <span className="text-fg-subtle"> · {fmtDate(d.expiryDate)}</span>}
+                </span>
                 {(company || person || (d.notes && d.notes.trim())) && (
                   <span className="block truncate text-[11px] text-fg-subtle">
                     {[company, person, d.notes?.trim()].filter(Boolean).join(" · ")}
@@ -437,13 +455,10 @@ export function DocumentsTable({
           );
         },
         expiryDate: (d) => {
-          const dte = daysToExpiry(d);
-          const urgent = dte !== null && dte < 0;
-          const soon = dte !== null && dte >= 0 && dte <= d.reminderLeadDays;
           return (
             <span className="block text-right">
               <span className="block text-[11px] text-fg-muted">{fmtDate(d.expiryDate) || "—"}</span>
-              <span className={cn("block text-[11px]", urgent ? "font-medium text-danger" : soon ? "text-warn" : "text-fg-subtle")}>
+              <span className={cn("block text-[11px]", expiryTone(d))}>
                 {expiryLabel(d) || "No expiry"}
               </span>
             </span>
@@ -617,7 +632,7 @@ export function DocumentsTable({
                         <Users size={12} />
                       </span>
                     )}
-                    <span className="truncate text-[12.5px] font-semibold text-fg">{g.name}</span>
+                    <span className="truncate text-[12.5px] font-semibold text-fg max-sm:whitespace-normal max-sm:text-clip">{g.name}</span>
                     <span className="ml-auto flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-muted">
                       {g.expired > 0 && (
                         <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="font-bold text-danger tabular">{g.expired}</b> expired</span>
@@ -653,10 +668,17 @@ export function DocumentsTable({
                             <button type="button" onClick={() => toggleGroupCollapse(skey, scol)} aria-expanded={!scol}
                               className="flex flex-1 min-w-0 items-center gap-2 py-2.5 pl-9 pr-3.5 text-left">
                               <ChevronDown size={12} className={cn("shrink-0 text-fg-subtle transition-transform", scol && "-rotate-90")} />
+                              {/* A shelf's `code` IS its name (groupRowsByShelf sets
+                                  `code: name`, which the sort relies on), so printing
+                                  both wrote every row twice — "Banking Banking",
+                                  "Certificate Certificate", all the way down, on every
+                                  screen size. Show the code only when it says something
+                                  the label does not; a person sub-group has no code and
+                                  keeps its icon. */}
                               {sub.code
-                                ? <span className="font-mono text-[10px] text-fg-subtle">{sub.code}</span>
+                                ? (sub.code !== sub.label && <span className="font-mono text-[10px] text-fg-subtle">{sub.code}</span>)
                                 : <UserIcon size={12} className="shrink-0 text-fg-subtle" />}
-                              <span className="truncate text-xs font-medium text-fg-muted">{sub.label}</span>
+                              <span className="truncate text-xs font-medium text-fg-muted max-sm:whitespace-normal max-sm:text-clip">{sub.label}</span>
                               <span className="ml-auto flex shrink-0 items-center gap-2 text-[10px] text-fg-muted">
                                 {sub.expired > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="text-danger tabular">{sub.expired}</b></span>}
                                 {sub.expiring > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warn" /><b className="text-warn tabular">{sub.expiring}</b></span>}

@@ -189,7 +189,11 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     listColumns: [
       { key: "title", label: "Document", width: "minmax(0,1fr)", format: "text", sortable: true },
       { key: "category", label: "Category", width: "140px", format: "muted", hideBelow: "md", sortable: true },
-      { key: "expiryDate", label: "Expires", width: "130px", format: "date", align: "right", sortable: true },
+      // Folded away below `sm` and re-shown INSIDE the title cell there (see the
+      // `title` override in documents-table.tsx). A fixed 130px column against a
+      // `minmax(0,1fr)` title left the name ~150px on a phone, which is not enough
+      // to tell "PES_Business-Lic…" from "PES_Business-Lic…" — five rows read alike.
+      { key: "expiryDate", label: "Expires", width: "130px", format: "date", align: "right", hideBelow: "sm", sortable: true },
       { key: "status", label: "Status", width: "104px", format: "status", hideBelow: "sm" },
     ],
     filters: [
