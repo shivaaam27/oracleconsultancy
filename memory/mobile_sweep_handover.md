@@ -352,8 +352,18 @@ to show a strip with nothing selected, the same defect the portal nav pill had �
 - A screenshot that looked identical after scrolling was a STALE FRAME; `scrollTop` had
   moved 1000px. Re-measure before chasing.
 
-**Still to look at on the record:** the Tasks, Notes and Timeline tab CONTENT (the strip
-is done). Profile's form reads well — single column, full-width fields.
+**All six record tabs are done.** Profile's form reads well as it was — single column,
+full-width fields. Notes has a good empty state. On **Timeline**, the four stat tiles were
+four-across at ~80px each ("UPDA…", "STAT…", "COMP…", "ESCA…" — four numbers with nothing
+saying what they counted) and are two-across below `sm`; a thread's title was the only
+shrinkable thing between a `shrink-0` code chip and a `shrink-0` event count, so it wraps
+now rather than truncating. On **Tasks**, the chip row (780px in a 375px window) finally
+got `.chip-scroll-fade`.
+
+⚠️ **Do not retry giving that Timeline title its own line — three ways were tried.**
+`basis-full` loses to `flex-1`'s own flex-basis; `sm:flex-1` changes nothing because with
+shrink at 1 the item shrinks to fit instead of wrapping; `shrink-0` makes it overflow the
+row. It needs the markup restructured and is not worth it — the title reads in full.
 
 ⚠️ **The company DRAWER disagrees with everything around it.** Tap MES Ltd: the card says
 Open 30, the record page says "30 open · 49 total", the drawer says **17**. On Akasaki the
@@ -401,6 +411,22 @@ the first attempt. **Treat them as unchecked.**
 Left over on `/people` itself: the **Documents and Notes tabs** on a person record,
 and the **Edit form's 2-column grid**, which gives each field ~155px at 375px so a
 long job title reads "TRA and Governme…". Editable, not broken — his call.
+
+**Method notes from the `/companies` pass, all of them mistakes worth not repeating:**
+three times a "defect" was a measurement error — `.flex-wrap` matched 25 unrelated
+elements including the page header; a screenshot that looked unchanged after scrolling was
+a STALE FRAME (`scrollTop` had moved 1000px); and a layout claim was made from the class
+list rather than the computed style. **Measure the specific rows, and check which page you
+are actually on.** Also: a `{/* … */}` comment placed directly after `return (` is not a
+comment — it parses as an object literal and breaks the build. That is the mirror image of
+the bare `/* … */` trap already noted above.
+
+**⚠️ Sweep against a PRODUCTION BUILD, not the dev server.** `npm run build` + `npm start`
+commits **222 MB**; the dev server commits **9.2 GB** once it has walked the app, which
+exhausted the machine's commit limit and produced ChunkLoadErrors, connection resets and a
+stuck splash that all looked like app bugs. See the auto-memory
+`dev-server-memory-pressure`. Look at everything against the build, list the defects, then
+one dev session to fix them.
 
 **Wherever you resume, the shared shells are already fixed** (`RecordList`'s grid
 template, `RecordPage`'s header, `FilterChips`, `BottomSheet` filter sheets), so
