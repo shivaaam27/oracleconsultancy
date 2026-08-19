@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -63,6 +63,7 @@ function FieldGrid({ fields }: { fields: RecordField[] }) {
 
 function Section({ section }: { section: RecordSection }) {
   const [open, setOpen] = useState(section.defaultOpen !== false);
+
   const body = (
     <div className="space-y-3 px-3 py-3">
       {section.fields && section.fields.length > 0 && <FieldGrid fields={section.fields} />}
@@ -145,6 +146,44 @@ export function RecordPage({
   children?: ReactNode;
   className?: string;
 }) {
+  /* The tab strip scrolls sideways on a phone — six tabs come to 405px in a
+   * 343px column — and an earlier round made it scroll but left two things
+   * undone. Nothing said it scrolled (the scrollbar is deliberately hidden), so
+   * "Org" simply appeared not to exist; and the strip never scrolled the ACTIVE
+   * tab into view, so landing on Org from a link showed a strip with nothing
+   * selected in it. That second one is the same defect the portal nav pill had.
+   *
+   * `data-tab-edge` says which side has more to see, and globals.css fades that
+   * edge — only that edge, so the last tab is not permanently half-faded once
+   * you have reached it. Measured with offsetLeft/offsetWidth, which are stable
+   * during a transition in a way getBoundingClientRect() is not. */
+  const tabStrip = useRef<HTMLDivElement>(null);
+  const [tabEdge, setTabEdge] = useState<"none" | "start" | "end" | "both">("none");
+
+  function readTabEdges() {
+    const el = tabStrip.current;
+    if (!el) return;
+    const room = el.scrollWidth - el.clientWidth;
+    if (room <= 2) return setTabEdge("none");
+    const atStart = el.scrollLeft <= 2;
+    const atEnd = el.scrollLeft >= room - 2;
+    setTabEdge(atStart ? "end" : atEnd ? "start" : "both");
+  }
+
+  useEffect(() => {
+    const el = tabStrip.current;
+    if (!el) return;
+    const active = el.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (active && el.scrollWidth > el.clientWidth) {
+      const centred = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
+      el.scrollLeft = Math.max(0, centred);
+    }
+    readTabEdges();
+    const ro = new ResizeObserver(readTabEdges);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activeTab, tabs]);
+
   return (
     <div className={cn("space-y-3", className)}>
       {/* Header — who am I, what state am I in, what is the one thing to do */}
@@ -184,7 +223,10 @@ export function RecordPage({
           from `sm` up there is room for them all and nothing changes. */}
       {tabs && tabs.length > 0 && (
         <div
+          ref={tabStrip}
           role="tablist"
+          onScroll={readTabEdges}
+          data-tab-edge={tabEdge}
           className="-mt-1 flex gap-1 border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:overflow-x-auto"
         >
           {tabs.map((t) => {
