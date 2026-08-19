@@ -319,6 +319,57 @@ a TEXT NODE: one went out in this round and rendered the whole explanation onto 
 Tasks page above the chip row. Caught by looking, not by `tsc` — it type-checks
 perfectly.
 
+## `/companies` — the hub, the drawer and the record (19 Aug)
+
+**Hub.** The four tabs came to ~417px of labels in a 351px row, so the strip scrolled
+with no scrollbar and no fade and **Roles sat off the edge as a bare icon**. Four equal
+segments filling the width on a phone; icons stand down below `sm` to buy the room. The
+company card was 184px tall × thirteen — mark and risk pill on one band, name on
+another, a four-figure strip with every label stacked above its value on a third. Now
+mark + name on one line, risk and total on the next, figures reading across: **184px →
+105px, 2,400px of scrolling → 1,400px**. Risk is a dot and a word, not a pill.
+
+**Departments · Sites · Roles.** The three row actions were **32px and one of them is
+Delete, 4px from Merge** — now 40px below `sm`. Departments' meta line was three bare
+icon+number pairs ("👥 2 🏢 2 ☑ 0") where Sites and Roles already say "0 work · 0 living
+here" and "2 people"; it says the words on a phone now. ⚠️ **The words alone made it
+worse** — the line does not truncate, so it overflowed its column and painted underneath
+the action icons. It needs `flex-wrap` as well as the labels. Look at both together.
+
+**The record's tab strip** (`RecordPage`, so this reaches every record in the app): six
+tabs = 405px in a 343px column. An earlier round made it scroll rather than clip and
+stopped there, which left **Org unreachable-looking and nothing to say the strip moved**.
+It now scrolls the ACTIVE tab into view on load — landing on `?tab=org` from a link used
+to show a strip with nothing selected, the same defect the portal nav pill had — and
+`data-tab-edge` fades only the side that still has tabs on it.
+
+**Checked and NOT defects** (measured before believing the screenshot):
+- The reference lists' apparent inner scrollbar is the page's own; there is no nested
+  scroller to trap the page scroll.
+- The record Tasks tab's chip row overhangs its column by 16px — that is its deliberate
+  `-mx-4 px-4` edge-to-edge bleed, and it is clipped before the viewport
+  (`body.scrollWidth === 375`). The page does not drag sideways.
+- A screenshot that looked identical after scrolling was a STALE FRAME; `scrollTop` had
+  moved 1000px. Re-measure before chasing.
+
+**Still to look at on the record:** the Tasks, Notes and Timeline tab CONTENT (the strip
+is done). Profile's form reads well — single column, full-width fields.
+
+⚠️ **The company DRAWER disagrees with everything around it.** Tap MES Ltd: the card says
+Open 30, the record page says "30 open · 49 total", the drawer says **17**. On Akasaki the
+card says 10 and the drawer says **0 — "No open tasks, everything here is done."** The
+drawer counts the company's own tasks; the card and page count tasks reaching it through
+its people. Both defensible, not one tap apart. **Owner's decision, not a sweep fix.**
+
+⚠️ **Data, not code: Akasaki Middle East LLC's `legal_name` is "V1 Intertrade Limited"**
+(Reg 139898389) — the name of a different company in the portfolio. Akasaki's prefix is
+`V1`, so it looks like a mix-up at entry. Untouched.
+
+⚠️ **The app splash can trap the user.** Its "hard safety net" is a `setTimeout` in
+`app-splash-controller.tsx`, so when the chunk carrying that controller fails to load the
+overlay stays at `opacity: 1`, `z-index: 100`, `pointer-events: auto` with no way out.
+Seen under memory pressure; a CSS-only fade would make it robust. Not fixed.
+
 ## ⚠️ Found, NOT fixed — they are not mobile-only
 
 Left alone on purpose. Each is real and worth a decision from the owner.

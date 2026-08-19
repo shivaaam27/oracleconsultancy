@@ -71,16 +71,22 @@ export function DepartmentsAdmin({ departments }: { departments: DepartmentAdmin
                     <>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-fg truncate">{d.name}</div>
-                        <div className="flex items-center gap-2.5 text-[11px] text-fg-subtle mt-0.5">
-                          <span className="inline-flex items-center gap-1"><Users size={11} /> {d.peopleCount}</span>
-                          <span className="inline-flex items-center gap-1"><Building2 size={11} /> {d.companyCount}</span>
-                          <span className="inline-flex items-center gap-1"><ListTodo size={11} /> {d.taskCount}</span>
+                        {/* Sites and Roles say "0 work · 0 living here" and "2 people"
+                            in words; this line said "👥 2 🏢 2 ☑ 0" and relied on
+                            nothing but the icon. On a desk you can hover for a
+                            title; on a phone there is no hover, so three numbers
+                            sat there meaning nothing. The words appear below `sm`
+                            only — the desk keeps its dense icon row. */}
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-fg-subtle mt-0.5">
+                          <span className="inline-flex items-center gap-1"><Users size={11} /> {d.peopleCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.peopleCount === 1 ? "person" : "people"}</span></span>
+                          <span className="inline-flex items-center gap-1"><Building2 size={11} /> {d.companyCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.companyCount === 1 ? "company" : "companies"}</span></span>
+                          <span className="inline-flex items-center gap-1"><ListTodo size={11} /> {d.taskCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.taskCount === 1 ? "task" : "tasks"}</span></span>
                           {d.headCount > 0 && <span className="inline-flex items-center gap-1 text-fg-muted"><Crown size={11} /> {d.headCount} head{d.headCount === 1 ? "" : "s"}</span>}
                         </div>
                       </div>
-                      <button type="button" onClick={() => { setEditId(d.id); setEditName(d.name); setMergeId(null); setConfirmDelete(null); }} title="Rename" className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors"><Pencil size={14} /></button>
-                      <button type="button" onClick={() => { setMergeId(mergeId === d.id ? null : d.id); setConfirmDelete(null); setEditId(null); }} title="Merge into another" disabled={others.length === 0} className={cn("h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-30", mergeId === d.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-accent hover:bg-bg-muted/60")}><GitMerge size={14} /></button>
-                      <button type="button" onClick={() => { setConfirmDelete(confirmDelete === d.id ? null : d.id); setMergeId(null); setEditId(null); }} title="Delete" className={cn("h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors", confirmDelete === d.id ? "bg-danger text-white" : "text-fg-muted hover:text-danger hover:bg-danger-soft/50")}><Trash2 size={14} /></button>
+                      <button type="button" onClick={() => { setEditId(d.id); setEditName(d.name); setMergeId(null); setConfirmDelete(null); }} title="Rename" className="h-8 w-8 max-sm:h-10 max-sm:w-10 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors"><Pencil size={14} /></button>
+                      <button type="button" onClick={() => { setMergeId(mergeId === d.id ? null : d.id); setConfirmDelete(null); setEditId(null); }} title="Merge into another" disabled={others.length === 0} className={cn("h-8 w-8 max-sm:h-10 max-sm:w-10 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-30", mergeId === d.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-accent hover:bg-bg-muted/60")}><GitMerge size={14} /></button>
+                      <button type="button" onClick={() => { setConfirmDelete(confirmDelete === d.id ? null : d.id); setMergeId(null); setEditId(null); }} title="Delete" className={cn("h-8 w-8 max-sm:h-10 max-sm:w-10 inline-flex items-center justify-center rounded-lg transition-colors", confirmDelete === d.id ? "bg-danger text-white" : "text-fg-muted hover:text-danger hover:bg-danger-soft/50")}><Trash2 size={14} /></button>
                     </>
                   )}
                 </div>
