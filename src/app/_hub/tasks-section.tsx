@@ -508,7 +508,17 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
 
       {/* ---- Hero strip — the portal-unified header (refinement round 1). ---- */}
-      <section data-page-header className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
+      {/* ⚠️ NO `data-page-header` here, on purpose.
+           That attribute is Desk's "a page opens with a title and a rule, not a
+           card" contract, and it forces `background: transparent` and
+           `padding: 0 0 10px`. This header is one of only two in the app that
+           carries `.glass elevated rounded-3xl p-4` — it is MEANT to be a card,
+           and the owner wants it that way.
+           The bug he first reported ("text too tight to the borders") was that
+           contract's zero side padding fighting the card surface, which in dark
+           mode `.dark .glass` painted anyway. Without the attribute the card's
+           own `p-4 sm:p-5` applies and the two stop arguing. */}
+      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
         <div aria-hidden data-decor className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.25), transparent 70%)" }} />
         </div>
@@ -526,37 +536,47 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               {kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "All work, one queue"}
             </h1>
           </div>
-          {/* On mobile the actions drop to their own row under the title. */}
-          <div className="flex items-center gap-2 sm:contents">
+          {/* On mobile the actions drop to their own row under the title — but
+              only when there ARE any. The wrapper used to render empty on every
+              view except Cards, and an empty row still takes the column gap: a
+              10px band of nothing under the title on four screens out of five. */}
           {view === "cards" && !showArchived && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
-              <Link
-                href={buildHref(sp, { mode: "focus", done: undefined })}
-                scroll={false}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
-              >
-                <Sparkles size={12} /> Focus
-              </Link>
-              <Link
-                href={buildHref(sp, { mode: undefined })}
-                scroll={false}
-                className={`rounded-full px-3 py-1.5 text-xs transition-all ${!focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
-              >
-                Browse
-              </Link>
-            </span>
+            <div className="flex items-center gap-2 sm:contents">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
+                <Link
+                  href={buildHref(sp, { mode: "focus", done: undefined })}
+                  scroll={false}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+                >
+                  <Sparkles size={12} /> Focus
+                </Link>
+                <Link
+                  href={buildHref(sp, { mode: undefined })}
+                  scroll={false}
+                  className={`rounded-full px-3 py-1.5 text-xs transition-all ${!focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+                >
+                  Browse
+                </Link>
+              </span>
+            </div>
           )}
-          </div>
         </div>
-        <div data-page-header-meta className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border">
+        {/* The four figures. On a phone they are a 2×2 grid with the view
+            switcher on its own line under them: as a wrapping row the four ran
+            to 343px inside 342px, so it broke after "on track" and left the
+            middle dot hanging at the end of the line with the switcher jammed
+            against the last figure. The dots only separate where the figures
+            actually sit side by side. From `sm` up it is the same single row it
+            has always been. */}
+        <div className="relative mt-3 grid grid-cols-2 items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border sm:flex sm:flex-wrap">
           <span><b className="font-semibold text-fg tabular">{counts.all}</b> open</span>
-          <span aria-hidden className="text-border">·</span>
+          <span aria-hidden className="hidden text-border sm:inline">·</span>
           <span className={needYou > 0 ? "text-danger" : ""}><b className="font-semibold tabular">{needYou}</b> need{needYou === 1 ? "s" : ""} you</span>
-          <span aria-hidden className="text-border">·</span>
+          <span aria-hidden className="hidden text-border sm:inline">·</span>
           <span><b className="font-semibold text-fg tabular">{onTrackPct}%</b> on track</span>
-          <span aria-hidden className="text-border">·</span>
+          <span aria-hidden className="hidden text-border sm:inline">·</span>
           <span><b className="font-semibold text-fg tabular">{completedThisMonth}</b> done this month</span>
-          <span className="ml-auto">
+          <span className="col-span-2 mt-1 sm:col-span-1 sm:ml-auto sm:mt-0">
             <ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />
           </span>
         </div>

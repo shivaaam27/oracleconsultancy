@@ -101,10 +101,14 @@ export function NewTaskForm({
 
       {/* Advanced — collapsible, keeps the form minimal */}
       <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden">
+        {/* `More details` was a bare text node, so it was a flex item that could
+            wrap — and at 375px it did, stacking as "MORE" / "DETAILS" beside its
+            own description. It is the label of the row; it stays on one line and
+            the description takes what is left. */}
         <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
-          <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90" />
-          More details
-          <span className="text-fg-subtle normal-case tracking-normal font-normal">status, risk, meeting date, category &amp; department</span>
+          <ChevronRight size={14} className="shrink-0 text-fg-subtle transition-transform group-open:rotate-90" />
+          <span className="shrink-0">More details</span>
+          <span className="min-w-0 text-fg-subtle normal-case tracking-normal font-normal">status, risk, meeting date, category &amp; department</span>
         </summary>
         <div className="px-5 pb-5 space-y-3 sm:space-y-4">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">

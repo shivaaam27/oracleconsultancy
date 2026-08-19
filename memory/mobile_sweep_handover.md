@@ -1,6 +1,6 @@
 ---
 name: mobile-sweep-handover
-description: "IN PROGRESS — a page-by-page mobile sweep of the COS command centre. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated."
+description: "IN PROGRESS — a page-by-page mobile sweep of the COS command centre. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated. Task Management is DONE; resume at /people."
 metadata:
   node_type: memory
   type: project
@@ -8,8 +8,9 @@ metadata:
 
 # Mobile sweep of the command centre — handover
 
-**Status: STARTED, NOT FINISHED. Two real bugs found and fixed; the sweep itself
-needs redoing properly from the Task Management page onwards.**
+**Status: IN PROGRESS. Task Management — the hub Tasks tab in all five views,
+`/task/new` and `/task/[code]` — has now been swept properly, by looking.
+Resume at `/people`.**
 
 ## ▶ START HERE — the one thing to understand
 
@@ -57,20 +58,268 @@ was verified at 1280px afterwards to prove the desktop was untouched. Keep doing
    have opened behind the on-screen keyboard (`visualViewport`), and the note title
    overflowed because it was a single-line input (now a wrapping textarea).
 
-## What was "checked" and must be checked AGAIN, properly, by looking
+## ✅ Task Management — swept, fixed, verified both ways
 
-Home · the command palette · the bottom nav pill · the Tasks list · `/task/[code]`.
-These were passed on geometry alone. **Treat them as unchecked.**
+Every fix below was seen at 375px before and after, and the desktop re-checked at
+1280px. All of them are `max-sm:` / `sm:` / `@media` scoped; nothing changes above
+640px. **`TaskCard` (`components/task-card.tsx`) is mobile-only** — it is rendered
+solely inside the `sm:hidden` branch of `table-view.tsx`, so it cannot touch the web.
+
+**The hub Tasks tab — chrome**
+
+1. **The five filter pickers were ~900px off-screen.** Chips + Company/Person/
+   Status/More/Group were one 1271px row inside 375px, scrolling sideways with a
+   hidden scrollbar. Reachable and invisible. **On a phone the whole row is now
+   chips + ONE "Filters" button** — see the next section. `sm:contents` on the
+   wrappers restores the exact single row from `sm` up. (`task-filter-bar.tsx`)
+2. **The header figures** wrapped to "…45% on track ·" with the dot left hanging
+   and the view switcher jammed against "12 done this month". Now a 2×2 grid, dots
+   only from `sm` up. (`tasks-section.tsx`)
+3. **The view switcher** is a full-width segmented control on a phone — five 68px
+   segments instead of a 34px cluster — with a HAIRLINE track, not a fill, so it
+   does not out-weigh the page title on a flat header. (`view-switcher.tsx`)
+4. **A 10px phantom band under the title**: the Focus/Browse wrapper rendered empty
+   on the four views that don't have it, and an empty flex row still takes the gap.
+5. **The quick-add row** had a decorative `+` seven pixels from the assignee `+`,
+   between them squeezing the input to 174px. Decorative one hidden below `sm`;
+   input is 212px. (`inline-add-task.tsx`)
+
+## Round 2 — the owner's own two notes
+
+He looked at round 1 and said the mobile filters "just feel a lot and not
+appealing", and that the hero at the top "doesn't feel right, both in mobile and
+web — text feels too tight to the borders". Both were right, and the second one
+turned out to be a bug that had nothing to do with the phone.
+
+**⚠️ The page header was a filled card in DARK MODE ONLY, and nobody had noticed.**
+`section[data-page-header]` in globals.css says "flat: transparent, no radius, a
+bottom rule, `padding: 0 0 10px`". But these headers still carry `.glass`, and the
+flat-surface rewrite reads `… .glass, .glass-refract, .dark .glass { … }`.
+**`.dark .glass` is two classes and outranks one element + one attribute**, so in
+dark mode `--bg-elev` won and painted a 1005px band — with the zero side padding
+still in force, which put the title ONE PIXEL from the edge of a box it was never
+meant to be in. Light mode was always correct, which is why it survived. Fixed by
+adding `.dark section[data-page-header]` to the same rule (+ `2px` top padding, it
+was flush against the top of the main column). **This was on every page header in
+the app.**
+
+**The filters are now one row on a phone: the counting chips, and a "Filters"
+button.** The five pickers live in a `BottomSheet` — one tappable row per group
+showing what is currently picked, opening its own list inline, one at a time.
+Picking navigates and closes the sheet. The button carries a count of what is on
+and turns accent when it is. Round 1's two-row fix made everything visible but
+left FOUR bands of chrome above the first task; this leaves two.
+- `OptionList` gained `autoFocusSearch` — right in a mouse-opened popover, wrong
+  in a sheet where it throws the keyboard over the list you just asked to see.
+- The chip strip ends against the button, so it carries `.chip-scroll-fade`
+  (globals.css, phones only). Cut hard it read "In progress 1" when the count is
+  16, which looks like a broken number rather than "keep scrolling".
+
+**⚠️ `?company=` meant two different things and one of them was broken.**
+`company-drawer.tsx` reads it as a company ID; the Tasks screen uses it as the
+company FILTER and puts a NAME in it. The drawer took "MES Ltd" for an id, asked
+`/api/company-detail` for it, and threw **"Couldn't load company."** over the page
+— so filtering tasks by company failed with an error dialog every single time, on
+the phone AND the desktop. An id is digits and a name is not, so that is now the
+test. Verified both ways: `?company=MES Ltd` filters silently, `?company=3` still
+opens Terra Green Ltd's drawer. `?person=` / `?task=` have no such clash.
+
+**List view** — the card carried a ruled-off footer holding two 26px avatars at one
+end and a `…` at the other with ~300px of nothing between, on every card. Avatars
+and `…` moved onto the status row; the rule now sits above the update line where it
+belongs. One row shorter per card.
+
+**Cards view** — titles were `truncate` in a 263px column ("Clifford Machinery
+Update - Weekl…"), now two lines below `sm`. The no-badge grid spacer rendered as a
+stray "·" in the phone's flex row. **And each company group capped at 23rem and
+scrolled inside itself** — on a phone that showed two and a half cards and sliced
+the third across the middle, inside a nested scroller with no bar. The cap now
+lives in `.card-group-scroll` (globals.css) behind `min-width: 640px`.
+
+**Board view** — columns snap on a phone (`max-sm:snap-x snap-proximity`).
+
+**Calendar view** — the header stacked "AUGUST 2026 · 21 DUE THIS MONTH" into four
+lines beside the nav; the count is hidden below `sm`. **The month grid was 630px of
+empty boxes** with the one task in it rendered as "( C…" in a 53px cell. Phones now
+get **dots** (one per task, coloured, "+N" over six) and 68px cells, so the month
+fits one screen; tapping a day opens the existing agenda sheet, which reads well.
+
+**Timeline view** — entry headers gave the task title ~96px beside the actor pill,
+time and `…`; they stack below `sm`. The sticky day heading was `bg-bg/80` finished
+off by a `backdrop-blur` that Desk switched off, so entries read straight through
+it — solid on a phone. In Schedule, `OC-040` broke across two lines at its hyphen
+and "· Tue 11 Aug" after "Tue 11"; both are `shrink-0` now.
+
+**`/task/new`** — the `EnterHint` ("Enter to create · Shift/Alt+Enter…") took three
+lines of keycaps on a phone that has no Enter key, which then forced "Create task"
+to break across two lines. Hidden below `sm` (in `form-keys.tsx`, so every form
+gets it). "More details" was a bare text node — a wrappable flex item — and stacked
+as "MORE"/"DETAILS".
+
+**`/task/[code]` — the worst one on the page.** ⚠️ `RecordPage`'s header is
+"identity left, actions right, wrap if you must", but it could never wrap: `flex-1`
+gives the identity a flex-basis of ZERO, so the line never overflowed and nothing
+ever moved to a second row — the identity just took whatever the buttons left it.
+On a phone that was **64px**, and a task record opened with its title set one word
+per line, six lines tall, over a company name broken across three. `max-sm:basis-full`
+on the identity is what pushes the actions onto their own row. **This fixes every
+record page** — People, Documents, Assets, Vendors, Commitments. Its tab strip also
+overflowed (5 tabs = 357px in 343px); it scrolls below `sm`.
+
+## Round 3 — the launcher, the last Task Management defects, and People started
+
+**The "Go to" launcher (the nav pill's grid icon) was unusable on a phone.** One
+`p-4` box, no height cap, no overflow rule: with 26 destinations it grew to
+**1218px inside an 812px screen**, centred, so its own title and close button sat
+203px ABOVE the top edge and Settings, ORI Automation and the whole Preferences
+row fell off the bottom — with no way to scroll to any of them. It is now a fixed
+header, a scrolling middle and a fixed footer; on a phone it sits on the bottom
+edge, full width, with a grabber. The 85svh cap is NOT phone-only — a 1280×800
+window overflowed the same way, and a cap costs nothing on a window tall enough.
+
+**The three I had left open on Tasks are now closed:**
+- `pillColor()` returns real colours. The tokens hold an HSL triplet, so
+  `var(--danger)` was invalid and painted nothing — on exactly the overdue /
+  due-soon / Critical rows whose colour carries the warning. `dotColor` is gone;
+  there is one function again.
+- **The board's column headings.** Sticky was never the answer: `overflow-x: auto`
+  makes the row a scroll container on both axes, so `sticky top-0` resolved
+  against a box with no vertical overflow. From `sm` up the board is bounded and
+  each column is a flex column — heading outside the scroll, cards in a
+  `flex-1 min-h-0 overflow-y-auto` body. Columns still stretch, so an empty
+  column is still a full-size drop target. **Still open on a phone**: the board
+  starts ~460px down and a nested scroller that far down fights the page scroll.
+- **The 640–767px double chip row.** `railOwnsFilters` stood the bar's chips down
+  at `md`, but RecordList appears at `sm` — so an iPad drew both. It is `sm` now.
+
+**⚠️ `RecordList` drew rows with no name in them on a phone, and had all along.**
+`gridFor()` listed every column's width at every width, but `hideBelow` hides a
+cell with `display: none`. Two things then went wrong at once: the hidden
+column's TRACK survives (People's hidden Manager 150px + Portal 86px ate 236px of
+a 344px row, squeezing Name — a `minmax(0,1fr)` — to ZERO), and a `display:none`
+element is not a grid item, so auto-placement shifted every later column up a
+track (the open-task count landed in the manager's column). The People directory
+in Compact was a list of bare numbers with no names. `gridFor` now publishes four
+templates as custom properties and `[data-list-grid]` in globals.css picks one per
+breakpoint. **At `lg` the template is identical to the old one, so the desktop is
+untouched** — and Documents, Assets, Vendors and Commitments all get the fix.
+
+## `/people` — started
+
+- **Header** now carries `data-page-header` + `data-decor` like every other page,
+  so it is a title and a rule rather than a 229px rounded slab, and the mark sits
+  beside the title instead of on a line of its own. Browse | Attention is a
+  full-width segmented control under it on a phone. 229px → 158px.
+- **Five bands of chrome became two.** Search, then Company/Type/Location, then
+  Comfortable|Compact + Group + Select, then TWO wrapped rows of chips — the first
+  person did not appear until 530px down. Now: search, then one scrolling chip row
+  ending in a **Filters** button (`PeopleFilterSheet`, same shape as the Tasks
+  sheet) with the count of pickers that are off their default. First person at
+  400px.
+- **`FilterChips` kept its labels.** It deliberately dropped them below `sm` and
+  showed icon + count alone — eight anonymous chips, "✂ 2", "🔥 7", "🛡 30", and
+  the `title` that explained each one does not exist on a touch screen. Labels at
+  every width; the row scrolls instead of wrapping.
+- **`FilterChips` kept its labels** at every width; the row scrolls instead of
+  wrapping. It used to drop labels below `sm`, leaving eight anonymous chips.
+- **The Filters button sits on the SEARCH row, not with the chips.** The chips are
+  Browse-only, and down there Attention mode had no way to reach Company or Type
+  at all.
+- **A person's NAME wraps rather than truncates** on a phone. "Mr Gangadhar
+  Mathankar" needed 177px and had 176, so it read "Mr Gangadhar Mathan…".
+- **The company is dropped from a card's meta line when the list is grouped BY
+  company** (`hideCompany`, the same convention the Tasks list already uses). Every
+  card was repeating the name written across the top of its own housing, and on a
+  phone that repetition is what pushed the ROLE into an ellipsis.
+- **The bulk bar is a full-width bar on a phone, not a pill.** Count + three
+  buttons come to ~445px; inside a 375px pill the label was crushed into a 43px
+  column four lines tall — "2 / selected / · 2 with / portal".
+- **A person's Tasks tab** put code · title · company · status on one line. The
+  company and status are `shrink-0`, so the TITLE was the only thing that could
+  give — "TBS and B…", "Dormat Co…" — while "Furaha Innovation Ltd" sat there in
+  full. Title on its own line, company + status underneath.
+- Group housings on People have NO height cap, so none of the Tasks-style card
+  slicing. Attention mode reads well as-is.
+
+**Still to look at on `/people`**: the Documents and Notes tabs on the record, and
+the Edit form — its 2-column grid gives each field ~155px at 375px, so a long
+value shows as "TRA and Governme…". Editable, not broken; worth a decision.
+
+⚠️ **Screenshot workflow note.** The Browser pane crops ~20% off the right of the
+emulated viewport, so a 375px capture only showed ~300px and looked "zoomed". The
+way round it: `document.body.style.transform = "scale(0.78)"` with
+`transformOrigin: "top left"` before capturing — layout still computes at 375 CSS,
+only the painting shrinks. ⚠️ Remove it before measuring (rects come back scaled)
+and remember it makes `position: fixed` resolve against the body, so floating bars
+appear inline in the shot.
+
+## Round 4 — the owner's corrections
+
+**⚠️ The hero cards are cards again, and `data-page-header` is OFF the Tasks and
+People headers ON PURPOSE. Do not put it back.**
+
+Round 2 read "text feels too tight to the borders" as "this should not be a card"
+and made both headers flat. Wrong call — he wanted the card, just not the text
+jammed against its edge. The real story: `section[data-page-header]` is Desk's
+"a title and a rule, not a card" contract and it forces `background: transparent`
+AND `padding: 0 0 10px`; these two headers are the ONLY ones in the app carrying
+`.glass elevated rounded-3xl p-4 sm:p-5`, so the contract and the card fought, and
+in dark mode `.dark .glass` painted the surface anyway — a card with zero side
+padding. Removing the attribute lets the card's own `p-4 sm:p-5` apply and the
+argument ends. Every other `data-page-header` in the app (`PageHeader`, `Hero`,
+the portal heroes) has no surface classes, so the contract still means what it
+says there.
+
+**Chip rows were having their top edge shaved off.** A chip's border is a `ring`,
+which is a BOX-SHADOW — it paints outside the element's box, and a scroller with
+`overflow-x: auto` clips it. The rows had `pb-0.5` and no top padding, so every
+chip lost its upper border and the row read as mis-aligned against the search box.
+`py-1` on both (Tasks and `FilterChips`).
+
+**Controls that were too small to hit**, all given `.tap-target` (a 40px hit area
+on phones only, no visual change): the group-housing collapse toggles (24px tall),
+the ✕ on a secondary-manager chip in the person form (**12×12**), and "Add company"
+(14px tall). Browse | Attention was 26px and is now ~34px — it is the directory's
+primary switch.
+
+⚠️ "Delete permanently" in the person's Danger zone is 18px and was LEFT that way.
+A destructive action that is hard to hit by accident on a phone is a feature.
+
+⚠️ **A JSX comment must be `{/* … */}`.** A bare `/* … */` between JSX children is
+a TEXT NODE: one went out in this round and rendered the whole explanation onto the
+Tasks page above the chip row. Caught by looking, not by `tsc` — it type-checks
+perfectly.
+
+## ⚠️ Found, NOT fixed — they are not mobile-only
+
+Left alone on purpose. Each is real and worth a decision from the owner.
+
+- **The board still loses its column heading on a PHONE** — see round 3. The desk
+  is fixed; the phone would need a nested scroller 460px down the page, which is
+  worse than the problem.
+- **Bulk-select bar is six unlabelled icons** with `title` tooltips, which a touch
+  screen never shows. Same failure as the People chips had, and the same fix
+  (labels) would work — it just needs the room finding.
 
 ## Not started at all
 
-`/task/new` · `/people` and the person record · `/companies` and every tab ·
-`/documents` · `/hrms/*` (Tax & Legal, Commitments, Applications, Attendance,
-Supplies, Cleaning, Assets & Vendors) · `/calendar` · `/chat` · `/outbox` · `/brief` ·
-`/insights` · `/settings` (its rail is the most likely to be cramped) · `/approvals` ·
-`/announcements` · `/activity` · `/notes` and `/notes/[id]`.
+`/companies` and every tab · `/documents` · `/hrms/*` (Tax & Legal, Commitments,
+Applications, Attendance, Supplies, Cleaning, Assets & Vendors) · `/calendar` ·
+`/chat` · `/outbox` · `/brief` · `/insights` · `/settings` (its rail is the most
+likely to be cramped) · `/approvals` · `/announcements` · `/activity` · `/notes`
+and `/notes/[id]` · the whole staff portal.
 
-**The owner asked to restart from Task Management.**
+Home · the command palette · the bottom nav pill were passed on geometry alone by
+the first attempt. **Treat them as unchecked.**
+
+Left over on `/people` itself: the **Documents and Notes tabs** on a person record,
+and the **Edit form's 2-column grid**, which gives each field ~155px at 375px so a
+long job title reads "TRA and Governme…". Editable, not broken — his call.
+
+**Wherever you resume, the shared shells are already fixed** (`RecordList`'s grid
+template, `RecordPage`'s header, `FilterChips`, `BottomSheet` filter sheets), so
+every converted list and record starts from a better place than Tasks did. Look
+anyway.
 
 ## Things noticed but NOT yet judged
 
@@ -89,10 +338,11 @@ Supplies, Cleaning, Assets & Vendors) · `/calendar` · `/chat` · `/outbox` · 
 
 | | |
 |---|---|
-| Branch | `claude/notes-phase-3-preview-0cc4c6`; **`master` is at `9c75e08`, 20 commits ahead of origin, NOT pushed** |
-| Committed | Notes Phases 3 and 4 (`9c75e08`) |
-| **UNCOMMITTED** | Notes Phases 5, 6, 7 and 8, migration **0122** (`note_revisions`, already applied to the live DB), and the two mobile fixes above. `tsc` clean, 323 tests pass, build passes |
-| Live data | the owner's 4 imported notes, a daily page, and one untitled note he wrote himself = 6 rows. All test data cleaned up |
+| Branch | `claude/mobile-sweep-task-management-9eb936`, **NOT pushed** |
+| Committed | The whole sweep so far — rounds 1–4 — as **`eefc420`**, on top of `ed12e82` (Notes Phases 5–8) |
+| Uncommitted | Nothing |
+| Checks | `tsc` clean, 23 test files / 323 tests pass |
+| Worktree setup | Needs its own `npm install` and a copy of `.env.local` from the main repo. ⚠️ A `node_modules` JUNCTION does not work — Turbopack rejects it ("Symlink points out of the filesystem root") |
 
 ⚠️ **The owner uses the app while you work.** A note that appears mid-session is
 probably his — read a row before deleting it. One of his was destroyed this way.

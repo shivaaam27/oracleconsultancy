@@ -251,7 +251,10 @@ function TaskCard({
       {act.icon} {act.label}
     </span>
   ) : (
-    <span className="text-fg-subtle/50" aria-hidden>·</span>
+    /* A spacer holding the grid column open when there is no badge. On a phone
+       the controls are a wrapping flex row, not a grid, so it has no column to
+       hold — it just sat there as a stray dot between the date and the avatar. */
+    <span className="hidden text-fg-subtle/50 sm:inline" aria-hidden>·</span>
   );
   const whoCell = r.assignees.length > 0 ? (
     <AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} size={compact ? 20 : 24} />
@@ -291,6 +294,10 @@ function TaskCard({
     </Link>
   );
 
+  // One line with an ellipsis in the desktop table, where the row IS a line and
+  // the columns beside it carry the rest. On a phone the title has about 263px
+  // and nothing beside it, so "Clifford Machinery Update - Weekl…" was all you
+  // got — and one cut title looks much like the next. It wraps to two lines there.
   const titleLink = (
     <Link
       href={taskHref(r.code)}
@@ -300,7 +307,7 @@ function TaskCard({
           reset();
         }
       }}
-      className="min-w-0 truncate text-sm font-medium text-fg hover:text-accent"
+      className="min-w-0 truncate text-sm font-medium text-fg hover:text-accent max-sm:line-clamp-2 max-sm:whitespace-normal"
     >
       {r.actionItem}
     </Link>
@@ -461,8 +468,10 @@ function GroupHousing({
       </div>
       {!collapsed && (
         // Cap the housing at ~5 rows; the rest scroll within (portal section
-        // pattern — soft fade edges + slim scrollbar).
-        <div className={cn(items.length > 5 && "scroll-fade-y overflow-y-auto overscroll-contain slim-scroll", items.length > 5 && (density === "compact" ? "max-h-[15rem]" : "max-h-[23rem]"))}>
+        // pattern — soft fade edges + slim scrollbar). The cap, the scroll and
+        // the fade all live in `.card-group-scroll` in globals.css, because they
+        // must switch off below `sm` — see the note there.
+        <div data-density={density} className={cn(items.length > 5 && "card-group-scroll slim-scroll")}>
           <ul className="space-y-1.5 p-2">
             {items.map((e) => (
               <TaskCard

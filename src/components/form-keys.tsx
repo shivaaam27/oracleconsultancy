@@ -58,10 +58,18 @@ export function FieldError({ message, className }: { message?: string | null; cl
 export const invalidFieldClass = "ring-1 ring-danger/60 border-danger/60";
 
 /** A subtle inline hint describing the Enter / new-line keys, for form footers. */
+/**
+ * "Enter to save · Shift/Alt+Enter for a new line".
+ *
+ * Hidden on a phone. There is no Enter key to press, so it is advice nobody can
+ * take — and it is not free: at 375px it wrapped to THREE lines of keycaps
+ * beside the Create button, which then had to break "Create task" across two
+ * lines to fit next to it.
+ */
 export function EnterHint({ verb = "save", className }: { verb?: string; className?: string }) {
   const kbd = "rounded border border-border bg-bg-subtle px-1 py-0.5 text-[10px] font-medium text-fg-muted";
   return (
-    <p className={cn("text-[11px] text-fg-subtle", className)}>
+    <p className={cn("hidden text-[11px] text-fg-subtle sm:block", className)}>
       <kbd className={kbd}>Enter</kbd> to {verb} · <kbd className={kbd}>Shift</kbd>/<kbd className={kbd}>Alt</kbd>+<kbd className={kbd}>Enter</kbd> for a new line
     </p>
   );

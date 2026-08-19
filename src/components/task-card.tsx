@@ -102,31 +102,33 @@ export function TaskCard({
         <p className="text-[13px] text-fg-muted leading-snug mt-1 line-clamp-2">{row.comments}</p>
       )}
 
-      {/* Meta: status (editable glass) + priority dot — status as a control, not a loud block */}
-      <div className="flex items-center gap-2 flex-wrap mt-2.5">
+      {/* Meta: status (editable glass) + priority dot — status as a control, not
+          a loud block — and, on the same line, who it belongs to and the `…`.
+          The owner, the avatars and the actions used to have a ruled-off row of
+          their own, which on a phone meant two small avatars at one end, a `…`
+          at the other and about 300px of nothing in between, on every card in
+          a list of forty. They fit here, in the space the status row was
+          wasting, and the card loses a whole empty row. */}
+      <div className="flex items-center gap-2 mt-2.5">
         <TaskInlineStatus task={row} buttonClassName="text-[11px]" />
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted">
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-fg-muted">
           <span className={`h-2 w-2 rounded-full ${priorityDot(row.priority)}`} />
           {row.priority}
         </span>
-      </div>
-
-      {/* Footer: assignee avatars + trailing row actions, divided */}
-      <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/60 text-xs text-fg-muted">
-        {row.assignees.length > 0 ? (
-          <span onClick={(e) => e.stopPropagation()} className="min-w-0">
-            <AssigneeAvatars names={row.assignees} ids={row.assigneeIds} max={4} size={26} />
-          </span>
-        ) : (
-          <span className="text-fg-subtle italic">No owner</span>
-        )}
-        <span className="ml-auto shrink-0">
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {row.assignees.length > 0 ? (
+            <span onClick={(e) => e.stopPropagation()} className="min-w-0">
+              <AssigneeAvatars names={row.assignees} ids={row.assigneeIds} max={3} size={24} />
+            </span>
+          ) : (
+            <span className="text-[11px] italic text-fg-subtle">No owner</span>
+          )}
           <TaskRowActions task={row} compact onDone={() => router.refresh()} />
         </span>
       </div>
 
       {/* Latest update — its own rich tap target (author · time · count), deep-links the Conversation tab */}
-      <div onClick={(e) => e.stopPropagation()} className="mt-2.5">
+      <div onClick={(e) => e.stopPropagation()} className="mt-2.5 border-t border-border/60 pt-2.5">
         <TaskUpdateLine task={row} onOpenConversation={openConversation} />
       </div>
     </div>

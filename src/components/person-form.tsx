@@ -526,7 +526,10 @@ export function PersonForm({
                       <button
                         type="button"
                         onClick={() => removeSecondaryManager(mid)}
-                        className="text-fg-subtle hover:text-fg"
+                        /* 12×12 without this — an unhittable target on a phone.
+                           `tap-target` gives it a 40px hit area on phones only,
+                           with no change to how it looks. */
+                        className="tap-target text-fg-subtle hover:text-fg"
                         aria-label={`Remove ${p?.name ?? "manager"}`}
                       >
                         <X size={12} />
@@ -594,7 +597,7 @@ export function PersonForm({
               <button
                 type="button"
                 onClick={addAssociation}
-                className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+                className="tap-target inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
               >
                 <Plus size={13} /> Add company
               </button>

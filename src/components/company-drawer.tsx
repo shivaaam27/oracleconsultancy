@@ -34,7 +34,18 @@ export function CompanyDrawer() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const idStr = searchParams.get("company");
+  /* ⚠️ `?company=` means two different things in this app, and this drawer only
+   * owns one of them.
+   *
+   * Here it is a company ID and it opens the drawer. On the Tasks screen it is
+   * the company FILTER, and it carries a NAME — "MES Ltd". The drawer took the
+   * name for an id anyway, asked /api/company-detail for it, and put up
+   * "Couldn't load company." over the page: filtering tasks by company threw an
+   * error dialog every single time, on the phone and on the desktop both.
+   *
+   * An id is digits and a name never is, so that is the test. */
+  const rawCompany = searchParams.get("company");
+  const idStr = rawCompany && /^\d+$/.test(rawCompany) ? rawCompany : null;
   // Don't open the drawer on the company's own page.
   const onCompanyPage = /^\/companies\/\d+/.test(pathname);
   const open = !!idStr && !onCompanyPage;

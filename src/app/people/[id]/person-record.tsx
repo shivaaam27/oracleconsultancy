@@ -259,12 +259,23 @@ export function PersonRecord({
             <ul>
               {tasks.map((t) => (
                 <li key={t.code} className="border-b border-border last:border-0">
-                  <Link href={t.href} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle">
-                    <span className="shrink-0 text-[11px] tabular text-fg-subtle">{t.code}</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{t.title}</span>
-                    <span className="shrink-0 text-[11px] text-fg-muted">{t.companyName}</span>
-                    <span className={cn("shrink-0 text-[11px]", t.overdue ? "font-medium text-danger" : "text-fg-subtle")}>
-                      {t.overdue ? "Overdue" : t.status}
+                  {/* Code · title · company · status. Four things on one line is
+                      fine on a desk and hopeless at 375px: the company and the
+                      status are `shrink-0`, so the TITLE was the only thing that
+                      could give — "TBS and B…", "Dormat Co…" — while "Furaha
+                      Innovation Ltd" sat there in full. The title is what you
+                      came to read, so on a phone it gets the first line to
+                      itself and the company and status go underneath. */}
+                  <Link href={t.href} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle max-sm:flex-col max-sm:items-stretch max-sm:gap-0.5 max-sm:py-2">
+                    <span className="flex min-w-0 items-center gap-2 sm:contents">
+                      <span className="shrink-0 text-[11px] tabular text-fg-subtle">{t.code}</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{t.title}</span>
+                    </span>
+                    <span className="flex min-w-0 items-center gap-2 max-sm:pl-[3.4rem] sm:contents">
+                      <span className="min-w-0 truncate text-[11px] text-fg-muted sm:shrink-0">{t.companyName}</span>
+                      <span className={cn("shrink-0 text-[11px]", t.overdue ? "font-medium text-danger" : "text-fg-subtle")}>
+                        {t.overdue ? "Overdue" : t.status}
+                      </span>
                     </span>
                   </Link>
                 </li>

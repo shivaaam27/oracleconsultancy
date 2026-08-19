@@ -188,7 +188,7 @@ const HIDE_AT = { sm: 640, md: 768, lg: 1024 } as const;
 /** The four templates gridFor() writes, picked per breakpoint. Tailwind
  *  utilities rather than a class in globals.css: a plain
  *  `grid-template-columns: var(…)` rule there is silently DROPPED by Tailwind
- *  v4’s Lightning CSS (verified — the rule never reached the browser), which is
+ *  v4's Lightning CSS (verified — the rule never reached the browser), which is
  *  the same trap the CLAUDE.md note warns about. */
 const RL_GRID = "grid-cols-[var(--rl-grid)] sm:grid-cols-[var(--rl-grid-sm)] md:grid-cols-[var(--rl-grid-md)] lg:grid-cols-[var(--rl-grid-lg)]";
 
@@ -196,17 +196,26 @@ const RL_GRID = "grid-cols-[var(--rl-grid)] sm:grid-cols-[var(--rl-grid-sm)] md:
  * Grid template for a column set — shared by the header, every row and the
  * totals line, so a figure always sits under its own column.
  *
- * ⚠️ It is FOUR templates, one per breakpoint, handed over as CSS variables that
- * `.rl-grid` in globals.css picks between. `hideBelow` hides a cell with
- * `display:none`, and a display:none cell still leaves its TRACK behind — so a
- * single template kept reserving 80px for a "Who" column nobody could see. On a
- * 375px phone the fixed tracks then added up to more than the row was wide and
- * the `minmax(0,1fr)` first column — the record’s NAME — collapsed to 0px. The
- * portal task list rendered as status + date with no task on it at all.
+ * ⚠️ FOUR templates, one per breakpoint, and that is not over-engineering.
  *
- * An inline style cannot hold a media query, hence the variables. Hidden cells
- * do not participate in placement, so the visible ones auto-place into the
- * tracks left in order, and the two lists stay in step.
+ * `hideBelow` hides a CELL with `display: none`, but this template used to list
+ * every column's width at every width. Two things then went wrong at once on a
+ * narrow screen, and both were invisible until somebody looked at a real phone:
+ *
+ *  1. A hidden cell's TRACK survives. On the People directory in Compact, the
+ *     hidden Manager (150px) and Portal (86px) tracks still ate 236px of a
+ *     344px row, and Name — a `minmax(0,1fr)` — was squeezed to ZERO.
+ *  2. A `display:none` element is not a grid item, so auto-placement moves
+ *     everything after it UP a track. Open landed in Manager's 150px column.
+ *
+ * The result was a directory of people with no names in it: a column of bare
+ * numbers, centred in the wrong place. The portal's task list showed status and
+ * date with no task on them at all.
+ *
+ * So each breakpoint gets a template of exactly the columns visible AT that
+ * breakpoint, published as custom properties and switched by the RL_GRID
+ * utilities above. At `lg` the template is identical to the old single one, so
+ * the desktop is untouched.
  */
 function gridFor<T>(columns: RecordColumn<T>[], hasSelection: boolean) {
   const at = (w: number) => {

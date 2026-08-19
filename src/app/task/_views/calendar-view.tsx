@@ -346,8 +346,12 @@ export function CalendarView({
       <CockpitModule
         title={
           <span className="inline-flex items-center gap-2">
-            <span>{span === "week" ? weekLabel : monthLabel}</span>
-            <span className="text-xs font-normal text-fg-subtle tabular">· {dueThisMonth} due this month</span>
+            <span className="whitespace-nowrap">{span === "week" ? weekLabel : monthLabel}</span>
+            {/* The header is title-left, nav-right in one row. On a phone the
+                two together ran past 343px, so the row squeezed and "AUGUST
+                2026 · 21 DUE THIS MONTH" broke into four stacked lines beside
+                the buttons. The count goes; the month and the nav fit. */}
+            <span className="hidden text-xs font-normal text-fg-subtle tabular sm:inline">· {dueThisMonth} due this month</span>
           </span>
         }
         action={nav}
@@ -373,7 +377,7 @@ export function CalendarView({
                   onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
                   onClick={() => { if (items.length) setDayOpen(k); }}
                   className={cn(
-                    span === "week" ? "min-h-[200px]" : "min-h-[104px]",
+                    span === "week" ? "min-h-[200px] max-sm:min-h-[110px]" : "min-h-[104px] max-sm:min-h-[68px]",
                     "border-b border-r border-border/60 last:border-r-0 p-1.5 space-y-1 transition-colors",
                     items.length && "cursor-pointer",
                     isOver
@@ -389,10 +393,27 @@ export function CalendarView({
                   )}>
                     {cell.date.getDate()}
                   </div>
-                  {items.slice(0, span === "week" ? 8 : 3).map((r) => <Pill key={r.id} r={r} />)}
-                  {items.length > (span === "week" ? 8 : 3) && (
-                    <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
-                  )}
+                  {/* A phone gives each day about 53px, and a task pill in 53px
+                      reads "( C…" — a title you cannot recognise sitting in a
+                      cell you cannot use. Dots instead, one per task and
+                      coloured the same way, which is what every phone calendar
+                      does: the day says HOW MUCH, and tapping it opens the day
+                      sheet, which says what. The pills stay from `sm` up, where
+                      a cell is wide enough to read one. */}
+                  <div className="flex flex-wrap items-center gap-1 sm:hidden">
+                    {items.slice(0, 6).map((r) => (
+                      <span key={r.id} className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pillColor(r) }} />
+                    ))}
+                    {items.length > 6 && (
+                      <span className="text-[9px] leading-none text-fg-subtle">+{items.length - 6}</span>
+                    )}
+                  </div>
+                  <div className="hidden space-y-1 sm:block">
+                    {items.slice(0, span === "week" ? 8 : 3).map((r) => <Pill key={r.id} r={r} />)}
+                    {items.length > (span === "week" ? 8 : 3) && (
+                      <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -423,6 +444,9 @@ export function CalendarView({
                   const st = statusTone(r.status);
                   return (
                     <div key={r.id} className="px-4 py-3 hover:bg-bg-muted/50 transition-colors flex items-start gap-2.5">
+                      {/* The leading dot: red late, amber due soon, else the
+                          company's colour. See `pillColor` — it painted nothing
+                          at all until the HSL triplet was wrapped. */}
                       <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
                       <button type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="min-w-0 flex-1 text-left">
                         <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
@@ -558,9 +582,21 @@ function badgeTone(t: Tone): "default" | "success" | "warn" | "danger" | "info" 
   return "default";
 }
 
+/**
+ * The colour that says WHY this task is on this day: red if it is late or
+ * escalated, amber if it is due soon, otherwise the company's own accent.
+ *
+ * ⚠️ These used to be returned as bare `var(--danger)` / `var(--warn)` /
+ * `var(--accent)`, and those custom properties hold an HSL TRIPLET
+ * ("0 81% 69%"), not a colour — so as a `background-color` or a
+ * `border-left-color` they were invalid and painted NOTHING. It hid for a long
+ * time because the last branch returns the company's own hex, which is a real
+ * colour, so only the overdue / due-soon / Critical rows were affected: exactly
+ * the ones whose colour carries the warning. Wrap the triplet and they paint.
+ */
 function pillColor(r: TaskRow): string {
-  if (r.flag === "overdue" || r.flag === "escalate-now" || r.flag === "escalated") return "var(--danger)";
-  if (r.flag === "due-soon") return "var(--warn)";
-  if (r.priority === "Critical") return "var(--danger)";
-  return r.companyAccent || "var(--accent)";
+  if (r.flag === "overdue" || r.flag === "escalate-now" || r.flag === "escalated") return "hsl(var(--danger))";
+  if (r.flag === "due-soon") return "hsl(var(--warn))";
+  if (r.priority === "Critical") return "hsl(var(--danger))";
+  return r.companyAccent || "hsl(var(--accent))";
 }

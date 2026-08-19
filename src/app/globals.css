@@ -453,6 +453,44 @@ input:disabled, select:disabled, textarea:disabled {
     width: max(100%, 40px);
     height: max(100%, 40px);
   }
+
+  /* The Tasks chip strip scrolls sideways and ends against the Filters button.
+     Cut hard, the chip at the edge loses half a digit — "In progress 1" when
+     there are 16 — which reads as a broken number rather than as "keep going".
+     A short fade at the end says it scrolls. Phones only: from `sm` up the row
+     wraps and there is nothing to fade. */
+  .chip-scroll-fade {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * `.card-group-scroll` — the housing round a group of task cards
+ * (Tasks → Cards, grouped by company/status/person).
+ *
+ * On a desk the group caps at about five rows and the rest scroll inside
+ * it, so a company with thirty tasks doesn't push every other company off
+ * the screen. On a PHONE the same cap is wrong twice over: a card there is
+ * two lines tall, so 23rem showed two and a half of them and cut the third
+ * clean across the middle; and it is a scroller inside the page's own
+ * scroller, with no visible bar to say so.
+ *
+ * So the cap only exists from `sm` up. Below it the group simply flows and
+ * the page scrolls, which is what a phone expects. The mask lives here too
+ * rather than on `.scroll-fade-y`, because a fade at the top and bottom of
+ * something that is NOT scrolling just looks like the first and last card
+ * have gone faint.
+ * ------------------------------------------------------------------ */
+@media (min-width: 640px) {
+  .card-group-scroll {
+    max-height: 23rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  }
+  .card-group-scroll[data-density="compact"] { max-height: 15rem; }
 }
 
 .bare-field,
@@ -1160,17 +1198,36 @@ table th, table td { padding-top: 9px; padding-bottom: 9px; }
 
 /* ---------- Page headers ----------
    A page opens with a title and a rule, not a rounded hero card. Tag the header
-   `data-page-header` (and its figures line `data-page-header-meta`). The element
-   qualifier matters: it must beat the `.glass` surface rule above. */
-section[data-page-header] {
+   `data-page-header` (and its figures line `data-page-header-meta`).
+
+   ⚠️ BOTH selectors are needed, and `.dark …` is not decoration.
+
+   These headers still carry the old `.glass` class, and the flat-surface rewrite
+   that replaced Aurora reads:
+
+       .vibrancy, .vibrancy-strong, .glass, .glass-refract, .dark .glass { … }
+
+   `.dark .glass` is TWO classes, which outranks `section[data-page-header]` —
+   one element, one attribute. So in LIGHT mode the header came out flat and
+   correct, and in DARK mode `--bg-elev` won and painted it as a filled band
+   1005px wide — with `padding: 0 0 10px` still in force, so the title sat ONE
+   PIXEL from the left edge of a box it was never meant to be inside. That is
+   the "text too tight to the borders" the owner could see on both the phone and
+   the desktop, and it was on every page header in the app, not just Tasks.
+
+   The `padding-top` is new too: the header is the first thing on the page and
+   was flush against the top of the main column. */
+section[data-page-header],
+.dark section[data-page-header] {
   background: transparent;
   border: 0;
   border-bottom: 1px solid hsl(var(--border));
   border-radius: 0;
   box-shadow: none;
-  padding: 0 0 10px;
+  padding: 2px 0 14px;
 }
-[data-page-header-meta] {
+[data-page-header-meta],
+.dark [data-page-header-meta] {
   background: transparent;
   border-radius: 0;
   box-shadow: none;
