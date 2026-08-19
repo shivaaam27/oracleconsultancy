@@ -275,10 +275,10 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     }));
   }
   const company = task.companies as unknown as { name: string } | null;
-  // The header's aurora wash + leading dot take the task's status colour, so the
-  // whole sheet reads "blocked" (red) / "in progress" (blue) at a glance.
+  // The leading dot takes the task's status colour, so the sheet still reads
+  // "blocked" (red) / "in progress" (blue) at a glance. The aurora wash behind
+  // the header went with the flattening — the dot carries it now.
   const headerSt = statusTone(task.status as string);
-  const washVar = headerSt === "default" ? "accent" : headerSt;
   const dotTone: keyof typeof TONE = headerSt === "default" ? "muted" : headerSt;
   // Completing/closing is not a plain status move anymore — it goes through the
   // secure gate (the "Complete" action), which requires a note + any proof. So
@@ -312,12 +312,13 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       </div>
 
       <Reveal delay={0}>
-      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: `radial-gradient(circle, hsl(var(--${washVar}) / 0.18), transparent 70%)` }} />
-          <div className="absolute -bottom-24 -left-20 h-56 w-56 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--info) / 0.12), transparent 72%)" }} />
-        </div>
-        <div className="relative">
+      {/* Flat, like the command centre’s record header.
+
+          Two blurred radial gradients used to sit behind this card. That is
+          Aurora’s language — Desk has no glows, and the record header the owner
+          works in all day has none either, which is most of why the portal read
+          as a different product. */}
+      <section className="relative overflow-hidden rounded-lg border border-border bg-bg-elev p-3.5 sm:p-4">        <div className="relative">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={`h-2 w-2 shrink-0 rounded-full ${TONE[dotTone].bar}`} aria-hidden />
           <span className="text-xs font-semibold tabular text-fg-muted">{task.code}</span>
@@ -339,7 +340,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           )}
         </div>
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-fg-muted">
           {assignedByName && <span className="text-fg-subtle">Assigned by {assignedByName}</span>}
           {srcMeeting && (
             <span className="inline-flex items-center gap-1 text-fg-subtle">
@@ -373,7 +374,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         {latestUpdate && latestAuthor && (
           <a
             href="#conversation"
-            className="mt-3 flex items-start gap-2 rounded-2xl bg-bg-subtle/70 ring-1 ring-border/60 px-3 py-2.5 text-left transition-colors hover:ring-accent/40"
+            className="mt-2.5 flex items-start gap-2 rounded-md border border-border bg-bg-subtle px-2.5 py-2 text-left transition-colors hover:border-accent/50"
           >
             <MessageSquare size={14} className="mt-0.5 shrink-0 text-accent" />
             <span className="min-w-0">

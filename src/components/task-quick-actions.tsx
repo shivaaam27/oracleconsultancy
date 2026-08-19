@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
+import { ChevronDown, MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "./toast";
 import { CompleteTaskSheet } from "./complete-task-sheet";
 import { NotifyPerson } from "./notify-person";
@@ -37,6 +37,8 @@ export function TaskQuickActions({
     });
   }
 
+  const [moreOpen, setMoreOpen] = useState(false);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* The page's PRIMARY row. All three take the same explicit h-9 (36px) —
@@ -45,7 +47,7 @@ export function TaskQuickActions({
           the trio ended up 44/41/41 and never lined up. Owner's call, 17 Aug. */}
       <a
         href="#conversation"
-        className="inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
+        className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
       >
         <MessageSquarePlus size={15} /> Add update
       </a>
@@ -53,7 +55,7 @@ export function TaskQuickActions({
         <button
           type="button"
           onClick={() => setCompleteOpen(true)}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-success-soft px-3.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
+          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-success-soft px-3.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
         >
           <CheckCircle2 size={15} /> Complete
         </button>
@@ -63,7 +65,7 @@ export function TaskQuickActions({
           type="button"
           onClick={remind}
           disabled={busy}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-bg-elev px-3.5 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
+          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-bg-elev px-3.5 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
           Remind{ownerName ? ` ${getGivenName(ownerName)}` : ""}
@@ -72,10 +74,29 @@ export function TaskQuickActions({
 
       <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={taskId} code={code} requiresAttachment={requiresAttachment} />
 
+      {/* The finer reminder choices, folded away.
+
+          "Remind" above already does the common thing in one tap, and its toast
+          offers "Send now". This block — a sentence, a This task / All tasks
+          toggle and two send buttons — repeated that in 110px of always-on
+          controls, and it was the untidiest part of the record. It is a line you
+          can open when you want their whole list instead. */}
       {canRemind && ownerId != null && (
-        <div className="w-full border-t border-border/50 pt-3">
-          <p className="mb-2 text-[11px] text-fg-muted">Remind {getGivenName(ownerName ?? "them")} — this task or their whole list</p>
-          <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} taskId={taskId} size="sm" />
+        <div className="w-full border-t border-border/50 pt-2.5">
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            className="inline-flex items-center gap-1 text-[11px] text-fg-muted transition-colors hover:text-fg"
+          >
+            Remind {getGivenName(ownerName ?? "them")} — this task or their whole list
+            <ChevronDown size={12} className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+          </button>
+          {moreOpen && (
+            <div className="mt-2">
+              <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} taskId={taskId} size="sm" />
+            </div>
+          )}
         </div>
       )}
     </div>

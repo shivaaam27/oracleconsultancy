@@ -220,3 +220,58 @@ Full record: **`portal_unification_jun2026.md`**. Summary of the portal-facing c
 - **Auth** — portal session **sliding-refresh** in `src/proxy.ts` (re-stamps `cos_portal` every portal navigation so the installed PWA stays signed in); login theme-toggle z-index fix. Shorter reminder deep-links (10-char signed token; sender label moved into the message text; old links still verify).
 
 **Twin deltas** (admin ↔ portal): the people panel, multi-lead composer and Directory are portal-first surfaces; the shared task editor's lead/people UI applies on both sides. No new portal-only motion or CSS — reuse `Reveal`/surface-kit per the parity rule.
+
+## Mobile sweep — 19 Aug 2026 (walked as Pulin, a director, at 375px)
+
+Every portal page a director can reach was opened at 375x812 and read, not
+measured. Nine defects, all fixed in SHARED files so staff / manager / HR /
+director and (for the last three) the admin side inherit them:
+
+1. `portal-pill.tsx` — the **active tab was never scrolled into view**. The row
+   is 221px of 453px on a phone, so on Profile / Activity / Insights the selected
+   tab and its accent lens sat entirely off-screen: the pill read as though
+   nothing was selected. ⚠️ Aligned with `offsetLeft`/`offsetWidth`, NOT
+   `getBoundingClientRect()` — the pill is a framer `layout` element and a rect
+   taken on mount is mid-entrance-transform (it landed 144px short). Re-aligns
+   through a `ResizeObserver`, which is what a label appearing looks like.
+2. `portal-session.tsx` — "Sign out" wrapped onto two lines; the form and button
+   were shrinkable flex children. `shrink-0` + `whitespace-nowrap`.
+3. `record-list.tsx` — **row actions covered the right-hand column** on touch,
+   hiding every "14d overdue" on the board behind a Remind button. Below `md`
+   they now sit in the flow on the context line.
+4. `record-list.tsx` — **`hideBelow` hid the cell but kept its grid track**, so a
+   hidden 80px "Who" column carried on squeezing the name. `gridFor()` writes one
+   template per breakpoint.
+5. `entity-view.ts` — with the tracks fixed, the remaining fixed widths still came
+   to more than a phone row is wide: **the task list showed status and date with
+   no task name on it** (name column = 28px). Six lists now fold their middle
+   column below `sm`.
+6. `director-board-client.tsx` + `globals.css` — the board's two **scroll housings
+   trapped the page scroll** on a phone (672px boxes in an 812px screen, stacked,
+   `overscroll-contain`). They are `lg:`-only now, with a `.scroll-fade-y-lg` mask
+   that goes with them.
+7. `portal-tasks-command.tsx` — the Tasks toolbar did not wrap: "Select" was cut in
+   half and the "Done" filter sat off-screen with no way to reach it.
+8. `fluid-select.tsx` — the chevron was `absolute right-2.5` with `pr-8` holding a
+   gutter open, and **any caller passing its own `px-*` replaces `pr-8` through
+   tailwind-merge**. The new-task sheet passes `px-3.5`, so the arrow sat on top of
+   the label. The chevron is in the flow now and cannot be overlapped.
+9. `people/[id]/page.tsx` — "← Team" was hard-coded, and `/portal/team` redirects a
+   director to `/portal/outbox`. The back link follows the role.
+
+Also: the portal profile's **Density** row was an icon-only toggle whose state
+lived in a `title` tooltip — invisible on a phone. It is a Segmented control now,
+matching Text size and Motion (`portal-prefs.tsx`; `DENSITY_KEY`/`applyDensity`
+are exported from `density-toggle.tsx` so there is still ONE source of the
+setting).
+
+**Not swept** (a director cannot reach them): the staff/HR home `/portal`, the
+manager `/portal/team`, `/portal/cleaning`, and a chat thread (Pulin has no
+conversations). They share every component above, so the fixes reach them — but
+nobody has LOOKED at them at 375px.
+
+⚠️ **One thing left to check by eye:** `TaskListHousing` in
+`portal-tasks-command.tsx` (`max-h-[38rem] overflow-y-auto overscroll-contain`)
+is the staff HOME's task housing and has the same scroll trap the board's had —
+but there it is deliberate (it keeps the To-Do List reachable below a long list),
+so it was left alone rather than changed blind.

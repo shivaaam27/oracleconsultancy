@@ -131,7 +131,7 @@ export function FluidSelect({
            form fields — but a filter dropdown and a form dropdown sitting near
            each other must not look like two different products. */
         className={cn(
-          "relative inline-flex h-9 w-full items-center gap-1.5 pl-3 pr-8 text-sm rounded-lg border border-border bg-bg-elev text-fg",
+          "relative inline-flex h-9 w-full items-center gap-1.5 px-3 text-sm rounded-lg border border-border bg-bg-elev text-fg",
           "hover:border-border-strong transition-colors select-none whitespace-nowrap",
           "focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent-ring/60",
           buttonClassName
@@ -139,11 +139,19 @@ export function FluidSelect({
       >
         {current?.dot && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: current.dot }} />}
         <span className={cn("min-w-0 flex-1 truncate text-left", !current && "text-fg-muted")}>{current ? current.label : placeholder}</span>
-        {/* Absolutely placed, matching the kit Select's chevron position exactly. */}
+        {/* In FLOW, not absolutely placed.
+
+            It used to sit `absolute right-2.5`, with `pr-8` on the button holding
+            a gutter open for it. But `pr-8` is a class, and a caller passing its
+            own `px-*` replaces it through tailwind-merge — the gutter vanishes and
+            the chevron lands ON TOP of the label. The new-task sheet passes
+            `px-3.5`, so on a phone Priority read as "Medium" with the arrow across
+            the last letters. The label beside this is `flex-1`, so the chevron
+            still sits hard right; it simply cannot be overlapped now. */}
         <ChevronDown
           size={14}
           className={cn(
-            "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle transition-transform",
+            "pointer-events-none ml-auto shrink-0 text-fg-subtle transition-transform",
             open && "rotate-180"
           )}
         />

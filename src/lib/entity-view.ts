@@ -104,11 +104,26 @@ export type EntityView = {
  * One entry per entity that has a screen. Adding an entity here is what earns
  * it an ERPNext-shaped list and record — no new components.
  */
+/*
+ * ⚠️ A PHONE ROW IS ABOUT 311px OF GRID (375px screen, less the page and card
+ * padding). Fixed column widths are desktop widths and they do not shrink, so a
+ * list of name + three fixed columns leaves the `minmax(0,1fr)` NAME column
+ * nothing at all — measured at 28px on the task list, which rendered as status
+ * and date with no task on it. Every list therefore folds its middle column(s)
+ * away below `sm`, keeping the name and the ONE figure the list is sorted by.
+ *
+ * `hideBelow` now frees the column’s grid TRACK as well as hiding the cell
+ * (gridFor in record-list.tsx) — it used to hide the cell and leave the track,
+ * which is what let a hidden 80px “Who” column carry on squeezing the name.
+ *
+ * FORWARD RULE: a new list adds up its fixed widths. Past ~200px, mark the
+ * columns that are not the name and not the key figure `hideBelow: "sm"`.
+ */
 export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   task: {
     listColumns: [
       { key: "actionItem", label: "Task", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "status", label: "Status", width: "150px", format: "status", sortable: true },
+      { key: "status", label: "Status", width: "150px", format: "status", hideBelow: "sm", sortable: true },
       { key: "deadline", label: "Deadline", width: "116px", format: "date", sortable: true },
       { key: "assignees", label: "Who", width: "80px", format: "people", align: "right", hideBelow: "md", sortable: true },
     ],
@@ -162,7 +177,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   company: {
     listColumns: [
       { key: "name", label: "Company", width: "minmax(0,1fr)", format: "company", sortable: true },
-      { key: "openTasks", label: "Open", width: "80px", format: "number", align: "right", sortable: true },
+      { key: "openTasks", label: "Open", width: "80px", format: "number", align: "right", hideBelow: "sm", sortable: true },
       { key: "overdue", label: "Overdue", width: "90px", format: "number", align: "right", sortable: true },
       { key: "people", label: "People", width: "80px", format: "number", align: "right", hideBelow: "md", sortable: true },
     ],
@@ -175,7 +190,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
       { key: "title", label: "Document", width: "minmax(0,1fr)", format: "text", sortable: true },
       { key: "category", label: "Category", width: "140px", format: "muted", hideBelow: "md", sortable: true },
       { key: "expiryDate", label: "Expires", width: "130px", format: "date", align: "right", sortable: true },
-      { key: "status", label: "Status", width: "104px", format: "status" },
+      { key: "status", label: "Status", width: "104px", format: "status", hideBelow: "sm" },
     ],
     filters: [
       { label: "Category", source: "category" },
@@ -245,9 +260,9 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     listColumns: [
       { key: "name", label: "Project", width: "minmax(0,1fr)", format: "text", sortable: true },
       { key: "client", label: "Client", width: "140px", format: "text", hideBelow: "md", sortable: true },
-      { key: "status", label: "Status", width: "110px", format: "status", sortable: true },
+      { key: "status", label: "Status", width: "110px", format: "status", hideBelow: "sm", sortable: true },
       { key: "completionPct", label: "Complete", width: "88px", format: "number", align: "right", sortable: true },
-      { key: "daysRemaining", label: "Days left", width: "96px", format: "number", align: "right", sortable: true },
+      { key: "daysRemaining", label: "Days left", width: "96px", format: "number", align: "right", hideBelow: "sm", sortable: true },
     ],
     filters: [
       { label: "Status", source: "status" },
@@ -299,7 +314,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     listColumns: [
       { key: "title", label: "Commitment", width: "minmax(0,1fr)", format: "text", sortable: true },
       { key: "companyName", label: "Company", width: "160px", format: "company", hideBelow: "md", sortable: true },
-      { key: "endDate", label: "Ends", width: "116px", format: "date", align: "right", sortable: true },
+      { key: "endDate", label: "Ends", width: "116px", format: "date", align: "right", hideBelow: "sm", sortable: true },
       { key: "noticeBy", label: "Notice by", width: "116px", format: "date", align: "right", sortable: true },
     ],
     defaultSort: { key: "noticeBy", dir: "asc" },
@@ -310,7 +325,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     listColumns: [
       { key: "title", label: "Application", width: "minmax(0,1fr)", format: "text", sortable: true },
       { key: "companyName", label: "Company", width: "160px", format: "company", hideBelow: "md", sortable: true },
-      { key: "stage", label: "Stage", width: "150px", format: "status", sortable: true },
+      { key: "stage", label: "Stage", width: "150px", format: "status", hideBelow: "sm", sortable: true },
       { key: "dueDate", label: "Due", width: "116px", format: "date", align: "right", sortable: true },
     ],
     defaultSort: { key: "dueDate", dir: "asc" },

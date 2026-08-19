@@ -104,7 +104,7 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
           href={f.href}
           scroll={false}
           className={cn(
-            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors",
+            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[12px] transition-colors",
             f.active
               ? "border-accent/40 bg-accent-soft font-medium text-accent"
               : "border-border bg-bg-elev text-fg-muted"
@@ -182,11 +182,46 @@ const HIDE: Record<string, string> = {
   lg: "hidden lg:block",
 };
 
-/** Grid template for a column set — shared by the header and every row so they
- *  line up exactly. */
+/** The width at which each `hideBelow` column comes back. */
+const HIDE_AT = { sm: 640, md: 768, lg: 1024 } as const;
+
+/** The four templates gridFor() writes, picked per breakpoint. Tailwind
+ *  utilities rather than a class in globals.css: a plain
+ *  `grid-template-columns: var(…)` rule there is silently DROPPED by Tailwind
+ *  v4’s Lightning CSS (verified — the rule never reached the browser), which is
+ *  the same trap the CLAUDE.md note warns about. */
+const RL_GRID = "grid-cols-[var(--rl-grid)] sm:grid-cols-[var(--rl-grid-sm)] md:grid-cols-[var(--rl-grid-md)] lg:grid-cols-[var(--rl-grid-lg)]";
+
+/**
+ * Grid template for a column set — shared by the header, every row and the
+ * totals line, so a figure always sits under its own column.
+ *
+ * ⚠️ It is FOUR templates, one per breakpoint, handed over as CSS variables that
+ * `.rl-grid` in globals.css picks between. `hideBelow` hides a cell with
+ * `display:none`, and a display:none cell still leaves its TRACK behind — so a
+ * single template kept reserving 80px for a "Who" column nobody could see. On a
+ * 375px phone the fixed tracks then added up to more than the row was wide and
+ * the `minmax(0,1fr)` first column — the record’s NAME — collapsed to 0px. The
+ * portal task list rendered as status + date with no task on it at all.
+ *
+ * An inline style cannot hold a media query, hence the variables. Hidden cells
+ * do not participate in placement, so the visible ones auto-place into the
+ * tracks left in order, and the two lists stay in step.
+ */
 function gridFor<T>(columns: RecordColumn<T>[], hasSelection: boolean) {
-  const cols = columns.map((c) => c.width).join(" ");
-  return { gridTemplateColumns: hasSelection ? `28px ${cols}` : cols };
+  const at = (w: number) => {
+    const cols = columns
+      .filter((c) => !c.hideBelow || HIDE_AT[c.hideBelow] <= w)
+      .map((c) => c.width)
+      .join(" ");
+    return hasSelection ? `28px ${cols}` : cols;
+  };
+  return {
+    "--rl-grid": at(0),
+    "--rl-grid-sm": at(640),
+    "--rl-grid-md": at(768),
+    "--rl-grid-lg": at(1024),
+  } as React.CSSProperties;
 }
 
 /**
@@ -203,7 +238,7 @@ export function RecordListHeader<T>({
     <div
       data-list-head
       style={gridFor(columns, hasSelection)}
-      className={cn("grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3", className)}
+      className={cn(RL_GRID, "grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3", className)}
     >
       {hasSelection && <span />}
       {columns.map((c) => {
@@ -283,7 +318,7 @@ function ExportButton<T>({
           columns.map((c) => (c.csv ? c.csv(r) : nodeText(c.render(r)))));
         downloadCsv(listFileName(name), toCsv(headers, body));
       }}
-      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
     >
       <Download size={12} /> Export
     </button>
@@ -300,7 +335,7 @@ function ColumnChooser<T>({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Choose columns"
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
       >
         <Columns3 size={12} /> Columns
       </button>
@@ -704,10 +739,16 @@ export function RecordList<T>({
               </label>
             )}
             <span ref={toolbarRef} className={cn("min-w-0", search ? "" : "flex-1")}>{toolbar}</span>
+            {/* Desktop affordances. Below `sm` the columns are folded by the
+                breakpoint anyway (see gridFor), so the chooser would offer a
+                choice the layout has already made — and on a phone the two of
+                them wrapped the toolbar onto a third row. */}
             {listKey && (
-              <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} />
+              <span className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">
+                <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} />
+                <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />
+              </span>
             )}
-            {listKey && <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />}
           </div>
         )}
         {bulkBar}
@@ -750,7 +791,7 @@ export function RecordList<T>({
             <div
               data-list-head
               style={gridStyle}
-              className="grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3"
+              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3")}
             >
               {tick && (
                 <span>
@@ -811,7 +852,7 @@ export function RecordList<T>({
                 if (starts) lastGroup = group;
                 const cells = (
                   <div data-list-row className="group/row relative px-3">
-                    <div style={gridStyle} className="grid items-center gap-x-3">
+                    <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3")}>
                       {tick && (
                         <span onClick={(e) => e.stopPropagation()}>{tick(row)}</span>
                       )}
@@ -824,24 +865,39 @@ export function RecordList<T>({
                         </div>
                       ))}
                     </div>
-                    {/* In Compact the context line hides until hover, so the row
+                    {/* The second line: the context line, and — on a touch screen
+                        — the row actions.
+
+                        In Compact the context line hides until hover, so the row
                         is one line but the detail is still a glance away. That
-                        rule lives in globals.css, keyed on data-subrow. */}
-                    {subRow && (
-                      <div data-subrow className={cn("mt-0.5 min-w-0", tick && "pl-[2.4rem]")}>
-                        {subRow(row)}
+                        rule lives in globals.css, keyed on data-subrow.
+
+                        Row actions are hover-revealed on a mouse and ALWAYS shown
+                        on a touch screen, where there is no hover and a hidden
+                        action is simply an unreachable one. ⚠️ But floating them
+                        over the row (which is what md+ does on hover) covers the
+                        RIGHT-HAND COLUMN, and that column is usually the figure
+                        the list is sorted by — on the portal board it hid every
+                        "14d overdue" behind a Remind button. So below md they ride
+                        in the flow at the end of this line instead; from md up the
+                        same element goes absolute and floats as before.
+                        ONE element, positioned two ways — never rendered twice. */}
+                    {(subRow || rowActions) && (
+                      <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                        {subRow && (
+                          <div data-subrow className={cn("min-w-0 flex-1", tick && "pl-[2.4rem]")}>
+                            {subRow(row)}
+                          </div>
+                        )}
+                        {rowActions && (
+                          <span
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-auto shrink-0 md:absolute md:right-3 md:top-1.5 md:rounded-md md:bg-bg-elev md:pl-2 md:shadow-sm md:ring-1 md:ring-border md:transition-opacity md:opacity-0 md:focus-within:opacity-100 md:group-hover/row:opacity-100"
+                          >
+                            {rowActions(row)}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {/* Row actions: hover-revealed on a mouse; ALWAYS shown on a
-                        touch screen, where there is no hover and a hidden action
-                        is simply an unreachable one. */}
-                    {rowActions && (
-                      <span
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-3 top-1.5 rounded-md bg-bg-elev pl-2 shadow-sm ring-1 ring-border transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/row:opacity-100"
-                      >
-                        {rowActions(row)}
-                      </span>
                     )}
                   </div>
                 );
@@ -904,7 +960,7 @@ export function RecordList<T>({
               grid as the rows, so a figure sits under its own column. */}
           {showFooter && paged.length > 0 && visibleColumns.some((c) => c.total) && (
             <div data-list-total className="border-t border-border bg-bg-subtle px-3 py-1.5">
-              <div style={gridStyle} className="grid items-center gap-x-3 text-[12px] font-medium">
+              <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3 text-[12px] font-medium")}>
                 {tick && <span />}
                 {visibleColumns.map((c) => (
                   <div key={c.key} className={cn("min-w-0 truncate", c.align === "right" && "text-right",

@@ -533,6 +533,17 @@ input:disabled, select:disabled, textarea:disabled {
 /* Soft top/bottom fade for a vertically-scrolling list, so its content dissolves
    at the edges of its housing instead of hard-cutting (used by the board columns).
    The mask only bites in the first/last ~14px. */
+/* The same fade, but ONLY where the housing actually scrolls. A scroll housing
+   that releases on a phone (the board columns stack there and the PAGE scrolls)
+   must drop its mask with it — otherwise the first and last row sit dimmed for
+   no reason at all. Tailwind cannot prefix a plain class, hence the twin. */
+@media (min-width: 1024px) {
+  .scroll-fade-y-lg {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  }
+}
+
 .scroll-fade-y {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);

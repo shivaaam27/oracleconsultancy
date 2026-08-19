@@ -68,14 +68,20 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
     ? new Date(p.start_date as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
     : null;
   const canOpenCompany = me.portalRole !== "staff";
+  // Where "back" actually goes. /portal/team is the MANAGER roster — it
+  // redirects a director to /portal/outbox and staff to /portal/home, so a
+  // hard-coded link here dropped a director who had opened someone from the
+  // Directory into their Outbox instead of back where they were.
+  const backHref = me.portalRole === "manager" ? "/portal/team" : "/portal/directory";
+  const backLabel = me.portalRole === "manager" ? "Team" : "Directory";
 
   return (
     <div className="space-y-4">
       <PortalTrace />
 
       <div className="flex items-center justify-between gap-3">
-        <Link href="/portal/team" className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
-          <ArrowLeft size={14} /> Team
+        <Link href={backHref} className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
+          <ArrowLeft size={14} /> {backLabel}
         </Link>
         <PortalTraceButton kind="person" id={p.id as number} title={p.name as string} />
       </div>

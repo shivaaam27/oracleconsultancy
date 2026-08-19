@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
-import { Hero } from "@/components/surface-kit";
+import { Hero, HeroMetrics } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
@@ -52,12 +51,14 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
     getScopedPickerData(me),
     me.caps.recurringTasks ? portalListRecurringTasks() : Promise.resolve([]),
   ]);
-  // Hero counts OPEN work only (anything not Completed/Closed) — closed tasks
-  // shouldn't pad the glance number.
-  const openCount = cmd.filter((t) => !t.isDone).length;
-
   // EVERY role gets the one Aurora command view (portaltaskdesign). Permissions
   // are enforced inside it AND server-side; task creation follows me.caps.createTasks.
+  // The hero figures. Open is everything not Completed/Closed; the other two are
+  // the ones worth walking towards, so both are links into that filter.
+  const openCount = cmd.filter((t) => !t.isDone).length;
+  const overdueCount = cmd.filter((t) => !t.isDone && t.overdue).length;
+  const soonCount = cmd.filter((t) => !t.isDone && !t.overdue && t.withinSoon).length;
+
   const scopeNote =
     me.portalRole === "hr" || me.portalRole === "director"
       ? "Every task across all companies."
@@ -66,13 +67,17 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
         : "Tasks assigned to you.";
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
       <AutoRefresh seconds={30} />
       <Reveal delay={0}>
         <Hero title="Tasks" subtitle={scopeNote}>
-          <div className="flex items-center gap-2 text-sm text-fg-muted">
-            <ClipboardList size={15} /> {openCount} open task{openCount === 1 ? "" : "s"} in view
-          </div>
+          <HeroMetrics
+            items={[
+              { label: "open", value: openCount },
+              { label: "overdue", value: overdueCount, tone: "danger", href: "/portal/tasks?filter=overdue" },
+              { label: "due soon", value: soonCount, tone: "warn", href: "/portal/tasks?filter=soon" },
+            ]}
+          />
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>

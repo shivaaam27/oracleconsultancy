@@ -305,6 +305,31 @@ actionLabel/tone/count/automationAction?`).
 - Inbox cards swipe (right = File it, left = Dismiss) only when not editing, so
   the textarea keeps full touch.
 
+### The phone is 375px — three rules a list must obey (swept Aug 2026)
+
+A phone row gives a `RecordList` about **311px of grid** (375 less the page and
+card padding). Everything below was a real defect found by walking the staff
+portal at that width; each fix is in a shared file, so every list — admin and
+portal — inherits it.
+
+1. **A hidden column must give its TRACK back.** `hideBelow` hides the cell with
+   `display:none`, and a display:none cell still leaves its grid track behind.
+   `gridFor()` in `record-list.tsx` therefore writes **four templates** — base /
+   sm / md / lg — as CSS variables that the `RL_GRID` utilities pick between.
+   ⚠️ It is Tailwind utilities, not a class in `globals.css`: a plain
+   `grid-template-columns: var(…)` rule there is silently dropped by Lightning
+   CSS (verified — the rule never reached the browser).
+2. **Fixed widths do not shrink, so the NAME goes first.** Task was
+   `1fr + 150 + 116 + 80`; on a phone the name column resolved to **28px** and the
+   list rendered as status and date with no task on it. Add up a new list's fixed
+   widths: past ~200px, mark everything that is not the name and not the key
+   figure `hideBelow: "sm"` (see the note at the top of `lib/entity-view.ts`).
+3. **A floating row action covers the column it floats over.** `rowActions` is
+   hover-revealed on a mouse and always visible on touch — floated, it sat on top
+   of the right-hand column and hid every "14d overdue" on the board. Below `md`
+   the same element rides **in the flow**, on the context line; from `md` up it
+   goes absolute and floats as before.
+
 ## 12. Scroll housing (named pattern)
 
 **"Scroll housing"** = wrap a scrollable list/grid in a soft bordered panel so the
@@ -321,6 +346,13 @@ Needs-you + Health columns (`components/director-board-client.tsx`).
 - `.slim-scroll` (globals.css) — the subtle overlay scrollbar (thumb appears on hover).
 - The inner `px` padding keeps each card's ring/shadow off the clip edge (prevents
   left-edge clipping).
+- ⚠️ **A housing that exists only because two columns sit side by side must
+  RELEASE below that breakpoint.** Stacked on a phone it becomes a 672px scroller
+  inside an 812px screen with `overscroll-contain`, so a finger inside the list
+  cannot move the page. The board's two housings are `lg:max-h-[42rem]
+  lg:overflow-y-auto lg:overscroll-contain` and use **`.scroll-fade-y-lg`** — the
+  mask has to go with the scrolling, or the first and last row sit dimmed for
+  nothing.
 
 ## 13. Board list ordering — "worst first, always" (`app/portal/(app)/board/page.tsx`)
 

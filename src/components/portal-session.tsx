@@ -54,11 +54,11 @@ export function PortalSessionRestore() {
  *  the person straight back in) then runs the server logout. */
 export function PortalSignOut() {
   return (
-    <form action={portalLogout}>
+    <form action={portalLogout} className="shrink-0">
       <button
         type="submit"
         onClick={() => { try { localStorage.removeItem(KEY); } catch { /* */ } }}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-elev px-2.5 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-bg-elev px-2.5 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
       >
         <LogOut size={13} />
         Sign out

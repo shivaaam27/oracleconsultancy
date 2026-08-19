@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -72,6 +73,30 @@ export function Panel({
  * `accentTone` is now accepted and ignored: the header no longer tints, and
  * removing it would have meant touching every caller for no gain.
  */
+/**
+ * The portal page header is a CARD — a real edge around the title, the figures
+ * and whatever else the hero carries.
+ *
+ * The command centre keeps its hairline: there the title sits above a dense
+ * list and a box round it would compete. In the portal everything BELOW the
+ * header is a card, so a bare line of text at the top read as unfinished — the
+ * board especially, where the greeting, the date and the figures had nothing
+ * holding them together.
+ *
+ * ⚠️ INLINE, deliberately. `section[data-page-header]` in globals.css forces
+ * background:none / border:0 / radius:0 and beats any Tailwind class on
+ * specificity, and a scoped override added to globals.css is silently dropped
+ * by Tailwind v4’s Lightning CSS (verified — the rule never reached the
+ * browser). Inline beats both. Shared by all three portal headers so they
+ * cannot drift apart.
+ */
+export const PORTAL_HEADER_CARD: React.CSSProperties = {
+  background: "hsl(var(--bg-elev))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  padding: "14px 16px",
+};
+
 export function Hero({
   title,
   subtitle,
@@ -86,16 +111,46 @@ export function Hero({
   children?: ReactNode;
 }) {
   return (
-    <section data-page-header className="mb-1">
+    <section data-page-header style={PORTAL_HEADER_CARD}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <div className="mt-0.5 text-xs text-fg-muted">{subtitle}</div>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
       </div>
       {children && <div className="mt-3">{children}</div>}
     </section>
+  );
+}
+
+/**
+ * The figures line under a page title — the glance a hero exists for.
+ *
+ * Outbox had this shape (big tabular number, small label beneath it) and it is
+ * the one that reads at arm’s length; Tasks and Insights each had a different,
+ * weaker line of their own — an icon and a sentence. One component now, so every
+ * portal page opens the same way and a number is always a number, not prose.
+ *
+ * `href` makes a figure a door: tap "12 overdue" and land on the overdue list.
+ */
+export function HeroMetrics({ items }: { items: { label: string; value: ReactNode; tone?: Tone; href?: string }[] }) {
+  return (
+    <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+      {items.map((m) => {
+        const inner = (
+          <>
+            <span className={cn("text-xl font-semibold leading-none tabular", m.tone ? TONE[m.tone].text : "text-fg")}>{m.value}</span>
+            <span className="text-[11px] text-fg-muted">{m.label}</span>
+          </>
+        );
+        return m.href ? (
+          <Link key={m.label} href={m.href} className="flex items-baseline gap-1.5 rounded-md transition-opacity hover:opacity-70">{inner}</Link>
+        ) : (
+          <span key={m.label} className="flex items-baseline gap-1.5">{inner}</span>
+        );
+      })}
+    </div>
   );
 }
 

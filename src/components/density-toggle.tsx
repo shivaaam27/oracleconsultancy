@@ -3,9 +3,12 @@ import { useEffect, useState } from "react";
 import { Rows3, Rows2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-const KEY = "cos-density";
+export const DENSITY_KEY = "cos-density";
+const KEY = DENSITY_KEY;
 
-function applyDensity(d: "comfortable" | "compact") {
+export type Density = "comfortable" | "compact";
+
+export function applyDensity(d: Density) {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute("data-density", d);
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { DensityToggle } from "./density-toggle";
+import { DENSITY_KEY, applyDensity, type Density } from "./density-toggle";
 
 /* Accessibility preferences for the staff portal. Stored on this device
  * (localStorage) and applied as attributes on <html> so the CSS in
@@ -70,11 +70,15 @@ function Segmented<T extends string>({
 export function AccessibilityControls() {
   const [text, setText] = useState<TextSize>("base");
   const [motion, setMotion] = useState<Motion>("full");
+  // The portal defaults to Comfortable (phone-first) — the same fallback
+  // DensityToggle and DensityScript use, so all three agree on a fresh device.
+  const [density, setDensity] = useState<Density>("comfortable");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setText((localStorage.getItem(TEXT_KEY) as TextSize) || "base");
     setMotion((localStorage.getItem(MOTION_KEY) as Motion) || "full");
+    setDensity((localStorage.getItem(DENSITY_KEY) as Density) || "comfortable");
     setMounted(true);
   }, []);
 
@@ -113,11 +117,23 @@ export function AccessibilityControls() {
         />
       </Row>
 
+      {/* Segmented, like Text size and Motion above it. It used to be the
+          icon-only DensityToggle beside the words "Tap to switch", which said
+          what to DO but never which density was on — the state lived in an
+          icon and a `title` tooltip, and a phone has no hover to show one. */}
       <Row label="Density" hint="Tighter spacing fits more on screen.">
-        <div className="inline-flex h-7 items-center gap-2 rounded-md bg-bg-subtle ring-1 ring-border px-2">
-          <DensityToggle />
-          <span className="text-xs text-fg-muted">Tap to switch</span>
-        </div>
+        <Segmented
+          value={density}
+          onChange={(v) => {
+            setDensity(v);
+            localStorage.setItem(DENSITY_KEY, v);
+            applyDensity(v);
+          }}
+          options={[
+            { value: "comfortable", label: "Comfortable" },
+            { value: "compact", label: "Compact" },
+          ]}
+        />
       </Row>
     </div>
   );

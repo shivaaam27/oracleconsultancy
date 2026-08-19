@@ -1,4 +1,5 @@
 "use client";
+import { PORTAL_HEADER_CARD } from "@/components/surface-kit";
 
 import { useEffect, useState } from "react";
 import { ListTodo } from "lucide-react";
@@ -33,11 +34,11 @@ export function PortalHomeHero({
    * greeting, same figures, ~190px less of them. Staff see this one; keep the two
    * in step, as the file header has always said. */
   return (
-    <section data-page-header className="mb-1">
+    <section data-page-header style={PORTAL_HEADER_CARD}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-fg-subtle">My work</p>
-          <h1 className="text-lg font-semibold tracking-tight">{greeting}, {firstName}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{greeting}, {firstName}</h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-fg-muted">
             {subtitle && <><span>{subtitle}</span><span className="text-fg-subtle">·</span></>}
             <span className="inline-flex items-center gap-1">

@@ -156,6 +156,7 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
     <Link
       href={href}
       aria-label={label}
+      data-nav-active={active ? "1" : undefined}
       data-tour={tourTag}
       onMouseEnter={(e) => show(e.currentTarget)}
       onMouseLeave={() => onTip?.(null)}
@@ -270,6 +271,40 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   const showActiveLabel = lg || !compact;
   const labelFor = (active: boolean) => active && showActiveLabel;
   const scrollRef = useDragScroll();
+  // Keep the SELECTED tab in sight. On a phone the row is far narrower than its
+  // tabs (221px of 453px for a director), so without this the active tab — and
+  // the accent lens that marks it — sits entirely off-screen and the pill reads
+  // as though nothing is selected at all.
+  //
+  // ⚠️ Measured with offsetLeft/offsetWidth, NOT getBoundingClientRect(). The pill
+  // is a framer `layout` element with an entrance animation, so a rect taken on
+  // mount is mid-transform and lands the row short (Activity stopped at 98 of the
+  // 242 it needed). offset* are layout pixels: no transform, and no zoom to divide
+  // back out either. Re-aligned whenever the row’s own size changes, which is what
+  // a label appearing or the phone turning looks like from here.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const align = () => {
+      const active = el.querySelector<HTMLElement>("[data-nav-active]");
+      if (!active) return;
+      const pad = 12;
+      const left = active.offsetLeft - el.offsetLeft;
+      const right = left + active.offsetWidth;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      let next = el.scrollLeft;
+      if (right > el.scrollLeft + el.clientWidth - pad) next = right - el.clientWidth + pad;
+      else if (left < el.scrollLeft + pad) next = left - pad;
+      next = Math.max(0, Math.min(next, max));
+      if (Math.abs(next - el.scrollLeft) < 1) return;
+      el.scrollTo({ left: next, behavior: reduce ? "auto" : "smooth" });
+    };
+    align();
+    const ro = new ResizeObserver(align);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pathname, reduce, showActiveLabel, scrollRef]);
   const pillRef = useRef<HTMLDivElement>(null);
   const [tip, setTip] = useState<NavTipData | null>(null);
 
@@ -334,10 +369,11 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
             <Sparkles size={19} className="transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
           </button>
         )}
-        {/* The create + sits AFTER the divider, next to the theme toggle. Tasks
-            carries its own contextual + FAB, so it steps aside there to avoid a
-            duplicate. */}
-        {canCreate && !onTasks && (
+        {/* The create + sits AFTER the divider, next to the theme toggle. It is
+            shown on EVERY page including Tasks: the floating one Tasks used to
+            carry covered the rows it sat over, so the pill is now the single
+            create button on a phone. */}
+        {canCreate && (
           <Link
             href="/portal/task/new"
             aria-label="New task"

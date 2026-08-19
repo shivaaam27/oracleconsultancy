@@ -101,7 +101,13 @@ const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label:
 // category is the fixed list from CLAUDE.md. Both offer a "clear" option.
 /** The portal task list is defined in metadata, not here — the same entry the
  *  command centre's Tasks table reads, so the two cannot drift. */
-const TASK_COLUMNS = ENTITY_VIEWS.task!.listColumns;
+// The shared task columns, with the deadline trimmed for this list: the portal
+// renders a short label there ("29d overdue", "No date"), not the admin’s inline
+// date editor, so 116px was 20px of empty column taken off the task NAME on a
+// phone. Same columns, same order, same keys — only the one width differs.
+const TASK_COLUMNS = ENTITY_VIEWS.task!.listColumns.map((c) =>
+  c.key === "deadline" ? { ...c, width: "96px" } : c,
+);
 
 const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 const riskOptions: FluidOption[] = [{ value: "", label: "No risk" }, ...PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }))];
@@ -412,87 +418,79 @@ export function PortalTasksCommand({
     return out.sort((a, b) => Number(b.lead) - Number(a.lead));
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-        <div className="flex flex-1 items-center gap-2.5 rounded-2xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
-          <Search size={16} className="shrink-0 text-fg-subtle" />
-          <CaretInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search tasks, people, companies…"
-            className="py-3 text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-2.5">
-          {/* Status dropdown — the full 8-status set, incl. Under Review /
-              Waiting External / Blocked / Escalated, which don't have their own
-              quick chip. Available to every role (staff included). Picking one
-              clears the chip row (mutually exclusive). */}
-          <FluidSelect
-            value={statusFilter}
-            options={statusFilterOptions}
-            onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
-            align="right"
-            buttonClassName="w-full justify-between rounded-md bg-bg-elev px-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[10.5rem]"
-          />
-        </div>
-        {(companies.length > 1 || isManagement) && (
-          <div className="flex items-center gap-2.5">
-            {companies.length > 1 && (
-              <FluidSelect
-                value={companyFilter}
-                options={companyFilterOptions}
-                onSelect={setCompanyFilter}
-                align="right"
-                buttonClassName="w-full justify-between rounded-md bg-bg-elev px-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
-              />
-            )}
-            {/* Divider between the company dropdown and Company wise. */}
-            {companies.length > 1 && <span className="mx-0.5 my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />}
-            {/* Grouping toggle — matches the company dropdown look (same pill:
-                bg-bg-elev, py-3, ring). Accent when active. */}
-            <button
-              type="button"
-              aria-pressed={groupByCompany}
+  /* ONE toolbar, at the command centre's sizes.
+   *
+   * This page used to carry its own block of controls — a tall rounded search
+   * box, then the status select, then company + Company wise + Select + a second
+   * copy of the Done filter — stacked FOUR rows deep on a phone, sitting above
+   * RecordList's own toolbar row of Export and Columns. Two toolbars for one
+   * list, at two different sizes.
+   *
+   * It is now handed to RecordList's `toolbar` slot, so every control shares one
+   * wrapping row with Export and Columns, and every control is the same 32px
+   * high / 13px shell the command centre uses. `Company wise` and `Select` drop
+   * to their icons below `sm`, where the words are what overflowed. The Done
+   * duplicate is gone: it is a chip in the filter strip like every other filter,
+   * and that strip scrolls. */
+  const toolbar = (
+    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {/* `w-full` claims the whole line on a phone — sharing it with the
+          selects squeezed the box down to about 70px, which showed one letter
+          of what you had typed. From `sm` it rejoins the row. */}
+      <label className="relative w-full min-w-0 sm:w-auto sm:flex-1 sm:max-w-[15rem]">
+        <Search size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search tasks, people…"
+          aria-label="Search tasks, people, companies"
+          className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+        />
+      </label>
+      {/* The full 8-status set, incl. Under Review / Waiting External / Blocked /
+          Escalated, which have no quick chip. Picking one clears the chip row. */}
+      <FluidSelect
+        value={statusFilter}
+        options={statusFilterOptions}
+        onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
+        align="right"
+        buttonClassName="h-8 shrink-0 rounded-md text-[13px] bg-bg px-2.5"
+      />
+      {companies.length > 1 && (
+        <FluidSelect
+          value={companyFilter}
+          options={companyFilterOptions}
+          onSelect={setCompanyFilter}
+          align="right"
+          buttonClassName="h-8 shrink-0 rounded-md text-[13px] bg-bg px-2.5"
+        />
+      )}
+      {(companies.length > 1 || isManagement) && (
+        <span className="flex shrink-0 items-center gap-1">
+          {companies.length > 1 && (
+            <ToolbarToggle
+              on={groupByCompany}
               onClick={() => setGroupByCompany(!groupByCompany)}
-              className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
-            >
-              <Building2 size={15} />
-              <span>Company wise</span>
-            </button>
-            {/* Bulk-select mode toggle (management) — sits to the right of the
-                company dropdown. Ticks + the action bar only exist while it's on. */}
-            {isManagement && (
-              <button
-                type="button"
-                aria-pressed={selectMode}
-                onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
-              >
-                {selectMode ? <CheckSquare size={15} /> : <Square size={15} />}
-                <span className="text-[12.5px]">{selectMode ? "Done" : "Select"}</span>
-              </button>
-            )}
-            {/* "Done" filter — on MOBILE it lives here next to Select (kept out of
-                the scroll strip); from sm up it renders inline with the chips. */}
-            {isManagement && (
-              <button
-                type="button"
-                onClick={() => { setStatusFilter("all"); setFilter("done"); }}
-                className={cn(
-                  "inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 sm:hidden",
-                  statusFilter === "all" && filter === "done" ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
-                )}
-              >
-                <span className={cn("text-[15px] font-semibold leading-none tabular", statusFilter === "all" && filter === "done" ? "" : "text-success")}>{counts.done}</span>
-                <span className="text-[12.5px]">Done</span>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+              icon={<Building2 size={14} />}
+              label="Company wise"
+            />
+          )}
+          {isManagement && (
+            <ToolbarToggle
+              on={selectMode}
+              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              icon={selectMode ? <CheckSquare size={14} /> : <Square size={14} />}
+              label={selectMode ? "Done" : "Select"}
+            />
+          )}
+        </span>
+      )}
+    </span>
+  );
 
+  return (
+    <div className="flex flex-col gap-3">
       {canCreate && <QuickAdd people={people} companies={companies} role={role} canRepeat={canRepeat} />}
 
       {/* The dense list (the portal pass, Aug 2026).
@@ -519,6 +517,7 @@ export function PortalTasksCommand({
           rowKey={(t) => t.taskId}
           rowHref={(t) => `/portal/task/${t.code}`}
           listKey="portal-task"
+          toolbar={toolbar}
           bare={houseList}
           filters={rail}
           groupOf={(t) => groupLabelOf.get(t.taskId) ?? null}
@@ -530,7 +529,12 @@ export function PortalTasksCommand({
            * hover, in Compact); the portal's had none, which is why a director
            * saw less on the same task than the owner did. Same information, same
            * hover behaviour — what differs is only what the PERSON may see, and
-           * that is decided by the fields the server already scoped for them. */
+           * that is decided by the fields the server already scoped for them.
+           *
+           * It is ONE line, never two: wrapping made a row 79px when the latest
+           * update was long and 72px when it was not, so the rows — and the
+           * deadlines beside them — ran at two different rhythms down the list.
+           * The note truncates instead. */
           subRow={(t) => (
             composeFor === t.taskId ? (
               <QuickUpdate
@@ -547,9 +551,9 @@ export function PortalTasksCommand({
                 onCancel={() => setComposeFor(null)}
               />
             ) : (
-              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
+              <span className="flex min-w-0 items-center gap-x-2 text-[11px] text-fg-muted">
                 {t.companyName && (
-                  <span className="inline-flex shrink-0 items-center gap-1.5">
+                  <span className="inline-flex shrink-0 items-center gap-1">
                     <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "transparent" }} />
                     {t.companyName}
                   </span>
@@ -586,12 +590,12 @@ export function PortalTasksCommand({
               actionItem: (t) => (
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="shrink-0 rounded-sm bg-bg-subtle px-1 py-0.5 font-mono text-[10.5px] text-fg-subtle">{t.code}</span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-medium text-fg">{t.actionItem}</span>
-                    {!groupByCompany && t.companyName && (
-                      <span className="block truncate text-[11px] text-fg-muted">{t.companyName}</span>
-                    )}
-                  </span>
+                  {/* Title only — ONE line, so the deadline beside it lines up
+                      down the whole list. The company used to sit under it AND
+                      on the context line below: the same word twice, and a row
+                      that was two lines tall in the title cell but one in the
+                      cell next to it. */}
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{t.actionItem}</span>
                 </span>
               ),
               status: (t) => (
@@ -631,6 +635,28 @@ export function PortalTasksCommand({
         <BulkBar taskIds={[...selected]} onClear={clearSelection} />
       )}
     </div>
+  );
+}
+
+/** A toolbar on/off control — the shape every filter button on this page uses,
+ *  so none of them can drift to a different height or type size. Icon-only
+ *  below `sm`, where the labels are what pushed the row off the screen. */
+function ToolbarToggle({ on, onClick, icon, label }: { on: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[13px] transition-colors",
+        on ? "border-accent bg-accent text-accent-fg" : "border-border bg-bg text-fg-muted hover:text-fg",
+      )}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 
@@ -1353,9 +1379,13 @@ export function TaskPeoplePanel({
 
       <ul className="divide-y divide-border/50">
         {members.map((m, i) => (
-          <li key={m.id ?? `n:${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+          <li key={m.id ?? `n:${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2">
             <Avatar name={m.name} size="md" lead={m.lead} />
-            <span className="min-w-0 flex-1">
+            {/* A floor under the name, so a squeeze WRAPS the row rather than
+                shaving the name down — at 98px it read “Mr Yash Cha…”, which
+                identifies nobody. 7.5rem is the width that fits the longest real
+                name here beside the buttons, so the row stays ONE line. */}
+            <span className="min-w-[7rem] flex-1">
               <span className="block truncate text-[13px] font-medium leading-tight">{m.name}</span>
               {/* Lead toggle: ON = Lead, OFF = Working — assign the lead inline (those
                   who may edit). Everyone else sees a read-only Lead/Working label. */}
@@ -1677,7 +1707,7 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
   // on a task row, so WhatsApp/Email/Chat line up with Edit, History and Delete.
   const iconBtn = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 transition-transform active:scale-90 disabled:opacity-50";
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1">
       <button type="button" onClick={whatsapp} disabled={busy} title="WhatsApp this task" aria-label={`WhatsApp ${first} about this task`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={15} />}
       </button>
@@ -1788,21 +1818,15 @@ function QuickAdd({ people, companies, role, canRepeat }: { people: BoardPerson[
 
   return (
     <>
-      {/* Desktop trigger sits in the list flow; mobile gets a thumb-reach FAB. */}
+      {/* Desktop only. On a phone the nav pill’s "+" is the create button, as it
+          is on every other portal page — a floating one here sat on top of the
+          rows and covered a row action wherever it landed. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         className="hidden h-9 w-full items-center gap-2 rounded-md border border-dashed border-border bg-bg-elev/60 px-4 text-sm text-fg-muted transition-colors hover:bg-bg-elev sm:flex"
       >
         <Plus size={16} className="text-accent" /> Quick add a task…
-      </button>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Quick add a task"
-        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/30 transition-transform active:scale-95 sm:hidden"
-      >
-        <Plus size={24} strokeWidth={2.4} />
       </button>
 
       <DirectorTaskForm

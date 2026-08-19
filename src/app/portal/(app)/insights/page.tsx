@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { BarChart3 } from "lucide-react";
-import { Hero } from "@/components/surface-kit";
+import { Hero, HeroMetrics } from "@/components/surface-kit";
 import type { Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -98,9 +98,12 @@ export default async function PortalInsightsPage() {
       <AutoRefresh seconds={60} />
       <Reveal delay={0}>
         <Hero title="Insights" subtitle={scopeNote}>
-          <div className="flex items-center gap-2 text-sm text-fg-muted">
-            <BarChart3 size={15} /> {openTotal} open · {overdueTotal} overdue
-          </div>
+          <HeroMetrics
+            items={[
+              { label: "open", value: openTotal },
+              { label: "overdue", value: overdueTotal, tone: "danger" },
+            ]}
+          />
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>

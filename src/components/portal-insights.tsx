@@ -66,16 +66,6 @@ function useCountUp(target: number, reduced: boolean, duration = 900): number {
   return value;
 }
 
-/** A single headline metric tile. */
-function MetricTile({ label, value, tone, reduced }: { label: string; value: number; tone: Tone; reduced: boolean }) {
-  const v = useCountUp(value, reduced);
-  return (
-    <div className="rounded-2xl bg-bg-elev ring-1 ring-border elevated p-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold tabular ${TONE[tone].text}`}>{v}</p>
-    </div>
-  );
-}
 
 /** One horizontal CSS bar; grows from 0 unless motion is reduced. */
 function Bar({ value, max, tone, reduced }: { value: number; max: number; tone: Tone; reduced: boolean }) {
@@ -119,12 +109,11 @@ export function PortalInsights({ openTotal, overdueTotal, statuses, priorities, 
   const maxCompanyOpen = Math.max(...companies.map((c) => c.open), 1);
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Headline metrics */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-        <MetricTile label="Open tasks" value={openTotal} tone="accent" reduced={reduced} />
-        <MetricTile label="Overdue" value={overdueTotal} tone={overdueTotal > 0 ? "danger" : "success"} reduced={reduced} />
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* The headline pair used to live here as two big tiles. They are in the
+          page HERO now (HeroMetrics), like every other portal page — printing 43
+          and 21 twice, 200px apart, was the page telling you the same thing
+          twice before it told you anything new. */}
 
       {/* Open by company */}
       <section className="space-y-2">

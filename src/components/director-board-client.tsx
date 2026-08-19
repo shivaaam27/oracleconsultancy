@@ -7,7 +7,7 @@ import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
   Target, CalendarClock, ShieldCheck, Video,
 } from "lucide-react";
-import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
+import { PORTAL_HEADER_CARD, Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { cn } from "@/lib/cn";
 import { getGivenName } from "@/lib/names";
 import { CompanyAvatar } from "@/components/company-avatar";
@@ -162,7 +162,7 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
    * survive; they are simply one dense line now, the same header shape the
    * command centre uses. */
   return (
-    <section data-page-header className="mb-1">
+    <section data-page-header style={PORTAL_HEADER_CARD}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
@@ -222,7 +222,7 @@ function HealthPanel({
         // many companies doesn't stretch the board — both columns cap at the same
         // height, sit in a soft panel, and fade at the edges as they scroll.
         <div className="rounded-3xl bg-bg-subtle/40 p-1.5 ring-1 ring-border/70">
-          <div className="slim-scroll scroll-fade-y grid max-h-[42rem] grid-cols-2 gap-2 overflow-y-auto overscroll-contain px-1.5 py-1.5">
+          <div className="slim-scroll scroll-fade-y-lg grid grid-cols-2 gap-2 px-1.5 py-1.5 lg:max-h-[42rem] lg:overflow-y-auto lg:overscroll-contain">
             {items.map((c) => <HealthTile key={c.id} c={c} />)}
           </div>
         </div>
@@ -349,7 +349,7 @@ function AttentionStack({ watch }: { watch: WatchItem[] }) {
        * Remind survives as a row action rather than the swipe tray: on a mouse it
        * appears on hover, on a touch screen it is always visible. */}
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
-        <div className="slim-scroll scroll-fade-y max-h-[42rem] overflow-y-auto overscroll-contain">
+        <div className="slim-scroll scroll-fade-y-lg lg:max-h-[42rem] lg:overflow-y-auto lg:overscroll-contain">
           {/* ⚠️ NO column header, and no Status column — this is a board PANEL,
               not a list screen, and its twin in the command centre
               (`NeedsYou` in command-deck.tsx) shows exactly this: a code chip, the

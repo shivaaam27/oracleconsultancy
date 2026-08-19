@@ -95,7 +95,7 @@ export default async function PortalLayout({ children }: { children: React.React
     <div
       data-portal-shell
       style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
-      className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
+      className={`flex flex-col gap-3 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
     >
       {/* The desktop rail. From lg up this replaces the floating pill, which
           hides itself at the same width — the same arrangement the command
