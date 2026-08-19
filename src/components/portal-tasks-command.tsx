@@ -667,7 +667,12 @@ function TaskListHousing({ housed, children }: { housed: boolean; children: Reac
   if (!housed) return <>{children}</>;
   return (
     <div className="rounded-3xl bg-bg-subtle/40 p-1.5 ring-1 ring-border/70">
-      <div className="slim-scroll scroll-fade-y max-h-[38rem] overflow-y-auto overscroll-contain px-1.5 py-2">
+      {/* Releases on a phone, like the board columns do. A 608px box inside an
+          812px screen with overscroll-contain means a finger inside the list
+          cannot move the PAGE — you have to find the strip outside it. On a wide
+          screen the housing earns its keep: it keeps the To-Do List below in
+          sight instead of pushing it off the bottom. */}
+      <div className="slim-scroll scroll-fade-y-lg px-1.5 py-2 lg:max-h-[38rem] lg:overflow-y-auto lg:overscroll-contain">
         {children}
       </div>
     </div>
