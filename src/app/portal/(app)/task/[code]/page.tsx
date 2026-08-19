@@ -322,15 +322,22 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           Aurora’s language — Desk has no glows, and the record header the owner
           works in all day has none either, which is most of why the portal read
           as a different product. */}
-      <section className="relative overflow-hidden rounded-lg border border-border bg-bg-elev p-3.5 sm:p-4">        <div className="relative">
+      <section className="relative overflow-hidden rounded-lg border border-border bg-bg-elev p-3.5 sm:p-4">
+        <div className="relative">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={`h-2 w-2 shrink-0 rounded-full ${TONE[dotTone].bar}`} aria-hidden />
           <span className="text-xs font-semibold tabular text-fg-muted">{task.code}</span>
           {company && <span className="text-xs text-fg-subtle">· {company.name}</span>}
           <PinnedMarker task={preview} />
           <span className="grow" />
-          <Badge tone={statusTone(task.status as string)}>{task.status}</Badge>
-          <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
+          {/* ONE group, so the two badges wrap together. Loose in the flex row
+              they split when the company name was long — “In Progress” stayed on
+              the first line and “High” dropped to a line of its own on the left,
+              which reads as a mistake rather than a wrap. */}
+          <span className="flex shrink-0 items-center gap-1.5">
+            <Badge tone={statusTone(task.status as string)}>{task.status}</Badge>
+            <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
+          </span>
         </div>
         <div className="mt-2 flex items-start justify-between gap-2">
           <h1 className="min-w-0 text-lg font-semibold leading-snug">{task.action_item}</h1>
