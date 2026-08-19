@@ -1,6 +1,6 @@
 ---
 name: mobile-sweep-handover
-description: "IN PROGRESS — a page-by-page mobile sweep of the COS command centre. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated. Task Management is DONE; resume at /people."
+description: "IN PROGRESS — a page-by-page mobile sweep of the COS command centre. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated. Task Management, the Go-to launcher and /people are DONE and merged; resume at /companies."
 metadata:
   node_type: memory
   type: project
@@ -9,8 +9,14 @@ metadata:
 # Mobile sweep of the command centre — handover
 
 **Status: IN PROGRESS. Task Management — the hub Tasks tab in all five views,
-`/task/new` and `/task/[code]` — has now been swept properly, by looking.
-Resume at `/people`.**
+`/task/new` and `/task/[code]` — the Go-to launcher, and `/people` + the person
+record are swept. Resume at `/companies`.**
+
+⚠️ **19 Aug: this sweep was MERGED into the master line** (`b6f1b01`). It had spent
+a day stranded on `claude/mobile-sweep-task-management-9eb936`, which is how the
+Go-to launcher came to be broken a second time and fixed a second time, and how
+`RecordList`'s grid bug came to be fixed twice independently. **Check what branch
+your work is actually on before starting a page.**
 
 ## ▶ START HERE — the one thing to understand
 
@@ -204,6 +210,29 @@ templates as custom properties and `[data-list-grid]` in globals.css picks one p
 breakpoint. **At `lg` the template is identical to the old one, so the desktop is
 untouched** — and Documents, Assets, Vendors and Commitments all get the fix.
 
+## Round 5 (19 Aug) — the launcher again, and what the owner said about it
+
+The round-3 fix above never reached master, so the owner met the 1390px menu in an
+812px screen again. Rebuilt on the merged line, and then reshaped on his reading of
+it:
+
+- It is the kit's **`BottomSheet`** now, not a hand-rolled header/middle/footer
+  inside a Radix dialog. Same shape, one implementation, and it brings
+  drag-to-dismiss and the safe-area padding with it.
+- **Pinned and Recent are no longer chip rows.** He said it plainly: they repeat
+  pages that sit a short scroll below them. They are sections of the SAME list now
+  — pinned first, recent next, the four nav groups after — and a page promoted into
+  one is REMOVED from its group, so every destination appears exactly once.
+- **Two columns.** 23 single-file rows is two and a half phone screens; 1302px of
+  scrolling became 808px. Labels wrap rather than truncate so "Assets, Tools &
+  Vendors" survives in a half-width tile.
+- Tapping the icon again closes it, and a tap cancels the pending hover-open.
+
+⚠️ **Every `border-<colour>` utility in the app is inert** — `globals.css:187` has an
+unlayered `* { border-color: … }` and unlayered CSS beats layered utilities. Found
+while styling the launcher's tiles; recorded in `open_issues.md`. **Carry state on
+background and text, not border colour.**
+
 ## `/people` — started
 
 - **Header** now carries `data-page-header` + `data-decor` like every other page,
@@ -307,7 +336,13 @@ Left alone on purpose. Each is real and worth a decision from the owner.
 Applications, Attendance, Supplies, Cleaning, Assets & Vendors) · `/calendar` ·
 `/chat` · `/outbox` · `/brief` · `/insights` · `/settings` (its rail is the most
 likely to be cramped) · `/approvals` · `/announcements` · `/activity` · `/notes`
-and `/notes/[id]` · the whole staff portal.
+and `/notes/[id]`.
+
+**The staff portal is no longer on this list** — every page a DIRECTOR can reach was
+swept on 19 Aug; see `memory/portal.md`, "Mobile sweep — 19 Aug 2026". Still unseen
+there, because a director cannot reach them: the staff/HR home `/portal`, the manager
+`/portal/team`, `/portal/cleaning`, and a chat thread. They need a staff or manager
+login.
 
 Home · the command palette · the bottom nav pill were passed on geometry alone by
 the first attempt. **Treat them as unchecked.**
@@ -338,10 +373,11 @@ anyway.
 
 | | |
 |---|---|
-| Branch | `claude/mobile-sweep-task-management-9eb936`, **NOT pushed** |
-| Committed | The whole sweep so far — rounds 1–4 — as **`eefc420`**, on top of `ed12e82` (Notes Phases 5–8) |
+| Branch | `claude/start-server-c65256` in the `notes-phase-3-preview-0cc4c6` worktree, level with `master` before the merge. **NOT pushed** |
+| Committed | `2b0851a` the launcher rework, then **`b6f1b01`** merging `eefc420` (the whole sweep, rounds 1–4) into the master line |
+| Merge conflicts | Two, both the same bug fixed twice: `gridFor()` in `record-list.tsx` (kept the Tailwind-utility version — the `[data-list-grid]` media queries in globals.css are the route Lightning CSS silently drops, so that block was deleted rather than left looking alive) and the launcher in `top-pill.tsx` (kept the new one) |
 | Uncommitted | Nothing |
-| Checks | `tsc` clean, 23 test files / 323 tests pass |
+| Checks | `tsc` clean, 42 test files / 684 tests pass |
 | Worktree setup | Needs its own `npm install` and a copy of `.env.local` from the main repo. ⚠️ A `node_modules` JUNCTION does not work — Turbopack rejects it ("Symlink points out of the filesystem root") |
 
 ⚠️ **The owner uses the app while you work.** A note that appears mid-session is
