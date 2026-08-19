@@ -20,17 +20,21 @@ export function CompaniesHubTabs({ companiesSlot, departments, sites, roles }: {
   roles: RoleAdminRow[];
 }) {
   const [tab, setTab] = useState<Tab>("companies");
+  // Phone: four equal segments filling the width. The four labelled tabs come to
+  // ~417px, so in a 375px screen this was a sideways scroller with no affordance
+  // and Roles sat off the edge as a bare icon — the same failure the Tasks filter
+  // row and the People chips had. The icons stand down below `sm` to buy the room.
   const tabCls = (active: boolean) =>
-    cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap",
+    cn("inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 text-[12px] sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap",
       active ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60");
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex items-center gap-1 rounded-full bg-bg-subtle/70 ring-1 ring-border p-1 overflow-x-auto max-w-full">
-        <button type="button" onClick={() => setTab("companies")} className={tabCls(tab === "companies")}><Building2 size={14} /> Companies</button>
-        <button type="button" onClick={() => setTab("departments")} className={tabCls(tab === "departments")}><Boxes size={14} /> Departments</button>
-        <button type="button" onClick={() => setTab("sites")} className={tabCls(tab === "sites")}><MapPin size={14} /> Sites</button>
-        <button type="button" onClick={() => setTab("roles")} className={tabCls(tab === "roles")}><BadgeCheck size={14} /> Roles</button>
+      <div className="flex w-full sm:inline-flex sm:w-auto items-center gap-1 rounded-full bg-bg-subtle/70 ring-1 ring-border p-1 sm:overflow-x-auto sm:max-w-full">
+        <button type="button" onClick={() => setTab("companies")} className={tabCls(tab === "companies")}><Building2 size={14} className="hidden sm:block" /> Companies</button>
+        <button type="button" onClick={() => setTab("departments")} className={tabCls(tab === "departments")}><Boxes size={14} className="hidden sm:block" /> Departments</button>
+        <button type="button" onClick={() => setTab("sites")} className={tabCls(tab === "sites")}><MapPin size={14} className="hidden sm:block" /> Sites</button>
+        <button type="button" onClick={() => setTab("roles")} className={tabCls(tab === "roles")}><BadgeCheck size={14} className="hidden sm:block" /> Roles</button>
       </div>
 
       {tab === "companies" && companiesSlot}
