@@ -170,8 +170,11 @@ const buttonStyles = {
  * different in height — which is why a row of dropdowns never quite lined up.
  * Everything uses THIS now: a real border, 6px (the Desk control radius), h-9.
  */
+/** The one control box: 32px tall, hairline border. It was 36 (h-9), which is
+ *  a comfortable size on its own and a bulky one in a column of settings — the
+ *  manage panel had 36px dates and companies beside 32px selects. */
 export const CONTROL_SHELL =
-  "h-9 rounded-md border border-border bg-bg-elev hover:border-border-strong transition-colors";
+  "h-8 rounded-md border border-border bg-bg-elev hover:border-border-strong transition-colors";
 
 /**
  * An initials avatar — ONE definition, because there were five.

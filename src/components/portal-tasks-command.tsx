@@ -1039,7 +1039,7 @@ function TaskRow({
             bottom so the text above stays clean. Roomy rectangular pills: 2×2 on a
             phone, inline on the web. */}
         <div className="grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:flex sm:flex-wrap">
-          <Link href={`/portal/task/${t.code}`} className={cn(fieldShell, "inline-flex w-full items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium text-accent transition-colors hover:bg-bg-muted sm:w-[136px]")}>
+          <Link href={`/portal/task/${t.code}`} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12.5px] text-fg-muted transition-colors hover:text-fg sm:w-auto">
             Open <ExternalLink size={13} />
           </Link>
           {canEdit ? (
@@ -1740,12 +1740,15 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
   const changeCategory = (v: string) => { if ((v || null) !== t.category) save({ category: v }, v ? `Category → ${v}` : "Category cleared"); };
   const toggleEscalate = () => save({ escalation: t.escalated ? "No" : "Yes" }, t.escalated ? "De-escalated" : "Escalated");
   return (
-    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-      <span className="col-span-2 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle sm:col-span-1">
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      {/* Sentence case, like "Priority & due" and "Companies" beside it. It was
+          the only SHOUTING label in the panel. */}
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-fg-muted">
         <Tag size={12} /> Classify
       </span>
-      <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="w-full sm:w-[150px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
-      <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="w-full sm:w-[130px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+      <span className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+      <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="min-w-[7.5rem] flex-1 sm:w-[136px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-[12.5px]" />
+      <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="min-w-[7.5rem] flex-1 sm:w-[120px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-[12.5px]" />
       {/* Escalate is meaningless on a finished task — hide it once done. */}
       {!t.isDone && (
         <button
@@ -1764,6 +1767,7 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
           {t.escalated ? "Escalated" : "Escalate"}
         </button>
       )}
+      </span>
     </div>
   );
 }

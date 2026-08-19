@@ -279,6 +279,10 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // "blocked" (red) / "in progress" (blue) at a glance. The aurora wash behind
   // the header went with the flattening — the dot carries it now.
   const headerSt = statusTone(task.status as string);
+  // The due date is the one fact on this header that changes colour — overdue is
+  // red, due soon amber — exactly as it reads in the list you came from.
+  const overdueNow = task.deadline ? new Date(task.deadline as string) < new Date() : false;
+  const dueTone = overdueNow ? "font-medium text-danger" : "text-fg-muted";
   const dotTone: keyof typeof TONE = headerSt === "default" ? "muted" : headerSt;
   // Completing/closing is not a plain status move anymore — it goes through the
   // secure gate (the "Complete" action), which requires a note + any proof. So
@@ -329,7 +333,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
         </div>
         <div className="mt-2 flex items-start justify-between gap-2">
-          <h1 className="text-lg font-semibold leading-snug">{task.action_item}</h1>
+          <h1 className="min-w-0 text-lg font-semibold leading-snug">{task.action_item}</h1>
           {canEdit && (
             <PortalTaskEdit
               taskId={task.id as number}
@@ -340,32 +344,40 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           )}
         </div>
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-fg-muted">
-          {assignedByName && <span className="text-fg-subtle">Assigned by {assignedByName}</span>}
+        {/* Two tiers, not three ragged lines.
+
+            This was the due date, who raised it and every person on it all in
+            one wrapping row, each name broken apart by a staff-ID chip — a
+            jumble of different kinds of fact with nothing to separate them.
+            Dates and provenance first, the people underneath.
+
+            The staff-ID chips are gone: they are an HR code, they belong on the
+            person record, and here they cost a line break per name. */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {task.deadline && (
+            <span className={dueTone}>
+              <CalendarDays size={12} className="mr-1 inline -mt-px" />
+              Due {new Date(task.deadline as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+            </span>
+          )}
+          {assignedByName && <span className="text-fg-subtle">Raised by {assignedByName}</span>}
           {srcMeeting && (
             <span className="inline-flex items-center gap-1 text-fg-subtle">
               <MessageSquare size={12} /> From {srcMeeting.kind === "note" ? "note" : "meeting"}: {srcMeeting.title}
             </span>
           )}
-          {task.deadline && (
-            <span>
-              <CalendarDays size={12} className="mr-1 inline -mt-px" />
-              Due {new Date(task.deadline as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-            </span>
-          )}
-          {team.length > 0 && (
-            <span className="inline-flex flex-wrap items-center gap-1.5">
-              <Users size={12} />
-              {team.map((p) => (
-                <span key={p.id} className="inline-flex items-center gap-1">
-                  {p.accountable && <Crown size={11} className="text-warn" />}
-                  {p.id === me.id ? "You" : p.name}
-                  <StaffIdChip id={staffIds.get(p.id)} />
-                </span>
-              ))}
-            </span>
-          )}
         </div>
+        {team.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-fg-muted">
+            <Users size={12} className="shrink-0 text-fg-subtle" />
+            {team.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1">
+                {p.accountable && <Crown size={11} className="shrink-0 text-warn" />}
+                <span className={p.accountable ? "font-medium text-fg" : ""}>{p.id === me.id ? "You" : p.name}</span>
+              </span>
+            ))}
+          </div>
+        )}
         {task.comments && (
           <p className="mt-3 text-sm text-fg-muted whitespace-pre-wrap">{task.comments}</p>
         )}

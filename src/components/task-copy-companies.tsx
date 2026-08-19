@@ -96,7 +96,7 @@ export function TaskCopyToCompanies({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-3 py-2 text-[12px] transition-colors hover:bg-bg-muted")}
+        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-2.5 text-[12.5px] transition-colors hover:bg-bg-muted")}
       >
         <span className="flex min-w-0 items-center gap-2">
           <Building2 size={14} className="shrink-0 text-fg-muted" />
