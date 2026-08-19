@@ -10,6 +10,15 @@ metadata:
 
 ## Product Gaps
 
+- **⚠️ Every `border-<colour>` utility in the app is inert.** `src/app/globals.css:187`
+  has an UNLAYERED `* { border-color: hsl(var(--border)); }`, and unlayered CSS beats
+  every layered Tailwind utility — so `border-accent/30`, `border-transparent`,
+  `hover:border-accent` and friends all render as the same grey hairline, everywhere,
+  silently. Verified in the live preview Aug 2026 (a fresh `div.border.border-accent`
+  computes to `rgb(226,230,233)`). **Carry state with background/text, not border
+  colour.** Do NOT "fix" it by wrapping the rule in `@layer base` without looking:
+  dozens of dormant border classes across the app would light up at once.
+
 - **No real server-side dispatch.** Outbox now creates persisted drafts and sends via channel **deep-links** (`wa.me`/`mailto:`/`sms:`) + manual "Mark sent". A real provider integration is still future (Phase 5c).
 - **iPhone liquid lens has no live-backdrop refraction.** WebKit can't apply SVG filters as `backdrop-filter`, so on iOS the nav lens is frosted glass + chromatic morphing border (no pixel-bending of the live content). True refraction works on desktop Chromium. See `liquid_lens.md`. Don't re-add an in-lens icon/clone to "fix" this — it caused doubling.
 - **Company detail page 404s in the local dev DB.** `/companies/[id]` calls `notFound()` when no row matches; the local dev data lacks those ids, so it 404s in preview (not a code bug). Test company-page actions against real data.

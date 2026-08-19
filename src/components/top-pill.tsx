@@ -4,9 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence, useReducedMotion } from "framer-motion";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Home, LayoutGrid, Search, X, ChevronLeft,
+  Home, LayoutGrid, Search, ChevronLeft, Pin, Clock,
   Plus, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -20,6 +19,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { FocusToggle } from "./focus-mode";
 import { NotificationBell } from "./notification-bell";
 import { useRegisteredActions } from "./context-actions";
+import { BottomSheet } from "./bottom-sheet";
 
 /* --------------------------------------------------------------------- */
 
@@ -114,23 +114,52 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> =
     icon: r.icon,
   }));
 
-/** A compact chip row (Pinned / Recent) above the grouped list. */
-function QuickRow({ label, routes, onGo }: { label: string; routes: NavRoute[]; onGo: (href: string) => void }) {
+/** One block of the launcher — a headed two-column grid of destinations.
+ *  Every section renders identically (Pinned, Recent and the four nav groups),
+ *  so the sheet reads as one map of the product rather than a chip strip plus a
+ *  separate list saying the same thing twice. Two columns because a single
+ *  column of 23 rows is two and a half phone screens of scrolling. */
+function LauncherSection({
+  label, icon: Head, routes, pathname, onGo,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  routes: NavRoute[];
+  pathname: string;
+  onGo: (href: string) => void;
+}) {
   return (
     <div>
-      <div className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex items-center gap-1.5 px-0.5 pb-1.5">
+        {Head && <Head size={11} className="text-fg-subtle" />}
+        <span className="text-[10px] font-medium uppercase tracking-wider text-fg-muted">{label}</span>
+        <span className="ml-1 h-px flex-1 bg-border/70" aria-hidden />
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
         {routes.map((r) => {
           const Icon = r.icon;
+          const base = r.href.split("?")[0];
+          const isActive = base !== "/" && (pathname === base || pathname.startsWith(base + "/"));
           return (
             <button
               key={r.id}
               type="button"
               onClick={() => onGo(r.href)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-2.5 py-1.5 text-[11px] font-medium text-fg transition-all hover:border-accent/30 hover:bg-accent-soft active:scale-[0.97]"
+              className={cn(
+                // NB: border COLOUR utilities are inert app-wide — the unlayered
+                // `* { border-color: hsl(var(--border)) }` in globals.css beats
+                // every layered Tailwind border-* class. So state is carried by
+                // background and text, and every tile keeps the same hairline.
+                "flex min-h-[46px] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors active:scale-[0.98]",
+                isActive
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-elev/40 text-fg hover:bg-bg-muted"
+              )}
             >
-              <Icon size={13} className="text-accent" />
-              {r.label}
+              <Icon size={16} className={cn("shrink-0", !isActive && "text-fg-muted")} />
+              {/* Labels wrap rather than truncate — "Assets, Tools & Vendors"
+                  must stay readable in a half-width tile. */}
+              <span className="text-[13px] font-medium leading-tight">{r.label}</span>
             </button>
           );
         })}
@@ -144,21 +173,18 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
   const pathname = usePathname() || "/";
   const [open, setOpen] = useState(false);
   const [recents, setRecents] = useState<string[]>([]);
-  // When a world tile is tapped we drill into its page list in-place (mobile path:
-  // pill → world → page, two taps), instead of navigating to the /world screen.
-  const [drill, setDrill] = useState<string | null>(null);
   const { pins } = usePins();
   const navVisibility = useNavVisibility();
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function clearHover() { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } }
   function go(href: string) { setOpen(false); router.push(href); }
+  function toggle() { clearHover(); setOpen((o) => !o); }
   function onMouseEnter() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    clearHover();
     hoverTimer.current = setTimeout(() => setOpen(true), 160);
   }
-  function onMouseLeave() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-  }
+  function onMouseLeave() { clearHover(); }
 
   // Load recents when the sheet opens, so your last places are one tap.
   useEffect(() => {
@@ -173,114 +199,87 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
 
   // Hidden routes (e.g. Tax & Legal when paused) drop out of every launcher list.
   const shown = (r: NavRoute | undefined): r is NavRoute => !!r && !isHiddenNavHref(r.href, navVisibility);
-  const pinRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(shown);
   const pinnedIds = new Set(pins);
+  const pinRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(shown);
   const recentRoutes = recents
     .map((id) => ROUTE_BY_ID[id])
     .filter((r) => shown(r) && !pinnedIds.has(r.id))
-    .slice(0, 5);
+    .slice(0, 4);
+
+  // One destination appears ONCE. Pinned leads, recent follows, and whatever is
+  // left keeps its usual group — otherwise the top of the sheet is just a second
+  // copy of the rows a short scroll below it.
+  const promoted = new Set([...pinRoutes, ...recentRoutes].map((r) => r.id));
+  const sections: Array<{ label: string; icon?: LucideIcon; routes: NavRoute[] }> = [
+    ...(pinRoutes.length ? [{ label: "Pinned", icon: Pin, routes: pinRoutes }] : []),
+    ...(recentRoutes.length ? [{ label: "Recent", icon: Clock, routes: recentRoutes }] : []),
+    ...navGroups()
+      .map((g) => ({
+        label: g.label,
+        routes: g.items.filter((r) => !isHiddenNavHref(r.href, navVisibility) && !promoted.has(r.id)),
+      }))
+      .filter((g) => g.routes.length > 0),
+  ];
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          type="button"
-          aria-label="Go to"
-          title="Go to"
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
-          className={cn(
-            "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
-            active || open ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60 w-11 md:w-12"
-          )}
-        >
-          {(active || open) && (
-            reduce ? (
-              <span className="absolute inset-0 rounded-full bg-accent-soft" />
-            ) : (
-              <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
-            )
-          )}
-          <LayoutGrid size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
-          {(active || open) && (
-            <span className="relative text-[13px] font-medium whitespace-nowrap">Go to</span>
-          )}
-        </button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm
-          data-[state=open]:animate-in data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[61] w-[min(420px,calc(100vw-2rem))]
-          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-pill outline-none
-          data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
-          <div className="flex items-center gap-1.5 mb-3 px-1">
-            <Dialog.Title className="text-sm font-semibold">Go to</Dialog.Title>
-            <Dialog.Close asChild>
-              <button type="button" aria-label="Close" className="ml-auto h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
-                <X size={15} />
-              </button>
-            </Dialog.Close>
-          </div>
+    <>
+      <button
+        type="button"
+        aria-label="Go to"
+        title="Go to"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onClick={toggle}
+        className={cn(
+          "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
+          active || open ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60 w-11 md:w-12"
+        )}
+      >
+        {(active || open) && (
+          reduce ? (
+            <span className="absolute inset-0 rounded-full bg-accent-soft" />
+          ) : (
+            <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
+          )
+        )}
+        <LayoutGrid size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+        {(active || open) && (
+          <span className="relative text-[13px] font-medium whitespace-nowrap">Go to</span>
+        )}
+      </button>
 
-          {(pinRoutes.length > 0 || recentRoutes.length > 0) && (
-            <div className="mb-3 space-y-2.5">
-              {pinRoutes.length > 0 && <QuickRow label="Pinned" routes={pinRoutes} onGo={go} />}
-              {recentRoutes.length > 0 && <QuickRow label="Recent" routes={recentRoutes} onGo={go} />}
-            </div>
-          )}
-
-          {/* The SAME groups the desktop sidebar shows (lib/nav.ts). This used to
-              be a grid of seven colour-coded "Worlds" that you tapped to drill
-              into — a second map of the product that never matched the sidebar's,
-              which is how Chat and the Director Brief ended up missing from one of
-              them. One map now, and one tap instead of two. */}
-          <div className="space-y-3">
-            {navGroups().map((g) => {
-              const items = g.items.filter((r) => !isHiddenNavHref(r.href, navVisibility));
-              if (items.length === 0) return null;
-              return (
-                <div key={g.label}>
-                  <div className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">{g.label}</div>
-                  <div className="space-y-0.5">
-                    {items.map((r) => {
-                      const Icon = r.icon;
-                      const base = r.href.split("?")[0];
-                      const isActive = base !== "/" && (pathname === base || pathname.startsWith(base + "/"));
-                      return (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => go(r.href)}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-3 h-11 rounded-xl text-sm text-left transition-colors active:scale-[0.98]",
-                            isActive ? "bg-accent-soft text-accent" : "text-fg hover:bg-bg-muted/60"
-                          )}
-                        >
-                          <Icon size={17} className={cn("shrink-0", !isActive && "text-fg-muted")} />
-                          <span className="truncate font-medium">{r.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Preferences — appearance + comfort controls, consolidated here so
-              the nav pill stays minimal (especially on mobile). */}
-          <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
-            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
+      {/* The launcher is the whole map of the product — two dozen destinations —
+          so it MUST be a scrolling sheet, not a centred card. As a plain centred
+          dialog it stood 1390px tall on a 375x812 phone: 289px hung off the top
+          and 289px off the bottom with nothing to scroll, so Approvals and
+          Settings (the first and last rows) simply could not be reached.
+          BottomSheet is the kit piece for this: capped height, scrolling body,
+          sticky footer, drag-to-dismiss, safe-area padded, centred from sm up. */}
+      <BottomSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Go to"
+        icon={<LayoutGrid size={16} />}
+        maxWidth="max-w-md"
+        footer={
+          <div className="flex items-center gap-1">
+            <span className="px-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
             <div className="ml-auto flex items-center gap-0.5">
               <ThemeToggle />
               <FocusToggle withLabel />
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        }
+      >
+        <div className="space-y-3.5">
+          {sections.map((s) => (
+            <LauncherSection key={s.label} label={s.label} icon={s.icon} routes={s.routes} pathname={pathname} onGo={go} />
+          ))}
+        </div>
+      </BottomSheet>
+    </>
   );
 }
 
