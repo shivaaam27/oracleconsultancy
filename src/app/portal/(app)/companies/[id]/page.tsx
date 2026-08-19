@@ -6,7 +6,7 @@ import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
-import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
+import { HeroMetrics, Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
@@ -84,16 +84,19 @@ export default async function PortalCompanyPage({
         <Hero
           title={
             <span className="flex items-center gap-2.5">
-              <CompanyAvatar name={company.name} logoUrl={logoUrl} size={36} rounded="rounded-xl" iconSize={20} />
+              <CompanyAvatar name={company.name} logoUrl={logoUrl} size={28} rounded="rounded-md" iconSize={16} />
               {company.name}
             </span>
           }
+          subtitle="Its people, its open work and its papers."
         >
-          <div className="grid grid-cols-3 gap-2.5">
-            <Stat label="Headcount" value={headcount} />
-            <Stat label="Open tasks" value={open.length} />
-            <Stat label="Overdue" value={overdue} tone="danger" />
-          </div>
+          <HeroMetrics
+            items={[
+              { label: "headcount", value: headcount },
+              { label: "open tasks", value: open.length },
+              { label: "overdue", value: overdue, tone: "danger" },
+            ]}
+          />
         </Hero>
       </Reveal>
 
@@ -106,14 +109,14 @@ export default async function PortalCompanyPage({
           {open.length === 0 ? (
             <p className="mt-3 text-sm text-fg-muted">No open tasks for this company.</p>
           ) : (
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-2 divide-y divide-border">
               {open.slice(0, 20).map((t) => {
                 const od = t.flag === "overdue" || t.flag === "escalate-now";
                 return (
                   <li key={t.id}>
                     <Link
                       href={`/portal/task/${t.code}`}
-                      className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-3 py-2 ring-1 ring-border/40 transition-all hover:ring-accent/30"
+                      className="group flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-bg-subtle"
                     >
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${od ? "bg-danger" : "bg-accent/70"}`} />
                       <span className="min-w-0 flex-1 truncate text-sm group-hover:text-accent">{t.actionItem}</span>

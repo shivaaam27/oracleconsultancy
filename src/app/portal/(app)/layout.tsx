@@ -10,7 +10,6 @@ import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalCommand, PortalCommandTrigger } from "@/components/portal-command";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
-import { PortalZoom } from "@/components/portal-zoom";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
@@ -138,8 +137,6 @@ export default async function PortalLayout({ children }: { children: React.React
         </div>
         <PortalSignOut />
       </header>
-      {/* Web-only 0.8 zoom for the whole portal (desktop; mobile/PWA stay 100%). */}
-      <PortalZoom />
       {/* Cache a durable remember token so an installed PWA survives app-kill. */}
       <PortalSessionKeeper />
       <PortalInstallPrompt />

@@ -216,9 +216,21 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { letter-spacing: -0.015em; text-wrap: balance; }
+/* ⚠️ .truncate is EXCLUDED from these.
+
+   `text-wrap: pretty` also sets text-wrap-MODE: wrap, and these element rules are
+   UNLAYERED — so they beat Tailwind’s layered `.truncate` no matter its
+   specificity, and every <p class="truncate"> in the app quietly wrapped instead
+   of ellipsing. Verified: `truncate` on a <div> computed white-space: nowrap, on
+   a <p> it computed normal. It is why a document filename ran to three lines.
+
+   Excluding .truncate is the fix that survives the build: setting the
+   text-wrap-STYLE longhand instead was folded back into the shorthand by
+   Lightning CSS and changed nothing. */
+h1, h2, h3 { letter-spacing: -0.015em; }
+h1:not(.truncate), h2:not(.truncate), h3:not(.truncate) { text-wrap: balance; }
 /* Avoid ugly single-word last lines in running text (modern browsers). */
-p { text-wrap: pretty; }
+p:not(.truncate) { text-wrap: pretty; }
 
 .tabular { font-variant-numeric: tabular-nums; }
 
@@ -670,18 +682,14 @@ input:disabled, select:disabled, textarea:disabled {
   }
 }
 
-/* ---------- Portal web zoom ----------
-   Every staff-portal page renders at 0.8 on the web so it doesn't feel huge on
-   large monitors (matches the owner's "80% zoom" preference). Desktop-only —
-   phones and the installed PWA (display-mode: standalone) keep 100%, where the
-   layout is already sized for touch. The `data-portal-zoom` marker is set by
-   <PortalZoom> only while a portal page is mounted (admin side untouched). */
-@media (min-width: 768px) {
-  html[data-portal-zoom] { zoom: 0.8; }
-}
-@media (display-mode: standalone) {
-  html[data-portal-zoom] { zoom: 1; }
-}
+/* ---------- Portal web zoom: REMOVED ----------
+   The portal used to render at `zoom: 0.8` on the web, from a time when it was
+   a roomy touch-first layout that felt huge on a monitor. Desk is dense already
+   — 13px body, 32px controls — so shrinking it another fifth just made it small,
+   and it did not match the command centre sitting at 100% next to it.
+
+   `lib/zoom.ts` stays: rootZoom() now returns 1 everywhere, so every measurement
+   that divides by it is the identity, and nothing has to be unpicked. */
 
 /* Density lives in one place now — see "Density" at the foot of this file.
    (The old block here also forced `.card .text-sm` to 13px, which fought the
