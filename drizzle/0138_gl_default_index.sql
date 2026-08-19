@@ -1,0 +1,2 @@
+DROP INDEX "gl_accounts_default_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "gl_accounts_default_unique" ON "gl_accounts" USING btree ("company_id","default_for") WHERE "default_for" is not null;

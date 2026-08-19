@@ -40,7 +40,7 @@ export const dynamic = "force-dynamic";
 // show. Order here = rail order. `cards` lets a deep link to #card-id open the
 // group that holds it.
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "location", "swipe", "navigation"] },
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "ledger", "location", "swipe", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
@@ -146,7 +146,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── General ───────────────────────── */}
         <section data-group="general" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="operatorName,dueSoonDays,stalledDays,agingDays,weatherCity,weatherLat,weatherLon,swipeRightAction,swipeLeftAction" />
+            <input type="hidden" name="__keys" value="operatorName,dueSoonDays,stalledDays,agingDays,weatherCity,weatherLat,weatherLon,swipeRightAction,swipeLeftAction,ledgerFyStartMonth" />
             <input type="hidden" name="__section" value="general" />
 
             <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="How ORI greets you." keywords="name operator greeting">
@@ -170,6 +170,28 @@ export default async function SettingsPage({
                   <FieldLabel>Aging — open over (days)</FieldLabel>
                   <Input name="agingDays" type="number" min={0} defaultValue={s.agingDays} />
                 </div>
+              </div>
+            </SettingsCard>
+
+            <SettingsCard id="ledger" icon={<Scale size={15} />} title="Financial year" desc="When the books start their year. Drives the balance sheet." keywords="ledger accounts financial year fiscal year end balance sheet accounting period">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <FieldLabel>The financial year starts in</FieldLabel>
+                  <Select name="ledgerFyStartMonth" defaultValue={String(s.ledgerFyStartMonth)} className="w-full">
+                    {["January", "February", "March", "April", "May", "June", "July",
+                      "August", "September", "October", "November", "December"].map((m, i) => (
+                      <option key={m} value={String(i + 1)}>{m}</option>
+                    ))}
+                  </Select>
+                </div>
+                <p className="text-[12px] text-fg-muted sm:pt-5">
+                  {/* ⚠️ Not cosmetic. The balance sheet works out the profit earned since this
+                      month and adds it into equity — that is what makes the two sides agree.
+                      A wrong month puts a whole run of trading in the wrong year. */}
+                  The balance sheet adds everything earned since this month into equity, which is what
+                  makes it balance. If this is wrong, the balance sheet is wrong by whatever was earned
+                  in the months put on the wrong side of it &mdash; so check it with whoever files the returns.
+                </p>
               </div>
             </SettingsCard>
 

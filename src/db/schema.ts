@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, foreignKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
@@ -2997,4 +2998,253 @@ export const opsTenders = pgTable("ops_tenders", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("ops_tenders_company_idx").on(t.companyId, t.archived, t.deadline),
+]);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE GENERAL LEDGER — the spine (ERP Phase 1).
+//
+// COS was an operations tracker that worked every figure out by scanning
+// documents. That is why nothing in it could go stale, and also why it could say
+// what was left to bill on a PO but not what a company earned last quarter.
+// The owner's decision (Aug 2026): **COS becomes the accounting system.**
+//
+// Read `memory/erp_gap_plan.md` before touching any of this. Five rules run
+// through every line below and they are not negotiable:
+//
+//   1. **Every voucher balances.** Debits equal credits, checked BEFORE it is
+//      written and refused otherwise. `checkVoucher()` in `ledger-shared.ts`.
+//   2. **A posted entry is NEVER edited or deleted.** To change it you post a
+//      reversal — which is COS's never-delete habit and the accounting rule
+//      agreeing with each other. `gl_entries` therefore has no `archived`
+//      column and no update path anywhere in the codebase.
+//   3. **Balances are DERIVED, never stored.** The entries are the stored fact;
+//      a balance, a trial balance and a P&L are all worked out on read.
+//      ⚠️ DO NOT ADD A `balance` COLUMN. Not to an account, not anywhere.
+//   4. **Base currency is TZS and the rate is frozen on the entry**, like every
+//      other rate in this system.
+//   5. **Posting is explicit and reversible.** A document is not silently in
+//      the books; somebody posts it, and un-posting writes a reversal.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHART OF ACCOUNTS — a tree, one per company.
+//
+// ⚠️ ONE CHART PER COMPANY, ALL SEEDED FROM ONE TEMPLATE. The plan flagged
+// "shared chart or one each?" as an open question. This answers it in the way
+// that does not need answering: every company gets its own rows (so the books
+// can genuinely diverge, and one company's account can never be edited from
+// another's screen), but they are all seeded from the SAME numbers in
+// `ledger-coa-template.ts` — so consolidating thirteen companies is a group-by
+// on `number`. Both answers, and no migration needed to change your mind.
+// ─────────────────────────────────────────────────────────────────────────────
+export const glAccounts = pgTable("gl_accounts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /** "1100". Sorts the tree and matches the same account across companies. */
+  number: text("number").notNull(),
+  name: text("name").notNull(),
+  /** Null at the top. ⚠️ `restrict`: a parent with children cannot be removed. */
+  parentId: integer("parent_id").references((): AnyPgColumn => glAccounts.id, { onDelete: "restrict" }),
+
+  /** Asset | Liability | Income | Expense | Equity. Decides which side is the
+   *  natural balance, and whether the account lands on the balance sheet or the
+   *  P&L. See `ROOT_TYPES` in `ledger-shared.ts`. */
+  rootType: text("root_type").notNull(),
+  /** Bank | Cash | Receivable | Payable | Tax | Stock | Fixed Asset | … — the
+   *  narrower kind, which is what tells the posting engine how to behave.
+   *  Optional: a plain expense account needs no type. */
+  accountType: text("account_type"),
+
+  /** A group account is a heading: it holds children and TAKES NO POSTINGS.
+   *  ⚠️ Enforced in `checkVoucher()`, not just in the UI. */
+  isGroup: boolean("is_group").notNull().default(false),
+
+  /** The account's own currency, when it is not TZS — a USD bank account, say.
+   *  Null means base currency. Entries still store TZS as the fact (rule 4). */
+  currency: text("currency"),
+
+  /** How the posting engine FINDS an account without being told: "receivable",
+   *  "payable", "bank", "cash", "vat_output", "vat_input", "wht", "round_off",
+   *  "retained_earnings", "exchange_gain_loss", "opening_balance_equity".
+   *  ⚠️ Unique per company — there is exactly one debtors account. */
+  defaultFor: text("default_for"),
+
+  notes: text("notes"),
+  /** An account with entries can never be deleted, only archived — and even
+   *  then its entries stay and still count. Archiving stops NEW postings. */
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("gl_accounts_number_unique").on(t.companyId, t.number),
+  // ⚠️ Partial: most accounts have no default role, and exactly one account has
+  // each role. Postgres allows any number of NULLs under a plain unique index,
+  // but being explicit here documents the intent.
+  uniqueIndex("gl_accounts_default_unique").on(t.companyId, t.defaultFor)
+    .where(sql`"default_for" is not null`),
+  index("gl_accounts_company_idx").on(t.companyId, t.archived, t.number),
+  index("gl_accounts_parent_idx").on(t.parentId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GL ENTRIES — the books. APPEND-ONLY.
+//
+// One row is one side of one posting: an account, a debit OR a credit, and the
+// document that caused it. This table is the stored fact of the whole
+// accounting system, and everything else — trial balance, P&L, balance sheet,
+// a customer statement — is arithmetic over it.
+//
+// ⚠️ NOTHING IN THE CODEBASE MAY UPDATE OR DELETE A ROW HERE. There is no
+// `archived` column on purpose, so there is nothing to flip. A mistake is
+// corrected by posting a reversal (`is_reversal` + `reverses_id`), which leaves
+// the wrong entry visible and the net effect nil — which is what an auditor
+// wants to see, and what COS does everywhere else.
+//
+// ⚠️ `debit` and `credit` are ALWAYS in TZS, the base currency. The original
+// foreign amount and the rate frozen at the moment of posting sit beside them
+// in `debit_fx`/`credit_fx`/`currency`/`ex_rate`, so the entry can always be
+// read back in the money it was actually written in.
+// ─────────────────────────────────────────────────────────────────────────────
+export const glEntries = pgTable("gl_entries", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+  postingDate: timestamp("posting_date", { mode: "date", withTimezone: true }).notNull(),
+  accountId: integer("account_id").notNull().references(() => glAccounts.id, { onDelete: "restrict" }),
+
+  /** ⚠️ TZS. One of the two is zero — never both non-zero, never both zero. */
+  debit: numeric("debit", { precision: 18, scale: 2 }).notNull().default("0"),
+  credit: numeric("credit", { precision: 18, scale: 2 }).notNull().default("0"),
+
+  /** The money it was actually written in, and the rate frozen at posting. */
+  currency: text("currency"),
+  exRate: numeric("ex_rate", { precision: 18, scale: 6 }),
+  debitFx: numeric("debit_fx", { precision: 18, scale: 2 }),
+  creditFx: numeric("credit_fx", { precision: 18, scale: 2 }),
+
+  /** Who it is against. ⚠️ Free text for now, exactly like the rest of ops —
+   *  Phase 7 promotes customers and suppliers to real records and this becomes
+   *  a foreign key. Until then a statement is grouped by name. */
+  partyType: text("party_type"),
+  party: text("party"),
+
+  /** Where it belongs. `cost_centre` is free text as it is on an order line. */
+  costCentre: text("cost_centre"),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "set null" }),
+
+  /** What made this entry: "Journal Entry", "Sales Invoice", "Payment", … and
+   *  the row it came from. ⚠️ Deliberately NOT a foreign key — it points at a
+   *  different table depending on the type, which is exactly how ERPNext's own
+   *  GL Entry does it. */
+  voucherType: text("voucher_type").notNull(),
+  voucherId: integer("voucher_id").notNull(),
+  /** What a person would call it — "JV-0007", an invoice number. For reading. */
+  voucherNo: text("voucher_no"),
+  /** The ordinal of this line within its voucher. Part of the unique index that
+   *  makes double-posting impossible at the database level. */
+  lineNo: integer("line_no").notNull().default(0),
+
+  remarks: text("remarks"),
+
+  /** True on the mirror entries written when a voucher is un-posted. */
+  isReversal: boolean("is_reversal").notNull().default(false),
+  /** The exact entry this one cancels. Null on an ordinary posting. */
+  reversesId: integer("reverses_id").references((): AnyPgColumn => glEntries.id, { onDelete: "restrict" }),
+
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // ⚠️ THE DOUBLE-POST GUARD. Posting the same voucher twice is the classic way
+  // to wreck a ledger — two clicks on Post, or a request the browser retried.
+  // The engine checks for existing entries first, but a check-then-write races;
+  // this index means the database itself refuses the second write.
+  uniqueIndex("gl_entries_voucher_line_unique")
+    .on(t.companyId, t.voucherType, t.voucherId, t.lineNo, t.isReversal),
+  index("gl_entries_company_date_idx").on(t.companyId, t.postingDate),
+  index("gl_entries_account_idx").on(t.accountId, t.postingDate),
+  index("gl_entries_voucher_idx").on(t.companyId, t.voucherType, t.voucherId),
+  index("gl_entries_party_idx").on(t.companyId, t.partyType, t.party),
+  index("gl_entries_project_idx").on(t.projectId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JOURNAL ENTRIES — the manual voucher, so anything can be corrected.
+//
+// A journal entry is a draft you can edit freely, and then post. Once posted it
+// is frozen: the only thing you may do to it is reverse it, which creates a
+// SECOND journal entry with the sides swapped and `reversal_of_id` pointing
+// back at the first. Neither is ever deleted.
+//
+// ⚠️ `status` is Draft | Posted | Reversed. "Reversed" means a reversal exists
+// — the entry itself stays exactly as it was posted.
+// ─────────────────────────────────────────────────────────────────────────────
+export const journalEntries = pgTable("journal_entries", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+  /** "JV-0007", allocated per company when the draft is created. */
+  entryNo: text("entry_no").notNull(),
+  postingDate: timestamp("posting_date", { mode: "date", withTimezone: true }).notNull(),
+
+  title: text("title"),
+  narration: text("narration"),
+
+  /** Manual | Opening | Reversal — what sort of correction this is. "Opening"
+   *  is the one Phase 6 will use for opening balances. */
+  kind: text("kind").notNull().default("Manual"),
+  /** Draft | Posted | Reversed. */
+  status: text("status").notNull().default("Draft"),
+
+  /** The entry's own currency and the rate that will be frozen onto every line
+   *  when it posts. Null or TZS means base currency. */
+  currency: text("currency"),
+  exRate: numeric("ex_rate", { precision: 18, scale: 6 }),
+
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  postedBy: text("posted_by"),
+  /** Set on the REVERSAL, pointing at the entry it undoes.
+   *  ⚠️ There is no `reversed_by_id` on purpose — that is derived by looking
+   *  for the entry whose `reversal_of_id` is this one (rule 3). */
+  reversalOfId: integer("reversal_of_id").references((): AnyPgColumn => journalEntries.id, { onDelete: "restrict" }),
+
+  /** ⚠️ Drafts only. A posted entry can never be archived — reverse it. */
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("journal_entries_no_unique").on(t.companyId, t.entryNo),
+  index("journal_entries_company_idx").on(t.companyId, t.status, t.postingDate),
+  index("journal_entries_reversal_idx").on(t.reversalOfId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JOURNAL ENTRY LINES — one debit or one credit each.
+//
+// ⚠️ `cascade` on delete, unlike everything else here: a line belongs to its
+// draft and has no meaning without it. Deleting the DRAFT is allowed; deleting
+// a POSTED entry is refused in code, so cascade can never reach the books.
+//
+// ⚠️ Amounts here are in the ENTRY's currency. The TZS the ledger records is
+// computed at the moment of posting and frozen into `gl_entries` — this table
+// is the working paper, `gl_entries` is the book.
+// ─────────────────────────────────────────────────────────────────────────────
+export const journalEntryLines = pgTable("journal_entry_lines", {
+  id: serial("id").primaryKey(),
+  entryId: integer("entry_id").notNull().references(() => journalEntries.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => glAccounts.id, { onDelete: "restrict" }),
+
+  debit: numeric("debit", { precision: 18, scale: 2 }).notNull().default("0"),
+  credit: numeric("credit", { precision: 18, scale: 2 }).notNull().default("0"),
+
+  partyType: text("party_type"),
+  party: text("party"),
+  costCentre: text("cost_centre"),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "set null" }),
+  remarks: text("remarks"),
+
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (t) => [
+  index("journal_entry_lines_entry_idx").on(t.entryId, t.sortOrder),
+  index("journal_entry_lines_account_idx").on(t.accountId),
 ]);

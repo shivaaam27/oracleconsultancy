@@ -22,6 +22,7 @@ import {
   KanbanSquare,
   StickyNote,
   DraftingCompass,
+  Scale as ScaleIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -52,6 +53,9 @@ export const NAV_ROUTES: NavRoute[] = [
   // The PES trading and import business — Stage 1 is its master lists; the
   // order screens follow. See memory/pes_ops_module.md.
   { id: "ops",         href: "/ops",                 label: "Orders & Imports",    icon: Ship },
+  // The general ledger — chart of accounts, journals, entries. COS is the
+  // accounting system now (owner, Aug 2026); see `memory/erp_gap_plan.md`.
+  { id: "ledger",      href: "/ledger",              label: "Ledger",              icon: ScaleIcon },
   // ⚠️ "Brief" means the DIRECTOR BRIEF at /brief. This entry used to be labelled
   // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
   // and the real Brief had no entry at all.
@@ -98,7 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
   // Was "Registers" until Aug 2026 — the word meant three things at once (this
   // group, the commitments page, and the legacy /registry task list). The pages
   // in here are the day-to-day operational logs, so that is what it is called.
-  { label: "Operations", ids: ["tax-legal", "commitments", "ops", "pipeline", "leave", "supplies", "cleaning"] },
+  { label: "Operations", ids: ["tax-legal", "commitments", "ledger", "ops", "pipeline", "leave", "supplies", "cleaning"] },
   { label: "System", ids: ["insights", "activity", "ori-automations", "settings"] },
 ];
 

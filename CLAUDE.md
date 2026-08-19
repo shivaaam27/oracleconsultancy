@@ -105,6 +105,13 @@ Governance & Risk (board-level, transfer-pack; kept out of daily/weekly): **cap_
 
 In-flight + commitments: **pipeline** (bureaucracy stages To Apply→Issued), **commitments** (leases/insurance/contracts; notice-by = end − notice_days). Both link a supporting `document_id`.
 
+General ledger (ERP Phase 1): **gl_accounts** (the chart, a tree, one per
+company) · **gl_entries** (**the books — APPEND-ONLY**; no `archived` column, no
+update path, no delete path; a mistake is corrected by a reversal) ·
+**journal_entries** + **journal_entry_lines** (the manual voucher).
+⚠️ **No `balance` column anywhere, and there must never be one** — every balance
+is worked out on read. See `memory/ledger.md`.
+
 Governance audit: audit_log, corrections
 
 To-dos:
@@ -141,7 +148,8 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0136** (PES payments + tenders; see the `/ops` section). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0138** (the general ledger — see that section; 0137 is the
+four tables, 0138 an index predicate. Both applied). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
 
@@ -249,6 +257,12 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   delivery and invoicing, the executive report).
   ⚠️ **A company in the address is `?co=`, never `?company=`** — the latter is
   watched globally by `CompanyDrawer` and slides a preview open over any page.
+- `/ledger` - **the general ledger** (ERP Phases 1-2): **Chart of accounts**
+  (a tree per company, seeded from one shared template, balances rolled up and
+  never stored) · **Journals** (Draft → Posted → Reversed) · **Entries** (the
+  books, raw) · **Reports** (`/ledger/reports/<report>` — trial balance, P&L,
+  balance sheet, general ledger, statements; `?group=1` consolidates all
+  thirteen companies). Company picked with `?co=`, never `?company=`.
 - `/insights`
 - `/settings`
 
@@ -353,18 +367,19 @@ are served by the generic **`/api/prefs/list-views?list=<key>`** (the task-only
 `<key>.savedViews` is unchanged, so views saved on Tasks still load).
 Commitments had NO filters at all — it gained company/kind/urgency.
 
-## ⚠️ NEXT UP: the general ledger — read `memory/erp_gap_plan.md` FIRST
+## The general ledger — ⚠️ PHASES 1 AND 2 ARE BUILT. Read `memory/ledger.md` FIRST
 
 **Decided by the owner, Aug 2026: COS becomes the accounting system.** Asked
 whether COS should hold the accounts or whether an accountant owns them
 elsewhere, he chose COS — *"build the ledger since we want to transition to
 using erp now and nothing else."*
 
-COS today has **no ledger, no chart of accounts and no journal**. It works every
-figure out by scanning documents, which is why nothing in it can go stale — and
-also why it can say what is still to bill on a PO but not what a company earned
-last quarter. ERPNext, by contrast, has **18 document types that post to a
-General Ledger** (verified in `Documents/OCERP/reference/erpnext`).
+Until Aug 2026 COS had **no ledger, no chart of accounts and no journal**. It
+worked every figure out by scanning documents, which is why nothing in it can go
+stale — and also why it could say what was still to bill on a PO but not what a
+company earned last quarter. ERPNext, by contrast, has **18 document types that
+post to a General Ledger** (verified in `Documents/OCERP/reference/erpnext`).
+**The spine now exists** (below); the documents start posting into it at Phase 5.
 
 `memory/erp_gap_plan.md` holds the seven phases, starting with the spine. **Five
 rules the ledger code must enforce**, and they are not negotiable:
@@ -378,10 +393,56 @@ rules the ledger code must enforce**, and they are not negotiable:
 4. **Base currency TZS, rate frozen on the entry**, like every other rate here.
 5. **Posting is explicit and reversible** — nothing lands in the books silently.
 
-⚠️ **Three questions are still UNANSWERED and must be asked, not assumed:** is
-stock actually held; do the thirteen companies share one chart of accounts or
-have one each; and what date should the books open from (the system already
-holds 791 imported order lines, 347 invoices and 262 payments — see Phase 6).
+**⚠️ Phases 1 and 2 are BUILT and LIVE** — `/ledger` with **Chart of accounts ·
+Journals · Entries · Reports**, migrations **0137/0138 applied**, **107 tests**
+on the arithmetic. `memory/ledger.md` holds the decisions and the traps.
+
+**Phase 2 = the five reports** at `/ledger/reports/<report>`: trial balance ·
+profit and loss · balance sheet · general ledger · customer and supplier
+statements — per company **and consolidated across all thirteen**, which is what
+the owner could not get anywhere before. One page serves all five; every report
+is a LINK (report in the path, period and scope in the query string), so it can
+be bookmarked and sent to an accountant.
+
+**⚠️ THE BALANCE-SHEET TRAP, and it is the one to remember:** assets do not equal
+liabilities plus equity on their own, because the year's profit is still sitting
+in the income and expense accounts. The balance sheet **derives** it and adds it
+into equity — **no journal creates it, and none should**. It needs
+`ledgerFyStartMonth` (Settings, default **January**); get that wrong and the
+balance sheet is wrong by whatever was earned in the mis-attributed months.
+**Confirm it with whoever files the returns — it is a default, not a fact.**
+
+**⚠️ Consolidation adds the companies up but does NOT eliminate inter-company
+balances.** If one owes another it shows as both a debtor and a creditor. The
+screen says so. Doing it properly is Phase 7's work.
+
+**⚠️ THE ONE RULE: everything that reaches `gl_entries` goes through
+`postVoucher()` in `src/lib/ledger-post.ts`.** When Phase 5 wires the sales
+invoice, the ops payment and the project stages into the books, each calls that
+function with its own `voucherType` — **none of them inserts a `gl_entries` row
+itself.** A second write path is a second set of books. (Same shape as
+`createTaskCore` being the one door for task writes.)
+
+Client/server split, as everywhere else here: **`lib/ledger-shared.ts` is what
+client components import** (pure, no `sb`); `ledger-accounts` / `ledger-post` /
+`ledger-journal` are server-only. Getting this wrong kills every page with
+"SUPABASE_SERVICE_ROLE_KEY is not set".
+
+**⚠️ No MCP tool and no `EntityDef`, on purpose** (the forward rules say to ask,
+so: asked and answered). Reading a trial balance through Claude is worth having
+once Phase 2's reports exist; **a ledger WRITE tool should never exist.**
+
+**Chart of accounts: ONE PER COMPANY, all seeded from one template** — separate
+rows so the books can diverge, identical numbers so consolidating thirteen
+companies is a group-by. This settles one of the plan's three open questions,
+and either answer still works later with no migration.
+
+⚠️ **Three questions remain UNANSWERED and must be asked, not assumed:** is stock
+actually held; **when does the financial year start** (Settings says January, and
+it drives the balance sheet); and what date should the books open from (the
+system already holds 791 imported order lines, 347 invoices and 262 payments —
+see Phase 6). A fourth — who files the VAT returns and under what rules — lands
+with Phase 3.
 
 ## What's next — read `memory/next_features_aug2026.md`
 

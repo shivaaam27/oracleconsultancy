@@ -206,21 +206,27 @@ the books themselves. **Build the ledger.** The phases are below.
 - **Is stock actually held?** Decides the items/stock step entirely. "STOCK" is
   one of the three order kinds on every line, which suggests yes, but nobody has
   confirmed it.
-- **One chart of accounts across all 13 companies, or one each?** ERPNext
-  supports both. Consolidation across the group is much easier with a shared
-  one; a shared one is harder if the companies keep genuinely different books.
+- ~~**One chart of accounts across all 13 companies, or one each?**~~
+  **SETTLED in the build (Aug 2026):** one chart per company, all seeded from
+  one shared template — separate rows so the books can diverge, identical
+  numbers so consolidation is a group-by. Changing your mind needs no migration.
 - **Who files the VAT returns, and what are the rules?** Zero-rated items,
   withholding by supplier type, whether imports differ. Getting VAT wrong is not
   a display bug.
 - **What date should the books open from?** See Phase 6.
+- **⚠️ When does the financial year start?** Settings assumes January. It drives
+  the balance sheet's current-year profit, so a wrong answer is a wrong balance
+  sheet rather than a cosmetic problem.
 
 ---
 
 # THE LEDGER — the phases, in order
 
-Nothing below is built yet. Phase 1 is the next piece of work.
+**✅ Phases 1 AND 2 are BUILT (Aug 2026) — see `memory/ledger.md`.** Phase 3
+(VAT and withholding) is next, and it must land before Phase 5 or the documents
+will post the wrong numbers. Phases 4–7 are unchanged below.
 
-## Phase 1 — the spine
+## Phase 1 — the spine  ·  ✅ BUILT
 
 - `gl_accounts`: a chart of accounts per company. Tree (parent/child), with a
   `root_type` (Asset · Liability · Income · Expense · Equity) and an
@@ -230,6 +236,16 @@ Nothing below is built yet. Phase 1 is the next piece of work.
   and frozen rate, cost centre, project, and which document made it.
 - `journal_entries` + lines: manual postings, so anything can be corrected.
 - The posting engine, and the pure arithmetic with tests.
+
+Built as: migrations **0137/0138** (applied) · `lib/ledger-shared.ts` (pure,
+56 tests) · `lib/ledger-coa-template.ts` · `lib/ledger-accounts.ts` ·
+`lib/ledger-post.ts` (**the engine — the ONE door into `gl_entries`**) ·
+`lib/ledger-journal.ts` · `/ledger` with Chart / Journals / Entries.
+
+**⚠️ The chart-of-accounts question below is ANSWERED**: one chart per company,
+every one seeded from the SAME template, so the numbers line up and a
+consolidated report is a group-by on `number`. Either answer still works later
+with no migration.
 
 **Five rules the code must enforce — get these wrong and the rest is worthless:**
 
@@ -250,11 +266,25 @@ Nothing below is built yet. Phase 1 is the next piece of work.
 almost immediately, and PostgREST stops there without saying so — the fault that
 hid a whole year of enquiries in Aug 2026.
 
-## Phase 2 — the reports that read it
+## Phase 2 — the reports that read it  ·  ✅ BUILT
 
 General ledger · trial balance · profit and loss · balance sheet · customer and
-supplier statements. Per company, and **consolidated across all 13**, which is
-what a group like this actually wants and what the owner cannot get today.
+supplier statements. Per company, and **consolidated across all 13** — which the
+owner could not get anywhere before.
+
+Built as `lib/ledger-reports-shared.ts` (pure, 51 tests) + `lib/ledger-reports.ts`
+(the loader) + ONE page, `/ledger/reports/[report]`. Every figure is worked out
+on read; nothing is stored.
+
+**⚠️ The balance sheet does not balance on its own.** The year's profit is still
+in the income and expense accounts, so the report DERIVES it and adds it to
+equity — no journal creates it. That needs the financial-year start
+(`ledgerFyStartMonth` in Settings, default January), which is **a default, not a
+discovered fact**.
+
+**⚠️ Consolidation matches accounts on their NUMBER** (hence the one shared
+template) and does **not** eliminate inter-company balances — that needs the
+companies named as parties to each other, in Phase 7. The screen says so.
 
 ## Phase 3 — VAT and withholding
 

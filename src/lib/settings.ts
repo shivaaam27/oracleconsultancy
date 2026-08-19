@@ -83,6 +83,19 @@ export type AppSettings = {
    */
   opsDefaultExRate: number;
   /**
+   * The month the financial year starts — 1 = January, 7 = July.
+   *
+   * ⚠️ The BALANCE SHEET cannot be drawn without it. Everything earned and spent
+   * since this month is "current year earnings", which is what makes assets equal
+   * liabilities plus equity; get it wrong and the balance sheet is wrong by
+   * however much was earned in the mis-attributed months.
+   *
+   * Defaults to January because Tanzanian companies commonly follow the calendar
+   * year, but it is genuinely a per-business fact — **confirm it with whoever
+   * files the returns** rather than trusting this default.
+   */
+  ledgerFyStartMonth: number;
+  /**
    * Tier-3 "send" guardrails (see lib/guardrails.ts). Whether automated code may
    * auto-send on each channel WITHOUT a human tap. Defaults preserve today:
    *  - email follows the existing email-automation setup (auto-send stays ON when
@@ -255,6 +268,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   emailSignatureImagePath: "",
   aiMonthlySpendCap: 0, // 0 = unlimited; never disable AI by default
   opsDefaultExRate: 0,  // 0 = none offered; the workbook has been using 2,500
+  ledgerFyStartMonth: 1, // January. ⚠️ A default, not a discovered fact — confirm it.
   autoSendEmail: true, // mirror today: email auto-send follows the email-automation setup
   autoSendWhatsapp: false,
   autoSendSms: false,
@@ -315,6 +329,7 @@ const KEY: Record<keyof AppSettings, string> = {
   emailSignatureImagePath: "v2.emailSignatureImagePath",
   aiMonthlySpendCap: "ai.monthlySpendCap",
   opsDefaultExRate: "ops.defaultExRate",
+  ledgerFyStartMonth: "ledger.fyStartMonth",
   autoSendEmail: "v2.autoSendEmail",
   autoSendWhatsapp: "v2.autoSendWhatsapp",
   autoSendSms: "v2.autoSendSms",
@@ -392,6 +407,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     emailSignatureImagePath: map.get(KEY.emailSignatureImagePath) ?? d.emailSignatureImagePath,
     aiMonthlySpendCap: toNum(map.get(KEY.aiMonthlySpendCap), d.aiMonthlySpendCap),
     opsDefaultExRate: toNum(map.get(KEY.opsDefaultExRate), d.opsDefaultExRate),
+    ledgerFyStartMonth: toNum(map.get(KEY.ledgerFyStartMonth), d.ledgerFyStartMonth),
     autoSendEmail: toBool(map.get(KEY.autoSendEmail), d.autoSendEmail),
     autoSendWhatsapp: toBool(map.get(KEY.autoSendWhatsapp), d.autoSendWhatsapp),
     autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),

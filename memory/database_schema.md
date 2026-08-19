@@ -238,3 +238,36 @@ These three migrations underpin universal search/find/trace + ORI memory + AI sp
 - **ai_usage** — **migration 0096**. Per-call AI spend ledger: `id, at, model, source, prompt_tokens, completion_tokens, est_cost`. `recordUsage` is fire-and-forget from `ai-json.ts`; `src/lib/ai-spend.ts` derives `monthlySpend` / `isOverSpendCap` (cached 60s, **fails open**). The `v2.aiMonthlySpendCap` setting (default 0 = unlimited) gates `getGroqKey()`.
 
 **Entity registry (single source of truth):** `src/lib/entity-registry.ts` now describes all **12 indexable entity types** (task, person, company, governance, risk, document, letter, meeting, vendor, asset, pipeline, commitment) — one `EntityDef` per type carrying its table/idColumn/selectColumns/textFor/lifecycleFor plus the search + trace knowledge. Both the per-write index hooks (`index-hooks.ts`) and the nightly catch-all (`embeddings-reindex.ts`) derive from it, so coverage can never drift. Client-safe labels/order live in `src/lib/entity-meta.ts` (no DB import).
+
+
+## General ledger (ERP Phase 1, migrations 0137/0138 — APPLIED)
+
+**Read `memory/ledger.md` and `memory/erp_gap_plan.md` before touching any of
+this.** COS is the accounting system now (owner's decision, Aug 2026).
+
+- **`gl_accounts`** — the chart, a tree, ONE PER COMPANY (all seeded from the
+  same template in `lib/ledger-coa-template.ts`, so the numbers line up across
+  the thirteen and consolidation is a group-by on `number`).
+  `parent_id` · `root_type` (Asset|Liability|Equity|Income|Expense) ·
+  `account_type` · `is_group` (a heading, takes no postings) · `currency` ·
+  `default_for` (the role the engine finds it by — "receivable", "payable",
+  "vat_output"…, unique per company).
+- **`gl_entries`** — **the books. APPEND-ONLY.** One row is one side of one
+  posting. `debit`/`credit` are ALWAYS TZS; the original money and the frozen
+  rate sit beside them in `debit_fx`/`credit_fx`/`currency`/`ex_rate`.
+  `voucher_type`+`voucher_id` say which document made it (deliberately not an
+  FK — it points at a different table per type, exactly as ERPNext's GL Entry
+  does). `is_reversal`+`reverses_id` are how a mistake is undone.
+  ⚠️ **NO `archived` column, no UPDATE path, no DELETE path — anywhere.**
+  ⚠️ `gl_entries_voucher_line_unique` makes double-posting impossible at the
+  database, not merely unlikely.
+- **`journal_entries`** + **`journal_entry_lines`** — the manual voucher.
+  Draft → Posted → Reversed. Lines cascade on delete (a draft owns them); a
+  POSTED entry can never be deleted, so cascade never reaches the books.
+  `reversal_of_id` sits on the reversal; there is deliberately no
+  `reversed_by_id` (it is derived).
+
+⚠️ **There is no `balance` column anywhere and there must never be one.** Every
+balance, trial balance, P&L and statement is worked out on read from
+`gl_entries`. That is rule 3 of the plan and the founding principle of COS one
+level up.

@@ -155,6 +155,13 @@ export async function saveSettings(fd: FormData): Promise<void> {
     voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
     swipeRightAction: swipe(fd, "swipeRightAction"),
     swipeLeftAction: swipe(fd, "swipeLeftAction"),
+    // ⚠️ The month the financial year starts. The balance sheet adds everything
+    // earned since it into equity, so a wrong value is a wrong balance sheet.
+    // ⚠️ A field must be read HERE as well as listed in the form's `__keys` —
+    // `__keys` only narrows what gets written, it does not add anything. A field
+    // missing from this list is silently ignored, which is exactly how this one
+    // appeared to save and then didn't.
+    ledgerFyStartMonth: num(fd, "ledgerFyStartMonth"),
     operatorName: ((fd.get("operatorName") as string | null) ?? "").trim(),
     emailFrom: (fd.get("emailFrom") as string | null)?.trim() || undefined,
     emailFromName: (fd.get("emailFromName") as string | null)?.trim() || undefined,
