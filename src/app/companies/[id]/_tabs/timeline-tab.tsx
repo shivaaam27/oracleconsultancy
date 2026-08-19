@@ -205,7 +205,17 @@ function RemovedSection({
 
   return (
     <details className="group glass elevated rounded-2xl overflow-hidden">
-      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 select-none">
+      {/* On a phone the code chip and the event count are `shrink-0`, so the TITLE
+          was the only thing that could give — "Clifford Machinery Update - …" in
+          about 200px while "1 event" sat there in full. It WRAPS below `sm` now
+          instead of truncating, so the whole title is readable.
+          ⚠️ It does NOT get a line of its own, and three attempts to give it one
+          failed: `basis-full` loses to `flex-1`'s basis, and with shrink still at
+          1 the item shrinks to fit rather than wrapping to a new line — set
+          `shrink-0` as well and it overflows the row instead. Forcing the break
+          needs the markup restructured, which is not worth it for a title that
+          already reads in full. */}
+      <summary className="list-none cursor-pointer flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 select-none sm:flex-nowrap">
         <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90 shrink-0" />
         <Trash2 size={13} className="text-fg-subtle shrink-0" />
         <span className="text-sm font-medium">Recently removed</span>
@@ -272,7 +282,10 @@ function ActivitySummary({ items }: { items: TimelineItem[] }) {
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    // Four across gives each tile ~80px on a phone, and every label truncated to
+    // "UPDA…", "STAT…", "COMP…", "ESCA…" — four numbers with nothing to say what
+    // they count. Two across below `sm`; unchanged from `sm` up.
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {tiles.map((s) => (
         <div key={s.label} className="glass elevated rounded-xl px-3 py-2.5">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
@@ -307,7 +320,7 @@ function TaskThread({
             {code}
           </Link>
         )}
-        <span className="text-sm font-medium truncate min-w-0 flex-1">{title ?? "Task"}</span>
+        <span className="text-sm font-medium truncate min-w-0 flex-1 max-sm:whitespace-normal max-sm:text-clip">{title ?? "Task"}</span>
         <span className="text-[11px] text-fg-subtle tabular shrink-0">{items.length} event{items.length === 1 ? "" : "s"}</span>
       </summary>
 

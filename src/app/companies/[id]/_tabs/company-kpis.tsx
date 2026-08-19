@@ -40,7 +40,11 @@ export function CompanyKpiStrip({
   ];
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+    // 780px of chips in a 375px row with the scrollbar hidden: cut hard, the chip
+    // at the edge loses half a word and reads as broken rather than as "keep
+    // scrolling". `.chip-scroll-fade` (globals.css, phones only) is the remedy the
+    // Tasks page already uses; this row never got it.
+    <div className="chip-scroll-fade flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
       {chips.map((c) => (
         <Chip key={c.label} {...c} />
       ))}
