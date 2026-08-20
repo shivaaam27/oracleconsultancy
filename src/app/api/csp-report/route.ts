@@ -123,7 +123,33 @@ export async function POST(req: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    for (const v of parse(body)) {
+    const parsed = parse(body);
+
+    // ⚠️ A report we cannot read is worse than useless: the FIRST real violation
+    // recorded after this shipped came out as {"unknown","unknown","unknown"},
+    // which tells nobody anything and cannot be acted on. Either the browser
+    // sent a shape this parser does not know, or — since the endpoint is public
+    // — something posted junk at it. So when nothing was understood, keep a
+    // short sample of what actually arrived, and say so.
+    const understood = parsed.filter((v) => v.directive || v.blockedUri);
+    if (understood.length === 0) {
+      if (shouldRecord("unparsed")) {
+        await sb.from("system_events").insert({
+          kind: "csp.violation",
+          status: "error",
+          details: JSON.stringify({
+            directive: "unparsed",
+            note: "report shape not recognised — sample below",
+            // Truncated hard, and it is a violation report, not user content.
+            sample: text.slice(0, 300),
+          }),
+          created_at: new Date().toISOString(),
+        });
+      }
+      return new NextResponse(null, { status: 204 });
+    }
+
+    for (const v of understood) {
       const directive = (v.directive ?? "unknown").split(" ")[0];
       const blocked = origin(v.blockedUri);
       if (!shouldRecord(`${directive}|${blocked}`)) continue;
