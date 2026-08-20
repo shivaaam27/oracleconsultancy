@@ -127,13 +127,30 @@ The system replaces an Excel workbook with:
        into the component.
      - The service worker is **production-only** (`NODE_ENV !== "production"`
        returns early), so installability cannot be tested on the dev server.
-  2. **`desktop/` — an Electron shell**, a window around the same live site. It
-     holds no keys and no data; read `desktop/README.md` before touching it. The
-     app's CONTENTS update on every push; only the shell needs the updater.
-     `.github/workflows/desktop-release.yml` builds on a `desktop-v*` tag.
-     **⚠️ Its release repo must be PUBLIC** — electron-updater reads GitHub
-     Releases anonymously, and a private one would mean a token on every laptop.
-     Unsigned for now; signing is one CI step when a certificate exists.
+  2. **`desktop-win/` — a C# (WPF + WebView2) app**, a window around the same live
+     site, shipped as one self-contained 63 MB .exe (`build.cmd`) or a per-user
+     installer (`build-installer.cmd` → MSI wrapped in a bootstrapper .exe, WiX 5
+     — **not WiX 7, which demands a paid licence**). It holds no keys and no data.
+     **Read `desktop-win/README.md` before touching it.**
+     - **⚠️ AN UNSIGNED BUILD DOES NOT RUN AT ALL.** Measured on the owner's
+       machine 20 Aug 2026: **Windows Smart App Control is ON and enforced** and
+       blocks it (CodeIntegrity 3077, "did not meet the Enterprise signing level
+       requirements"), portable and installed alike. This is NOT a SmartScreen
+       "Run anyway" prompt — there is no way through. SAC is on by default on new
+       Windows 11 machines, and can only ever be turned OFF, never back on.
+       **Never advise turning it off.** So the **PWA is the working desktop app**,
+       and the **Microsoft Store** (free, Microsoft signs it, Store apps are
+       trusted by SAC) is the route to a real installer. A bought certificate is
+       NOT a guaranteed fix — SAC weighs reputation as well as signature.
+     - The installer itself is proven: silent install, Start-menu and desktop
+       shortcuts, one Add/Remove Programs entry, clean uninstall.
+     - Two bugs that cost real time, both in the README: `App.xaml` needs
+       `StartupUri` or WPF runs with NO window and no error; and the navigation
+       lock must redirect only EXTERNAL http(s), or it cancels the app's own
+       offline screen (`NavigateToString` uses a `data:` URI).
+     - An Electron shell was built first and removed (see history). WebView2 is
+       **not** lighter on RAM — measured 592 MB vs Electron's 499 MB; both are
+       Chromium.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). **⚠️ ONE backup at the END of a session, not before every migration** (owner, 18 Aug 2026): it takes ~15 minutes on this link, and three of them in a session is an hour of waiting for nothing. Additive migrations (new table/column) go straight in. Back up FIRST only when something drops, rewrites or bulk-deletes existing data.
 - **Deploys: ONLY `master`, and push ONLY to `master`** (Aug 2026). `vercel.json` carries

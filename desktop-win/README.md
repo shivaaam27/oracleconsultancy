@@ -8,8 +8,11 @@ A C# window with Microsoft Edge inside it, pointed at the live COS site.
 desktop-win\build.cmd
 ```
 
-Out comes **one file**: `publish\Oracle Consultancy.exe`. Copy it anywhere and
-double-click. Nothing to install first, no .NET to download, no setup wizard.
+Out comes **one file**: `publish\Oracle Consultancy.exe`. Nothing to install
+first, no .NET to download.
+
+**⚠️ But read the Smart App Control section below before sending it to anyone** —
+unsigned, Windows refuses to run it at all.
 
 ## Why it is built this way
 
@@ -85,20 +88,6 @@ So there are exactly three ways to a working desktop app:
 
 The packaging in this folder is finished and correct, and is what the Store route
 will use. It is simply not usable unsigned.
-
-## What staff will see the first time
-
-The file is **not signed yet**, so Windows will say:
-
-> **Windows protected your PC** — Microsoft Defender SmartScreen prevented an
-> unrecognised app from starting.
-
-They click **More info** → **Run anyway**. Once. That is normal for any unsigned
-app and it is why the Microsoft Store is the plan for the real rollout — the
-Store signs it and the warning never appears.
-
-Tell people this **before** you send the file. An unexpected security warning is
-how a rollout dies.
 
 ## Testing it while developing
 
