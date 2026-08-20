@@ -1,7 +1,7 @@
 /**
  * `npm run db:check-security`
  *
- * Re-runs the checks behind migration 0139. It answers one question: can the
+ * Re-runs the checks behind migrations 0139 and 0140. It answers one question: can the
  * public browser key (NEXT_PUBLIC_SUPABASE_ANON_KEY, which ships inside every
  * page) touch the database?
  *
@@ -10,12 +10,17 @@
  * permitted too. Migration 0139 shut that. This script exists so nobody has to
  * take that on trust again.
  *
- * ⚠️ WHY IT IS STILL NEEDED AFTER THE MIGRATION. Two ways the hole can reopen:
+ * ⚠️ WHY IT IS STILL NEEDED AFTER THE MIGRATIONS. Three ways the hole reopens:
  *   1. A table created in the Supabase DASHBOARD (rather than by a migration) is
  *      created by `supabase_admin`, whose default privileges still grant
  *      everything to `anon` — we are not permitted to revoke those.
  *   2. A migration that runs an explicit GRANT.
- * Either way this script goes red. Run it after any schema work.
+ *   3. A new FUNCTION. Postgres grants EXECUTE to the pseudo-role PUBLIC by
+ *      default and `anon` inherits it, so a function can be wide open while its
+ *      grants look clean. This is exactly what 0139 missed; 0140 fixed it and
+ *      set the default privileges so it does not come back. A SECURITY DEFINER
+ *      function is the dangerous case — it would run with the owner's rights.
+ * Any of them turns this script red. Run it after any schema work.
  *
  * Exits 1 on a finding so it can sit in CI.
  */
@@ -68,7 +73,29 @@ async function main() {
       );
     }
 
-    // 3. Nothing may bypass RLS from the side. A view or a SECURITY DEFINER
+    // 3. Our own functions must not be callable by the browser key. Checking
+    //    the GRANT is not enough — Postgres gives EXECUTE to the pseudo-role
+    //    PUBLIC by default and `anon` inherits it, which is exactly what 0139
+    //    missed and 0140 fixed. has_function_privilege() sees through that.
+    //    Scoped to functions WE own: the pg_trgm/pgvector ones belong to
+    //    supabase_admin, cannot be revoked from here, and are pure maths over
+    //    values the caller already had.
+    const anonFns = await sql<{ proname: string }[]>`
+      select p.proname
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and pg_get_userbyid(p.proowner) = 'postgres'
+        and has_function_privilege('anon', p.oid, 'EXECUTE')
+      order by p.proname
+    `;
+    if (anonFns.length) {
+      problems.push(
+        `${anonFns.length} function(s) callable by the public key: ${anonFns.map((f) => f.proname).join(", ")}`
+      );
+    }
+
+    // 4. Nothing may bypass RLS from the side. A view or a SECURITY DEFINER
     //    function owned by a privileged role reads with that role's rights.
     const views = await sql<{ viewname: string }[]>`
       select viewname from pg_views where schemaname = 'public' order by viewname
@@ -95,7 +122,7 @@ async function main() {
       );
     }
 
-    // 4. Storage buckets must stay private; a public bucket serves every file to
+    // 5. Storage buckets must stay private; a public bucket serves every file to
     //    anyone holding the path, with no cookie involved.
     const buckets = await sql<{ id: string; public: boolean }[]>`
       select id, public from storage.buckets order by id
@@ -117,7 +144,7 @@ async function main() {
     }
     console.error("\n❌ Problems found:\n");
     for (const p of problems) console.error("  • " + p);
-    console.error("\nFix: see drizzle/0139_lock_public_schema.sql.\n");
+    console.error("\nFix: see drizzle/0139_lock_public_schema.sql and 0140_lock_public_routines.sql.\n");
     await sql.end({ timeout: 5 });
     process.exit(1);
   } catch (err) {

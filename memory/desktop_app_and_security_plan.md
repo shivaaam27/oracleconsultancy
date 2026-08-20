@@ -51,6 +51,16 @@ documents 197). 684 tests pass, type-check clean.
   finding. Run it after any schema work.
 - The `postgres_changes` listener in `cockpit-live.tsx` is gone (it was already
   inert — the `supabase_realtime` publication is empty).
+- **A follow-up audit caught a gap in the first fix, closed by migration 0140.**
+  Revoking from `anon` does not close a *function*: Postgres grants them to
+  "PUBLIC" and `anon` inherits that, so all 156 stayed callable while the grants
+  read clean. Nothing was actually exposed — they all run as the caller, who now
+  has no table rights — but the first one written the normal Supabase way would
+  have been wide open. Now: 0 of ours callable, all still working for the app.
+- Re-tested after both: reads, writes, file downloads, the search functions and
+  chat's live updates. Chat is unaffected; files return "not found" to the public
+  key; the search function returns "permission denied" to it and real answers to
+  the app.
 - One thing could not be done: the default privileges owned by `supabase_admin`
   cannot be revoked from our role. That only matters for tables created in the
   **Supabase dashboard** rather than by a migration, and the check script catches

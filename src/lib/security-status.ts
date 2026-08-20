@@ -30,20 +30,33 @@ export type SecurityCheck = {
  *  it reflects production rather than whatever was true on someone's laptop. */
 async function databaseLock(): Promise<SecurityCheck> {
   try {
-    const rows = await db.execute<{ open_tables: number; granted: number; public_buckets: number }>(sql`
+    const rows = await db.execute(sql`
       select
         (select count(*)::int from pg_class c
            join pg_namespace n on n.oid = c.relnamespace
           where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity) as open_tables,
         (select count(distinct table_name)::int from information_schema.role_table_grants
           where table_schema = 'public' and grantee in ('anon','authenticated')) as granted,
+        -- Our own functions only. Checking the GRANT is not enough: Postgres
+        -- gives EXECUTE to PUBLIC by default and anon inherits it (the trap that
+        -- 0139 fell into and 0140 fixed), so ask the privilege, not the grant.
+        (select count(*)::int from pg_proc p
+           join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and pg_get_userbyid(p.proowner) = 'postgres'
+            and has_function_privilege('anon', p.oid, 'EXECUTE')) as open_functions,
         (select count(*)::int from storage.buckets where public) as public_buckets
     `);
-    const r = (rows as unknown as Array<{ open_tables: number; granted: number; public_buckets: number }>)[0];
+    const r = (rows as unknown as Array<{
+      open_tables: number;
+      granted: number;
+      open_functions: number;
+      public_buckets: number;
+    }>)[0];
     if (!r) throw new Error("no rows");
     const problems: string[] = [];
     if (r.open_tables > 0) problems.push(`${r.open_tables} table(s) unprotected`);
     if (r.granted > 0) problems.push(`${r.granted} table(s) open to the public key`);
+    if (r.open_functions > 0) problems.push(`${r.open_functions} function(s) callable by the public key`);
     if (r.public_buckets > 0) problems.push(`${r.public_buckets} public file store(s)`);
     return problems.length
       ? {

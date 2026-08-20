@@ -981,6 +981,13 @@
       "when": 1787241167891,
       "tag": "0139_lock_public_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1787243503560,
+      "tag": "0140_lock_public_routines",
+      "breakpoints": true
     }
   ]
 }

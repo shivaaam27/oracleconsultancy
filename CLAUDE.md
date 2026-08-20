@@ -61,15 +61,25 @@ The system replaces an Excel workbook with:
   grants to `anon` — and `NEXT_PUBLIC_SUPABASE_ANON_KEY` ships inside every page.
   Verified live: that key could read `people`, `settings` (owner password hash),
   `people.portal_password_hash`, `mcp_keys`, `webauthn_credentials` — and PATCH/
-  DELETE returned 204. **Migration 0139 turned RLS on for every table (no
-  policies) and revoked every anon/authenticated grant.** It breaks nothing: COS
+  DELETE returned 204. **Migrations 0139 + 0140 turned RLS on for every table (no
+  policies) and revoked every anon/authenticated grant, on tables AND functions.** It breaks nothing: COS
   reads and writes only through `sb` (service role) and postgres.js as `postgres`,
   and both carry `rolbypassrls`. The anon key is used ONLY for Realtime
   **broadcast**, which is pub/sub over the socket and touches no table.
   - **Run `npm run db:check-security` after any schema work.** It re-tests RLS,
     anon grants, views, SECURITY DEFINER functions and public storage buckets, and
     exits 1 on a finding.
-  - The one way it can reopen: a table created in the **Supabase dashboard** is
+  - **⚠️ 0139 MISSED THE FUNCTIONS; 0140 fixed them.** `REVOKE … FROM anon` does
+    NOT close a function: Postgres grants EXECUTE to the pseudo-role **PUBLIC**
+    and `anon` inherits it, so all 156 were still callable while the grants read
+    clean. Check with `has_function_privilege('anon', …)`, never with the grant
+    table. 0140 revokes from PUBLIC, grants service_role explicitly, and sets the
+    default privileges so the next function is closed from birth. **A SECURITY
+    DEFINER function is the dangerous case** — it runs with the owner's rights,
+    so an open one is a full bypass. There are none; keep it that way.
+  - The pg_trgm/pgvector functions stay anon-executable: they belong to
+    `supabase_admin`, cannot be revoked from our role, and are pure maths.
+  - The other way it reopens: a table created in the **Supabase dashboard** is
     owned by `supabase_admin`, whose default privileges still grant everything to
     `anon` (we are not permitted to revoke those). Create tables via migrations.
   - `postgres_changes` no longer works anywhere (RLS silences it for `anon`). The
