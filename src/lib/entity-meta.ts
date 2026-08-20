@@ -33,6 +33,11 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },
   commitment: { uiLabel: "Commitments",  searchOrder: 10 },
+  // The recruitment desk. searchOrder −1 = has a screen, nothing indexed yet
+  // (the same state Projects was in at its Phase 1).
+  rec_client:    { uiLabel: "Recruitment clients", searchOrder: -1 },
+  rec_candidate: { uiLabel: "Candidates",          searchOrder: -1 },
+  rec_job_order: { uiLabel: "Job orders",          searchOrder: -1 },
   // The PES trading module. Each is a reference-number lookup: a PO, a BL, an
   // RFQ, an invoice.
   ops_order:    { uiLabel: "Order lines",  searchOrder: 11 },

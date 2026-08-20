@@ -917,3 +917,52 @@ Notion/Mem/Reflect: AI summaries, cited Q&A over your own notes, auto-linking).
 **4. Editor weight — ANSWERED by the Phase 0 spike: 121.6 kB gzip, one lazy chunk,
 6.3% of client JS, nothing eager.** Tiptap stays; Plate is no longer needed as a
 fallback. Nothing in this plan is open any more — Phase 1 can start.
+
+---
+
+## Writing on the whole screen (19 Aug 2026 — owner: "I want to feel immersed")
+
+The owner's words: the shelf and the editor are right, but there was **a band of
+empty grey under the paper**, and writing is what he does most — planning and
+brainstorming. Two changes, both in `note-editor.tsx`.
+
+**1. The sheet ends where the screen ends.** Its height was
+`calc(100dvh - 11rem)` — a GUESS at the chrome above it, and wrong: at
+1750×1043 it left ~140px of dead grey, and it would have been wrong again the
+first time the control row wrapped. It now measures its own top
+(`getBoundingClientRect().top + scrollY` — document-space, so it reads the same
+at any scroll, and an element's own height cannot move its own top) and takes
+the height that is left.
+
+⚠️ **The bottom padding on `<main>` is not always ours to take.** Below `xl` that
+padding (`pb-28`/`md:pb-32`) is holding the floating nav pill off the content, so
+the sheet stops above it and the links rail carries on below, as before. From
+`xl` the pill is gone and the padding is pure grey, so the sheet is pulled into
+it with a negative bottom margin and keeps 14px of breathing room. Reclaiming it
+unconditionally would have put the AI bar behind the pill on a phone.
+
+**2. Full screen — "just the writing"** (toolbar button, ⌘⇧F, Esc to leave;
+remembered in `localStorage` under `cos-note-fullscreen`, because he writes far
+more than he reads).
+
+- The sheet becomes `fixed inset-0 z-50`. **No chrome is hidden by CSS** — z-50
+  simply covers the rail, the pill and the bell (all z-40), while the suggestion
+  menus (z-60, appended to `document.body` by `suggestion-position.ts`) and the
+  toasts (z-80) still land on top. Verified with `elementFromPoint`.
+  ⚠️ It relies on no transformed ancestor: `.page-flow` settles to
+  `transform: none` after its 260ms crossfade (checked), so `fixed` is honoured.
+- **Esc only leaves if nothing else claimed the key** — the guard is
+  `!e.defaultPrevented`, because the `/`, `@` and `[[` menus all preventDefault
+  while open. Verified: with the slash menu open, the first Esc closes the menu
+  and stays full screen; the second leaves.
+- **Typewriter scrolling**, full screen only: the line being written is held in a
+  28–62% band of the paper instead of sinking to the bottom edge. A BAND, not a
+  pinned line — pin the caret to one exact row and every click jerks the page
+  about. It nudges only when the caret leaves the band, and the measure keeps
+  `pb-[45vh]` under the last line so the writing can always reach the middle.
+- The toolbar drops to 40% until hovered or focused, and the "mentioned, not
+  linked" strip is hidden — suggestions have no business in front of someone who
+  is thinking. Everything else (AI actions, attachments, tables) stays put.
+- **A word count** sits by the save badge in BOTH modes, on a 700ms debounce off
+  `editor.on("update")` — never per keystroke, and never off `docText` (that is
+  only written on save, so a freshly opened note would have read zero).

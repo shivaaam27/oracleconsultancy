@@ -12,7 +12,8 @@
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
   AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass,
-  ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel, type LucideIcon,
+  ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel,
+  UserSearch, Briefcase, BadgeCheck, type LucideIcon,
 } from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
@@ -36,6 +37,12 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   ops_invoice:  { icon: Receipt,            tint: "text-yellow-600" },
   ops_payment:  { icon: Banknote,           tint: "text-lime-600" },
   ops_tender:   { icon: Gavel,              tint: "text-orange-600" },
+  // The recruitment desk. Not searchable yet (the EntityDefs are Phase 8), but
+  // the map is exhaustive over EntityType, so the compiler demanded these rows the
+  // moment they joined the union — which is how it should work.
+  rec_client:    { icon: BadgeCheck, tint: "text-purple-600" },
+  rec_candidate: { icon: UserSearch, tint: "text-pink-600" },
+  rec_job_order: { icon: Briefcase,  tint: "text-red-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },

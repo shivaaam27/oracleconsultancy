@@ -20,6 +20,7 @@ import {
   MessageSquare,
   ClipboardList,
   KanbanSquare,
+  UserSearch,
   StickyNote,
   DraftingCompass,
   Scale as ScaleIcon,
@@ -65,6 +66,9 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
   { id: "projects",    href: "/projects",            label: "Projects",            icon: DraftingCompass },
+  // Oracle Consultancy's recruitment agency — India to Tanzania sourcing.
+  // See memory/recruitment_module_plan.md.
+  { id: "recruitment", href: "/recruitment",         label: "Recruitment",         icon: UserSearch },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
@@ -102,7 +106,7 @@ export const NAV_GROUPS: NavGroup[] = [
   // Was "Registers" until Aug 2026 — the word meant three things at once (this
   // group, the commitments page, and the legacy /registry task list). The pages
   // in here are the day-to-day operational logs, so that is what it is called.
-  { label: "Operations", ids: ["tax-legal", "commitments", "ledger", "ops", "pipeline", "leave", "supplies", "cleaning"] },
+  { label: "Operations", ids: ["tax-legal", "commitments", "ledger", "ops", "recruitment", "pipeline", "leave", "supplies", "cleaning"] },
   { label: "System", ids: ["insights", "activity", "ori-automations", "settings"] },
 ];
 

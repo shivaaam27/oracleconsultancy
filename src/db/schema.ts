@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, foreignKey, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -3247,4 +3247,305 @@ export const journalEntryLines = pgTable("journal_entry_lines", {
 }, (t) => [
   index("journal_entry_lines_entry_idx").on(t.entryId, t.sortOrder),
   index("journal_entry_lines_account_idx").on(t.accountId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE RECRUITMENT DESK (Phase 1) — Oracle Consultancy's agency, brought in from
+// `Documents\HR Recruitment`. See `memory/recruitment_module_plan.md`.
+//
+// The business in one line: Oracle sources Indian professionals for Tanzanian
+// employers, and charges the EMPLOYER one month of the placed candidate's gross
+// salary plus 18% VAT, payable in full on offer acceptance.
+//
+// ⚠️ NOTHING DERIVED IS STORED. No fee column, no VAT column, no progress
+// figure, no days count — every one of them is worked out on read in
+// `lib/recruitment-shared.ts`. A stored fee would be indistinguishable, a year
+// later, from a fee that was actually agreed.
+//
+// ⚠️ `company_id` is on every table even though there is only ever one agency
+// (Oracle Consultancy Ltd). It costs nothing now and saves a migration if a
+// second company ever runs its own desk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The employer in Tanzania. NOT a `companies` row: those are Oracle's own
+// thirteen portfolio companies, and a recruitment client is somebody else's
+// business entirely.
+export const recClients = pgTable("rec_clients", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sector: text("sector"),
+  city: text("city"),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+
+  // Head counts, which drive the 10:1 local-to-foreign ratio the client has to
+  // satisfy before a permit is granted. Kept current by hand — it is the
+  // client's figure, not ours, so it is never inferred.
+  localEmployees: integer("local_employees"),
+  foreignEmployees: integer("foreign_employees"),
+
+  // The two client papers. The company profile is explicit: "We do not begin
+  // sourcing before it is signed." Dates rather than flags, because "when" is
+  // the question that actually gets asked.
+  termsSignedOn: timestamp("terms_signed_on", { mode: "date", withTimezone: true }),
+  dsaSignedOn: timestamp("dsa_signed_on", { mode: "date", withTimezone: true }),
+
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("rec_clients_name_unique").on(t.companyId, t.name),
+  index("rec_clients_list_idx").on(t.companyId, t.archived, t.name),
+]);
+
+// The professional in India.
+//
+// ⚠️ THERE IS DELIBERATELY NO FEE, BOND, BALANCE OR DEDUCTION COLUMN HERE, AND
+// NONE IS EVER TO BE ADDED. The candidate never pays Oracle anything, in any
+// circumstance — it is written into the candidate documents, every candidate
+// signs to say they paid nobody, and the schema should make the wrong thing
+// impossible rather than merely discouraged.
+export const recCandidates = pgTable("rec_candidates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  title: text("title"),
+  sector: text("sector"),
+  /** india | local. India only today; the column exists so a local hire is
+   *  representable without a migration. */
+  origin: text("origin").notNull().default("india"),
+  yearsExp: integer("years_exp"),
+  /** junior | mid | senior | exec */
+  seniority: text("seniority"),
+  /** Monthly gross the candidate is being placed at, USD. The fee is one month
+   *  of this — see lib/recruitment-money.ts. */
+  expectedSalaryUsd: numeric("expected_salary_usd", { precision: 12, scale: 2 }),
+
+  email: text("email"),
+  phone: text("phone"),
+
+  passportNo: text("passport_no"),
+  passportExpiry: timestamp("passport_expiry", { mode: "date", withTimezone: true }),
+  /** Emigration Check Not Required — matters for an Indian national travelling
+   *  for work. */
+  ecnr: boolean("ecnr").notNull().default(false),
+  idVerified: boolean("id_verified").notNull().default(false),
+
+  /** Which India sourcing partner introduced them. Free text in Phase 1; it
+   *  becomes a table of its own when partner due diligence is built. */
+  partnerName: text("partner_name"),
+
+  // The two candidate papers, both signed once at registration. Without the
+  // consent there is no lawful basis for holding the CV at all.
+  consentSignedOn: timestamp("consent_signed_on", { mode: "date", withTimezone: true }),
+  engagementSignedOn: timestamp("engagement_signed_on", { mode: "date", withTimezone: true }),
+
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("rec_candidates_list_idx").on(t.companyId, t.archived, t.name),
+  index("rec_candidates_passport_idx").on(t.companyId, t.passportExpiry),
+]);
+
+// One role, for one client. The Job Order is the document both sides sign, and
+// the salary written on it is what the fee is calculated from — which is why it
+// is agreed in writing before the search starts.
+export const recJobOrders = pgTable("rec_job_orders", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** JO-2608-04 — the year, the month, and the fourth order raised that month.
+   *  Allocated in lib/recruitment.ts, formatted in lib/recruitment-shared.ts. */
+  ref: text("ref").notNull(),
+  /** ⚠️ NULLABLE ON PURPOSE: no client means ORACLE IS HIRING FOR ITSELF. Same
+   *  brief, same shortlist, same offer — but no fee, no invoice and no
+   *  guarantee. The HR & Recruitment Officer vacancy is the first one. */
+  clientId: integer("client_id").references(() => recClients.id, { onDelete: "restrict" }),
+  title: text("title").notNull(),
+  sector: text("sector"),
+  /** junior | mid | senior | exec */
+  seniority: text("seniority"),
+  /** The agreed monthly gross for the role, USD. */
+  monthlyGrossUsd: numeric("monthly_gross_usd", { precision: 12, scale: 2 }),
+  /** One of JOB_STAGES in lib/recruitment-shared.ts. */
+  stage: text("stage").notNull().default("Sourcing"),
+
+  openedOn: timestamp("opened_on", { mode: "date", withTimezone: true }),
+  targetStartOn: timestamp("target_start_on", { mode: "date", withTimezone: true }),
+  /** When the Job Order itself was signed by both sides. */
+  signedOn: timestamp("signed_on", { mode: "date", withTimezone: true }),
+
+  // Compliance, filled in once a placement is being permitted. The permit is the
+  // CLIENT'S own process — Oracle records where it has got to and never files it.
+  expatStartYear: integer("expat_start_year"),
+  permitExpiry: timestamp("permit_expiry", { mode: "date", withTimezone: true }),
+
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("rec_job_orders_ref_unique").on(t.companyId, t.ref),
+  index("rec_job_orders_list_idx").on(t.companyId, t.archived, t.stage),
+  index("rec_job_orders_client_idx").on(t.clientId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE RECRUITMENT DESK, PHASE 2 — an assignment from end to end.
+//
+// Shortlist → interviews → offer accepted → started → the first month.
+//
+// ⚠️ STILL NOTHING DERIVED IS STORED. No match score (it is worked out from the
+// candidate and the order every time they are read, so it can never describe a
+// salary or a seniority that has since changed), no guarantee end date, no
+// "days left", no progress figure. See `lib/recruitment-shared.ts`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One candidate's progress against ONE job order.
+//
+// This is NOT placement history — that is `rec_placements`. Conflating the two
+// was one of the three defects the owner's own schema notes recorded, and it is
+// why a shortlist entry and a placement are separate tables here.
+export const recShortlist = pgTable("rec_shortlist", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  jobOrderId: integer("job_order_id").notNull().references(() => recJobOrders.id, { onDelete: "cascade" }),
+  candidateId: integer("candidate_id").notNull().references(() => recCandidates.id, { onDelete: "restrict" }),
+  /** One of CANDIDATE_STAGES in lib/recruitment-shared.ts. */
+  stage: text("stage").notNull().default("Sourced"),
+
+  /**
+   * ⚠️ THE WRITTEN REASONING, and it is a PROMISE, not a nicety. The company
+   * profile tells every client: "A shortlist with written reasoning on each
+   * candidate… You get our reasoning, not just a stack of CVs."
+   */
+  matchNote: text("match_note"),
+
+  /** Required the moment the stage is Declined — enforced below, in the
+   *  database, because this is the wording a fee dispute is argued in. */
+  declineReason: text("decline_reason"),
+
+  /** When the shortlist actually went to the client. The moment the order stops
+   *  being Oracle's work and starts being the client's decision. */
+  sentToClientOn: timestamp("sent_to_client_on", { mode: "date", withTimezone: true }),
+
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("rec_shortlist_unique").on(t.jobOrderId, t.candidateId),
+  index("rec_shortlist_order_idx").on(t.jobOrderId, t.stage),
+  index("rec_shortlist_candidate_idx").on(t.candidateId),
+  check("rec_shortlist_decline_needs_reason",
+    sql`${t.stage} <> 'Declined' OR ${t.declineReason} IS NOT NULL`),
+]);
+
+// An interview. A round of its own row, because a client interview and the final
+// are two events with two outcomes, and a single date column on the shortlist
+// could only ever remember the last one.
+//
+// ⚠️ The time is a real timestamptz, and the screens show it in BOTH Dar es
+// Salaam and India time. Coordinating across the time difference is the job.
+export const recInterviews = pgTable("rec_interviews", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  shortlistId: integer("shortlist_id").notNull().references(() => recShortlist.id, { onDelete: "cascade" }),
+  /** Screening | Client interview | Final */
+  kind: text("kind").notNull().default("Client interview"),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+  /** Pending | Passed | Failed | No show | Cancelled */
+  outcome: text("outcome").notNull().default("Pending"),
+  note: text("note"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("rec_interviews_shortlist_idx").on(t.shortlistId, t.scheduledFor),
+  index("rec_interviews_due_idx").on(t.companyId, t.outcome, t.scheduledFor),
+]);
+
+// Somebody actually took the job.
+//
+// ⚠️ TWO DATES, AND THEY MEAN DIFFERENT THINGS.
+//   accepted_on — the candidate accepted the written offer. THE FEE IS EARNED
+//                 AND INVOICED HERE. "Payable in full on offer acceptance."
+//   started_on  — the day they actually started. THE GUARANTEE AND THE DAY
+//                 7/14/30 CHECK-INS RUN FROM HERE ("within one month of
+//                 starting"). Null until they arrive — an accepted offer can sit
+//                 in the client's permit process for weeks.
+// Collapsing them into one date would either invoice too late or start the
+// guarantee too early.
+export const recPlacements = pgTable("rec_placements", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  jobOrderId: integer("job_order_id").notNull().references(() => recJobOrders.id, { onDelete: "restrict" }),
+  candidateId: integer("candidate_id").notNull().references(() => recCandidates.id, { onDelete: "restrict" }),
+  /** The shortlist row this came from, kept for the trail. */
+  shortlistId: integer("shortlist_id").references(() => recShortlist.id, { onDelete: "set null" }),
+
+  acceptedOn: timestamp("accepted_on", { mode: "date", withTimezone: true }).notNull(),
+  startedOn: timestamp("started_on", { mode: "date", withTimezone: true }),
+
+  /** ⚠️ FROZEN AT ACCEPTANCE. The fee does not move if the role is edited
+   *  afterwards — this is the figure the invoice was raised on. */
+  monthlyGrossUsd: numeric("monthly_gross_usd", { precision: 12, scale: 2 }),
+
+  /** Filled in only if it went wrong. */
+  endedOn: timestamp("ended_on", { mode: "date", withTimezone: true }),
+  endedReason: text("ended_reason"),
+  /**
+   * Whose fault, and it decides the remedy — Terms of Business cl. 6:
+   *   candidate / neither → free replacement search, no refund.
+   *   client              → NO free replacement; a further search is a new Job
+   *                         Order at the full fee.
+   */
+  fault: text("fault"),
+  /** A free replacement points back at the placement it replaces. */
+  replacementOfId: integer("replacement_of_id").references((): AnyPgColumn => recPlacements.id, { onDelete: "set null" }),
+
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("rec_placements_order_idx").on(t.jobOrderId),
+  index("rec_placements_live_idx").on(t.companyId, t.startedOn),
+  check("rec_placements_fault_values",
+    sql`${t.fault} IS NULL OR ${t.fault} IN ('candidate', 'client', 'neither')`),
+]);
+
+// A conversation that HAPPENED during the first month.
+//
+// ⚠️ A ROW IS A RECORD OF A CONVERSATION, NEVER A PLACEHOLDER. The six expected
+// conversations (day 7, 14 and 30, with the client and with the candidate) are
+// worked out from `started_on`, so an outstanding check-in is the ABSENCE of a
+// row rather than an empty one. That is why `note` is NOT NULL: a check-in with
+// nothing written in it is worthless as evidence, and evidence is the entire
+// point — cl. 6.4, and the profile's promise that "if a placement goes wrong,
+// that written record is what the conversation is based on".
+export const recCheckins = pgTable("rec_checkins", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  placementId: integer("placement_id").notNull().references(() => recPlacements.id, { onDelete: "cascade" }),
+  /** 7, 14 or 30. */
+  day: integer("day").notNull(),
+  /** client | candidate — both sides are asked, and both are written down. */
+  party: text("party").notNull(),
+  spokeOn: timestamp("spoke_on", { mode: "date", withTimezone: true }).notNull(),
+  note: text("note").notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("rec_checkins_unique").on(t.placementId, t.day, t.party),
+  index("rec_checkins_placement_idx").on(t.placementId, t.day),
+  check("rec_checkins_day_values", sql`${t.day} IN (7, 14, 30)`),
+  check("rec_checkins_party_values", sql`${t.party} IN ('client', 'candidate')`),
 ]);

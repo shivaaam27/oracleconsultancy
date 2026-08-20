@@ -112,6 +112,7 @@ export function RecordPage({
   sections,
   sidebar,
   timeline,
+  main,
   children,
   className,
 }: {
@@ -141,8 +142,19 @@ export function RecordPage({
   sidebar?: ReactNode;
   /** Activity, at the bottom, full width — the last thing, always. */
   timeline?: ReactNode;
-  /** Free body, rendered under the sections. Used when the active tab supplies
-   *  its own content (conversation, history, an edit form). */
+  /**
+   * Content for the LEFT COLUMN, beside the sidebar — a form, a tab's own panel.
+   *
+   * ⚠️ Not the same as `children`. Children are rendered FULL WIDTH UNDER the
+   * whole body, which is right for a conversation and wrong for a form: a record
+   * with a sidebar and no `sections` left an empty left column and pushed the
+   * form below the sidebar, so on a wide screen the top half of the page was
+   * blank and the fields were off the bottom. If it belongs beside the sidebar,
+   * it is `main`.
+   */
+  main?: ReactNode;
+  /** Free body, rendered FULL WIDTH under the sections. Used when the active tab
+   *  supplies its own content (conversation, history). */
   children?: ReactNode;
   className?: string;
 }) {
@@ -254,7 +266,7 @@ export function RecordPage({
         </div>
       )}
 
-      <RecordBody sections={sections} sidebar={sidebar} timeline={timeline} />
+      <RecordBody sections={sections} sidebar={sidebar} timeline={timeline} main={main} />
       {children}
     </div>
   );
@@ -271,17 +283,21 @@ export function RecordBody({
   sections,
   sidebar,
   timeline,
+  main,
 }: {
   sections?: RecordSection[];
   sidebar?: ReactNode;
   timeline?: ReactNode;
+  /** Beside the sidebar, under the sections. See RecordPage's note on `main`. */
+  main?: ReactNode;
 }) {
   return (
     <>
-      {(sections?.length || sidebar) && (
+      {(sections?.length || sidebar || main) && (
         <div className={cn("grid gap-3", sidebar && "lg:grid-cols-[minmax(0,1fr)_260px]")}>
           <div className="min-w-0 space-y-3">
             {sections?.map((s) => <Section key={s.id} section={s} />)}
+            {main}
           </div>
           {sidebar && <aside className="min-w-0 space-y-3">{sidebar}</aside>}
         </div>

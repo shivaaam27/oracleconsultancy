@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Download, Keyb
 import { cn } from "@/lib/cn";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { toCsv, listFileName, downloadCsv, nodeText } from "@/lib/csv";
+import { useFillViewport } from "@/lib/use-fill-viewport";
 
 /**
  * RecordList — the ONE list screen (Stage 2 of the ERPNext redesign).
@@ -495,6 +496,7 @@ export function RecordList<T>({
   showHeader = true,
   showFooter = true,
   bare = false,
+  fillViewport = true,
   listKey,
   exportName,
   bulkActions,
@@ -550,6 +552,15 @@ export function RecordList<T>({
   showFooter?: boolean;
   /** Drop the card frame — for a list rendered INSIDE an existing housing. */
   bare?: boolean;
+  /**
+   * Grow the card to the bottom of the window when the list is short.
+   *
+   * On by default for any list that draws its own card, because a three-row list
+   * leaving two-thirds of the window as bare grey was the owner's "dead space".
+   * A `bare` list is inside somebody else's housing and never fills. Pass false
+   * for a card that is deliberately a small block on a busier page.
+   */
+  fillViewport?: boolean;
   /** Turns on the column chooser and remembers the choice under this key
    *  (Stage 5). Omit for a list whose columns are not the user's business. */
   listKey?: string;
@@ -562,6 +573,11 @@ export function RecordList<T>({
   className?: string;
 }) {
   const { hidden, toggle } = useHiddenColumns(listKey);
+  /* The card grows to the foot of the window; the ROWS take the slack, so the
+     "N of M shown" strip stays pinned to the bottom of the panel the way
+     ERPNext's does, rather than floating halfway up a field of white. */
+  const card = useRef<HTMLDivElement>(null);
+  useFillViewport(card, { mode: "min", enabled: !bare && fillViewport });
 
   /* ------------------------------------------- search, then paging ------ */
   // ⚠️ Filter BEFORE paging. The other way round pages the whole list and then
@@ -795,7 +811,10 @@ export function RecordList<T>({
           </div>
         )}
 
-        <div className={cn(!bare && "mt-2 overflow-hidden rounded-xl border border-border bg-bg-elev")}>
+        <div
+          ref={card}
+          className={cn(!bare && "mt-2 flex flex-col overflow-hidden rounded-xl border border-border bg-bg-elev")}
+        >
           {showHeader && (
             <div
               data-list-head
@@ -840,7 +859,7 @@ export function RecordList<T>({
           )}
 
           {rows.length === 0 ? (
-            <div className="px-3 py-10">
+            <div className="flex flex-1 flex-col justify-center px-3 py-10">
               {/* A search that matches nothing is not an empty list — saying
                   "none yet" there sends someone hunting for data that is
                   sitting right behind the box they typed in. */}
@@ -853,7 +872,7 @@ export function RecordList<T>({
               ) : empty}
             </div>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="flex-1 divide-y divide-border">
               {paged.map((row, i) => {
                 const key = rowKey(row);
                 const group = groupOf?.(row) ?? null;

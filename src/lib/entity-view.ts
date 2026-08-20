@@ -314,6 +314,151 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Project", href: "/projects?new=1" },
   },
 
+  /* ─────────────────────────────── the recruitment desk (Phase 1) ─────────
+     Three record types, one shape. The reference and the context live on the
+     row's SECOND LINE rather than in columns of their own — the same trick the
+     tasks and projects lists use, and the only way a dense list still reads on
+     a phone. Fixed width is kept well under 400px for the reason spelled out
+     at the top of this file. */
+  rec_job_order: {
+    listColumns: [
+      { key: "title", label: "Role", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "stage", label: "Stage", width: "150px", format: "status", hideBelow: "sm", sortable: true },
+      { key: "feeTZS", label: "Fee (TZS)", width: "120px", format: "number", align: "right", sortable: true },
+      { key: "targetStartOn", label: "Target start", width: "116px", format: "date", align: "right", hideBelow: "md", sortable: true },
+    ],
+    filters: [
+      { label: "Stage", source: "status" },
+    ],
+    formSections: [
+      {
+        id: "brief",
+        title: "The brief",
+        fields: [
+          { key: "ref", label: "Reference", format: "code" },
+          { key: "clientName", label: "Client" },
+          { key: "title", label: "Role" },
+          { key: "sector", label: "Sector" },
+          { key: "seniorityLabel", label: "Seniority" },
+          { key: "stage", label: "Stage", format: "status" },
+        ],
+      },
+      {
+        id: "fee",
+        title: "Salary and fee",
+        fields: [
+          { key: "monthlyGrossUsd", label: "Monthly gross (USD)", format: "number" },
+          { key: "grossTZS", label: "Monthly gross (TZS)", format: "number" },
+          { key: "feeTZS", label: "Fee — one month", format: "number" },
+          { key: "vatTZS", label: "VAT at 18%", format: "number" },
+          { key: "totalTZS", label: "Invoice total", format: "number" },
+        ],
+      },
+      {
+        id: "dates",
+        title: "Dates",
+        fields: [
+          { key: "openedOn", label: "Opened", format: "date" },
+          { key: "signedOn", label: "Job Order signed", format: "date" },
+          { key: "targetStartOn", label: "Target start", format: "date" },
+          { key: "permitExpiry", label: "Permit expires", format: "date" },
+        ],
+      },
+    ],
+    // Oldest first: the role that has been open longest is the one being let
+    // down (DESIGN_SYSTEM.md §12 — worst first, everywhere).
+    defaultSort: { key: "openedOn", dir: "asc" },
+    create: { label: "Job order", href: "/recruitment/orders?new=1" },
+  },
+
+  rec_candidate: {
+    listColumns: [
+      { key: "name", label: "Candidate", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "seniorityLabel", label: "Seniority", width: "100px", format: "text", hideBelow: "md", sortable: true },
+      { key: "expectedSalaryUsd", label: "Salary (USD)", width: "110px", format: "number", align: "right", sortable: true },
+      { key: "passport", label: "Passport", width: "116px", format: "text", hideBelow: "sm", sortable: true },
+    ],
+    formSections: [
+      {
+        id: "who",
+        title: "Who they are",
+        fields: [
+          { key: "name", label: "Name" },
+          { key: "title", label: "Current role" },
+          { key: "sector", label: "Sector" },
+          { key: "seniorityLabel", label: "Seniority" },
+          { key: "yearsExp", label: "Years of experience", format: "number" },
+          { key: "originLabel", label: "Sourced from" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+        ],
+      },
+      {
+        id: "travel",
+        title: "Travel and identity",
+        fields: [
+          { key: "passportNo", label: "Passport number", format: "code" },
+          { key: "passportExpiry", label: "Passport expires", format: "date" },
+          { key: "ecnrLabel", label: "ECNR" },
+          { key: "idVerifiedLabel", label: "Identity checked" },
+          { key: "partnerName", label: "Introduced by" },
+        ],
+      },
+      {
+        id: "papers",
+        title: "Papers signed",
+        fields: [
+          { key: "consentSignedOn", label: "Registration & Consent", format: "date" },
+          { key: "engagementSignedOn", label: "Terms of Engagement", format: "date" },
+        ],
+      },
+    ],
+    defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Candidate", href: "/recruitment/candidates?new=1" },
+  },
+
+  rec_client: {
+    listColumns: [
+      { key: "name", label: "Client", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "contactName", label: "Contact", width: "150px", format: "text", hideBelow: "md", sortable: true },
+      { key: "papers", label: "Papers", width: "130px", format: "text", hideBelow: "sm", sortable: true },
+      { key: "openOrders", label: "Open roles", width: "100px", format: "number", align: "right", sortable: true },
+    ],
+    formSections: [
+      {
+        id: "who",
+        title: "The employer",
+        fields: [
+          { key: "name", label: "Client" },
+          { key: "sector", label: "Sector" },
+          { key: "city", label: "City" },
+          { key: "contactName", label: "Contact" },
+          { key: "contactEmail", label: "Email" },
+          { key: "contactPhone", label: "Phone" },
+        ],
+      },
+      {
+        id: "papers",
+        title: "Papers signed",
+        fields: [
+          { key: "termsSignedOn", label: "Terms of Business", format: "date" },
+          { key: "dsaSignedOn", label: "Data Sharing Agreement", format: "date" },
+        ],
+      },
+      {
+        id: "ratio",
+        title: "Head count",
+        fields: [
+          { key: "localEmployees", label: "Tanzanian staff", format: "number" },
+          { key: "foreignEmployees", label: "Foreign staff", format: "number" },
+          { key: "ratioText", label: "10:1 ratio", full: true },
+        ],
+      },
+    ],
+    defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Recruitment client", href: "/recruitment/clients?new=1" },
+  },
+
   commitment: {
     listColumns: [
       { key: "title", label: "Commitment", width: "minmax(0,1fr)", format: "text", sortable: true },

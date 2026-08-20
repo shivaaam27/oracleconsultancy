@@ -21,10 +21,11 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
   Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
   Table as TableIcon, Rows3, Columns3, Trash2, ListPlus, Bell, Paperclip, Info, GripVertical,
-  Sparkles, X,
+  Sparkles, X, Maximize2, Minimize2,
 } from "lucide-react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { cn } from "@/lib/cn";
+import { useFillViewport } from "@/lib/use-fill-viewport";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { extractMentions } from "@/lib/note-links-shared";
 import { findUnlinked, findWholeWord, type LinkCandidate } from "@/lib/note-unlinked-shared";
@@ -60,6 +61,17 @@ const AUTOSAVE_MS = 900;
 /** How long the writing must stop before the note is re-embedded. Deliberately far
  *  longer than the autosave — see `scheduleReindex`. */
 const REINDEX_IDLE_MS = 20_000;
+
+/** Remembered across notes: the owner writes far more than he reads, so the mode
+ *  he last wrote in is the one he wants when he opens the next one. */
+const FULLSCREEN_KEY = "cos-note-fullscreen";
+/** Never shrink the paper below this, however short the window. */
+const MIN_SHEET = 384;
+/** The band the writing line is held inside while full screen, as a share of the
+ *  paper's height. Wide on purpose: pin the caret to one exact line and every
+ *  click jerks the page about. */
+const BAND_TOP = 0.28;
+const BAND_BOTTOM = 0.62;
 
 const STYLE_OPTIONS: FluidOption[] = [
   { value: "p", label: "Body" },
@@ -99,6 +111,16 @@ export function NoteEditor({
   /** A save is in the air / another was asked for while it was. See `flush`. */
   const saving = useRef(false);
   const pendingSave = useRef(false);
+
+  /* -------- Full screen: just the writing --------
+     The sheet covers the whole screen (the rail, the pill and the bell all sit
+     under it), the toolbar steps back until you reach for it, and the line you
+     are writing is held in the middle of the glass instead of sinking to the
+     bottom edge. Esc or ⌘⇧F comes back. */
+  const [full, setFull] = useState(false);
+  const sheet = useRef<HTMLDivElement | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const [words, setWords] = useState(0);
 
   const flush = useCallback(async () => {
     const editor = editorRef.current;
@@ -433,6 +455,92 @@ export function NoteEditor({
     return () => { window.removeEventListener("beforeunload", onLeave); onLeave(); };
   }, [flush]);
 
+  /* Which mode he was last writing in. Read AFTER mount, never during render —
+     localStorage does not exist on the server and the markup has to match. */
+  useEffect(() => {
+    try { setFull(localStorage.getItem(FULLSCREEN_KEY) === "on"); } catch { /* private browsing */ }
+  }, []);
+
+  const setFullScreen = useCallback((on: boolean) => {
+    setFull(on);
+    try { localStorage.setItem(FULLSCREEN_KEY, on ? "on" : "off"); } catch { /* private browsing */ }
+    // Put the caret back on the paper. Leaving focus on a button, in a screen
+    // with no chrome left around it, is a dead end.
+    setTimeout(() => editorRef.current?.chain().focus().run(), 0);
+  }, []);
+
+  // Nothing behind the sheet should scroll while it is covering the screen.
+  useEffect(() => {
+    if (!full) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [full]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFullScreen(!full);
+        return;
+      }
+      /* Esc leaves — but only if nothing else has already claimed it. The slash,
+         @ and [[ menus each call preventDefault while they are open, so this can
+         never close the screen out from under an open menu. */
+      if (e.key === "Escape" && full && !e.defaultPrevented) setFullScreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [full, setFullScreen]);
+
+  /* THE SHEET ENDS WHERE THE SCREEN ENDS.
+     It used to be `100dvh - 11rem` — a guess at the height of the chrome above it
+     — which left a band of dead grey under the paper on a desktop (the owner's
+     complaint) and would have been wrong again the moment the control row
+     wrapped.
+
+     The measuring now lives in `lib/use-fill-viewport.ts`, shared with every list
+     in COS, which had exactly the same dead space under it. `exact` because the
+     sheet is a PANE: it is this tall and the paper scrolls inside it. Off while
+     full screen, where `fixed inset-0` already owns the height. */
+  useFillViewport(sheet, { mode: "exact", minimum: MIN_SHEET, enabled: !full, deps: [editor] });
+
+  /* Typewriter scrolling, full screen only: hold the line being written inside a
+     comfortable band rather than letting it sink to the bottom edge. It only
+     nudges when the caret leaves the band, so ordinary clicking and reading
+     INSIDE it move nothing — which is what stops it feeling seasick. */
+  useEffect(() => {
+    if (!full || !editor) return;
+    const hold = () => {
+      const box = scroller.current;
+      if (!box || !editor.view.hasFocus()) return;
+      try {
+        const caret = editor.view.coordsAtPos(editor.state.selection.head);
+        const r = box.getBoundingClientRect();
+        const top = r.top + r.height * BAND_TOP;
+        const bottom = r.top + r.height * BAND_BOTTOM;
+        if (caret.top < top) box.scrollTop -= top - caret.top;
+        else if (caret.bottom > bottom) box.scrollTop += caret.bottom - bottom;
+      } catch { /* a position mid-transaction can be out of range — skip it */ }
+    };
+    editor.on("update", hold);
+    editor.on("selectionUpdate", hold);
+    return () => { editor.off("update", hold); editor.off("selectionUpdate", hold); };
+  }, [full, editor]);
+
+  /* Words, on a lazy debounce. NOT per keystroke: counting a long note on every
+     character is work nobody asked for, and a number that settles a moment after
+     you stop typing is the one you actually read. */
+  useEffect(() => {
+    if (!editor) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const count = () => setWords(countWords(editor.getText()));
+    const schedule = () => { if (t) clearTimeout(t); t = setTimeout(count, 700); };
+    count();
+    editor.on("update", schedule);
+    return () => { if (t) clearTimeout(t); editor.off("update", schedule); };
+  }, [editor]);
+
   // ⌘S / Ctrl+S saves now, because people press it whatever you tell them.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -523,13 +631,30 @@ export function NoteEditor({
   return (
     /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
        not a floating box of its own. */
-    <div className="flex h-[calc(100dvh-11rem)] min-h-[24rem] flex-col overflow-hidden rounded-lg border border-border bg-bg-elev shadow-sm">
+    <div
+      ref={sheet}
+      className={cn(
+        "flex flex-col overflow-hidden bg-bg-elev",
+        full
+          /* Over the rail, the pill and the bell (all z-40); under the toasts. */
+          ? "fixed inset-0 z-50"
+          : "h-[calc(100dvh-11rem)] min-h-[24rem] rounded-lg border border-border shadow-sm",
+      )}
+    >
       {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up. At 375px this toolbar
           wrapped to THREE rows — 71px of controls above a note before a word was
           written, on the screen with the least room to give. It scrolls sideways
           instead, so every tool is still reachable and the writing keeps its
           height. (`slim-scroll` hides the bar until it is used.) */}
-      <div className="slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-bg-subtle/80 px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
+      <div
+        className={cn(
+          "slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-bg-subtle/80 px-2 py-1.5 transition-opacity duration-200 sm:flex-wrap sm:overflow-x-visible",
+          /* Full screen: the tools step back until you reach for them. Still
+             there, still in the same place — just not shouting at a blank page
+             you are trying to think on. */
+          full && "opacity-40 hover:opacity-100 focus-within:opacity-100",
+        )}
+      >
         <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo2 size={14} /></ToolButton>
         <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo2 size={14} /></ToolButton>
 
@@ -589,7 +714,20 @@ export function NoteEditor({
           }}
         />
 
+        <Divider />
+
+        {/* Just the writing. Esc comes back — and so does this button, which is
+            why it stays put: on a phone there is no Esc key to press. */}
+        <ToolButton
+          title={full ? "Leave full screen (Esc)" : "Full screen — just the writing (⌘⇧F)"}
+          active={full}
+          onClick={() => setFullScreen(!full)}
+        >
+          {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </ToolButton>
+
         <span className="grow" />
+        <WordCount words={words} />
         <SaveBadge state={state} />
       </div>
 
@@ -721,8 +859,12 @@ export function NoteEditor({
            strips it out of globals.css entirely — the `.note-scroller` rule never
            reached the browser (verified: absent from the served stylesheet, while
            neighbouring rules arrived). An inline style bypasses that pipeline. */
+        ref={scroller}
         style={{ scrollbarGutter: "stable both-edges" }}
-        className="note-scroller slim-scroll min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9"
+        className={cn(
+          "note-scroller slim-scroll min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9",
+          full && "sm:py-14",
+        )}
         onMouseDown={(e) => {
           // Only when the padding itself is clicked — never steal a click aimed at
           // the text, a link or the title.
@@ -731,7 +873,10 @@ export function NoteEditor({
           editor.chain().focus("end").run();
         }}
       >
-        <div className="mx-auto w-full max-w-[68ch]">
+        {/* Full screen keeps a screenful of room under the last line, so the
+            writing can always sit in the middle of the glass instead of being
+            pushed onto the bottom edge. */}
+        <div className={cn("mx-auto w-full max-w-[68ch]", full && "pb-[45vh]")}>
           {/* ⚠️ A TEXTAREA, NOT AN INPUT — the title has to WRAP.
               As a single-line input, a long title just scrolled sideways inside its
               own box: on a 375px phone the field was 294px wide holding 759px of
@@ -813,7 +958,9 @@ export function NoteEditor({
       {/* Names you wrote without linking. A quiet strip at the FOOT of the sheet,
           so it never pushes the writing about, and every chip can be waved away.
           It offers; it never links by itself — see lib/note-unlinked-shared.ts. */}
-      {unlinked.length > 0 && (
+      {/* Hidden while full screen — a strip of suggestions is exactly the sort of
+          thing that has no business in front of someone who is thinking. */}
+      {unlinked.length > 0 && !full && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border bg-bg-subtle/60 px-3 py-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle">
             <Sparkles size={11} /> Mentioned, not linked:
@@ -978,6 +1125,24 @@ function ToolButton({
     >
       {children}
     </button>
+  );
+}
+
+/** Words as a person counts them: runs of anything that is not a space. It never
+ *  has to be exact — it is an anchor while you write, not a figure. */
+function countWords(text: string): number {
+  const t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+/** Quiet, and only once there is something to count. Hidden on a phone, where
+ *  the toolbar has no room to spare. */
+function WordCount({ words }: { words: number }) {
+  if (words === 0) return null;
+  return (
+    <span className="mr-1 hidden shrink-0 px-1 text-[11px] tabular-nums text-fg-subtle sm:inline">
+      {words.toLocaleString("en-GB")} {words === 1 ? "word" : "words"}
+    </span>
   );
 }
 

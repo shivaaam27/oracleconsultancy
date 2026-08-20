@@ -204,6 +204,15 @@ update path, no delete path; a mistake is corrected by a reversal) ·
 ⚠️ **No `balance` column anywhere, and there must never be one** — every balance
 is worked out on read. See `memory/ledger.md`.
 
+Recruitment (migrations 0139–0140): **rec_clients** (the Tanzanian employer;
+`terms_signed_on`/`dsa_signed_on` are the gate on starting work) · **rec_candidates**
+(the Indian professional — ⚠️ **no fee/bond/balance column, ever**) ·
+**rec_job_orders** (one role; `client_id` NULL = Oracle hiring for itself) ·
+**rec_shortlist** (candidate × order; `match_note` is the written reasoning the
+client is promised) · **rec_interviews** · **rec_placements** (⚠️ `accepted_on` =
+fee earned, `started_on` = guarantee clock) · **rec_checkins** (a conversation
+that happened; `note` NOT NULL). See `memory/recruitment_module_plan.md`.
+
 Governance audit: audit_log, corrections
 
 To-dos:
@@ -355,6 +364,12 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   books, raw) · **Reports** (`/ledger/reports/<report>` — trial balance, P&L,
   balance sheet, general ledger, statements; `?group=1` consolidates all
   thirteen companies). Company picked with `?co=`, never `?company=`.
+- `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
+  Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
+  wait first), `/interviews` (the diary, in both Dar and India time) and
+  `/placements` (the guarantee and the six check-ins). A role's record is routed by
+  its reference (`/recruitment/orders/JO-2608-01`) and carries the assignment on
+  tabs. See the Recruitment section above.
 - `/insights`
 - `/settings`
 
@@ -444,6 +459,25 @@ follows it). Converted lists: Tasks, People, Documents, Assets, Vendors,
 Commitments. `RecordList` also owns the **column chooser** (`listKey`) and
 **bulk edit** (`bulkActions`). Saved views are generalised in
 `src/lib/saved-views.ts` (`<listKey>.savedViews` in `settings`).
+
+**Every list FILLS THE WORKING AREA** (Aug 2026). A three-row list used to leave
+600–700px of bare grey under it — the owner's "dead space" — on every list in COS.
+`src/lib/use-fill-viewport.ts` is now the ONE place that decides how tall a panel
+should be; `RecordList` uses it (`fillViewport`, on by default, off for `bare`)
+and so does the note sheet. ⚠️ It measures the element's top in DOCUMENT space and
+subtracts what follows **by walking the following siblings** — `main.bottom −
+el.bottom` is wrong here, because the filter rail sits BESIDE the card and is
+usually taller. **Do not reintroduce a `calc(100dvh − 11rem)` guess anywhere.**
+
+⚠️ **`RecordPage`'s `children` render FULL WIDTH UNDER the body.** A record with a
+`sidebar` and no `sections` therefore put its form BELOW the sidebar, leaving the
+top half of a wide screen blank. Content that belongs BESIDE the sidebar goes in
+the **`main`** prop. `children` stays as it was for the task drawer's conversation.
+
+⚠️ **A column marked `sortable` in `ENTITY_VIEWS` must be given a sort href**, or
+the header looks clickable and does nothing. `src/lib/use-list-sort.ts` does it
+client-side (key and direction in the URL, empties pinned last outside the
+direction flip); the tasks table does the same thing server-side.
 
 **Saved views now work on every converted list** (Aug 2026). Assets, Vendors,
 Documents and Commitments filter through the URL, not `useState`, via
@@ -536,6 +570,94 @@ system already holds 791 imported order lines, 347 invoices and 262 payments —
 see Phase 6). A fourth — who files the VAT returns and under what rules — lands
 with Phase 3.
 
+## Recruitment — ⚠️ PHASES 1–2 ARE BUILT. Read `memory/recruitment_module_plan.md` FIRST
+
+Oracle Consultancy runs a **recruitment agency**: it sources Indian professionals
+for Tanzanian employers. The owner had built a separate half-finished Next.js app
+for it in `Documents\HR Recruitment`; on 19 Aug 2026 he asked for it to come into
+COS **on Desk, not on its own design**. Nothing of that app's code, CSS or
+components was carried over — only its thinking.
+
+**The business rules the software ENFORCES** (not merely displays):
+
+- The fee is **ONE MONTH of the placed candidate's gross monthly salary, plus 18%
+  VAT**, payable **in full on offer acceptance**. That is the entire income.
+- **The candidate never pays anything, ever.** ⚠️ There is deliberately **no fee,
+  bond, balance or deduction column** in any `rec_*` table, and none is to be
+  added. `CANDIDATE_PAYS_TZS = 0` is a constant so it is greppable and testable.
+- **Free replacement inside one month. No refunds, ever.**
+- **Oracle never touches permits, visas, flights or relocation**, and never takes a
+  margin on anything paid to a third party.
+- **VAT is never revenue** — shown separately everywhere.
+- Gone in the Aug 2026 restructure and **never to be reintroduced**: service plans,
+  the assistance menu, service fees, the engagement fee, the staged 50/50 fee,
+  rebates and refunds.
+
+**Built:** `/recruitment` (the desk) · `/recruitment/orders` + `/orders/[ref]`
+(tabs: Brief · Shortlist · The first month) · `/recruitment/candidates` +
+`/candidates/[id]` · `/recruitment/clients` + `/clients/[id]` ·
+`/recruitment/shortlists` · `/recruitment/interviews` · `/recruitment/placements`.
+Migrations **0139 + 0140 applied**. Tables `rec_clients` · `rec_candidates` ·
+`rec_job_orders` · `rec_shortlist` · `rec_interviews` · `rec_placements` ·
+`rec_checkins`. **Live and EMPTY** — the owner's instruction is that nothing
+fabricated goes in.
+
+- **The fee lives in ONE file**, `src/lib/recruitment-money.ts`, with tests beside
+  it (`recruitment-money.test.ts`, 18 cases from the owner's own workbook: USD
+  1,550 → TZS 4,185,000 fee + 753,300 VAT). Change money maths, add a test.
+- Client/server split as everywhere: **`recruitment-shared.ts` and
+  `recruitment-fields.ts` are what client components import** (pure, no `sb`);
+  `recruitment.ts` is server-only. Getting this wrong kills every page with
+  "SUPABASE_SERVICE_ROLE_KEY is not set".
+- **ONE DOOR FOR WRITES:** the `create*`/`update*`/`archive*` functions in
+  `lib/recruitment.ts`. The actions in `app/recruitment/actions.ts` are thin
+  wrappers. Same discipline as `createTaskCore` and `postVoucher()`.
+- **Nothing derived is stored** — no fee column, no progress column. All computed
+  on read.
+- **A job order with NO client means Oracle is hiring for itself** (`client_id` is
+  nullable): same brief, same shortlist, **no fee, no invoice, no guarantee**.
+- ⚠️ **`accepted_on` and `started_on` are DIFFERENT DATES.** The fee is earned when
+  the offer is ACCEPTED; the one-month guarantee and the day 7/14/30 check-ins run
+  from the day the person STARTS. Never collapse them.
+- ⚠️ **A check-in row is a record of a conversation, never a placeholder.** The six
+  expected ones (day 7/14/30 × client and candidate) are computed from
+  `started_on`; an outstanding one is the ABSENCE of a row, and `note` is NOT NULL.
+- **The match score is DERIVED, never stored** (unlike the owner's own app) —
+  seniority 35 · sector 25 · title 25 · salary 15, tested.
+- **`recordAcceptance()` is the one door for "they took the job"**: it freezes the
+  gross, declines everyone else still live, and moves the order. ⚠️ Phase 3's
+  invoice and its `postVoucher()` posting go INSIDE that function.
+- Three database CHECK constraints carry contract rules: a Declined shortlist row
+  must have a reason; a placement's fault is candidate|client|neither; a check-in
+  is day 7/14/30 and client|candidate.
+- **Everything is editable and deletable** (owner's ask, Aug 2026 — he wants to
+  stop using the spreadsheet). Records carry a `DangerZone`; the database refuses
+  a delete that would take history with it (a client with orders, a candidate on a
+  shortlist, an order somebody was placed on) and `deleteBlocked()` says so in
+  English. **Archive stays the normal answer**, and every list rail has an
+  **Archived** entry — hiding a record with no way back to it is losing it.
+- ⚠️ **Typing the "sent to the client" date moves a Sourced/Screened candidate to
+  Shortlisted.** Without it the chase list would count a wait on a row it does not
+  list. Same reasoning as booking an interview moving somebody to Interviewing.
+- ⚠️ **An `<input type="datetime-local">` must be filled with the LOCAL wall
+  clock** (`localInput()` in the shortlist panel). A naive `.slice()` of the ISO
+  string puts UTC in the box and moves every interview back three hours on save.
+- Reference `JO-2608-01` = year, month, sequence that month. Allocated in
+  `lib/recruitment.ts` against a unique index, formatted in the shared half. The
+  ORDER RECORD IS ROUTED BY REF, not by id.
+- The desk finds its company by `code_prefix = "OC"` — **never hard-coded**; it
+  says so plainly on screen if Oracle Consultancy is missing.
+- ⚠️ **`USD_TZS = 2700` is a constant and should not stay one.** Phase 3 moves it
+  to Settings and freezes it onto each invoice, as the ledger already does.
+- **Phases 3–8 are NOT built**: the invoice and its ledger posting, compliance +
+  the launch registrations, the content calendar (`/content`, all thirteen
+  companies — NOT a recruitment feature), the client's private link, portal access
+  for the HR Officer, then search + one read-only MCP tool. **No MCP tool and no
+  `EntityDef` yet, on purpose.**
+- ⚠️ **Before real candidate data goes in:** the launch checklist requires **PDPC
+  registration before any candidate data is collected** and a **cross-border data
+  transfer permit before the first Indian CV is handled**. Neither is done.
+
 ## What's next — read `memory/next_features_aug2026.md`
 
 The ERPNext programme is done. The agreed next slice, in the owner's order:
@@ -606,6 +728,15 @@ the traps that cost real time.
   tag rail, **daily notes** ("Today", EAT-based, partial unique index), and **Phase 3:
   `@` mentions of task/person/company/document, `[[note]]` links, a Links + Backlinks
   rail, and a Notes tab on the task, person and company records**.
+- **Writing fills the screen** (19 Aug 2026). The sheet MEASURES its own top and
+  takes the rest of the window — the old `calc(100dvh - 11rem)` guess left a band of
+  dead grey under the paper. ⚠️ It only reclaims `<main>`'s bottom padding from
+  `xl` up; below that the padding is holding the floating nav pill off the content.
+  Plus **full screen** ("just the writing" — toolbar button, ⌘⇧F, Esc): the sheet
+  goes `fixed inset-0 z-50`, which COVERS the rail/pill/bell rather than hiding
+  them, with typewriter scrolling holding the live line in the middle band. Esc is
+  guarded on `!e.defaultPrevented` so it never closes out from under an open `/`,
+  `@` or `[[` menu. See `memory/notes_module_plan.md`.
 - **A link is DERIVED FROM THE WRITING.** `note_links` is rewritten from the document
   on every save, so the only way to make one is to `@`-mention it in the note. There is
   deliberately **no "attach a note" button** on a task — a link made away from the

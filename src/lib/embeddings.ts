@@ -33,6 +33,12 @@ export type SourceType =
    *  member exists so the module can have an ENTITY_VIEWS entry like every other
    *  record type. */
   | "note"
+  /** The recruitment desk (Phase 1) — Oracle Consultancy's agency. Not indexed
+   *  yet; the EntityDefs arrive in Phase 8. These members exist so the module can
+   *  have ENTITY_VIEWS entries like every other record type. */
+  | "rec_client"
+  | "rec_candidate"
+  | "rec_job_order"
   /** The PES trading module (Stages 2–5). Four record types, each carrying a
    *  reference number somebody quotes down the phone — a PO, a bill of lading,
    *  an RFQ, an invoice — which is exactly what a search box is for. */
