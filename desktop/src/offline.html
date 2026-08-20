@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <title>No connection — Oracle Consultancy</title>
+    <style>
+      /* Deliberately self-contained: this page has to work when nothing loads. */
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f4f5f6;
+        color: #1f272e;
+        font: 400 14px/1.55 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+        padding: 24px;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #16191d; color: #e9edf1; }
+        .card { background: #1c2024 !important; border-color: #2c3238 !important; }
+        .hint { color: #97a3ae !important; }
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        background: #fff;
+        border: 1px solid #e2e6ea;
+        border-radius: 8px;
+        padding: 28px;
+        text-align: center;
+      }
+      h1 { margin: 0 0 8px; font-size: 17px; font-weight: 600; }
+      p { margin: 0 0 20px; }
+      .hint { color: #6b7785; font-size: 12.5px; margin-top: 18px; margin-bottom: 0; }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 6px;
+        background: #2490ef;
+        color: #fff;
+        font: inherit;
+        font-weight: 500;
+        padding: 9px 20px;
+        cursor: pointer;
+      }
+      button:hover { background: #1b7fd6; }
+      button:disabled { opacity: 0.6; cursor: default; }
+      .dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: #d64b4b; display: inline-block; margin-right: 7px;
+        vertical-align: baseline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1><span class="dot"></span>No connection</h1>
+      <p>Oracle Consultancy could not be reached. Check your internet, then try again.</p>
+      <button id="retry" type="button">Try again</button>
+      <p class="hint">Your work is saved on the server — nothing has been lost.</p>
+    </div>
+    <script>
+      const btn = document.getElementById("retry");
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        btn.textContent = "Reconnecting…";
+        // Exposed by preload.js. Guarded so this page is still harmless if it is
+        // ever opened somewhere without the bridge.
+        if (window.cosShell && window.cosShell.retry) window.cosShell.retry();
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = "Try again";
+        }, 4000);
+      });
+      // Come back on our own the moment the machine sees a network again.
+      window.addEventListener("online", () => {
+        if (window.cosShell && window.cosShell.retry) window.cosShell.retry();
+      });
+    </script>
+  </body>
+</html>

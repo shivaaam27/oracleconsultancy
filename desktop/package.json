@@ -1,0 +1,26 @@
+{
+  "name": "cos-desktop",
+  "productName": "Oracle Consultancy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Oracle Consultancy command centre as a Windows app.",
+  "main": "src/main.js",
+  "author": {
+    "name": "Oracle Consultancy Ltd"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env COS_URL=http://localhost:3000 electron .",
+    "pack": "electron-builder --dir",
+    "build": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "cross-env": "10.1.0",
+    "electron": "43.4.1",
+    "electron-builder": "26.15.3"
+  }
+}

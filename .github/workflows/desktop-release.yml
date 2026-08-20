@@ -1,0 +1,70 @@
+name: Desktop app release
+
+# Builds the Windows installer and publishes it to GitHub Releases, from which
+# every installed copy updates itself.
+#
+# Trigger: push a tag like `desktop-v1.0.1`. The tag is what makes a release; a
+# push to master does NOT build the app (the app's CONTENTS come from Vercel and
+# need no build here).
+#
+# ⚠️ Needs a secret named DESKTOP_RELEASE_TOKEN — a fine-grained personal access
+# token with "Contents: read and write" on the PUBLIC repo named in
+# desktop/electron-builder.yml. The default GITHUB_TOKEN cannot write to another
+# repository. See desktop/README.md for why that repo has to be public.
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  # Lets you build an installer from the Actions tab without tagging, to check a
+  # change compiles. `--publish never`, so nothing reaches anyone.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+
+      - name: Check the shell parses
+        working-directory: desktop
+        run: |
+          node --check src/main.js
+          node --check src/preload.js
+
+      # A tag publishes; a manual run only builds, so you can prove a change
+      # compiles without shipping it to anybody.
+      - name: Build and publish
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        working-directory: desktop
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+
+      - name: Build only
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+        working-directory: desktop
+        run: npm run build
+
+      - name: Keep the installer as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-consultancy-windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
