@@ -622,3 +622,66 @@ refused on a placed order → archived → found under Archived → restored. Ev
 dropdown opens and commits, every toggle persists, no console errors, no
 horizontal overflow at 375px. **721 tests pass, type-check clean, all seven
 tables left empty.**
+
+---
+
+## 14. WHERE TO PICK THIS UP — read this first
+
+Written **20 August 2026**, at the end of the session that built Phases 1 and 2.
+
+### State
+
+**Deployed.** Commit `16c202e` on **master**, pushed and building on Vercel.
+Working tree clean, nothing unpushed, `npm run build` verified before the push.
+721 tests pass. Migrations **0141 + 0142** applied to the live database.
+
+**The seven `rec_*` tables are LIVE AND EMPTY.** Nothing fabricated was ever
+left in them — every test row created along the way was deleted.
+
+⚠️ **The migrations are 0141/0142, not 0139/0140.** Another session took those
+numbers for the anon-key lockdown while this was being built. Their `when`
+values in `drizzle/meta/_journal.json` are deliberately EARLIER than the two
+before them — do not "tidy" that. Drizzle decides what to apply by comparing
+timestamps against the last applied migration; bump them and the next deploy
+will think two already-applied migrations are new and try to create the
+recruitment tables a second time.
+
+### The next piece of work: Phase 3 — the invoice
+
+**It is blocked on one answer from the owner** (§9 Q6, still open):
+
+> Which company's books do recruitment invoices post to — Oracle Consultancy Ltd
+> — and should the desk read as its own profit and loss inside that company?
+
+Once answered, Phase 3 is:
+
+1. An invoice raised **when the offer is accepted**, not when the person starts.
+2. VAT shown separately and posted to a **liability** account, never to income.
+3. Posted to the general ledger through **`postVoucher()`** — the only door to
+   `gl_entries` (CLAUDE.md's ledger rule).
+4. ⚠️ **The posting goes INSIDE `recordAcceptance()`** in `lib/recruitment.ts`,
+   beside the placement write and the declining of everyone else — not in a
+   screen, not in a second function. A second write path is a second set of
+   books.
+5. ⚠️ **`USD_TZS = 2700` must stop being a constant** at this point. It moves to
+   Settings and is FROZEN onto each invoice as it is raised, exactly as the
+   ledger already freezes a rate onto an entry. Until then every figure on
+   screen is "at the workbook rate" and is labelled so.
+
+### After that, in the owner's order
+
+Phase 4 compliance + the launch registrations · Phase 5 **`/content`** (the
+content calendar, and note it is for **all thirteen companies**, not a
+recruitment feature) · Phase 6 the client's private link, no login (his decision)
+· Phase 7 portal access for the HR Officer, who sees **everything** (his
+decision) · Phase 8 search + one read-only MCP tool.
+
+### Two things that are NOT done and are not code
+
+- **PDPC registration before any candidate data is collected**, and a
+  **cross-border data transfer permit before the first Indian CV is handled.**
+  Putting real people into this module is that act. Building and testing with
+  made-up data is unaffected.
+- **The Minister's power to prescribe agency fees** (NEPSA s.19) — Oracle's own
+  research calls it "the single highest-value question for counsel". It does not
+  block building; it must be settled before the first invoice goes out.
