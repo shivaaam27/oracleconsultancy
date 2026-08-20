@@ -102,6 +102,34 @@ dotnet run
 
 Unset `COS_URL` to go back to production.
 
+## Notifications — what works and what does not
+
+Measured on 20 Aug 2026, not assumed.
+
+**WebView2 does not display a web notification by itself.** It hands it to the
+app and expects the app to show it. Before this was handled, COS raised
+notifications inside the app and **nothing appeared** — no error, no warning,
+just silence.
+
+| Kind | Raised by | Reaches the app? | Shown now? |
+|---|---|---|---|
+| Non-persistent | `new Notification()` from the page | ✅ yes, `NotificationReceived` | ✅ yes, as a Windows notification |
+| **Persistent** | `registration.showNotification()` — **how a pushed reminder arrives** | ❌ no event in this SDK | ❌ no |
+
+⚠️ **So do not promise that a pushed task reminder pops up as a Windows toast in
+the app.** It does still appear inside COS itself — the bell, and the
+Task-reminders channel — which is where people are actually looking. Push itself
+works fine in WebView2: `PushManager`, the service worker, `showNotification` and
+reading the subscription are all supported. It is only the *display* handover
+that stops at the persistent kind.
+
+⚠️ **Read every property off the notification BEFORE touching any UI.** The
+object is valid only for the duration of the event. Creating the tray icon pumps
+the Windows message loop, the event scope ends, and the next property read throws
+*"CoreWebView2Notification members cannot be accessed after the WebView2 control
+is disposed"* — a confusing way of saying "too late". The order of those lines in
+`OnNotificationReceived` is deliberate.
+
 ## The security model — do not weaken it
 
 This window shows **remote code**, so these rules are what keep it an app rather

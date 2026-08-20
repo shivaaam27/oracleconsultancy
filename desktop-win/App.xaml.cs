@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 
+// WinForms (referenced for the tray icon) also defines Application.
+using Application = System.Windows.Application;
+
 namespace OracleConsultancy;
 
 public partial class App : Application

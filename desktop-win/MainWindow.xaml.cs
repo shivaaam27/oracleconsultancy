@@ -5,6 +5,13 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 
+// ⚠️ WinForms is referenced for the tray icon (see the .csproj), and it brings
+// its own Application, KeyEventArgs and MessageBox. These aliases keep every
+// bare name in this file meaning the WPF one, as it did before.
+using Forms = System.Windows.Forms;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MessageBox = System.Windows.MessageBox;
+
 namespace OracleConsultancy;
 
 public partial class MainWindow : Window
@@ -28,7 +35,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         RestoreWindowState();
         Loaded += async (_, _) => await StartWebViewAsync();
-        Closing += (_, _) => SaveWindowState();
+        Closing += (_, _) =>
+        {
+            SaveWindowState();
+            // Without this the tray icon outlives the app and only disappears
+            // when the mouse happens to pass over it.
+            if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); _tray = null; }
+        };
         KeyDown += OnKeyDown;
     }
 
@@ -81,6 +94,7 @@ public partial class MainWindow : Window
         core.NewWindowRequested += OnNewWindowRequested;
         core.PermissionRequested += OnPermissionRequested;
         core.WebMessageReceived += OnWebMessageReceived;
+        core.NotificationReceived += OnNotificationReceived;
         core.DocumentTitleChanged += (_, _) =>
             Title = string.IsNullOrWhiteSpace(core.DocumentTitle) ? "Oracle Consultancy" : core.DocumentTitle;
 
@@ -142,6 +156,89 @@ public partial class MainWindow : Window
             CoreWebView2PermissionKind.ClipboardRead;
 
         e.State = allowed ? CoreWebView2PermissionState.Allow : CoreWebView2PermissionState.Deny;
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Notifications.
+     *
+     * ⚠️ WEBVIEW2 DOES NOT SHOW A WEB NOTIFICATION BY ITSELF. It hands it to the
+     * host and expects the host to display it. Without the handler below, COS
+     * raised a notification and NOTHING APPEARED — no error, no warning, just
+     * silence. Measured 20 Aug 2026.
+     *
+     * ⚠️ AND IT ONLY HANDS OVER THE NON-PERSISTENT KIND (`new Notification()`).
+     * One raised by the SERVICE WORKER — `registration.showNotification()`, which
+     * is how a PUSHED task reminder arrives — does not raise this event, and this
+     * SDK has no other event for it. Tested by firing both from the page: only
+     * the non-persistent one came through.
+     *
+     * So do not promise that a pushed reminder pops up as a Windows toast in the
+     * app. It does still appear INSIDE COS — the bell and the Task-reminders
+     * channel — which is where staff are actually looking.
+     * ------------------------------------------------------------------ */
+
+    /// <summary>Created only when something first needs to be shown.</summary>
+    private Forms.NotifyIcon? _tray;
+
+    private void OnNotificationReceived(object? sender, CoreWebView2NotificationReceivedEventArgs e)
+    {
+        // SenderOrigin, not Uri — the origin that raised it.
+        if (!IsOurs(e.SenderOrigin)) return; // only COS may raise one
+
+        // ⚠️ READ EVERYTHING OFF THE NOTIFICATION FIRST, AND CLAIM IT, BEFORE
+        // TOUCHING ANY UI. The object is only valid for the duration of the
+        // event: creating the tray icon pumps the Windows message loop, the
+        // event scope ends, and the very next property read throws
+        // "CoreWebView2Notification members cannot be accessed after the
+        // WebView2 control is disposed" — which is a confusing way of saying
+        // "too late". It cost a debugging round; do not reorder these lines.
+        string title, body;
+        try
+        {
+            title = string.IsNullOrWhiteSpace(e.Notification.Title) ? "Oracle Consultancy" : e.Notification.Title;
+            body = e.Notification.Body ?? "";
+            e.Notification.ReportShown();
+            e.Handled = true; // we are showing it; WebView2 must not also try
+        }
+        catch
+        {
+            return; // the notification went away before we could read it
+        }
+
+        try
+        {
+            _tray ??= CreateTrayIcon();
+            _tray.BalloonTipTitle = title;
+            _tray.BalloonTipText = body;
+            _tray.ShowBalloonTip(8000);
+        }
+        catch
+        {
+            // Failing to show a notification must never break the app.
+        }
+    }
+
+    private Forms.NotifyIcon CreateTrayIcon()
+    {
+        var icon = new Forms.NotifyIcon
+        {
+            Visible = true,
+            Text = "Oracle Consultancy",
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
+                   ?? System.Drawing.SystemIcons.Application,
+        };
+        icon.BalloonTipClicked += (_, _) => BringToFront();
+        icon.DoubleClick += (_, _) => BringToFront();
+        return icon;
+    }
+
+    private void BringToFront()
+    {
+        if (WindowState == System.Windows.WindowState.Minimized)
+            WindowState = System.Windows.WindowState.Normal;
+        Activate();
+        Topmost = true;
+        Topmost = false;
     }
 
     /* ------------------------------------------------------------------ *

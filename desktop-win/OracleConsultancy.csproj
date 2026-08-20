@@ -20,6 +20,12 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- FOR THE TRAY ICON AND ITS NOTIFICATION BALLOONS ONLY. WinForms ships
+         inside .NET itself, so this adds no download and no supply chain. WPF has
+         no tray icon of its own, and the alternative is hand-rolling the Windows
+         shell notification API for the same result. (The ORI shell on this
+         machine does exactly this, for exactly this reason.) -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
