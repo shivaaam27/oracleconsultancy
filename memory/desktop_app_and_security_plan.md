@@ -88,11 +88,26 @@ and a hash that has been copied can be attacked offline at leisure.
 
 # PART 2 — the rest of the security pass, in order of how much it matters
 
-**P1 — No security headers at all.** `next.config.ts` sets none. Add `headers()`
-with: Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
-Referrer-Policy, Permissions-Policy and `frame-ancestors 'none'` (stops the site
-being framed by a fake login page). Start CSP in report-only for a week so nothing
-breaks, then enforce.
+**P1 — Security headers. ✅ DONE 20 Aug 2026.** `next.config.ts` now sets them on
+every route. Enforced immediately: `X-Frame-Options: DENY` (a fake login page can
+no longer frame the site), `nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+`Cross-Origin-Opener-Policy`, and HSTS in production.
+
+The **Content-Security-Policy is report-only for now**, on purpose — it is the
+one header that can white-screen the app if an origin was missed. Violations go
+to `/api/csp-report` and land in `system_events`. The allowlist was built by
+reading the client code, not guessing: Supabase (REST, storage, websocket),
+Sentry, and `api.open-meteo.com` for the weather chip.
+
+**To finish it in a week:** open Settings → Security & Access → Security check.
+If "Content rules" still says *watching only* and nothing real has been recorded,
+set **`CSP_ENFORCE=1`** in Vercel and redeploy. That is the whole job.
+
+**P1b — The app now reports on its own safety.** Settings → Security & Access →
+**Security check** shows four lines in plain English: database lock, sign-in
+cookie key, error alerts, content rules. It reads the live environment, so it
+tells the truth about *production* rather than about a laptop. It changes
+nothing.
 
 **P2 — Password hashing is weaker than it should be.** `scryptSync(password,
 salt, 32)` uses Node's defaults (N=16384). Given the hashes were public, raise the
@@ -109,6 +124,9 @@ more.
 is set in Vercel too.** If it is missing there, cookies are signed with a value
 derived from `DATABASE_URL`, and anyone holding that string can forge an owner
 session. Also make sure it is exposed to the **edge** runtime, not just Node.
+→ The Security check card now answers this from production; no need to go
+digging in Vercel. (The `VERCEL_TOKEN` in `.env.local` is expired, so it could
+not be checked remotely — worth deleting or replacing while you are in there.)
 
 **P5 — The admin gate fails open.** `src/proxy.ts` trusts a valid signature when
 it cannot reach the settings table. That is a deliberate "never lock the owner

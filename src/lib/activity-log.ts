@@ -54,7 +54,9 @@ export function classifyActor(createdBy: string | null | undefined): { actor: Ac
 }
 
 // system_events that are noise for an activity log (diagnostics / heartbeats).
-const SYSTEM_EVENT_NOISE = new Set(["heartbeat", "doc-extraction"]);
+// csp.violation is diagnostics for whoever is tuning the Content-Security-Policy
+// (see next.config.ts) — read it in system_events, not in the portfolio feed.
+const SYSTEM_EVENT_NOISE = new Set(["heartbeat", "doc-extraction", "csp.violation"]);
 
 // Friendly labels for the system_events we DO show.
 function systemEventSummary(kind: string, d: Record<string, unknown>): { summary: string; detail: string | null; href?: string | null } {

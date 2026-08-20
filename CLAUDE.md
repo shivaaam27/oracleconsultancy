@@ -79,6 +79,28 @@ The system replaces an Excel workbook with:
 - All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
 - **Navigation is TWO things now (Aug 2026, ERPNext redesign).** From `lg` up a **persistent left sidebar** (`desk-sidebar.tsx`) is the navigation — 208px, collapsible to 56px, grouped Work/Records/Operations/System, built from `NAV_ROUTES`. Below `lg` it is the bottom-floating pill (`top-pill.tsx`), which still carries the page action `+`. The pill's vertical `SidePill` variant is RETIRED at `lg`+ (the sidebar replaces it). The sidebar publishes `--desk-sidebar` on `<html>`; `main`'s left gutter follows that variable.
 - Admin edge auth gate lives in `src/proxy.ts` (Next-16 `proxy` convention; renamed from `middleware.ts`). The `secret()` derivation here MUST stay identical to `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
+- **Security headers** live in `next.config.ts` (`securityHeaders`, applied to
+  `/:path*`). Enforced from the start: `X-Frame-Options: DENY`, `nosniff`,
+  `Referrer-Policy`, `Permissions-Policy` (camera/microphone/geolocation are
+  `self` — the app really uses all three), `Cross-Origin-Opener-Policy:
+  same-origin-allow-popups`, and HSTS in production only.
+  - **The CSP starts as `Content-Security-Policy-Report-Only`.** Set
+    **`CSP_ENFORCE=1`** in Vercel to enforce it — and note `next.config` is read
+    at BUILD time, so it needs a redeploy, not just an env change.
+  - `connect-src` is an allowlist built from env: Supabase (https + wss), the
+    Sentry ingest host from the DSN, and `api.open-meteo.com` for the weather
+    chip. **Add an origin the browser calls and you must add it here**, or the
+    call dies the day the CSP is enforced.
+  - Violations post to **`/api/csp-report`** → `system_events` (kind
+    `csp.violation`, filtered out of the activity feed as noise). That route is
+    **public on purpose** — browsers send reports without cookies — so it is in
+    the `src/proxy.ts` exclusion list and rate-limits itself. It records the
+    directive, the blocked ORIGIN and the page path only; `/e/` and `/r/` paths
+    are truncated because their token is IN the path.
+- **Settings → Security & Access → "Security check"** reports the live state of
+  all of this (`src/lib/security-status.ts`): database lock, cookie signing key,
+  error alerts, CSP mode. It exists because the important ones are Vercel env
+  vars, and a `console.warn` nobody reads is not a warning. It only READS.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). **⚠️ ONE backup at the END of a session, not before every migration** (owner, 18 Aug 2026): it takes ~15 minutes on this link, and three of them in a session is an hour of waiting for nothing. Additive migrations (new table/column) go straight in. Back up FIRST only when something drops, rewrites or bulk-deletes existing data.
 - **Deploys: ONLY `master`, and push ONLY to `master`** (Aug 2026). `vercel.json` carries

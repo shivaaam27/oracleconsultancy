@@ -15,6 +15,7 @@ import { getPortalPermissions } from "@/lib/portal-permissions-store";
 import { resolveMatrix } from "@/lib/portal-permissions";
 import { PortalPermissionsEditor } from "@/components/portal-permissions-editor";
 import { RevealPassword } from "@/components/reveal-password";
+import { getSecurityStatus } from "@/lib/security-status";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
 import { getAutomationRuleStatuses, getRecordsConfidence } from "@/app/automations/actions";
@@ -45,7 +46,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
-  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "mcp-keys", "portal", "danger"] },
+  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys", "portal", "danger"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
 ];
 
@@ -78,6 +79,7 @@ export default async function SettingsPage({
   ]);
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
+  const securityChecks = await getSecurityStatus();
   const mcpKeys = await listMcpKeys();
   const mcpConnections = await listMcpConnections();
   const appUrl = appBaseUrl();
@@ -712,6 +714,30 @@ export default async function SettingsPage({
 
         {/* ───────────────────── Security & Access ───────────────────── */}
         <section data-group="security" className="space-y-4">
+          {/* Health check — reads the live environment, changes nothing. */}
+          <SettingsCard id="security-check" icon={<ShieldCheck size={15} />} title="Security check" desc="What is protecting this system right now." keywords="security check database row level security rls anon key cookie signing sentry error alerts content security policy csp headers safe">
+            <ul className="divide-y divide-border">
+              {securityChecks.map((c) => (
+                <li key={c.id} className="flex items-start gap-3 py-2.5">
+                  <span
+                    aria-hidden
+                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                      c.state === "ok" ? "bg-success" : c.state === "warn" ? "bg-warn" : "bg-fg-subtle"
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-fg">{c.label}</div>
+                    <div className="text-xs text-fg-muted">{c.detail}</div>
+                    {c.fix && <div className="mt-0.5 text-xs text-fg-subtle">{c.fix}</div>}
+                  </div>
+                  <span className="ml-auto shrink-0 text-[11px] uppercase tracking-wide text-fg-subtle">
+                    {c.state === "ok" ? "Good" : c.state === "warn" ? "Needs you" : "Unknown"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </SettingsCard>
+
           {/* Owner sign-in */}
           <SettingsCard id="owner" icon={<KeyRound size={15} />} title="Owner sign-in" desc="Password & identity for the admin system." keywords="owner password sign-in identity admin login security">
             {sp.owner === "saved" && (

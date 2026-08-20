@@ -215,5 +215,8 @@ export const config = {
   // reason from the other side: whoever arrives there is BY DEFINITION not signed
   // in to this browser yet — that is the entire point of the page. It does its own
   // password check before it grants anything.
-  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
+  // api/csp-report is excluded because a browser posts a Content-Security-Policy
+  // violation WITHOUT cookies: inside the gate every report would be redirected
+  // to /login and lost. It is public by necessity and rate-limits itself.
+  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|api/csp-report|_next|.*\\..*).*)"],
 };
