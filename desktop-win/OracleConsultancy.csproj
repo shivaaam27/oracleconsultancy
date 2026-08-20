@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Oracle Consultancy desktop app.
+
+    A WPF window with a WebView2 control in it, pointed at the live COS site.
+    WebView2 IS Microsoft Edge, which is already on every Windows 11 machine, so
+    this app does not ship a browser engine — that is why it is a fraction of
+    Electron's size and uses far less memory.
+
+    It holds no keys, no database connection and no copy of the data. See
+    README.md for why that is the whole point.
+
+    WPF rather than WinUI 3 on purpose: WPF builds with nothing but the .NET SDK,
+    so `dotnet publish` works on any machine and in CI. WinUI 3 needs the Windows
+    App SDK workload, which is one more thing to install and to go wrong.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Oracle Consultancy</AssemblyName>
+    <RootNamespace>OracleConsultancy</RootNamespace>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <Version>1.0.0</Version>
+    <Company>Oracle Consultancy Ltd</Company>
+    <Product>Oracle Consultancy</Product>
+    <Copyright>© Oracle Consultancy Ltd</Copyright>
+
+    <!-- One .exe with no console window flashing behind it. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Ship ONE file. Without these, publish also drops the WebView2 package's
+         XML documentation and a .pdb next to the .exe, which look like clutter
+         to whoever is handed the app. -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <PublishDocumentationFiles>false</PublishDocumentationFiles>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The offline screen is compiled in, so it is available when there is no
+         network by definition. -->
+    <EmbeddedResource Include="Offline.html" LogicalName="Offline.html" />
+  </ItemGroup>
+
+</Project>

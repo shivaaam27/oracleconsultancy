@@ -1,70 +1,53 @@
-name: Desktop app release
+name: Windows app
 
-# Builds the Windows installer and publishes it to GitHub Releases, from which
-# every installed copy updates itself.
+# Builds the single .exe you hand to somebody. Download it from the run's
+# Artifacts, or from the Release when a `desktop-v*` tag is pushed.
 #
-# Trigger: push a tag like `desktop-v1.0.1`. The tag is what makes a release; a
-# push to master does NOT build the app (the app's CONTENTS come from Vercel and
-# need no build here).
-#
-# ⚠️ Needs a secret named DESKTOP_RELEASE_TOKEN — a fine-grained personal access
-# token with "Contents: read and write" on the PUBLIC repo named in
-# desktop/electron-builder.yml. The default GITHUB_TOKEN cannot write to another
-# repository. See desktop/README.md for why that repo has to be public.
+# The app's CONTENTS come from Vercel and need no build here — this only rebuilds
+# the WINDOW, which changes rarely.
 
 on:
   push:
     tags:
       - "desktop-v*"
-  # Lets you build an installer from the Actions tab without tagging, to check a
-  # change compiles. `--publish never`, so nothing reaches anyone.
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          dotnet-version: "8.0.x"
 
-      - name: Install
-        working-directory: desktop
-        run: npm ci
+      # Self-contained on purpose: one file that runs on any Windows 10/11
+      # machine with nothing installed first. See desktop-win/README.md.
+      - name: Build
+        working-directory: desktop-win
+        run: >
+          dotnet publish -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish
 
-      - name: Check the shell parses
-        working-directory: desktop
-        run: |
-          node --check src/main.js
-          node --check src/preload.js
-
-      # A tag publishes; a manual run only builds, so you can prove a change
-      # compiles without shipping it to anybody.
-      - name: Build and publish
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        working-directory: desktop
-        run: npm run release
-        env:
-          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
-
-      - name: Build only
-        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
-        working-directory: desktop
-        run: npm run build
-
-      - name: Keep the installer as an artifact
+      - name: Upload the installer
         uses: actions/upload-artifact@v4
         with:
           name: oracle-consultancy-windows
-          path: desktop/dist/*.exe
+          path: desktop-win/publish/*.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop-win/publish/*.exe

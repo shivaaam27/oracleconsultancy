@@ -68,7 +68,7 @@
         btn.textContent = "Reconnecting…";
         // Exposed by preload.js. Guarded so this page is still harmless if it is
         // ever opened somewhere without the bridge.
-        if (window.cosShell && window.cosShell.retry) window.cosShell.retry();
+        if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage("retry");
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = "Try again";
@@ -76,7 +76,7 @@
       });
       // Come back on our own the moment the machine sees a network again.
       window.addEventListener("online", () => {
-        if (window.cosShell && window.cosShell.retry) window.cosShell.retry();
+        if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage("retry");
       });
     </script>
   </body>
