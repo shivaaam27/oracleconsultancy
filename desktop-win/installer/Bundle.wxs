@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The .exe wrapper around the .msi.
+
+  Why bother, when the .msi installs perfectly well on its own? Because an .exe
+  is what people expect to be handed, and because a bundle can later chain the
+  WebView2 runtime installer for the rare Windows 10 machine that lacks it —
+  which an .msi cannot do.
+
+  Paths are relative to the BUILD directory (desktop-win). Run
+  build-installer.cmd rather than calling wix by hand.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+
+  <Bundle
+    Name="Oracle Consultancy"
+    Version="1.0.0"
+    Manufacturer="Oracle Consultancy Ltd"
+    UpgradeCode="B2FB68E5-6E4E-4D8A-9C43-D1EDE6E42D33"
+    IconSourceFile="Assets\icon.ico"
+    AboutUrl="https://oracleconsultancy.vercel.app"
+    Compressed="yes">
+
+    <BootstrapperApplication>
+      <!-- The plainest built-in window: a licence-free "Install" screen with a
+           progress bar. No EULA to click through — this is an internal tool. -->
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkLicense"
+        LicenseUrl=""
+        SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage
+        SourceFile="installer\out\Oracle Consultancy Setup.msi"
+        Vital="yes"
+        Compressed="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

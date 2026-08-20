@@ -52,6 +52,40 @@ wins are:
 If .NET 8 is ever installed everywhere, the same project builds to **2.2 MB**
 (`--self-contained false`). Not worth the extra install step today.
 
+## ⚠️ READ THIS FIRST: unsigned builds DO NOT RUN on this machine
+
+Measured on the owner's laptop, 20 Aug 2026. **Windows Smart App Control is ON
+and enforced**, and it blocks the unsigned .exe outright:
+
+> Code Integrity determined that a process attempted to load
+> `…\Oracle Consultancy.exe` that did not meet the **Enterprise signing level
+> requirements**  — CodeIntegrity event 3077, Smart App Control block 3118
+
+Both the portable copy and the properly installed copy were blocked. It is not
+about Electron, or C#, or the installer, or where the file sits: **Smart App
+Control refuses unsigned executables, full stop.** The app ran once before the
+verdict arrived, then stopped running — its cloud check is not instant, so an
+early success proves nothing.
+
+Smart App Control is **on by default on new Windows 11 machines**, so staff
+laptops will behave the same way.
+
+**Do not "just turn it off."** It can only ever be switched OFF, never back on —
+re-enabling needs a Windows reinstall — and switching off a security feature to
+install an internal tool is the wrong trade, particularly for an app that holds
+the company's records.
+
+So there are exactly three ways to a working desktop app:
+
+| Route | Works under Smart App Control | Cost |
+|---|---|---|
+| **Install the PWA from Edge** | ✅ yes — no executable exists | free, works today |
+| **Microsoft Store (MSIX)** | ✅ yes — Store apps are trusted outright | free; needs Partner Center + review |
+| Buy a code-signing certificate | ⚠️ probably, but not guaranteed — Smart App Control weighs reputation as well as signature | $200–400/year |
+
+The packaging in this folder is finished and correct, and is what the Store route
+will use. It is simply not usable unsigned.
+
 ## What staff will see the first time
 
 The file is **not signed yet**, so Windows will say:

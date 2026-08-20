@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The installer.
+
+  PER-USER on purpose (Scope="perUser"), which is the decision that matters here:
+  it installs into the person's own AppData and needs NO administrator rights and
+  no "do you want to allow this app to make changes" prompt. Staff without admin
+  on their laptop can install it themselves. A per-machine install into Program
+  Files would need IT for every single person.
+
+  ⚠️ UpgradeCode must NEVER change. It is how Windows knows version 1.0.1 is the
+  same product as 1.0.0 and should replace it rather than install alongside it.
+  Change it and everyone ends up with two copies.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package
+    Name="Oracle Consultancy"
+    Manufacturer="Oracle Consultancy Ltd"
+    Version="1.0.0"
+    UpgradeCode="885652E5-1A52-40D9-9039-0E821D089A5E"
+    Scope="perUser"
+    Compressed="yes">
+
+    <!-- Installing a newer version removes the old one first. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Oracle Consultancy is already installed." />
+
+    <!-- The 63 MB app is embedded in the .msi, so there is ONE file to share. -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPHELPLINK" Value="https://oracleconsultancy.vercel.app" />
+    <!-- No "repair" button in Add/Remove Programs: there is nothing to repair,
+         the app is a single file. -->
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <Feature Id="Main" Title="Oracle Consultancy" Level="1">
+      <ComponentGroupRef Id="AppComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <!-- LocalAppData\Programs is where per-user apps belong on Windows; it is
+         where VS Code and Teams put themselves for a per-user install. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Oracle Consultancy" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="Oracle Consultancy" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="C7A1F0B2-6D34-4E15-9C88-2F5B7E93A410">
+        <File Id="OracleConsultancyExe"
+              Source="publish\Oracle Consultancy.exe"
+              Name="Oracle Consultancy.exe"
+              KeyPath="yes">
+
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="AppMenuFolder"
+                    Name="Oracle Consultancy"
+                    Description="The Oracle Consultancy command centre"
+                    Icon="AppIcon.ico"
+                    Advertise="no" />
+
+          <Shortcut Id="DesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="Oracle Consultancy"
+                    Description="The Oracle Consultancy command centre"
+                    Icon="AppIcon.ico"
+                    Advertise="no" />
+        </File>
+
+        <!-- Uninstall must take the Start-menu folder with it, or an empty
+             folder is left behind for ever. -->
+        <RemoveFolder Id="RemoveAppMenuFolder" Directory="AppMenuFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>
