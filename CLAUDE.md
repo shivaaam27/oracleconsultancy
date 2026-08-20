@@ -111,6 +111,29 @@ The system replaces an Excel workbook with:
   all of this (`src/lib/security-status.ts`): database lock, cookie signing key,
   error alerts, CSP mode. It exists because the important ones are Vercel env
   vars, and a `console.warn` nobody reads is not a warning. It only READS.
+- **The Windows app is TWO things, both pointing at the live site** (Aug 2026):
+  1. **Install as an app (PWA)** — the primary route. `manifest.json` + `sw.js` +
+     `ServiceWorkerRegister` were already there; what was missing was anyone
+     telling people. **`InstallApp`** (`src/components/install-app.tsx`) is on
+     Settings → General → "Install as an app" AND the staff portal profile.
+     Nothing is downloaded, so nothing can be blocked by SmartScreen, antivirus
+     or IT policy, and nothing needs signing.
+     - **⚠️ `beforeinstallprompt` fires BEFORE React hydrates and never fires
+       again.** A `useEffect` listener misses it and the button silently never
+       appears — verified happening on production. So **`InstallPromptScript`**
+       (same file) is an inline `<head>` script that parks the event on
+       `window.__cosInstallPrompt` and relays `cos:installable`. Mount it once in
+       the root layout head, beside `PortalPrefsScript`. Do not "simplify" it
+       into the component.
+     - The service worker is **production-only** (`NODE_ENV !== "production"`
+       returns early), so installability cannot be tested on the dev server.
+  2. **`desktop/` — an Electron shell**, a window around the same live site. It
+     holds no keys and no data; read `desktop/README.md` before touching it. The
+     app's CONTENTS update on every push; only the shell needs the updater.
+     `.github/workflows/desktop-release.yml` builds on a `desktop-v*` tag.
+     **⚠️ Its release repo must be PUBLIC** — electron-updater reads GitHub
+     Releases anonymously, and a private one would mean a token on every laptop.
+     Unsigned for now; signing is one CI step when a certificate exists.
 - **Error monitoring**: Sentry is wired (`src/instrumentation*.ts`, `src/sentry.*.config.ts`, `src/app/global-error.tsx`, `src/lib/sentry.ts`). Inert unless `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are set (in `.env.local` + Vercel). Errors-only (no perf tracing).
 - **Backups**: `npm run db:backup` writes a portable per-table JSON snapshot to `backups/` (git-ignored); `npm run db:restore -- <folder>` restores. Supabase cloud backups are the primary safety net (see `BACKUP.md`). **⚠️ ONE backup at the END of a session, not before every migration** (owner, 18 Aug 2026): it takes ~15 minutes on this link, and three of them in a session is an hour of waiting for nothing. Additive migrations (new table/column) go straight in. Back up FIRST only when something drops, rewrites or bulk-deletes existing data.
 - **Deploys: ONLY `master`, and push ONLY to `master`** (Aug 2026). `vercel.json` carries

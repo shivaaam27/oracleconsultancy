@@ -11,10 +11,11 @@ import { PortalDocuments, type PortalDocumentItem } from "@/components/portal-do
 import { PortalAttendance } from "@/components/portal-attendance";
 import { personAttendanceWeek } from "@/lib/attendance";
 import { PasskeyManager } from "@/components/passkey-manager";
+import { InstallApp } from "@/components/install-app";
 import { PortalPassword } from "@/components/portal-password";
 import { listCredentials } from "@/lib/webauthn";
 import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
-import { Clock, ScanFace, KeyRound } from "lucide-react";
+import { Clock, ScanFace, KeyRound, MonitorSmartphone } from "lucide-react";
 import { Sparkles } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getInitials } from "@/lib/names";
@@ -311,6 +312,14 @@ export default async function PortalProfile() {
             </div>
             <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
             <p className="mt-2.5 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint — no password needed. Your biometric stays on your device.</p>
+          </div>
+          <div className="p-4">
+            <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><MonitorSmartphone size={16} /></span>
+              Get the app
+            </div>
+            <InstallApp />
+            <p className="mt-2.5 text-[11px] text-fg-subtle">Puts Oracle Consultancy on your home screen or Start menu, in its own window. Nothing is downloaded and it stays up to date on its own.</p>
           </div>
           <div className="p-4">
             <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">

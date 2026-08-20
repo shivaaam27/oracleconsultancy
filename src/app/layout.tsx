@@ -17,6 +17,7 @@ import { UndoBanner } from "@/components/undo-banner";
 import { DensityScript } from "@/components/density-toggle";
 import { FocusScript } from "@/components/focus-mode";
 import { PortalPrefsScript } from "@/components/portal-prefs";
+import { InstallPromptScript } from "@/components/install-app";
 import { PageTransition } from "@/components/page-transition";
 import { ContextActionsProvider } from "@/components/context-actions";
 import { GlobalDrawers } from "@/components/global-drawers";
@@ -83,6 +84,7 @@ export default async function RootLayout({ children, modal }: { children: React.
         <DensityScript />
         <FocusScript />
         <PortalPrefsScript />
+        <InstallPromptScript />
       </head>
       <body>
         <AppSplash />

@@ -15,6 +15,7 @@ import { getPortalPermissions } from "@/lib/portal-permissions-store";
 import { resolveMatrix } from "@/lib/portal-permissions";
 import { PortalPermissionsEditor } from "@/components/portal-permissions-editor";
 import { RevealPassword } from "@/components/reveal-password";
+import { InstallApp } from "@/components/install-app";
 import { getSecurityStatus } from "@/lib/security-status";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
@@ -41,7 +42,7 @@ export const dynamic = "force-dynamic";
 // show. Order here = rail order. `cards` lets a deep link to #card-id open the
 // group that holds it.
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "ledger", "location", "swipe", "navigation"] },
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "ledger", "location", "swipe", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
@@ -156,6 +157,10 @@ export default async function SettingsPage({
                 <FieldLabel>Your name</FieldLabel>
                 <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
               </div>
+            </SettingsCard>
+
+            <SettingsCard id="install" icon={<MonitorSmartphone size={15} />} title="Install as an app" desc="Put COS in your Start menu, in its own window." keywords="install app pwa desktop windows start menu taskbar standalone icon offline add to home screen">
+              <InstallApp />
             </SettingsCard>
 
             <SettingsCard id="risk" icon={<SlidersHorizontal size={15} />} title="Risk rules" desc="When a task flags for attention." keywords="due soon stalled aging overdue thresholds colour">
