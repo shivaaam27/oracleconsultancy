@@ -19,7 +19,8 @@ function inv(over: Partial<Invoice> & { id: number }): Invoice {
   return {
     companyId: 1, deliveryNoteNo: null, deliveredDate: null, invoiceNo: null,
     invoiceDate: null, invoiceValue: null, invoiceCurrency: null, exRate: null,
-    client: null, status: null, pendingWith: null, notes: null, archived: false, ...over,
+    client: null, status: null, pendingWith: null, notes: null, archived: false, taxRateId: null, taxPercent: null, taxInclusive: null, efdNo: null, efdDate: null,
+    ...over,
   };
 }
 
@@ -33,7 +34,8 @@ function line(over: Partial<OrderLine> & { id: number; poNo: string }): OrderLin
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
     shipmentId: null, invoiceId: null, deliveredQty: null,
     productionDueDate: null, productionDoneDate: null, supplierDueDate: null,
-    archived: false, ...over,
+    archived: false, purchaseTaxRateId: null, purchaseTaxPercent: null, purchaseTaxInclusive: null,
+    ...over,
   };
 }
 

@@ -21,6 +21,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { OpsTaxFields } from "@/components/ops-tax-fields";
+import type { TaxRate } from "@/lib/ledger-tax-shared";
 import { Loader2, Check, X, Pencil, Archive, Banknote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FieldCell } from "@/components/ui";
@@ -45,7 +47,7 @@ type Suggest = { payees: string[]; kinds: string[]; references: string[] };
 
 export function OpsPaymentsSheet({
   companyId, savedViews = [], payments: serverRows, lines, shipments, despatches,
-  suggest, defaultExRate,
+  suggest, defaultExRate, taxRates = [],
 }: {
   companyId: number;
   savedViews?: SavedView[];
@@ -57,6 +59,9 @@ export function OpsPaymentsSheet({
   despatches: Array<{ id: number } & DespatchLite>;
   suggest: Suggest;
   defaultExRate: number;
+  /** Withholding rates (Phase 3). Defaulted so a caller that forgets them
+   *  simply shows "No withholding". */
+  taxRates?: TaxRate[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(serverRows);
@@ -325,6 +330,7 @@ export function OpsPaymentsSheet({
             <div data-quick-update>
               <EditPayment
                 companyId={companyId} payment={p} suggest={suggest} defaultExRate={defaultExRate}
+                taxRates={taxRates}
                 lineOptions={lineOptions} shipOptions={shipOptions}
                 onDone={(patched) => {
                   setRows((prev) => prev.map((r) => (r.id === patched.id ? patched : r)));
@@ -397,7 +403,12 @@ function AddPayment({
         payee: payee || null, kind: kind || null, paidDate: paidDate || null,
         amount: amount.replace(/[\s,]/g, "") || null, currency: currency || null,
         exRate: exRate.replace(/[\s,]/g, "") || null, reference: reference || null,
-        orderLineId, shipmentId: null, notes: null, archived: false,
+        orderLineId, shipmentId: null, notes: null,
+        // ⚠️ Empty until somebody sets a withholding rate on it. Null base means
+        // the summary reports it as unknown rather than working the tax out on
+        // the payment, which is the amount AFTER the tax was kept back.
+        whtRateId: null, whtPercent: null, whtBase: null,
+        archived: false,
       });
       // ⚠️ The payee, the date and the currency STAY — a morning's payments are
       // usually the same supplier on the same day. The amount does not.
@@ -492,10 +503,11 @@ function AddPayment({
 /* ─────────────────────────────────────────────── correcting one ─────────── */
 
 function EditPayment({
-  companyId, payment, suggest, defaultExRate, lineOptions, shipOptions,
+  companyId, payment, suggest, defaultExRate, lineOptions, shipOptions, taxRates = [],
   onDone, onCancel, onError,
 }: {
   companyId: number; payment: Payment; suggest: Suggest; defaultExRate: number;
+  taxRates?: TaxRate[];
   lineOptions: Opt[]; shipOptions: Opt[];
   onDone: (p: Payment) => void; onCancel: () => void; onError: (e: string | null) => void;
 }) {
@@ -506,6 +518,12 @@ function EditPayment({
     amount: payment.amount ?? "", currency: payment.currency ?? "",
     exRate: payment.exRate ?? "", reference: payment.reference ?? "",
     notes: payment.notes ?? "",
+    whtBase: payment.whtBase ?? "",
+  });
+  // ⚠️ Separate from `f`: the rate id is a number and the percent is frozen
+  // when picked, neither of which a string-keyed setter handles.
+  const [wht, setWht] = useState({
+    rateId: payment.whtRateId, percent: payment.whtPercent, inclusive: null as boolean | null,
   });
   const [orderLineId, setOrderLineId] = useState<number | null>(payment.orderLineId);
   const [shipmentId, setShipmentId] = useState<number | null>(payment.shipmentId);
@@ -515,7 +533,10 @@ function EditPayment({
   const submit = () =>
     start(async () => {
       onError(null);
-      const res = await updatePaymentAction(payment.id, { ...f, orderLineId, shipmentId });
+      const res = await updatePaymentAction(payment.id, {
+        ...f, orderLineId, shipmentId,
+        whtRateId: wht.rateId, whtPercent: wht.percent, whtBase: f.whtBase || null,
+      });
       if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
       // ⚠️ Coerce FIRST. A Postgres `numeric` comes back from PostgREST as a
       // JSON NUMBER, so `v.trim` is not a function the second time a valued row
@@ -529,6 +550,7 @@ function EditPayment({
         payee: f.payee || null, kind: f.kind || null, paidDate: f.paidDate || null,
         amount: clean(f.amount), currency: f.currency || null, exRate: clean(f.exRate),
         reference: f.reference || null, notes: f.notes || null,
+        whtRateId: wht.rateId, whtPercent: wht.percent, whtBase: clean(f.whtBase),
         orderLineId, shipmentId,
       });
     });
@@ -597,9 +619,29 @@ function EditPayment({
             buttonClassName="h-8 w-full justify-between" className="w-full"
           />
         </FieldCell>
+        <FieldCell className="sm:col-span-4" label="Withheld on" hint="what they invoiced">
+          <MoneyInput value={f.whtBase} onChange={(v) => set("whtBase", v)} />
+        </FieldCell>
         <FieldCell className="sm:col-span-4" label="Notes">
           <input value={f.notes} onChange={(e) => set("notes", e.target.value)} className={inputCls} />
         </FieldCell>
+      </div>
+
+      {/* ── withholding (Phase 3) ────────────────────────────────────────────
+          ⚠️ Worked out on "Withheld on" above — what the supplier INVOICED —
+          not on the amount that left the bank. Those differ by the tax itself,
+          so using the payment would understate it every time. */}
+      <div className="border-t border-border pt-2">
+        <OpsTaxFields
+          rates={taxRates}
+          side="wht"
+          value={wht}
+          onChange={setWht}
+          amount={f.whtBase}
+          currency={f.currency || "TZS"}
+          label="Withholding"
+          inputCls={inputCls}
+        />
       </div>
 
       <div className="flex items-center gap-2">

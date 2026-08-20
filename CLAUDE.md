@@ -362,8 +362,10 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   (a tree per company, seeded from one shared template, balances rolled up and
   never stored) · **Journals** (Draft → Posted → Reversed) · **Entries** (the
   books, raw) · **Reports** (`/ledger/reports/<report>` — trial balance, P&L,
-  balance sheet, general ledger, statements; `?group=1` consolidates all
-  thirteen companies). Company picked with `?co=`, never `?company=`.
+  balance sheet, general ledger, statements, **VAT return, withholding**;
+  `?group=1` consolidates all thirteen companies) · **Tax rates** (`/ledger/tax`
+  — VAT and withholding as editable rows, each flagged confirmed or not).
+  Company picked with `?co=`, never `?company=`.
 - `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
   Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
   wait first), `/interviews` (the diary, in both Dar and India time) and
@@ -493,7 +495,7 @@ are served by the generic **`/api/prefs/list-views?list=<key>`** (the task-only
 `<key>.savedViews` is unchanged, so views saved on Tasks still load).
 Commitments had NO filters at all — it gained company/kind/urgency.
 
-## The general ledger — ⚠️ PHASES 1 AND 2 ARE BUILT. Read `memory/ledger.md` FIRST
+## The general ledger — ⚠️ PHASES 1, 2 AND 3 ARE BUILT. Read `memory/ledger.md` FIRST
 
 **Decided by the owner, Aug 2026: COS becomes the accounting system.** Asked
 whether COS should hold the accounts or whether an accountant owns them
@@ -519,9 +521,9 @@ rules the ledger code must enforce**, and they are not negotiable:
 4. **Base currency TZS, rate frozen on the entry**, like every other rate here.
 5. **Posting is explicit and reversible** — nothing lands in the books silently.
 
-**⚠️ Phases 1 and 2 are BUILT and LIVE** — `/ledger` with **Chart of accounts ·
-Journals · Entries · Reports**, migrations **0137/0138 applied**, **107 tests**
-on the arithmetic. `memory/ledger.md` holds the decisions and the traps.
+**⚠️ Phases 1, 2 and 3 are BUILT and LIVE** — `/ledger` with **Chart of accounts ·
+Journals · Entries · Reports · Tax rates**, migrations **0137/0138/0139
+applied**, **142 tests** on the arithmetic. `memory/ledger.md` holds the decisions and the traps.
 
 **Phase 2 = the five reports** at `/ledger/reports/<report>`: trial balance ·
 profit and loss · balance sheet · general ledger · customer and supplier
@@ -541,6 +543,28 @@ balance sheet is wrong by whatever was earned in the mis-attributed months.
 **⚠️ Consolidation adds the companies up but does NOT eliminate inter-company
 balances.** If one owes another it shows as both a debtor and a creditor. The
 screen says so. Doing it properly is Phase 7's work.
+
+**Phase 3 = VAT and withholding** (migration 0139). `tax_rates` is a per-company
+list — **the rules are DATA, not code** — plus VAT columns on the ops invoice,
+the purchase line and the payment, an **EFD (fiscal receipt) number** at last,
+and two more reports: **VAT return** and **Withholding**.
+
+**⚠️ THE RULES ARE NOT GUESSED, and must not be.** Only the statutory standard
+VAT rate is seeded `confirmed`; zero-rated, exempt and the four withholding rates
+arrive **unconfirmed**, and the screens say **"not ready to file"** until somebody
+who files the returns ticks them off.
+
+**⚠️ Three traps worth knowing:** `tax_inclusive` is **three-state** (true/false/
+**null = nobody has said**) — the same 1,180,000 is either +VAT or includes-VAT,
+so an unset invoice is reported **unknown, never nil**. **Zero-rated is NOT
+exempt** — both carry no tax, but zero-rated counts in taxable turnover and
+exempt does not. And **`asFraction()` is the only place 18 becomes 0.18**
+(`tax_rates.percent` stores 18; `projects.vat_rate` stores 0.18).
+
+**⚠️ The VAT return reads the DOCUMENTS, not `gl_entries`** — nothing posts until
+Phase 5. `vatReturn()` takes a list and does not care where it came from, so
+Phase 5 adds ONE adapter reading the ledger and every figure is unchanged. Do not
+grow a second way of totting up VAT.
 
 **⚠️ THE ONE RULE: everything that reaches `gl_entries` goes through
 `postVoucher()` in `src/lib/ledger-post.ts`.** When Phase 5 wires the sales
@@ -563,12 +587,12 @@ rows so the books can diverge, identical numbers so consolidating thirteen
 companies is a group-by. This settles one of the plan's three open questions,
 and either answer still works later with no migration.
 
-⚠️ **Three questions remain UNANSWERED and must be asked, not assumed:** is stock
-actually held; **when does the financial year start** (Settings says January, and
-it drives the balance sheet); and what date should the books open from (the
-system already holds 791 imported order lines, 347 invoices and 262 payments —
-see Phase 6). A fourth — who files the VAT returns and under what rules — lands
-with Phase 3.
+⚠️ **The financial year starts 1 JULY** (owner, 20 Aug 2026) — `ledgerFyStartMonth`
+is 7. **Two questions remain UNANSWERED and must be asked, not assumed:** is stock
+actually held; and what date should the books open from (the system already holds
+791 imported order lines, 347 invoices and 262 payments — see Phase 6). A third —
+**the VAT rules themselves** — is now visible in the app: six seeded rates are
+flagged unconfirmed and the reports refuse to call themselves ready to file.
 
 ## Recruitment — ⚠️ PHASES 1–2 ARE BUILT. Read `memory/recruitment_module_plan.md` FIRST
 

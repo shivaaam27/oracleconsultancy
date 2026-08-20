@@ -13,6 +13,7 @@ import { listInvoices } from "@/lib/ops-invoices";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { getAppSettings } from "@/lib/settings";
 import { getSavedViewsFor } from "@/lib/saved-views";
+import { listTaxRates } from "@/lib/ledger-tax";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsPaymentsSheet } from "@/components/ops-payments-sheet";
 
@@ -46,7 +47,7 @@ export default async function OpsPaymentsPage({
     );
   }
 
-  const [payments, lines, shipments, despatches, refs, settings, kinds, references, savedViews] =
+  const [payments, lines, shipments, despatches, refs, settings, kinds, references, savedViews, taxRates] =
     await Promise.all([
       listPayments(chosen.id),
       listOrderLines(chosen.id),
@@ -57,6 +58,7 @@ export default async function OpsPaymentsPage({
       usedPaymentValues(chosen.id, "kind"),
       usedPaymentValues(chosen.id, "reference"),
       getSavedViewsFor("ops-payments"),
+      listTaxRates(chosen.id),
     ]);
 
   // Anybody we might pay: the suppliers and the clearing agents from Setup,
@@ -86,6 +88,7 @@ export default async function OpsPaymentsPage({
           invoiceNo: d.invoiceNo, invoiceDate: d.invoiceDate,
         }))}
         defaultExRate={settings.opsDefaultExRate}
+        taxRates={taxRates}
         suggest={{
           payees,
           kinds,

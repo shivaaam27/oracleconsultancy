@@ -38,7 +38,8 @@ function line(over: Partial<OrderLine> & { id: number; poNo: string }): OrderLin
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
     shipmentId: null, invoiceId: null, deliveredQty: null,
     productionDueDate: null, productionDoneDate: null, supplierDueDate: null,
-    archived: false, ...over,
+    archived: false, purchaseTaxRateId: null, purchaseTaxPercent: null, purchaseTaxInclusive: null,
+    ...over,
   };
 }
 

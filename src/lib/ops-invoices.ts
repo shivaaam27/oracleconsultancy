@@ -20,7 +20,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type (learned in lib/projects.ts).
-const COLS = "id,company_id,delivery_note_no,delivered_date,invoice_no,invoice_date,invoice_value,invoice_currency,ex_rate,client,status,pending_with,notes,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,delivery_note_no,delivered_date,invoice_no,invoice_date,invoice_value,invoice_currency,ex_rate,client,status,pending_with,notes,tax_rate_id,tax_percent,tax_inclusive,efd_no,efd_date,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): Invoice {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -38,6 +38,13 @@ function mapRow(r: Record<string, unknown>): Invoice {
     status: s("status"),
     pendingWith: s("pending_with"),
     notes: s("notes"),
+    taxRateId: (r.tax_rate_id as number | null) ?? null,
+    taxPercent: s("tax_percent"),
+    // ⚠️ Not `Boolean(...)` — that would turn "nobody has said" into "excludes
+    // VAT", which silently moves 18% of every such invoice into the net.
+    taxInclusive: r.tax_inclusive === null || r.tax_inclusive === undefined ? null : Boolean(r.tax_inclusive),
+    efdNo: s("efd_no"),
+    efdDate: s("efd_date"),
     archived: Boolean(r.archived),
   };
 }
@@ -90,6 +97,11 @@ export type InvoiceFields = {
   status?: string | null;
   pendingWith?: string | null;
   notes?: string | null;
+  taxRateId?: number | null;
+  taxPercent?: string | number | null;
+  taxInclusive?: boolean | null;
+  efdNo?: string | null;
+  efdDate?: string | null;
 };
 
 function text(v: string | null | undefined): string | null {
@@ -121,6 +133,11 @@ function toRow(f: Partial<InvoiceFields>): Record<string, unknown> {
   if (f.status !== undefined) put("status", text(f.status));
   if (f.pendingWith !== undefined) put("pending_with", text(f.pendingWith));
   if (f.notes !== undefined) put("notes", text(f.notes));
+  if (f.taxRateId !== undefined) put("tax_rate_id", f.taxRateId);
+  if (f.taxPercent !== undefined) put("tax_percent", amount(f.taxPercent));
+  if (f.taxInclusive !== undefined) put("tax_inclusive", f.taxInclusive);
+  if (f.efdNo !== undefined) put("efd_no", text(f.efdNo));
+  if (f.efdDate !== undefined) put("efd_date", text(f.efdDate));
   return row;
 }
 

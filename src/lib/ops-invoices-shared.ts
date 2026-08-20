@@ -47,6 +47,16 @@ export type Invoice = {
   status: string | null;
   pendingWith: string | null;
   notes: string | null;
+  /* ── VAT and the fiscal receipt (Phase 3) ────────────────────────────────
+   * ⚠️ `taxInclusive` is a THREE-state: true, false, or null for "nobody has
+   * said". Null is why the same 1,180,000 cannot be split, and the VAT return
+   * reports such an invoice as unknown rather than guessing. */
+  taxRateId: number | null;
+  /** ⚠️ Frozen when chosen, like `exRate` — see the schema comment. */
+  taxPercent: string | null;
+  taxInclusive: boolean | null;
+  efdNo: string | null;
+  efdDate: string | null;
   archived: boolean;
 };
 

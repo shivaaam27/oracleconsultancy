@@ -1,4 +1,4 @@
-# The general ledger — Phases 1 and 2 (BUILT, Aug 2026)
+# The general ledger — Phases 1, 2 and 3 (BUILT, Aug 2026)
 
 The plan and its seven phases are in `memory/erp_gap_plan.md`. **Read that
 first.** This file is what Phase 1 actually became, the decisions taken while
@@ -15,7 +15,8 @@ since we want to transition to using erp now and nothing else."*
 | `/ledger/journals` | Journal entries — Draft · Posted · Reversed |
 | `/ledger/journals/[id]` | One voucher: write it, check it, post it, reverse it |
 | `/ledger/entries` | The books themselves, raw, filterable by account/date/party |
-| `/ledger/reports/<report>` | **Phase 2** — trial balance · P&L · balance sheet · general ledger · statements. Per company **and across all thirteen**. |
+| `/ledger/reports/<report>` | **Phase 2** — trial balance · P&L · balance sheet · general ledger · statements. Per company **and across all thirteen**. Plus **Phase 3**: VAT return · withholding. |
+| `/ledger/tax` | **Phase 3** — the tax rates this company uses. VAT and withholding, as rows rather than constants. |
 
 Migration **0137** (`gl_accounts`, `gl_entries`, `journal_entries`,
 `journal_entry_lines`) and **0138** (an index predicate) — both **APPLIED**.
@@ -26,7 +27,9 @@ Files: `lib/ledger-shared.ts` (pure, 56 tests) · `lib/ledger-coa-template.ts` �
 `lib/ledger-journal.ts` · `lib/ledger-company.ts` ·
 **`lib/ledger-reports-shared.ts` (pure, 51 tests — every report's arithmetic)** ·
 **`lib/ledger-reports.ts` (the loader, and it does almost nothing on purpose)** ·
-`app/ledger/actions.ts` · six components. 107 ledger tests in all.
+`app/ledger/actions.ts` · **`lib/ledger-tax-shared.ts` (pure, 35 tests)** ·
+**`lib/ledger-tax.ts` (rates + the document adapters)** · `app/ledger/tax-actions.ts` ·
+nine components. **142 ledger tests in all** (719 across the app).
 
 ## ⚠️ The one rule that keeps all the others true
 
@@ -175,6 +178,85 @@ DSC's 2,000,000 = **one row, 6,700,000**, and the group balance sheet balanced.
 - **Print**: each report prints a header saying whose books, what period and
   when it was run; the controls and tabs are `print:hidden`.
 
+## Phase 3 — VAT and withholding
+
+Migration **0139** (applied): one new table `tax_rates`, and eleven nullable
+columns on the ops documents. Purely additive.
+
+**⚠️ THE RULES ARE DATA, NOT CODE.** The plan says in as many words: do not guess
+what is zero-rated, what is exempt, or what withholding applies to whom. So the
+rates are ROWS the owner can correct without a deploy, and each carries a
+`confirmed` flag:
+
+- **Only the statutory standard VAT rate is seeded confirmed.** It is public law.
+- Zero-rated, exempt and the four withholding rates arrive **unconfirmed**, with
+  a note saying what to check and who to ask. The tax screen and both reports
+  say "not ready to file" until somebody ticks them.
+- The withholding rates carry the commonly quoted figures rather than 0.
+  ⚠️ A rate of zero would silently withhold nothing, which is a worse failure
+  than a flagged number somebody has to confirm.
+
+### The three-state that the whole thing turns on
+
+`tax_inclusive` is **true · false · null**, and null is the default.
+
+The same 1,180,000 is either 1,180,000 **plus** VAT or 1,000,000 **with** 180,000
+already inside it, and nothing in the number says which. A two-state switch would
+have to default to one of them, and every untouched invoice would silently claim
+that answer. So "nobody has said" is a real state, the form offers it as a third
+button, and the return reports such an invoice as **unknown rather than nil**.
+Proven end to end: the same invoice reads 180,000 inclusive, 212,400 exclusive,
+and unknown when unset.
+
+### Rules the code enforces
+
+- **The percent is FROZEN on the document** (`tax_percent`), like `ex_rate`
+  beside it. Correcting a rate today must never re-write an invoice raised last
+  quarter — or the return that was filed off it.
+- **Amounts are DERIVED**, never stored. Net and tax come from the value, the
+  frozen percent and the inclusive flag on every read (rule 3).
+- **⚠️ Zero-rated is NOT exempt.** Both carry no tax; zero-rated supplies are
+  *taxable* and count in taxable turnover, exempt ones sit outside VAT and do
+  not. Adding them together reports the wrong turnover, and it is the single most
+  common way a hand-built return goes wrong. They are separated everywhere.
+- **Unknown is not zero.** A document with no rate is collected and listed, never
+  quietly counted as nil.
+- **Withholding is worked out on the BASE** — what the supplier invoiced — never
+  on what left the bank. Those differ by the tax itself, so using the payment
+  would understate it every time. No base recorded means unknown.
+- **The rounding order**: for an inclusive value the TAX is rounded and the net
+  taken as `value − tax`, so they always add back to what was typed. Rounding
+  both independently leaves invoices a cent out.
+- **`asFraction()` is the ONLY place 18 becomes 0.18.** `tax_rates.percent`
+  stores 18; `projects.vat_rate` stores 0.18 for the same idea. That is a units
+  trap that multiplies a tax bill by a hundred, so the conversion lives in one
+  tested function.
+
+### ⚠️ The adapters, and what happens to them in Phase 5
+
+Nothing posts to the ledger yet, so **the VAT return is built from the DOCUMENTS**
+— `ops_invoices` (output), `ops_order_lines` (input), `ops_shipments.vat_amount`
+(import VAT). `vatReturn()` takes a *list* and knows nothing about where it came
+from, which is deliberate: **when Phase 5 has the documents posting, write one
+more adapter that builds the same `TaxLine[]` from `gl_entries` and every figure
+is unchanged.** Do not grow a second way of totting up VAT.
+
+⚠️ **Import VAT**: the tax is exact (customs assessed it) but the customs VALUE
+is recorded nowhere, so the net is nil and the input-net understates. The payable
+figure is still right. The screen says so. Whether import VAT is recoverable at
+all is one of the questions still to confirm, so those lines are unconfirmed.
+
+### Where it is entered
+
+- **Sales VAT + the EFD (fiscal receipt) number** — the invoice, on Orders &
+  Imports → Delivery & billing. ⚠️ ops could not even record an EFD number
+  before; projects only tracked whether one was issued.
+- **Purchase VAT** — the order line, under the cost it applies to.
+- **Withholding** — the payment, with a separate "Withheld on" amount.
+
+All three use ONE control, `components/ops-tax-fields.tsx`, so they cannot drift
+into asking the question three different ways.
+
 ## Deliberately NOT done in Phase 1 — and these are decisions, not oversights
 
 - **No MCP tool.** The forward rule in CLAUDE.md says to ask "should the owner
@@ -198,18 +280,22 @@ DSC's 2,000,000 = **one row, 6,700,000**, and the group balance sheet balanced.
 
 - **Is stock actually held, and where?** `1150 Stock` exists in the template and
   is harmless until something posts to it.
-- **Who files the VAT returns, and what are the rules?** Zero-rating,
-  withholding by supplier type, whether imports differ. Phase 3.
-- **⚠️ When does the financial year start?** Settings has it as January. It
-  drives the balance sheet's current-year profit, so a wrong answer is a wrong
-  balance sheet, not a cosmetic one.
+- **⚠️ Who files the VAT returns, and what are the rules?** Phase 3 built the
+  machinery and refused to guess the rules. **Six seeded rates are flagged
+  unconfirmed** and the reports say "not ready to file" until they are settled:
+  which supplies are zero-rated, which are exempt, the four withholding rates,
+  and whether import VAT is recoverable.
+- ~~When does the financial year start?~~ **ANSWERED (owner, 20 Aug 2026):
+  1 July.** `ledgerFyStartMonth` is set to 7 and the balance sheet reads
+  "since 2026-07-01".
 - **What date should the books open from?** Phase 6 — post the history (791
   order lines, 347 invoices, 262 payments) or open with balances at a date.
   Opening at a date is what most businesses do and is far less risky.
 
 ## State of the data
 
-PES Ltd has been seeded with the 70-account chart. **No entries and no journals
+PES Ltd has the 70-account chart **and the 8 seeded tax rates** (2 confirmed,
+6 awaiting confirmation). **No entries and no journals
 exist** — every posting made while testing Phases 1 and 2 was removed afterwards,
 as was the DSC chart seeded to prove consolidation. Every other company has no
 chart yet; each gets one from the same template on first use.

@@ -2628,6 +2628,15 @@ export const opsOrderLines = pgTable("ops_order_lines", {
    *  across; where the two differ, that difference is real information. */
   purchaseQty: numeric("purchase_qty", { precision: 14, scale: 3 }),
   purchaseUnitPrice: numeric("purchase_unit_price", { precision: 14, scale: 2 }),
+  /* ── VAT on what we BOUGHT (Phase 3) — the input side of the return.
+   * Same three columns and the same rules as the sales side on `ops_invoices`:
+   * the rate is frozen, and whether the price already includes the tax is
+   * recorded rather than assumed. ⚠️ Import VAT is NOT here — it is paid to
+   * customs and already lives on `ops_shipments.vat_amount`; the return reads
+   * both. */
+  purchaseTaxRateId: integer("purchase_tax_rate_id").references(() => taxRates.id, { onDelete: "set null" }),
+  purchaseTaxPercent: numeric("purchase_tax_percent", { precision: 7, scale: 4 }),
+  purchaseTaxInclusive: boolean("purchase_tax_inclusive"),
   supplierPaymentDate: timestamp("supplier_payment_date", { mode: "date", withTimezone: true }),
 
   /* ── where it has got to ───────────────────────────────────────────────── */
@@ -2893,6 +2902,35 @@ export const opsInvoices = pgTable("ops_invoices", {
   pendingWith: text("pending_with"),
   notes: text("notes"),
 
+  /* ── VAT, and the fiscal receipt (Phase 3) ─────────────────────────────────
+   * ⚠️ Until now `invoice_value` was ONE number and nobody could say whether it
+   * included VAT. These three columns are what settle that, and none of them
+   * stores an amount: the net and the tax are worked out on read from the value,
+   * the frozen percent and the inclusive flag (rule 3 — balances are derived).
+   */
+  /** Which rate was chosen, for grouping the return. */
+  taxRateId: integer("tax_rate_id").references(() => taxRates.id, { onDelete: "set null" }),
+  /**
+   * ⚠️ FROZEN AT THE MOMENT IT WAS CHOSEN, exactly like `ex_rate` beside it.
+   * Pointing only at `tax_rates.percent` would mean that correcting the rate
+   * today silently re-writes every invoice ever raised — and last quarter's
+   * return with it.
+   */
+  taxPercent: numeric("tax_percent", { precision: 7, scale: 4 }),
+  /**
+   * ⚠️ Does `invoice_value` already contain the VAT?
+   *
+   * The single most important flag here. The same 1,180,000 is either
+   * 1,180,000 + VAT or 1,000,000 + 180,000 of VAT, and nothing in the number
+   * itself says which. NULL means nobody has said, and the screens show it as
+   * unknown rather than assuming.
+   */
+  taxInclusive: boolean("tax_inclusive"),
+  /** The TRA fiscal receipt. Projects tracks whether one was issued; ops could
+   *  not even record the number. */
+  efdNo: text("efd_no"),
+  efdDate: timestamp("efd_date", { mode: "date", withTimezone: true }),
+
   archived: boolean("archived").notNull().default(false),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2941,6 +2979,24 @@ export const opsPayments = pgTable("ops_payments", {
   currency: text("currency"),
   /** Frozen on the payment, like every other rate in this module. */
   exRate: numeric("ex_rate", { precision: 14, scale: 4 }),
+
+  /* ── withholding tax (Phase 3) ─────────────────────────────────────────────
+   * Money kept back from a supplier and owed to TRA instead. ⚠️ The amount is
+   * DERIVED (base x percent), never stored.
+   */
+  whtRateId: integer("wht_rate_id").references(() => taxRates.id, { onDelete: "set null" }),
+  /** ⚠️ Frozen when chosen, like every other rate here. */
+  whtPercent: numeric("wht_percent", { precision: 7, scale: 4 }),
+  /**
+   * What the withholding was worked out ON — usually the supplier's gross
+   * invoice, which is NOT the same as `amount` (that is what actually left the
+   * bank, after the tax was kept back).
+   *
+   * ⚠️ Null means unknown, and the withholding is then reported as unknown
+   * rather than guessed from `amount`. Treating the payment as the base would
+   * understate the tax on every withheld payment in the system.
+   */
+  whtBase: numeric("wht_base", { precision: 14, scale: 2 }),
 
   /** What it was written against — the workbook's PROF INV/BL NO. */
   reference: text("reference"),
@@ -3248,7 +3304,6 @@ export const journalEntryLines = pgTable("journal_entry_lines", {
   index("journal_entry_lines_entry_idx").on(t.entryId, t.sortOrder),
   index("journal_entry_lines_account_idx").on(t.accountId),
 ]);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // THE RECRUITMENT DESK (Phase 1) — Oracle Consultancy's agency, brought in from
 // `Documents\HR Recruitment`. See `memory/recruitment_module_plan.md`.
@@ -3548,4 +3603,90 @@ export const recCheckins = pgTable("rec_checkins", {
   index("rec_checkins_placement_idx").on(t.placementId, t.day),
   check("rec_checkins_day_values", sql`${t.day} IN (7, 14, 30)`),
   check("rec_checkins_party_values", sql`${t.party} IN ('client', 'candidate')`),
+]);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAX — VAT and withholding (ERP Phase 3).
+//
+// Tanzania charges VAT and withholds tax on certain payments. Until now the
+// projects module knew this (`projects.vat_rate`, `wht_rate`) and ops did not:
+// an ops invoice carried ONE number and nobody could say whether it included
+// VAT. That is the hole this closes.
+//
+// ⚠️ IT MUST LAND BEFORE PHASE 5. Once the documents start posting themselves
+// into the ledger they post whatever tax they are carrying, so the tax has to
+// be right on the document first. That ordering is the plan's, and it is the
+// reason this is being built before the posting.
+//
+// ⚠️ **THE RULES ARE NOT GUESSED HERE, AND MUST NOT BE.** The standard VAT rate
+// is statutory and is seeded as fact. Everything else — which supplies are
+// zero-rated, which are exempt, what withholding applies to whom, whether an
+// import is treated differently — is a question for whoever files the returns.
+// Rates therefore carry a `confirmed` flag, seeded FALSE for anything not
+// certain, and the screens say so out loud. Getting VAT wrong is not a display
+// bug.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAX RATES — the configured list, one set per company.
+//
+// ⚠️ A LIST, NOT A CONSTANT. `projects.vat_rate` defaults to 0.18 in the column
+// definition, which means the rate is buried in the schema and a change needs a
+// migration. Here the rates are rows: the owner can add "zero-rated", correct a
+// withholding rate his accountant disagrees with, or retire one, without a
+// deploy.
+//
+// ⚠️ `treatment` is NOT cosmetic and is not the same as a 0% rate.
+// Zero-rated supplies ARE taxable and count in taxable turnover; exempt
+// supplies are outside VAT and do not. A return that lumps them together
+// reports the wrong turnover.
+// ─────────────────────────────────────────────────────────────────────────────
+export const taxRates = pgTable("tax_rates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+
+  /** What a person calls it: "VAT — standard 18%", "Withholding — rent". */
+  name: text("name").notNull(),
+  /** VAT | WHT. Two different taxes with two different returns. */
+  kind: text("kind").notNull().default("VAT"),
+
+  /**
+   * ⚠️ A PERCENTAGE, NOT A FRACTION. 18 means 18%.
+   *
+   * `projects.vat_rate` stores 0.18 for the same idea, which is a units trap
+   * waiting to happen. This column is what a person types and what the screens
+   * show; `asFraction()` in `ledger-tax-shared.ts` is the ONLY place it is
+   * turned into 0.18, and it is tested.
+   */
+  percent: numeric("percent", { precision: 7, scale: 4 }).notNull().default("0"),
+
+  /** sales | purchases | both — which side of the business it applies to. */
+  appliesTo: text("applies_to").notNull().default("both"),
+  /** standard | zero_rated | exempt. See the warning above. */
+  treatment: text("treatment").notNull().default("standard"),
+
+  /** Where it lands in the books (Phase 5). Null until the chart has one. */
+  accountId: integer("account_id").references(() => glAccounts.id, { onDelete: "set null" }),
+
+  /** Offered first on a new document. */
+  isDefault: boolean("is_default").notNull().default(false),
+
+  /**
+   * ⚠️ Has a human being checked this against the law?
+   *
+   * Seeded TRUE only for the statutory standard VAT rate. Everything else
+   * arrives FALSE, and the screens flag it, because a withholding rate nobody
+   * has confirmed is a guess wearing a number. Ticking this is a deliberate
+   * act by somebody who knows.
+   */
+  confirmed: boolean("confirmed").notNull().default(false),
+
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("tax_rates_name_unique").on(t.companyId, t.name),
+  index("tax_rates_company_idx").on(t.companyId, t.archived, t.kind),
 ]);

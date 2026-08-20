@@ -23,6 +23,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { OpsTaxFields } from "@/components/ops-tax-fields";
+import type { TaxRate } from "@/lib/ledger-tax-shared";
 import { Loader2, Plus, Check, X, Pencil, Archive, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FieldCell } from "@/components/ui";
@@ -63,7 +65,7 @@ type Suggest = {
 
 export function OpsOrdersSheet({
   companyId, savedViews = [], lines: serverLines, suggest, defaultExRate, flag, shipments = [], despatches = [],
-}: {
+ taxRates = [],}: {
   companyId: number;
   /** Views the owner has saved for this list. */
   savedViews?: SavedView[];
@@ -81,6 +83,9 @@ export function OpsOrdersSheet({
   }>;
   /** From Setup. OFFERED on a chip; never written into the box by itself. */
   defaultExRate: number;
+  /** Purchase VAT rates (Phase 3). Defaulted so a forgetful caller shows
+   *  "No VAT" rather than taking the page down. */
+  taxRates?: TaxRate[];
   /** Which group the filter rail is showing (the server read it too). */
   flag: string;
 }) {
@@ -331,6 +336,7 @@ export function OpsOrdersSheet({
                 companyId={companyId}
                 line={v.line}
                 suggest={suggest}
+                taxRates={taxRates}
                 shipments={shipments}
                 despatches={despatches}
                 onDone={(patched) => {
@@ -435,6 +441,7 @@ function AddLine({
         saleUnitPrice: price.replace(/[\s,]/g, "") || null,
         exRate: exRate.replace(/[\s,]/g, "") || null,
         kind: null, quotationNo: null, quotedUnitBp: null, lcFactor: null, source: null,
+        purchaseTaxRateId: null, purchaseTaxPercent: null, purchaseTaxInclusive: null,
         supplier: null, origin: null, profNo: null, purchaseDate: null, purchaseCurrency: null,
         purchaseQty: null, purchaseUnitPrice: null, supplierPaymentDate: null,
         status: null, pendingWith: null, remarks: null, invoiceId: null, deliveredQty: null,
@@ -543,9 +550,10 @@ function AddLine({
 /* ───────────────────────────────────────────────────────────── the rest ──── */
 
 function EditLine({
-  companyId, line, suggest, shipments, despatches, onDone, onCancel, onError,
+  companyId, line, suggest, shipments, despatches, taxRates = [], onDone, onCancel, onError,
 }: {
   companyId: number; line: OrderLine;
+  taxRates?: TaxRate[];
   suggest: Suggest;
   shipments: Array<{ id: number; blNo: string }>;
   despatches: Array<{ id: number; label: string }>;
@@ -574,6 +582,20 @@ function EditLine({
     productionDoneDate: line.productionDoneDate?.slice(0, 10) ?? "",
     supplierDueDate: line.supplierDueDate?.slice(0, 10) ?? "",
   });
+  // ⚠️ Outside `f` — the rate id is a number and `inclusive` must be able to
+  // hold null ("nobody has said"), which a string-keyed setter would flatten.
+  const [ptax, setPtax] = useState({
+    rateId: line.purchaseTaxRateId, percent: line.purchaseTaxPercent, inclusive: line.purchaseTaxInclusive,
+  });
+  const strip = (v: string | number | null) =>
+    v === null || v === undefined ? "" : String(v).replace(/[\s,]/g, "");
+
+  // What the purchase comes to, so the VAT split can be previewed live.
+  const purchaseValue = (() => {
+    const q = Number(strip(f.purchaseQty));
+    const u = Number(strip(f.purchaseUnitPrice));
+    return Number.isFinite(q) && Number.isFinite(u) && q && u ? q * u : null;
+  })();
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   const [openSale, setOpenSale] = useState(false);
   const [shipmentId, setShipmentId] = useState<number | null>(line.shipmentId);
@@ -582,7 +604,11 @@ function EditLine({
   const submit = () =>
     start(async () => {
       onError(null);
-      const res = await updateOrderLineAction(line.id, f);
+      const res = await updateOrderLineAction(line.id, {
+        ...f,
+        purchaseTaxRateId: ptax.rateId, purchaseTaxPercent: ptax.percent,
+        purchaseTaxInclusive: ptax.inclusive,
+      });
       if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
       // ⚠️ Coerce FIRST. A Postgres `numeric` comes back from PostgREST as a JSON
       // NUMBER, not a string, even though the row type says `string | null` —
@@ -606,6 +632,8 @@ function EditLine({
         supplier: f.supplier || null, origin: f.origin || null, profNo: f.profNo || null,
         purchaseDate: f.purchaseDate || null, purchaseCurrency: f.purchaseCurrency || null,
         purchaseQty: clean(f.purchaseQty), purchaseUnitPrice: clean(f.purchaseUnitPrice),
+        purchaseTaxRateId: ptax.rateId, purchaseTaxPercent: ptax.percent,
+        purchaseTaxInclusive: ptax.inclusive,
         supplierPaymentDate: f.supplierPaymentDate || null,
         status: f.status || null, pendingWith: f.pendingWith || null, remarks: f.remarks || null,
         deliveredQty: clean(f.deliveredQty),
@@ -661,6 +689,21 @@ function EditLine({
             ))}
           </div>
         </FieldCell>
+        {/* VAT on the purchase (Phase 3) — full width, directly under the
+            cost it applies to. The input side of the return is built from
+            exactly these three fields. */}
+        <div className="col-span-2 sm:col-span-12">
+          <OpsTaxFields
+            rates={taxRates}
+            side="purchases"
+            value={ptax}
+            onChange={setPtax}
+            amount={purchaseValue}
+            currency={f.purchaseCurrency || "TZS"}
+            label="VAT on this purchase"
+            inputCls={inputCls}
+          />
+        </div>
         <FieldCell className="sm:col-span-3" label="Proforma no.">
           <input value={f.profNo} onChange={(e) => set("profNo", e.target.value)} className={inputCls} />
         </FieldCell>

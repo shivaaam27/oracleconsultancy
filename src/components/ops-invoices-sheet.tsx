@@ -21,6 +21,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { OpsTaxFields } from "@/components/ops-tax-fields";
+import type { TaxRate } from "@/lib/ledger-tax-shared";
 import { Loader2, Check, X, Pencil, Archive, Truck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FieldCell } from "@/components/ui";
@@ -52,9 +54,11 @@ type Suggest = {
 };
 
 export function OpsInvoicesSheet({
-  companyId, savedViews = [], invoices: serverRows, lines, suggest, defaultExRate,
+  companyId, savedViews = [], invoices: serverRows, lines, suggest, defaultExRate, taxRates = [],
 }: {
   companyId: number;
+  /** VAT rates this company uses (Phase 3). Defaulted so a caller that forgets
+   *  them shows "No VAT" rather than taking the page down. */
   /** Views the owner has saved for this list. */
   savedViews?: SavedView[];
   invoices: Invoice[];
@@ -63,6 +67,7 @@ export function OpsInvoicesSheet({
   lines: OrderLine[];
   suggest: Suggest;
   defaultExRate: number;
+  taxRates?: TaxRate[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(serverRows);
@@ -333,6 +338,7 @@ export function OpsInvoicesSheet({
               <EditInvoice
                 companyId={companyId}
                 invoice={v.invoice} view={v} suggest={suggest} defaultExRate={defaultExRate}
+                taxRates={taxRates}
                 onDone={(patched) => {
                   setRows((p) => p.map((r) => (r.id === patched.id ? patched : r)));
                   setEditing(null);
@@ -399,7 +405,11 @@ function AddInvoice({
         deliveryNoteNo: deliveryNoteNo.trim() || null, deliveredDate: deliveredDate || null,
         invoiceNo: invoiceNo.trim() || null, invoiceDate: invoiceDate || null,
         invoiceValue: null, invoiceCurrency: null, exRate: null,
-        client: client || null, status: null, pendingWith: null, notes: null, archived: false,
+        client: client || null, status: null, pendingWith: null, notes: null,
+        // ⚠️ Empty, not zero — a brand-new invoice has no VAT rate on it yet,
+        // and `taxInclusive: null` is "nobody has said" rather than "excludes".
+        taxRateId: null, taxPercent: null, taxInclusive: null, efdNo: null, efdDate: null,
+        archived: false,
       });
       // ⚠️ The client and the date STAY — a day's deliveries are usually the
       // same client on the same day. The references do not.
@@ -453,9 +463,10 @@ function AddInvoice({
 /* ───────────────────────────────────────────────────── and then billed ──── */
 
 function EditInvoice({
-  companyId, invoice, view, suggest, defaultExRate, onDone, onCancel, onError,
+  companyId, invoice, view, suggest, defaultExRate, taxRates = [], onDone, onCancel, onError,
 }: {
   companyId: number; invoice: Invoice; view: InvoiceView; suggest: Suggest; defaultExRate: number;
+  taxRates?: TaxRate[];
   onDone: (d: Invoice) => void; onCancel: () => void; onError: (e: string | null) => void;
 }) {
   const [pending, start] = useTransition();
@@ -469,15 +480,29 @@ function EditInvoice({
     exRate: invoice.exRate ?? "",
     client: invoice.client ?? "", status: invoice.status ?? "",
     pendingWith: invoice.pendingWith ?? "", notes: invoice.notes ?? "",
+    efdNo: invoice.efdNo ?? "", efdDate: invoice.efdDate?.slice(0, 10) ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // ⚠️ Kept out of `f` because two of the three are not strings — and
+  // `inclusive` in particular must be able to hold null ("nobody has said"),
+  // which a string-keyed setter would flatten to "".
+  const [tax, setTax] = useState({
+    rateId: invoice.taxRateId,
+    percent: invoice.taxPercent,
+    inclusive: invoice.taxInclusive,
+  });
 
   const needsRate = f.invoiceCurrency !== "" && f.invoiceCurrency !== "TZS" && String(f.exRate) === "";
 
   const submit = () =>
     start(async () => {
       onError(null);
-      const res = await updateInvoiceAction(invoice.id, f);
+      const res = await updateInvoiceAction(invoice.id, {
+        ...f,
+        taxRateId: tax.rateId, taxPercent: tax.percent, taxInclusive: tax.inclusive,
+        efdNo: f.efdNo || null, efdDate: f.efdDate || null,
+      });
       if (!res.ok) { onError(res.error ?? "Couldn't save."); return; }
       // ⚠️ Coerce FIRST. A Postgres `numeric` comes back from PostgREST as a JSON
       // NUMBER, not a string, even though the row type says `string | null` —
@@ -572,6 +597,30 @@ function EditInvoice({
             </div>
           </FieldCell>
         </div>
+
+        {/* ── VAT and the fiscal receipt (Phase 3) ──────────────────────────
+            ⚠️ Sits directly under the value it applies to, because the question
+            "does that figure include VAT?" is meaningless anywhere else. */}
+        <div className="mt-2 border-t border-border pt-2">
+          <OpsTaxFields
+            rates={taxRates}
+            side="sales"
+            value={tax}
+            onChange={setTax}
+            amount={f.invoiceValue}
+            currency={f.invoiceCurrency || "TZS"}
+            inputCls={inputCls}
+          />
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-12">
+            <FieldCell className="sm:col-span-3" label="Fiscal receipt no." hint="EFD">
+              <input value={f.efdNo} onChange={(e) => set("efdNo", e.target.value)} className={inputCls} />
+            </FieldCell>
+            <FieldCell className="sm:col-span-3" label="Receipt date">
+              <input type="date" value={f.efdDate} onChange={(e) => set("efdDate", e.target.value)} className={inputCls} />
+            </FieldCell>
+          </div>
+        </div>
+
         {/* ⚠️ The gap between what was typed and what the lines come to is SHOWN.
             It is either a discount or a mistake, and both want a second look. */}
         <p className={cn("mt-1 text-[11px]", view.difference !== null ? "text-danger" : "text-fg-subtle")}>

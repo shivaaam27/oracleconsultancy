@@ -214,17 +214,18 @@ the books themselves. **Build the ledger.** The phases are below.
   withholding by supplier type, whether imports differ. Getting VAT wrong is not
   a display bug.
 - **What date should the books open from?** See Phase 6.
-- **⚠️ When does the financial year start?** Settings assumes January. It drives
-  the balance sheet's current-year profit, so a wrong answer is a wrong balance
-  sheet rather than a cosmetic problem.
+- ~~When does the financial year start?~~ **ANSWERED: 1 July** (owner, 20 Aug 2026).
+- **⚠️ The VAT rules themselves.** Phase 3 built the machinery and deliberately
+  did not guess: six seeded rates sit flagged as unconfirmed, and the reports say
+  "not ready to file" until whoever files the returns settles zero-rating,
+  exemption, the withholding rates, and whether import VAT is recoverable.
 
 ---
 
 # THE LEDGER — the phases, in order
 
-**✅ Phases 1 AND 2 are BUILT (Aug 2026) — see `memory/ledger.md`.** Phase 3
-(VAT and withholding) is next, and it must land before Phase 5 or the documents
-will post the wrong numbers. Phases 4–7 are unchanged below.
+**✅ Phases 1, 2 AND 3 are BUILT (Aug 2026) — see `memory/ledger.md`.** Phase 4
+(money in) is next. Phases 5–7 are unchanged below.
 
 ## Phase 1 — the spine  ·  ✅ BUILT
 
@@ -286,7 +287,7 @@ discovered fact**.
 template) and does **not** eliminate inter-company balances — that needs the
 companies named as parties to each other, in Phase 7. The screen says so.
 
-## Phase 3 — VAT and withholding
+## Phase 3 — VAT and withholding  ·  ✅ BUILT
 
 Must land before Phase 5, or documents post the wrong numbers. Tanzania: 18% VAT
 and withholding on some payments. Projects already models both

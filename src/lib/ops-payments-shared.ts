@@ -30,6 +30,13 @@ export type Payment = {
   amount: string | null;
   currency: string | null;
   exRate: string | null;
+  /* ── withholding (Phase 3) ───────────────────────────────────────────────
+   * ⚠️ `whtBase` is what the supplier INVOICED, not what left the bank — those
+   * differ by the tax itself. Null means unknown, and the summary reports it
+   * rather than guessing from `amount`. */
+  whtRateId: number | null;
+  whtPercent: string | null;
+  whtBase: string | null;
   reference: string | null;
   orderLineId: number | null;
   shipmentId: number | null;

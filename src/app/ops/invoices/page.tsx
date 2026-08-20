@@ -11,6 +11,7 @@ import { listOrderLines, usedValues } from "@/lib/ops-orders";
 import { listOpsRefs, opsNamesOf } from "@/lib/ops-refs";
 import { getAppSettings } from "@/lib/settings";
 import { getSavedViewsFor } from "@/lib/saved-views";
+import { listTaxRates } from "@/lib/ledger-tax";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsInvoicesSheet } from "@/components/ops-invoices-sheet";
 
@@ -46,7 +47,7 @@ export default async function OpsInvoicesPage({
     );
   }
 
-  const [invoices, lines, refs, settings, pendingWith, savedViews] = await Promise.all([
+  const [invoices, lines, refs, settings, pendingWith, savedViews, taxRates] = await Promise.all([
     listInvoices(chosen.id),
     // ⚠️ The order lines come along so a document can be valued from what is ON
     // it, and so each PO's balance is a subtraction rather than a typed figure.
@@ -55,6 +56,7 @@ export default async function OpsInvoicesPage({
     getAppSettings(),
     usedValues(chosen.id, "pending_with"),
     getSavedViewsFor("ops-invoices"),
+    listTaxRates(chosen.id),
   ]);
 
   return (
@@ -70,6 +72,7 @@ export default async function OpsInvoicesPage({
         invoices={invoices}
         lines={lines}
         defaultExRate={settings.opsDefaultExRate}
+        taxRates={taxRates}
         suggest={{
           clients: opsNamesOf(refs, "client"),
           statuses: opsNamesOf(refs, "delivery_status"),

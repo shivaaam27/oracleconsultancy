@@ -20,7 +20,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type.
-const COLS = "id,company_id,payee,kind,paid_date,amount,currency,ex_rate,reference,order_line_id,shipment_id,notes,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,payee,kind,paid_date,amount,currency,ex_rate,reference,order_line_id,shipment_id,notes,wht_rate_id,wht_percent,wht_base,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): Payment {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -33,6 +33,9 @@ function mapRow(r: Record<string, unknown>): Payment {
     amount: s("amount"),
     currency: s("currency"),
     exRate: s("ex_rate"),
+    whtRateId: (r.wht_rate_id as number | null) ?? null,
+    whtPercent: s("wht_percent"),
+    whtBase: s("wht_base"),
     reference: s("reference"),
     orderLineId: (r.order_line_id as number | null) ?? null,
     shipmentId: (r.shipment_id as number | null) ?? null,
@@ -114,6 +117,9 @@ export type PaymentFields = {
   amount?: string | number | null;
   currency?: string | null;
   exRate?: string | number | null;
+  whtRateId?: number | null;
+  whtPercent?: string | number | null;
+  whtBase?: string | number | null;
   reference?: string | null;
   orderLineId?: number | null;
   shipmentId?: number | null;

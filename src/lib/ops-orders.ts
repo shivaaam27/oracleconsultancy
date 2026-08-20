@@ -18,7 +18,7 @@ export type WriteResult = { ok: true; id?: number } | { ok: false; error: string
 
 // ⚠️ One string literal on one line — a split one widens to `string` and
 // supabase-js gives up on the row type (learned in lib/projects.ts).
-const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,invoice_id,delivered_qty,production_due_date,production_done_date,supplier_due_date,status,pending_with,remarks,archived,created_by,created_at,updated_at";
+const COLS = "id,company_id,po_no,client,cost_centre,received_date,due_date,description,qty,uom,sale_currency,sale_unit_price,ex_rate,kind,quotation_no,quoted_unit_bp,lc_factor,source,supplier,origin,prof_no,purchase_date,purchase_currency,purchase_qty,purchase_unit_price,supplier_payment_date,shipment_id,invoice_id,delivered_qty,production_due_date,production_done_date,supplier_due_date,status,pending_with,remarks,purchase_tax_rate_id,purchase_tax_percent,purchase_tax_inclusive,archived,created_by,created_at,updated_at";
 
 function mapRow(r: Record<string, unknown>): OrderLine {
   const s = (k: string) => (r[k] as string | null) ?? null;
@@ -49,6 +49,11 @@ function mapRow(r: Record<string, unknown>): OrderLine {
     purchaseQty: s("purchase_qty"),
     purchaseUnitPrice: s("purchase_unit_price"),
     supplierPaymentDate: s("supplier_payment_date"),
+    purchaseTaxRateId: (r.purchase_tax_rate_id as number | null) ?? null,
+    purchaseTaxPercent: s("purchase_tax_percent"),
+    // ⚠️ Not Boolean() — null must survive as "nobody has said".
+    purchaseTaxInclusive: r.purchase_tax_inclusive === null || r.purchase_tax_inclusive === undefined
+      ? null : Boolean(r.purchase_tax_inclusive),
     status: s("status"),
     pendingWith: s("pending_with"),
     remarks: s("remarks"),
@@ -133,6 +138,9 @@ export type OrderLineFields = {
   purchaseQty?: string | number | null;
   purchaseUnitPrice?: string | number | null;
   supplierPaymentDate?: string | null;
+  purchaseTaxRateId?: number | null;
+  purchaseTaxPercent?: string | number | null;
+  purchaseTaxInclusive?: boolean | null;
   status?: string | null;
   pendingWith?: string | null;
   remarks?: string | null;
@@ -192,6 +200,9 @@ function toRow(f: Partial<OrderLineFields>): Record<string, unknown> {
   if (f.purchaseQty !== undefined) put("purchase_qty", amount(f.purchaseQty));
   if (f.purchaseUnitPrice !== undefined) put("purchase_unit_price", amount(f.purchaseUnitPrice));
   if (f.supplierPaymentDate !== undefined) put("supplier_payment_date", text(f.supplierPaymentDate));
+  if (f.purchaseTaxRateId !== undefined) put("purchase_tax_rate_id", f.purchaseTaxRateId);
+  if (f.purchaseTaxPercent !== undefined) put("purchase_tax_percent", amount(f.purchaseTaxPercent));
+  if (f.purchaseTaxInclusive !== undefined) put("purchase_tax_inclusive", f.purchaseTaxInclusive);
   if (f.status !== undefined) put("status", text(f.status));
   if (f.pendingWith !== undefined) put("pending_with", text(f.pendingWith));
   if (f.remarks !== undefined) put("remarks", text(f.remarks));

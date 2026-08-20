@@ -25,6 +25,9 @@ const TABS = [
   // ⚠️ Last, but it is what the ledger is FOR. Trial balance, P&L, balance
   // sheet, general ledger and statements — per company and across all thirteen.
   { key: "reports", label: "Reports", href: "/ledger/reports" },
+  // VAT and withholding (Phase 3). Set up once, then rarely touched — so it
+  // sits at the end, next to Reports, which is what reads it.
+  { key: "tax", label: "Tax rates", href: "/ledger/tax" },
 ] as const;
 
 export function LedgerTabs({

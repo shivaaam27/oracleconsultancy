@@ -16,6 +16,9 @@ import { LedgerReportControls } from "@/components/ledger-report-controls";
 import {
   BalanceSheetView, GeneralLedgerView, ProfitAndLossView, StatementsView, TrialBalanceView,
 } from "@/components/ledger-report-views";
+import { VatReturnView, WithholdingView } from "@/components/ledger-tax-views";
+import { taxLinesFromDocuments, whtLinesFromPayments } from "@/lib/ledger-tax";
+import { vatReturn, whtSummary } from "@/lib/ledger-tax-shared";
 import { pickLedgerCompany } from "@/lib/ledger-company";
 import { loadBooks, loadGroupBooks } from "@/lib/ledger-reports";
 import { getAppSettings } from "@/lib/settings";
@@ -60,8 +63,16 @@ export default async function LedgerReportPage({
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Dar_es_Salaam" });
   const asAt = to ?? today;
 
+  // ⚠️ The two tax reports read the DOCUMENTS, not `gl_entries` — nothing posts
+  // until Phase 5. So they skip loading the books entirely rather than fetching
+  // a ledger they will not look at. See the note on the adapters in
+  // `lib/ledger-tax.ts` for what changes when the posting lands.
+  const isTaxReport = report === "vat-return" || report === "withholding";
+
   const [books, settings] = await Promise.all([
-    group ? loadGroupBooks({ to: asAt }) : loadBooks(chosen.id, { to: asAt }),
+    isTaxReport
+      ? Promise.resolve({ accounts: [], entries: [] })
+      : group ? loadGroupBooks({ to: asAt }) : loadBooks(chosen.id, { to: asAt }),
     getAppSettings(),
   ]);
   const { accounts, entries } = books;
@@ -131,6 +142,20 @@ export default async function LedgerReportPage({
             hideEmpty,
           })}
           group={group}
+        />
+      )}
+
+      {report === "vat-return" && (
+        <VatReturnView
+          vat={vatReturn(await taxLinesFromDocuments(chosen.id, { from, to: to ?? undefined }))}
+          from={from} to={to} companyId={chosen.id}
+        />
+      )}
+
+      {report === "withholding" && (
+        <WithholdingView
+          wht={whtSummary(await whtLinesFromPayments(chosen.id, { from, to: to ?? undefined }))}
+          from={from} to={to}
         />
       )}
 

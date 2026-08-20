@@ -11,6 +11,7 @@ import { listShipments } from "@/lib/ops-shipments";
 import { listInvoices } from "@/lib/ops-invoices";
 import { getAppSettings } from "@/lib/settings";
 import { getSavedViewsFor } from "@/lib/saved-views";
+import { listTaxRates } from "@/lib/ledger-tax";
 import { OpsTabs } from "@/components/ops-tabs";
 import { OpsOrdersSheet } from "@/components/ops-orders-sheet";
 
@@ -46,7 +47,7 @@ export default async function OpsOrdersPage({
     );
   }
 
-  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments, despatches, savedViews] = await Promise.all([
+  const [lines, refs, settings, descriptions, pendingWith, uoms, shipments, despatches, savedViews, taxRates] = await Promise.all([
     listOrderLines(chosen.id),
     listOpsRefs(chosen.id),
     getAppSettings(),
@@ -60,6 +61,7 @@ export default async function OpsOrdersPage({
     // it points at (Stage 5), so the documents have to travel with the lines.
     listInvoices(chosen.id),
     getSavedViewsFor("ops-orders"),
+    listTaxRates(chosen.id),
   ]);
 
   return (
@@ -74,6 +76,7 @@ export default async function OpsOrdersPage({
         companyId={chosen.id}
         lines={lines}
         defaultExRate={settings.opsDefaultExRate}
+        taxRates={taxRates}
         flag={flag ?? "all"}
         shipments={shipments.map((s) => ({ id: s.id, blNo: s.blNo }))}
         despatches={despatches.map((d) => ({

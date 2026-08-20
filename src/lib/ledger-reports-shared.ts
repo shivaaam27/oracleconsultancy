@@ -652,6 +652,12 @@ export const REPORTS = [
   { key: "balance-sheet", label: "Balance sheet", hint: "What is owned, owed and worth, at a date" },
   { key: "general-ledger", label: "General ledger", hint: "Every entry, account by account" },
   { key: "statements", label: "Statements", hint: "One customer's or supplier's account with us" },
+  // ⚠️ Phase 3. These two read the DOCUMENTS, not `gl_entries`, because nothing
+  // posts yet — see the note on the adapters in `ledger-tax.ts`. When Phase 5
+  // wires the posting, they should be re-pointed at the ledger; the arithmetic
+  // in `ledger-tax-shared.ts` does not change.
+  { key: "vat-return", label: "VAT return", hint: "What is owed to TRA for the period" },
+  { key: "withholding", label: "Withholding", hint: "What was kept back from suppliers" },
 ] as const;
 
 export type ReportKey = (typeof REPORTS)[number]["key"];

@@ -23,7 +23,8 @@ function line(over: Partial<OrderLine> & { id: number; poNo: string }): OrderLin
     supplierPaymentDate: null, status: null, pendingWith: null, remarks: null,
     shipmentId: null, invoiceId: null, deliveredQty: null,
     productionDueDate: null, productionDoneDate: null, supplierDueDate: null,
-    archived: false, ...over,
+    archived: false, purchaseTaxRateId: null, purchaseTaxPercent: null, purchaseTaxInclusive: null,
+    ...over,
   };
 }
 
@@ -43,7 +44,8 @@ function pay(over: Partial<Payment> & { id: number }): Payment {
   return {
     companyId: 1, payee: null, kind: null, paidDate: null, amount: null, currency: null,
     exRate: null, reference: null, orderLineId: null, shipmentId: null, notes: null,
-    archived: false, ...over,
+    archived: false, whtRateId: null, whtPercent: null, whtBase: null,
+    ...over,
   };
 }
 

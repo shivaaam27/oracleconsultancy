@@ -39,6 +39,13 @@ export type OrderLine = {
   purchaseQty: string | null;
   purchaseUnitPrice: string | null;
   supplierPaymentDate: string | null;
+  /* ── VAT on the purchase (Phase 3) — the input side of the return.
+   * ⚠️ `purchaseTaxInclusive` is a three-state; null means nobody has said
+   * whether the price already carries the tax, and the return then reports the
+   * line as unknown rather than guessing. */
+  purchaseTaxRateId: number | null;
+  purchaseTaxPercent: string | null;
+  purchaseTaxInclusive: boolean | null;
   status: string | null;
   pendingWith: string | null;
   remarks: string | null;
