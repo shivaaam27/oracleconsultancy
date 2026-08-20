@@ -7,9 +7,12 @@ import { useRouter } from "next/navigation";
  * "synced …" stamp so it always feels awake.
  *
  * Liveness, most-instant first:
- *  1) Supabase Realtime broadcast on `cos-pulse` (server pulses on changes), and
- *     postgres_changes on task_updates (fires for ANY update if the table is in the
- *     realtime publication) — instant refresh.
+ *  1) Supabase Realtime broadcast on `cos-pulse` (server pulses on changes) —
+ *     instant refresh. Broadcast only: it is pub/sub over the socket and touches
+ *     no table, so it survives the Row Level Security lock in migration 0139. A
+ *     postgres_changes listener on task_updates used to sit here too; it was
+ *     already inert (the `supabase_realtime` publication is empty) and RLS would
+ *     have silenced it for good, so it has gone.
  *  2) Fallback that always runs: refresh on an interval + when the tab regains
  *     focus / visibility / connection. A busy-guard stops refreshes stacking.
  * Needs NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY for (1); without
@@ -79,7 +82,6 @@ export function CockpitLive({ seconds = 45 }: { seconds?: number }) {
         const ch = client
           .channel("cos-pulse", { config: { broadcast: { self: false } } })
           .on("broadcast", { event: "pulse" }, () => refresh())
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_updates" }, () => refresh())
           .subscribe();
         cleanup = () => client.removeChannel(ch);
       })

@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:restore": "tsx scripts/restore.ts",
+    "db:check-security": "tsx scripts/check-db-security.ts",
     "db:embed-backfill": "tsx scripts/backfill-embeddings.ts",
     "db:doc-text-backfill": "tsx scripts/backfill-doc-text.ts",
     "eval:search": "tsx scripts/eval-search.ts",
@@ -88,7 +89,9 @@
     "fast-uri": "^3.1.5",
     "nanoid": "^3.3.18",
     "brace-expansion": "^5.0.9",
-    "minimatch": { "brace-expansion": "^2.1.4" }
+    "minimatch": {
+      "brace-expansion": "^2.1.4"
+    }
   },
   "allowScripts": {
     "@sentry/cli@2.58.6": true,

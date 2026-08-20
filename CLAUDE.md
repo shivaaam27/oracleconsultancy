@@ -56,6 +56,25 @@ The system replaces an Excel workbook with:
 - Do not break `src/db/index.ts`: `prepare: false` and `max: 1` are required for PgBouncer transaction mode.
 - `DATABASE_URL` must use the Supabase pooler on port `6543`.
 - Baseline migration `0000_flaky_amphibian.sql` was applied manually; `scripts/baseline-migrations.ts` marks it applied.
+- **⚠️ THE DATABASE IS LOCKED TO THE SERVICE-ROLE KEY. Never GRANT to `anon`.**
+  Until 20 Aug 2026 every one of the 128 tables had Row Level Security OFF and full
+  grants to `anon` — and `NEXT_PUBLIC_SUPABASE_ANON_KEY` ships inside every page.
+  Verified live: that key could read `people`, `settings` (owner password hash),
+  `people.portal_password_hash`, `mcp_keys`, `webauthn_credentials` — and PATCH/
+  DELETE returned 204. **Migration 0139 turned RLS on for every table (no
+  policies) and revoked every anon/authenticated grant.** It breaks nothing: COS
+  reads and writes only through `sb` (service role) and postgres.js as `postgres`,
+  and both carry `rolbypassrls`. The anon key is used ONLY for Realtime
+  **broadcast**, which is pub/sub over the socket and touches no table.
+  - **Run `npm run db:check-security` after any schema work.** It re-tests RLS,
+    anon grants, views, SECURITY DEFINER functions and public storage buckets, and
+    exits 1 on a finding.
+  - The one way it can reopen: a table created in the **Supabase dashboard** is
+    owned by `supabase_admin`, whose default privileges still grant everything to
+    `anon` (we are not permitted to revoke those). Create tables via migrations.
+  - `postgres_changes` no longer works anywhere (RLS silences it for `anon`). The
+    `supabase_realtime` publication is empty, so nothing depended on it; the one
+    listener in `cockpit-live.tsx` was removed with 0139. Use broadcast.
 - Newer write paths often use `src/db/supabase.ts` and helpers in `src/lib/db-helpers.ts`.
 - All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
 - **Navigation is TWO things now (Aug 2026, ERPNext redesign).** From `lg` up a **persistent left sidebar** (`desk-sidebar.tsx`) is the navigation — 208px, collapsible to 56px, grouped Work/Records/Operations/System, built from `NAV_ROUTES`. Below `lg` it is the bottom-floating pill (`top-pill.tsx`), which still carries the page action `+`. The pill's vertical `SidePill` variant is RETIRED at `lg`+ (the sidebar replaces it). The sidebar publishes `--desk-sidebar` on `<html>`; `main`'s left gutter follows that variable.
@@ -810,6 +829,15 @@ The owner's #1 complaint is wasted usage, and the waste is TOOL-OUTPUT VOLUME, n
 - **`npm run build` also needs a bigger heap** (Aug 2026): the default dies with `Ineffective mark-compacts near heap limit` AFTER "Compiled successfully" — the crash is page-data collection, not your code. Use `NODE_OPTIONS=--max-old-space-size=8192 npm run build`.
 - Run unit tests with `npm test` (Vitest). Pure-logic tests live next to the module as `src/lib/*.test.ts` (pay, leave, derive, staff-id). Add tests when you change money/leave/status maths.
 - For schema work: edit `schema.ts`, generate/review migration, apply with `npm run db:migrate`. **Take `npm run db:backup` first.** drizzle-kit diffs the `drizzle/meta` snapshot, NOT the live DB — if the live DB has drift, generated `CREATE`s can collide; use `IF NOT EXISTS` or reconcile.
+- **⚠️ A HAND-WRITTEN migration needs a `when` LATER THAN THE NEWEST APPLIED ONE,
+  or the migrator SKIPS IT AND STILL SAYS "Migrations applied."** drizzle only
+  runs journal entries whose `when` is greater than the newest `created_at` in
+  `drizzle.__drizzle_migrations`, and those recorded values are real apply times,
+  which run AHEAD of the journal's `when` values. Copying `last.when + 60000` from
+  the previous entry therefore produces a timestamp in the past and a silent
+  no-op. Use `Date.now()`, and **prove the migration ran by checking its effect**,
+  never by trusting the success message. (Cost real time on 0139.) `drizzle-kit
+  generate` gets this right on its own — this only bites hand-written SQL.
 - Do NOT clear `.next` while the dev server is running (it corrupts the live build cache → ENOENT 500s). Stop the server first, then `rm -rf .next`, then restart.
 - Update `memory/*.md` after meaningful changes.
 - Do not auto-push unless asked.
