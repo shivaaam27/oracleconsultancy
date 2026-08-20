@@ -8,11 +8,15 @@ A C# window with Microsoft Edge inside it, pointed at the live COS site.
 desktop-win\build.cmd
 ```
 
-Out comes **one file**: `publish\Oracle Consultancy.exe`. Nothing to install
-first, no .NET to download.
+Out comes `publish-folder\`, which runs as-is. To hand someone **one file**:
 
-**⚠️ But read the Smart App Control section below before sending it to anyone** —
-unsigned, Windows refuses to run it at all.
+```
+desktop-winuild-installer.cmd
+```
+
+→ `installer\out\Oracle Consultancy Setup.exe` (53 MB). Per-user install, no
+admin rights, Start-menu and desktop shortcuts, clean uninstall. **Verified
+working unsigned under Smart App Control.**
 
 ## Why it is built this way
 
@@ -35,7 +39,7 @@ guessed wrong.
 
 | | Electron (removed) | This app |
 |---|---|---|
-| File to share | 99.3 MB installer | **63.3 MB, one file** |
+| File to share | 99.3 MB installer | **53.5 MB installer** |
 | Memory, live page open | 499 MB | ~592 MB |
 | Browser engine | ships its own Chromium | uses the Edge already on Windows |
 
@@ -55,39 +59,39 @@ wins are:
 If .NET 8 is ever installed everywhere, the same project builds to **2.2 MB**
 (`--self-contained false`). Not worth the extra install step today.
 
-## ⚠️ READ THIS FIRST: unsigned builds DO NOT RUN on this machine
+## ⚠️ READ THIS FIRST: never build it as a single file
 
-Measured on the owner's laptop, 20 Aug 2026. **Windows Smart App Control is ON
-and enforced**, and it blocks the unsigned .exe outright:
+Windows **Smart App Control is ON and enforced** on the owner's machine, and it
+blocks a `PublishSingleFile` build outright:
 
 > Code Integrity determined that a process attempted to load
 > `…\Oracle Consultancy.exe` that did not meet the **Enterprise signing level
-> requirements**  — CodeIntegrity event 3077, Smart App Control block 3118
+> requirements** — CodeIntegrity 3077, Smart App Control block 3118
 
-Both the portable copy and the properly installed copy were blocked. It is not
-about Electron, or C#, or the installer, or where the file sits: **Smart App
-Control refuses unsigned executables, full stop.** The app ran once before the
-verdict arrived, then stopped running — its cloud check is not instant, so an
-early success proves nothing.
+**It is not about signing.** Measured on 20 Aug 2026, all unsigned:
 
-Smart App Control is **on by default on new Windows 11 machines**, so staff
-laptops will behave the same way.
+| Build | Result |
+|---|---|
+| Single file, self-contained, compressed (63 MB) | ❌ **blocked**, portable and installed alike |
+| Self-contained, ordinary files (247 files, 145 MB) | ✅ runs |
+| Framework-dependent, ordinary files (9 files, 1.4 MB) | ✅ runs |
+| Installed from the MSI/bootstrapper as a folder | ✅ runs |
 
-**Do not "just turn it off."** It can only ever be switched OFF, never back on —
-re-enabling needs a Windows reinstall — and switching off a security feature to
-install an internal tool is the wrong trade, particularly for an app that holds
-the company's records.
+The proof was sitting on the same machine: **the original ORI shell is also
+unsigned C# + WebView2 and has always run fine** — 0.19 MB with 13 files beside
+it. The only difference was the packing.
 
-So there are exactly three ways to a working desktop app:
+A single-file .NET build is a compressed, self-extracting executable, which is
+exactly the shape of a malware dropper. Smart App Control refuses it. Ordinary
+files are ordinary files.
 
-| Route | Works under Smart App Control | Cost |
-|---|---|---|
-| **Install the PWA from Edge** | ✅ yes — no executable exists | free, works today |
-| **Microsoft Store (MSIX)** | ✅ yes — Store apps are trusted outright | free; needs Partner Center + review |
-| Buy a code-signing certificate | ⚠️ probably, but not guaranteed — Smart App Control weighs reputation as well as signature | $200–400/year |
+**So: never add `-p:PublishSingleFile=true`, and never "tidy" the installer into
+shipping one file.** The installer gives you the single file to SHARE; what it
+lays down on disk must stay a folder.
 
-The packaging in this folder is finished and correct, and is what the Store route
-will use. It is simply not usable unsigned.
+Signing is therefore **not needed** to distribute this internally. It is still
+worth having eventually — it removes the SmartScreen download warning — but it is
+not what stands between you and a working app.
 
 ## Testing it while developing
 

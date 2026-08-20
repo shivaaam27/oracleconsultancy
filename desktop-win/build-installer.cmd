@@ -1,11 +1,10 @@
 @echo off
 REM Builds the installer you hand to somebody: installer\out\Oracle Consultancy Setup.exe
 REM
-REM ⚠️ READ desktop-win\README.md FIRST. On a machine with Windows Smart App
-REM Control switched on, an UNSIGNED build of this will not run at all — Windows
-REM blocks it outright, wherever it is installed from. Signing, or the Microsoft
-REM Store, is what makes it work. This script exists so the packaging is ready
-REM for that day; it does not make an unsigned build usable.
+REM Verified working UNSIGNED on a machine with Windows Smart App Control
+REM enforced: it installs per-user, makes the shortcuts, and the app runs. The
+REM one thing that must not change is that it ships an unpacked FOLDER — see
+REM build.cmd and README.md.
 REM
 REM Needs WiX 5 (free). Once, on a new machine:
 REM   dotnet tool install --global wix --version 5.*
