@@ -19,7 +19,14 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="relative mx-auto flex min-h-[88vh] w-full max-w-sm flex-col justify-center gap-6">
+    // data-auth-shell tells globals.css to drop <main>'s sidebar gutter. The
+    // sign-in screens have no sidebar (HideOnPortal removes it), but the gutter
+    // was applied anyway, pushing this card ~98px right of centre on a wide
+    // window. Same opt-out shape as data-portal-shell.
+    <div
+      data-auth-shell
+      className="relative mx-auto flex min-h-[88vh] w-full max-w-sm flex-col justify-center gap-6"
+    >
       {/* Atmospheric glows — same family as the page Hero, reduced-motion safe. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <div

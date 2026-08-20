@@ -722,6 +722,21 @@ input:disabled, select:disabled, textarea:disabled {
     padding-left: 1.25rem;
   }
 
+  /* Sign-in screens opt out too, and for a plainer reason: they have NO sidebar.
+     HideOnPortal drops the rail on /login, and /portal/login never had one — but
+     nothing dropped the GUTTER, so <main> went on reserving 228px for a rail
+     that was not there and the centred card sat 98px right of centre on a 1440px
+     window. (Measured, on both sign-in screens.)
+
+     Both sides are set explicitly rather than only padding-left: the card
+     centres itself inside main, so the two paddings must MATCH or it is still
+     off — and 2rem is what Tailwind's `lg:px-8` on <main> already gives the
+     right-hand side. */
+  body main:has([data-auth-shell]) {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
   /* The portal has its own rail now (PortalSidebar), publishing its own width as
      --portal-sidebar. It is a SEPARATE variable on purpose: the admin gutter
      above reads --desk-sidebar, and sharing one would let a portal page shove

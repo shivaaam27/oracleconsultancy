@@ -143,7 +143,17 @@ it cannot reach the settings table. That is a deliberate "never lock the owner
 out" choice and I would keep it — but it means a Supabase outage disables the
 "sign out all devices" feature. Worth knowing, not worth changing.
 
-**P6 — Audit the routes that skip the gate.** The proxy matcher excludes
+**P6 — Audit the routes that skip the gate. ✅ DONE 20 Aug 2026 — one was open.**
+`/api/push/test` had **no authentication at all** and sits outside the admin gate,
+so anyone on the internet could POST to it and fire a notification at every
+subscribed device, owner and staff alike, as often as they liked. Now owner-only
+(it sends to everybody's devices, so "any signed-in person" would be wrong).
+Checked the rest: `api/push/subscribe` and `api/notifications/act` verify admin
+or portal themselves ✓, the calendar `.ics` feed is token-addressed by design ✓,
+`api/wa-card` and `r/` carry their HMAC gate ✓, and `api/og-banner` is a stale
+matcher entry for a route that no longer exists (harmless).
+
+**P6 (original note) — Audit the routes that skip the gate.** The proxy matcher excludes
 `api/cron`, `api/calendar`, `api/notifications`, `api/push`, `api/wa-card`,
 `api/og-banner`, `e/`, `r/`, `api/mcp`, `api/portal`. Each is supposed to check
 itself. `src/app/api/push/test/route.ts` appears to have no check at all. Go
