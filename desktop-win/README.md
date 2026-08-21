@@ -11,7 +11,7 @@ desktop-win\build.cmd
 Out comes `publish-folder\`, which runs as-is. To hand someone **one file**:
 
 ```
-desktop-winuild-installer.cmd
+desktop-win\build-installer.cmd
 ```
 
 → `installer\out\Oracle Consultancy Setup.exe` (53 MB). Per-user install, no
