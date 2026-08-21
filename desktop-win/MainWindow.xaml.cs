@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
@@ -34,7 +35,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         RestoreWindowState();
-        Loaded += async (_, _) => await StartWebViewAsync();
+        Loaded += async (_, _) =>
+        {
+            await StartWebViewAsync();
+            // After the window is up, never before: a slow or missing answer
+            // must not hold up the app appearing.
+            _ = CheckForNewerVersionAsync();
+        };
         Closing += (_, _) =>
         {
             SaveWindowState();
@@ -156,6 +163,83 @@ public partial class MainWindow : Window
             CoreWebView2PermissionKind.ClipboardRead;
 
         e.State = allowed ? CoreWebView2PermissionState.Allow : CoreWebView2PermissionState.Deny;
+    }
+
+    /* ------------------------------------------------------------------ *
+     * "Am I out of date?"
+     *
+     * The CONTENTS of this app update themselves on every deploy — they are the
+     * website. Only this WINDOW is frozen at the version someone installed, and
+     * the dangerous case is not inconvenience, it is SILENCE: a stale window
+     * that quietly misbehaves and never says why.
+     *
+     * So on start-up the app asks COS what the newest window is, and if this one
+     * is older it says so in a bar. It does not download or install anything —
+     * deliberately. That is a later step, and it needs the installer to be
+     * hosted somewhere first.
+     *
+     * Every failure here is silent by design: no internet, no answer, a bad
+     * answer, an old server that has never heard of the endpoint — all of them
+     * mean "say nothing". A version check must never be the reason the app
+     * bothers somebody.
+     * ------------------------------------------------------------------ */
+
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
+
+    private string? _downloadUrl;
+
+    private sealed class VersionAnswer
+    {
+        public string? version { get; set; }
+        public string? downloadUrl { get; set; }
+        public string? note { get; set; }
+    }
+
+    private async Task CheckForNewerVersionAsync()
+    {
+        try
+        {
+            var mine = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            if (mine is null) return;
+
+            var json = await Http.GetStringAsync(new Uri(AppUri, "/api/desktop/version"));
+            var answer = JsonSerializer.Deserialize<VersionAnswer>(json);
+            if (answer?.version is null) return;
+            if (!Version.TryParse(answer.version, out var published)) return;
+
+            // Compare on major.minor.build only. The assembly version carries a
+            // fourth number (revision) that the .csproj never sets, so a
+            // straight comparison would call 1.0.0.0 older than 1.0.0.
+            var here = new Version(mine.Major, mine.Minor, mine.Build < 0 ? 0 : mine.Build);
+            var there = new Version(published.Major, published.Minor, published.Build < 0 ? 0 : published.Build);
+            if (there <= here) return;
+
+            _downloadUrl = string.IsNullOrWhiteSpace(answer.downloadUrl) ? null : answer.downloadUrl;
+
+            var note = string.IsNullOrWhiteSpace(answer.note) ? "" : " " + answer.note!.Trim();
+            var text = $"A newer version of this app is available ({there}). You have {here}.{note}";
+            if (_downloadUrl is null) text += " Ask the office for the new installer.";
+
+            // Back onto the UI thread to touch the window.
+            await Dispatcher.InvokeAsync(() =>
+            {
+                UpdateText.Text = text;
+                UpdateDownload.Visibility = _downloadUrl is null ? Visibility.Collapsed : Visibility.Visible;
+                UpdateBar.Visibility = Visibility.Visible;
+            });
+        }
+        catch
+        {
+            // Silent on purpose — see the note above.
+        }
+    }
+
+    private void UpdateDismiss_Click(object sender, RoutedEventArgs e) =>
+        UpdateBar.Visibility = Visibility.Collapsed;
+
+    private void UpdateDownload_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadUrl is not null) OpenExternally(_downloadUrl);
     }
 
     /* ------------------------------------------------------------------ *

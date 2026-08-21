@@ -215,8 +215,12 @@ export const config = {
   // reason from the other side: whoever arrives there is BY DEFINITION not signed
   // in to this browser yet — that is the entire point of the page. It does its own
   // password check before it grants anything.
+  // api/desktop is excluded because the Windows app asks "am I out of date?"
+  // BEFORE anyone signs in — it has no cookie, so inside the gate every check
+  // would be answered with a redirect to /login and the app would never learn it
+  // was stale. It returns a version number and nothing else.
   // api/csp-report is excluded because a browser posts a Content-Security-Policy
   // violation WITHOUT cookies: inside the gate every report would be redirected
   // to /login and lost. It is public by necessity and rate-limits itself.
-  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|api/csp-report|_next|.*\\..*).*)"],
+  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|api/csp-report|api/desktop|_next|.*\\..*).*)"],
 };

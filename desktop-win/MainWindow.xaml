@@ -11,6 +11,47 @@
     <!-- Background matches the Desk page colour so there is no white flash while
          the first page loads. -->
     <Grid>
-        <wv2:WebView2 x:Name="Web" />
+        <Grid.RowDefinitions>
+            <!-- The update bar. Height 0 until there is something to say, so it
+                 costs the page nothing on a normal day. -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border x:Name="UpdateBar"
+                Grid.Row="0"
+                Visibility="Collapsed"
+                Background="#fff4d6"
+                BorderBrush="#e8d9a8"
+                BorderThickness="0,0,0,1"
+                Padding="14,9">
+            <DockPanel LastChildFill="True">
+                <Button x:Name="UpdateDismiss"
+                        DockPanel.Dock="Right"
+                        Content="✕"
+                        Margin="10,0,0,0"
+                        Padding="7,2"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        ToolTip="Hide until next time"
+                        Click="UpdateDismiss_Click" />
+                <Button x:Name="UpdateDownload"
+                        DockPanel.Dock="Right"
+                        Content="Download"
+                        Visibility="Collapsed"
+                        Margin="10,0,0,0"
+                        Padding="12,3"
+                        Cursor="Hand"
+                        Click="UpdateDownload_Click" />
+                <TextBlock x:Name="UpdateText"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="#5b4a1a"
+                           FontSize="13" />
+            </DockPanel>
+        </Border>
+
+        <wv2:WebView2 x:Name="Web" Grid.Row="1" />
     </Grid>
 </Window>

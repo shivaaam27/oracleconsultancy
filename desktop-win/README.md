@@ -130,6 +130,31 @@ the Windows message loop, the event scope ends, and the next property read throw
 is disposed"* — a confusing way of saying "too late". The order of those lines in
 `OnNotificationReceived` is deliberate.
 
+## Releasing a new version of the window
+
+The CONTENTS update on every push and need nothing. Only this folder is frozen
+at whatever someone installed.
+
+When you change the window:
+
+1. Bump `<Version>` in `OracleConsultancy.csproj`.
+2. Bump `DESKTOP_VERSION` in `src/lib/desktop-release.ts` to the same number.
+   **A test fails if they disagree** — the failure is otherwise silent and
+   company-wide: every app shows an out-of-date bar for a version nobody built.
+3. `build-installer.cmd`, and send the file.
+
+Every running app then shows a bar on its next start: *"A newer version of this
+app is available (1.0.1). You have 1.0.0."*
+
+To turn that bar into a one-click download later, host the installer somewhere
+and put the link in `DESKTOP_DOWNLOAD_URL`. A Download button appears on its own
+— **the app needs no change**.
+
+⚠️ Every failure in the check is silent on purpose: no internet, no answer, a
+bad answer, or a COS old enough not to have the endpoint all mean "say nothing".
+Verified all three: older app shows the bar, current app shows nothing, and a
+server without the endpoint is ignored.
+
 ## The security model — do not weaken it
 
 This window shows **remote code**, so these rules are what keep it an app rather
