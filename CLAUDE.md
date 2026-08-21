@@ -1,5 +1,9 @@
 # COS System - Project Instructions
 
+**⚠️ Most recent work: read `memory/handover_aug21_2026.md` first** — the database
+lock, the Windows app, and offline Notes, plus two jobs waiting on the owner
+(rotating the leaked credentials, and switching the CSP to enforcing).
+
 Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain language and use British English.
 
 ## Product
