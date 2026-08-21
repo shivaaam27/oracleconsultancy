@@ -19,14 +19,24 @@
 export const DESKTOP_VERSION: string = "1.0.0";
 
 /**
- * Where to get it. Leave EMPTY until the installer is actually hosted
- * somewhere — the app then tells people they are out of date without offering a
- * button that goes nowhere. Set it (e.g. to a Supabase Storage link) and the
- * bar grows a Download button on its own; the app needs no change.
+ * The installer's name inside the private `desktop` storage bucket.
+ *
+ * ⚠️ A PATH, NOT A URL, and the bucket stays PRIVATE. The version endpoint mints
+ * a short-lived signed link each time it is asked. A public bucket would be
+ * simpler and would also mean a permanent address anyone could hand around for
+ * ever — and it would trip `npm run db:check-security`, which refuses public
+ * buckets on purpose.
+ *
+ * Leave EMPTY until an installer is actually uploaded: the app then says you are
+ * out of date without offering a button that goes nowhere.
+ *
+ * Typed as string, not left to infer "" — an inferred literal type narrows to
+ * `never` the moment anything checks it, which broke the test that does.
  */
-// Typed as string, not left to infer "" — an inferred literal type narrows to
-// `never` the moment anything checks it, which broke the test that does.
-export const DESKTOP_DOWNLOAD_URL: string = "";
+export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.0.exe";
+
+/** The bucket holding it. Private; see above. */
+export const DESKTOP_BUCKET = "desktop";
 
 /**
  * SHA-256 of the installer at DESKTOP_DOWNLOAD_URL, lower-case hex.
@@ -39,7 +49,7 @@ export const DESKTOP_DOWNLOAD_URL: string = "";
  *
  * Produced by `npm run desktop:hash` after building the installer.
  */
-export const DESKTOP_SHA256: string = "";
+export const DESKTOP_SHA256: string = "71283cb45ebc3bcf41d54da91e997363f30b0ee2979bfed6cba87850c3bfa72a";
 
 /** One short line shown in the bar. Say what changed, in plain words. */
 export const DESKTOP_RELEASE_NOTE: string = "";

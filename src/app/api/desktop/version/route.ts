@@ -1,46 +1,65 @@
 import { NextResponse } from "next/server";
+import { sb } from "@/db/supabase";
 import {
   DESKTOP_VERSION,
-  DESKTOP_DOWNLOAD_URL,
+  DESKTOP_STORAGE_PATH,
+  DESKTOP_BUCKET,
   DESKTOP_RELEASE_NOTE,
   DESKTOP_SHA256,
 } from "@/lib/desktop-release";
 
 /* ------------------------------------------------------------------ *
- * "Is the Windows app out of date?"
+ * "Is the Windows app out of date, and where do I get the new one?"
  *
  * The desktop shell asks this once when it starts. If the version here is newer
- * than the copy on that machine, the app shows a bar saying so.
+ * than the copy on that machine, the app shows a bar — and, when there is an
+ * installer to fetch, a Download button.
  *
  * ⚠️ PUBLIC ON PURPOSE, and it must stay that way. The shell asks BEFORE anyone
  * has signed in — it has no cookie — so behind the admin gate every check would
  * be answered with a redirect to /login and the app would never know it was out
  * of date. Hence `api/desktop` in the exclusion list in src/proxy.ts.
  *
- * Safe to be public: it returns a version number that is already stamped into
- * every copy of the app, and nothing else. No data, no names, no counts.
+ * What it gives away: a version number already stamped into every copy of the
+ * app, and a short-lived link to an installer that contains no keys and no data.
+ * No records, no names, no counts.
  * ------------------------------------------------------------------ */
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
+/** How long a download link stays valid. Long enough for a slow connection to
+ *  finish, short enough that a copied link is not a permanent address. */
+const LINK_SECONDS = 60 * 60;
+
+export async function GET() {
+  let downloadUrl: string | null = null;
+
+  // ⚠️ Both or neither. The app refuses to run a download it cannot check, so
+  // offering a link without a checksum would only produce a dead button.
+  if (DESKTOP_STORAGE_PATH && DESKTOP_SHA256) {
+    try {
+      const { data } = await sb.storage
+        .from(DESKTOP_BUCKET)
+        .createSignedUrl(DESKTOP_STORAGE_PATH, LINK_SECONDS);
+      downloadUrl = data?.signedUrl ?? null;
+    } catch {
+      // Storage unreachable — say there is no download rather than failing the
+      // whole check. The app still learns it is out of date.
+      downloadUrl = null;
+    }
+  }
+
   return NextResponse.json(
     {
       version: DESKTOP_VERSION,
-      // Empty string means "no download link yet" — the app then says you are
-      // out of date without offering a button that leads nowhere.
-      // Both or neither: the app will not run a download it cannot check, so
-      // offering a URL without a checksum would just be a dead button.
-      downloadUrl: DESKTOP_DOWNLOAD_URL && DESKTOP_SHA256 ? DESKTOP_DOWNLOAD_URL : null,
-      sha256: DESKTOP_DOWNLOAD_URL && DESKTOP_SHA256 ? DESKTOP_SHA256 : null,
+      downloadUrl,
+      sha256: downloadUrl ? DESKTOP_SHA256 : null,
       note: DESKTOP_RELEASE_NOTE || null,
     },
     {
-      headers: {
-        // Let it be cached briefly. The app checks once per launch, and the
-        // answer changes a couple of times a year.
-        "Cache-Control": "public, max-age=300",
-      },
+      // ⚠️ NOT cacheable: the link is signed and short-lived, so a cached copy
+      // would hand out an expired one.
+      headers: { "Cache-Control": "no-store" },
     }
   );
 }

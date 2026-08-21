@@ -34,7 +34,7 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Oracle Consultancy is already installed." />
 
     <!-- The 63 MB app is embedded in the .msi, so there is ONE file to share. -->
-    <MediaTemplate EmbedCab="yes" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />

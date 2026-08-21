@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DESKTOP_VERSION, DESKTOP_DOWNLOAD_URL } from "./desktop-release";
+import { DESKTOP_VERSION, DESKTOP_STORAGE_PATH, DESKTOP_SHA256 } from "./desktop-release";
 
 /* The version COS publishes and the version stamped into the app are written in
  * two different files, in two different languages. If they drift, the failure is
@@ -28,11 +28,16 @@ describe("desktop release", () => {
     expect(DESKTOP_VERSION).toMatch(/^\d+\.\d+(\.\d+){0,2}$/);
   });
 
-  it("only offers a download link over https", () => {
-    // Empty is fine and means "no link yet". Anything else must be https: the
-    // app opens it in the person's browser.
-    if (DESKTOP_DOWNLOAD_URL) {
-      expect(DESKTOP_DOWNLOAD_URL.startsWith("https://")).toBe(true);
-    }
+  it("never offers an installer without a checksum to check it against", () => {
+    // The app downloads this file and RUNS it. A path without a hash would be
+    // an unverifiable download, so the two must travel together or not at all.
+    expect(
+      Boolean(DESKTOP_STORAGE_PATH) === Boolean(DESKTOP_SHA256),
+      "DESKTOP_STORAGE_PATH and DESKTOP_SHA256 must both be set, or both empty"
+    ).toBe(true);
+  });
+
+  it("has a checksum of the right shape", () => {
+    if (DESKTOP_SHA256) expect(DESKTOP_SHA256).toMatch(/^[a-f0-9]{64}$/);
   });
 });

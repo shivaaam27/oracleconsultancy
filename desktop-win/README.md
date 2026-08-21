@@ -8,15 +8,26 @@ A C# window with Microsoft Edge inside it, pointed at the live COS site.
 desktop-win\build.cmd
 ```
 
-Out comes `publish-folder\`, which runs as-is. To hand someone **one file**:
+Out comes `publish-folder\` (9 files), which runs as-is. To hand someone
+**one file**:
 
 ```
 desktop-win\build-installer.cmd
 ```
 
-→ `installer\out\Oracle Consultancy Setup.exe` (53 MB). Per-user install, no
+→ `installer\out\Oracle Consultancy Setup.exe` (**2 MB**). Per-user install, no
 admin rights, Start-menu and desktop shortcuts, clean uninstall. **Verified
 working unsigned under Smart App Control.**
+
+⚠️ **It needs the Microsoft .NET 8 Desktop Runtime on the machine.** That is the
+whole reason it is 2 MB instead of 51 MB — the app uses the .NET already there
+rather than carrying its own copy. The installer CHECKS for it and, if it is
+missing, says so with the address to get it. It does not install it: that needs
+administrator rights, which would undo the point of a per-user install.
+
+To go back to "nothing to install first", change `--self-contained false` to
+`true` in build.cmd. The installer becomes 51 MB and will no longer fit the 50 MB
+file-store ceiling, so one-click updates would need hosting elsewhere.
 
 ## Why it is built this way
 
@@ -39,7 +50,7 @@ guessed wrong.
 
 | | Electron (removed) | This app |
 |---|---|---|
-| File to share | 99.3 MB installer | **53.5 MB installer** |
+| File to share | 99.3 MB installer | **2 MB installer** |
 | Memory, live page open | 499 MB | ~592 MB |
 | Browser engine | ships its own Chromium | uses the Edge already on Windows |
 
@@ -150,12 +161,16 @@ app is available (1.0.1). You have 1.0.0."*
 
 The app can download and install the new version itself. To switch that on:
 
-4. Host `Oracle Consultancy Setup.exe` somewhere reachable over **https**.
+4. Upload `Oracle Consultancy Setup.exe` to the private `desktop` storage bucket.
 5. `npm run desktop:hash` → paste the result into `DESKTOP_SHA256`.
-6. Put the link in `DESKTOP_DOWNLOAD_URL`.
+6. Put the file's name in `DESKTOP_STORAGE_PATH`.
 
 A **Download** button then appears in the bar by itself — **already-installed
 apps need no change**.
+
+⚠️ A PATH, not a URL, and the bucket stays PRIVATE: COS mints a signed link that
+lasts an hour each time it is asked. A public bucket would be a permanent
+address anyone could pass around, and would trip `npm run db:check-security`.
 
 ⚠️ **THE CHECKSUM IS NOT OPTIONAL.** This is the one place the app downloads a
 file and RUNS it, which is the most dangerous thing it does. Three rules:
@@ -171,11 +186,20 @@ Verified both ways: a deliberately wrong checksum produced *"That download did
 not arrive intact, so it was not installed"*, the file was deleted and the app
 kept running; the correct checksum passed the check and went on to launch.
 
-⚠️ **Where to host it is still open.** Supabase Storage was tried and **rejected
-the 53.5 MB file** (project size cap) after a five-minute upload. Options: a
-public GitHub release (no size limit, but the installer becomes publicly
-downloadable — it holds no secrets), or shrinking the installer by shipping the
-framework-dependent build and letting the installer fetch the .NET runtime.
+Verified end to end: a 0.9.0 app against a COS publishing 1.0.0 showed the bar,
+the Download button fetched the signed link, the checksum matched, the installer
+launched and the app closed itself to get out of its way.
+
+⚠️ **This only became possible by shrinking the installer.** Supabase Storage has
+a hard **50 MB** ceiling on this project (measured: 50 MB accepted, 60 MB
+refused) and the self-contained installer was 51.5 MB — it failed after a
+five-minute upload. The framework-dependent build is 2 MB and uploads in five
+seconds.
+
+⚠️ A self-contained build cannot be usefully shrunk: it ships the WHOLE Windows
+Desktop runtime whether the app uses it or not. Removing the WinForms reference
+changed nothing, and `InvariantGlobalization` and friends only take effect with
+trimming, which WPF does not support. Do not spend another afternoon on it.
 
 ⚠️ Every failure in the check is silent on purpose: no internet, no answer, a
 bad answer, or a COS old enough not to have the endpoint all mean "say nothing".
