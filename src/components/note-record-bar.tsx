@@ -3,10 +3,10 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, LayoutTemplate, Pin, PinOff } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, CalendarDays, LayoutTemplate, Pin, PinOff } from "lucide-react";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
-import { applyTemplateToNote, setNoteArchived, setNoteFolder, setNoteIsTemplate, togglePinNote } from "@/app/notes/actions";
+import { applyTemplateToNote, setDailyTemplate, setNoteArchived, setNoteFolder, setNoteIsTemplate, togglePinNote } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -24,6 +24,7 @@ export function NoteRecordBar({
   folders,
   updatedAt,
   isTemplate,
+  isDailyTemplate,
   templates,
 }: {
   noteId: number;
@@ -33,6 +34,8 @@ export function NoteRecordBar({
   folders: { id: number; name: string }[];
   updatedAt: string;
   isTemplate: boolean;
+  /** Is this the template today's page starts from? */
+  isDailyTemplate: boolean;
   templates: { id: number; title: string }[];
 }) {
   const router = useRouter();
@@ -107,6 +110,29 @@ export function NoteRecordBar({
       >
         <LayoutTemplate size={13} /> {isTemplate ? "Template" : "Make a template"}
       </button>
+
+      {/* Joining the two things that already existed: templates, and one page per
+          day. It stores this note's ID, not a copy of it — so editing the
+          template changes tomorrow, and yesterday's page keeps what it had. */}
+      {isTemplate && (
+        <button
+          type="button"
+          onClick={() => start(async () => {
+            await setDailyTemplate(isDailyTemplate ? null : noteId);
+            toast(
+              isDailyTemplate
+                ? "Today's page goes back to a blank sheet."
+                : "Tomorrow's page will start from this.",
+              { tone: "success" },
+            );
+            router.refresh();
+          })}
+          title={isDailyTemplate ? "Stop using this for daily pages" : "Start every day from this template"}
+          className={cn(act, isDailyTemplate ? "text-accent hover:bg-accent-soft" : "hover:bg-bg-muted hover:text-fg")}
+        >
+          <CalendarDays size={13} /> {isDailyTemplate ? "Used every day" : "Use for daily pages"}
+        </button>
+      )}
 
       {templates.length > 0 && !isTemplate && (
         <FluidSelect

@@ -24,6 +24,7 @@ import {
   Sparkles, X, Maximize2, Minimize2,
 } from "lucide-react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
+import { NoteTouchDrag } from "@/components/note-touch-drag";
 import { cn } from "@/lib/cn";
 import { useFillViewport } from "@/lib/use-fill-viewport";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
@@ -876,7 +877,8 @@ export function NoteEditor({
         {/* Full screen keeps a screenful of room under the last line, so the
             writing can always sit in the middle of the glass instead of being
             pushed onto the bottom edge. */}
-        <div className={cn("mx-auto w-full max-w-[68ch]", full && "pb-[45vh]")}>
+        {/* `relative` so the drop line can be placed against the paper. */}
+        <div className={cn("relative mx-auto w-full max-w-[68ch]", full && "pb-[45vh]")}>
           {/* ⚠️ A TEXTAREA, NOT AN INPUT — the title has to WRAP.
               As a single-line input, a long title just scrolled sideways inside its
               own box: on a 375px phone the field was 294px wide holding 759px of
@@ -901,6 +903,10 @@ export function NoteEditor({
             className="bare-field note-title-field mb-1 w-full resize-none overflow-hidden break-words text-[22px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60 sm:text-[26px]"
           />
           <EditorContent editor={editor} />
+          {/* The touch half of "move this block". The hover-driven handle above is
+              a mouse affordance and is simply absent on a phone; press and hold a
+              block and it lifts. Phase 8 left this open on purpose. */}
+          <NoteTouchDrag editor={editor} />
         </div>
       </div>
 
@@ -922,6 +928,10 @@ export function NoteEditor({
           });
           return rich;
         }}
+        /* The editor already knows how to turn words into a mention — the
+           unlinked-mention strip uses the very same function. Reusing it keeps
+           ONE way a link is ever made: by rewriting the writing. */
+        onLinkSuggestion={(l) => linkSuggestion(l)}
         onApplyPolish={(text) => {
           const ed = editorRef.current;
           if (!ed) return;

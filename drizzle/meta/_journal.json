@@ -1016,6 +1016,13 @@
       "when": 1787313296485,
       "tag": "0141_notes_client_key",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1787316226697,
+      "tag": "0144_note_offline_edits",
+      "breakpoints": true
     }
   ]
 }

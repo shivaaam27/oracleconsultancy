@@ -13,8 +13,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import { parseTags } from "@/lib/note-tags";
 import { syncNoteLinks } from "@/lib/note-links";
+import type { LinkType } from "@/lib/note-links-shared";
+import { syncNoteTags, syncNoteDerived } from "@/lib/note-derived";
 import { createNoteTodo, deleteNoteTodo, setNoteTodoDone, todoStates } from "@/lib/note-todos";
 import { reindexEntity } from "@/lib/index-hooks";
 import { restoreNoteRevision, snapshotNote, templateBody } from "@/lib/note-versions";
@@ -53,6 +54,67 @@ export async function createNote(formData?: FormData): Promise<void> {
     .select("id")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Could not create the note");
+  revalidatePath("/notes");
+  redirect(`/notes/${data.id}`);
+}
+
+/**
+ * A new note that already mentions the thing you were looking at.
+ *
+ * ⚠️ IT WRITES A MENTION INTO THE BODY — it does NOT insert a `note_links` row.
+ * That distinction is the whole reason this is allowed to exist. §13 of the plan
+ * rules out an "attach a note" button precisely because a link made away from the
+ * writing is one the writing does not know about, and the two then drift. Here
+ * the link is derived exactly as it would be if you had typed `@` yourself: the
+ * mention is in the document, `syncNoteDerived` reads it back out, and deleting
+ * the sentence removes the link. Nothing about the model changes; this only saves
+ * you the typing.
+ *
+ * The note is left UNTITLED on purpose. `noteTitle()` falls back to the first
+ * line, so the shelf shows the mention until there is something better to call
+ * it — and being handed a title you did not choose is how notes end up named
+ * after the wrong thing.
+ */
+export async function createNoteAbout(input: {
+  entity: LinkType;
+  id: number;
+  code?: string | null;
+  label: string;
+}): Promise<void> {
+  const label = (input.label || "").trim().slice(0, 200) || "this";
+  const mention = {
+    type: "mention",
+    attrs: { entity: input.entity, id: input.id, code: input.code ?? null, label },
+  };
+  const body = {
+    type: "doc",
+    content: [
+      // The mention, then a space, then somewhere to start writing. The empty
+      // paragraph matters: landing with the caret jammed against an atom node is
+      // a fiddly place to begin.
+      { type: "paragraph", content: [mention, { type: "text", text: " " }] },
+      { type: "paragraph" },
+    ],
+  };
+  const bodyText = `@${label} `;
+
+  const { data, error } = await sb
+    .from("notes")
+    .insert({
+      title: "",
+      body_json: body,
+      body_text: bodyText,
+      created_by: "web-ui",
+      created_at: NOW(),
+      updated_at: NOW(),
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Could not create the note");
+
+  // The link is derived from the writing, in the same breath as the writing —
+  // the one rule this table has.
+  await syncNoteDerived(data.id as number, bodyText, body);
   revalidatePath("/notes");
   redirect(`/notes/${data.id}`);
 }
@@ -347,16 +409,41 @@ export async function applyTemplateToNote(
 
 /** Rewrite a note's tag rows to match its text. Cheap: a note has a handful of tags,
  *  so replace-all beats working out a diff. */
-async function syncTags(noteId: number, bodyText: string): Promise<void> {
-  try {
-    const tags = parseTags(bodyText);
-    await sb.from("note_tags").delete().eq("note_id", noteId);
-    if (tags.length > 0) {
-      await sb.from("note_tags").insert(tags.map((tag) => ({ note_id: noteId, tag })));
-    }
-  } catch {
-    /* A tag index is a convenience; never fail a save for it. */
+/* Kept as a name because it reads well at the call site; the work now lives in
+ * `lib/note-derived.ts`, so the editor's autosave and writing that arrives from
+ * an offline device derive tags exactly the same way. */
+const syncTags = syncNoteTags;
+
+
+/* ------------------------- the daily template ------------------------- */
+
+/** Which template today's page starts from. One settings row; there is no table
+ *  for this and there should not be — it is a single number. */
+const DAILY_TEMPLATE_KEY = "notes.dailyTemplateId";
+
+/**
+ * Use this template for tomorrow's page, or stop using it.
+ *
+ * ⚠️ It stores the template's ID, NOT a copy of its text. So editing the template
+ * changes what tomorrow starts from, which is what a template is for; and the
+ * pages already written are untouched, because each took its copy on the day.
+ */
+export async function setDailyTemplate(templateId: number | null): Promise<{ ok: boolean }> {
+  if (templateId == null) {
+    await sb.from("settings").delete().eq("key", DAILY_TEMPLATE_KEY);
+  } else {
+    await sb
+      .from("settings")
+      .upsert({ key: DAILY_TEMPLATE_KEY, value: String(templateId) }, { onConflict: "key" });
   }
+  revalidatePath("/notes");
+  return { ok: true };
+}
+
+export async function getDailyTemplateId(): Promise<number | null> {
+  const { data } = await sb.from("settings").select("value").eq("key", DAILY_TEMPLATE_KEY).maybeSingle();
+  const n = Number((data?.value as string | null) ?? "");
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 /**
@@ -381,12 +468,21 @@ export async function openTodaysNote(): Promise<void> {
   if (existing) redirect(`/notes/${existing.id}`);
 
   const title = eat.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  /* A daily template turns today's page from a blank sheet into the questions
+     you actually want to answer every morning. Read on CREATE only — a page that
+     already exists is your writing and is never touched. If the template has
+     been deleted or is no longer a template, `templateBody` returns null and you
+     get the blank sheet, which is the right fallback and needs no error. */
+  const templateId = await getDailyTemplateId();
+  const seed = templateId ? await templateBody(templateId) : null;
+
   const { data, error } = await sb
     .from("notes")
     .insert({
       title,
-      body_json: EMPTY_DOC,
-      body_text: "",
+      body_json: seed?.bodyJson ?? EMPTY_DOC,
+      body_text: seed?.bodyText ?? "",
       kind: "daily",
       daily_date: day,
       created_by: "web-ui",
@@ -403,6 +499,9 @@ export async function openTodaysNote(): Promise<void> {
     if (raced) redirect(`/notes/${raced.id}`);
     throw new Error(error?.message ?? "Could not open today's note");
   }
+  // A template can carry `#tags` and `@`-mentions, and they are DERIVED — so
+  // they are read out of the body that was just written, exactly as a save does.
+  if (seed) await syncNoteDerived(data.id as number, seed.bodyText, seed.bodyJson);
   revalidatePath("/notes");
   redirect(`/notes/${data.id}`);
 }

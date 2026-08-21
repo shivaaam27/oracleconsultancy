@@ -64,6 +64,16 @@ export type RecordFilter = {
   active: boolean;
   group?: string;
   tone?: "danger" | "warn" | "info" | "success";
+  /**
+   * Pick this filter without changing the address.
+   *
+   * Filters are URLs here by house rule, and they should stay that way — it is
+   * what makes a filtered list shareable and saveable. This exists for the one
+   * case where the rule cannot hold: a list rendered with NO CONNECTION, where
+   * following a link means asking the server for a page it cannot answer. Given
+   * this, the rail renders a button that looks exactly the same.
+   */
+  onSelect?: () => void;
 };
 
 /** One action offered when rows are ticked. `run` gets the selected keys. */
@@ -100,10 +110,9 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
       className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {filters.map((f) => (
-        <Link
+        <FilterLink
           key={f.key}
-          href={f.href}
-          scroll={false}
+          filter={f}
           className={cn(
             "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[12px] transition-colors",
             f.active
@@ -117,9 +126,35 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
               {f.count}
             </span>
           )}
-        </Link>
+        </FilterLink>
       ))}
     </nav>
+  );
+}
+
+/** A filter, as a link (the normal case) or a button (when the list is running
+ *  with no connection and cannot ask the server for another page). Identical to
+ *  look at either way — that is the point. */
+function FilterLink({
+  filter,
+  className,
+  children,
+}: {
+  filter: RecordFilter;
+  className: string;
+  children: ReactNode;
+}) {
+  if (filter.onSelect) {
+    return (
+      <button type="button" onClick={filter.onSelect} className={cn(className, "text-left")}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={filter.href} scroll={false} className={className}>
+      {children}
+    </Link>
   );
 }
 
@@ -143,11 +178,10 @@ function FilterRail({ filters }: { filters: RecordFilter[] }) {
           <ul>
             {g.items.map((f) => (
               <li key={f.key}>
-                <Link
-                  href={f.href}
-                  scroll={false}
+                <FilterLink
+                  filter={f}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
+                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
                     f.active
                       ? "bg-accent-soft font-medium text-accent"
                       : "text-fg-muted hover:bg-bg-subtle hover:text-fg"
@@ -159,7 +193,7 @@ function FilterRail({ filters }: { filters: RecordFilter[] }) {
                       {f.count}
                     </span>
                   )}
-                </Link>
+                </FilterLink>
               </li>
             ))}
           </ul>

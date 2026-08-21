@@ -1964,6 +1964,35 @@ export const noteRevisions = pgTable("note_revisions", {
   index("note_revisions_note_idx").on(t.noteId, t.createdAt),
 ]);
 
+/**
+ * Writing done offline into a note that already existed — the receipt, not the
+ * writing. Stage 3 of memory/notes_offline_plan.md.
+ *
+ * ⚠️ IT EXISTS FOR ONE REASON: SENDING TWICE MUST NOT WRITE TWICE. A device can
+ * succeed at sending and then lose the reply, so it offers the same edit again.
+ * For a brand-new note `notes.client_key` makes that a no-op; for an addition to
+ * an existing note nothing did, and re-applying an append would quietly put the
+ * same paragraph in the note a second time. The device names each edit before it
+ * sends it and this table remembers the names, so the second attempt is a no-op
+ * as well.
+ *
+ * Nothing reads it but the sync route, and nothing should. It is not history —
+ * `note_revisions` is history.
+ */
+export const noteOfflineEdits = pgTable("note_offline_edits", {
+  /** Chosen by the DEVICE before sending. Primary key, which is the whole point. */
+  editKey: text("edit_key").primaryKey(),
+  /** SET NULL rather than CASCADE on purpose: if the note is later deleted, the
+   *  receipt must survive, or a retry would apply the edit all over again. */
+  noteId: integer("note_id").references(() => notes.id, { onDelete: "set null" }),
+  /** 'append' | 'replace' — kept for reading the record back, never branched on. */
+  mode: text("mode").notNull().default("append"),
+  /** Set when the note had moved on and the edit was kept as its own note
+   *  instead of overwriting. Points at the copy that was made. */
+  keptBothNoteId: integer("kept_both_note_id").references(() => notes.id, { onDelete: "set null" }),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const noteLinks = pgTable("note_links", {
   id: serial("id").primaryKey(),
   noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),

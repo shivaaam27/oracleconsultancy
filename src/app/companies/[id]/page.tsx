@@ -473,6 +473,7 @@ export default async function CompanyPage({
         <LinkedNotesList
           notes={await notesLinkedTo("company", companyId)}
           emptyHint={`Write @${name} in any note and it will appear here.`}
+          about={{ entity: "company", id: companyId, label: name }}
         />
       )}
 

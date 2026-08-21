@@ -786,7 +786,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
        on a portal screen, so an assignee still cannot see the note behind the
        task. It loads on the client because this record does. */
     { id: "notes", label: "Notes", icon: <StickyNote size={14} />, content: (
-      <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} />
+      <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} />
     ) },
     { id: "edit", label: "Edit", icon: <Pencil size={14} />, content: editContent },
   ] : [];

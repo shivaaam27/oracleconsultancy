@@ -21,6 +21,12 @@
         appearance: none; border: 0; border-radius: 12px; padding: 12px 20px;
         background: #ededed; color: #0a0a0a; font-size: 15px; font-weight: 600;
       }
+      /* The one thing that still works with no connection. A dead end with a
+         Retry button on it is not an answer when there is somewhere to go. */
+      a.notes {
+        display: inline-block; margin-top: 14px; color: #8ab4f8;
+        font-size: 14px; text-decoration: none; border-bottom: 1px solid rgba(138,180,248,0.4);
+      }
     </style>
   </head>
   <body>
@@ -28,6 +34,7 @@
       <h1>You're offline</h1>
       <p>COS can't reach the network right now. Check your connection and try again.</p>
       <button onclick="location.reload()">Retry</button>
+      <div><a class="notes" href="/notes/offline">Read and write your notes anyway</a></div>
     </div>
   </body>
 </html>

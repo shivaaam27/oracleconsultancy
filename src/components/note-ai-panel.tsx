@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ListChecks, Loader2, Sparkles, Text, Wand2, X } from "lucide-react";
+import { Check, Link2, ListChecks, Loader2, Sparkles, Text, Wand2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import {
   createTasksFromNote, extractTasksAction, polishNoteAction,
-  snapshotBeforeAi, suggestTitleAction, summariseNoteAction,
+  snapshotBeforeAi, suggestLinksAction, suggestTitleAction, summariseNoteAction,
+  type SuggestedLink,
 } from "@/app/notes/ai-actions";
 import type { ExtractedTask } from "@/lib/note-ai";
 
@@ -27,7 +28,8 @@ type Proposal =
   | { kind: "polish"; text: string }
   | { kind: "summary"; points: string[] }
   | { kind: "tasks"; tasks: ExtractedTask[]; picked: Set<number> }
-  | { kind: "title"; title: string };
+  | { kind: "title"; title: string }
+  | { kind: "links"; links: SuggestedLink[] };
 
 export function NoteAiPanel({
   noteId,
@@ -36,6 +38,7 @@ export function NoteAiPanel({
   onApplyPolish,
   onInsertSummary,
   onApplyTitle,
+  onLinkSuggestion,
 }: {
   noteId: number;
   /** Read live from the editor — the note is being typed in while this is open. */
@@ -46,6 +49,10 @@ export function NoteAiPanel({
   onApplyPolish: (text: string) => void;
   onInsertSummary: (points: string[]) => void;
   onApplyTitle: (title: string) => void;
+  /** Accept a proposed link. The EDITOR does the work — it rewrites those exact
+   *  words into a mention, the same path an unlinked mention takes, so the link
+   *  stays derived from the writing. */
+  onLinkSuggestion: (link: SuggestedLink) => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -118,6 +125,14 @@ export function NoteAiPanel({
           onClick={() => run("title", suggestTitleAction, (d) => setProposal({ kind: "title", title: d.title }))}>
           {busy === "title" ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Name it
         </button>
+
+        {/* The last of §6's actions. The strip below the note already offers names
+            written WITHOUT an @ — this reads the meaning instead, so "the permit
+            chap" finds Sulleiman. It costs a model call, so it is asked for. */}
+        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+          onClick={() => run("links", suggestLinksAction, (d) => setProposal({ kind: "links", links: d.links }))}>
+          {busy === "links" ? <Loader2 size={11} className="animate-spin" /> : <Link2 size={11} />} Suggest links
+        </button>
       </div>
 
       {proposal && (
@@ -158,6 +173,44 @@ export function NoteAiPanel({
               onDiscard={() => setProposal(null)}
             >
               <p className="text-[13px] font-medium text-fg">{proposal.title}</p>
+            </Proposed>
+          )}
+
+          {proposal.kind === "links" && (
+            <Proposed
+              title="What this note is about"
+              note="Accepting turns those exact words into a link. Nothing else in the note changes."
+              onAccept={() => setProposal(null)}
+              onDiscard={() => setProposal(null)}
+              acceptLabel="Done"
+            >
+              <ul className="space-y-1">
+                {proposal.links.map((l, i) => (
+                  <li key={`${l.entity}:${l.id}`} className="flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="text-[12.5px] font-medium text-fg">{l.label}</span>
+                      <span className="ml-1.5 rounded bg-bg-subtle px-1 py-px text-[10px] text-fg-subtle">{l.entity}</span>
+                      <span className="mt-px block truncate text-[11.5px] text-fg-muted">
+                        “{l.needle}”{l.why ? ` — ${l.why}` : ""}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onLinkSuggestion(l);
+                        setProposal((p) =>
+                          p && p.kind === "links"
+                            ? { kind: "links", links: p.links.filter((_, j) => j !== i) }
+                            : null,
+                        );
+                      }}
+                      className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:text-fg"
+                    >
+                      Link
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </Proposed>
           )}
 

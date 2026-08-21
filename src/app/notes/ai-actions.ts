@@ -17,9 +17,11 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
-  askNotes, extractTasks, polishNote, suggestTitle, summariseNote,
+  askNotes, extractTasks, polishNote, suggestLinks, suggestTitle, summariseNote,
   type AiResult, type ExtractedTask, type NoteAnswer, type NoteSummary,
 } from "@/lib/note-ai";
+import { linkCandidates } from "@/lib/note-links";
+import type { LinkCandidate } from "@/lib/note-unlinked-shared";
 import { snapshotNote } from "@/lib/note-versions";
 import { createNoteTodo } from "@/lib/note-todos";
 import { unifiedSearch } from "@/lib/search";
@@ -77,6 +79,69 @@ export async function createTasksFromNote(
   revalidatePath("/");
   if (created === 0) return { ok: false, error: "Could not create those." };
   return { ok: true, created };
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Suggest links                                                       */
+/* ------------------------------------------------------------------ */
+
+/** A proposed link, in the exact shape the editor already knows how to accept. */
+export type SuggestedLink = LinkCandidate & { why?: string };
+
+/**
+ * Read the note and propose what it is about.
+ *
+ * ⚠️ TWO GUARDS, AND BOTH MATTER.
+ *
+ *  1. **The model picks from a list of real records** and answers with numbers,
+ *     so it cannot invent a person or point at an id that is not there.
+ *  2. **The phrase it quotes must really be in the note.** It is checked here,
+ *     against the text the editor sent, because accepting a suggestion REWRITES
+ *     those words into a mention — and rewriting words nobody wrote is the one
+ *     way this could damage a note. A phrase that is not found is dropped
+ *     silently: a suggestion that cannot be applied is not a suggestion.
+ *
+ * What comes back is a `LinkCandidate` whose `needle` is the phrase, so the
+ * editor accepts it through exactly the same path as an unlinked mention. One
+ * mechanism, one source of truth — the link stays DERIVED from the writing.
+ */
+export async function suggestLinksAction(text: string): Promise<AiResult<{ links: SuggestedLink[] }>> {
+  const candidates = await linkCandidates();
+  if (candidates.length === 0) {
+    return { ok: false, reason: "empty", message: "There is nothing in COS to link to yet." };
+  }
+
+  const res = await suggestLinks(
+    text,
+    candidates.map((c) => ({
+      kind: c.entity,
+      label: c.label,
+      // A task's code is what makes it identifiable; a name stands on its own.
+      hint: c.entity === "task" && c.code ? c.code : undefined,
+    })),
+  );
+  if (!res.ok) return res;
+
+  const haystack = text.toLowerCase();
+  const links: SuggestedLink[] = [];
+  const seen = new Set<string>();
+
+  for (const l of res.data.links) {
+    const c = candidates[l.index];
+    if (!c) continue;
+    const key = `${c.entity}:${c.id}`;
+    if (seen.has(key)) continue;
+    // The phrase has to be in the note, or there is nothing to rewrite.
+    if (!haystack.includes(l.phrase.toLowerCase())) continue;
+    seen.add(key);
+    links.push({ ...c, needle: l.phrase, ...(l.why ? { why: l.why } : {}) });
+  }
+
+  if (links.length === 0) {
+    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in COS." };
+  }
+  return { ok: true, data: { links } };
 }
 
 /* ------------------------------------------------------------------ */

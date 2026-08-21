@@ -8,6 +8,7 @@ import { NoteVersionsPanel } from "@/components/note-versions-panel";
 import { noteTodos } from "@/lib/note-todos";
 import { listTemplates, noteRevisions } from "@/lib/note-versions";
 import { NoteRecordBar } from "@/components/note-record-bar";
+import { getDailyTemplateId } from "@/app/notes/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
   const noteId = Number(id);
   if (!Number.isFinite(noteId)) notFound();
 
-  const [note, folders, links, incoming, todos, candidates, revisions, templates] = await Promise.all([
+  const [note, folders, links, incoming, todos, candidates, revisions, templates, dailyTemplateId] = await Promise.all([
     getNote(noteId),
     listFolders(),
     outgoingLinks(noteId),
@@ -35,6 +36,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
     linkCandidates(),
     noteRevisions(noteId),
     listTemplates(),
+    getDailyTemplateId(),
   ]);
   if (!note) notFound();
 
@@ -55,6 +57,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
           folders={folders.map((f) => ({ id: f.id, name: f.name }))}
           updatedAt={note.updatedAt}
           isTemplate={note.kind === "template"}
+          isDailyTemplate={dailyTemplateId === note.id}
           /* A template cannot be applied to itself, and the list is short. */
           templates={templates.filter((t) => t.id !== note.id).map((t) => ({ id: t.id, title: t.title }))}
         />

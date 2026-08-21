@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v12"; // v12 = offline note writing. v11 = the ERPNext redesign (Desk).
+const CACHE_VERSION = "cos-v15"; // v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 
@@ -16,15 +16,40 @@ const WRITE_OFFLINE_URL = "/notes/offline";
 
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/apple-touch-icon.png"];
 
-/** Fetch the write-offline page and keep it. Best-effort and never fatal: if the
- *  worker installs while signed out or offline, the page is picked up the next
- *  time it is visited (see the navigate handler). */
+/**
+ * Keep a page's OWN JavaScript and CSS beside it.
+ *
+ * ⚠️ WITHOUT THIS, A CACHED PAGE IS A BLANK SCREEN. Static assets are cached as
+ * they are requested — but the requests made while the worker was still
+ * installing were never intercepted, because nothing was controlling the page
+ * yet. So after ONE visit the cache held the HTML and not one chunk, and going
+ * offline gave an empty white page. It took two visits to work, and nobody was
+ * ever told that. (Measured: 0 chunks after the first visit, 30 after the
+ * second.) Reading the assets out of the HTML makes one visit enough.
+ */
+async function cacheOwnAssets(cache, html) {
+  try {
+    const urls = [...new Set(Array.from(html.matchAll(/\/_next\/static\/[^"'\s>]+/g), (m) => m[0]))]
+      .filter((u) => !u.endsWith(".map"));
+    // Individually, so one missing file cannot throw the whole lot away.
+    await Promise.all(urls.map((u) => cache.add(u).catch(() => {})));
+  } catch {
+    /* the page is still cached; it will fill in on the next visit */
+  }
+}
+
+/** Fetch the write-offline page and keep it, with the code it needs to run.
+ *  Best-effort and never fatal: if the worker installs while signed out or
+ *  offline, the page is picked up the next time it is visited. */
 async function cacheWriteOffline(cache) {
   try {
     const res = await fetch(WRITE_OFFLINE_URL, { credentials: "same-origin" });
     // Only a real page. A redirect to /login is not one, and caching it would
     // put a sign-in screen where the writing surface should be.
-    if (res && res.ok && !res.redirected) await cache.put(WRITE_OFFLINE_URL, res.clone());
+    if (!res || !res.ok || res.redirected) return;
+    const html = await res.clone().text();
+    await cache.put(WRITE_OFFLINE_URL, res.clone());
+    await cacheOwnAssets(cache, html);
   } catch {
     /* offline at install time — try again later */
   }
@@ -75,10 +100,19 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          // Keep the write-offline page fresh whenever it is visited normally.
+          // Keep the write-offline page fresh whenever it is visited normally —
+          // and its code with it, because a deploy renames every chunk and the
+          // page would otherwise point at files that are no longer cached.
           if (url.pathname === WRITE_OFFLINE_URL && res.ok && !res.redirected) {
             const copy = res.clone();
-            caches.open(STATIC_CACHE).then((c) => c.put(WRITE_OFFLINE_URL, copy)).catch(() => {});
+            const forAssets = res.clone();
+            caches
+              .open(STATIC_CACHE)
+              .then(async (c) => {
+                await c.put(WRITE_OFFLINE_URL, copy);
+                await cacheOwnAssets(c, await forAssets.text());
+              })
+              .catch(() => {});
           }
           return res;
         })
@@ -96,7 +130,12 @@ self.addEventListener("fetch", (event) => {
               // the address bar claims another, and its first act would be to
               // fetch the real route — which is exactly what is not available.
               // A redirect puts the page at its own address, where it is correct.
-              return Response.redirect(WRITE_OFFLINE_URL, 302);
+              //
+              // ⚠️ CARRY THE NOTE ACROSS. Asking for /notes/123 and landing on a
+              // list is not the same experience — the offline surface opens the
+              // note that was actually asked for.
+              const id = url.pathname.match(/^\/notes\/(\d+)/);
+              return Response.redirect(id ? `${WRITE_OFFLINE_URL}?note=${id[1]}` : WRITE_OFFLINE_URL, 302);
             }
           }
           return caches.match(OFFLINE_URL);

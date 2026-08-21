@@ -1,5 +1,4 @@
-import { PageHeader } from "@/components/ui";
-import { OfflineNoteWriter } from "@/components/offline-note-writer";
+import { OfflineNotesSurface } from "@/components/offline-notes-surface";
 
 /* The one page that works with no connection.
  *
@@ -12,18 +11,11 @@ import { OfflineNoteWriter } from "@/components/offline-note-writer";
  * So: no `await` on anything, no props from the server, nothing from `sb`. If
  * this page ever needs data, it stops being safe to cache and offline writing
  * stops working. */
-export const metadata = { title: "Write offline — Oracle Consultancy" };
+export const metadata = { title: "Notes — Oracle Consultancy" };
 
 export default function OfflineNotePage() {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <PageHeader
-        title="Write offline"
-        sub="Catch a thought now; it reaches COS when the connection does."
-      />
-      <div className="mt-5">
-        <OfflineNoteWriter />
-      </div>
-    </div>
-  );
+  /* Full working width, like every other screen — the surface renders the real
+     shelf and the real note page, and squeezing those into a narrow column is
+     exactly the "different product" this page is not supposed to be. */
+  return <OfflineNotesSurface />;
 }

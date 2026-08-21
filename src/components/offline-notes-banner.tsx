@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CloudOff, PenLine, Send, Loader2 } from "lucide-react";
-import { countDrafts, syncDrafts } from "@/lib/offline-notes";
+import { countDrafts, countEdits, syncOffline } from "@/lib/offline-notes";
 
 /* ------------------------------------------------------------------ *
  * The shelf's link to offline writing, and the nudge when something is waiting.
@@ -22,25 +22,32 @@ export function OfflineNotesBanner() {
   const [sending, setSending] = useState(false);
   const [offline, setOffline] = useState(false);
   const [justSent, setJustSent] = useState(0);
+  const [keptBoth, setKeptBoth] = useState(0);
 
   useEffect(() => {
     let alive = true;
 
     const flush = async () => {
-      const before = await countDrafts();
+      const before = (await countDrafts()) + (await countEdits());
       if (alive) setWaiting(before);
-      if (before === 0 || !navigator.onLine) return;
+      if (!navigator.onLine) return;
 
-      setSending(true);
-      const res = await syncDrafts();
+      // ⚠️ Runs even with nothing waiting, because it does a second job: it takes
+      // a fresh copy of the collection onto this device, so the notes can be read
+      // with no connection. The shelf is the page you are most likely to be on
+      // when you have a connection, which makes it the right place for it.
+      if (before > 0) setSending(true);
+      const res = await syncOffline();
       if (!alive) return;
       setSending(false);
-      setWaiting(await countDrafts());
-      if (res.sent > 0) {
-        setJustSent(res.sent);
+      setWaiting((await countDrafts()) + (await countEdits()));
+      const sent = res.notesSent + res.editsSent;
+      if (sent > 0) {
+        setJustSent(sent);
+        setKeptBoth(res.keptBoth);
         // The shelf was rendered before these arrived, so it does not know about
         // them. Reload rather than show a list that is quietly wrong.
-        setTimeout(() => window.location.reload(), 1200);
+        setTimeout(() => window.location.reload(), res.keptBoth > 0 ? 4000 : 1200);
       }
     };
 
@@ -63,8 +70,15 @@ export function OfflineNotesBanner() {
 
   if (justSent > 0) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2 text-sm text-success">
-        <Send size={14} /> {justSent} note{justSent > 1 ? "s" : ""} written offline {justSent > 1 ? "have" : "has"} arrived.
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2 text-sm text-success">
+        <Send size={14} /> {justSent} piece{justSent > 1 ? "s" : ""} of writing from offline {justSent > 1 ? "have" : "has"} arrived.
+        {keptBoth > 0 && (
+          /* Said out loud, never quietly: the note had moved on at the server, so
+             BOTH versions were kept rather than one silently winning. */
+          <span className="text-warn">
+            {keptBoth} had changed here since, so both versions were kept — look for “(also edited offline)”.
+          </span>
+        )}
       </div>
     );
   }
@@ -75,7 +89,7 @@ export function OfflineNotesBanner() {
         {sending ? <Loader2 size={14} className="animate-spin" /> : <CloudOff size={14} />}
         {sending
           ? `Sending ${waiting}…`
-          : `${waiting} note${waiting > 1 ? "s" : ""} written offline, still on this device.`}
+          : `${waiting} piece${waiting > 1 ? "s" : ""} of writing from offline, still on this device.`}
         <Link href="/notes/offline" className="underline underline-offset-2">
           Open
         </Link>

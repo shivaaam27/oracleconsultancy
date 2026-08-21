@@ -1386,6 +1386,17 @@ section[data-page-header],
 }
 
 /* The title is part of the same sheet, so it gets the same caret. */
+/* A block picked up by a finger. It has to LOOK lifted, because on a touch screen
+   there is no cursor to say what has hold of what — the buzz is not enough on its
+   own, and iOS does not buzz at all. See note-touch-drag.tsx. */
+.note-block-lifted {
+  opacity: 0.55;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
 .note-title-field {
   caret-color: hsl(var(--accent));
 }

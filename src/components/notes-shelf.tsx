@@ -7,6 +7,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { SavedViewsBar, type SavedView } from "@/components/saved-views-bar";
 import { SearchInput } from "@/components/ui";
 import { AskNotes } from "@/components/ask-notes";
 import { useToast } from "@/components/toast";
@@ -20,8 +21,9 @@ import { cn } from "@/lib/cn";
  * the ERPNext work). Phase 1 of memory/notes_module_plan.md.
  *
  * Filters go through `useUrlFilters`, the house rule: a shelf filtered in component
- * state has nothing for a saved view to save later (Phase 6 turns these into smart
- * folders).
+ * state has nothing for a saved view to save later — which is exactly what a smart
+ * folder is: a filtered shelf, named and kept. No new table and no new screen;
+ * `<listKey>.savedViews` in `settings` already holds them for every other list.
  */
 export function NotesShelf({
   rows,
@@ -34,6 +36,7 @@ export function NotesShelf({
   activeTag,
   q,
   autoCreate = false,
+  savedViews = [],
 }: {
   rows: NoteListRow[];
   total: number;
@@ -45,22 +48,40 @@ export function NotesShelf({
   activeTag: string | null;
   q: string;
   autoCreate?: boolean;
+  /** Smart folders: a filtered shelf, saved and named. See §13 of the plan. */
+  savedViews?: SavedView[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [, start] = useTransition();
   const [creating, setCreating] = useState(false);
-  const { values, set, hrefFor } = useUrlFilters(
+  const { values, set, hrefFor, dirty, query } = useUrlFilters(
     { filter: "all", folder: "", q: "", tag: "" },
     { debounceKeys: ["q"], debounceMs: 250 },
   );
 
-  // ?new=1 (from the global New menu / ⌘K) means "give me a blank note now".
-  // Guarded by a ref so React's double-invoked effects cannot create two.
+  /* ?new=1 (from the global New menu / ⌘K) means "give me a blank note now".
+   *
+   * ⚠️ THE ADDRESS IS CLEARED BEFORE THE NOTE IS MADE, and that is not tidiness.
+   * `createNote` redirects to the new note, which leaves `/notes?new=1` sitting in
+   * the history — so pressing BACK returned here, fired this again, made a second
+   * empty note and redirected away again. You could never get back to the shelf,
+   * and every attempt left another blank note behind. (Found by pressing back:
+   * three of them turned up in the shelf before anyone noticed what was doing it.)
+   *
+   * Replacing the entry first means back goes to a plain `/notes`. The ref guard
+   * stays for React's double-invoked effects — it is a different problem, and it
+   * does not survive a remount, which is exactly what going back is.
+   */
   const autoCreated = useRef(false);
   useEffect(() => {
     if (!autoCreate || autoCreated.current) return;
     autoCreated.current = true;
+    try {
+      window.history.replaceState(null, "", "/notes");
+    } catch {
+      /* an address we cannot rewrite is not worth failing the note for */
+    }
     start(async () => { await createNote(); });
   }, [autoCreate, start]);
 
@@ -159,6 +180,18 @@ export function NotesShelf({
       total={total}
       shown={shaped.length}
       toolbar={
+        <div className="flex flex-col gap-2">
+        {/* Smart folders. A folder is somewhere you PUT a note; this is a
+            question the shelf keeps asking — "everything tagged #permits" —
+            and the answer changes as you write. Both are useful, which is why
+            this sits beside the folder rail rather than replacing it. */}
+        <SavedViewsBar
+          initialViews={savedViews}
+          currentQuery={query}
+          hasFilters={dirty}
+          basePath="/notes"
+          listKey="note"
+        />
         <div className="flex flex-wrap items-center gap-2">
           {/* The kit's SearchInput — `CaretInput` was wrong here: it paints its own
               caret + placeholder for use INSIDE a bordered row, so standalone it
@@ -203,6 +236,7 @@ export function NotesShelf({
           >
             <Plus size={13} /> New note
           </button>
+        </div>
         </div>
       }
       footerNote={activeTag ? `Filtered by #${activeTag}` : undefined}

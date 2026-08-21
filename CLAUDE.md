@@ -253,7 +253,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0138** (the general ledger — see that section; 0137 is the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
 four tables, 0138 an index predicate. Both applied). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
@@ -756,19 +756,59 @@ the traps that cost real time.
   tag rail, **daily notes** ("Today", EAT-based, partial unique index), and **Phase 3:
   `@` mentions of task/person/company/document, `[[note]]` links, a Links + Backlinks
   rail, and a Notes tab on the task, person and company records**.
-- **Offline writing (Stage 1, 21 Aug 2026)**: `/notes/offline` is a plain-text
-  writing surface that works with no connection. ⚠️ **It must never load server
-  data** — it is the ONLY app page the service worker keeps (v12), and a cached
-  page carrying records would be a copy of the owner's records on the device.
-  Drafts live in IndexedDB (`src/lib/offline-notes.ts`) and are deleted **only**
-  once the server confirms them. `notes.client_key` + a partial unique index
-  (migration **0141**) makes sending exactly-once: the device names a note before
-  sending, so a retry after a lost reply is a no-op instead of a duplicate.
-  `/api/notes/offline-sync` is owner-only, checked at the edge AND in the route.
-  Opening `/notes` with a connection flushes anything waiting. **The page must be
-  visited once while signed in** to enter the cache. Stages 2 (read offline) and
-  3 (edit offline) are NOT built — see `memory/notes_offline_plan.md`, which also
-  holds the three questions Stage 3 needs answered first.
+- **Offline notes — ALL THREE STAGES BUILT (21 Aug 2026).** `/notes/offline` has
+  two halves: **Write** (a new note) and **Your notes** (read every note, and write
+  into one). ⚠️ **The page must never load server data** — it is the ONLY app page
+  the service worker keeps (v13), and a cached page carrying records would be a
+  copy of the owner's records on the device. Everything it shows comes from
+  IndexedDB after it mounts. **The page must be visited once while signed in** to
+  enter the cache (the service worker is production-only, so this cannot be tested
+  on the dev server).
+  - **Stage 1 — a new note.** Drafts in IndexedDB (`src/lib/offline-notes.ts`),
+    deleted **only** once the server confirms them. `notes.client_key` + a partial
+    unique index (**0141**) makes sending exactly-once.
+  - **Stage 2 — read everything.** `GET /api/notes/offline-cache` hands over the
+    whole collection (it is ~10 KB); the device replaces its copy wholesale, which
+    is the only way a deleted note also disappears here. Rendered by a hand-written
+    reader (`offline-note-body.tsx`), NOT Tiptap — the editor is a lazy 122 kB
+    chunk and reading must not depend on it being cached. ⚠️ **The copy is cleared
+    when the session ends**: on the sign-in screen (`forget-offline-notes.tsx`),
+    and on any 401/redirect from the cache route. It never clears unsent writing.
+  - ⚠️ **OFFLINE LOOKS LIKE COS, and that is the point** (owner, 21 Aug 2026).
+    `/notes/offline` renders the REAL shelf (`RecordList` + `ENTITY_VIEWS.note`)
+    and the REAL note page — same rail, same columns, same sheet measured to the
+    bottom of the window — fed from IndexedDB. One bar says you are offline and
+    what is waiting; things that need the server (Pin/Archive/template/to-dos/
+    links/versions) are shown and held back WITH A REASON, never removed. Filters
+    and rows use `onSelect`/`onRowClick` rather than links, because following a
+    link with no connection asks the server for a page it cannot answer. The
+    service worker (v14) redirects `/notes/123` → `/notes/offline?note=123`.
+  - **Stage 3 — write into an existing note.** **Add to this note** (always; goes
+    on the end, so it cannot destroy formatting and cannot conflict) or **Rewrite
+    it** (only when `docIsPlain`, or a table/picture/mention would be thrown away).
+    ⚠️ **Conflicts keep BOTH** — if the note moved on at the server, the device's
+    version becomes its own note *"(also edited offline)"* and the original is
+    untouched. Never lose writing.
+  - ⚠️ **Migration 0144 `note_offline_edits`** is what stops a retry appending the
+    same paragraph twice (`client_key` only covers new notes). **Apply then record**
+    — the reverse loses writing when it fails; `note_id` is ON DELETE SET NULL so
+    the receipt outlives the note.
+  - ⚠️ **A CACHED PAGE MUST BE CACHED WITH ITS OWN JAVASCRIPT.** Assets are cached
+    as they are requested, but the first visit's requests happen while the worker
+    is still installing and nothing is controlling the page — so one visit cached
+    the HTML and **zero chunks**, and going offline gave a white screen. The
+    worker (v15) now reads the page's `/_next/static/…` URLs out of its HTML and
+    caches them with it, on install and on every later visit (a deploy renames
+    every chunk). Measured: 0 chunks before, 46 after, from a single visit.
+  - ⚠️ **`navigator.onLine` IS NOT "can I reach COS".** It is true whenever any
+    network exists — a hotel portal, a dropped VPN, a bar of signal carrying
+    nothing, the site being down. It printed "Connected" over a page that could
+    reach nothing. `refreshNoteCache()` reports `reachable`, false only when a
+    request gets no answer (a 401 counts as reached). Use that, not `onLine`.
+  - ⚠️ **`open()` in `offline-notes.ts` asks for NO IndexedDB version** and repairs
+    a missing store by reopening one higher. Naming a version the browser is
+    already AT never fires `onupgradeneeded` again; naming one it is PAST throws
+    `VersionError` forever. Both were hit for real. Do not reintroduce `DB_VERSION`.
 - **Writing fills the screen** (19 Aug 2026). The sheet MEASURES its own top and
   takes the rest of the window — the old `calc(100dvh - 11rem)` guess left a band of
   dead grey under the paper. ⚠️ It only reclaims `<main>`'s bottom padding from
@@ -778,6 +818,15 @@ the traps that cost real time.
   them, with typewriter scrolling holding the live line in the middle band. Esc is
   guarded on `!e.defaultPrevented` so it never closes out from under an open `/`,
   `@` or `[[` menu. See `memory/notes_module_plan.md`.
+- **Also built 21 Aug 2026**: **smart folders** (saved views on the shelf,
+  `note.savedViews`), **"Write a note about this"** on a task/person/company —
+  which writes an `@`-mention into the BODY, never a `note_links` row, so the rule
+  below still holds — **daily-note templates** (one setting, `notes.dailyTemplateId`,
+  seeded on CREATE only), **long-press drag on touch** (`note-touch-drag.tsx`; the
+  index maths is the pure, tested `blockMovePlan`), and **AI "suggest links"**
+  (the model picks from NUMBERED candidates and its quoted phrase is checked
+  against the note before it is offered, because accepting rewrites those words).
+  **Voice into a note is the one thing on §13's list still not built.**
 - **A link is DERIVED FROM THE WRITING.** `note_links` is rewritten from the document
   on every save, so the only way to make one is to `@`-mention it in the note. There is
   deliberately **no "attach a note" button** on a task — a link made away from the
@@ -816,6 +865,19 @@ the traps that cost real time.
   **`outline-none` cannot beat `*:focus-visible`** — the writing surface needed a
   scoped override. Tailwind v4's Lightning CSS also **silently drops** modern CSS
   properties from `globals.css`; set those inline.
+
+⚠️ **`useFillViewport` counts a following sibling only if it starts BELOW the
+element's midpoint.** "After in the markup" is not "below on the screen": a note's
+links rail comes after the paper in the DOM but sits BESIDE it from `xl` up, and
+subtracting it left the note sheet 443px tall in a 1080px window with a field of
+grey under it. Do not go back to counting every following sibling.
+
+⚠️ **A `?new=1` flag that CREATES a record must be consumed before the record is
+made.** `/notes?new=1` redirected to the new note and left the flag in the history,
+so pressing Back re-fired it and made another empty note — every time, with no way
+back to the shelf. `notes-shelf.tsx` now `history.replaceState`s to `/notes` first.
+The other `?new=1` pages open a FORM rather than creating immediately, so they are
+not affected — keep it that way.
 
 **People can now be permanently deleted** (Danger zone on the person record).
 Deactivate is still the normal answer. ⚠️ Four FKs to `people` are ON DELETE NO

@@ -41,13 +41,30 @@ import { useEffect, type RefObject } from "react";
  * Walks up the tree adding the height of each following sibling. Deliberately
  * NOT `stop.bottom - el.bottom`: a filter rail beside the element is taller than
  * it and would be counted as content below.
+ *
+ * ⚠️ "FOLLOWING" IN THE MARKUP IS NOT "BELOW" ON THE SCREEN, and that cost the
+ * note sheet 560px of its height. A note's links rail comes AFTER the paper in
+ * the DOM but sits BESIDE it in a flex row from `xl` up, so counting it left the
+ * paper 443px tall in a 1080px window with a field of grey under it — the exact
+ * dead space this hook exists to remove. So each sibling is only counted if it
+ * genuinely starts below this element. The same test does the right thing on a
+ * narrow screen, where that rail stacks underneath and IS content below.
  */
 function trailingHeight(el: HTMLElement, stop: Element | null): number {
+  const box = el.getBoundingClientRect();
+  // Below, or beside? A sibling laid out BESIDE this element starts level with
+  // its top; one laid out BELOW starts at its bottom. The midpoint separates the
+  // two cleanly, and leaves room for a below-sibling pulled up by a negative
+  // margin (`-mt-1.5` and friends are common here) without mistaking a rail for
+  // a footer.
+  const divide = box.top + box.height / 2;
   let node: HTMLElement | null = el;
   let total = 0;
   while (node && node !== stop) {
     for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
-      total += sib.getBoundingClientRect().height;
+      const r = sib.getBoundingClientRect();
+      if (r.height === 0) continue;
+      if (r.top >= divide) total += r.height;
     }
     node = node.parentElement;
   }

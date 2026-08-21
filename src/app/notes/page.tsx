@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { OfflineNotesBanner } from "@/components/offline-notes-banner";
 import { NotesShelf } from "@/components/notes-shelf";
 import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes";
+import { getSavedViewsFor } from "@/lib/saved-views";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function NotesPage({
   const q = sp.q?.trim() || undefined;
   const tag = sp.tag?.trim().toLowerCase() || undefined;
 
-  const [rows, folders, counts, tags, taggedIds] = await Promise.all([
+  const [rows, folders, counts, tags, taggedIds, savedViews] = await Promise.all([
     listNotes({
       archived: filter === "archived",
       folderId: Number.isFinite(folderId) ? folderId : null,
@@ -38,6 +39,9 @@ export default async function NotesPage({
     noteCounts(),
     listTags(),
     tag ? noteIdsForTag(tag) : Promise.resolve<number[]>([]),
+    /* Smart folders: a filtered shelf, named and kept. Same store every other
+       list uses (`note.savedViews` in `settings`) — no new table. */
+    getSavedViewsFor("note"),
   ]);
 
   // "Pinned" and "Unfiled" are cuts of the same query rather than separate reads —
@@ -71,6 +75,7 @@ export default async function NotesPage({
         /* The global New menu points here with ?new=1; the shelf creates a note and
            goes straight to it, so "New note" is one click from anywhere. */
         autoCreate={sp.new === "1"}
+        savedViews={savedViews}
       />
     </div>
   );

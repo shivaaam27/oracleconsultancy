@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Loader2, StickyNote } from "lucide-react";
+import { useTransition } from "react";
+import { Loader2, PenLine, StickyNote } from "lucide-react";
+import { createNoteAbout } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
 import type { LinkedNote, LinkType } from "@/lib/note-links-shared";
 
@@ -21,7 +23,37 @@ import type { LinkedNote, LinkType } from "@/lib/note-links-shared";
  * in `src/proxy.ts`, and that is the whole security model — linking is not sharing.
  */
 
-export function LinkedNotesList({ notes, emptyHint }: { notes: LinkedNote[]; emptyHint?: string }) {
+
+/** What a new note should be about. Passed in by the record that is showing this
+ *  panel, because only it knows what it is. */
+export type NoteAbout = { entity: LinkType; id: number; code?: string | null; label: string };
+
+/**
+ * "Write a note about this" — the loop back from a record into the writing.
+ *
+ * ⚠️ THIS IS NOT AN "ATTACH A NOTE" BUTTON, and the difference is not cosmetic.
+ * §13 of the plan rules that out: a link made away from the writing is one the
+ * writing does not know about, and the two drift. What this does is start a note
+ * with the `@`-mention already typed — the link is still DERIVED from the body,
+ * so deleting the sentence still removes the link. It saves the typing, not the
+ * rule.
+ */
+function WriteAboutButton({ about }: { about: NoteAbout }) {
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => start(async () => { await createNoteAbout(about); })}
+      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11.5px] font-medium text-fg-muted transition-colors hover:text-fg disabled:opacity-60"
+    >
+      {pending ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />}
+      Write a note about this
+    </button>
+  );
+}
+
+export function LinkedNotesList({ notes, emptyHint, about }: { notes: LinkedNote[]; emptyHint?: string; about?: NoteAbout }) {
   if (notes.length === 0) {
     return (
       <div className="flex flex-col items-center gap-1.5 py-8 text-center">
@@ -30,11 +62,14 @@ export function LinkedNotesList({ notes, emptyHint }: { notes: LinkedNote[]; emp
         <p className="max-w-[26rem] text-[11.5px] text-fg-subtle">
           {emptyHint ?? "Write @ in any note and pick this record — it will appear here."}
         </p>
+        {about && <div className="mt-1"><WriteAboutButton about={about} /></div>}
       </div>
     );
   }
 
   return (
+    <div className="flex flex-col gap-2">
+    {about && <div className="flex justify-end"><WriteAboutButton about={about} /></div>}
     <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg-elev">
       {notes.map((n) => (
         <li key={n.id}>
@@ -56,11 +91,12 @@ export function LinkedNotesList({ notes, emptyHint }: { notes: LinkedNote[]; emp
         </li>
       ))}
     </ul>
+    </div>
   );
 }
 
 /** The fetching form, for a record that is drawn on the client. */
-export function LinkedNotesTab({ type, id, emptyHint }: { type: LinkType; id: number; emptyHint?: string }) {
+export function LinkedNotesTab({ type, id, emptyHint, about }: { type: LinkType; id: number; emptyHint?: string; about?: NoteAbout }) {
   const [notes, setNotes] = useState<LinkedNote[] | null>(null);
 
   useEffect(() => {
@@ -82,5 +118,5 @@ export function LinkedNotesTab({ type, id, emptyHint }: { type: LinkType; id: nu
       </p>
     );
   }
-  return <LinkedNotesList notes={notes} emptyHint={emptyHint} />;
+  return <LinkedNotesList notes={notes} emptyHint={emptyHint} about={about} />;
 }

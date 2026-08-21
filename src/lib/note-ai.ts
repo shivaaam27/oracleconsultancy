@@ -188,6 +188,97 @@ export async function extractTasks(text: string): Promise<AiResult<{ tasks: Extr
   return { ok: true, data: { tasks } };
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Suggest links — the last AI action §6 listed                        */
+/* ------------------------------------------------------------------ */
+
+/** One proposed link: which record, and the words in the note that mean it. */
+export type LinkSuggestion = {
+  /** Index into the candidate list that was handed to the model. */
+  index: number;
+  /** The exact words in the note that refer to it — this is what gets rewritten
+   *  into a mention, so it MUST be text that is really there. */
+  phrase: string;
+  why?: string;
+};
+
+/**
+ * Read a note and say what it is about.
+ *
+ * ⚠️ HOW THIS DIFFERS FROM UNLINKED MENTIONS, and why both exist. `findUnlinked`
+ * matches names EXACTLY: write "Sulleiman" and it offers Sulleiman. It is fast,
+ * free, and certain. This reads the MEANING — "the permit chap", "the chocolate
+ * company", "that Terra job" — which is the half exact matching can never do. It
+ * costs a model call, so it is asked for rather than always on.
+ *
+ * ⚠️ THE MODEL CHOOSES FROM A LIST; IT NEVER NAMES A RECORD. It is given numbered
+ * candidates and must answer with numbers, so it cannot invent a person or point
+ * at an id that does not exist. Anything outside the list is dropped here, and
+ * the caller drops anything whose phrase is not really in the note — because the
+ * phrase is what gets rewritten, and rewriting words that were never written is
+ * the one way this could damage a note.
+ */
+export async function suggestLinks(
+  text: string,
+  candidates: { label: string; kind: string; hint?: string }[],
+): Promise<AiResult<{ links: LinkSuggestion[] }>> {
+  const body = clip(text);
+  if (!body) return { ok: false, reason: "empty", message: "There is nothing written yet." };
+  if (candidates.length === 0) {
+    return { ok: false, reason: "empty", message: "There is nothing in COS to link to yet." };
+  }
+
+  const list = candidates
+    .map((c, i) => `${i}. [${c.kind}] ${c.label}${c.hint ? ` — ${c.hint}` : ""}`)
+    .join("\n");
+
+  const key = await getAiKey();
+  const res = await callAIJson({
+    apiKey: key,
+    model: AI_SMART,
+    temperature: 0.1,
+    maxTokens: 700,
+    source: "note-suggest-links",
+    shape: { required: { links: "array" } },
+    messages: [
+      {
+        role: "system",
+        content:
+          `${HOUSE} You are given a note and a numbered list of records in the system. ` +
+          "Say which records the note is talking about, INCLUDING where it refers to them indirectly — " +
+          '"the permit chap", "the chocolate company", "that job for Terra". ' +
+          'Reply as JSON: {"links": [{"index": 0, "phrase": "…", "why": "…"}]}. ' +
+          "`index` is the number from the list — never a name, never a number that is not on the list. " +
+          "`phrase` MUST be copied EXACTLY from the note, word for word, and should be the shortest run of words that refers to the record. " +
+          "`why` is under 10 words saying how you knew. " +
+          "Only suggest a record you are confident the note really means. A note that mentions nothing on the list gets an empty list. " +
+          "Do not guess from a vague similarity, and never suggest a record just because its words look a bit alike.",
+      },
+      { role: "user", content: `RECORDS:\n${list}\n\nNOTE:\n${body}` },
+    ],
+  });
+
+  if (!res.ok || !res.data) return fail(res.error);
+  const raw = (res.data as { links?: unknown }).links;
+  const links: LinkSuggestion[] = (Array.isArray(raw) ? raw : [])
+    .flatMap((l): LinkSuggestion[] => {
+      const o = (l ?? {}) as Record<string, unknown>;
+      const index = Number(o.index);
+      const phrase = typeof o.phrase === "string" ? o.phrase.trim() : "";
+      if (!Number.isInteger(index) || index < 0 || index >= candidates.length) return [];
+      if (!phrase) return [];
+      const why = typeof o.why === "string" ? o.why.trim() : "";
+      return [{ index, phrase: phrase.slice(0, 120), ...(why ? { why: why.slice(0, 100) } : {}) }];
+    })
+    .slice(0, 8);
+
+  if (links.length === 0) {
+    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in COS." };
+  }
+  return { ok: true, data: { links } };
+}
+
 /* ------------------------------------------------------------------ */
 /* Auto-title                                                          */
 /* ------------------------------------------------------------------ */

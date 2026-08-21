@@ -766,10 +766,9 @@ the global New menu and in ⌘K back in Phase 1, so there was nothing to build.
 **A floating format bar** turned out to be unnecessary: the **bubble menu** built in
 Phase 1.5 already appears on selection, which is the same gesture on touch.
 
-**Not done, and honest about it:** the drag handle is hover-driven and therefore
-inert on touch (it is a mouse affordance, not a broken one — blocks can still be
-moved by cut and paste). The right touch answer is a long-press drag, which is its
-own piece of work.
+**Not done at the time, and honest about it:** the drag handle is hover-driven and
+therefore inert on touch (a mouse affordance, not a broken one). ✅ **Closed on
+21 Aug 2026** by `note-touch-drag.tsx` — press and hold, drag, let go. See §13.
 
 **A third fault, reported by the owner straight after: the TITLE overflowed on a
 phone.** It was an `<input>` — a single line — so a long title just scrolled sideways
@@ -790,27 +789,51 @@ eating 2px and clipping the descenders of the last line (measured). It sets
 Written down so the next decision starts from a list rather than a blank page. **None
 of this is agreed** — it is what building the module suggested was worth having.
 
-**Worth doing, cheap, and it reuses what is already there:**
-- **A note from a meeting.** The big one — see §14.
-- **Voice into a note.** `voice-button.tsx` and "speak rough, save polished" already
-  exist and were listed in §1 as a reuse. Nothing has wired them to the note editor
-  yet; it is a button and a call to the polish action already built.
-- **Smart folders.** `RecordList` already carries saved views (`listKey="note"`), so
-  the shelf can save "everything tagged #permits, updated this month" with no new
-  storage. §10's Phase 6 assumed this and it was never switched on.
-- **A note from a task, and back.** The Notes tab exists on a task; a "make a note
-  about this" button that opens a new note with the task already `@`-mentioned would
-  close the loop.
-- **Daily note templates.** `kind='template'` exists and daily notes exist; joining
-  them (a template that becomes tomorrow's page automatically) is one setting.
+**✅ ALL OF THESE WERE BUILT ON 21 AUG 2026, except voice.**
 
-**Worth doing but real work:**
-- **Long-press drag on touch** — the one Phase 8 gap.
-- **AI "suggest links"** — §6 listed it and it is the only AI action not built.
-  Different from unlinked mentions: that matches names exactly, this would read the
-  meaning ("the permit chap" → Sulleiman).
-- **Note-to-note relationships beyond links** — a "related notes" strip driven by the
-  embedding index, which now exists.
+- **Smart folders — ✅ done.** `SavedViewsBar` on the shelf, `listKey="note"`, stored
+  as `note.savedViews` in `settings`. No new table and no new screen: the shelf
+  already filtered through `useUrlFilters`, which is the whole reason a saved view
+  had something to save. A folder is where you PUT a note; a smart folder is a
+  question the shelf keeps asking. Both are useful, so the folder rail stays.
+- **A note from a task, person or company — ✅ done.** "Write a note about this" on
+  the Notes tab of all three (`linked-notes.tsx` → `createNoteAbout`).
+  ⚠️ **It writes an `@`-mention INTO THE BODY; it does not insert a `note_links`
+  row.** That is the only reason it is allowed to exist — the ban below on an
+  "attach a note" button stands, because a link made away from the writing is one
+  the writing does not know about. Verified live: the link came back derived.
+- **Daily note templates — ✅ done.** One settings row (`notes.dailyTemplateId`),
+  set from the record bar of any note that is already a template. `openTodaysNote`
+  seeds today's page from it on CREATE only — a page that exists is your writing
+  and is never touched. It stores the ID, not a copy: editing the template changes
+  tomorrow, and yesterday keeps what it had.
+- **Long-press drag on touch — ✅ done** (`note-touch-drag.tsx`). Press and hold a
+  block, it lifts, drag it, let go. Three things make it behave: it only engages
+  after a STILL press (moving first means you meant to scroll), it takes the touch
+  off the page once engaged (`passive: false`, or the note scrolls under your
+  finger), and it moves whole top-level blocks only.
+  ⚠️ The index arithmetic is in `blockMovePlan` in `offline-notes-shared.ts` —
+  pure and tested, because the block is DELETED before it is inserted, so every
+  position after it shifts up by one and a target below the original must be
+  reduced by one. Off by one and it lands one place too far down, which reads as
+  "the drag not quite working" and is very hard to see in a long note.
+- **AI "suggest links" — ✅ done.** The last of §6's actions. The unlinked-mention
+  strip matches names EXACTLY; this reads the MEANING, so "the permit chap" finds
+  Sulleiman. ⚠️ **Two guards, both load-bearing:** the model is given NUMBERED
+  candidates and must answer with numbers, so it cannot invent a record; and the
+  phrase it quotes is checked against the note before the suggestion is offered,
+  because accepting REWRITES those words — and rewriting words nobody wrote is the
+  one way this could damage a note. Accepting goes through the editor's existing
+  `linkSuggestion`, so there stays ONE way a link is ever made.
+
+**Still not done:**
+- **Voice into a note.** `voice-button.tsx` and "speak rough, save polished" exist
+  and were listed in §1 as a reuse; nothing has wired them to the editor. Left out
+  of the 21 Aug sweep at the owner's request.
+- **A note from a meeting.** The big one — see §14. ⚠️ Still blocked on the two
+  facts in that section, which are not ours to decide.
+- **Note-to-note relationships beyond links** — a "related notes" strip driven by
+  the embedding index, which now exists.
 
 **Deliberately still NOT doing** (§9 stands): real-time collaboration, nested folder
 trees, a graph view, handwriting, per-note passwords, offline editing, public share

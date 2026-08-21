@@ -248,6 +248,7 @@ export function PersonRecord({
           type="person"
           id={person.id}
           emptyHint={`Write @${person.name} in any note and it will appear here.`}
+          about={{ entity: "person", id: person.id, label: person.name }}
         />
       )}
 

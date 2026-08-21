@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CloudOff, Check, Loader2, Send, Trash2 } from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui";
 import {
   countDrafts,
@@ -149,18 +149,6 @@ export function OfflineNoteWriter() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 text-xs">
-        {online ? (
-          <span className="inline-flex items-center gap-1.5 text-success">
-            <Check size={13} /> Connected
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-warn">
-            <CloudOff size={13} /> No connection — your writing is kept on this device
-          </span>
-        )}
-      </div>
-
       <textarea
         value={text}
         onChange={(e) => onChange(e.target.value)}
