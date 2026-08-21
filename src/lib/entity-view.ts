@@ -219,6 +219,33 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Vendor", href: "/hrms/assets?view=vendors&new=vendor" },
   },
 
+  /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md.
+     Two columns carry the work: what it is, and what it costs. Everything else
+     hides on a narrow screen. */
+  cz_product: {
+    listColumns: [
+      { key: "name", label: "Product", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "category", label: "Category", width: "170px", format: "muted", hideBelow: "md", sortable: true },
+      { key: "brand", label: "Brand", width: "110px", format: "muted", hideBelow: "lg", sortable: true },
+      { key: "packLabel", label: "Pack", width: "90px", format: "muted", hideBelow: "lg" },
+      { key: "listPrice", label: "List price", width: "110px", format: "muted", sortable: true },
+    ],
+    defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Product", href: "/cocozuri/products?new=1" },
+  },
+
+  cz_customer: {
+    listColumns: [
+      { key: "name", label: "Customer", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "branchLabel", label: "Branches", width: "180px", format: "muted", hideBelow: "lg" },
+      { key: "tin", label: "TIN", width: "130px", format: "muted", hideBelow: "lg" },
+      { key: "vatLabel", label: "VAT", width: "80px", format: "muted", sortable: true },
+      { key: "termsLabel", label: "Terms", width: "90px", format: "muted", hideBelow: "md" },
+    ],
+    defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Customer", href: "/cocozuri/customers?new=1" },
+  },
+
   asset: {
     listColumns: [
       { key: "name", label: "Asset", width: "minmax(0,1fr)", format: "text", sortable: true },

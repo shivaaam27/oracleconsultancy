@@ -1,8 +1,11 @@
 # COS System - Project Instructions
 
-**⚠️ Most recent work: read `memory/handover_aug21_2026.md` first** — the database
-lock, the Windows app, and offline Notes, plus two jobs waiting on the owner
-(rotating the leaked credentials, and switching the CSP to enforcing).
+**⚠️ Most recent work: read `memory/handover_aug21_2026_evening.md` FIRST** —
+offline Notes finished and deployed, the app split into ERP modules, and CocoZuri
+Operations built through Phase 2. All of it is deployed, with migrations 0144-0146 applied.
+Before that: `memory/handover_aug21_2026.md` — the database lock and the Windows
+app, plus two jobs still waiting on the owner (rotating the leaked credentials,
+and switching the CSP to enforcing).
 
 Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain language and use British English.
 
@@ -253,7 +256,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0146** (`cz_invoices`, CocoZuri invoicing). Before it, **0145** (`cz_*`, the CocoZuri catalogue). Before it, **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
 four tables, 0138 an index predicate. Both applied). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
@@ -378,6 +381,26 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   tabs. See the Recruitment section above.
 - `/insights`
 - `/settings`
+
+**⚠️ NAVIGATION IS MODULES NOW (Aug 2026).** COS is divided the way the
+BUSINESSES are: **Task Management · Recruitment · Ledger · Projects · CocoZuri
+Operations** (the last is a "Being built" tile). `/apps` is the launcher; the
+sidebar shows **only the module you are in**, with a switcher under the brand and
+**System (Insights/Activity/ORI/Settings) pinned at the foot of every rail**.
+- **`src/lib/nav.ts` holds `MODULES`** — one entry per module, listing existing
+  route ids. ⚠️ **`NAV_ROUTES` IS NOT TOUCHED BY THE SPLIT, and that is the whole
+  trick**: pins are stored as ids and silently drop unknown ones, and ⌘K, recents
+  and the mobile launcher all read that list. A module only ARRANGES routes.
+- **`moduleForPath()` falls back to Task Management**, so a page in no module
+  still gets a rail. `NAV_GROUPS` is now DERIVED from `MODULES` so the mobile
+  launcher can never drift from the sidebar.
+- **`src/lib/nav.test.ts` is the guard** — every route filed exactly once, every
+  module home real, System never inside a module. **Add a route, add its id to a
+  module, or the test fails.**
+- ⌘K still lists **every individual page**, whichever module it lives in. That is
+  what makes the split safe: nothing became harder to reach.
+- `/` did NOT move — it is still the command centre and Task Management's home.
+- Plan and the full break-audit: `memory/erp_navigation_plan.md`.
 
 Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], Supplies, **Assets & Vendors, Attendance**, Cleaning, Companies, People, Documents, Outbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
@@ -597,6 +620,56 @@ actually held; and what date should the books open from (the system already hold
 791 imported order lines, 347 invoices and 262 payments — see Phase 6). A third —
 **the VAT rules themselves** — is now visible in the app: six seeded rates are
 flagged unconfirmed and the reports refuse to call themselves ready to file.
+
+## CocoZuri Operations — ⚠️ PHASE 1 BUILT. Read `memory/cocozuri_ops_plan.md` FIRST
+
+`/cocozuri` — **Furaha Innovation Ltd** (prefix **CC**, was "Cocozuri Chocolat"):
+chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadsheets.
+⚠️ **Look the company up by `code_prefix = 'CC'`, never hard-code it.**
+
+- **Phase 1 (built):** `/cocozuri` · `/cocozuri/products` · `/cocozuri/customers`.
+  Migration **0145**: `cz_products` · `cz_customers` · `cz_branches` · `cz_prices`.
+  Seeded from the workbooks by `scripts/seed-cocozuri.ts` (idempotent, and it
+  REPORTS what it skipped rather than guessing).
+- ⚠️ **A PRICE IS A ROW WITH A DATE, never a column on the product.** The one in
+  force is the newest whose date has arrived, worked out on read — which is what
+  stops a price rise rewriting what was charged last month. `customer_id` NULL is
+  the standard list price; a customer's own price beats it.
+- ⚠️ **`vatOf()` is VAT CONTAINED in a VAT-inclusive amount** (`gross × rate ÷
+  (100+rate)`). The spreadsheets computed it as a percentage OF the gross and
+  **overstated VAT by TZS 532,296 across 129 of 140 invoices**. Never copy that.
+- ⚠️ **The VAT rate is DATA, not code** — a column on the customer, falling back
+  to `settings['cocozuri.vatRate']`. Whether 7% is right at all (Tanzania's rate
+  is 18) is an OPEN QUESTION the owner has parked; the maths works at any rate.
+- ⚠️ **The catalogue has real duplicates** — one bar imported as five rows because
+  it is typed five ways in the sheets. Deliberate: merging is a business decision,
+  not a string comparison. A merge tool is the first job of Phase 2.
+- **Phase 2 (built):** `/cocozuri/invoices` + `/cocozuri/invoices/[number]`,
+  migration **0146** (`cz_invoices`, `cz_invoice_lines`). Pick a customer and the
+  VAT rate, terms and currency resolve; pick a product and the price fills itself
+  in. **The amount in words is generated**, not typed. A **credit note is the same
+  record** with its own series. Plus the **product merge tool** — the duplicates
+  came across on import deliberately, and only a person can say which rows are one
+  product.
+- ⚠️ **FOUR THINGS ARE FROZEN when an invoice is raised**: the customer details,
+  the VAT rate, the terms, and each line's description. An invoice prints what was
+  true the day it was raised.
+- ⚠️ **NO TOTAL COLUMN** on the invoice or the line — `invoiceTotals()` derives it.
+- ⚠️ **An ISSUED invoice is never edited**, only answered with a credit note.
+- ⚠️ **`settings['cocozuri.seriesFloor']` carries the numbering on** from the
+  spreadsheets (`{"CZ-": 236}`). Without it the first invoice raised in COS was
+  CZ-1 and would have collided with a real one.
+- ⚠️ **A price is resolved when the CUSTOMER changes too, not only when a product
+  is picked.** Filling the invoice form products-first (the natural order, off an
+  order form) used to keep the standard list price instead of that customer's
+  agreed one — silently, and wrong on the paper that went out.
+- ⚠️ **A Supabase select list must be ONE string literal** — split it across a `+`
+  and the client can no longer read it at type level, every row degrades to an
+  error type, and the file stops compiling for a reason that looks unrelated.
+- **Phases 3–5 not built:** money in / ageing / statements, the daily stock book,
+  then posting to the ledger via `postVoucher()`.
+- Client/server split as everywhere: **`cocozuri-shared.ts` is what client
+  components import**; `cocozuri.ts` is server-only and is the ONE DOOR for writes.
 
 ## Recruitment — ⚠️ PHASES 1–2 ARE BUILT. Read `memory/recruitment_module_plan.md` FIRST
 

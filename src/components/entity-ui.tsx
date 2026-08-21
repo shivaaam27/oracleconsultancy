@@ -13,8 +13,7 @@ import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
   AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass,
   ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel,
-  UserSearch, Briefcase, BadgeCheck, type LucideIcon,
-} from "lucide-react";
+  UserSearch, Briefcase, BadgeCheck, type LucideIcon, Package,} from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
 
@@ -41,6 +40,10 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   // the map is exhaustive over EntityType, so the compiler demanded these rows the
   // moment they joined the union — which is how it should work.
   rec_client:    { icon: BadgeCheck, tint: "text-purple-600" },
+  /* CocoZuri. Not searchable yet — these exist so the module can have
+     ENTITY_VIEWS entries like every other record type. */
+  cz_product:    { icon: Package, tint: "text-amber-600" },
+  cz_customer:   { icon: Building2, tint: "text-amber-700" },
   rec_candidate: { icon: UserSearch, tint: "text-pink-600" },
   rec_job_order: { icon: Briefcase,  tint: "text-red-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),

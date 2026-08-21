@@ -24,6 +24,18 @@ import {
   StickyNote,
   DraftingCompass,
   Scale as ScaleIcon,
+  CheckSquare,
+  Home,
+  Briefcase,
+  BookOpen,
+  Handshake,
+  CalendarCheck,
+  Trophy,
+  ClipboardCheck,
+  BookText,
+  Receipt,
+  Percent,
+  Candy,
   type LucideIcon,
 } from "lucide-react";
 
@@ -78,6 +90,30 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "ori-automations", href: "/ori-automations", label: "ORI Automation",      icon: Zap },
   { id: "insights",    href: "/insights",            label: "Insights",            icon: BarChart3 },
   { id: "settings",    href: "/settings",            label: "Settings",            icon: Settings },
+
+  /* Sub-pages of the Recruitment and Ledger modules.
+   *
+   * ⚠️ ADDING routes is safe; RENAMING one is not (see LEGACY_ROUTE_IDS below).
+   * These existed as pages already and were simply unreachable from any rail —
+   * you had to be on the desk and click through. Listing them here also puts
+   * them in ⌘K and in the pinnable list, which is the point. */
+  { id: "rec-orders",     href: "/recruitment/orders",     label: "Job orders",   icon: Briefcase },
+  { id: "rec-candidates", href: "/recruitment/candidates", label: "Candidates",   icon: Users },
+  { id: "rec-clients",    href: "/recruitment/clients",    label: "Clients",      icon: Handshake },
+  { id: "rec-shortlists", href: "/recruitment/shortlists", label: "Shortlists",   icon: ClipboardCheck },
+  { id: "rec-interviews", href: "/recruitment/interviews", label: "Interviews",   icon: CalendarCheck },
+  { id: "rec-placements", href: "/recruitment/placements", label: "Placements",   icon: Trophy },
+
+  { id: "ledger-journals", href: "/ledger/journals",       label: "Journals",     icon: BookText },
+  { id: "ledger-entries",  href: "/ledger/entries",        label: "Entries",      icon: Receipt },
+  { id: "ledger-reports",  href: "/ledger/reports",        label: "Reports",      icon: BarChart3 },
+  { id: "ledger-tax",      href: "/ledger/tax",            label: "Tax rates",    icon: Percent },
+
+  /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md. */
+  { id: "cz-desk",      href: "/cocozuri",            label: "CocoZuri",   icon: Candy },
+  { id: "cz-products",  href: "/cocozuri/products",   label: "Products",   icon: Package },
+  { id: "cz-customers", href: "/cocozuri/customers",  label: "Customers",  icon: Building2 },
+  { id: "cz-invoices",  href: "/cocozuri/invoices",   label: "Invoices",   icon: Receipt },
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -100,15 +136,194 @@ export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
  */
 export type NavGroup = { label: string; ids: string[] };
 
-export const NAV_GROUPS: NavGroup[] = [
-  { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
-  { label: "Records", ids: ["people", "companies", "projects", "documents", "assets"] },
-  // Was "Registers" until Aug 2026 — the word meant three things at once (this
-  // group, the commitments page, and the legacy /registry task list). The pages
-  // in here are the day-to-day operational logs, so that is what it is called.
-  { label: "Operations", ids: ["tax-legal", "commitments", "ledger", "ops", "recruitment", "pipeline", "leave", "supplies", "cleaning"] },
-  { label: "System", ids: ["insights", "activity", "ori-automations", "settings"] },
+/* ------------------------------------------------------------------ *
+ * MODULES — the layer above the groups.
+ *
+ * The rail had grown to 23 destinations in one column, which is a list rather
+ * than a filing system, and a sixth business (CocoZuri) was about to make it 24.
+ * So the app is divided the way the BUSINESSES are divided, the way ERPNext
+ * divides itself: a launcher of modules, and a rail that shows the module you
+ * are actually in.
+ *
+ * ⚠️ THE ROUTE LIST ABOVE IS UNTOUCHED BY THIS, AND THAT IS THE WHOLE TRICK.
+ * Not one id, address or label changed. Pins are stored as ids and silently drop
+ * anything they do not recognise; ⌘K, recents and the mobile launcher all read
+ * `NAV_ROUTES`. Because none of that moved, none of it breaks — a module is only
+ * a way of ARRANGING routes, never a way of renaming them.
+ *
+ * ⚠️ Two safety nets, and both matter:
+ *   1. `moduleForPath` falls back to Task Management, so an address belonging to
+ *      no module can never render an empty rail.
+ *   2. `NAV_GROUPS` below is DERIVED from these modules, so `ungroupedRouteIds()`
+ *      still catches a route that was added and never filed — and `nav.test.ts`
+ *      asserts every route lives in exactly one place.
+ *
+ * FORWARD RULE: a new module is one entry here. A new page inside an existing
+ * module is one `NAV_ROUTES` entry plus its id in that module's groups.
+ * ------------------------------------------------------------------ */
+
+export type NavModule = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** One line on the launcher tile — what this is FOR, in plain words. */
+  blurb: string;
+  /** Where the tile takes you. */
+  home: string;
+  /** Address prefixes that mean "you are in here". Longest match wins. */
+  match: string[];
+  /** Links that are not `NAV_ROUTES` entries — the hub's own tabs. */
+  lead?: { href: string; label: string; icon: LucideIcon }[];
+  groups: NavGroup[];
+  /** Shown on the launcher, kept out of the rail: the module is not built yet. */
+  soon?: boolean;
+};
+
+/** Belongs to the whole app, not to any one module, so it sits at the foot of
+ *  every rail. Burying Settings inside one business would be wrong. */
+export const SYSTEM_GROUP: NavGroup = {
+  label: "System",
+  ids: ["insights", "activity", "ori-automations", "settings"],
+};
+
+export const MODULES: NavModule[] = [
+  {
+    id: "tasks",
+    label: "Task Management",
+    icon: CheckSquare,
+    blurb: "The day to day — tasks, people, papers and the operational registers.",
+    home: "/",
+    // Deliberately no `match`: this is the fallback, so anything that belongs to
+    // no other module lands here rather than nowhere.
+    match: [],
+    lead: [
+      { href: "/", label: "Home", icon: Home },
+      { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
+    ],
+    groups: [
+      { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
+      { label: "Records", ids: ["people", "companies", "documents", "assets"] },
+      // Was "Registers" until Aug 2026 — the word meant three things at once (this
+      // group, the commitments page, and the legacy /registry task list). The pages
+      // in here are the day-to-day operational logs, so that is what it is called.
+      { label: "Operations", ids: ["tax-legal", "commitments", "ops", "pipeline", "leave", "supplies", "cleaning"] },
+    ],
+  },
+  {
+    id: "recruitment",
+    label: "Recruitment",
+    icon: UserSearch,
+    blurb: "Indian professionals for Tanzanian employers — orders, shortlists, placements.",
+    home: "/recruitment",
+    match: ["/recruitment"],
+    groups: [
+      { label: "Desk", ids: ["recruitment", "rec-orders", "rec-candidates", "rec-clients"] },
+      { label: "In progress", ids: ["rec-shortlists", "rec-interviews", "rec-placements"] },
+    ],
+  },
+  {
+    id: "ledger",
+    label: "Ledger",
+    icon: ScaleIcon,
+    blurb: "The books — chart of accounts, journals, reports and tax.",
+    home: "/ledger",
+    match: ["/ledger"],
+    groups: [
+      { label: "Books", ids: ["ledger", "ledger-journals", "ledger-entries"] },
+      { label: "Output", ids: ["ledger-reports", "ledger-tax"] },
+    ],
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    icon: DraftingCompass,
+    blurb: "Capital projects — budgets, requisitions, funds and site progress.",
+    home: "/projects",
+    match: ["/projects"],
+    groups: [{ label: "Projects", ids: ["projects"] }],
+  },
+  {
+    id: "cocozuri",
+    label: "CocoZuri Operations",
+    icon: Candy,
+    blurb: "Chocolate — products, invoices, what is owed, and the daily stock book.",
+    home: "/cocozuri",
+    match: ["/cocozuri"],
+    groups: [
+      { label: "Sell", ids: ["cz-desk", "cz-invoices"] },
+      { label: "Catalogue", ids: ["cz-products", "cz-customers"] },
+    ],
+  },
 ];
+
+export const MODULE_BY_ID: Record<string, NavModule> = Object.fromEntries(
+  MODULES.map((m) => [m.id, m])
+);
+
+/** The module an address belongs to. Longest prefix wins; Task Management is the
+ *  fallback, so there is no such thing as a page with no rail. */
+export function moduleForPath(pathname: string): NavModule {
+  let best: NavModule | null = null;
+  let bestLen = -1;
+  for (const m of MODULES) {
+    for (const prefix of m.match) {
+      if ((pathname === prefix || pathname.startsWith(prefix + "/")) && prefix.length > bestLen) {
+        best = m;
+        bestLen = prefix.length;
+      }
+    }
+  }
+  return best ?? MODULE_BY_ID.tasks!;
+}
+
+/** One module's rail: its own groups, then System underneath. */
+export function moduleGroups(m: NavModule): { label: string; items: NavRoute[] }[] {
+  return [...m.groups, SYSTEM_GROUP]
+    .map((g) => ({ label: g.label, items: g.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean) }))
+    .filter((g) => g.items.length > 0);
+}
+
+/**
+ * Every group in the system, DERIVED from the modules.
+ *
+ * ⚠️ Derived, not written out again. The mobile launcher shows the whole map on
+ * one screen (there is no rail on a phone to be scoped), and it must never fall
+ * out of step with the modules — which is exactly what happened the last time
+ * two lists described the same product. See the note on NAV_GROUPS' history.
+ */
+export const NAV_GROUPS: NavGroup[] = [...MODULES.flatMap((m) => m.groups), SYSTEM_GROUP];
+
+/**
+ * The whole map, for a screen with no rail — the mobile "Go to" launcher.
+ *
+ * ⚠️ SECTIONED BY MODULE, not by the modules' internal group names. On a phone
+ * there is no switcher and no context, so a heading reading "Desk" or "Books"
+ * would say nothing about which business it belongs to. Task Management keeps
+ * its own Work / Records / Operations headings because it is large and those
+ * words are already familiar; the smaller modules collapse to one section named
+ * after the module.
+ */
+export function navSections(): { label: string; items: NavRoute[] }[] {
+  const out: { label: string; items: NavRoute[] }[] = [];
+  for (const m of MODULES) {
+    if (m.soon) continue;
+    const ids = m.groups.flatMap((g) => g.ids);
+    if (ids.length === 0) continue;
+    if (m.match.length === 0) {
+      // The fallback module (Task Management) keeps its own headings.
+      for (const g of m.groups) {
+        const items = g.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
+        if (items.length) out.push({ label: g.label, items });
+      }
+    } else {
+      const items = ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
+      if (items.length) out.push({ label: m.label, items });
+    }
+  }
+  const system = SYSTEM_GROUP.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
+  if (system.length) out.push({ label: SYSTEM_GROUP.label, items: system });
+  return out;
+}
 
 /** The groups resolved to real routes, skipping any id that no longer exists. */
 export function navGroups(): { label: string; items: NavRoute[] }[] {

@@ -3724,3 +3724,212 @@ export const taxRates = pgTable("tax_rates", {
   uniqueIndex("tax_rates_name_unique").on(t.companyId, t.name),
   index("tax_rates_company_idx").on(t.companyId, t.archived, t.kind),
 ]);
+
+/* ================================================================== *
+ * CocoZuri Operations — Phase 1: the catalogue and the customers.
+ *
+ * Cocozuri is **Furaha Innovation Ltd** (`code_prefix` CC). It makes chocolate,
+ * sells it to supermarkets, and runs a shop of its own. Rebuilt from 18
+ * spreadsheets — read `memory/cocozuri_ops_plan.md` before touching any of this;
+ * it records what was measured, and the arithmetic faults in the originals that
+ * these tables exist to stop repeating.
+ *
+ * ⚠️ EVERYTHING HERE IS DATA, NOT CODE. The owner's instruction: keep it flexible
+ * so anything can be edited. So categories, brands, units, VAT rates and invoice
+ * series are all columns you can change on screen — none of them is a hard-coded
+ * list in a TypeScript file that needs a developer to extend.
+ * ================================================================== */
+
+export const czProducts = pgTable("cz_products", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** BONBONS, BARS, COOKIES … free text on purpose: the spreadsheets already use
+   *  twelve and will invent a thirteenth without asking anyone. */
+  category: text("category"),
+  /** COCOZURI or COCOFIX today. Free text for the same reason. */
+  brand: text("brand"),
+  /** How it is counted — PCS, BOX. */
+  uom: text("uom").notNull().default("PCS"),
+  /** 100 GM, 50 GM. Two columns because the invoice prints them apart. */
+  packSize: numeric("pack_size", { precision: 12, scale: 2 }),
+  packUnit: text("pack_unit"),
+  /** A customer's own code for the item, where they have one (the order form
+   *  carries one). Never used to match anything — see the note on names below. */
+  sku: text("sku"),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_products_list_idx").on(t.companyId, t.archived, t.category),
+  // ⚠️ One product per name per company. In the spreadsheets the sales sheet
+  // matched items to the stock sheet BY NAME, and anything spelled differently
+  // scored zero — measured at 200 units a month unaccounted for. Everything here
+  // joins by id; this index only stops the same item being typed in twice.
+  uniqueIndex("cz_products_name_idx").on(t.companyId, t.name),
+]);
+
+export const czCustomers = pgTable("cz_customers", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** What the price list calls them — "AIRPORT" for Lagardere Travel Retail. */
+  shortName: text("short_name"),
+  /** Printed on the invoice, straight from their own letterhead. */
+  tin: text("tin"),
+  vatNo: text("vat_no"),
+  poBox: text("po_box"),
+  address: text("address"),
+  city: text("city"),
+  country: text("country").notNull().default("Tanzania"),
+  /** The airport has a USD price list; everyone else is invoiced in shillings.
+   *  ⚠️ Which one it is actually billed in is an OPEN QUESTION (plan §4). */
+  currency: text("currency").notNull().default("TZS"),
+  /** Every ageing formula in the workbooks is `TODAY() - (date + 30)`. */
+  paymentTermsDays: integer("payment_terms_days").notNull().default(30),
+  /**
+   * The VAT rate on this customer's invoices, as a percentage.
+   *
+   * ⚠️ IT IS A COLUMN, NOT A CONSTANT, AND THAT IS DELIBERATE. The workbooks use
+   * 7 for most customers and 0 for the CZ/AP series — and nobody has yet
+   * confirmed whether 7 is right at all, when Tanzania's standard rate is 18
+   * (plan §4, question 1). Storing it per customer means the answer, whatever it
+   * turns out to be, is typed on a screen and not shipped in a build. Null falls
+   * back to the company default in Settings.
+   */
+  vatRate: numeric("vat_rate", { precision: 6, scale: 3 }),
+  /** `CZ-` for most, `CZ/AP/` for a couple. Also data, not a rule in code. */
+  invoiceSeries: text("invoice_series"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_customers_list_idx").on(t.companyId, t.archived),
+  uniqueIndex("cz_customers_name_idx").on(t.companyId, t.name),
+]);
+
+/** A customer's shops. Shoppers alone has ten, and the invoice names which one. */
+export const czBranches = pgTable("cz_branches", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull().references(() => czCustomers.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_branches_name_idx").on(t.customerId, t.name),
+]);
+
+/**
+ * What a product costs, for whom, from when.
+ *
+ * ⚠️ A PRICE IS A ROW WITH A DATE, NEVER A COLUMN ON THE PRODUCT. Two reasons,
+ * both from the spreadsheets: the price list is already per-customer (a grid of
+ * item × customer), and an invoice must keep the price it was raised at even
+ * after the list moves. A single `price` column would rewrite history every time
+ * somebody put the prices up.
+ *
+ * `customerId` NULL means the standard list price — what a customer without
+ * their own agreed price pays.
+ */
+export const czPrices = pgTable("cz_prices", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => czProducts.id, { onDelete: "cascade" }),
+  customerId: integer("customer_id").references(() => czCustomers.id, { onDelete: "cascade" }),
+  price: numeric("price", { precision: 14, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("TZS"),
+  /** The price applies from this day. The one in force is the newest row whose
+   *  date has arrived — worked out on read, never stored as "current". */
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  note: text("note"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_prices_lookup_idx").on(t.productId, t.customerId, t.effectiveFrom),
+]);
+
+/* ================================================================== *
+ * CocoZuri — Phase 2: the invoice, and the credit note.
+ *
+ * ⚠️ A CREDIT NOTE IS THE SAME RECORD WITH ITS OWN NUMBER SERIES, not a second
+ * module. That is what the business already does: `GARDEN MARKET` has a CREDIT
+ * NOTE sheet in the same shape as its invoices, numbered CZ-CN/01, and column L
+ * of the master ("RETURN NOTES") is where it lands.
+ *
+ * ⚠️ NO TOTAL COLUMN, ANYWHERE. The lines are the fact; the total, the VAT and
+ * the balance are worked out on read. Same rule as the general ledger, and the
+ * reason nothing in COS goes stale.
+ * ================================================================== */
+
+export const czInvoices = pgTable("cz_invoices", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  customerId: integer("customer_id").notNull().references(() => czCustomers.id, { onDelete: "restrict" }),
+  branchId: integer("branch_id").references(() => czBranches.id, { onDelete: "set null" }),
+  /** 'invoice' | 'credit_note' */
+  docType: text("doc_type").notNull().default("invoice"),
+  /** CZ-142, CZ/AP/43, CZ-CN/01 — allocated by the system against a unique index. */
+  number: text("number").notNull(),
+  series: text("series"),
+  issueDate: timestamp("issue_date", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * ⚠️ FROZEN ON THE INVOICE, not read from the customer. Terms change; what this
+   * invoice was raised on does not. The due date is `issue + terms`, derived.
+   */
+  termsDays: integer("terms_days").notNull().default(30),
+  currency: text("currency").notNull().default("TZS"),
+  /** Also frozen. Changing the rate later must not rewrite an invoice already
+   *  raised — the whole reason it is a column and not a lookup. */
+  vatRate: numeric("vat_rate", { precision: 6, scale: 3 }).notNull().default("0"),
+  /** The spreadsheets print "TOTAL (INC VAT)", so prices include VAT. Stored so
+   *  that a later change of habit does not reinterpret old invoices. */
+  taxInclusive: boolean("tax_inclusive").notNull().default(true),
+  /**
+   * The customer AS THEY WERE. Same idea as `letters.letterhead_snapshot`: an
+   * invoice must print what was true the day it was raised, so a customer who
+   * moves office does not silently rewrite last year's paperwork.
+   */
+  customerName: text("customer_name").notNull(),
+  customerTin: text("customer_tin"),
+  customerVatNo: text("customer_vat_no"),
+  customerPoBox: text("customer_po_box"),
+  customerCity: text("customer_city"),
+  /** Their own order reference, where they give one. */
+  reference: text("reference"),
+  /** draft | issued | cancelled. ⚠️ An ISSUED invoice is never edited — it is
+   *  corrected with a credit note, which is what the business already does. */
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_invoices_list_idx").on(t.companyId, t.status, t.issueDate),
+  index("cz_invoices_customer_idx").on(t.customerId, t.issueDate),
+  uniqueIndex("cz_invoices_number_idx").on(t.companyId, t.number),
+]);
+
+export const czInvoiceLines = pgTable("cz_invoice_lines", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => czInvoices.id, { onDelete: "cascade" }),
+  /** RESTRICT, not cascade: deleting a product must never quietly empty an
+   *  invoice. Nullable so a one-off line that is not in the catalogue is possible. */
+  productId: integer("product_id").references(() => czProducts.id, { onDelete: "restrict" }),
+  lineNo: integer("line_no").notNull().default(1),
+  /** What the invoice SAYS, frozen — renaming a product later must not rewrite
+   *  paperwork already sent to a customer. */
+  description: text("description").notNull(),
+  brand: text("brand"),
+  packSize: numeric("pack_size", { precision: 12, scale: 2 }),
+  packUnit: text("pack_unit"),
+  uom: text("uom"),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_invoice_lines_invoice_idx").on(t.invoiceId, t.lineNo),
+]);

@@ -1,0 +1,164 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { getInvoiceByNumber } from "@/lib/cocozuri";
+import { CocozuriInvoiceActions } from "@/components/cocozuri-invoice-actions";
+import { amountInWords, invoiceDueDate, invoiceTotals, lineAmount, money, packLabel } from "@/lib/cocozuri-shared";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * One invoice, as it prints.
+ *
+ * The layout follows the spreadsheets it replaces, because the customers already
+ * recognise it: Cocozuri's own line at the top, the customer's details on the
+ * left, the number and date on the right, then the lines and the total in words.
+ *
+ * ⚠️ EVERY FIGURE IS WORKED OUT HERE. There is no total column on the invoice and
+ * no VAT column — the lines are the fact. And every DETAIL is the one frozen onto
+ * the invoice when it was raised, never today's: a customer who moves office does
+ * not rewrite paperwork they were sent last year.
+ */
+export default async function CocozuriInvoicePage({
+  params,
+}: {
+  params: Promise<{ number: string }>;
+}) {
+  const { number } = await params;
+  const invoice = await getInvoiceByNumber(decodeURIComponent(number));
+  if (!invoice) notFound();
+
+  const t = invoiceTotals(invoice.lines, invoice.vatRate, invoice.taxInclusive);
+  const due = invoiceDueDate(invoice.issueDate, invoice.termsDays);
+  const isCredit = invoice.docType === "credit_note";
+
+  return (
+    <div className="mx-auto w-full max-w-[58rem] space-y-3">
+      {/* Everything in here is chrome, and none of it prints. */}
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <Link href="/cocozuri/invoices"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-fg-muted hover:bg-bg-subtle hover:text-fg">
+          <ArrowLeft size={13} /> All invoices
+        </Link>
+        <span className="grow" />
+        <CocozuriInvoiceActions id={invoice.id} status={invoice.status} number={invoice.number} />
+      </div>
+
+      {invoice.status === "draft" && (
+        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2 text-[12.5px] text-warn print:hidden">
+          This is a draft. Nothing is fixed until you issue it — and once issued it cannot be edited,
+          only answered with a credit note.
+        </p>
+      )}
+      {invoice.status === "cancelled" && (
+        <p className="rounded-lg border border-border bg-bg-subtle px-3.5 py-2 text-[12.5px] text-fg-muted print:hidden">
+          Cancelled. It was never issued, so nobody was ever asked to pay it.
+        </p>
+      )}
+
+      {/* The paper. */}
+      <article className="rounded-lg border border-border bg-bg-elev px-6 py-6 text-[12.5px] print:border-0 print:px-0">
+        <p className="text-center text-[11px] leading-relaxed text-fg-muted">
+          P.O.BOX 20865, DAR-ES-SALAAM, TANZANIA · TIN NO: 104 679 218 · VAT NO: 400117481
+        </p>
+
+        {isCredit && (
+          <h1 className="mt-3 text-center text-[15px] font-semibold tracking-wide text-fg">CREDIT NOTE</h1>
+        )}
+
+        <div className="mt-5 flex flex-wrap justify-between gap-4">
+          <div className="min-w-[16rem]">
+            <p className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Customer details:</p>
+            {/* Frozen at the moment it was raised — see the note on the table. */}
+            <p className="mt-1 font-semibold text-fg">
+              {invoice.customerName}
+              {invoice.branchName && <span className="text-fg-muted"> — {invoice.branchName}</span>}
+            </p>
+            {invoice.customerPoBox && <p className="text-fg-muted">P.O.BOX {invoice.customerPoBox}</p>}
+            {invoice.customerCity && <p className="text-fg-muted">{invoice.customerCity}</p>}
+            {invoice.customerTin && <p className="text-fg-muted">TIN: {invoice.customerTin}</p>}
+            {invoice.customerVatNo && <p className="text-fg-muted">VAT: {invoice.customerVatNo}</p>}
+          </div>
+          <div className="text-right">
+            <p className="font-semibold text-fg">
+              {isCredit ? "CREDIT NOTE NO" : "INVOICE NO"}: {invoice.number}
+            </p>
+            <p className="text-fg-muted">
+              DATE: {new Date(invoice.issueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+            </p>
+            {!isCredit && (
+              <p className="text-fg-muted">
+                DUE: {due.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+                {" "}({invoice.termsDays} days)
+              </p>
+            )}
+            {invoice.reference && <p className="text-fg-muted">REF: {invoice.reference}</p>}
+          </div>
+        </div>
+
+        <table className="mt-5 w-full border-collapse">
+          <thead>
+            <tr className="border-y border-border text-[10.5px] uppercase tracking-[0.06em] text-fg-subtle">
+              <th className="py-1.5 pr-2 text-left font-medium">No</th>
+              <th className="py-1.5 pr-2 text-left font-medium">Brand</th>
+              <th className="py-1.5 pr-2 text-left font-medium">Item</th>
+              <th className="py-1.5 pr-2 text-left font-medium">Packing</th>
+              <th className="py-1.5 pr-2 text-right font-medium">Qty</th>
+              <th className="py-1.5 pr-2 text-left font-medium">Unit</th>
+              <th className="py-1.5 pr-2 text-right font-medium">TShs</th>
+              <th className="py-1.5 text-right font-medium">
+                Total {invoice.taxInclusive ? "(inc VAT)" : "(exc VAT)"}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lines.map((l) => (
+              <tr key={l.id ?? l.lineNo} className="border-b border-border/60">
+                <td className="py-1.5 pr-2 text-fg-subtle">{l.lineNo}</td>
+                <td className="py-1.5 pr-2 text-fg-muted">{l.brand ?? ""}</td>
+                {/* The words the invoice was PRINTED with, not the product's name today. */}
+                <td className="py-1.5 pr-2 text-fg">{l.description}</td>
+                <td className="py-1.5 pr-2 text-fg-muted">{packLabel(l)}</td>
+                <td className="py-1.5 pr-2 text-right tabular">{l.qty}</td>
+                <td className="py-1.5 pr-2 text-fg-muted">{l.uom ?? ""}</td>
+                <td className="py-1.5 pr-2 text-right tabular">{money(l.unitPrice)}</td>
+                <td className="py-1.5 text-right tabular">{money(lineAmount(l))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-4 flex justify-end">
+          <div className="w-[16rem] space-y-1">
+            <Row label="Before VAT" value={money(t.net, invoice.currency)} />
+            <Row label={`VAT at ${invoice.vatRate}%`} value={money(t.vat, invoice.currency)} />
+            <div className="flex items-center justify-between border-t border-border pt-1.5 text-[14px] font-semibold text-fg">
+              <span>Net final amount</span>
+              <span className="tabular">{money(t.gross, invoice.currency)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ⚠️ GENERATED, not typed. It is typed by hand on all 295 spreadsheet
+            invoices, which is both a wasted minute and a place for the words to
+            disagree with the figure above them. */}
+        <p className="mt-4 border-t border-border pt-2.5">
+          <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">In words: </span>
+          <span className="font-medium text-fg">{amountInWords(t.gross)}</span>
+          <span className="text-fg-muted"> {invoice.currency} ONLY</span>
+        </p>
+
+        {invoice.notes && <p className="mt-2 text-[11.5px] text-fg-muted">{invoice.notes}</p>}
+      </article>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-fg-muted">
+      <span>{label}</span>
+      <span className="tabular">{value}</span>
+    </div>
+  );
+}

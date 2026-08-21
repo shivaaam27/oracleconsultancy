@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, CheckSquare, LogOut, PanelLeftClose, PanelLeftOpen, Search, type LucideIcon } from "lucide-react";
+import { LayoutGrid, LogOut, PanelLeftClose, PanelLeftOpen, Search, type LucideIcon } from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
-import { navGroups } from "@/lib/nav";
+import { moduleForPath, moduleGroups } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { CreateMenu } from "./create-menu";
@@ -33,23 +33,6 @@ export const DESK_RAIL_COOKIE = "cos-desk-rail";
 
 type Item = { href: string; label: string; icon: LucideIcon };
 
-
-/* The grouping lives in lib/nav.ts so the mobile launcher shows the SAME map.
-   Home and Tasks are prepended here because they are the hub's own tabs, not
-   NAV_ROUTES entries. */
-const GROUPS: { label: string; items: Item[] }[] = navGroups().map((g) =>
-  g.label === "Work"
-    ? {
-        label: g.label,
-        items: [
-          { href: "/", label: "Home", icon: Home },
-          { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
-          ...g.items,
-        ],
-      }
-    : g
-);
-
 export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: boolean }) {
   const pathname = usePathname() || "/";
   const params = useSearchParams();
@@ -62,6 +45,21 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
   // on a desktop. Create is now the split CreateMenu: the page's own action on
   // the left, every other record type behind the caret.
   const { open: openPalette } = useCommandPalette();
+
+  /* ⚠️ THE RAIL SHOWS THE MODULE YOU ARE IN, not all 24 destinations.
+   *
+   * Worked out from the address rather than held in state, so it is right on the
+   * first paint and cannot drift out of step with the page — and `moduleForPath`
+   * falls back to Task Management, so a page belonging to no module still gets a
+   * rail rather than an empty column.
+   *
+   * A module's own `lead` links (the hub's Home and Tasks tabs) are prepended to
+   * its first group. They are not NAV_ROUTES entries — they are the hub's tabs —
+   * which is why they belong to Task Management and not to every module. */
+  const active = moduleForPath(pathname);
+  const groups: { label: string; items: Item[] }[] = moduleGroups(active).map((g, i) =>
+    i === 0 && active.lead ? { label: g.label, items: [...active.lead, ...g.items] } : g
+  );
 
   useEffect(() => {
     try {
@@ -121,6 +119,29 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
         </button>
       </div>
 
+      {/* The module switcher.
+       *
+       * ⚠️ ONE CLICK, NOT TWO. A launcher that you reach by going "up" a level
+       * first would make every page in another module cost two clicks — more
+       * work than the single long rail it replaced. From here the launcher is
+       * always one click away, wherever you are. */}
+      <Link
+        href="/apps"
+        title={collapsed ? `${active.label} — switch module` : "Switch module"}
+        className={cn(
+          "flex items-center gap-2 border-b border-border px-3 py-2 text-[12.5px] transition-colors hover:bg-bg-subtle",
+          collapsed && "justify-center px-0"
+        )}
+      >
+        <active.icon size={15} className="shrink-0 text-accent" />
+        {!collapsed && (
+          <>
+            <span className="min-w-0 flex-1 truncate font-medium text-fg">{active.label}</span>
+            <LayoutGrid size={13} className="shrink-0 text-fg-subtle" />
+          </>
+        )}
+      </Link>
+
       {/* Create + search — the two things you reach for most. */}
       <div className={cn("flex flex-col gap-1.5 border-b border-border px-2 py-2", collapsed && "px-1.5")}>
         <CreateMenu collapsed={collapsed} />
@@ -144,7 +165,7 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto slim-scroll px-2 py-2">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <div key={g.label} className="mb-3">
             {!collapsed && (
               <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">

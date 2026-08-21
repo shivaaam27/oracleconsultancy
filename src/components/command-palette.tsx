@@ -3,14 +3,14 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, Gauge, type LucideIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, LayoutGrid, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, Gauge, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
 import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
-import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
+import { NAV_ROUTES, ROUTE_BY_ID, MODULES } from "@/lib/nav";
 import { creatables } from "@/lib/entity-view";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
@@ -1346,6 +1346,34 @@ export function CommandPaletteProvider({
                     {otherRoutes.length > 0 && (
                       <RouteGroup heading="Pages" routes={otherRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
+
+                    {/* Modules.
+                        ⚠️ Last on purpose. Every individual PAGE is still listed
+                        above, whichever module it now lives in — the palette is
+                        what makes the module split safe, because it means no
+                        page ever became harder to reach. This section is for
+                        going to a whole business, not for finding a page. */}
+                    <Command.Group heading="Modules">
+                      {MODULES.filter((m) => !m.soon).map((m) => (
+                        <Command.Item
+                          key={m.id}
+                          value={`module ${m.label} ${m.blurb}`}
+                          onSelect={() => go(m.home)}
+                          className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] data-[selected=true]:bg-accent-soft"
+                        >
+                          <m.icon size={14} className="shrink-0 text-fg-subtle" />
+                          <span className="flex-1 truncate">{m.label}</span>
+                        </Command.Item>
+                      ))}
+                      <Command.Item
+                        value="modules all launcher apps"
+                        onSelect={() => go("/apps")}
+                        className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] data-[selected=true]:bg-accent-soft"
+                      >
+                        <LayoutGrid size={14} className="shrink-0 text-fg-subtle" />
+                        <span className="flex-1 truncate">All modules</span>
+                      </Command.Item>
+                    </Command.Group>
                   </Command.List>
                   {/* Live preview pane — desktop only, when a query has results. */}
                   {trimmed && (results.length > 0 || items.length > 0) && (

@@ -39,6 +39,12 @@ export type SourceType =
   | "rec_client"
   | "rec_candidate"
   | "rec_job_order"
+  /** CocoZuri Operations (Phase 1) — Furaha Innovation's chocolate business,
+   *  rebuilt from 18 spreadsheets. Not indexed yet; the EntityDefs arrive with
+   *  the invoices. These members exist so the module can have ENTITY_VIEWS
+   *  entries like every other record type. */
+  | "cz_product"
+  | "cz_customer"
   /** The PES trading module (Stages 2–5). Four record types, each carrying a
    *  reference number somebody quotes down the phone — a PO, a bill of lading,
    *  an RFQ, an invoice — which is exactly what a search box is for. */

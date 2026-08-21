@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { rootZoom } from "@/lib/zoom";
-import { NAV_ROUTES, ROUTE_BY_ID, navGroups, type NavRoute } from "@/lib/nav";
+import { NAV_ROUTES, ROUTE_BY_ID, navSections, type NavRoute } from "@/lib/nav";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -213,7 +213,9 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
   const sections: Array<{ label: string; icon?: LucideIcon; routes: NavRoute[] }> = [
     ...(pinRoutes.length ? [{ label: "Pinned", icon: Pin, routes: pinRoutes }] : []),
     ...(recentRoutes.length ? [{ label: "Recent", icon: Clock, routes: recentRoutes }] : []),
-    ...navGroups()
+    /* Sectioned by MODULE below `lg`, where there is no rail to be scoped and no
+       switcher to say which business you are looking at. See `navSections`. */
+    ...navSections()
       .map((g) => ({
         label: g.label,
         routes: g.items.filter((r) => !isHiddenNavHref(r.href, navVisibility) && !promoted.has(r.id)),
