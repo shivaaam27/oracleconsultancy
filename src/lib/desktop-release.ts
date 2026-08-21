@@ -28,5 +28,18 @@ export const DESKTOP_VERSION: string = "1.0.0";
 // `never` the moment anything checks it, which broke the test that does.
 export const DESKTOP_DOWNLOAD_URL: string = "";
 
+/**
+ * SHA-256 of the installer at DESKTOP_DOWNLOAD_URL, lower-case hex.
+ *
+ * ⚠️ THIS IS A SECURITY CONTROL, NOT A NICETY. The app downloads this file and
+ * RUNS it. Without a checksum, anything that could alter the download — a
+ * tampered URL, a broken upload, a hostile network — would be executed on every
+ * staff machine. The app refuses to run a file whose hash does not match, and
+ * refuses to run anything at all when this is empty.
+ *
+ * Produced by `npm run desktop:hash` after building the installer.
+ */
+export const DESKTOP_SHA256: string = "";
+
 /** One short line shown in the bar. Say what changed, in plain words. */
 export const DESKTOP_RELEASE_NOTE: string = "";

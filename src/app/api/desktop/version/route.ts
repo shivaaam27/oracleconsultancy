@@ -3,6 +3,7 @@ import {
   DESKTOP_VERSION,
   DESKTOP_DOWNLOAD_URL,
   DESKTOP_RELEASE_NOTE,
+  DESKTOP_SHA256,
 } from "@/lib/desktop-release";
 
 /* ------------------------------------------------------------------ *
@@ -28,7 +29,10 @@ export function GET() {
       version: DESKTOP_VERSION,
       // Empty string means "no download link yet" — the app then says you are
       // out of date without offering a button that leads nowhere.
-      downloadUrl: DESKTOP_DOWNLOAD_URL || null,
+      // Both or neither: the app will not run a download it cannot check, so
+      // offering a URL without a checksum would just be a dead button.
+      downloadUrl: DESKTOP_DOWNLOAD_URL && DESKTOP_SHA256 ? DESKTOP_DOWNLOAD_URL : null,
+      sha256: DESKTOP_DOWNLOAD_URL && DESKTOP_SHA256 ? DESKTOP_SHA256 : null,
       note: DESKTOP_RELEASE_NOTE || null,
     },
     {

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
@@ -187,11 +188,15 @@ public partial class MainWindow : Window
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
 
     private string? _downloadUrl;
+    private string? _expectedSha256;
+    private string _newVersion = "";
+    private bool _updating;
 
     private sealed class VersionAnswer
     {
         public string? version { get; set; }
         public string? downloadUrl { get; set; }
+        public string? sha256 { get; set; }
         public string? note { get; set; }
     }
 
@@ -214,7 +219,17 @@ public partial class MainWindow : Window
             var there = new Version(published.Major, published.Minor, published.Build < 0 ? 0 : published.Build);
             if (there <= here) return;
 
-            _downloadUrl = string.IsNullOrWhiteSpace(answer.downloadUrl) ? null : answer.downloadUrl;
+            // ⚠️ A URL is only accepted WITH a checksum. The app runs what it
+            // downloads, so an unverifiable download is not offered at all.
+            var url = answer.downloadUrl?.Trim();
+            var sha = answer.sha256?.Trim().ToLowerInvariant();
+            bool usable = !string.IsNullOrWhiteSpace(url)
+                       && url!.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                       && !string.IsNullOrWhiteSpace(sha)
+                       && sha!.Length == 64;
+            _downloadUrl = usable ? url : null;
+            _expectedSha256 = usable ? sha : null;
+            _newVersion = there.ToString();
 
             var note = string.IsNullOrWhiteSpace(answer.note) ? "" : " " + answer.note!.Trim();
             var text = $"A newer version of this app is available ({there}). You have {here}.{note}";
@@ -237,9 +252,79 @@ public partial class MainWindow : Window
     private void UpdateDismiss_Click(object sender, RoutedEventArgs e) =>
         UpdateBar.Visibility = Visibility.Collapsed;
 
-    private void UpdateDownload_Click(object sender, RoutedEventArgs e)
+    /* ------------------------------------------------------------------ *
+     * Installing the update.
+     *
+     * ⚠️ THIS DOWNLOADS A FILE AND RUNS IT, which is the single most dangerous
+     * thing this app does. Three rules make it safe, and none of them is
+     * optional:
+     *   1. HTTPS only — checked before the request is made.
+     *   2. The SHA-256 must match the one COS published. A file that does not
+     *      match is DELETED and never run. This is what stops a tampered
+     *      download, a corrupted transfer, or a hostile network becoming code
+     *      execution on every machine in the company.
+     *   3. No checksum, no download. The button does not even appear.
+     * ------------------------------------------------------------------ */
+
+    private async void UpdateDownload_Click(object sender, RoutedEventArgs e)
     {
-        if (_downloadUrl is not null) OpenExternally(_downloadUrl);
+        if (_updating || _downloadUrl is null || _expectedSha256 is null) return;
+        _updating = true;
+        UpdateDownload.IsEnabled = false;
+
+        string? file = null;
+        try
+        {
+            UpdateText.Text = $"Downloading version {_newVersion}…";
+
+            var folder = Path.Combine(Path.GetTempPath(), "cos-update");
+            Directory.CreateDirectory(folder);
+            file = Path.Combine(folder, $"Oracle Consultancy Setup {_newVersion}.exe");
+
+            using (var response = await Http.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var incoming = await response.Content.ReadAsStreamAsync();
+                await using var onDisk = File.Create(file);
+                await incoming.CopyToAsync(onDisk);
+            }
+
+            UpdateText.Text = "Checking the download…";
+
+            string actual;
+            await using (var stream = File.OpenRead(file))
+            {
+                actual = Convert.ToHexString(await SHA256.HashDataAsync(stream)).ToLowerInvariant();
+            }
+
+            if (!string.Equals(actual, _expectedSha256, StringComparison.Ordinal))
+            {
+                // Do not keep it, and above all do not run it.
+                try { File.Delete(file); } catch { }
+                UpdateText.Text = "That download did not arrive intact, so it was not installed. Try again later.";
+                UpdateDownload.IsEnabled = true;
+                _updating = false;
+                return;
+            }
+
+            // The installer replaces files this app is using, so hand over and
+            // get out of the way rather than fighting it for a file lock.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = file,
+                UseShellExecute = true,
+            });
+
+            SaveWindowState();
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            if (file is not null) { try { File.Delete(file); } catch { } }
+            UpdateText.Text = "The update could not be downloaded: " + ex.Message;
+            UpdateDownload.IsEnabled = true;
+            _updating = false;
+        }
     }
 
     /* ------------------------------------------------------------------ *

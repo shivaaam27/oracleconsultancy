@@ -18,7 +18,8 @@
     "eval:search": "tsx scripts/eval-search.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "mcp:key": "tsx scripts/mcp-issue-key.ts"
+    "mcp:key": "tsx scripts/mcp-issue-key.ts",
+    "desktop:hash": "tsx scripts/desktop-hash.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",

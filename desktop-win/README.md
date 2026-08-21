@@ -146,9 +146,36 @@ When you change the window:
 Every running app then shows a bar on its next start: *"A newer version of this
 app is available (1.0.1). You have 1.0.0."*
 
-To turn that bar into a one-click download later, host the installer somewhere
-and put the link in `DESKTOP_DOWNLOAD_URL`. A Download button appears on its own
-— **the app needs no change**.
+### Turning the bar into a one-click update
+
+The app can download and install the new version itself. To switch that on:
+
+4. Host `Oracle Consultancy Setup.exe` somewhere reachable over **https**.
+5. `npm run desktop:hash` → paste the result into `DESKTOP_SHA256`.
+6. Put the link in `DESKTOP_DOWNLOAD_URL`.
+
+A **Download** button then appears in the bar by itself — **already-installed
+apps need no change**.
+
+⚠️ **THE CHECKSUM IS NOT OPTIONAL.** This is the one place the app downloads a
+file and RUNS it, which is the most dangerous thing it does. Three rules:
+
+1. **https only** — checked before the request is made.
+2. **The SHA-256 must match.** A file that does not match is deleted and never
+   run. This is what stops a tampered download, a corrupt transfer or a hostile
+   network turning into code running on every machine in the company.
+3. **No checksum, no button.** COS refuses to advertise a download it cannot
+   vouch for, so the button does not appear at all.
+
+Verified both ways: a deliberately wrong checksum produced *"That download did
+not arrive intact, so it was not installed"*, the file was deleted and the app
+kept running; the correct checksum passed the check and went on to launch.
+
+⚠️ **Where to host it is still open.** Supabase Storage was tried and **rejected
+the 53.5 MB file** (project size cap) after a five-minute upload. Options: a
+public GitHub release (no size limit, but the installer becomes publicly
+downloadable — it holds no secrets), or shrinking the installer by shipping the
+framework-dependent build and letting the installer fetch the .NET runtime.
 
 ⚠️ Every failure in the check is silent on purpose: no internet, no answer, a
 bad answer, or a COS old enough not to have the endpoint all mean "say nothing".
