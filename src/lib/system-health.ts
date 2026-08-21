@@ -9,7 +9,9 @@ import { auditCoverage } from "@/lib/coverage-audit";
 import { isRepairable, attemptRepair } from "@/lib/system-repair";
 import { checkGroqKeyHealth, type GroqKeyHealth } from "@/lib/model-watch";
 
-export type JobState = "healthy" | "failed" | "stale" | "never";
+// "off" = switched off on purpose. Distinct from "never", which means it was
+// supposed to run and did not — the difference between a decision and a fault.
+export type JobState = "healthy" | "failed" | "stale" | "never" | "off";
 
 export type JobHealth = {
   kind: string;
@@ -43,14 +45,39 @@ export type SystemHealth = {
 
 // What should run, and the window before "stale". Daily jobs get a generous grace
 // so a slightly-late run doesn't cry wolf. Hours.
-const JOBS: Array<{ kind: string; label: string; everyHours: number; graceHours: number }> = [
+//
+// ⚠️ KEEP THIS LIST HONEST. A check that can never go green is worse than no
+// check: it teaches you to ignore the panel, and then a real failure hides in the
+// noise. Two were doing exactly that until 21 Aug 2026 —
+//   • "Inbox auto-sort" watched cron.auto-sort, a job DELETED with the document
+//     intelligence layer in Aug 2026. It reported "never" for ever.
+//   • "Automated emails" is switched OFF by the owner (email.automation.paused),
+//     so reporting it as down was wrong. `skipWhen` handles that below.
+// When a feature is removed, remove its entry here too.
+const JOBS: Array<{
+  kind: string;
+  label: string;
+  everyHours: number;
+  graceHours: number;
+  /** Deliberately switched off = not a fault. Checked before the job is judged. */
+  skipWhen?: (settings: Record<string, string | null>) => boolean;
+}> = [
   { kind: "cron.morning", label: "Morning run (chase dates + self-heal)", everyHours: 24, graceHours: 6 },
   { kind: "cron.snapshots", label: "Daily snapshot", everyHours: 24, graceHours: 8 },
   { kind: "cron.cleanup", label: "Cleanup", everyHours: 24, graceHours: 8 },
   { kind: "cron.reminders", label: "Reminders", everyHours: 24, graceHours: 8 },
-  { kind: "cron.email", label: "Automated emails", everyHours: 24, graceHours: 8 },
+  {
+    kind: "cron.email",
+    label: "Automated emails",
+    everyHours: 24,
+    graceHours: 8,
+    // Paused on purpose is not "down".
+    skipWhen: (st) => {
+      try { return JSON.parse(st["email.automation"] ?? "{}")?.paused === true; }
+      catch { return false; }
+    },
+  },
   { kind: "cron.reindex", label: "Search re-index", everyHours: 24, graceHours: 8 },
-  { kind: "cron.auto-sort", label: "Inbox auto-sort", everyHours: 24, graceHours: 8 },
 ];
 
 const AI_KIND = "doc-extraction";
@@ -85,7 +112,21 @@ export async function checkSystemHealth(
     .order("created_at", { ascending: false });
   const rows = (data ?? []) as Array<{ kind: string; status: string; created_at: string; details: string | null }>;
 
+  // Settings that decide whether a job is switched off rather than broken.
+  const settings: Record<string, string | null> = {};
+  try {
+    const { data: rowsS } = await sb.from("settings").select("key,value").in("key", ["email.automation"]);
+    for (const r of (rowsS ?? []) as Array<{ key: string; value: string | null }>) settings[r.key] = r.value;
+  } catch {
+    // Unreadable settings must not turn every job red; the rules just don't fire.
+  }
+
   const jobs: JobHealth[] = JOBS.map((j) => {
+    // Switched off on purpose is not a fault, and must not colour the whole
+    // system amber for ever.
+    if (j.skipWhen?.(settings)) {
+      return { kind: j.kind, label: j.label, state: "off" as JobState, lastRun: null, lastOk: null, detail: "switched off" };
+    }
     const mine = rows.filter((r) => r.kind === j.kind);
     const last = mine[0] ?? null;
     const lastOkRow = mine.find((r) => r.status === "ok") ?? null;
@@ -257,9 +298,14 @@ export async function checkSystemHealth(
     if (j.repaired && !recentlyRepaired.includes(j.label)) recentlyRepaired.unshift(j.label);
   }
 
+  // ⚠️ Jobs switched off are not counted. Otherwise the card reads "6 of 7
+  // healthy" for ever because of something deliberately turned off, which is the
+  // same nagging that made this panel ignorable in the first place.
+  const counted = jobs.filter((j) => j.state !== "off");
+
   const summary: HealthSummary = {
-    totalJobs: jobs.length,
-    healthyJobs: jobs.filter((j) => j.state === "healthy").length,
+    totalJobs: counted.length,
+    healthyJobs: counted.filter((j) => j.state === "healthy").length,
     repairedJobs: jobs.filter((j) => j.repaired).length,
     recentlyRepaired,
     lastRun: newest ? new Date(newest).toISOString() : null,

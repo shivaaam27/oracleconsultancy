@@ -39,7 +39,7 @@ export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.0.exe"
 export const DESKTOP_BUCKET = "desktop";
 
 /**
- * SHA-256 of the installer at DESKTOP_DOWNLOAD_URL, lower-case hex.
+ * SHA-256 of the installer at DESKTOP_STORAGE_PATH, lower-case hex.
  *
  * ⚠️ THIS IS A SECURITY CONTROL, NOT A NICETY. The app downloads this file and
  * RUNS it. Without a checksum, anything that could alter the download — a

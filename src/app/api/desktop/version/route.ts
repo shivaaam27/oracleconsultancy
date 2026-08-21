@@ -31,6 +31,14 @@ export const dynamic = "force-dynamic";
  *  finish, short enough that a copied link is not a permanent address. */
 const LINK_SECONDS = 60 * 60;
 
+/* ⚠️ The endpoint is PUBLIC, so anyone can ask it. Minting a fresh signed link
+ * on every request would let someone generate them without limit — free
+ * bandwidth on our storage, and a needless Supabase call per launch. So one
+ * link is reused until it is close to expiring. In memory per instance, which
+ * is enough: the worst case is a few extra links, not a flood. */
+let cached: { url: string; until: number } | null = null;
+const REUSE_MS = (LINK_SECONDS - 10 * 60) * 1000; // stop reusing 10 min before it dies
+
 export async function GET() {
   let downloadUrl: string | null = null;
 
@@ -38,10 +46,15 @@ export async function GET() {
   // offering a link without a checksum would only produce a dead button.
   if (DESKTOP_STORAGE_PATH && DESKTOP_SHA256) {
     try {
-      const { data } = await sb.storage
-        .from(DESKTOP_BUCKET)
-        .createSignedUrl(DESKTOP_STORAGE_PATH, LINK_SECONDS);
-      downloadUrl = data?.signedUrl ?? null;
+      if (cached && Date.now() < cached.until) {
+        downloadUrl = cached.url;
+      } else {
+        const { data } = await sb.storage
+          .from(DESKTOP_BUCKET)
+          .createSignedUrl(DESKTOP_STORAGE_PATH, LINK_SECONDS);
+        downloadUrl = data?.signedUrl ?? null;
+        if (downloadUrl) cached = { url: downloadUrl, until: Date.now() + REUSE_MS };
+      }
     } catch {
       // Storage unreachable — say there is no download rather than failing the
       // whole check. The app still learns it is out of date.

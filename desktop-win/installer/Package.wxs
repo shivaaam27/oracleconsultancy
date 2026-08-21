@@ -33,14 +33,13 @@
     <!-- Installing a newer version removes the old one first. -->
     <MajorUpgrade DowngradeErrorMessage="A newer version of Oracle Consultancy is already installed." />
 
-    <!-- The 63 MB app is embedded in the .msi, so there is ONE file to share. -->
+    <!-- The app is embedded in the .msi, so there is ONE file to share. -->
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="AppIcon.ico" SourceFile="Assets\icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPHELPLINK" Value="https://oracleconsultancy.vercel.app" />
-    <!-- No "repair" button in Add/Remove Programs: there is nothing to repair,
-         the app is a single file. -->
+    <!-- No "repair" button in Add/Remove Programs: reinstalling is the repair. -->
     <Property Id="ARPNOREPAIR" Value="1" />
 
     <Feature Id="Main" Title="Oracle Consultancy" Level="1">

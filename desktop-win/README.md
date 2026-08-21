@@ -59,7 +59,7 @@ costs about what Chromium costs anywhere. Anyone who tells you a WebView2 app is
 lighter on RAM than Electron is repeating a claim about disk size. The honest
 wins are:
 
-- **A smaller file to send** — 63 MB instead of 99 MB.
+- **A far smaller file to send** — 2 MB instead of 99 MB.
 - **The engine is patched by Windows Update.** Electron's Chromium only gets
   security fixes when we build and re-send an installer; WebView2 is Edge, and
   Edge updates itself. For an app behind a login, that matters.
@@ -67,8 +67,8 @@ wins are:
   it for free — no certificate to buy. That is the plan once internal testing is
   done.
 
-If .NET 8 is ever installed everywhere, the same project builds to **2.2 MB**
-(`--self-contained false`). Not worth the extra install step today.
+That is exactly what it does now: `--self-contained false`, so the app uses the
+.NET already on the machine. See the note at the top about what that requires.
 
 ## ⚠️ READ THIS FIRST: never build it as a single file
 

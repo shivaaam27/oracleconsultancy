@@ -1,10 +1,15 @@
 name: Windows app
 
-# Builds the single .exe you hand to somebody. Download it from the run's
+# Builds the installer you hand to somebody. Download it from the run's
 # Artifacts, or from the Release when a `desktop-v*` tag is pushed.
 #
 # The app's CONTENTS come from Vercel and need no build here — this only rebuilds
 # the WINDOW, which changes rarely.
+#
+# ⚠️ It must build exactly what desktop-win/build.cmd builds: framework-dependent
+# and NOT single-file. An earlier version of this file used
+# `--self-contained true -p:PublishSingleFile=true`, which produces an app that
+# Windows Smart App Control BLOCKS OUTRIGHT — a release nobody could run.
 
 on:
   push:
@@ -27,22 +32,37 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # Self-contained on purpose: one file that runs on any Windows 10/11
-      # machine with nothing installed first. See desktop-win/README.md.
-      - name: Build
+      # Pinned in desktop-win/.config/dotnet-tools.json, so CI and a laptop use
+      # the same WiX. Run through `dotnet wix`, never the global wix.exe: Smart
+      # App Control blocks the unsigned shim, and dotnet.exe is Microsoft-signed.
+      - name: Restore the installer toolset
         working-directory: desktop-win
-        run: >
-          dotnet publish -c Release -r win-x64 --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
-          -o publish
+        run: dotnet tool restore
 
-      - name: Upload the installer
+      - name: Build the app
+        working-directory: desktop-win
+        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o publish-folder
+
+      - name: Package the installer
+        working-directory: desktop-win
+        run: |
+          dotnet wix build installer/Package.wxs -o "installer/out/Oracle Consultancy Setup.msi"
+          dotnet wix build installer/Bundle.wxs -ext WixToolset.BootstrapperApplications.wixext -ext WixToolset.Netfx.wixext -o "installer/out/Oracle Consultancy Setup.exe"
+
+      # The checksum COS publishes must match the file people download, so print
+      # it here — it is what goes into DESKTOP_SHA256.
+      - name: Checksum
+        working-directory: desktop-win
+        run: |
+          $h = (Get-FileHash "installer/out/Oracle Consultancy Setup.exe" -Algorithm SHA256).Hash.ToLower()
+          Write-Host "DESKTOP_SHA256 = $h"
+          Write-Host "Paste into src/lib/desktop-release.ts"
+
+      - name: Keep the installer
         uses: actions/upload-artifact@v4
         with:
           name: oracle-consultancy-windows
-          path: desktop-win/publish/*.exe
+          path: desktop-win/installer/out/*.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -50,4 +70,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop-win/publish/*.exe
+          files: desktop-win/installer/out/*.exe

@@ -4,3 +4,4 @@ publish/
 publish-folder/
 publish-light/
 installer/out/
+.wix/
