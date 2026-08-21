@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui";
+import { OfflineNotesBanner } from "@/components/offline-notes-banner";
 import { NotesShelf } from "@/components/notes-shelf";
 import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes";
 
@@ -54,6 +55,9 @@ export default async function NotesPage({
         title="Notes"
         sub={`${counts.all} note${counts.all === 1 ? "" : "s"}${counts.pinned ? ` · ${counts.pinned} pinned` : ""}${counts.archived ? ` · ${counts.archived} archived` : ""}`}
       />
+      {/* Also the flush point: opening the shelf with a connection sends anything
+          written offline, so a note cannot sit on a device unnoticed. */}
+      <OfflineNotesBanner />
       <NotesShelf
         rows={shown}
         total={rows.length}

@@ -75,7 +75,7 @@ the service worker has nothing to offer.
 
 Each is useful on its own and can be stopped after.
 
-## Stage 1 — Write a new note anywhere (~2 days) ⭐ start here
+## Stage 1 — Write a new note anywhere — ✅ BUILT 21 Aug 2026
 
 Offline, you can create and write a **new** note. It saves on the device and
 appears in COS when you are next online.
@@ -83,6 +83,50 @@ appears in COS when you are next online.
 **Why first:** it is most of what "use it anytime" means — catching a thought —
 and it carries **no risk at all**, because a brand-new note cannot conflict with
 anything. There is nothing to merge.
+
+### What was built
+
+- **`/notes/offline`** — a plain writing surface with no server data in it at all.
+  Plain text on purpose: the page whose whole job is to work when things are
+  already going wrong should be as close to a sheet of paper as possible. What
+  you write becomes an ordinary note the moment it syncs, formatting and all.
+- **`src/lib/offline-notes.ts`** — IndexedDB, no library. The device is a
+  **postbox, never the record**: a draft is deleted only once the server has
+  confirmed it, never on a hopeful "it probably got through".
+- **`/api/notes/offline-sync`** — owner-only, checked at the edge AND in the
+  route. Replies with exactly which notes it now holds; the device deletes only
+  those.
+- **`notes.client_key` + a partial unique index** (migration 0141). The device
+  names a note before sending it, so a retry after a lost reply does nothing
+  instead of creating the same thought twice.
+- **Service worker (v12)** keeps ONE app page — this one — and serves it when a
+  Notes page cannot be reached.
+- **The shelf flushes on open**: arriving at `/notes` with a connection sends
+  anything waiting, so a note cannot sit unnoticed on a device.
+
+### Verified
+
+- Unauthenticated sync → refused at the gate (307 to /login).
+- The same note sent twice → second refused (23505), **exactly one note**.
+- Ten ordinary notes with no key coexist happily (the index is partial).
+- Text → note conversion has 10 tests: blank lines survive as blank lines,
+  indentation survives, Windows line endings, the title is the first real line.
+- 770 tests, build and type-check clean, database still locked.
+
+### Not verified, and honestly
+
+The **writing surface itself was not driven end to end**, because `/notes` is
+behind the owner's sign-in and that is not something to automate. The logic under
+it is tested; the page needs a real sign-in to exercise. **Visit `/notes/offline`
+once while signed in** — that is what puts it in the cache and makes it available
+with no connection.
+
+### ⚠️ The one rule for this page
+
+`/notes/offline` must never load server data. It is the only page of the app kept
+in the cache, and a cached page carrying real records would be a copy of the
+owner's records sitting on the device. It holds an empty sheet of paper; the
+writing lives in the device's own store.
 
 ## Stage 2 — Read every note offline (~2 days)
 

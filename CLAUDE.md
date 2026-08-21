@@ -752,6 +752,19 @@ the traps that cost real time.
   tag rail, **daily notes** ("Today", EAT-based, partial unique index), and **Phase 3:
   `@` mentions of task/person/company/document, `[[note]]` links, a Links + Backlinks
   rail, and a Notes tab on the task, person and company records**.
+- **Offline writing (Stage 1, 21 Aug 2026)**: `/notes/offline` is a plain-text
+  writing surface that works with no connection. ⚠️ **It must never load server
+  data** — it is the ONLY app page the service worker keeps (v12), and a cached
+  page carrying records would be a copy of the owner's records on the device.
+  Drafts live in IndexedDB (`src/lib/offline-notes.ts`) and are deleted **only**
+  once the server confirms them. `notes.client_key` + a partial unique index
+  (migration **0141**) makes sending exactly-once: the device names a note before
+  sending, so a retry after a lost reply is a no-op instead of a duplicate.
+  `/api/notes/offline-sync` is owner-only, checked at the edge AND in the route.
+  Opening `/notes` with a connection flushes anything waiting. **The page must be
+  visited once while signed in** to enter the cache. Stages 2 (read offline) and
+  3 (edit offline) are NOT built — see `memory/notes_offline_plan.md`, which also
+  holds the three questions Stage 3 needs answered first.
 - **Writing fills the screen** (19 Aug 2026). The sheet MEASURES its own top and
   takes the rest of the window — the old `calc(100dvh - 11rem)` guess left a band of
   dead grey under the paper. ⚠️ It only reclaims `<main>`'s bottom padding from

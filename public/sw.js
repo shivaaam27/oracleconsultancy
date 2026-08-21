@@ -1,13 +1,44 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v11"; // v11 = the ERPNext redesign (Desk). Old caches hold Aurora assets.
+const CACHE_VERSION = "cos-v12"; // v12 = offline note writing. v11 = the ERPNext redesign (Desk).
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 
+/* The one page of the app itself that is kept for offline use.
+ *
+ * ⚠️ EXACTLY ONE, AND IT MUST HOLD NO DATA. Everything else here refuses to cache
+ * an HTML page on purpose: COS sits behind a login, and a cached page could show
+ * a stale or another person's screen. /notes/offline is the deliberate exception
+ * because it is an EMPTY SHEET OF PAPER — a client-only page with nothing from
+ * the server in it. What you write lives in the device's own store, never in this
+ * cached HTML. If that page ever starts loading real records, it stops being
+ * safe to keep here. */
+const WRITE_OFFLINE_URL = "/notes/offline";
+
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/apple-touch-icon.png"];
+
+/** Fetch the write-offline page and keep it. Best-effort and never fatal: if the
+ *  worker installs while signed out or offline, the page is picked up the next
+ *  time it is visited (see the navigate handler). */
+async function cacheWriteOffline(cache) {
+  try {
+    const res = await fetch(WRITE_OFFLINE_URL, { credentials: "same-origin" });
+    // Only a real page. A redirect to /login is not one, and caching it would
+    // put a sign-in screen where the writing surface should be.
+    if (res && res.ok && !res.redirected) await cache.put(WRITE_OFFLINE_URL, res.clone());
+  } catch {
+    /* offline at install time — try again later */
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches
+      .open(STATIC_CACHE)
+      .then(async (cache) => {
+        await cache.addAll(PRECACHE);
+        await cacheWriteOffline(cache);
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -41,7 +72,36 @@ self.addEventListener("fetch", (event) => {
   // PWA. Always hit the network; fall back to the offline page only when genuinely
   // offline.
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          // Keep the write-offline page fresh whenever it is visited normally.
+          if (url.pathname === WRITE_OFFLINE_URL && res.ok && !res.redirected) {
+            const copy = res.clone();
+            caches.open(STATIC_CACHE).then((c) => c.put(WRITE_OFFLINE_URL, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(async () => {
+          // ⚠️ Somewhere in Notes with no connection? Give the writing surface
+          // rather than a dead end. It is the only app page kept, and it holds
+          // no data — see WRITE_OFFLINE_URL above.
+          const sheet = await caches.match(WRITE_OFFLINE_URL);
+          if (sheet) {
+            if (url.pathname === WRITE_OFFLINE_URL) return sheet;
+            if (url.pathname.startsWith("/notes")) {
+              // ⚠️ REDIRECT rather than serve that page's HTML at this URL. The
+              // cached document carries its own route data; handing it back for
+              // /notes/123 would leave the client router hydrating one page while
+              // the address bar claims another, and its first act would be to
+              // fetch the real route — which is exactly what is not available.
+              // A redirect puts the page at its own address, where it is correct.
+              return Response.redirect(WRITE_OFFLINE_URL, 302);
+            }
+          }
+          return caches.match(OFFLINE_URL);
+        })
+    );
     return;
   }
 

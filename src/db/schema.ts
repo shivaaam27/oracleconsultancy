@@ -1894,6 +1894,11 @@ export const notes = pgTable("notes", {
   /** Set only when kind='daily'; one note per day, enforced by a partial unique. */
   dailyDate: timestamp("daily_date", { mode: "date", withTimezone: true }),
   createdBy: text("created_by").notNull().default("web-ui"),
+  /** Set ONLY by a note written offline and synced later. The device names the
+   *  note before sending, and a partial unique index refuses a second one with
+   *  the same name — so a retry after a lost reply does nothing instead of
+   *  creating a duplicate. NULL for every note made in the browser. */
+  clientKey: text("client_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
