@@ -38,6 +38,8 @@ export type RecordColumn<T> = {
   sorted?: "asc" | "desc";
   /** Hide below `sm` / `md` — keeps a dense list usable on a phone. */
   hideBelow?: "sm" | "md" | "lg";
+  /** Off until somebody turns it on in Columns — see `ListColumnDef`. */
+  defaultHidden?: boolean;
   render: (row: T) => ReactNode;
   /** A figure for the totals row. Handed the rows ACTUALLY on screen — filtered
    *  and paged — because a total that silently covers rows you cannot see is
@@ -252,11 +254,43 @@ const RL_GRID = "grid-cols-[var(--rl-grid)] sm:grid-cols-[var(--rl-grid-sm)] md:
  * utilities above. At `lg` the template is identical to the old single one, so
  * the desktop is untouched.
  */
+/**
+ * ⚠️ THE NAME COLUMN CAN NEVER BE ALLOWED TO REACH ZERO, and a fixed width is
+ * what pushes it there.
+ *
+ * `hideBelow` folds columns away on a PHONE, which is the case the note above
+ * describes. It cannot help at `lg`, because that is where the two things go
+ * wrong at once: the desk sidebar appears and takes 208px, AND every column
+ * un-hides. The card gets narrower exactly as it needs to be widest. Measured on
+ * the CocoZuri products list at 1024px: the card was 547px, the fixed columns
+ * and gaps came to 548px, and `minmax(0,1fr)` resolved the PRODUCT column to
+ * **0px** — a list of 127 chocolates with no chocolate names on it, and the last
+ * column clipped off the right-hand edge for good measure.
+ *
+ * So the tracks are rewritten here rather than at every call site:
+ *
+ *   · a flexible column gets a real FLOOR (`minmax(0,1fr)` → `minmax(7.5rem,1fr)`)
+ *     so it can never vanish;
+ *   · a fixed column becomes SHRINKABLE (`170px` → `minmax(0,170px)`) so the
+ *     shortfall comes out of the columns that can afford it. They are already
+ *     `truncate`, so they degrade to an ellipsis instead of pushing the name out.
+ *
+ * Doing it in one place is what stops the next list re-learning this: a column
+ * set that adds up to more than the card now degrades instead of losing its
+ * subject.
+ */
+const FLOOR = "7.5rem";
+function track(w: string): string {
+  const t = w.trim();
+  if (t.includes("fr")) return t.replace(/minmax\(\s*0(?:px)?\s*,/, `minmax(${FLOOR},`);
+  return /^\d+(\.\d+)?px$/.test(t) ? `minmax(0,${t})` : t;
+}
+
 function gridFor<T>(columns: RecordColumn<T>[], hasSelection: boolean) {
   const at = (w: number) => {
     const cols = columns
       .filter((c) => !c.hideBelow || HIDE_AT[c.hideBelow] <= w)
-      .map((c) => c.width)
+      .map((c) => track(c.width))
       .join(" ");
     return hasSelection ? `28px ${cols}` : cols;
   };
@@ -316,14 +350,19 @@ function hiddenKey(listKey: string) {
   return `cos-cols-${listKey}`;
 }
 
-function useHiddenColumns(listKey?: string) {
+function useHiddenColumns(listKey?: string, columns?: { key: string; defaultHidden?: boolean }[]) {
   const [hidden, setHidden] = useState<string[]>([]);
   useEffect(() => {
     if (!listKey) return;
     try {
       const raw = localStorage.getItem(hiddenKey(listKey));
+      // ⚠️ The metadata's own defaults apply only until somebody has CHOSEN.
+      // Seeding them every time would keep switching a column back off after
+      // the owner turned it on.
       if (raw) setHidden(JSON.parse(raw));
+      else setHidden((columns ?? []).filter((c) => c.defaultHidden).map((c) => c.key));
     } catch { /* private mode — show everything */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listKey]);
   function toggle(key: string) {
     setHidden((prev) => {
@@ -606,7 +645,7 @@ export function RecordList<T>({
   bulkActions?: BulkAction<T>[];
   className?: string;
 }) {
-  const { hidden, toggle } = useHiddenColumns(listKey);
+  const { hidden, toggle } = useHiddenColumns(listKey, columns);
   /* The card grows to the foot of the window; the ROWS take the slack, so the
      "N of M shown" strip stays pinned to the bottom of the panel the way
      ERPNext's does, rather than floating halfway up a field of white. */

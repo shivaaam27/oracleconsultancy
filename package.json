@@ -10,6 +10,7 @@
     "start": "next start",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "seed:cz-stock": "tsx scripts/seed-cocozuri-stock.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:restore": "tsx scripts/restore.ts",
     "db:check-security": "tsx scripts/check-db-security.ts",

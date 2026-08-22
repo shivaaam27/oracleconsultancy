@@ -5,8 +5,14 @@ import {
   archiveCustomer, archiveProduct, createCustomer, createProduct,
   cancelInvoice, createInvoice, deletePrice, issueInvoice, mergeProducts, setBranches,
   setDefaultVatRate, setPrice, updateCustomer, updateProduct,
-  type CustomerInput, type ProductInput,
+  applyCreditNote, createReceipt, createReceipts, deleteReceipt, updateReceipt,
+  type CustomerInput, type ProductInput, type ReceiptInput,
 } from "@/lib/cocozuri";
+import {
+  archiveItem, createItem, createLocation, deleteCount, recordCount, saveDay,
+  updateItem, updateLocation, type StockItemInput,
+} from "@/lib/cocozuri-stock";
+import { postInvoice, postReceipt, unpostInvoice, unpostReceipt } from "@/lib/cocozuri-ledger";
 
 /**
  * CocoZuri's write actions — thin wrappers over `lib/cocozuri.ts`.
@@ -25,6 +31,13 @@ function refresh() {
   revalidatePath("/cocozuri/products");
   revalidatePath("/cocozuri/customers");
   revalidatePath("/cocozuri/invoices");
+  revalidatePath("/cocozuri/receipts");
+  revalidatePath("/cocozuri/owed");
+  revalidatePath("/cocozuri/statements", "layout");
+  revalidatePath("/cocozuri/stock");
+  revalidatePath("/cocozuri/stock/month");
+  // A posting shows in the ledger too — the entries list and every report.
+  revalidatePath("/ledger", "layout");
 }
 
 export async function createProductAction(input: ProductInput) {
@@ -125,6 +138,138 @@ export async function issueInvoiceAction(id: number) {
 
 export async function cancelInvoiceAction(id: number) {
   const res = await cancelInvoice(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ---------------------- money in (Phase 3) ---------------------- */
+
+/** ⚠️ The customer comes off the INVOICE, never the form, and a draft cannot be
+ *  paid — see `createReceipt`. */
+export async function createReceiptAction(input: ReceiptInput) {
+  const res = await createReceipt(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** One cheque settling several invoices: one row each, sharing a reference.
+ *  ⚠️ All or nothing — see `createReceipts`. */
+export async function createReceiptsAction(rows: ReceiptInput[]) {
+  const res = await createReceipts(rows);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function updateReceiptAction(id: number, input: Partial<ReceiptInput>) {
+  const res = await updateReceipt(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A real delete, deliberately — and it must become a reversal when Phase 5
+ *  starts posting receipts to the general ledger. */
+export async function deleteReceiptAction(id: number) {
+  const res = await deleteReceipt(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Only a credit note, and only at the same customer's invoice. */
+export async function applyCreditNoteAction(creditNoteId: number, invoiceId: number | null) {
+  const res = await applyCreditNote(creditNoteId, invoiceId);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* -------------------- the stock book (Phase 4) -------------------- */
+
+/** ⚠️ One row per item per day, upserted; a row of three zeros is cleared away
+ *  rather than stored — see `saveDay`. */
+export async function saveStockDayAction(input: Parameters<typeof saveDay>[0]) {
+  const res = await saveDay(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses a count that differs from the book without a note saying why. */
+export async function recordStockCountAction(input: Parameters<typeof recordCount>[0]) {
+  const res = await recordCount(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function deleteStockCountAction(id: number) {
+  const res = await deleteCount(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function createStockItemAction(input: StockItemInput) {
+  const res = await createItem(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ `productId: null` deliberately UNLINKS an item from its product — which is
+ *  how a wrong match made during the import gets undone. */
+export async function updateStockItemAction(id: number, input: Partial<StockItemInput>) {
+  const res = await updateItem(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Archived, never deleted — its movements are the history of a real shelf. */
+export async function archiveStockItemAction(id: number, archived: boolean) {
+  const res = await archiveItem(id, archived);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function createStockLocationAction(input: Parameters<typeof createLocation>[0]) {
+  const res = await createLocation(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Includes the third column's LABEL, which is data — the shop calls it
+ *  Return, the kitchen DA/SA/TA and raw materials Damage. */
+export async function updateStockLocationAction(id: number, input: Parameters<typeof updateLocation>[1]) {
+  const res = await updateLocation(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* --------------------- into the books (Phase 5) --------------------- */
+
+/**
+ * ⚠️ POSTING IS EXPLICIT, and that is the ledger's fifth rule rather than an
+ * oversight. Raising an invoice does not put it in the books; somebody presses
+ * Post and is told what happened. Nothing lands in the accounts silently.
+ */
+export async function postInvoiceAction(invoiceId: number) {
+  const res = await postInvoice(invoiceId);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure — both sides stay in the general ledger. */
+export async function unpostInvoiceAction(invoiceId: number, reason?: string | null) {
+  const res = await unpostInvoice(invoiceId, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses a payment received into another company — see `postReceipt`. */
+export async function postReceiptAction(receiptId: number) {
+  const res = await postReceipt(receiptId);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function unpostReceiptAction(receiptId: number, reason?: string | null) {
+  const res = await unpostReceipt(receiptId, reason);
   if (res.ok) refresh();
   return res;
 }

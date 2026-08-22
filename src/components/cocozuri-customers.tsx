@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Plus, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
@@ -31,15 +31,30 @@ export function CocozuriCustomers({
   archivedCount,
   showArchived,
   defaultVat,
+  openNew,
 }: {
   customers: CzCustomer[];
   archivedCount: number;
   showArchived: boolean;
   defaultVat: number;
+  openNew?: boolean;
 }) {
   const { toast } = useToast();
   const [q, setQ] = useState("");
-  const [editing, setEditing] = useState<CzCustomer | "new" | null>(null);
+  const [editing, setEditing] = useState<CzCustomer | "new" | null>(openNew ? "new" : null);
+
+  /**
+   * ⚠️ `?new=1` OPENS THE FORM, AND THEN LEAVES THE ADDRESS.
+   *
+   * `ENTITY_VIEWS.cz_customer.create.href` points here with the flag and the
+   * page used to ignore it, so the global New menu landed on the list with
+   * nothing open. It also has to be consumed: `revalidatePath("/cocozuri/customers")`
+   * does not invalidate the cached entry for `/cocozuri/customers?new=1` —
+   * different keys — so a save on the deep link would not move the list.
+   */
+  useEffect(() => {
+    if (openNew) window.history.replaceState(null, "", "/cocozuri/customers");
+  }, [openNew]);
 
   const rows: Row[] = useMemo(() => {
     const term = q.trim().toLowerCase();

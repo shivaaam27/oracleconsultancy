@@ -44,6 +44,7 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
      ENTITY_VIEWS entries like every other record type. */
   cz_product:    { icon: Package, tint: "text-amber-600" },
   cz_customer:   { icon: Building2, tint: "text-amber-700" },
+  cz_receipt:    { icon: Banknote, tint: "text-amber-800" },
   rec_candidate: { icon: UserSearch, tint: "text-pink-600" },
   rec_job_order: { icon: Briefcase,  tint: "text-red-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),

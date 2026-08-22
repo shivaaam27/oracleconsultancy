@@ -1,7 +1,10 @@
 import { sb } from "@/db/supabase";
+import { todayInDar } from "@/lib/cocozuri-stock-shared";
 import {
-  nextInSeries,
-  type CzCustomer, type CzInvoice, type CzInvoiceLine, type CzPrice, type CzProduct,
+  ageingSummary, customerAccounts, nextInSeries, outstandingOf, statementRows,
+  type CzAgeingKey, type CzCustomer, type CzCustomerAccount, type CzInvoice,
+  type CzInvoiceLine, type CzOutstanding, type CzPrice, type CzProduct,
+  type CzReceipt, type CzStatementRow,
 } from "@/lib/cocozuri-shared";
 
 /* ------------------------------------------------------------------ *
@@ -66,20 +69,30 @@ export async function defaultVatRate(): Promise<number> {
  * ⚠️ The business is at CZ-236 in its spreadsheets and those invoices are not in
  * COS, so without this the first invoice raised here would be CZ-1 — and two
  * documents would carry the same number. One settings row, `{"CZ-": 236}`.
+ *
+ * ⚠️ A FLOOR MAY BE WRITTEN AS A STRING TO FIX THE WIDTH TOO — `{"CZ-CN/": "01"}`
+ * means "carry on from 1, and pad to two digits". `nextInSeries` normally takes
+ * the width from the numbers already used, and a series with nothing in COS yet
+ * has none: the first credit note raised came out `CZ-CN/1` against the paper
+ * one's `CZ-CN/01`.
  */
-export async function seriesFloor(): Promise<Record<string, number>> {
+export async function seriesFloor(): Promise<Record<string, number | string>> {
   const { data } = await sb.from("settings").select("value").eq("key", "cocozuri.seriesFloor").maybeSingle();
   try {
     const parsed = JSON.parse((data?.value as string | null) ?? "{}");
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, number>) : {};
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, number | string>) : {};
   } catch {
     return {};
   }
 }
 
-export async function setSeriesFloor(series: string, from: number): Promise<{ ok: boolean }> {
+export async function setSeriesFloor(series: string, from: number | string): Promise<{ ok: boolean }> {
   const current = await seriesFloor();
-  const next = { ...current, [series]: Math.max(0, Math.floor(from)) };
+  // A string is kept as typed, because its length is the padding.
+  const value = typeof from === "string" && /^\d+$/.test(from.trim())
+    ? from.trim()
+    : Math.max(0, Math.floor(Number(from) || 0));
+  const next = { ...current, [series]: value };
   const { error } = await sb
     .from("settings")
     .upsert({ key: "cocozuri.seriesFloor", value: JSON.stringify(next) }, { onConflict: "key" });
@@ -115,12 +128,17 @@ function toProduct(r: Record<string, unknown>): CzProduct {
 export async function listProducts(opts?: { archived?: boolean }): Promise<CzProduct[]> {
   const company = await cocozuriCompany();
   if (!company) return [];
-  const { data } = await sb
+  const { data, error } = await sb
     .from("cz_products")
     .select(PRODUCT_COLS)
     .eq("company_id", company.id)
     .eq("archived", opts?.archived ?? false)
     .order("name");
+  // ⚠️ SAID OUT LOUD. A swallowed error here reads on screen as "there are no
+  // products" — a far worse claim than "something went wrong", and exactly how
+  // the ambiguous embed on `listReceipts` stayed hidden until a payment saved
+  // and the list did not move.
+  if (error) console.error("[cocozuri] listProducts failed:", error.message);
   return (data ?? []).map(toProduct);
 }
 
@@ -221,12 +239,13 @@ function toCustomer(r: Record<string, unknown>, branches: { id: number; name: st
 export async function listCustomers(opts?: { archived?: boolean }): Promise<CzCustomer[]> {
   const company = await cocozuriCompany();
   if (!company) return [];
-  const { data } = await sb
+  const { data, error } = await sb
     .from("cz_customers")
     .select(CUSTOMER_COLS)
     .eq("company_id", company.id)
     .eq("archived", opts?.archived ?? false)
     .order("name");
+  if (error) console.error("[cocozuri] listCustomers failed:", error.message);
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
@@ -344,7 +363,8 @@ export async function listPrices(opts?: { productId?: number; customerId?: numbe
   if (opts?.customerId !== undefined) {
     q = opts.customerId == null ? q.is("customer_id", null) : q.eq("customer_id", opts.customerId);
   }
-  const { data } = await q.order("effective_from", { ascending: false });
+  const { data, error } = await q.order("effective_from", { ascending: false });
+  if (error) console.error("[cocozuri] listPrices failed:", error.message);
   return (data ?? []).map((r) => ({
     id: r.id as number,
     productId: r.product_id as number,
@@ -455,7 +475,9 @@ export async function mergeProducts(keepId: number, mergeIds: number[]): Promise
     .from("cz_products")
     .update({
       archived: true,
-      notes: `Merged into "${keeper.name}" on ${new Date().toISOString().slice(0, 10)}`,
+      // ⚠️ The DAR day, not the UTC one — before 3am they differ, and a note
+      // dated yesterday is a small lie in a permanent record.
+      notes: `Merged into "${keeper.name}" on ${todayInDar()}`,
       updated_at: NOW(),
     })
     .in("id", losers);
@@ -470,7 +492,7 @@ export async function mergeProducts(keepId: number, mergeIds: number[]): Promise
    column list at TYPE level to work out the row shape; split it across a `+` and
    it can no longer see it, every row degrades to an error type, and the whole
    file stops compiling for a reason that looks nothing like the cause. */
-const INVOICE_COLS = "id,customer_id,branch_id,cz_branches(name),doc_type,number,series,issue_date,terms_days,currency,vat_rate,tax_inclusive,customer_name,customer_tin,customer_vat_no,customer_po_box,customer_city,reference,status,notes";
+const INVOICE_COLS = "id,customer_id,branch_id,cz_branches(name),doc_type,applies_to_invoice_id,number,series,issue_date,terms_days,currency,vat_rate,tax_inclusive,customer_name,customer_tin,customer_vat_no,customer_po_box,customer_city,reference,status,notes";
 
 function toInvoice(r: Record<string, unknown>, lines: CzInvoiceLine[]): CzInvoice {
   return {
@@ -485,6 +507,7 @@ function toInvoice(r: Record<string, unknown>, lines: CzInvoiceLine[]): CzInvoic
       return one?.name ?? null;
     })(),
     docType: ((r.doc_type as string) ?? "invoice") as CzInvoice["docType"],
+    appliesToInvoiceId: (r.applies_to_invoice_id as number | null) ?? null,
     number: (r.number as string) ?? "",
     series: (r.series as string | null) ?? null,
     issueDate: r.issue_date as string,
@@ -525,7 +548,8 @@ export async function listInvoices(opts?: { status?: string; customerId?: number
   let q = sb.from("cz_invoices").select(INVOICE_COLS).eq("company_id", company.id);
   if (opts?.status) q = q.eq("status", opts.status);
   if (opts?.customerId) q = q.eq("customer_id", opts.customerId);
-  const { data } = await q.order("issue_date", { ascending: false }).order("id", { ascending: false });
+  const { data, error } = await q.order("issue_date", { ascending: false }).order("id", { ascending: false });
+  if (error) console.error("[cocozuri] listInvoices failed:", error.message);
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
@@ -578,6 +602,8 @@ export async function createInvoice(input: {
   customerId: number;
   branchId?: number | null;
   docType?: "invoice" | "credit_note";
+  /** Which invoice a credit note answers. Ignored on an invoice. */
+  appliesToInvoiceId?: number | null;
   issueDate?: string;
   reference?: string | null;
   notes?: string | null;
@@ -625,6 +651,9 @@ export async function createInvoice(input: {
         customer_id: customer.id,
         branch_id: input.branchId ?? null,
         doc_type: docType,
+        // ⚠️ Only a credit note answers an invoice. Set on an invoice it would
+        // be a quiet nonsense nobody would ever look at.
+        applies_to_invoice_id: docType === "credit_note" ? (input.appliesToInvoiceId ?? null) : null,
         number,
         series,
         issue_date: input.issueDate ?? NOW(),
@@ -703,4 +732,307 @@ export async function cancelInvoice(id: number): Promise<{ ok: boolean; error?: 
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Only a draft can be cancelled — issue a credit note instead." };
   return { ok: true };
+}
+
+/* ================================================================== *
+ * CocoZuri — Phase 3: the money that comes back in.
+ *
+ * ⚠️ EVERY FIGURE ON THESE SCREENS IS DERIVED. Nothing here stores a balance, an
+ * age or a band; the invoices, the credit notes and the receipts are the facts
+ * and the arithmetic lives in `cocozuri-shared.ts`, where it is tested. That is
+ * the ledger's rule, and it is the difference between this and the workbook's
+ * DEBTOR MASTER — a hand-typed month-end snapshot that was wrong the moment a
+ * payment arrived.
+ * ================================================================== */
+
+/**
+ * ⚠️ `companies!received_into_company_id(name)` — NAMED, not a bare
+ * `companies(name)`.
+ *
+ * `cz_receipts` has TWO foreign keys to `companies`: the company that raised the
+ * invoice, and the one whose account actually took the money. PostgREST cannot
+ * guess which an embed means, so it refuses the WHOLE query — and because a
+ * failed select comes back as `data: null`, the page showed "no payments yet"
+ * over rows that were sitting in the table. Found by recording a payment and
+ * watching it not appear; there is nothing in the code to see.
+ *
+ * ⚠️ ONE STRING LITERAL. Split across a `+` and the Supabase client can no
+ * longer read it at type level, every row degrades to an error type, and the
+ * file stops compiling for a reason that looks unrelated (Phase 2's second bug).
+ */
+const RECEIPT_COLS =
+  "id,customer_id,invoice_id,cz_invoices(number),received_on,amount,currency,method,reference,received_into_company_id,companies!received_into_company_id(name),notes";
+
+function toReceipt(r: Record<string, unknown>): CzReceipt {
+  // PostgREST returns an embedded row as an object or a one-item array
+  // depending on the relationship it infers — both shapes turn up.
+  const one = <T,>(v: T | T[] | null | undefined): T | null =>
+    (Array.isArray(v) ? v[0] : v) ?? null;
+  return {
+    id: r.id as number,
+    customerId: r.customer_id as number,
+    invoiceId: r.invoice_id as number,
+    invoiceNumber: one((r as { cz_invoices?: { number?: string } | { number?: string }[] }).cz_invoices)?.number ?? null,
+    receivedOn: r.received_on as string,
+    amount: Number(r.amount ?? 0),
+    currency: (r.currency as string) ?? "TZS",
+    method: (r.method as string | null) ?? null,
+    reference: (r.reference as string | null) ?? null,
+    receivedIntoCompanyId: (r.received_into_company_id as number | null) ?? null,
+    receivedIntoName: one((r as { companies?: { name?: string } | { name?: string }[] }).companies)?.name ?? null,
+    notes: (r.notes as string | null) ?? null,
+  };
+}
+
+export async function listReceipts(opts?: { customerId?: number; invoiceId?: number }): Promise<CzReceipt[]> {
+  const company = await cocozuriCompany();
+  if (!company) return [];
+  let q = sb.from("cz_receipts").select(RECEIPT_COLS).eq("company_id", company.id);
+  if (opts?.customerId) q = q.eq("customer_id", opts.customerId);
+  if (opts?.invoiceId) q = q.eq("invoice_id", opts.invoiceId);
+  const { data, error } = await q.order("received_on", { ascending: false }).order("id", { ascending: false });
+  // ⚠️ SAID OUT LOUD. A swallowed error here reads on screen as "no payments
+  // have ever been received", which is a far worse claim than "something went
+  // wrong" — and it is exactly what the ambiguous embed above produced.
+  if (error) console.error("[cocozuri] listReceipts failed:", error.message);
+  return (data ?? []).map(toReceipt);
+}
+
+export type ReceiptInput = {
+  invoiceId: number;
+  amount: number;
+  receivedOn?: string;
+  method?: string | null;
+  reference?: string | null;
+  /** ⚠️ Which company actually took the money — see the column comment. */
+  receivedIntoCompanyId?: number | null;
+  notes?: string | null;
+};
+
+/**
+ * Record a payment.
+ *
+ * ⚠️ THE CUSTOMER IS TAKEN FROM THE INVOICE, never from the form. A receipt
+ * belonging to one customer against another's invoice is not a thing that should
+ * be possible to type, and reading it off the invoice makes it impossible rather
+ * than merely discouraged.
+ *
+ * ⚠️ MONEY CANNOT BE RECORDED AGAINST A DRAFT. A draft has not been sent to
+ * anybody; a payment against one means either the wrong document was picked or
+ * the invoice was never issued, and both are worth stopping.
+ *
+ * It does NOT refuse an overpayment. Customers do overpay, and a system that
+ * will not let you write down what actually happened gets worked around.
+ */
+export async function createReceipt(input: ReceiptInput, by = "web-ui"): Promise<{ ok: boolean; id?: number; error?: string }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
+
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount === 0) {
+    return { ok: false, error: "A payment needs an amount." };
+  }
+
+  const { data: invoice } = await sb
+    .from("cz_invoices").select("id,customer_id,doc_type,status,number,currency")
+    .eq("id", input.invoiceId).eq("company_id", company.id).maybeSingle();
+  if (!invoice) return { ok: false, error: "That invoice does not exist." };
+  if (invoice.status !== "issued") {
+    return { ok: false, error: `${invoice.number} has not been issued — a draft cannot be paid.` };
+  }
+  if (invoice.doc_type === "credit_note") {
+    return { ok: false, error: "A credit note is not paid — it reduces what is owed on an invoice." };
+  }
+
+  const { data, error } = await sb
+    .from("cz_receipts")
+    .insert({
+      company_id: company.id,
+      customer_id: invoice.customer_id as number,
+      invoice_id: invoice.id as number,
+      received_on: input.receivedOn ?? NOW(),
+      amount,
+      currency: (invoice.currency as string) ?? "TZS",
+      method: input.method?.trim() || null,
+      reference: input.reference?.trim() || null,
+      received_into_company_id: input.receivedIntoCompanyId ?? null,
+      notes: input.notes?.trim() || null,
+      created_by: by,
+      updated_at: NOW(),
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, id: data?.id as number | undefined };
+}
+
+/**
+ * One payment settling several invoices at once.
+ *
+ * ⚠️ THIS IS THE REASON A RECEIPT DOES NOT NEED TO SIT "ON ACCOUNT". A cheque
+ * covering five invoices becomes five rows sharing one reference and one date —
+ * so every shilling stays attached to the paperwork it settles, and nobody has
+ * to come back later and remember what a lump sum was for.
+ *
+ * ⚠️ ALL OR NOTHING. If one line is refused, the ones already written are taken
+ * back out. Half a cheque recorded is worse than none: the balance would look
+ * settled on some invoices and nobody would know the rest was missing.
+ */
+export async function createReceipts(
+  rows: ReceiptInput[],
+  by = "web-ui",
+): Promise<{ ok: boolean; ids: number[]; error?: string }> {
+  const ids: number[] = [];
+  for (const row of rows) {
+    const res = await createReceipt(row, by);
+    if (!res.ok) {
+      for (const id of ids) await sb.from("cz_receipts").delete().eq("id", id);
+      return { ok: false, ids: [], error: res.error };
+    }
+    if (res.id) ids.push(res.id);
+  }
+  if (ids.length === 0) return { ok: false, ids: [], error: "Nothing to record." };
+  return { ok: true, ids };
+}
+
+export async function updateReceipt(id: number, input: Partial<ReceiptInput>): Promise<{ ok: boolean; error?: string }> {
+  const patch: Record<string, unknown> = { updated_at: NOW() };
+  if (input.amount !== undefined) {
+    const a = Number(input.amount);
+    if (!Number.isFinite(a) || a === 0) return { ok: false, error: "A payment needs an amount." };
+    patch.amount = a;
+  }
+  if (input.receivedOn !== undefined) patch.received_on = input.receivedOn;
+  if (input.method !== undefined) patch.method = input.method?.trim() || null;
+  if (input.reference !== undefined) patch.reference = input.reference?.trim() || null;
+  if (input.receivedIntoCompanyId !== undefined) patch.received_into_company_id = input.receivedIntoCompanyId ?? null;
+  if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
+  const { error } = await sb.from("cz_receipts").update(patch).eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Take a payment back off.
+ *
+ * A receipt that never reached the books is a note somebody typed, and a
+ * mistyped figure has no history worth keeping — so it is simply removed, which
+ * is what the owner asked for across the rest of COS.
+ *
+ * ⚠️ ONCE IT IS IN THE BOOKS THAT STOPS BEING TRUE, AND THIS REFUSES.
+ *
+ * This is the change the Phase 3 note promised. A posted payment cannot be
+ * deleted, because deleting the row would leave `gl_entries` holding a debit
+ * and a credit for a payment that no longer exists anywhere else — the ledger's
+ * second rule read backwards. Take it out of the books first (that writes a
+ * reversal; both sides stay on the record for ever) and then it can go.
+ */
+export async function deleteReceipt(id: number): Promise<{ ok: boolean; error?: string }> {
+  // Imported here rather than at the top: `cocozuri-ledger` imports this file,
+  // and a static cycle between the two would be resolved by whichever side
+  // loaded first — which is not a thing to leave to chance.
+  const { receiptIsPosted } = await import("@/lib/cocozuri-ledger");
+  if (await receiptIsPosted(id)) {
+    return {
+      ok: false,
+      error: "That payment is in the books. Take it out of the ledger first — that writes a reversal, which stays on the record — and then it can be removed.",
+    };
+  }
+  const { error } = await sb.from("cz_receipts").delete().eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Point a credit note at the invoice it answers — or unpoint it.
+ *
+ * ⚠️ ONLY A CREDIT NOTE, and only at an invoice of the SAME CUSTOMER. Crediting
+ * one customer's account with another's return is the kind of mistake that is
+ * found months later by the customer, not by us.
+ */
+export async function applyCreditNote(
+  creditNoteId: number,
+  invoiceId: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: note } = await sb
+    .from("cz_invoices").select("id,doc_type,customer_id").eq("id", creditNoteId).maybeSingle();
+  if (!note) return { ok: false, error: "That credit note does not exist." };
+  if (note.doc_type !== "credit_note") return { ok: false, error: "Only a credit note can be applied to an invoice." };
+
+  if (invoiceId != null) {
+    const { data: target } = await sb
+      .from("cz_invoices").select("id,doc_type,customer_id,status").eq("id", invoiceId).maybeSingle();
+    if (!target) return { ok: false, error: "That invoice does not exist." };
+    if (target.doc_type !== "invoice") return { ok: false, error: "A credit note answers an invoice, not another credit note." };
+    if (target.customer_id !== note.customer_id) {
+      return { ok: false, error: "That invoice belongs to a different customer." };
+    }
+  }
+
+  const { error } = await sb
+    .from("cz_invoices").update({ applies_to_invoice_id: invoiceId, updated_at: NOW() })
+    .eq("id", creditNoteId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/* --------------------- the derived views ---------------------- */
+
+/**
+ * Everything the "what is owed" page needs, in three queries.
+ *
+ * The arithmetic itself lives in `cocozuri-shared.ts` and is tested there — this
+ * only fetches. ⚠️ Note it asks for ALL invoices, not just the unpaid ones:
+ * there is no "unpaid" flag to filter on, because what is owed is worked out
+ * from the receipts, and a flag would be a stored balance by another name.
+ */
+export async function owedBook(): Promise<{
+  invoices: CzInvoice[];
+  receipts: CzReceipt[];
+  accounts: CzCustomerAccount[];
+  outstanding: CzOutstanding[];
+}> {
+  const [invoices, receipts] = await Promise.all([listInvoices(), listReceipts()]);
+  const asOf = new Date();
+  return {
+    invoices,
+    receipts,
+    accounts: customerAccounts(invoices, receipts, asOf),
+    outstanding: outstandingOf(invoices, receipts, asOf),
+  };
+}
+
+/** One customer's statement of account — the customer tabs of the master
+ *  workbook, as a page that can be sent. */
+export async function statementFor(
+  customerId: number,
+  opts?: { from?: string; to?: string },
+): Promise<{
+  customer: CzCustomer | null;
+  opening: number;
+  rows: CzStatementRow[];
+  closing: number;
+  outstanding: CzOutstanding[];
+  bands: Record<CzAgeingKey, number>;
+} | null> {
+  const [customer, invoices, receipts] = await Promise.all([
+    getCustomer(customerId),
+    listInvoices({ customerId }),
+    listReceipts({ customerId }),
+  ]);
+  if (!customer) return null;
+  const asOf = new Date();
+  const { opening, rows, closing } = statementRows(invoices, receipts, opts);
+  const outstanding = outstandingOf(invoices, receipts, asOf);
+  return {
+    customer,
+    opening, rows, closing,
+    outstanding,
+    bands: ageingSummary(outstanding.map((o) => ({ days: o.days, amount: o.balance }))),
+  };
+}
+
+/** The other companies, so a payment can say which one actually took the money.
+ *  ⚠️ Read from the table, never hard-coded — CLAUDE.md's first rule. */
+export async function companyChoices(): Promise<{ id: number; name: string }[]> {
+  const { data } = await sb.from("companies").select("id,name").order("name");
+  return (data ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 }

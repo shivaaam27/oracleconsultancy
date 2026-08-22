@@ -40,6 +40,7 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
      invoices in Phase 2. */
   cz_product:    { uiLabel: "CocoZuri products", searchOrder: -1 },
   cz_customer:   { uiLabel: "CocoZuri customers", searchOrder: -1 },
+  cz_receipt:    { uiLabel: "CocoZuri payments", searchOrder: -1 },
   rec_candidate: { uiLabel: "Candidates",          searchOrder: -1 },
   rec_job_order: { uiLabel: "Job orders",          searchOrder: -1 },
   // The PES trading module. Each is a reference-number lookup: a PO, a BL, an

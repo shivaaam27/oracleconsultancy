@@ -231,7 +231,10 @@ export function CocozuriInvoiceSheet({
           <Row label={`Before VAT`} value={money(totals.net)} />
           <Row label={`VAT at ${vatRate}%`} value={money(totals.vat)} />
           <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-[14px] font-semibold text-fg">
-            <span>Total{totals.pieces ? ` · ${totals.pieces} pcs` : ""}</span>
+            {/* ⚠️ Counted off the lines that actually have something on them.
+                The blank starter line carries qty 1, so an untouched form used
+                to announce "Total · 1 pcs" over a total of nothing. */}
+            <span>Total{lines.some((l) => l.description.trim()) && totals.pieces ? ` · ${totals.pieces} pcs` : ""}</span>
             <span className="tabular">{money(totals.gross, customer?.currency ?? "TZS")}</span>
           </div>
         </div>

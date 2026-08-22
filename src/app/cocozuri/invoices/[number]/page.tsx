@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getInvoiceByNumber } from "@/lib/cocozuri";
+import { getInvoiceByNumber, listInvoices, listReceipts } from "@/lib/cocozuri";
+import { cocozuriCompany } from "@/lib/cocozuri";
+import { invoiceBooksState, resolveAccounts } from "@/lib/cocozuri-ledger";
 import { CocozuriInvoiceActions } from "@/components/cocozuri-invoice-actions";
-import { amountInWords, invoiceDueDate, invoiceTotals, lineAmount, money, packLabel } from "@/lib/cocozuri-shared";
+import { CocozuriCreditApply } from "@/components/cocozuri-credit-apply";
+import { CocozuriBooksStrip } from "@/components/cocozuri-books-strip";
+import { amountInWords, invoiceBalance, invoiceDueDate, invoiceTotals, lineAmount, money, packLabel } from "@/lib/cocozuri-shared";
 
 export const dynamic = "force-dynamic";
+
+/** ⚠️ Every other CocoZuri page names itself; this one fell back to the app's
+ *  default, so an invoice open in a tab read "Oracle Consultancy Limited —
+ *  Operations". The number is the one thing you look for across a row of tabs. */
+export async function generateMetadata({ params }: { params: Promise<{ number: string }> }) {
+  const { number } = await params;
+  return { title: `${decodeURIComponent(number)} — CocoZuri` };
+}
 
 /**
  * One invoice, as it prints.
@@ -32,6 +44,23 @@ export default async function CocozuriInvoicePage({
   const due = invoiceDueDate(invoice.issueDate, invoice.termsDays);
   const isCredit = invoice.docType === "credit_note";
 
+  // What is still owed on it — worked out from the receipts and any credit note
+  // pointed at it, never stored. Only meaningful once it has been issued.
+  const [siblings, receipts] = await Promise.all([
+    listInvoices({ customerId: invoice.customerId }),
+    listReceipts({ customerId: invoice.customerId }),
+  ]);
+  const bal = invoiceBalance(invoice, receipts, siblings.filter((i) => i.docType === "credit_note"));
+  const settled = invoice.status === "issued" && !isCredit;
+
+  // ⚠️ Only an ISSUED document can be in the books, so a draft is not asked
+  // about — the strip would have nothing to say and a Post button on a draft
+  // invites exactly the mistake the rule exists to prevent.
+  const company = await cocozuriCompany();
+  const [booksState, accounts] = invoice.status === "issued" && company
+    ? await Promise.all([invoiceBooksState(invoice), resolveAccounts(company.id)])
+    : [null, null];
+
   return (
     <div className="mx-auto w-full max-w-[58rem] space-y-3">
       {/* Everything in here is chrome, and none of it prints. */}
@@ -43,6 +72,45 @@ export default async function CocozuriInvoicePage({
         <span className="grow" />
         <CocozuriInvoiceActions id={invoice.id} status={invoice.status} number={invoice.number} />
       </div>
+
+      {/* Is it in the books, and if not, why not. */}
+      {booksState && accounts && (
+        <CocozuriBooksStrip
+          invoiceId={invoice.id}
+          number={invoice.number}
+          state={booksState}
+          ready={accounts.ok}
+          reason={accounts.ok ? null : accounts.error}
+        />
+      )}
+
+      {/* ⚠️ Which invoice a credit note answers. Without it a credit note can
+          only reduce the customer's account as a whole, and "what is still owed
+          on CZ-180" has no answer — see `CocozuriCreditApply`. */}
+      {isCredit && (
+        <CocozuriCreditApply
+          creditNoteId={invoice.id}
+          appliesTo={invoice.appliesToInvoiceId}
+          invoices={siblings.filter((i) => i.docType === "invoice" && i.status === "issued").map((i) => ({ id: i.id, number: i.number }))}
+        />
+      )}
+
+      {/* What is left on it. Derived from the receipts every time it is asked. */}
+      {settled && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[12.5px] print:hidden">
+          <span className="text-fg-muted">Invoiced <span className="tabular text-fg">{money(bal.gross, invoice.currency)}</span></span>
+          {bal.credited > 0 && <span className="text-fg-muted">Credited <span className="tabular text-fg">{money(bal.credited, invoice.currency)}</span></span>}
+          <span className="text-fg-muted">Received <span className="tabular text-fg">{money(bal.paid, invoice.currency)}</span></span>
+          <span className="grow" />
+          <span className={Math.round(bal.balance) === 0 ? "text-success" : Math.round(bal.balance) < 0 ? "text-accent" : "font-medium text-fg"}>
+            {Math.round(bal.balance) === 0
+              ? "Settled in full"
+              : Math.round(bal.balance) < 0
+                ? `Overpaid by ${money(-bal.balance, invoice.currency)}`
+                : `Still owed ${money(bal.balance, invoice.currency)}`}
+          </span>
+        </div>
+      )}
 
       {invoice.status === "draft" && (
         <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2 text-[12.5px] text-warn print:hidden">

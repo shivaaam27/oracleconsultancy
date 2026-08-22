@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Plus, Loader2, Archive, ArchiveRestore, Merge, AlertTriangle } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
@@ -33,17 +33,33 @@ export function CocozuriProducts({
   listPrices,
   archivedCount,
   showArchived,
+  openNew,
 }: {
   products: CzProduct[];
   /** productId → the standard list price in force, already worked out server-side. */
   listPrices: Record<number, number>;
   archivedCount: number;
   showArchived: boolean;
+  openNew?: boolean;
 }) {
   const { toast } = useToast();
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string | null>(null);
-  const [editing, setEditing] = useState<CzProduct | "new" | null>(null);
+  const [editing, setEditing] = useState<CzProduct | "new" | null>(openNew ? "new" : null);
+  /**
+   * ⚠️ `?new=1` OPENS THE FORM, AND THEN LEAVES THE ADDRESS.
+   *
+   * `ENTITY_VIEWS.cz_product.create.href` points here with the flag, and until now
+   * the page ignored it: the global New menu and the empty-state link both
+   * landed on the list with nothing open. It also has to be consumed —
+   * `revalidatePath("/cocozuri/products")` does not invalidate the cached entry for
+   * `/cocozuri/products?new=1`, they are different keys, so a save on the deep link
+   * would not move the list. Same fix as `/notes` and Money in.
+   */
+  useEffect(() => {
+    if (openNew) window.history.replaceState(null, "", "/cocozuri/products");
+  }, [openNew]);
+
   const [merging, setMerging] = useState<Row[] | null>(null);
 
   const categories = useMemo(() => {

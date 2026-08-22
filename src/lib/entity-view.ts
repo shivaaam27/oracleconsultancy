@@ -47,6 +47,16 @@ export type ListColumnDef = {
   hideBelow?: "sm" | "md" | "lg";
   /** Sortable columns get a header link; the page supplies the URL. */
   sortable?: boolean;
+  /**
+   * Off by default, but still offered in the Columns chooser.
+   *
+   * ⚠️ For a column that is worth HAVING but not worth the width. Six columns
+   * do not fit the 547px card the content area has at 1024px once the desk
+   * sidebar takes its 208px, and the column that loses is always the flexible
+   * one — the record's own name. This is how a list stays narrow without
+   * pretending the column does not exist.
+   */
+  defaultHidden?: boolean;
 };
 
 export type FormFieldDef = {
@@ -222,13 +232,21 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md.
      Two columns carry the work: what it is, and what it costs. Everything else
      hides on a narrow screen. */
+  /* ⚠️ THESE WIDTHS ADD UP TO FIT A 547px CARD — the width the content area has
+     at 1024px once the desk sidebar takes its 208px. They used to total 480px
+     against a `minmax(0,1fr)` name, which resolved the PRODUCT column to ZERO:
+     127 chocolates listed with no chocolate names on them. `hideBelow` cannot
+     fix that (it folds columns away on SMALL screens, and this breaks on the
+     first LARGE one), so the answer is a smaller budget. Brand is the column
+     that went: the whole catalogue holds two of them, COCOZURI and COCOFIX, so
+     it tells you least — and Columns puts it back. */
   cz_product: {
     listColumns: [
       { key: "name", label: "Product", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "category", label: "Category", width: "170px", format: "muted", hideBelow: "md", sortable: true },
-      { key: "brand", label: "Brand", width: "110px", format: "muted", hideBelow: "lg", sortable: true },
-      { key: "packLabel", label: "Pack", width: "90px", format: "muted", hideBelow: "lg" },
-      { key: "listPrice", label: "List price", width: "110px", format: "muted", sortable: true },
+      { key: "category", label: "Category", width: "130px", format: "muted", hideBelow: "md", sortable: true },
+      { key: "brand", label: "Brand", width: "90px", format: "muted", hideBelow: "lg", sortable: true, defaultHidden: true },
+      { key: "packLabel", label: "Pack", width: "80px", format: "muted", hideBelow: "md" },
+      { key: "listPrice", label: "List price", width: "100px", format: "muted", align: "right", sortable: true },
     ],
     defaultSort: { key: "name", dir: "asc" },
     create: { label: "Product", href: "/cocozuri/products?new=1" },
@@ -237,13 +255,34 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   cz_customer: {
     listColumns: [
       { key: "name", label: "Customer", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "branchLabel", label: "Branches", width: "180px", format: "muted", hideBelow: "lg" },
-      { key: "tin", label: "TIN", width: "130px", format: "muted", hideBelow: "lg" },
-      { key: "vatLabel", label: "VAT", width: "80px", format: "muted", sortable: true },
-      { key: "termsLabel", label: "Terms", width: "90px", format: "muted", hideBelow: "md" },
+      { key: "branchLabel", label: "Branches", width: "150px", format: "muted", hideBelow: "lg" },
+      { key: "tin", label: "TIN", width: "110px", format: "muted", hideBelow: "lg", defaultHidden: true },
+      { key: "vatLabel", label: "VAT", width: "70px", format: "muted", align: "right", sortable: true },
+      { key: "termsLabel", label: "Terms", width: "80px", format: "muted", align: "right", hideBelow: "md" },
     ],
     defaultSort: { key: "name", dir: "asc" },
     create: { label: "Customer", href: "/cocozuri/customers?new=1" },
+  },
+
+  /* Phase 3 — the money coming back in. The reference is the thing somebody
+     looks for when a customer says "we paid you last Tuesday". */
+  /* ⚠️ Six columns is one too many for the card at 1024px, so How and Reference
+     start folded and Columns puts them back. Received · Customer · Against ·
+     Amount is what somebody actually scans down. */
+  cz_receipt: {
+    listColumns: [
+      { key: "receivedLabel", label: "Received", width: "100px", format: "muted", sortable: true },
+      { key: "customerName", label: "Customer", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "invoiceNumber", label: "Against", width: "110px", format: "muted", sortable: true },
+      { key: "method", label: "How", width: "110px", format: "muted", hideBelow: "md", defaultHidden: true },
+      /* Kept on: it is the thing somebody looks up when a customer says "we
+         paid you last Tuesday". It folds away on a phone and, on a tight
+         desktop, truncates rather than pushing the customer out. */
+      { key: "reference", label: "Reference", width: "130px", format: "muted", hideBelow: "lg" },
+      { key: "amountLabel", label: "Amount", width: "110px", format: "muted", align: "right", sortable: true },
+    ],
+    defaultSort: { key: "receivedLabel", dir: "desc" },
+    create: { label: "Payment", href: "/cocozuri/receipts?new=1" },
   },
 
   asset: {

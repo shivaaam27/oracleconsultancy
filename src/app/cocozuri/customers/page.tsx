@@ -8,7 +8,7 @@ export const metadata = { title: "Customers — CocoZuri" };
 export default async function CocozuriCustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>;
+  searchParams: Promise<{ archived?: string; new?: string }>;
 }) {
   const sp = await searchParams;
   const showArchived = sp.archived === "1";
@@ -39,6 +39,7 @@ export default async function CocozuriCustomersPage({
         sub={`${customers.length} customer${customers.length === 1 ? "" : "s"} · ${company.name}`}
       />
       <CocozuriCustomers
+        openNew={sp.new === "1"}
         customers={customers}
         archivedCount={archived.length}
         showArchived={showArchived}

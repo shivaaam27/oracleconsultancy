@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, date, jsonb, primaryKey, uniqueIndex, index, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -3872,6 +3872,19 @@ export const czInvoices = pgTable("cz_invoices", {
   branchId: integer("branch_id").references(() => czBranches.id, { onDelete: "set null" }),
   /** 'invoice' | 'credit_note' */
   docType: text("doc_type").notNull().default("invoice"),
+  /**
+   * Which invoice a CREDIT NOTE answers. Null on an invoice, and null on a
+   * credit note that is a credit on the account rather than against one document.
+   *
+   * ⚠️ This is what makes a per-invoice balance possible. The master workbook
+   * already allocates the credit — its RETURN NOTES column sits beside the
+   * invoice row and `BALANCE = AMOUNT − RETURNS − PAID`. Without the same
+   * allocation here, "what is still owed on CZ-180" cannot be answered.
+   *
+   * SET NULL, not cascade: taking an invoice away must never quietly take the
+   * credit note that answered it as well.
+   */
+  appliesToInvoiceId: integer("applies_to_invoice_id").references((): AnyPgColumn => czInvoices.id, { onDelete: "set null" }),
   /** CZ-142, CZ/AP/43, CZ-CN/01 — allocated by the system against a unique index. */
   number: text("number").notNull(),
   series: text("series"),
@@ -3932,4 +3945,185 @@ export const czInvoiceLines = pgTable("cz_invoice_lines", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("cz_invoice_lines_invoice_idx").on(t.invoiceId, t.lineNo),
+]);
+
+/* ================================================================== *
+ * CocoZuri — Phase 3: the money that comes back in.
+ *
+ * ⚠️ ONE ROW PER PAYMENT PER INVOICE. A part payment is a row and so is the
+ * balance — the same shape the PES module uses for money out, where a 40%
+ * advance and the balance are two rows. A cheque covering five invoices is five
+ * rows sharing one reference, which keeps every shilling attached to the
+ * paperwork it settles instead of sitting on account waiting to be allocated.
+ *
+ * ⚠️ NO BALANCE COLUMN, HERE OR ON THE INVOICE. What is owed is the invoice less
+ * its credit notes less its receipts, worked out on read. Same rule as the
+ * general ledger, and the reason the workbook's hand-typed DEBTOR MASTER — a
+ * snapshot that went stale the moment a payment arrived — has no equivalent here.
+ * ================================================================== */
+
+export const czReceipts = pgTable("cz_receipts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  customerId: integer("customer_id").notNull().references(() => czCustomers.id, { onDelete: "restrict" }),
+  /** RESTRICT: an invoice with money against it cannot be quietly removed. */
+  invoiceId: integer("invoice_id").notNull().references(() => czInvoices.id, { onDelete: "restrict" }),
+  receivedOn: timestamp("received_on", { withTimezone: true }).notNull().defaultNow(),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("TZS"),
+  /** Cash, cheque, bank transfer, mobile — free text, because the workbook's
+   *  REMARKS column has said all four and several things besides. */
+  method: text("method"),
+  /** Cheque number, transfer reference — whatever proves it. */
+  reference: text("reference"),
+  /**
+   * ⚠️ THE "RECEIVED IN DSC" FACT, RECORDED RATHER THAN DECIDED.
+   *
+   * The master ledger's REMARKS keep saying "Cheque received in DSC", "Bank
+   * Transfer to DSC", "Cash Received with Jitesh In DSC" — Cocozuri raises the
+   * invoice but the money lands in DSC Ltd, a different company. Nobody has
+   * ruled on whether that is deliberate or what COS should do about it (plan
+   * §4.4), so this column records WHICH company took the money and claims
+   * nothing about what it means. When the question is answered, the answer will
+   * have data to work from instead of a text box full of remarks.
+   */
+  receivedIntoCompanyId: integer("received_into_company_id").references(() => companies.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_receipts_list_idx").on(t.companyId, t.receivedOn),
+  index("cz_receipts_invoice_idx").on(t.invoiceId),
+  index("cz_receipts_customer_idx").on(t.customerId, t.receivedOn),
+]);
+
+/* ================================================================== *
+ * CocoZuri — Phase 4: the daily stock book.
+ *
+ * ⚠️ NO CLOSING BALANCE COLUMN, NO MONTH TOTAL, NO VARIANCE. The opening count
+ * and each day's movements are the facts; everything else is worked out on read
+ * in `cocozuri-stock-shared.ts`, where it is tested. The workbook stores all
+ * three and gets all three wrong — its month totals are hand-typed `A+B+C+…`
+ * chains that miss days (the shop's IN adds 29 day-columns, OUT 30, RETURN 26).
+ * ================================================================== */
+
+/**
+ * Somewhere stock is counted. Three of them today: the shop, the kitchen and
+ * raw materials.
+ *
+ * ⚠️ `third_label` IS WHY THIS IS A TABLE. Each of the workbook's three stock
+ * sheets heads its third movement column differently — the shop **RETURN**, the
+ * kitchen **DA/SA/ TA**, raw materials **DAMAGE**. Nobody has said what DA/SA/TA
+ * stands for (plan §4.3), so it is recorded under its own name rather than
+ * translated into a guess, and a fourth location with a fourth word needs no
+ * code change.
+ */
+export const czStockLocations = pgTable("cz_stock_locations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  thirdLabel: text("third_label").notNull().default("Return"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_stock_locations_name_idx").on(t.companyId, t.name),
+]);
+
+/**
+ * A line on a location's stock sheet.
+ *
+ * ⚠️ `product_id` IS THE FIX FOR FAULT #4 AND THE MOST VALUABLE THING IN THIS
+ * PHASE. The workbook's sales sheet looks each item up in the stock sheet BY
+ * NAME, so anything spelled differently in the two places silently scores zero:
+ * stock says 1,014 units left the shop in August and sales says 814.
+ *
+ * Nullable, because a stock item is a thing you COUNT and a product is a thing
+ * you SELL. Most are both; the raw-materials sheet is 171 rows of coffee, dates
+ * and almond powder that are neither priced nor invoiced.
+ *
+ * RESTRICT: deleting a product must never quietly empty a stock sheet.
+ */
+export const czStockItems = pgTable("cz_stock_items", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => czProducts.id, { onDelete: "restrict" }),
+  /** The wording on the sheet. Shown when nothing is linked; when a product IS
+   *  linked the product's name wins, so a rename or a merge cannot leave two
+   *  names for one thing. */
+  name: text("name").notNull(),
+  uom: text("uom").notNull().default("PCS"),
+  category: text("category"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_stock_items_list_idx").on(t.locationId, t.archived, t.sortOrder),
+  uniqueIndex("cz_stock_items_name_idx").on(t.locationId, t.name),
+]);
+
+/**
+ * One item, one day: what came in, what went out, and the third thing this
+ * location counts.
+ *
+ * ⚠️ `on_date` IS A `date`, NOT A TIMESTAMP, and it is the one column in COS
+ * that is deliberately not `timestamptz`. A stock day is a calendar day — there
+ * is no time of day on a stock sheet — and giving it one would put a movement on
+ * the wrong side of midnight for a reader in another zone.
+ */
+export const czStockDays = pgTable("cz_stock_days", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "cascade" }),
+  onDate: date("on_date").notNull(),
+  qtyIn: numeric("qty_in", { precision: 14, scale: 3 }).notNull().default("0"),
+  qtyOut: numeric("qty_out", { precision: 14, scale: 3 }).notNull().default("0"),
+  /** Whatever this location calls its third column — see `third_label`. */
+  qtyThird: numeric("qty_third", { precision: 14, scale: 3 }).notNull().default("0"),
+  note: text("note"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // ⚠️ ONE ROW PER ITEM PER DAY, enforced. Two rows for the same day would be
+  // two answers to "what moved on Tuesday" and the book would stop adding up.
+  uniqueIndex("cz_stock_days_item_day_idx").on(t.itemId, t.onDate),
+  index("cz_stock_days_day_idx").on(t.companyId, t.onDate),
+]);
+
+/**
+ * Somebody counted the shelf.
+ *
+ * ⚠️ A COUNT IS THE POSITION AT THE **END** OF ITS DATE. That settles two things
+ * at once: an opening stock is a count dated the day BEFORE the book starts, and
+ * movements on a count's own date are already inside it and are never added
+ * again. Get it wrong by one day and every figure after a stock-take is out by
+ * that day's trade, quietly.
+ *
+ * ⚠️ A COUNT BOTH REVEALS A VARIANCE AND BECOMES THE NEW TRUTH — everything
+ * after it carries forward from the counted figure, not the computed one. There
+ * is no variance column: it is `counted − what the book said that day`, worked
+ * out on read with this count taken out of the book first.
+ */
+export const czStockCounts = pgTable("cz_stock_counts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "cascade" }),
+  countedOn: date("counted_on").notNull(),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  /** ⚠️ Required by `recordCount` whenever the variance is not zero. A count
+   *  that finds eleven bars missing and says nothing is a number nobody can act
+   *  on — which is what the workbook's VARIANCE column is today. */
+  note: text("note"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_stock_counts_item_day_idx").on(t.itemId, t.countedOn),
+  index("cz_stock_counts_day_idx").on(t.companyId, t.countedOn),
 ]);

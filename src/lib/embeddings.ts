@@ -45,6 +45,9 @@ export type SourceType =
    *  entries like every other record type. */
   | "cz_product"
   | "cz_customer"
+  // Phase 3. A screen only — nothing is indexed, and a payment is not a thing
+  // anybody searches for by name.
+  | "cz_receipt"
   /** The PES trading module (Stages 2–5). Four record types, each carrying a
    *  reference number somebody quotes down the phone — a PO, a bill of lading,
    *  an RFQ, an invoice — which is exactly what a search box is for. */

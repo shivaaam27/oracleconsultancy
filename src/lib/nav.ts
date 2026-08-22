@@ -36,6 +36,11 @@ import {
   Receipt,
   Percent,
   Candy,
+  Banknote,
+  AlarmClock,
+  FileSpreadsheet,
+  Boxes,
+  ClipboardList as OrderIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -114,6 +119,15 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-products",  href: "/cocozuri/products",   label: "Products",   icon: Package },
   { id: "cz-customers", href: "/cocozuri/customers",  label: "Customers",  icon: Building2 },
   { id: "cz-invoices",  href: "/cocozuri/invoices",   label: "Invoices",   icon: Receipt },
+  /* CocoZuri Operations — Phase 3: money in, what is owed, statements. */
+  { id: "cz-receipts",   href: "/cocozuri/receipts",   label: "Money in",   icon: Banknote },
+  { id: "cz-owed",       href: "/cocozuri/owed",       label: "Owed",       icon: AlarmClock },
+  { id: "cz-statements", href: "/cocozuri/statements", label: "Statements", icon: FileSpreadsheet },
+  /* CocoZuri Operations — Phase 4: the daily stock book. */
+  { id: "cz-stock",       href: "/cocozuri/stock",       label: "Stock book", icon: Boxes },
+  { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Stock month", icon: ClipboardCheck },
+  /* Phase 5 — what to make and send, from the shelf's own history. */
+  { id: "cz-order",       href: "/cocozuri/order",       label: "Order form", icon: OrderIcon },
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -251,6 +265,8 @@ export const MODULES: NavModule[] = [
     match: ["/cocozuri"],
     groups: [
       { label: "Sell", ids: ["cz-desk", "cz-invoices"] },
+      { label: "Money", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
+      { label: "Stock", ids: ["cz-stock", "cz-stock-month", "cz-order"] },
       { label: "Catalogue", ids: ["cz-products", "cz-customers"] },
     ],
   },

@@ -256,7 +256,7 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0146** (`cz_invoices`, CocoZuri invoicing). Before it, **0145** (`cz_*`, the CocoZuri catalogue). Before it, **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0148** (`cz_stock_*`, the CocoZuri stock book). Before it, **0147** (`cz_receipts` + `cz_invoices.applies_to_invoice_id`, CocoZuri money in). Before it, **0146** (`cz_invoices`, CocoZuri invoicing). Before it, **0145** (`cz_*`, the CocoZuri catalogue). Before it, **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
 four tables, 0138 an index predicate. Both applied). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
@@ -373,6 +373,10 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   `?group=1` consolidates all thirteen companies) · **Tax rates** (`/ledger/tax`
   — VAT and withholding as editable rows, each flagged confirmed or not).
   Company picked with `?co=`, never `?company=`.
+- `/cocozuri` - **CocoZuri Operations** (Furaha Innovation Ltd, prefix CC):
+  products · customers · invoices · money in · owed · statements · the stock book
+  and the month-end stock-take · **the order form, and posting to the general
+  ledger**. See the CocoZuri section above.
 - `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
   Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
   wait first), `/interviews` (the diary, in both Dar and India time) and
@@ -503,6 +507,24 @@ usually taller. **Do not reintroduce a `calc(100dvh − 11rem)` guess anywhere.*
 top half of a wide screen blank. Content that belongs BESIDE the sidebar goes in
 the **`main`** prop. `children` stays as it was for the task drawer's conversation.
 
+⚠️ **A LIST'S FIXED COLUMNS MUST FIT THE CARD AT `lg`, OR THE NAME COLUMN
+VANISHES.** At `lg` two things go wrong at once: the desk sidebar appears and
+takes 208px, AND every `hideBelow` column un-hides — so the card gets narrower
+exactly as it needs to be widest. Measured on `/cocozuri/products` at 1024px:
+card 547px, fixed columns + gaps 548px, and `minmax(0,1fr)` resolved PRODUCT to
+**0px** — 127 chocolates listed with no names. `hideBelow` CANNOT fix this; it
+folds columns away on small screens and this breaks on the first large one.
+- **`gridFor()` in `record-list.tsx` now rewrites every track**: a flexible one
+  gets a floor (`minmax(7.5rem,1fr)`) so it can never vanish, and a fixed one
+  becomes `minmax(0,Npx)` so the shortfall comes out of columns that can afford
+  it. Lists degrade to an ellipsis instead of losing their subject.
+- **Still add up your fixed widths.** Past ~450px at `lg`, drop a column or mark
+  it **`defaultHidden`** — off by default, still offered in the Columns chooser.
+- ⚠️ **A hand-built grid gets none of this.** The stock day book's own
+  `grid-cols-[minmax(0,1fr)_…]` collapsed its ITEM column to 0px on a phone. A
+  spreadsheet-shaped grid belongs in its own `overflow-x-auto` housing with a
+  `min-w-[…]` floor, the way both `/cocozuri/stock` pages now are.
+
 ⚠️ **A column marked `sortable` in `ENTITY_VIEWS` must be given a sort href**, or
 the header looks clickable and does nothing. `src/lib/use-list-sort.ts` does it
 client-side (key and direction in the URL, empties pinned last outside the
@@ -621,7 +643,7 @@ actually held; and what date should the books open from (the system already hold
 **the VAT rules themselves** — is now visible in the app: six seeded rates are
 flagged unconfirmed and the reports refuse to call themselves ready to file.
 
-## CocoZuri Operations — ⚠️ PHASE 1 BUILT. Read `memory/cocozuri_ops_plan.md` FIRST
+## CocoZuri Operations — ⚠️ ALL FIVE PHASES BUILT. Read `memory/cocozuri_ops_plan.md` FIRST
 
 `/cocozuri` — **Furaha Innovation Ltd** (prefix **CC**, was "Cocozuri Chocolat"):
 chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadsheets.
@@ -666,10 +688,106 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
 - ⚠️ **A Supabase select list must be ONE string literal** — split it across a `+`
   and the client can no longer read it at type level, every row degrades to an
   error type, and the file stops compiling for a reason that looks unrelated.
-- **Phases 3–5 not built:** money in / ageing / statements, the daily stock book,
-  then posting to the ledger via `postVoucher()`.
-- Client/server split as everywhere: **`cocozuri-shared.ts` is what client
-  components import**; `cocozuri.ts` is server-only and is the ONE DOOR for writes.
+- **Phase 3 (built):** `/cocozuri/receipts` (money in) · `/cocozuri/owed` (what is
+  outstanding, worst first) · `/cocozuri/statements` + `/statements/[id]` (the
+  statement of account, printable, period in the URL). Migration **0147**:
+  `cz_receipts` + `cz_invoices.applies_to_invoice_id`.
+- ⚠️ **THE AGEING HAS FIVE BANDS AND MUST KEEP THEM.** The spreadsheet's `Sheet2`
+  jumps 31–60 straight to 91+, so everything **61–90 days late is reported a month
+  young** — TZS 1,567,000 of it on the day the books were read. A test asserts
+  every day from −10 to 200 lands in exactly one band. Do not drop one to fit a
+  screen.
+- ⚠️ **ONLY ISSUED DOCUMENTS ARE OWED.** A draft has not been sent to anybody; a
+  cancelled one never was. The payment sheet will not even offer a draft.
+- ⚠️ **THE CUSTOMER COMES OFF THE INVOICE, NEVER THE FORM.** A receipt for one
+  customer against another's invoice is not a thing that should be typeable.
+- ⚠️ **ONE CHEQUE, SEVERAL INVOICES = ONE ROW EACH**, sharing a date and a
+  reference, **all or nothing** — so nothing ever sits "on account" waiting to be
+  allocated. An overpayment is recorded as it stands and shown negative.
+- ⚠️ **`cz_invoices.applies_to_invoice_id` IS WHAT MAKES A PER-INVOICE BALANCE
+  POSSIBLE.** An unapplied credit note reduces the customer's account but is
+  attached to no invoice, so it **cannot be aged** and is shown apart, never
+  netted into a band.
+- ⚠️ **`deleteReceipt` IS A REAL DELETE AND MUST BECOME A REVERSAL AT PHASE 5** —
+  once a payment reaches `gl_entries` the ledger's second rule applies.
+- ⚠️ **`cz_receipts` HAS TWO FKs TO `companies`** (who invoiced, and whose account
+  took the money — the "received in DSC" fact). A bare `companies(name)` embed is
+  ambiguous and PostgREST refuses the WHOLE query, which showed on screen as "no
+  payments recorded yet" over rows that existed. Use
+  `companies!received_into_company_id(name)`.
+- ⚠️ **A `?new=1` DEEP LINK MUST CONSUME ITS OWN FLAG.** `revalidatePath("/x")`
+  does not invalidate the cached entry for `/x?new=1` — they are different keys —
+  so the payment saved and the list did not move, which on a money form is how
+  somebody gets credited twice. `history.replaceState` on mount, as `/notes` does.
+- ⚠️ **A SERIES FLOOR MAY BE A STRING, AND ITS LENGTH IS THE PADDING.**
+  `{"CZ-CN/": "01"}` = carry on from 1, pad to two digits. Width is otherwise
+  taken from the numbers already used, and the first document in a series has
+  none — so the first credit note came out `CZ-CN/1` against the paper `CZ-CN/01`.
+- **Phase 4 (built):** `/cocozuri/stock` (the day book) · `/cocozuri/stock/month`
+  (the month-end block and the stock-take). Migration **0148**:
+  `cz_stock_locations` · `cz_stock_items` · `cz_stock_days` · `cz_stock_counts`.
+  Seeded by `npm run seed:cz-stock` — 3 locations, 323 items, 529 day rows.
+- ⚠️ **THERE ARE FOUR STOCK SHEETS, NOT THREE**, and each heads its third movement
+  column with a DIFFERENT WORD: the shop **RETURN**, the kitchen **DA/SA/ TA**,
+  raw materials **DAMAGE**. That is why `cz_stock_locations.third_label` is a
+  column. Nobody has said what DA/SA/TA means — it is recorded under its own name,
+  never translated into a guess.
+- ⚠️ **A STOCK ITEM IS A THING YOU COUNT; A PRODUCT IS A THING YOU SELL.**
+  `cz_stock_items.product_id` is nullable — raw materials are 171 rows of coffee
+  and almond powder that are never invoiced. The link being an **id** is the fix
+  for fault #4 (the workbook's sales sheet matches BY NAME, so stock says 1,014
+  units left the shop in August and sales says 814). **Never match by name.**
+- ⚠️ **AN OPENING STOCK IS A COUNT**, dated the day BEFORE the book starts —
+  because **a count is the position at the END of its date**. Movements on a
+  count's own date are already inside it and are never added again. Out by a day
+  here and every figure after a stock-take is wrong by that day's trade.
+- ⚠️ **A COUNT BECOMES THE NEW TRUTH** — everything after it carries forward from
+  what was counted, not from what the book said.
+- ⚠️ **A VARIANCE MUST BE EXPLAINED**, enforced twice (the button AND
+  `recordCount`). A count that agrees needs no reason.
+- ⚠️ **`on_date`/`counted_on` ARE `date`, NOT `timestamptz`** — the one deliberate
+  exception to migration 0014. A stock day is a calendar day. Use `todayInDar()`,
+  never `toISOString().slice(0,10)`, which is the UTC day (yesterday until 3am).
+- ⚠️ **A ROW OF THREE ZEROS IS DELETED, NOT STORED** — "nothing moved" and "nobody
+  wrote anything down" are different claims. A negative MOVEMENT is refused; a
+  negative closing is allowed but warned about.
+- ⚠️ **EVERY PRICE IN THE CATALOGUE IS DATED 21 AUG 2026 — the day it was
+  IMPORTED, not the day it came into force** (all 159; the list is headed
+  FEB-2026). So nothing before that date can be valued and the sales column reads
+  nil for August. The arithmetic is right and the data is wrong; it is left
+  uncorrected because the rows come from two sources with two real dates, and the
+  month page names the cause. **Ask the owner what date each set starts from.**
+- **Phase 5 (built, no migration):** posting to the general ledger, and
+  **`/cocozuri/order`** — the order form.
+- ⚠️ **EVERYTHING REACHING `gl_entries` GOES THROUGH `postVoucher()`/`unpostVoucher()`.**
+  Invoice = Dr debtors *gross* · Cr Sales *net* · Cr VAT payable. A credit note is
+  the same voucher **with the sides swapped**, never a negative. A receipt is
+  Dr Bank/Cash · Cr debtors and touches neither sales nor VAT.
+- ⚠️ **VAT IS NEVER INCOME** — the sales line is the NET, and `net = gross − vat`
+  so the voucher balances to the cent. Proved live: 250,000 at 7% → Sales
+  233,644.86, VAT 16,355.14 (the VAT *contained*, not 17,500).
+- ⚠️ **POSTING IS EXPLICIT** (the ledger's fifth rule). Issuing an invoice does
+  NOT post it; somebody presses Post. The desk says how many are waiting.
+- ⚠️ **A PAYMENT RECEIVED INTO ANOTHER COMPANY IS REFUSED.** The "in DSC" question
+  (§4.4) is unanswered; posting it to Cocozuri's bank would be a lie and inventing
+  an inter-company account would answer the owner's question for him.
+- ⚠️ **`deleteReceipt` REFUSES A POSTED PAYMENT** — reverse it first.
+- ⚠️ **The sales account is 4100, overridable with `cocozuri.salesAccount`** —
+  the shared chart has roles for receivable/bank/cash/VAT but **none for income**.
+  `resolveAccounts` refuses and names what is missing rather than guessing.
+- ⚠️ **Furaha's chart was seeded (70 accounts)** — it had none, so nothing could
+  post. All test entries were removed INCLUDING the reversals (permanent by
+  design); `gl_entries` for Furaha is back to 0. **Ask whether the books should
+  be open, and from what date.**
+- ⚠️ **The order form measures demand over days ACTUALLY COUNTED, not the
+  calendar** — the kitchen skips 7-10 August, and dividing by 30 would halve
+  every kitchen figure. Fewer than two days of history gets no figure at all.
+- Still **no MCP tool and no `EntityDef`**, on purpose. **A ledger WRITE tool must
+  never exist.**
+- Client/server split as everywhere, and it is now TWO PAIRS:
+  **`cocozuri-shared.ts` and `cocozuri-stock-shared.ts` are what client components
+  import**; `cocozuri.ts` and `cocozuri-stock.ts` are server-only and are the ONE
+  DOOR for writes. The stock half is its own pair because it is its own subject.
 
 ## Recruitment — ⚠️ PHASES 1–2 ARE BUILT. Read `memory/recruitment_module_plan.md` FIRST
 

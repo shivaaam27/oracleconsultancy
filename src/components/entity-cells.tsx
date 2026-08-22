@@ -125,6 +125,7 @@ export function buildColumns<T extends Record<string, unknown>>(
       width: d.width,
       align: d.align,
       hideBelow: d.hideBelow,
+      defaultHidden: d.defaultHidden,
       sortHref: d.sortable ? opts?.sortHrefs?.[d.key] : undefined,
       sorted: opts?.sortedBy?.key === d.key ? opts.sortedBy.dir : undefined,
       render: override ?? ((row: T) => format(row[d.key], row)),

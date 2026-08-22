@@ -83,7 +83,11 @@ sells in dollars. No other customer has one.
 
 ### `STOCK & SALES AUGUST 2026` — the daily stock book
 
-Three sheets, and the shape is the same in each:
+⚠️ **THIS SURVEY MISSED A SHEET. There are FOUR, not three** — see §11. The
+fourth is `RAW MATERIALS` (171 rows, weighed in GM), and it heads its third
+column **DAMAGE**. It matters because raw materials are counted but never sold.
+
+The shape is the same in each:
 
 - **`CZ SHOP STOCK`** (the retail shop, 77 items). Columns: S/N · ITEM · UOM ·
   **OP STOCK**, then **four columns per day — IN · OUT · RETURN · CL STOCK** —
@@ -208,7 +212,7 @@ Tables `cz_invoices`, `cz_invoice_lines`.
 
 **Ends with:** you raise an invoice in COS and print it. No more copying a sheet.
 
-### Phase 3 — money in, ageing, statements *(what the owner actually watches)*
+### Phase 3 — money in, ageing, statements *(what the owner actually watches)* ✅ BUILT — see §10
 
 Tables `cz_receipts` (one row per payment against an invoice — a part payment is a
 row, like the PES module already does).
@@ -223,7 +227,7 @@ row, like the PES module already does).
 **Ends with:** "who owes us what, and how late" is a page, not a spreadsheet
 someone has to keep up to date.
 
-### Phase 4 — stock, the shop and the kitchen *(the daily discipline)*
+### Phase 4 — stock, the shop and the kitchen *(the daily discipline)* ✅ BUILT — see §11
 
 Tables `cz_stock_days`, `cz_stock_moves`, `cz_stock_counts`.
 
@@ -239,7 +243,7 @@ Tables `cz_stock_days`, `cz_stock_moves`, `cz_stock_counts`.
 
 **Ends with:** the daily stock book, with the variance you can actually act on.
 
-### Phase 5 — into the books, and the order form
+### Phase 5 — into the books, and the order form ✅ BUILT — see §12
 
 - Each invoice, credit note and receipt posts to the general ledger through
   **`postVoucher()` in `src/lib/ledger-post.ts`** — the one door. ⚠️ **No new
@@ -428,3 +432,352 @@ and commit with Enter.
 **After the sweep:** 839 tests, type-check, production build and
 `db:check-security` (135 tables) all clean, and every `/cocozuri` route verified to
 sit behind the admin gate (307 to /login without a cookie).
+
+
+---
+
+# 10. Phase 3 BUILT — 21 Aug 2026
+
+Migration **0147** applied and proved by effect (14 columns present, RLS on, anon
+refused). Two things in it:
+
+- **`cz_receipts`** — one row per payment against one invoice.
+- **`cz_invoices.applies_to_invoice_id`** — which invoice a credit note answers.
+
+Screens: **`/cocozuri/receipts`** (money in) · **`/cocozuri/owed`** (what is
+outstanding, worst first) · **`/cocozuri/statements`** + **`/statements/[id]`**
+(the statement of account, printable, period in the URL). All three are on the
+CocoZuri rail under a new **Money** group. **864 tests** pass (33 new here),
+type-check, production build and `db:check-security` (136 tables) all clean, and
+every route was verified to sit behind the admin gate (307 to /login).
+
+## What it fixes, measured
+
+**Fault 2 is gone.** `CZ_AGEING_BANDS` has **five** bands — the workbook's
+`Sheet2` jumps from 31–60 straight to 91+, so everything 61–90 days late is
+reported a month young. Proved on screen: an invoice 70 days late landed in
+**61–90**, where the workbook would have put it in 31–60. A test asserts every
+day from −10 to 200 falls in **exactly one** band, no gap and no overlap.
+
+**A part payment is now possible at all.** The master has one `PAID` column and
+one `PAID DATE` column per invoice row — room for exactly one payment — so a
+second one either overwrote the first or became a sentence in `REMARKS` that
+nothing could add up. Here a payment is a row.
+
+**The "received in DSC" fact is countable.** `received_into_company_id` records
+WHICH company's account took the money and claims nothing about what it means
+(question 4 is still unanswered). The Money-in rail then filters and counts by
+it — so when the owner does answer, the answer has data.
+
+## The rules this phase adds
+
+- ⚠️ **ONLY ISSUED DOCUMENTS ARE OWED.** A draft has not been sent to anybody and
+  a cancelled one never was. Enforced in `outstandingOf`, and the payment sheet
+  will not even offer a draft to pay.
+- ⚠️ **THE CUSTOMER COMES OFF THE INVOICE, NEVER THE FORM** (`createReceipt`).
+  A receipt for one customer against another's invoice is not a thing that should
+  be typeable, and reading it off the invoice makes it impossible rather than
+  merely discouraged.
+- ⚠️ **ONE CHEQUE, SEVERAL INVOICES, ONE ROW EACH**, sharing a date and a
+  reference (`createReceipts`) — **all or nothing**, because half a cheque
+  recorded is worse than none. This is why nothing ever sits "on account"
+  waiting for somebody to remember what it was for.
+- ⚠️ **AN OVERPAYMENT IS RECORDED AS IT STANDS**, shown negative, with a warning
+  on the form. Customers do overpay, and a system that will not let you write
+  down what happened gets worked around.
+- ⚠️ **AN UNAPPLIED CREDIT NOTE IS SHOWN APART, NOT NETTED INTO A BAND.** It
+  reduces what the customer owes overall but is attached to no invoice, so it
+  cannot be aged; folding it in would put a figure in a column that means
+  something else.
+- ⚠️ **A CREDIT NOTE MAY ONLY ANSWER THE SAME CUSTOMER'S INVOICE**
+  (`applyCreditNote`), and only an invoice, never another credit note.
+- ⚠️ **`deleteReceipt` IS A REAL DELETE, AND MUST BECOME A REVERSAL AT PHASE 5.**
+  A mistyped figure typed by one person has no history worth keeping. Once a
+  payment reaches `gl_entries` that stops being true — the ledger's second rule
+  is that a posted entry is reversed, never removed. Change that function then,
+  not the ledger.
+- A statement rolls everything before the period into an **opening balance**
+  rather than dropping it. That is the difference between a statement and a
+  filtered list: a statement still adds up.
+
+## ⚠️ Three bugs found by RUNNING it, not by reading it
+
+1. **THE PAYMENTS LIST WAS EMPTY OVER ROWS THAT EXISTED.** `cz_receipts` has
+   **two** foreign keys to `companies` — the company that raised the invoice, and
+   the one whose account took the money — so a bare `companies(name)` embed is
+   ambiguous and PostgREST refuses the **whole** query. A failed select comes
+   back as `data: null`, so the screen said *"No payments recorded yet"* over
+   three rows in the table. This is the exact trap CLAUDE.md already records for
+   a second FK to `companies`; the fix is `companies!received_into_company_id(name)`.
+   `listReceipts` now also **logs the error** — a swallowed one here reads as
+   "no money has ever been received", which is a far worse claim than "something
+   went wrong".
+
+2. **`?new=1` SAVED THE PAYMENT AND LEFT THE SCREEN UNCHANGED.**
+   `revalidatePath("/cocozuri/receipts")` does **not** invalidate the client's
+   cached entry for `/cocozuri/receipts?new=1` — different keys. Measured both
+   ways: on the clean URL the list went to 4 payments the instant it saved; on
+   the deep link it sat at 2 with three rows in the table. On a money form that
+   is how a customer gets credited twice, because the natural response to
+   "nothing happened" is to press the button again. Fixed the way `/notes`
+   already does it — `history.replaceState` consumes the flag as soon as the
+   sheet opens, which also stops Back re-opening it.
+   ⚠️ **`/cocozuri/products?new=1` and `?new=1` on customers are DEAD LINKS** —
+   `ENTITY_VIEWS.create.href` points at them but neither page reads the flag. Not
+   harmful, but not wired either.
+
+3. **THE FIRST CREDIT NOTE CAME OUT `CZ-CN/1`, NOT `CZ-CN/01`.** `nextInSeries`
+   takes the width from the numbers already used, and the first document in a
+   series has none to look at — a hole the CZ- floor fix in Phase 2 could not
+   reveal because that series already had a floor of 236. A floor may now be
+   written as a **string**, and its length is the padding:
+   `settings['cocozuri.seriesFloor']` is `{"CZ-":236,"CZ/AP/":49,"CZ-CN/":"01"}`,
+   so the next credit note is **CZ-CN/02** — Garden Market's paper one is
+   CZ-CN/01. Found only because Phase 3 gave a credit note an invoice to answer.
+
+## Left to do
+
+Phase 4 (the daily stock book — shop and kitchen, IN/OUT/RETURN, physical count
+and variance) and Phase 5 (posting invoices, credit notes and receipts to the
+general ledger through `postVoucher()`, plus the order form).
+
+**Still no MCP tool and no `EntityDef`**, on purpose — the same answer as
+Phases 1 and 2. `cz_receipt` exists as a `SourceType` only so it can have an
+`ENTITY_VIEWS` entry; nothing is indexed, and a payment is not something anybody
+searches for by name.
+
+**The seven questions in §4 are still unanswered**, and Phase 3 makes two of them
+sharper rather than answering them: the money really is being received into DSC
+(there is now a column and a filter for it), and the ageing has been rebuilt at
+whatever rate turns out to be right, since VAT never enters the balance
+arithmetic at all — the balance is gross less credits less receipts.
+
+
+---
+
+# 11. Phase 4 BUILT — 22 Aug 2026
+
+Migration **0148** applied and proved by effect (all four tables, RLS on, anon
+refused, `on_date`/`counted_on` confirmed as real `date` columns). Screens:
+**`/cocozuri/stock`** (the day book) and **`/cocozuri/stock/month`** (the
+month-end block and the stock-take), on a new **Stock** group in the rail.
+**889 tests** pass (25 new), type-check, production build and
+`db:check-security` (140 tables) clean, both routes behind the admin gate.
+
+Loaded from `STOCK & SALES AUGUST 2026 - 05.08.2026.xlsx` by
+`scripts/seed-cocozuri-stock.ts` (`npm run seed:cz-stock`): **3 locations · 323
+items · 150 linked to products · 313 opening counts · 529 day rows.**
+
+## ⚠️ §2 OF THIS PLAN IS WRONG: THERE ARE **FOUR** STOCK SHEETS, NOT THREE
+
+The workbook holds **`RAW MATERIALS`** as well — 171 rows of coffee, dates,
+almond oil and powder, weighed in GM — and it was not in the original survey.
+It matters more than a miscount: it is a whole class of thing that is **counted
+but never sold**, which is why `cz_stock_items.product_id` is nullable and why a
+stock item is not the same thing as a product.
+
+## ⚠️ AND THE THIRD COLUMN IS A DIFFERENT WORD IN EVERY SHEET
+
+Read off the sheets, not guessed:
+
+| Sheet | Third column |
+|---|---|
+| `CZ SHOP STOCK` | **RETURN** |
+| `KITCHEN STOCK` | **DA/SA/ TA** |
+| `RAW MATERIALS` | **DAMAGE** |
+
+This is why `cz_stock_locations.third_label` is a column. **Question §4.3 is
+still unanswered and is now answerable-around rather than blocking**: DA/SA/TA is
+recorded under its own name, exactly as the kitchen counts it, and translating it
+into a guess would have destroyed the only evidence of what it means.
+
+## The shape, and why
+
+- **`cz_stock_locations`** — where stock is counted, each with its own third-column
+  label.
+- **`cz_stock_items`** — a line on a location's sheet. `product_id` NULLABLE.
+- **`cz_stock_days`** — one row per item per day: in, out, third. Unique on
+  `(item_id, on_date)`.
+- **`cz_stock_counts`** — a physical count. Unique on `(item_id, counted_on)`.
+
+⚠️ **AN OPENING STOCK IS A COUNT, NOT A SEPARATE CONCEPT.** The sheet's `OP
+STOCK` column is imported as a count dated the day BEFORE the book starts. One
+idea serves both, and it is what makes a stock-take carry forward properly.
+
+⚠️ **A COUNT IS THE POSITION AT THE END OF ITS DATE.** That one sentence settles
+two things: why an opening is dated the day before, and why movements on a
+count's own date are already inside it and are never added again. Out by a day
+here and every figure after a stock-take is wrong by that day's trade, silently.
+
+⚠️ **A COUNT BOTH REVEALS A VARIANCE AND BECOMES THE NEW TRUTH.** Verified on
+real data: AMBER RABDI, book 14, counted 3 → variance −11, and 1 September then
+opened at **3**, not 14.
+
+⚠️ **`on_date` IS A `date`, NOT A `timestamptz`** — the one deliberate exception
+to migration 0014's rule. A stock day is a calendar day; giving it a time of day
+would put a movement on the wrong side of midnight for a reader in another zone.
+`todayInDar()` exists for the same reason: `toISOString().slice(0,10)` is the UTC
+day, which in EAT is yesterday until 3am.
+
+⚠️ **A ROW OF THREE ZEROS IS DELETED, NOT STORED.** "Nothing moved" and "nobody
+wrote anything down" are different claims and the day sheet shows them
+differently (`untouched`).
+
+⚠️ **A NEGATIVE MOVEMENT IS REFUSED.** "Ten went out" and "minus ten went out"
+are the same event typed two ways. Something coming back is what the third
+column is for. A negative CLOSING is allowed but warned about — it means more
+went out than was ever there, which is a real finding.
+
+⚠️ **A VARIANCE MUST BE EXPLAINED**, and it is enforced **twice** — the button is
+disabled and `recordCount` refuses. Verified server-side: without a note,
+*"The book says 14 and 3 was counted. Say why before saving it."* A count that
+AGREES needs no note. This is the plan's own wording, and it is the difference
+between a stock-take and a shrug: the workbook has a VARIANCE column and a
+REMARKS column beside it, and the remarks are empty.
+
+## The faults, killed and measured
+
+- **#3 (month totals miss days)** — the totals are a filter over a date range,
+  not a hand-typed `=D5+H5+L5+…` chain. A test asserts the last day of the month
+  is in the total, which is the one the shop's RETURN chain drops.
+- **#4 (sales matched BY NAME)** — `salesRows` joins on `product_id`. **Confirmed
+  against the plan's own measurement: the month page totals the shop's August
+  OUT at exactly 1,014 units**, the figure §3.4 records from the stock sheet
+  against the sales sheet's 814.
+- **#5 (sheet headed MAY over August)** — the period is in the address, never a
+  title on a sheet.
+- **#9 (`=3+5` typed into cells)** — there is nowhere to type a formula.
+
+## ⚠️ NEW FINDINGS, MEASURED
+
+1. **The kitchen and raw-material sheets run into SEPTEMBER while headed "MONTH:
+   AUGUST 2026".** Their day columns were dragged consecutively from 11 August,
+   so the kitchen ends 4 September and raw materials 8 September. Checked: those
+   columns hold **only carried-forward closing balances, no real movements** — so
+   nothing is misfiled, but the sheets do not cover the month they claim to. The
+   seed reports it per location.
+2. **⚠️ EVERY PRICE IN THE CATALOGUE IS DATED 21 AUGUST 2026 — THE DAY IT WAS
+   IMPORTED, NOT THE DAY IT CAME INTO FORCE.** All 159 rows. The price list they
+   came from is headed **FEB-2026**. Nothing before 21 August can therefore be
+   valued, and the August sales column reads nil. **The arithmetic is right and
+   the data is wrong**: `priceInForce` correctly refuses to apply a price before
+   its start date, and `salesRows` reports "no price" rather than zero. The month
+   page names the cause out loud rather than the symptom.
+   **This was invisible in Phases 1–3** because nothing before asked what
+   something cost on a PAST date. **Left uncorrected on purpose** — the 159
+   prices come from at least two sources with two different real dates (the
+   February per-customer list and the shop's own August sheet), and stamping one
+   guessed date across all of them is the kind of silent assumption this module
+   exists to end. **The owner should say what date each set starts from.**
+3. **The kitchen has 75 items but only 65 opening figures** — ten kitchen lines
+   have a blank `OP STOCK` cell, so they start from nothing and say so.
+4. **Three shop items and one raw material match no product**, and 170 raw
+   materials are expected to match none. The seed lists them.
+
+## ⚠️ A bug the tests caught before the screen did
+
+`monthRows` first worked the variance out with `balanceAt`, which anchors ON the
+latest count at or before the date — so it handed the counted figure straight
+back and **every variance in the system read zero**. `varianceOf` exists to drop
+the count being judged before asking. Both are now tested directly.
+
+## Left to do
+
+**Phase 5** — posting invoices, credit notes and receipts to the general ledger
+through `postVoucher()`, plus the order form (what to make and send, from the
+shop's own stock levels).
+
+Still **no MCP tool and no `EntityDef`**, on purpose, the same answer as Phases
+1–3. And `deleteReceipt` still needs to become a reversal when Phase 5 lands.
+
+---
+
+# 12. Phase 5 BUILT — 22 Aug 2026
+
+**No migration.** Phase 5 adds no tables: a posting is `gl_entries` rows, and
+those already exist. Screens: the books strip on an invoice, posting on the
+Money in list, the state on the desk, and **`/cocozuri/order`** — the order form.
+**903 tests** (14 new), type-check, build and `db:check-security` clean.
+
+## Into the books
+
+⚠️ **EVERYTHING GOES THROUGH `postVoucher()` AND `unpostVoucher()`.** Nothing in
+`cocozuri-ledger.ts` writes `gl_entries` — the balance check, the frozen rate and
+the posted-once guard all live behind that one door.
+
+The postings, proved against the real chart:
+
+| | |
+|---|---|
+| **Invoice** | Dr Trade debtors *gross* · Cr Sales *net* · Cr VAT payable *the VAT* |
+| **Credit note** | the same voucher **with the sides swapped** — never a negative |
+| **Receipt** | Dr Bank (or Cash) · Cr Trade debtors — touches neither sales nor VAT |
+
+⚠️ **VAT IS NEVER INCOME.** The sales line is the NET. Verified end to end on a
+TZS 250,000 invoice at 7%: Sales **233,644.86**, VAT payable **16,355.14** — the
+VAT *contained*, not 7% of the gross (17,500). Fault #1 is now fixed in the books
+as well as on the paper.
+
+⚠️ **NET IS `gross − vat`, NOT A SECOND SUM.** Two independent roundings can
+leave a voucher a cent out; the difference cannot. A test asserts every
+rate × amount combination balances exactly.
+
+⚠️ **POSTING IS EXPLICIT — the ledger's fifth rule.** Raising or issuing an
+invoice does NOT put it in the books; somebody presses Post. The desk says how
+many are waiting, because a rule that is right is still easy to forget.
+
+⚠️ **A PAYMENT RECEIVED INTO ANOTHER COMPANY IS REFUSED, ON PURPOSE.** Cocozuri
+invoices and the money lands in DSC (§4.4, unanswered). Posting it to Cocozuri's
+bank would be a lie; inventing an inter-company account would answer the owner's
+question for him. The receipt is still recorded and still reduces what the
+customer owes — that is derived from `cz_receipts`, not the ledger — and the desk
+names every payment stuck this way.
+
+⚠️ **`deleteReceipt` NOW REFUSES A POSTED PAYMENT**, which is the change the
+Phase 3 note promised. Deleting the row would leave `gl_entries` holding both
+sides of a payment that exists nowhere else. Reverse it first.
+
+⚠️ **THE VOUCHER TYPES ARE `CocoZuri Invoice` / `CocoZuri Credit Note` /
+`CocoZuri Receipt`**, not "Sales Invoice". The voucher type is how the general
+ledger is read back, and these should be findable as their own thing.
+
+⚠️ **THE SALES ACCOUNT IS RESOLVED, NOT ROLE-BASED.** The shared chart has roles
+for receivable, bank, cash, VAT — but **none for income**. So the sale lands on
+account **4100 Sales**, overridable with the setting
+**`cocozuri.salesAccount`**. Everything else uses `defaultAccount(role)`.
+`resolveAccounts` **refuses and names what is missing** rather than guessing.
+
+⚠️ **THE CHART OF ACCOUNTS WAS SEEDED FOR FURAHA (70 accounts).** It had none, so
+nothing could post at all. The test entries were removed **completely** —
+including the reversals, which are permanent by design and would otherwise have
+put fiction in the real ledger for ever. `gl_entries` for Furaha is back to **0**.
+**Ask the owner whether he wants Furaha's books open**, and from what date
+(that is the ledger's own unanswered question).
+
+## The order form — `/cocozuri/order`
+
+What to make and send, worked out from the shelf instead of from memory. The
+workbook's `COCOZURI ORDER FORM` is a typed list whose quantities are a memory of
+last time.
+
+⚠️ **THE RATE IS MEASURED OVER DAYS ACTUALLY COUNTED, NOT THE CALENDAR.** The
+kitchen skips 7–10 August entirely; dividing by 30 would quietly halve every
+kitchen figure and under-order the lot.
+
+⚠️ **THREE STATES, SORTED IN THREE BANDS.** "Runs out in three days", "never
+sells" and "cannot be judged" are different things, and comparing them as one
+number gets it wrong — `Infinity` sorts after any stand-in for null, so a line
+nobody had written down outranked one that simply does not move. Caught by a test.
+
+⚠️ **FEWER THAN TWO DAYS OF HISTORY GETS NO FIGURE**, and the page says how many.
+A confident zero beside a new line is how a product quietly stops being made.
+
+Every quantity is editable before printing: the shelf does not know about next
+week's order or a holiday, and a number presented as an instruction is one nobody
+checks. On the real August data: **43 lines, 2,508 units**, worst first.
+
+## Left
+
+Search (`EntityDef`) and ONE read-only MCP tool were listed for this phase and
+are **still not built, on purpose** — the same answer as Phases 1–4. **A ledger
+WRITE tool must never exist.**
