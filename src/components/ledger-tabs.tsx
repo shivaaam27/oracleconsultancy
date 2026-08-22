@@ -28,6 +28,11 @@ const TABS = [
   // VAT and withholding (Phase 3). Set up once, then rarely touched — so it
   // sits at the end, next to Reports, which is what reads it.
   { key: "tax", label: "Tax rates", href: "/ledger/tax" },
+  // Stage 8 — things the company owns and writes down over time.
+  { key: "assets", label: "Assets", href: "/ledger/assets" },
+  // Stage 8 — ticking a bank statement off against the books. ⚠️ It never edits
+  // an entry; the clearance lives in its own table pointing at one.
+  { key: "reconcile", label: "Reconcile", href: "/ledger/reconcile" },
 ] as const;
 
 export function LedgerTabs({

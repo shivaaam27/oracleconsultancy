@@ -13,7 +13,7 @@ import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
   AlertTriangle, Workflow, ScrollText, StickyNote, DraftingCompass,
   ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel,
-  UserSearch, Briefcase, BadgeCheck, Wallet, ChefHat, Boxes, type LucideIcon, Package,} from "lucide-react";
+  UserSearch, Briefcase, BadgeCheck, Wallet, ChefHat, Boxes, Undo2, type LucideIcon, Package,} from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
 
@@ -51,6 +51,7 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   cz_recipe:     { icon: ChefHat, tint: "text-amber-800" },
   cz_batch:      { icon: Boxes, tint: "text-amber-600" },
   cz_transfer:   { icon: Truck, tint: "text-amber-700" },
+  cz_return:     { icon: Undo2, tint: "text-rose-600" },
   rec_candidate: { icon: UserSearch, tint: "text-pink-600" },
   rec_job_order: { icon: Briefcase,  tint: "text-red-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),

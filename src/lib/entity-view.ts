@@ -327,6 +327,27 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Transfer", href: "/cocozuri/transfers?new=1" },
   },
 
+  /* CocoZuri, manufacturing Stage 6 — returns, repairs and damage. */
+  cz_return: {
+    listColumns: [
+      // ⚠️ THE FIXED WIDTHS ADD UP TO 460px, ON PURPOSE. At `lg` the desk sidebar
+      // appears AND every `hideBelow` column un-hides, so the card is at its
+      // narrowest exactly when the columns are at their widest — measured 562px
+      // here. Past ~450px of fixed track the subject column is pushed onto its
+      // floor and the rest squeeze to an ellipsis, so "Repacked" is offered in
+      // the Columns chooser rather than shown by default.
+      { key: "reference", label: "Ref", width: "100px", format: "text", sortable: true },
+      { key: "onDate", label: "Date", width: "92px", format: "muted", sortable: true },
+      { key: "subject", label: "What came back", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "statusLabel", label: "Status", width: "108px", format: "status", sortable: true },
+      { key: "cameBackLabel", label: "Came back", width: "88px", format: "muted", align: "right", hideBelow: "md" },
+      { key: "goodLabel", label: "Repacked", width: "88px", format: "muted", align: "right", hideBelow: "lg", defaultHidden: true },
+      { key: "scrappedLabel", label: "Thrown", width: "84px", format: "muted", align: "right" },
+    ],
+    defaultSort: { key: "onDate", dir: "desc" },
+    create: { label: "Return", href: "/cocozuri/returns?new=1" },
+  },
+
   cz_batch: {
     listColumns: [
       { key: "batchNo", label: "Batch", width: "120px", format: "text", sortable: true },

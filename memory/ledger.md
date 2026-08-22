@@ -276,6 +276,47 @@ into asking the question three different ways.
   worth having when a year must be frozen against further posting.
 - **No portal half.** The books are owner-only. Staff have no business in them.
 
+## The chart grew by one account — 22 Aug 2026 (CocoZuri Stage 6)
+
+**6930 "Stock written off (abnormal loss)"**, under **6900 Other**.
+
+⚠️ **NOT under 5000 Cost of sales, and that is deliberate.** An abnormal loss is
+not part of what it costs to make a thing; filing it there would make **gross
+profit read better the more stock gets broken**, which is precisely backwards.
+
+⚠️ **It is additive and safe, but it does NOT reach a chart already seeded.**
+`seedChartOfAccounts` only adds what is missing, so an existing company picks it
+up by being re-seeded (idempotent — Furaha went 70 → 71, one added, 70 skipped).
+Any company that has not been re-seeded simply cannot post a write-off, and
+`resolveWriteOffAccounts` says so by name rather than guessing at an expense
+account that "looks close".
+
+The setting **`cocozuri.lossAccount`** overrides the number, exactly as
+`cocozuri.salesAccount` and `cocozuri.stockAccount` do.
+
+## Two more accounts, and two features the ledger grew — 22 Aug 2026 (Stage 8)
+
+**6940 "Stock gains and losses (stock-take)"**, under 6900 Other, beside 6930.
+⚠️ **Kept APART from 6930 on purpose:** breakage somebody saw and wrote down is
+a different fact from stock that simply is not there, and merging them hides
+which of the two is getting worse.
+
+**`/ledger/assets`** — the fixed-asset register and monthly depreciation, and
+**`/ledger/reconcile`** — a bank statement ticked off against the books. Both are
+**company-wide**, not CocoZuri's: all thirteen have assets and statements.
+
+⚠️ **RECONCILING NEVER TOUCHES A POSTED ENTRY**, and this is the trap. The
+obvious shortcut is a `cleared` date on the `gl_entries` row — which would break
+rule 2 outright. The clearance lives in **`bank_rec_lines`** pointing AT the
+entry, with a unique index so an entry can clear **once, anywhere**. A
+reconciliation **only closes when it agrees**, and the difference is never
+rounded away.
+
+⚠️ **NO `accumulated` OR `book value` COLUMN** on `fixed_assets` — rule 3
+again. Straight line over MONTHS, the last month trimmed so the total lands
+exactly on cost less residual, and a disposal measured against what the thing
+STOOD at rather than what it cost.
+
 ## Still to ask the owner
 
 - **Is stock actually held, and where?** `1150 Stock` exists in the template and

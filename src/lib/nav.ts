@@ -2,6 +2,10 @@ import {
   ChefHat,
   Factory,
   Truck,
+  Undo2,
+  TrendingUp,
+  Radar,
+  Store,
   Filter,
   Container,
   Ship,
@@ -143,7 +147,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-statements", href: "/cocozuri/statements", label: "Statements", icon: FileSpreadsheet },
   /* CocoZuri Operations — Phase 4: the daily stock book. */
   { id: "cz-stock",       href: "/cocozuri/stock",       label: "Stock book", icon: Boxes },
-  { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Stock month", icon: ClipboardCheck },
+  { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Month end", icon: ClipboardCheck },
   /* Phase 5 — what to make and send, from the shelf's own history. */
   { id: "cz-order",       href: "/cocozuri/order",       label: "Order form", icon: OrderIcon },
   /* Manufacturing Stage 2 — what was bought, and the budget it was bought
@@ -157,6 +161,16 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-batches",     href: "/cocozuri/batches",     label: "Production", icon: Factory },
   /* Manufacturing Stage 5 — kitchen to shop, with what actually arrived. */
   { id: "cz-transfers",   href: "/cocozuri/transfers",   label: "Transfers",  icon: Truck },
+  /* Manufacturing Stage 6 — what came back, what was repacked, what was thrown. */
+  { id: "cz-returns",     href: "/cocozuri/returns",     label: "Returns & damage", icon: Undo2 },
+  /* Manufacturing Stage 7 — which chocolate makes money. */
+  { id: "cz-profit",      href: "/cocozuri/profit",      label: "Profit",     icon: TrendingUp },
+  /* Manufacturing Stage 8 — money out, the twin of money in. */
+  { id: "cz-payments",    href: "/cocozuri/payments",    label: "Money out",  icon: Banknote },
+  /* Manufacturing Stage 9 — expiry, shelf life and the batch trace. */
+  { id: "cz-trace",       href: "/cocozuri/trace",       label: "Trace",      icon: Radar },
+  /* Manufacturing Stage 5b — what goes over a counter. ⚠️ A record, not a till. */
+  { id: "cz-counter",     href: "/cocozuri/counter",     label: "The counter", icon: Store },
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -309,14 +323,25 @@ export const MODULES: NavModule[] = [
     blurb: "Chocolate — products, invoices, what is owed, and the daily stock book.",
     home: "/cocozuri",
     match: ["/cocozuri"],
+    /* ⚠️ THE RAIL FOLLOWS THE CHOCOLATE, in the order it actually happens: set
+       it up, buy the materials, make it, keep it, sell it, get paid, pay out,
+       put right what went wrong, then find out whether it was worth doing. The
+       owner asked for this (22 Aug 2026) and it is the right default — a
+       sidebar grouped by "what sort of screen is this" makes somebody learn a
+       map; grouped by the work, it reads like the day.
+
+       ⚠️ Adding a page? Put it where it happens in the day, not at the end. */
     groups: [
-      { label: "Sell", ids: ["cz-desk", "cz-invoices"] },
-      { label: "Money", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
-      { label: "Stock", ids: ["cz-stock", "cz-stock-month", "cz-order"] },
-      { label: "Buy", ids: ["cz-purchases", "cz-budgets"] },
-      { label: "Make", ids: ["cz-recipes", "cz-batches"] },
-      { label: "Move", ids: ["cz-transfers"] },
-      { label: "Catalogue", ids: ["cz-products", "cz-customers"] },
+      { label: "Start", ids: ["cz-desk"] },
+      { label: "1 · Set up", ids: ["cz-products", "cz-customers"] },
+      { label: "2 · Buy", ids: ["cz-budgets", "cz-purchases"] },
+      { label: "3 · Make", ids: ["cz-order", "cz-recipes", "cz-batches"] },
+      { label: "4 · Keep", ids: ["cz-stock", "cz-stock-month", "cz-transfers"] },
+      { label: "5 · Sell", ids: ["cz-counter", "cz-invoices"] },
+      { label: "6 · Get paid", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
+      { label: "7 · Pay out", ids: ["cz-payments"] },
+      { label: "8 · Put right", ids: ["cz-returns"] },
+      { label: "9 · Know", ids: ["cz-profit", "cz-trace"] },
     ],
   },
 ];

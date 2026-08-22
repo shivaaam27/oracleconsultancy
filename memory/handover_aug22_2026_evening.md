@@ -7,6 +7,11 @@ metadata:
 
 # Handover — 22 August 2026, evening
 
+⚠️ **§7 "WHAT IS NEXT" IS SUPERSEDED.** Stages 6, 7, 8 and 9 were built the
+following day, along with the counter — the whole programme is finished. See
+`memory/handover_aug23_2026.md`. Everything else here still stands as the record
+of that session.
+
 Everything below is **built, tested, migrated and pushed to `master`**. The
 plan file `memory/cocozuri_manufacturing_plan.md` is the authority on the
 manufacturing programme; §6a–§6e record what each stage actually does and every

@@ -13,9 +13,17 @@ import {
   updateItem, updateLocation, type StockItemInput,
 } from "@/lib/cocozuri-stock";
 import {
-  postInvoice, postPurchase, postReceipt,
-  purchaseIsPosted, unpostInvoice, unpostPurchase, unpostReceipt,
+  postCostOfSales, postInvoice, postPayment, postPurchase, postReceipt, postStocktake,
+  postWriteOff, purchaseIsPosted, paymentIsPosted, unpostCostOfSales, unpostInvoice,
+  unpostPayment, unpostPurchase, unpostReceipt, unpostStocktake, unpostWriteOff,
+  writeOffIsPosted, postCounterSale, unpostCounterSale, counterSaleIsPosted,
 } from "@/lib/cocozuri-ledger";
+import {
+  createPayments, deletePayment, updatePayment, type PaymentInput,
+} from "@/lib/cocozuri-pay";
+import {
+  cancelCounterSale, recordCounterSale, type CounterSaleInput,
+} from "@/lib/cocozuri-counter";
 import {
   approvePurchase, cancelPurchase, closeBudget, createBudget, createPurchase,
   decideBudget, deleteBudget, deletePurchase, reopenBudget, updateBudget, updatePurchase,
@@ -34,6 +42,10 @@ import {
   cancelTransfer, receiveTransfer, sendTransfer,
   type ReceiveTransferInput, type SendTransferInput,
 } from "@/lib/cocozuri-transfer";
+import {
+  bookReturn, cancelReturn, raiseCreditNote, settleReturn,
+  type BookReturnInput, type SettleReturnInput,
+} from "@/lib/cocozuri-return";
 
 /**
  * CocoZuri's write actions — thin wrappers over `lib/cocozuri.ts`.
@@ -63,6 +75,11 @@ function refresh() {
   revalidatePath("/cocozuri/recipes", "layout");
   revalidatePath("/cocozuri/batches", "layout");
   revalidatePath("/cocozuri/transfers", "layout");
+  revalidatePath("/cocozuri/returns", "layout");
+  revalidatePath("/cocozuri/profit");
+  revalidatePath("/cocozuri/payments");
+  revalidatePath("/cocozuri/counter");
+  revalidatePath("/cocozuri/trace", "layout");
   // A posting shows in the ledger too — the entries list and every report.
   revalidatePath("/ledger", "layout");
 }
@@ -537,6 +554,191 @@ export async function receiveTransferAction(id: number, input: ReceiveTransferIn
 /** ⚠️ Puts the stock back on the sending shelf with an opposite movement. */
 export async function cancelTransferAction(id: number, reason: string | null) {
   const res = await cancelTransfer(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ------------- returns, repairs and damage (Stage 6) ------------- */
+
+/**
+ * ⚠️ A CUSTOMER'S RETURN COMES BACK ONTO THE SHELF; OUR OWN BREAKAGE DOES NOT
+ * MOVE. What a supermarket sends back left the books the day it was sold, so it
+ * has to come in again. A crushed box found in the shop never went anywhere.
+ */
+export async function bookReturnAction(input: BookReturnInput) {
+  const res = await bookReturn(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ SETTLING IS WHAT TAKES THE SCRAP OFF THE SHELF — and only the scrap. What
+ * was repacked is already there. It can be called again: the remainder is stock
+ * still on the bench being repaired, which is the circled "(repairing)" in the
+ * notes.
+ */
+export async function settleReturnAction(id: number, input: SettleReturnInput) {
+  const res = await settleReturn(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses while the write-off is still in the books — the check is made
+ *  here so the library never has to import the ledger. */
+export async function cancelReturnAction(id: number, reason: string | null) {
+  const postedInBooks = await writeOffIsPosted(id);
+  const res = await cancelReturn(id, reason, { postedInBooks });
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ IT PREPARES A CREDIT NOTE — the document that already exists — priced off
+ * the ORIGINAL invoice, and links it. It lands as a DRAFT: issuing it is a
+ * separate act and posting it a third.
+ */
+export async function raiseCreditNoteAction(id: number) {
+  const res = await raiseCreditNote(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ Dr stock written off · Cr stock, at what the thrown chocolate COST — never
+ * at what it would have sold for. Only a settled return posts, and a loss that
+ * cannot be valued in full is refused rather than understated.
+ */
+export async function postWriteOffAction(id: number) {
+  const res = await postWriteOff(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure. */
+export async function unpostWriteOffAction(id: number, reason: string | null) {
+  const res = await unpostWriteOff(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* ------------- the cost of what was sold (Stage 7) ------------- */
+
+/**
+ * ⚠️ Dr 5100 cost of goods sold · Cr 1150 stock, one voucher a month. This is
+ * what makes the profit and loss real — until it runs, selling posts revenue
+ * with no cost against it and the stock account grows for ever.
+ *
+ * ⚠️ A return needs no special case: goods coming back are a positive movement,
+ * so they reduce the month's cost of sales by themselves. That is note #11's
+ * "② cost value", and it is why Stage 6 left it here.
+ */
+export async function postCostOfSalesAction(year: number, month: number) {
+  const res = await postCostOfSales(year, month);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure. */
+export async function unpostCostOfSalesAction(year: number, month: number, reason: string | null) {
+  const res = await unpostCostOfSales(year, month, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* ---------------- money out, and the stock-take (Stage 8) ---------------- */
+
+/**
+ * ⚠️ ONE CHEQUE COVERING SEVERAL PURCHASES IS ONE ROW EACH, all or nothing.
+ * Nothing ever sits "on account" waiting to be allocated — the same rule as on
+ * the money-in side, and for the same reason.
+ */
+export async function createPaymentsAction(inputs: PaymentInput[]) {
+  const res = await createPayments(inputs);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function updatePaymentAction(id: number, input: Partial<PaymentInput>) {
+  const res = await updatePayment(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses a payment that is in the books — the check is made here so the
+ *  library never has to import the posting engine. */
+export async function deletePaymentAction(id: number) {
+  const postedInBooks = await paymentIsPosted(id);
+  const res = await deletePayment(id, { postedInBooks });
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Dr creditors · Cr bank or cash, with the party Stage 2 credited — the
+ *  supplier, or the PERSON who bought it with their own money. */
+export async function postPaymentAction(id: number) {
+  const res = await postPayment(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure. */
+export async function unpostPaymentAction(id: number, reason: string | null) {
+  const res = await unpostPayment(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ THE GAP STAGE 7 LEFT ON PURPOSE. A stock-take difference is a real change
+ * in what the company owns but not the cost of selling anything, so cost of
+ * sales reports it and refuses to swallow it. This is where it lands.
+ */
+export async function postStocktakeAction(year: number, month: number) {
+  const res = await postStocktake(year, month);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function unpostStocktakeAction(year: number, month: number, reason: string | null) {
+  const res = await unpostStocktake(year, month, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* --------------------- over the counter (Stage 5b) --------------------- */
+
+/**
+ * ⚠️ A RECORD, NOT A TILL. Nothing here takes payment — the money changed hands
+ * before anybody typed. Writing it down takes the chocolate off that counter's
+ * shelf and puts the sale in the day's takings.
+ */
+export async function recordCounterSaleAction(input: CounterSaleInput) {
+  const res = await recordCounterSale(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Dr cash or bank · Cr sales · Cr VAT — and NO debtor. A counter sale was
+ *  paid there and then. */
+export async function postCounterSaleAction(id: number) {
+  const res = await postCounterSale(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure. */
+export async function unpostCounterSaleAction(id: number, reason: string | null) {
+  const res = await unpostCounterSale(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses while the takings still stand in the books — the check is made
+ *  here so the library never has to import the posting engine. */
+export async function cancelCounterSaleAction(id: number, reason: string | null) {
+  const postedInBooks = await counterSaleIsPosted(id);
+  const res = await cancelCounterSale(id, reason, { postedInBooks });
   if (res.ok) refresh();
   return res;
 }

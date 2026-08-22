@@ -4058,6 +4058,10 @@ export const czStockItems = pgTable("cz_stock_items", {
   name: text("name").notNull(),
   uom: text("uom").notNull().default("PCS"),
   category: text("category"),
+  /** ⚠️ Stage 9 — how long it lasts, in days. On the STOCK ITEM rather than the
+   *  product because raw materials go off too, and 171 of them are never sold.
+   *  A batch made today expires today plus this. */
+  shelfLifeDays: integer("shelf_life_days"),
   sortOrder: integer("sort_order").notNull().default(0),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4173,6 +4177,15 @@ export const czBatches = pgTable("cz_batches", {
   expiresOn: date("expires_on"),
   /** planned | running | closed | cancelled */
   status: text("status").notNull().default("planned"),
+  /**
+   * ⚠️ Stage 9 — production | purchase. A batch is either something we MADE or
+   * a LOT we bought. One table on purpose: both are a quantity of one thing with
+   * a date and an expiry that movements can point at, and splitting them would
+   * make every trace query look in two places.
+   */
+  source: text("source").notNull().default("production"),
+  /** Which purchase line the lot came in on. Null on anything we made. */
+  purchaseLineId: integer("purchase_line_id"),
   /** What the plan said. */
   plannedQty: numeric("planned_qty", { precision: 14, scale: 3 }),
   /* ────────────────────────────── Stage 4: production ────────────────────── */
@@ -4414,6 +4427,10 @@ export const czPurchaseLines = pgTable("cz_purchase_lines", {
   /** ⚠️ "flour 1kg" — the unit is part of the price (note #46). */
   uom: text("uom").notNull().default("PCS"),
   unitPrice: numeric("unit_price", { precision: 14, scale: 4 }).notNull(),
+  /** ⚠️ Stage 9 — what the supplier printed on the bag. This is what makes
+   *  "the earliest ingredient, or the production date, whichever is sooner"
+   *  possible: without it a bar cannot inherit a date nobody recorded. */
+  expiresOn: date("expires_on"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("cz_purchase_lines_purchase_idx").on(t.purchaseId, t.lineNo),
@@ -4577,4 +4594,272 @@ export const czTransferLines = pgTable("cz_transfer_lines", {
 }, (t) => [
   index("cz_transfer_lines_transfer_idx").on(t.transferId, t.lineNo),
   index("cz_transfer_lines_item_idx").on(t.fromItemId, t.toItemId),
+]);
+
+/* ------------------------------------------------------------------ *
+ * CocoZuri, manufacturing Stage 6 — returns, repairs and damage.
+ *
+ * Notes page 4: "Return / Damaged → Stock In", "repaired ——— voucher goods
+ * returned — or damaged", "(repairing)" circled. Page 2: "Fully damaged —
+ * throw", "Abnormal loss — split: production | raw materials".
+ * ------------------------------------------------------------------ */
+
+/**
+ * Goods coming back, and goods going in the bin.
+ *
+ * ⚠️ ONE DOCUMENT, TWO DOORS. A customer's return and our own breakage end in
+ * the same place — somebody deciding what is still fit to sell — so they are one
+ * record with a `kind`. The only difference is whether the stock has to come IN
+ * first: a customer's return does, because it left when it was sold; our own
+ * breakage never went anywhere.
+ *
+ * ⚠️ THE MONEY HALF IS NOT REBUILT HERE. A credit note already exists, already
+ * posts and already ages against the invoice; `creditNoteId` is the join.
+ */
+export const czReturns = pgTable("cz_returns", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** RTN-2608-01 — allocated, never typed. */
+  reference: text("reference").notNull(),
+  /** customer | internal */
+  kind: text("kind").notNull().default("customer"),
+  onDate: date("on_date").notNull(),
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  customerId: integer("customer_id").references(() => czCustomers.id, { onDelete: "restrict" }),
+  /** ⚠️ What lets a credit note be priced at what was ACTUALLY charged. */
+  invoiceId: integer("invoice_id").references(() => czInvoices.id, { onDelete: "restrict" }),
+  creditNoteId: integer("credit_note_id").references(() => czInvoices.id, { onDelete: "set null" }),
+  /** open | settled | cancelled */
+  status: text("status").notNull().default("open"),
+  /** ⚠️ Where the loss belongs — note #12. Required once anything is scrapped,
+   *  and the note with it: naming the kind is not enough. */
+  lossKind: text("loss_kind"),
+  lossNote: text("loss_note"),
+  receivedBy: text("received_by"),
+  settledOn: date("settled_on"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_returns_reference_idx").on(t.companyId, t.reference),
+  index("cz_returns_list_idx").on(t.companyId, t.status, t.onDate),
+  index("cz_returns_customer_idx").on(t.customerId, t.onDate),
+]);
+
+/**
+ * One chocolate on a return.
+ *
+ * ⚠️ `goodQty` AND `scrapQty` ARE NULL UNTIL SOMEBODY LOOKS. What is left over —
+ * `qty − good − scrap` — is still on the bench being repaired, which is the
+ * circled "(repairing)" in the notes and the exact twin of "in transit".
+ */
+export const czReturnLines = pgTable("cz_return_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  returnId: integer("return_id").notNull().references(() => czReturns.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** ⚠️ THE BATCH COMES BACK WITH THE CHOCOLATE. A returned crate is the first
+   *  place a bad batch shows itself. */
+  batchId: integer("batch_id").references(() => czBatches.id, { onDelete: "set null" }),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  goodQty: numeric("good_qty", { precision: 14, scale: 3 }),
+  scrapQty: numeric("scrap_qty", { precision: 14, scale: 3 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_return_lines_return_idx").on(t.returnId, t.lineNo),
+  index("cz_return_lines_item_idx").on(t.itemId),
+]);
+
+/* ================================================================== *
+ * CocoZuri, manufacturing Stage 8 — finishing the accounts.
+ *
+ * Notes page 1: "Creditors — paying them", "Assets · Depreciation",
+ * "Ledger — reconciliation feature".
+ *
+ * ⚠️ ONLY THE FIRST TABLE IS COCOZURI'S. Fixed assets and bank reconciliation
+ * are COMPANY-WIDE: every one of the thirteen has assets to depreciate and a
+ * statement to tick off, and a chocolate-shaped version would have to be built
+ * twelve more times.
+ * ================================================================== */
+
+/**
+ * Money OUT — the exact twin of `cz_receipts`.
+ *
+ * ⚠️ ONE PAYMENT, SEVERAL PURCHASES = ONE ROW EACH, sharing a date and a
+ * reference, all or nothing — the same rule as a cheque covering four invoices.
+ * Nothing ever sits "on account" waiting to be allocated.
+ *
+ * ⚠️ AND WHO IS BEING PAID COMES OFF THE PURCHASE, never off the form. A
+ * purchase bought with somebody's own money is owed to that PERSON, not to the
+ * supplier — Stage 2 credited creditors with the person as the party, and
+ * paying it back has to find the same party.
+ */
+export const czPayments = pgTable("cz_payments", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** RESTRICT and NOT NULL: a payment always settles something. */
+  purchaseId: integer("purchase_id").notNull().references(() => czPurchases.id, { onDelete: "restrict" }),
+  paidOn: timestamp("paid_on", { withTimezone: true }).notNull().defaultNow(),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("TZS"),
+  method: text("method"),
+  reference: text("reference"),
+  /** ⚠️ The mirror of the "received in DSC" fact — which company's money left.
+   *  Recorded, never interpreted; the inter-company question is unanswered. */
+  paidFromCompanyId: integer("paid_from_company_id").references(() => companies.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_payments_list_idx").on(t.companyId, t.paidOn),
+  index("cz_payments_purchase_idx").on(t.purchaseId),
+]);
+
+/**
+ * Something the company owns and writes down over time.
+ *
+ * ⚠️ NO `accumulated` OR `book_value` COLUMN, EVER. What an asset has
+ * depreciated so far is worked out from its cost, its life and how many months
+ * it has been in use — the ledger's third rule, and the same reason there is no
+ * `balance` column anywhere.
+ */
+export const fixedAssets = pgTable("fixed_assets", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category"),
+  acquiredOn: date("acquired_on").notNull(),
+  cost: numeric("cost", { precision: 14, scale: 2 }).notNull(),
+  /** Depreciation never takes an asset below this. */
+  residualValue: numeric("residual_value", { precision: 14, scale: 2 }).notNull().default("0"),
+  /** ⚠️ IN MONTHS, because depreciation is posted monthly. Years would have to
+   *  be divided by twelve somewhere, and that somewhere is where the rounding
+   *  errors live. */
+  usefulLifeMonths: integer("useful_life_months").notNull(),
+  /** straight_line — the only one built, named so a second can be added without
+   *  a migration and so a screen never has to guess which was used. */
+  method: text("method").notNull().default("straight_line"),
+  assetAccountId: integer("asset_account_id").references(() => glAccounts.id, { onDelete: "set null" }),
+  accumAccountId: integer("accum_account_id").references(() => glAccounts.id, { onDelete: "set null" }),
+  expenseAccountId: integer("expense_account_id").references(() => glAccounts.id, { onDelete: "set null" }),
+  disposedOn: date("disposed_on"),
+  disposalProceeds: numeric("disposal_proceeds", { precision: 14, scale: 2 }),
+  notes: text("notes"),
+  /** in_use | disposed */
+  status: text("status").notNull().default("in_use"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("fixed_assets_list_idx").on(t.companyId, t.status, t.acquiredOn),
+]);
+
+/** One bank statement, being ticked off against the books. */
+export const bankRecs = pgTable("bank_recs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => glAccounts.id, { onDelete: "restrict" }),
+  statementDate: date("statement_date").notNull(),
+  /** What the bank says the balance was on that date. */
+  statementBalance: numeric("statement_balance", { precision: 14, scale: 2 }).notNull(),
+  /** open | closed */
+  status: text("status").notNull().default("open"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("bank_recs_list_idx").on(t.companyId, t.accountId, t.statementDate),
+]);
+
+/**
+ * One entry that has cleared the bank.
+ *
+ * ⚠️ IT POINTS AT THE ENTRY; IT DOES NOT CHANGE IT. Stamping a "cleared" date
+ * onto a `gl_entries` row is the obvious shortcut and it would break the
+ * ledger's second rule — a posted entry is never edited.
+ */
+export const bankRecLines = pgTable("bank_rec_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  recId: integer("rec_id").notNull().references(() => bankRecs.id, { onDelete: "cascade" }),
+  entryId: integer("entry_id").notNull().references(() => glEntries.id, { onDelete: "restrict" }),
+  clearedOn: date("cleared_on").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("bank_rec_lines_rec_idx").on(t.recId),
+  /** ⚠️ Once only — reconciling an entry twice balances a statement against
+   *  money that was already accounted for. */
+  uniqueIndex("bank_rec_lines_entry_idx").on(t.entryId),
+]);
+
+/* ================================================================== *
+ * CocoZuri, manufacturing Stage 5b — the counter.
+ *
+ * ⚠️ THE OWNER SETTLED IT (22 Aug 2026): "cash taken and kept in drawer and
+ * informed via WhatsApp and there is some data sheets, some cash collected via
+ * online modes... FOR NOW WE WON'T INTEGRATE A PAYMENT SYSTEM HERE, JUST REPORTS
+ * GET DIGITAL."
+ *
+ * So this is a RECORD OF A SALE, NOT A TILL. Nothing takes payment. How it was
+ * paid is written down as a plain fact, because that is what the WhatsApp
+ * message says — and the point is that the takings and what left the shelf stop
+ * being a chat thread and a paper sheet.
+ * ================================================================== */
+
+export const czCounterSales = pgTable("cz_counter_sales", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** CS-2608-01 — allocated, never typed. */
+  reference: text("reference").notNull(),
+  /** ⚠️ Which counter — and also the shelf the stock comes off, so never a
+   *  guess. The KITCHEN is the main one; the shop takes the rare walk-in. */
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  onDate: date("on_date").notNull(),
+  /** ⚠️ A walk-in has no account and must not need one. */
+  customerId: integer("customer_id").references(() => czCustomers.id, { onDelete: "restrict" }),
+  /** What they called themselves, when there is no account — a custom order for
+   *  a wedding has a name and no customer record. */
+  customerName: text("customer_name"),
+  /** cash | online | other. ⚠️ RECORDED, NEVER INTEGRATED. */
+  paidBy: text("paid_by").notNull().default("cash"),
+  paymentRef: text("payment_ref"),
+  /** ⚠️ Frozen, like an invoice's. */
+  vatRate: numeric("vat_rate", { precision: 6, scale: 3 }).notNull().default("0"),
+  /** Usually two different people, because today it arrives by WhatsApp. */
+  soldBy: text("sold_by"),
+  recordedBy: text("recorded_by"),
+  /** recorded | cancelled */
+  status: text("status").notNull().default("recorded"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_counter_sales_reference_idx").on(t.companyId, t.reference),
+  index("cz_counter_sales_list_idx").on(t.companyId, t.onDate, t.locationId),
+]);
+
+/** One thing sold over a counter. ⚠️ No total column — it is qty × price. */
+export const czCounterSaleLines = pgTable("cz_counter_sale_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  saleId: integer("sale_id").notNull().references(() => czCounterSales.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** ⚠️ Which lot went out of the door — suggested first-expired-first-out. A
+   *  bar sold over a counter is still a bar somebody may ring up about. */
+  batchId: integer("batch_id").references(() => czBatches.id, { onDelete: "set null" }),
+  /** Frozen the day it was sold. */
+  description: text("description").notNull(),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 14, scale: 4 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_counter_sale_lines_sale_idx").on(t.saleId, t.lineNo),
+  index("cz_counter_sale_lines_item_idx").on(t.itemId),
 ]);

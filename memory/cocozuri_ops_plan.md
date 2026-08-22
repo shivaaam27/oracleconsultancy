@@ -4,6 +4,12 @@ description: "CocoZuri Operations — what the 18 workbooks actually hold, and t
 
 # CocoZuri Operations — the workbooks, and the plan
 
+⚠️ **SINCE THIS WAS WRITTEN, ALL NINE MANUFACTURING STAGES AND THE COUNTER HAVE
+BEEN BUILT** (23 Aug 2026). This file is the SELLING half and the workbook
+analysis; the factory half is `memory/cocozuri_manufacturing_plan.md`, and
+`memory/cocozuri_how_it_works.md` is the plain-English walkthrough of the whole
+module in the order the work happens.
+
 **Read this before building anything at `/cocozuri`.** It records what was measured
 in the source workbooks on 21 Aug 2026, the arithmetic faults found in them, and
 the questions that must be answered by the owner rather than guessed.

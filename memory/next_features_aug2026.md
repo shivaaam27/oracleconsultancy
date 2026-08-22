@@ -8,7 +8,12 @@ metadata:
 # What's next (agreed 16 Aug 2026)
 
 The ERPNext programme is finished (see [[erpnext_redesign_plan]]). This is the
-slice the owner picked afterwards, **in his order of interest**:
+slice the owner picked afterwards, **in his order of interest**.
+
+⚠️ **NONE OF IT HAS BEEN STARTED, and the queue got longer:** the whole CocoZuri
+manufacturing programme (nine stages plus the counter) was built between 22 and
+23 Aug 2026 instead — see `memory/handover_aug23_2026.md`. This list is still the
+agreed next slice.
 
 1. **Export any list** — ⬜ deferred at his word ("export we will do later")
 2. **A proper global New menu** — ✅ BUILT 16 Aug 2026

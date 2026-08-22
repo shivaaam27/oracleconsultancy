@@ -1,11 +1,32 @@
 # COS System - Project Instructions
 
-**⚠️ Most recent work: CocoZuri MANUFACTURING STAGES 2-5 are BUILT**
-(migrations **0150 · 0151 · 0152 · 0153**, each applied and proved by effect) —
-buying with landed cost, recipes that cost themselves, production with the
-owner's "inter check", and kitchen-to-shop transfers. The whole chain was proved
-live end to end: buy → cost → make → check → move → trace → reverse. Read
-`memory/cocozuri_manufacturing_plan.md` §6b–§6e.
+**⚠️ THE COCOZURI MANUFACTURING PROGRAMME IS FINISHED — ALL NINE STAGES ARE
+BUILT, AND SO IS THE COUNTER** (migrations **0149–0157**, each applied and proved
+by effect; Stage 7 needed no table at all) — the stock ledger, buying with landed
+cost, recipes that cost themselves, production with the owner's "inter check",
+kitchen-to-shop transfers, returns/repairs/damage, profit per batch, the rest of
+the accounts, and **expiry and food traceability**. **Every one of the 52 lines
+in his notes is built.** Proved live end to end: buy → lot → cost → make (FEFO)
+→ check → move → sell → take back → write off → cost of sales → pay the
+supplier → depreciate → reconcile → trace → reverse. Read
+`memory/cocozuri_manufacturing_plan.md` §6a–§6j, and **§5b for the owner's
+answers of 22 Aug evening** — they settle four of the six open questions.
+
+**⚠️ START HERE: `memory/handover_aug23_2026.md`** — the session that finished
+the programme (Stages 6, 7, 8, 9 and the counter; migrations 0154–0157; four
+bugs, two of them pre-existing; the sidebar reordered). **And
+`memory/cocozuri_how_it_works.md` is the plain-English walkthrough** written for
+the owner: every screen in the order the work happens, and what each one refuses.
+⚠️ **NOTHING FROM THAT SESSION IS COMMITTED** — it is all in the working tree.
+
+**⚠️ STAGE 6 TURNS ON ONE PIECE OF ACCOUNTING, AND IT IS THE THING TO
+REMEMBER:** a sales return reverses the SALE (a credit note, which already
+exists) but **must NOT put the COST back** — nothing has ever taken the cost of
+a sale out of the stock account, so 1150 already carries it and putting it back
+would count the same chocolate twice. That half waits for Stage 7's cost of
+goods sold. **Writing damaged stock OFF is different and IS posted**:
+Dr **6930 Stock written off** · Cr **1150 Stock**, at what it COST, never at
+what it would have sold for.
 
 **⚠️ THE OWNER SETTLED THE ITEM-IDENTITY QUESTION (22 Aug 2026):** the shop's
 `AMBER RABDI` and the kitchen's ARE the same chocolate — but still two rows, so
@@ -30,7 +51,8 @@ type size, so everything inside them fell back to the browser's **16px**. Read
 **Orders & Imports (`/ops`) became a module of its own** at the same time.
 
 Read `memory/handover_aug22_2026_evening.md` for the full account of that
-session, including the four bugs and the questions still waiting on the owner.
+session. ⚠️ **Its "what is next" is SUPERSEDED** — Stages 6–9 are built; see
+`memory/handover_aug23_2026.md`.
 
 Before that: `memory/handover_aug22_2026.md` — CocoZuri
 Phases 3-5 built and DEPLOYED, the module swept for bugs (three lists were losing
@@ -294,7 +316,14 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0153** (`cz_transfers` · `cz_transfer_lines` — kitchen to shop).
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0157** (`cz_counter_sales` · `cz_counter_sale_lines` — the
+counter, Stage 5b).
+Before it, **0156** (shelf life, purchase-line expiry, and lots — Stage 9).
+Before it, **0155** (`cz_payments` · `fixed_assets` · `bank_recs` ·
+`bank_rec_lines` — Stage 8).
+Before it, **0154** (`cz_returns` · `cz_return_lines` — returns, repairs
+and damage).
+Before it, **0153** (`cz_transfers` · `cz_transfer_lines` — kitchen to shop).
 Before it, **0152** (production — nine columns on `cz_batches`).
 Before it, **0151** (`cz_recipes` · `cz_recipe_lines` — CocoZuri recipes).
 Before it, **0150** (`cz_budgets` · `cz_purchases` · `cz_purchase_lines` — CocoZuri buying).
@@ -413,14 +442,19 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   books, raw) · **Reports** (`/ledger/reports/<report>` — trial balance, P&L,
   balance sheet, general ledger, statements, **VAT return, withholding**;
   `?group=1` consolidates all thirteen companies) · **Tax rates** (`/ledger/tax`
-  — VAT and withholding as editable rows, each flagged confirmed or not).
+  — VAT and withholding as editable rows, each flagged confirmed or not) ·
+  **Assets** (`/ledger/assets` — the fixed-asset register and monthly
+  depreciation) · **Reconcile** (`/ledger/reconcile` — a bank statement ticked
+  off against the books; ⚠️ it never edits a posted entry).
   Company picked with `?co=`, never `?company=`.
 - `/cocozuri` - **CocoZuri Operations** (Furaha Innovation Ltd, prefix CC):
   products · customers · invoices · money in · owed · statements · the stock book
   and the month-end stock-take · the order form, and posting to the general
   ledger · **purchases and budgets** (Stage 2) · **recipes** (Stage 3) ·
-  **production** (Stage 4) · **transfers** (Stage 5). See the CocoZuri section
-  above.
+  **production** (Stage 4) · **transfers** (Stage 5) · **returns and damage**
+  (Stage 6) · **profit** (Stage 7) · **money out** (Stage 8) · **trace** (Stage 9)
+  · **the counter** (Stage 5b — ⚠️ a record, not a till).
+  See the CocoZuri section above.
 - `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
   Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
   wait first), `/interviews` (the diary, in both Dar and India time) and
@@ -435,6 +469,12 @@ BUSINESSES are: **Task Management · Recruitment · Ledger · Projects · Orders
 Imports · CocoZuri Operations**. `/apps` is the launcher; the
 sidebar shows **only the module you are in**, with a switcher under the brand and
 **System (Insights/Activity/ORI/Settings) pinned at the foot of every rail**.
+- ⚠️ **A MODULE'S RAIL FOLLOWS THE WORK, NOT THE SCREEN TYPE** (owner's ask,
+  23 Aug 2026). CocoZuri's groups are **Start · 1 Set up · 2 Buy · 3 Make ·
+  4 Keep · 5 Sell · 6 Get paid · 7 Pay out · 8 Put right · 9 Know** — the order
+  the chocolate actually moves in. A rail grouped by "what sort of screen is
+  this" makes somebody learn a map; grouped by the work it reads like the day.
+  **Adding a page? Put it where it happens in the day, not at the end.**
 - **`src/lib/nav.ts` holds `MODULES`** — one entry per module, listing existing
   route ids. ⚠️ **Orders & Imports (`/ops`) became a module of its own** (Aug
   2026): it was ONE nav id filed under Task Management's "Operations" group while
@@ -833,13 +873,23 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   every kitchen figure. Fewer than two days of history gets no figure at all.
 - Still **no MCP tool and no `EntityDef`**, on purpose. **A ledger WRITE tool must
   never exist.**
-- ⚠️ **THE MANUFACTURING HALF: STAGES 1-5 ARE BUILT, STAGES 6-9 ARE NOT —
+- ⚠️ **THE OWNER ANSWERED FOUR OF THE SIX OPEN QUESTIONS (22 Aug, evening):**
+  **"finish" means FINISHED GOODS, after production** — so note #31's "raw
+  material + finish + packaging" is the cost OF the finished good, not three
+  kinds of input; **everything has an expiry and a shelf life**, so **Stage 9 is
+  NOT optional** any more; **VAT is 7% but keep it flexible** (it already lives
+  in data); and **DA/SA/TA is still a mystery to him too** — keep storing it as
+  written. Still open: whether the shop is a real till (he asked for the question
+  again), and the pilot-stage decisions he has parked until every stage is built
+  (the books opening, money "in DSC", the price dates). See §5b.
+- ⚠️ **THE MANUFACTURING HALF IS COMPLETE — ALL NINE STAGES —
   read `memory/cocozuri_manufacturing_plan.md` before touching stock.** Nine
   stages from the owner's own notes (22 Aug 2026): purchasing, recipes,
   production batches, transfers, POS, returns, batch costing, the rest of the
   accounts, and food traceability. §5 is a line-by-line audit of all 52 points in
   those notes so nothing is lost; **§5a holds the owner's answers and they change
-  the design.** §6a–§6d record what was built.
+  the design**, and **§5b his answers of that evening**. §6a–§6g record what
+  was built.
 - ⚠️ **PRODUCTION (Stage 4) IS SHAPED ENTIRELY BY §5a — "we don't use batch
   numbers, but we are introducing them".** It does not fail by being wrong, it
   fails by NOT BEING USED. So: the number is **allocated, never typed**; a batch
@@ -871,9 +921,141 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   the transfer's voucher so the loss is always answerable. ⚠️ `postStockMove` is
   therefore called WITHOUT `mustNet`, and Stage 1's `transferStock` is
   SUPERSEDED — do not build on it.
-- ⚠️ **THE POS HALF OF STAGE 5 IS DELIBERATELY NOT BUILT.** Question §6.6 —
-  is the shop a real till with a cash-up, or does somebody write down what sold?
-  — is unanswered, and the two answers make completely different software.
+- ⚠️ **RETURNS (Stage 6): ONE DOCUMENT, TWO DOORS, AND ONLY ONE MOVES STOCK
+  INWARDS.** `cz_returns` · `cz_return_lines` (migration **0154**);
+  `cocozuri-return-shared.ts` is CLIENT-SAFE, `cocozuri-return.ts` is SERVER-ONLY
+  and the ONE DOOR. A **customer's** return left the books the day it was sold so
+  booking it writes `return` movements ONTO the shelf; **breakage found here**
+  never went anywhere, so booking it writes NOTHING. Both leave the same way —
+  what is thrown writes `damage` OUT.
+- ⚠️ **"REPAIRING" IS THE GAP BETWEEN BOOKING IN AND SORTING** — `qty − good −
+  scrap`, the exact twin of a transfer's "in transit". So `good_qty`/`scrap_qty`
+  are **nullable and cumulative**, never a verdict column: five bars repacked
+  today and five thrown next week is the real case, and `settleReturn` may be
+  called again until nothing is outstanding.
+- ⚠️ **THE MONEY HALF IS A LINK, NOT A SECOND DOCUMENT.** `raiseCreditNote`
+  prepares the credit note that already exists and stores its id.
+  **Priced off the ORIGINAL invoice, never today's list**, and matched by
+  **`product_id`, never by name**. It credits **what came back**, not what was
+  repacked, and lands as a **draft**.
+- ⚠️ **A SALES RETURN DOES NOT PUT THE COST BACK, AND MUST NOT UNTIL STAGE 7** —
+  nothing has ever relieved 1150 for a sale, so the cost is already sitting
+  there. The record page says so out loud.
+- ⚠️ **`postWriteOff` IS Dr 6930 · Cr 1150, AT COST** — what a bar SELLS for has
+  nothing to do with what throwing it away cost. **Only a SETTLED return posts**
+  (what is on the bench might yet be sold), and a loss that **cannot be valued in
+  full is refused with the item NAMED**, never posted short.
+- ⚠️ **6930 "Stock written off" AND 6940 "Stock gains and losses" ARE NEW IN THE
+  SHARED CHART, AND BOTH SIT UNDER 6900 *Other*, NOT UNDER COST OF SALES** — breakage is not part of
+  what a bar costs to make, and burying it there would make gross profit read
+  better the more stock gets damaged. Furaha's chart was re-seeded to add
+  them (70 → 72). `resolveWriteOffAccounts` refuses rather than guesses.
+- ⚠️ **`itemCostFromMoves` NOW READS `produce` AS WELL AS `receipt`.** A bar was
+  never bought, so receipts alone gave every finished chocolate no cost — which
+  made a crate of them thrown away look free.
+- ⚠️ **THE LOSS REASONS: TWO ARE HIS WORDS, THREE ARE PROPOSED.** "In the making"
+  and "the materials" are note #12; handling, too old and came-back-spoiled were
+  added because a bar crushed in a crate is neither. **Say so when it next comes
+  up.** A scrap must name the kind AND say what happened.
+- ⚠️ **PROFIT (Stage 7): NO TABLE AND NO MIGRATION.** `cocozuri-profit-shared.ts`
+  is CLIENT-SAFE, `cocozuri-profit.ts` is SERVER-ONLY; the screen is
+  **`/cocozuri/profit`** with the view and month in the URL. Everything is
+  derived on read.
+- ⚠️ **WHAT A BATCH EARNED CANNOT BE KNOWN, AND THE PAGE SAYS SO.** An invoice
+  line names a PRODUCT, not a batch. It shows what the batch **cost** (measured
+  from its own `consume` movements, never the recipe) and what its bars are
+  **worth** at the price they sell for. Tracing a sale to a batch is Stage 9.
+- ⚠️ **COST PER UNIT DIVIDES BY WHAT CAME OUT**, not by the recipe's expected
+  good units — `costRecipe()` is a plan, this is a measurement.
+- ⚠️ **THE YIELD IS NOT RECOMPUTED** — it calls Stage 4's `batchCheck`, so two
+  screens can never quote different yields for one batch.
+- ⚠️ **THE MARGIN IS TAKEN NET OF VAT.** Costs are ex-VAT and a CocoZuri invoice
+  is VAT-INCLUSIVE; comparing them straight inflates every margin by the rate.
+  The price prefers **what was actually charged** over the list.
+- ⚠️ **`postCostOfSales(year, month)` IS WHAT MAKES THE P&L REAL** — Dr 5100 ·
+  Cr 1150, one voucher a month under a derived id (`202608`) so it can never post
+  twice. **And it resolves note #11's "cost value" with NO special case:** goods
+  coming back are a positive movement, so a return reduces the month's cost of
+  sales by itself (proved: 10 sold = 10,384.62; four back = 6,230.77).
+- ⚠️ **WHAT COUNTS, AND EVERY EXCLUSION IS DELIBERATE:** `day_out`/`sale` in,
+  `return` subtracted, **`damage` OUT** (Stage 6 charges it to 6930 — counting it
+  here would charge it twice), `consume`/`produce`/`transfer`/`receipt` out. **A
+  stock-take difference is reported but NOT posted** — that is Stage 8's work.
+- ⚠️ **IT REFUSES A MONTH IT CANNOT VALUE IN FULL**, by name. Understating the
+  cost overstates the profit, which is the one direction of error nobody notices.
+  Live today: August has 113 chocolates nobody has ever costed.
+- ⚠️ **AN INCOMPLETE COST MAKES PROFIT A CEILING, NOT A FLOOR** — the inverse of
+  everywhere else here. Profit and margin show **"≤"**; a cost still shows "≥".
+- ⚠️ **MONEY OUT (Stage 8): ONLY `credit` AND `own_money` LEAVE ANYTHING OWED.**
+  `cz_payments` (migration **0155**); `cocozuri-pay-shared.ts` is CLIENT-SAFE,
+  `cocozuri-pay.ts` is SERVER-ONLY and the one door. A purchase paid from the
+  bank or the cash box was settled the day it was bought — paying it again would
+  credit the bank twice. **The party is the one Stage 2 credited**: a purchase
+  bought with somebody's own money is owed to a PERSON, not a supplier.
+- ⚠️ **FIXED ASSETS AND BANK RECONCILIATION ARE COMPANY-WIDE, NOT COCOZURI'S** —
+  `fixed_assets` · `bank_recs` · `bank_rec_lines`, screens `/ledger/assets` and
+  `/ledger/reconcile`. Every one of the thirteen has assets to write down and a
+  statement to tick off.
+- ⚠️ **NO `accumulated` OR `book value` COLUMN.** Straight line over MONTHS, the
+  **last month trimmed** so the total lands exactly, nothing charged after the
+  life ends or after disposal, and **a disposal measured against what it STOOD
+  at** — selling for 300,000 something standing at 900,000 is a loss of 600,000.
+- ⚠️ **RECONCILING NEVER TOUCHES A POSTED ENTRY.** A `cleared` column on
+  `gl_entries` would break the ledger's second rule; the clearance lives in its
+  own table pointing at the entry. **A unique index means an entry clears once,
+  anywhere**, and a reconciliation **only closes when it agrees**.
+- ⚠️ **6940 "Stock gains and losses" IS NEW AND IS APART FROM 6930.** Breakage
+  somebody saw and wrote down is a different fact from stock that simply is not
+  there. `postStocktake` swaps the sides when a count finds MORE than the book
+  said — that is a gain, not an error.
+- ⚠️ **TRACEABILITY (Stage 9): A LOT AND A BATCH ARE THE SAME TABLE.** Migration
+  **0156** adds `cz_stock_items.shelf_life_days`, `cz_purchase_lines.expires_on`
+  and `cz_batches.source` + `purchase_line_id`. A dated delivery line becomes a
+  `LOT-2609-01` row on approval; a line with no date gets no lot, because a form
+  that insists on a date nobody has does not get filled in.
+- ⚠️ **THE `batch_id` ON A `consume` MOVEMENT IS THE MATERIAL'S LOT, NOT THE
+  BATCH BEING MADE.** Which batch it belongs to is already on the voucher, and
+  using the column for the lot is what carries the thread from a bar back to the
+  bag and the supplier. **What went IN reads the voucher; what went OUT reads the
+  batch id.** ⚠️ Batches closed before this put their own id on their consumes,
+  so `batchesUsing` skips the batch itself.
+- ⚠️ **FIRST EXPIRED, FIRST OUT — not first in.** `closeBatch` allocates each
+  material across its lots soonest-expiring first. An undated lot goes LAST and
+  is reported; a shortfall is recorded with no lot rather than invented.
+- ⚠️ **EXPIRY = THE EARLIER OF "made on + shelf life" AND THE SOONEST INGREDIENT,
+  AND IT IS FROZEN** onto the batch at close. A shelf life changed next year must
+  not move the date on chocolate already in a shop. **It returns nothing rather
+  than guessing** when neither is known.
+- ⚠️ **`/cocozuri/trace` ANSWERS BOTH RECALL QUESTIONS ON ONE SCREEN** — what
+  went into a batch, and what was made from a lot. Plus what is going off, with
+  **what carries no date counted separately**. The despatch check and the expiry
+  bands are **defaults nobody has agreed**: they warn, never refuse.
+- ⚠️ **THE COUNTER (Stage 5b) IS A RECORD OF A SALE, NOT A TILL.** The owner
+  settled it: *"cash taken and kept in drawer and informed via WhatsApp and there
+  is some data sheets, some cash collected via online modes... **for now we won't
+  integrate a payment system here, just reports get digital**."* `cz_counter_sales`
+  · `cz_counter_sale_lines` (migration **0157**); `cocozuri-counter-shared.ts` is
+  CLIENT-SAFE, `cocozuri-counter.ts` is SERVER-ONLY and the one door. Screen
+  **`/cocozuri/counter`**. **Nothing takes payment** — `paid_by` splits the day's
+  takings and picks cash box vs bank, and settles nothing.
+- ⚠️ **THE KITCHEN IS THE MAIN COUNTER, NOT THE SHOP** (his words). Both sell —
+  the kitchen takes the bulk and custom orders, the shop the rare walk-in. The
+  form defaults to the kitchen, and the counter is also the shelf stock comes off.
+- ⚠️ **RECORDING IT LATE IS NORMAL** — "informed via WhatsApp" means the person
+  who sold it and the person who types it are different, and later. `sold_by` and
+  `recorded_by` are both kept. **But a FUTURE date is refused**: it would leave
+  the sale out of today's takings and the shelf unchanged until that date arrived.
+- ⚠️ **Dr cash or bank · Cr sales · Cr VAT — and NO DEBTOR.** It was paid there
+  and then; trade debtors would leave a balance nobody will ever collect. Cash
+  with no cash account in the chart is refused rather than quietly banked.
+- ⚠️ **IT PLUGS INTO EVERYTHING FOR NOTHING** because the movement is
+  `reason: "sale"` — already understood as demand by the order form, already
+  valued by the monthly cost of sales, already followed by the trace. That is
+  what Stage 1's one-ledger decision bought.
+- ⚠️ **A walk-in needs no account**, the price is resolved like an invoice's and
+  then **typeable** (bulk and custom orders are agreed on the spot), the VAT rate
+  is frozen, a NIL price is allowed and a missing one is not, and **a negative is
+  refused — something coming back is a RETURN**.
 - ⚠️ **STOCK NOW HAS A LEDGER (migration 0149).** `cz_stock_moves` +
   **`postStockMove()`** are the twin of `gl_entries` + `postVoucher()`: ONE
   ledger, MANY doors, and nothing else may insert. `qty` is SIGNED, so a transfer

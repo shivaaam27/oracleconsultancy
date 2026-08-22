@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
+import { expiryOnClose, pickFefo } from "@/lib/cocozuri-trace";
 import { todayInDar } from "@/lib/cocozuri-stock-shared";
 import { getRecipe, listRecipes } from "@/lib/cocozuri-recipe";
 import type { CzRecipe } from "@/lib/cocozuri-recipe-shared";
@@ -312,18 +313,46 @@ export async function closeBatch(
      stock ledger can never be talked out of, because there is no transaction
      here to fall back on. `postStockMove` writes them all in one statement, so
      it can never hold half a batch either. */
+  /* ⚠️ STAGE 9 — MATERIALS ARE TAKEN FIRST-EXPIRED-FIRST-OUT, LOT BY LOT.
+     Not first-in-first-out: they are not the same thing, and food is exactly
+     the case where the difference bites — a bag bought later can go off sooner,
+     and taking the older one leaves the one about to expire on the shelf until
+     it does.
+
+     ⚠️ AND THE `batch_id` ON A CONSUME MOVEMENT IS THE **MATERIAL'S** LOT, not
+     the batch being made. Which batch it belongs to is already on the voucher
+     (`batch` / this id), so using the column for the lot is what makes the
+     backward trace — bar → bag → supplier — possible at all. A move with no lot
+     simply means nobody dated that material, which is recorded, not invented. */
+  const consumedLotIds: number[] = [];
+  const consumeMoves: {
+    itemId: number; locationId: number; onDate: string; qty: number;
+    reason: "consume"; batchId: number | null; note: string;
+  }[] = [];
+
+  for (const u of usedNamed.filter((x) => x.qty > 0)) {
+    const where = itemById.get(u.itemId)?.locationId ?? batch.locationId!;
+    const picked = await pickFefo(u.itemId, u.qty, where);
+    for (const p of picked.picks) {
+      consumedLotIds.push(p.lot.batchId);
+      consumeMoves.push({
+        itemId: u.itemId, locationId: where, onDate: batch.madeOn!,
+        qty: -p.qty, reason: "consume", batchId: p.lot.batchId,
+        note: `${batch.batchNo} · ${p.lot.batchNo}`,
+      });
+    }
+    // ⚠️ What the lots could not cover is still recorded, with no lot against
+    // it. Leaving it out would say less went in than really did.
+    if (picked.short > 0.0005) {
+      consumeMoves.push({
+        itemId: u.itemId, locationId: where, onDate: batch.madeOn!,
+        qty: -picked.short, reason: "consume", batchId: null, note: batch.batchNo,
+      });
+    }
+  }
+
   const moves = [
-    ...usedNamed
-      .filter((u) => u.qty > 0)
-      .map((u) => ({
-        itemId: u.itemId,
-        locationId: itemById.get(u.itemId)?.locationId ?? batch.locationId!,
-        onDate: batch.madeOn!,
-        qty: -u.qty,
-        reason: "consume" as const,
-        batchId: batch.id,
-        note: batch.batchNo,
-      })),
+    ...consumeMoves,
     ...(candidate.producedQty > 0
       ? [{
           itemId: batch.itemId,
@@ -346,8 +375,18 @@ export async function closeBatch(
     if (!res.ok) return { ok: false, error: res.error };
   }
 
+  /* ⚠️ STAGE 9 — THE EXPIRY IS WORKED OUT AND **FROZEN** HERE: the earlier of
+     what the shelf life allows and the soonest-expiring thing that went in. A
+     bar made with almonds that go off next week does not last six months,
+     however long a bar normally lasts.
+
+     ⚠️ Frozen rather than derived on read, because a shelf life changed next
+     year must not silently move the date on chocolate already in a shop. */
+  const expiry = await expiryOnClose(batch.itemId, batch.madeOn, consumedLotIds);
+
   const { error } = await sb.from("cz_batches").update({
     status: "closed",
+    expires_on: expiry.date,
     produced_qty: candidate.producedQty,
     loss_kind: candidate.lossKind,
     loss_note: candidate.lossNote?.trim() || null,

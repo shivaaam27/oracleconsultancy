@@ -62,6 +62,8 @@ export type SourceType =
   | "cz_batch"
   /** Manufacturing Stage 5 — kitchen to shop. A screen only. */
   | "cz_transfer"
+  /** Manufacturing Stage 6 — returns, repairs and damage. A screen only. */
+  | "cz_return"
   /** The PES trading module (Stages 2–5). Four record types, each carrying a
    *  reference number somebody quotes down the phone — a PO, a bill of lading,
    *  an RFQ, an invoice — which is exactly what a search box is for. */

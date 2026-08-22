@@ -128,6 +128,10 @@ export type CzPurchaseLine = {
   qty: number;
   uom: string;
   unitPrice: number;
+  /** ⚠️ Stage 9 — what the supplier printed on the bag. A line that has one
+   *  becomes a LOT on approval, which is what lets a bar later inherit "the
+   *  earliest ingredient, whichever is sooner". Null means nobody said. */
+  expiresOn?: string | null;
 };
 
 /* ------------------------------------------------------------------ *

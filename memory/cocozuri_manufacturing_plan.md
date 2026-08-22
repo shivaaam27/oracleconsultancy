@@ -7,6 +7,11 @@ metadata:
 
 # CocoZuri — the manufacturing half
 
+⚠️ **ALL NINE STAGES ARE BUILT, PLUS THE COUNTER** (23 Aug 2026) — §6a–§6j
+record what each one does and every trap found building it, and §5a/§5b hold the
+owner's answers. **`memory/cocozuri_how_it_works.md` is the same thing in plain
+English for the owner**, screen by screen in the order the work happens.
+
 Phases 1–5 (`cocozuri_ops_plan.md`) turned the **selling** side into software: the
 catalogue, invoices, money in, what is owed, the stock book and the general
 ledger. This is the other half — **how the chocolate gets made** — and it comes
@@ -240,33 +245,32 @@ status: required · running · closed. Abnormal loss split production vs raw
 materials.
 **Gives you:** what was planned, what came out, and where the difference went.
 
-### Stage 5 — transfers and the shop *(page 5)* ✅ **BUILT — see §6e**
-*(the POS half is deliberately NOT built — see §6e)*
+### Stage 5 — transfers and the shop *(page 5)* ✅ **BUILT — see §6e and §6j**
 Kitchen → shop as a real movement with a quantity and a batch. The shop's
 opening stock stops being a mystery. Optionally a simple POS for over-the-counter
 sales at the shop and kitchen.
 **Gives you:** one honest stock position per place, and shop sales in the books.
 
-### Stage 6 — returns, repairs and damage *(pages 2, 4)* ← **NEXT**
+### Stage 6 — returns, repairs and damage *(pages 2, 4)* ✅ **BUILT — see §6f**
 Goods come back → into stock → **repaired** (back to saleable) or **damaged**.
 Fully damaged is disposed of and written off. A sales return reverses the sale
 **and** puts the cost back — the notes are explicit that both the sale value and
 the cost value move, and from the debtor account.
 **Gives you:** breakage as a number you can manage rather than a gap in a count.
 
-### Stage 7 — costing and profitability *(page 2)*
+### Stage 7 — costing and profitability *(page 2)* ✅ **BUILT — see §6g**
 Cost of goods sold from real batch costs. Gross profit **per batch**, per
 customer and per month — "per batch" is circled in the notes and is the one the
 owner actually wants. Yield rate against the 95% benchmark.
 **Gives you:** which chocolate makes money.
 
-### Stage 8 — finishing the accounts *(page 1)*
+### Stage 8 — finishing the accounts *(page 1)* ✅ **BUILT — see §6h**
 Payment vouchers (money out to suppliers) to match the receipt vouchers we
 have. Fixed assets and depreciation. **Bank reconciliation.** The balance sheet
 already exists and starts being worth reading once the above post into it.
 **Gives you:** books an accountant will accept.
 
-### Stage 9 — food safety and traceability *(from the research, not the notes)*
+### Stage 9 — food safety and traceability ✅ **BUILT — see §6i**
 Expiry from production date or earliest ingredient, whichever is sooner. FEFO
 picking. Forward and backward batch trace on one screen. Minimum remaining
 shelf life on despatch.
@@ -285,22 +289,22 @@ been missed.
 |---|---|---|---|---|
 | 1 | Journal voucher — expenses | 1 | ✅ built | `/ledger` journals |
 | 2 | Balance sheet | 1 | ✅ built | `/ledger/reports` |
-| 3 | Assets | 1 | 8 | fixed-asset register |
-| 4 | Depreciation | 1 | 8 | |
+| 3 | Assets | 1 | ✅ built | `/ledger/assets`, company-wide |
+| 4 | Depreciation | 1 | ✅ built | straight line, one voucher a month |
 | 5 | Receipt vouchers | 1 | ✅ built | Money in, posts to the ledger |
-| 6 | Creditors — paying them | 1 | 2 + 8 | supplier bills, then payment vouchers |
+| 6 | Creditors — paying them | 1 | ✅ built | `/cocozuri/payments` — and a PERSON can be the creditor |
 | 7 | Debtors — we get money | 1 | ✅ built | Owed, statements, ageing |
-| 8 | Ledger — reconciliation | 1 | 8 | bank reconciliation |
-| 9 | Fully damaged — dispose | 2 | 6 | write-off to abnormal loss |
-| 10 | Sales return (minus value) | 2 | 6 | credit note exists; stock+cost half is Stage 6 |
-| 11 | Cost value — from debtor account | 2 | 6 | reverse sale AND cost |
-| 12 | Abnormal loss: production \| raw materials | 2 | 4 + 6 | split by where it happened |
-| 13 | Sales · P/L · monthly | 2 | ✅ built | P&L exists; gets real once COGS lands |
-| 14 | Per client | 2 | 7 | |
-| 15 | **Per batch** (circled) | 2 | 7 | the headline number |
+| 8 | Ledger — reconciliation | 1 | ✅ built | `/ledger/reconcile`; ⚠️ never edits an entry |
+| 9 | Fully damaged — dispose | 2 | ✅ built | write-off to 6930, Dr loss Cr stock |
+| 10 | Sales return (minus value) | 2 | ✅ built | the return raises the credit note, priced off the invoice |
+| 11 | Cost value — from debtor account | 2 | ✅ built | the sale reverses (credit note); the cost falls out of the cost of sales |
+| 12 | Abnormal loss: production \| raw materials | 2 | ✅ built | `loss_kind` on the return; five reasons, his two first |
+| 13 | Sales · P/L · monthly | 2 | ✅ built | and REAL now that cost of sales posts |
+| 14 | Per client | 2 | ✅ built | `/cocozuri/profit?view=customer` |
+| 15 | **Per batch** (circled) | 2 | ✅ built | ⚠️ what it COST and what it is WORTH — earnings are not knowable |
 | 16 | Net sale | 2 | ✅ built | VAT already split out |
-| 17 | Cost of goods sold | 2 | 7 | needs Stage 3 + 4 |
-| 18 | Gross profit | 2 | 7 | |
+| 17 | Cost of goods sold | 2 | ✅ built | one voucher a month, Dr 5100 Cr 1150 |
+| 18 | Gross profit | 2 | ✅ built | ⚠️ a CEILING while anything is uncosted |
 | 19 | Packaging material — total cost | 3 | 2 + 3 | bought in 2, costed into a bar in 3 |
 | 20 | In store ① | 3 | 2 | packaging as stock |
 | 21 | Transit cost ② | 3 | 2 | landed cost |
@@ -309,23 +313,23 @@ been missed.
 | 24 | Requisition: batch required → which packaging | 3 | 4 | |
 | 25 | All batches created → closed after | 3 | 4 | batch status |
 | 26 | Which required / running (time) | 3 | 4 | |
-| 27 | Return/damaged → stock in | 4 | 6 | |
-| 28 | Repaired vs damaged; repairing | 4 | 6 | repack |
-| 29 | Voucher — goods returned | 4 | 6 | |
+| 27 | Return/damaged → stock in | 4 | ✅ built | a customer's return comes IN; our own breakage never moved |
+| 28 | Repaired vs damaged; repairing | 4 | ✅ built | "repairing" = the gap between booking in and sorting |
+| 29 | Voucher — goods returned | 4 | ✅ built | `RTN-2608-01`; every movement carries it |
 | 30 | Setting per customer price | 4 | ✅ built | `cz_prices`, dated, per customer |
 | 31 | Costing = raw + finish + packaging | 4 | 3 | |
 | 32 | Automate order form → get all recipes | 5 | 3 + 4 | order form exists; recipes make it automatic |
 | 33 | Common ingredients | 5 | 3 | shared across recipes |
 | 34 | Stock → sell → transfer | 5 | 5 | |
 | 35 | Out batch → shop; transfer (how much) | 5 | 5 | |
-| 36 | POS (sale) — kitchen, shop | 5 | 5 | |
+| 36 | POS (sale) — kitchen, shop | 5 | ✅ built | ⚠️ a RECORD, not a till — no payment system, his words |
 | 37 | Inter check: plan ⟷ finished (variations) | 6 | 4 | the yield variance |
 | 38 | Order plan | 6 | 4 | |
 | 39 | Production plan has batch number | 6 | 4 | |
 | 40 | End product: raw material against available | 6 | 4 | can we even make it? |
 | 41 | Finished goods | 6 | 1 + 4 | a stock item like any other |
 | 42 | Product plan batch → finished good batch | 6 | 4 | |
-| 43 | Cost distribution | 6 | 7 | ⚠️ notes say "next page" — **is there one?** |
+| 43 | Cost distribution | 6 | ✅ built | he knows of no eighth page; designed from first principles |
 | 44 | Purchases: raw materials, packaging, store unit | 7 | 2 | |
 | 45 | Qty, unit price, total, date, supplier, who | 7 | 2 | |
 | 46 | Unit of measurement (flour 1kg) | 7 | 2 | UoM per item |
@@ -336,9 +340,7 @@ been missed.
 | 51 | Production plan: quantity expected → result | 7 | 4 | |
 | 52 | Inventory in finished product | 7 | 1 + 5 | |
 
-**Nothing in the notes is unaccounted for.** Eight lines are already built,
-forty-four are staged, and one (#43) points at a page that may not have been
-photographed.
+**Nothing in the notes is unaccounted for. Every one of the 52 lines is built.**
 
 ---
 
@@ -393,6 +395,25 @@ COS already has a `vendors` table; use it where there IS a supplier, and never
 require it.
 
 ---
+
+## 5b. ⚠️ MORE ANSWERS FROM THE OWNER — 22 Aug 2026, evening
+
+Asked the six questions §5 had been holding. What he said, verbatim in substance,
+and what each one changes:
+
+| # | Asked | He said | What it changes |
+|---|---|---|---|
+| 1 | What does **"finish"** mean? | *"finished goods, after production"* | ⚠️ **Note #31 is not three kinds of input.** *"Costing = raw material + finish + packaging"* is the cost **OF the finished good**, made of raw material and packaging. The recipe's `outputItem` IS the finish. Comments and labels corrected; the `finishing` line kind survives for materials genuinely added at that stage (a lustre, a ribbon). |
+| 2 | Is the shop a **real till**? | *"tell me again I didn't understand"* | **Still open**, and still blocks the POS half of Stage 5. Put plainly: does the shop have a machine that rings up each sale and is cashed up at the end of the day, or does somebody write down what sold? |
+| 3 | What is **DA/SA/TA**? | *"no idea, not my business, will ask later"* | Nothing changes — it stays stored under its own name in `cz_stock_locations.third_label`, exactly as it is. **Do not translate it into a guess.** |
+| 4 | Is there an **eighth page**? | *"no idea"* | Note #43 "cost distribution" was designed from first principles in Stage 7 instead. If the page turns up, check it against what was built. |
+| 5 | Do the bars carry an **expiry**? | *"yes, everything has expiry and shelf life"* | ⚠️ **STAGE 9 IS NOT OPTIONAL.** The plan called food traceability "proposed rather than assumed"; it is now confirmed. `cz_batches.expires_on` already exists and is unused. FEFO picking, minimum remaining shelf life on despatch, and expiry-driven write-offs are real requirements, not nice-to-haves. Stage 6's "too old" loss reason is a real category. |
+| 6 | VAT, "in DSC", the price dates, the books | *"yes VAT is 7% but keep it flexible; for the rest I don't know yet — we are still in pilot, testing will be done properly after all stages complete"* | **7% is confirmed**, and it already lives in data (`cz_customers.vat_rate` → `settings['cocozuri.vatRate']`), so nothing to change. ⚠️ **Do not press on the other three until the stages are finished** — the books opening, the "in DSC" question and the price dates are all pilot-stage decisions he has deliberately parked. |
+
+⚠️ **AND ONE NEW QUESTION, RAISED BY STAGE 6:** three of the five loss reasons
+(handling · too old · came back spoiled) were **proposed here**, not taken from
+the notes. Only "in the making" and "the materials" are his (note #12). He has
+not answered on them.
 
 ## 6. ⚠️ What must be settled before Stage 1
 
@@ -873,6 +894,524 @@ than building nothing. **Ask the owner.**
 - **The POS question above.**
 - **No MCP tool and no `EntityDef`**, on purpose.
 - **Nothing is in there** beyond whatever the demo left; the tables are live.
+
+## 6f. Stage 6 is BUILT — 22 Aug 2026
+
+Migration **0154** applied and **proved by effect** (two tables, RLS on, 0 anon
+grants, 151 tables clean on `db:check-security`). **1,054 tests pass**, 28 of
+them new. `tsc --noEmit` clean.
+
+**What exists:** `cz_returns` · `cz_return_lines`;
+`src/lib/cocozuri-return-shared.ts` (client-safe, tested) and
+`cocozuri-return.ts` (server-only, the ONE DOOR); the screens
+**`/cocozuri/returns`** and **`/cocozuri/returns/[reference]`**; the shelf route
+`/api/cocozuri/return-options`; and in the ledger, `resolveWriteOffAccounts` ·
+`postWriteOff` · `unpostWriteOff` · `writeOffState`.
+
+### ⚠️ ONE DOCUMENT, TWO DOORS — and only one of them moves stock inwards
+
+The notes treat a customer's return and our own breakage as one flow ("Return /
+Damaged → Stock In", then repaired or damaged), so they are one record with a
+`kind`. The difference is real and is the whole of it:
+
+- **`customer`** — it left the books the day it was sold, so booking it in
+  writes `return` movements **onto** the shelf. Proved live: shop 14 → 20 on a
+  return of 6.
+- **`internal`** — a crushed box found in the shop **never went anywhere**.
+  Booking it writes NOTHING. Adding it in only to take it out again would put
+  stock on a shelf that was never there. Proved live: 762 → 762.
+
+Both then leave the same way: what is thrown writes `damage` movements OUT.
+
+### ⚠️ "REPAIRING" IS THE GAP BETWEEN TWO MOMENTS
+
+The circled **"(repairing)"** on page 4 is not a status column — it is what is
+left over. `qty − good − scrap` is chocolate on a bench being repacked: neither
+sellable nor written off, and invisible today. Exactly the twin of a transfer's
+"in transit".
+
+So `good_qty` and `scrap_qty` are **nullable and cumulative**, not a verdict:
+five bars can be repacked today and five thrown next week, and `settleReturn`
+can be called again until nothing is outstanding. Forcing the whole crate to be
+judged on the day it arrived is the friction that makes people keep a separate
+piece of paper.
+
+### ⚠️ THE MONEY HALF IS A LINK, NOT A SECOND DOCUMENT
+
+A credit note already exists in this module, already posts with the sides
+swapped, and already ages against the invoice it answers. `raiseCreditNote`
+prepares one and stores its id — **`cz_returns.credit_note_id` is a join**.
+
+- **Priced off the ORIGINAL invoice, never today's list.** Four things are
+  frozen when an invoice is raised and the price is one of them. Proved live: a
+  bar sold at 9,000 came back and was credited at 9,000.
+- **Matched by `product_id`, never by name** — fault #4 again.
+- **It credits what CAME BACK, not what was repacked.** Whether a bar can be
+  repacked is our problem; the customer sent it back either way.
+- **It lands as a DRAFT.** Issuing is a separate act and posting a third.
+- Refuses: no customer named, no invoice said, a second credit note, an item
+  that was never on that invoice, and **more back than was ever sold on it**.
+
+### ⚠️ THE COST HALF OF NOTE #11 IS DELIBERATELY NOT POSTED
+
+The notes ask for both to move: *"① sales return (minus value) ② cost value —
+from debtor account"*. The sale reverses. **The cost does not, and must not
+until Stage 7**, because:
+
+> Nothing has ever taken the cost of a sale OUT of the stock account. Selling
+> posts Dr debtors · Cr sales · Cr VAT and touches 1150 not at all, so 1150
+> still carries the cost of every bar ever sold. Putting a returned bar's cost
+> *back* would count the same chocolate twice.
+
+Stage 7 is where cost of goods sold starts relieving stock; the cost half of a
+return belongs in the same change, not before it. **The record page says this
+out loud** rather than leaving it as a silence in the code.
+
+**Writing damaged stock OFF is different and correct**: that value really is
+sitting in 1150 and it really has gone. `postWriteOff` posts
+**Dr 6930 Stock written off · Cr 1150 Stock**. Proved live: 4 × 1,038.4616 →
+4,153.85 on both sides.
+
+### ⚠️ 6930 IS A NEW ACCOUNT, AND IT IS NOT UNDER COST OF SALES
+
+The shared chart had **no account for an abnormal loss**. Added to the template
+as **6930 "Stock written off (abnormal loss)"** under 6900 *Other* — **not**
+under 5000 *Cost of sales*, because breakage is not part of what it costs to
+make a bar, and burying it there would make gross profit read BETTER the more
+stock gets damaged (the exact opposite of Stage 7's point).
+
+Furaha's own chart was re-seeded to pick it up: **70 accounts → 71, one added,
+70 skipped.** `resolveWriteOffAccounts` finds it by the setting
+`cocozuri.lossAccount`, then by number, and **refuses rather than guesses**.
+
+### ⚠️ A LOSS THAT CANNOT BE VALUED SAYS SO
+
+`scrapValue` reads the stock ledger, never a price — what a bar SELLS for has
+nothing to do with what throwing it away cost. An item nobody has bought or made
+at a known cost has **no** figure: the total is shown as **"at least"** with the
+item named, and `postWriteOff` **refuses outright** rather than posting the part
+it knows. Proved live: a returned AMBER RABDI has no cost anywhere, so the
+posting was refused by name.
+
+⚠️ **This is why `itemCostFromMoves` now reads `produce` as well as `receipt`**
+(`PRICED_INWARD_REASONS`). A bar was never bought, so reading receipts alone
+gave every finished chocolate no cost at all — which made a crate of them thrown
+away look free. Both are stock ARRIVING with a price on it; nothing else is.
+
+### The rest of what it refuses, all proved live
+
+- a scrap that does not say **where the loss belongs** — and naming the kind is
+  not enough, it must say what happened (note #12);
+- **more sorted than ever came back**, counting what earlier passes decided;
+- posting a write-off on a return **still being looked at** — what is on the
+  bench might yet be sold, so the loss is not final;
+- **cancelling while the books hold it** ("a reversal, not an erasure") or while
+  a credit note stands ("the customer has been credited for these goods").
+
+### The loss reasons — ⚠️ TWO ARE HIS, THREE ARE PROPOSED
+
+`CZ_LOSS_REASONS` lists **in the making** and **the materials** first: they are
+note #12's own words. **Handling**, **too old** and **came back spoiled** are
+proposed, because a bar crushed in a crate is neither of his two and filing it
+under "production" would be a quiet lie in a figure meant to run a factory by.
+Three rows of a list, and cheap to change on a word from the owner.
+
+### Still open after Stage 6
+
+- **The cost half of note #11** — belongs with Stage 7's cost of goods sold.
+- **Nothing is in there.** The tables are live and empty; the proof cleaned up
+  after itself (both shelves back to their starting figures, 0 movements, 0
+  ledger entries, 0 invoices).
+- **No MCP tool and no `EntityDef`**, on purpose — a screen only, like the rest
+  of the manufacturing half.
+- ⚠️ **A returned crate is the first place a bad batch shows itself**, and the
+  batch travels on the line. Reading it *backwards* — "which batch do the
+  returns keep coming from" — is Stage 9's job and is not built.
+
+## 6g. Stage 7 is BUILT — 22 Aug 2026
+
+**No migration and no table** — Stage 7 stores nothing. Every figure is worked
+out on read from the stock ledger and the invoices, which is the module's rule.
+**1,078 tests pass**, 24 of them new. `tsc --noEmit` clean.
+
+**What exists:** `src/lib/cocozuri-profit-shared.ts` (client-safe, tested) and
+`cocozuri-profit.ts` (server-only); the screen **`/cocozuri/profit`** with three
+views in the URL (`?view=batch|customer|month&month=YYYY-MM|all`); and in the
+ledger, `resolveCogsAccounts` · `postCostOfSales` · `unpostCostOfSales` ·
+`costOfSalesState`.
+
+### ⚠️ THE HONEST LIMIT ON "PROFIT PER BATCH" — the circled thing
+
+An invoice line names a **product**, not a **batch**. So **what a batch EARNED
+cannot be known**, and no amount of arithmetic will produce it. What the page
+shows instead, clearly labelled:
+
+- **what the batch COST** — measured, from its own `consume` movements at what
+  those materials really cost, plus the recipe's gas-and-labour;
+- **what its bars are WORTH** at the price they actually sell for;
+- the margin between the two, and the **yield against the 95% benchmark**.
+
+The page says this in a warning bar rather than leaving somebody to assume it is
+realised profit. Tracing a sale back to a batch is Stage 9's work — and expiry
+being confirmed (§5b) is another reason to do it.
+
+⚠️ **COST PER UNIT DIVIDES BY WHAT ACTUALLY CAME OUT**, not by the recipe's
+expected good units. `costRecipe()` is a PLAN and divides by the expected
+survivors; this is a MEASUREMENT. A batch that yielded 90 where 108 was expected
+really did cost more per bar, and hiding that is the whole failure mode.
+
+⚠️ **THE MATERIALS COME FROM THE MOVEMENTS, NOT THE RECIPE** — the same rule as
+the inter check. A batch that took four extra kilos cost what it cost.
+
+⚠️ **THE YIELD IS NOT RECOMPUTED HERE.** It calls Stage 4's `batchCheck`, so the
+profit page and the batch page cannot drift into quoting different yields for the
+same batch. This was caught while building: a second definition had already been
+written and gave a different answer.
+
+### ⚠️ THE MARGIN IS TAKEN NET OF VAT, AND THAT IS NOT A DETAIL
+
+Costs are ex-VAT; a CocoZuri invoice is **VAT-inclusive** by default. Comparing
+the two straight inflates every margin by the tax rate — money that was never the
+company's. `netPriceOf` takes the VAT out, prefers **what was actually charged**
+over the price list, and falls back to the standard list price (never a
+customer's own, which is not what the product is worth in general).
+
+### The cost of sales — ⚠️ THIS IS WHAT MAKES THE P&L REAL
+
+**Dr 5100 Cost of goods sold · Cr 1150 Stock**, one voucher a month, filed under
+a derived id (`202608`) so the same month can never post twice.
+
+Until this ran, selling posted Dr debtors · Cr sales · Cr VAT and touched stock
+not at all — so 1150 grew for ever and the P&L showed revenue with nothing
+against it.
+
+⚠️ **AND IT RESOLVES NOTE #11's "② COST VALUE" WITH NO SPECIAL CASE AT ALL.**
+Stage 6 deliberately did not put a returned bar's cost back. It does not need to:
+goods coming back are a **positive** movement, so they reduce the period's cost
+of sales by themselves. **Proved live: 10 sold = 10,384.62; four came back and it
+became 6,230.77.** That is why it had to wait for this stage.
+
+⚠️ **WHAT COUNTS, AND EVERY EXCLUSION IS DELIBERATE:** `day_out`/`sale` in;
+`return` subtracted; **`damage` OUT** (Stage 6 charges breakage to 6930 — counting
+it here too would charge it twice); `consume`/`produce` out (stock becoming other
+stock, both sides in the same account); `transfer` out (it nets); `receipt` out.
+
+⚠️ **A STOCK-TAKE DIFFERENCE IS REPORTED BUT NOT POSTED.** A count that finds
+twelve missing is a real change in what the company owns, but it is not the cost
+of *selling* anything. The screen names it and says where it belongs is still to
+be decided — **Stage 8's work**.
+
+⚠️ **IT REFUSES A MONTH IT CANNOT VALUE IN FULL.** Proved live: August has 168
+lines and **113 chocolates nobody has ever bought or made at a known cost**, so
+it refuses by name. Posting the part it knows would understate the cost, which
+**overstates the profit** — the one direction of error nobody ever notices.
+
+⚠️ **A NEGATIVE MONTH IS NOT AN ERROR** (more can come back than went out). The
+sides are swapped rather than a negative amount written, exactly as a credit note
+swaps them.
+
+### ⚠️ AN INCOMPLETE COST MAKES PROFIT A **CEILING**, NOT A FLOOR
+
+This is the inverse of everywhere else in the module and it is easy to get
+backwards. A missing cost can only push profit DOWN, so the per-customer and
+per-month tables show **"≤"** on profit and margin while any line is uncosted —
+and name the chocolates responsible. Everywhere a COST is shown it is still "≥".
+
+### ⚠️ TWO WAYS OF COSTING, AND THE PAGE SAYS SO
+
+The tiles cost **what actually left the shelf** (the stock ledger). The
+per-customer table costs **each invoice line**. They will not agree while the
+shelf and the invoices disagree — which is fault #4 itself, and the gap is worth
+more than either number. Said on the page rather than hidden.
+
+### Cost distribution — note #43, answered
+
+`costDistribution()` breaks a bar's cost into **raw material · packaging ·
+finishing · gas, labour and the rest**, as amounts and percentages, shown under
+each batch. ⚠️ It comes from the **recipe**, not the batch: "what is a bar made
+of" is a property of the design, while the batch answers "what did this run
+cost". Proved live on BATCH-2608-01 — raw material 70.4%, packaging 21.12%, the
+rest 8.47%.
+
+### Still open after Stage 7
+
+- **Stock-take differences** have no home in the books yet — Stage 8.
+- **Sales are not traced to batches**, so realised profit per batch is still out
+  of reach. Stage 9.
+- **113 of the chocolates have never been costed**, so most of the module's money
+  figures are floors. That is a data problem, not a code one, and it fixes itself
+  as purchases and batches are recorded.
+- **No MCP tool and no `EntityDef`**, on purpose.
+
+## 6h. Stage 8 is BUILT — 22 Aug 2026
+
+Migration **0155** applied and **proved by effect** (four tables, RLS on, 0 anon
+grants; `db:check-security` clean across **155** tables). `tsc` clean.
+
+**What exists:** `cz_payments` (CocoZuri's) plus `fixed_assets`, `bank_recs` and
+`bank_rec_lines` (**company-wide**); `cocozuri-pay-shared.ts` /
+`cocozuri-pay.ts`; `ledger-assets-shared.ts` / `ledger-assets.ts`;
+`ledger-reconcile-shared.ts` / `ledger-reconcile.ts`; the screens
+**`/cocozuri/payments`**, **`/ledger/assets`**, **`/ledger/reconcile`** and
+`/ledger/reconcile/[id]`; and the postings `postPayment` · `postStocktake` ·
+`postDepreciation`.
+
+### ⚠️ ONLY TWO OF THE FOUR WAYS OF PAYING LEAVE ANYTHING OWED
+
+A purchase paid from the **bank** or the **cash box** was settled the day it was
+bought — Stage 2 credited bank or cash directly. "Paying" it again would credit
+the bank twice and leave the books short by the amount. Only **`credit`** (the
+supplier is owed) and **`own_money`** (a PERSON is owed) create a debt, and
+`createPayments` refuses the other two by name.
+
+⚠️ **THE PARTY IS THE ONE STAGE 2 CREDITED.** Somebody who bought almonds with
+their own money was booked to creditors as a **Person**; paying them back finds
+the same party. Get this wrong and the creditors ledger shows the person still
+owed and the supplier in credit. **Proved live: Dr 2110 Trade creditors 20,000
+(party "Proof supplier") · Cr 1111 Main bank 20,000.**
+
+The rest are the receipt's rules, mirrored because they were right the first
+time: who is paid comes **off the purchase**, one cheque across several purchases
+is **one row each, all or nothing**, an **overpayment is recorded** and shown
+negative, and a **posted payment cannot be deleted** — proved live.
+
+⚠️ **MONEY LEAVING ANOTHER COMPANY'S ACCOUNT IS REFUSED**, exactly as money
+arriving into one is. The inter-company question is still unanswered.
+
+### Fixed assets — ⚠️ NOTHING DERIVED IS STORED
+
+No `accumulated` and no `book value` column. What an asset has written off, what
+it stands at and how much life is left all come from the cost, the residual and
+the months. **Straight line, over MONTHS** — years would have to be divided by
+twelve somewhere, and that somewhere is where the rounding errors live.
+
+- ⚠️ **THE LAST MONTH IS TRIMMED** so the total lands exactly on cost less
+  residual. A straight division leaves a few shillings on the books for ever.
+- ⚠️ **The month it was bought is charged in full.** That is a DECISION, not a
+  law — it is written on the form so somebody can disagree with it.
+- ⚠️ **Nothing is charged in the month it was disposed of, or after.**
+- ⚠️ **A disposal is measured against what it STOOD at, not what it cost.**
+  Selling for 300,000 something standing at 900,000 is a **loss of 600,000**; the
+  mistake is booking the proceeds as income and leaving the asset there.
+- **Proved live: Dr 6600 Depreciation 100,000 · Cr 1220 Accumulated 100,000**,
+  and a second posting for the same month refused.
+
+### Bank reconciliation — ⚠️ IT NEVER TOUCHES A POSTED ENTRY
+
+The obvious shortcut is a `cleared` date on the `gl_entries` row, and it would
+break the ledger's second rule outright. **The clearance lives in `bank_rec_lines`
+pointing AT the entry**, so the books stay append-only and un-ticking is simply
+removing a row.
+
+- **The sum, written out on the screen:** the books hold everything, the bank has
+  only seen what cleared, so the statement should equal the ledger balance LESS
+  everything outstanding. A cheque written and not presented is money gone in the
+  books and still at the bank — not an error, the whole reason the screen exists.
+- ⚠️ **A UNIQUE INDEX ON `entry_id` MEANS AN ENTRY CLEARS ONCE, ANYWHERE.**
+  Reconciling the same payment on two statements would balance both against money
+  that moved once.
+- ⚠️ **IT ONLY CLOSES WHEN IT AGREES**, and it does not round the difference
+  away. A reconciliation with a difference still in it is a note saying nobody
+  looked, and the next person believes it.
+
+### The stock-take, which Stage 7 left open
+
+**Dr 6940 · Cr 1150** when a count came up short, and the sides swapped when it
+found MORE — a stock-take goes both ways and a system that only understood
+shortages would hide half of what it found. **6940 is new in the chart template**
+and is deliberately **apart from 6930**: breakage somebody saw and wrote down is
+a different fact from stock that simply is not there, and merging them hides
+which of the two is getting worse.
+
+## 6i. Stage 9 is BUILT — 22 Aug 2026
+
+Migration **0156** applied and proved by effect (four columns).
+
+**What exists:** `cz_stock_items.shelf_life_days` · `cz_purchase_lines.expires_on`
+· `cz_batches.source` + `purchase_line_id`; `cocozuri-trace-shared.ts` /
+`cocozuri-trace.ts`; the screen **`/cocozuri/trace`**; FEFO consumption inside
+`closeBatch`; and lot creation inside `approvePurchase`.
+
+### ⚠️ IT IS NOT OPTIONAL ANY MORE
+
+The plan called this stage "proposed rather than assumed". The owner settled it:
+***"yes everything has expiry and shelf life"***. Every design decision below
+follows from that.
+
+### ⚠️ A LOT AND A BATCH ARE THE SAME TABLE
+
+A dated delivery line becomes a `cz_batches` row with `source: "purchase"` and a
+`LOT-2609-01` number, allocated never typed. Both a made batch and a bought lot
+are *a quantity of one thing, with a date and an expiry, that movements can point
+at*; a separate lots table would mean every trace query looked in two places and
+every join guessed which.
+
+⚠️ **A LINE WITH NO EXPIRY GETS NO LOT.** Nobody is forced to type a date they do
+not have — a form that insists is a form somebody works around by not recording
+the delivery at all.
+
+### ⚠️ THE `batch_id` ON A CONSUME MOVEMENT IS THE **MATERIAL'S** LOT
+
+This is the change that makes traceability real, and it is easy to get backwards.
+Which batch a consumption belongs to is already on the **voucher**; using the
+column for the **lot of material** is what carries the thread on to the delivery
+and the supplier. So:
+
+- **what went IN** = movements on the batch's voucher, each naming its lot;
+- **what went OUT** = movements carrying the batch's own id.
+
+⚠️ **BATCHES CLOSED BEFORE THIS PUT THEIR OWN ID ON THEIR CONSUMES**, so the
+recall query would show a batch as made from itself. `batchesUsing` skips it
+explicitly — found by looking at the real screen, not by reasoning.
+
+### ⚠️ FIRST EXPIRED, FIRST OUT — not first in, first out
+
+They are not the same thing and food is where the difference bites: a bag bought
+later can go off sooner, and taking the older one leaves the one about to expire
+sitting there until it does. `closeBatch` now allocates each material across its
+lots **soonest-expiring first**, writing one `consume` per lot.
+
+- **A lot with no date goes LAST**, never first, and how much of it was used is
+  reported. "Nobody said when it expires" is not "it lasts for ever".
+- **A shortfall is recorded with no lot against it** rather than over-allocating.
+  Asking for more than the shelf holds is real; inventing the rest would create
+  lots that were never there.
+
+### ⚠️ THE EXPIRY RULE, AND IT IS FROZEN
+
+**The earlier of "made on + shelf life" and the soonest-expiring ingredient.** A
+bar made with almonds that go off next week does not last six months, however
+long a bar normally lasts. **Proved live: shelf life said 2027-03-10, the lot
+said 2026-10-05, and the batch closed at 2026-10-05.**
+
+⚠️ **Frozen onto the row, not derived on read** — a shelf life changed next year
+must not silently move the date on chocolate already in a shop.
+
+⚠️ **And it returns NOTHING rather than guessing.** No shelf life and no dated
+ingredient means nobody has said; inventing a date would put a number on a
+wrapper that nothing supports.
+
+### The trace, which is what the programme was for
+
+`/cocozuri/trace` answers both questions on one screen. **Proved live on
+BATCH-2608-01:** 108 made, 88 still on the shelf; what went in (44 Africafe
+Coffee, 120 Ajwa Dates); where it went (made 108 → 20 left the kitchen → 18
+reached the shop); and, from a material lot, **exactly what was made from it** —
+which is the recall list, and nothing else.
+
+Plus **what is going off**, soonest first, with **what carries no date at all
+counted separately** — the finding that matters most in a food business, and one
+a list that quietly omitted it would hide.
+
+### ⚠️ Two defaults nobody has agreed
+
+- **The bands** (past it / 14 days / 60 days) are a starting point, in one place.
+- **Minimum shelf life on despatch** WARNS and never refuses. Supermarkets
+  normally want about two thirds of the life left on delivery, but nobody has
+  said what CocoZuri's customers ask for — a rule invented in code and enforced
+  as if it were a contract is worse than no rule.
+
+### Still open after Stage 9
+
+- **Shelf lives are not filled in yet.** The column exists and nothing has one,
+  so most stock still reports "no date". That is data entry, not code.
+- **The POS question**, still — the last thing blocking Stage 5's other half.
+- **No MCP tool and no `EntityDef`**, on purpose.
+
+## 6j. Stage 5b is BUILT — the counter, 22 Aug 2026
+
+Migration **0157** applied and proved by effect (two tables, RLS on, 0 anon
+grants; `db:check-security` clean across **157** tables). **1,132 tests pass.**
+
+### ⚠️ THE OWNER FINALLY ANSWERED THE QUESTION THAT BLOCKED THIS
+
+Asked three times, in plainer words each time. What he said:
+
+> *"Traditionally it's either cash taken and kept in drawer and informed via
+> WhatsApp and there is some data sheets, some cash collected via online modes.
+> It's very traditional and this system will turn it into digital. **For now we
+> won't integrate a payment system here, just reports get digital.** Kitchen also
+> sells same as shop, mostly bulk order custom orders and even single items...
+> **our main counters are kitchen** but rarely we have walk-in customers and shop
+> counter."*
+
+Every decision below is that answer, turned into software.
+
+### ⚠️ SO IT IS A RECORD OF A SALE, NOT A TILL
+
+Nothing takes payment. Nothing talks to a card machine or to mobile money. What
+it replaces is **the WhatsApp message and the paper sheet** — written down once,
+so the takings and the shelf both look after themselves.
+
+`paid_by` is `cash | online | other`, recorded as a plain fact **because that is
+what the WhatsApp message says**, and it does exactly two things: it splits the
+day's takings, and it decides whether the debit is the cash box or the bank. It
+settles nothing.
+
+### ⚠️ THE KITCHEN IS THE MAIN COUNTER, NOT THE SHOP
+
+Both sell — the kitchen takes the bulk and custom orders, the shop takes the rare
+walk-in. So the counter is on the document, it is also the shelf the stock comes
+off, and the form **defaults to the kitchen**.
+
+### ⚠️ RECORDING IT LATE IS NORMAL, NOT AN EXCEPTION
+
+The person who sold it and the person who types it are usually different people,
+usually later — that is what "informed via WhatsApp" means. So `sold_by` and
+`recorded_by` are both kept, the date is typed, and nothing demands to be filled
+in at the moment money changes hands. A form that did would go the way the paper
+sheet went.
+
+⚠️ **But a date in the FUTURE is refused.** The premise is that the money has
+already changed hands; a mistyped month leaves the sale outside today's takings
+AND the shelf unchanged until that date arrives — which looks like the software
+losing things. **Found by running the proof, not by reasoning:** the first run
+was dated a month ahead and the shelf did not move.
+
+### Into the books — ⚠️ NO DEBTOR
+
+**Dr cash or bank · Cr sales · Cr VAT.** A counter sale was paid there and then;
+putting it through trade debtors would leave a balance nobody is ever going to
+collect and a statement nobody can explain. **Proved live: Dr 1121 Petty cash
+50,000 · Cr 4100 Sales 46,728.97 · Cr 2130 VAT 3,271.03** — the VAT *contained*
+at 7%, never a percentage on top.
+
+⚠️ **Cash needs a cash account and says so.** Money in a drawer is not money in
+the bank, and banking it quietly would be wrong twice over.
+
+### What it plugs into for nothing
+
+The movement it writes is `reason: "sale"` — which the module already understood
+everywhere. So a counter sale **immediately** counts as demand on the order form,
+gets valued by the monthly cost of sales, and follows back to its batch on the
+trace. Nothing needed changing for any of that; it is what Stage 1's one-ledger
+decision bought.
+
+⚠️ **And the lot going out is suggested FIRST-EXPIRED-FIRST-OUT**, so the bar
+closest to its date leaves the shelf before the one behind it.
+
+### The other rules
+
+- **A walk-in has no account and must not need one** — name them if you know
+  them, type what they called themselves, or neither.
+- **The price is resolved the way an invoice's is** (the customer's own beats the
+  list, newest in force wins) and is then **typeable**, because a bulk or custom
+  order over a counter is exactly where a price gets agreed on the spot.
+- **The VAT rate is frozen** on the sale, like an invoice's.
+- **A price of NIL is allowed** — a sample, a taster — **a missing one is not.**
+- ⚠️ **A negative is refused: something coming back is a RETURN**, its own
+  document with its own rules. ⚠️ And the check was moved so the SERVER sees the
+  raw lines — filtering first threw the negatives away, so the form and the
+  server gave different answers to the same mistake.
+- **Cancelling reverses the movements** and is refused while the takings stand in
+  the books.
+
+### Still open
+
+- **A payment system** is deliberately not integrated — *"for now"*, his words.
+  When that changes, `paid_by` and `payment_ref` are where it would attach.
+- **Nothing is in there.** The tables are live and empty; the proof cleaned up
+  after itself (shelf 171 → 169 → 171, 0 sales, 0 ledger entries).
 
 ## 7. Honest sizing
 

@@ -46,6 +46,7 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   cz_recipe:     { uiLabel: "CocoZuri recipes", searchOrder: -1 },
   cz_batch:      { uiLabel: "CocoZuri batches", searchOrder: -1 },
   cz_transfer:   { uiLabel: "CocoZuri transfers", searchOrder: -1 },
+  cz_return:     { uiLabel: "CocoZuri returns", searchOrder: -1 },
   rec_candidate: { uiLabel: "Candidates",          searchOrder: -1 },
   rec_job_order: { uiLabel: "Job orders",          searchOrder: -1 },
   // The PES trading module. Each is a reference-number lookup: a PO, a BL, an

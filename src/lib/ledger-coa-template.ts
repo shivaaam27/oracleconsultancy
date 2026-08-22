@@ -184,6 +184,14 @@ export const COA_TEMPLATE: CoaTemplateRow[] = [
     notes: "Where a one-shilling difference goes so a voucher can still balance. If it grows past pocket change, something is wrong upstream.",
   },
   { number: "6920", name: "Sundry expenses", parent: "6900", rootType: "Expense" },
+  {
+    number: "6940", name: "Stock gains and losses (stock-take)", parent: "6900", rootType: "Expense",
+    notes: "The difference a stock-take finds. ⚠️ Kept apart from 6930: breakage somebody saw and wrote down is a different fact from stock that simply is not there, and merging them hides which of the two is getting worse.",
+  },
+  {
+    number: "6930", name: "Stock written off (abnormal loss)", parent: "6900", rootType: "Expense",
+    notes: "Stock damaged, spoiled or thrown away. ⚠️ Deliberately NOT under cost of sales: an abnormal loss is not part of what it costs to make a thing, and burying it there would make gross profit read better the more stock you break.",
+  },
 ];
 
 /** The template keyed by number, for the seeder and for looking a row up. */

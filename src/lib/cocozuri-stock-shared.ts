@@ -71,6 +71,10 @@ export type CzStockItem = {
   name: string;
   uom: string;
   category: string | null;
+  /** ⚠️ Stage 9 — how long it lasts, in days. On the ITEM rather than the
+   *  product because raw materials go off too, and 171 of them are never sold.
+   *  Null means nobody has said, which is not the same as "for ever". */
+  shelfLifeDays: number | null;
   sortOrder: number;
   archived: boolean;
 };

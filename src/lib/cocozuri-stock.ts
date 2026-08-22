@@ -91,7 +91,7 @@ export async function updateLocation(id: number, input: {
 
 /* ------------------------------ items ------------------------------ */
 
-const ITEM_COLS = "id,location_id,product_id,name,uom,category,sort_order,archived";
+const ITEM_COLS = "id,location_id,product_id,name,uom,category,shelf_life_days,sort_order,archived";
 
 function toItem(r: Record<string, unknown>): CzStockItem {
   return {
@@ -101,6 +101,7 @@ function toItem(r: Record<string, unknown>): CzStockItem {
     name: (r.name as string) ?? "",
     uom: (r.uom as string) || "PCS",
     category: (r.category as string | null) ?? null,
+    shelfLifeDays: r.shelf_life_days == null ? null : Number(r.shelf_life_days),
     sortOrder: (r.sort_order as number) ?? 0,
     archived: (r.archived as boolean) ?? false,
   };
@@ -123,6 +124,8 @@ export type StockItemInput = {
   name: string;
   uom?: string;
   category?: string | null;
+  /** ⚠️ Stage 9 — days. Null means nobody has said. */
+  shelfLifeDays?: number | null;
   sortOrder?: number;
 };
 
@@ -139,6 +142,7 @@ export async function createItem(input: StockItemInput): Promise<{ ok: boolean; 
       name: input.name.trim(),
       uom: input.uom?.trim() || "PCS",
       category: input.category?.trim() || null,
+      shelf_life_days: input.shelfLifeDays ?? null,
       sort_order: input.sortOrder ?? 0,
       updated_at: NOW(),
     })
@@ -159,6 +163,9 @@ export async function updateItem(id: number, input: Partial<StockItemInput>): Pr
   if (input.productId !== undefined) patch.product_id = input.productId;
   if (input.uom !== undefined) patch.uom = input.uom?.trim() || "PCS";
   if (input.category !== undefined) patch.category = input.category?.trim() || null;
+  // ⚠️ Same rule as the product link: null deliberately says "nobody knows how
+  // long this lasts", which is not the same as leaving it alone.
+  if (input.shelfLifeDays !== undefined) patch.shelf_life_days = input.shelfLifeDays ?? null;
   if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder;
   const { error } = await sb.from("cz_stock_items").update(patch).eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };

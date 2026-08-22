@@ -15,7 +15,7 @@ import {
 
 const item = (id: number, over: Partial<CzStockItem> = {}): CzStockItem => ({
   id, locationId: 1, productId: id, name: `ITEM ${id}`, uom: "PCS",
-  category: null, sortOrder: id, archived: false, ...over,
+  category: null, shelfLifeDays: null, sortOrder: id, archived: false, ...over,
 });
 
 const day = (itemId: number, onDate: string, qtyIn = 0, qtyOut = 0, qtyThird = 0): CzStockDay =>

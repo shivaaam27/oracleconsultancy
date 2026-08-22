@@ -375,7 +375,21 @@ export async function receiveTransfer(
     updated_at: NOW(),
   }).eq("id", id);
   if (error) {
-    await reverseStockVoucher(TRANSFER_VOUCHER, id, receivedOn, by);
+    /* ⚠️ ONLY WHAT THIS CALL WROTE IS UNDONE. `reverseStockVoucher` was here and
+       was wrong: it reverses the WHOLE voucher, so a failure at the last step
+       put the chocolate back on the KITCHEN's shelf — un-sending a crate that
+       had really left — while the document still said "on its way". The send
+       happened; only the arrival did not.
+
+       ⚠️ And the undo goes in under the SAME voucher type, so a later cancel
+       (which negates every movement of the document) still nets correctly. */
+    if (moves.length) {
+      await postStockMove(
+        moves.map((m) => ({ ...m, qty: -m.qty, note: `Undo of ${head.reference}` })),
+        { type: TRANSFER_VOUCHER, id },
+        by,
+      );
+    }
     return { ok: false, error: error.message };
   }
   return { ok: true };

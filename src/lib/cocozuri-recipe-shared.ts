@@ -24,21 +24,26 @@
  * ------------------------------------------------------------------ */
 
 /**
- * What a line contributes — the owner's own three headings (note #31,
- * "Costing = raw material + finish + packaging materials").
+ * What a line contributes to the cost of one batch.
  *
- * ⚠️ "FINISHING" IS HIS WORD AND NOBODY HAS SAID WHAT IT COVERS. It might be
- * finishing MATERIALS (lustre, a ribbon, a sleeve) or finishing WORK. It is
- * recorded under its own name and never translated into a guess — the same
- * decision as `cz_stock_locations.third_label`, where DA/SA/TA is stored as
- * written because nobody has explained it either.
+ * ⚠️ THE OWNER ANSWERED WHAT "FINISH" MEANT (22 Aug 2026): **"finished goods,
+ * after production"**. So note #31 — *"Costing = raw material + finish +
+ * packaging materials"* — is not three kinds of INPUT. It is the cost of the
+ * FINISHED GOOD, made up of raw material and packaging. The finish is the thing
+ * that comes out, which the recipe already names as its `outputItem`.
+ *
+ * The `finishing` line kind survives because materials really are added at the
+ * finishing stage (a lustre, a ribbon, a sleeve) and somebody may want them
+ * counted apart — but it no longer stands for an unexplained word, and nothing
+ * in the costing depends on the distinction. It is one of the three headings the
+ * cost distribution breaks down into.
  */
 export type CzRecipeKind = "ingredient" | "packaging" | "finishing";
 
 export const CZ_RECIPE_KINDS: { key: CzRecipeKind; label: string; hint: string }[] = [
   { key: "ingredient", label: "Raw material", hint: "What it is made of — cocoa, cream, nuts." },
   { key: "packaging", label: "Packaging", hint: "The box, the wrapper, the tray." },
-  { key: "finishing", label: "Finishing", hint: "The owner's own word. Recorded as written — nobody has said what it covers." },
+  { key: "finishing", label: "Finishing", hint: "Added at the finishing stage — a lustre, a ribbon, a sleeve." },
 ];
 
 export type CzRecipeStatus = "draft" | "active" | "archived";
@@ -90,14 +95,15 @@ export type CzRecipe = {
  */
 export type CzItemCost = {
   itemId: number;
-  /** The weighted average of every receipt. Null when there is nothing to go on. */
+  /** The weighted average of everything that arrived with a price on it — bought
+   *  or made. Null when there is nothing to go on. */
   unitCost: number | null;
-  /** The most recent receipt's unit cost, so a screen can show whether the two
-   *  have drifted apart — a price that has doubled is worth noticing. */
+  /** The most recent one's unit cost, so a screen can show whether the two have
+   *  drifted apart — a price that has doubled is worth noticing. */
   latest: number | null;
-  /** How many units of purchase history the average is built on. */
+  /** How many units of history the average is built on. */
   qtyBought: number;
-  /** How many purchases. One is a price; several are a trend. */
+  /** How many arrivals. One is a price; several are a trend. */
   receipts: number;
 };
 
@@ -118,13 +124,22 @@ export type CzItemCost = {
  * day-sheet movement is one of those — somebody wrote "12 in" on a shop sheet
  * and nobody said what it cost — and averaging them in at zero would halve the
  * cost of anything that has ever been counted.
+ *
+ * ⚠️ A THING WE MADE COSTS SOMETHING TOO (added at Stage 6). A bar was never
+ * bought, so reading `receipt` alone gave every finished chocolate NO cost —
+ * which made a crate of them thrown away look free. `produce` movements carry
+ * the batch's own cost per unit when the kitchen worked one out, and they belong
+ * in the same average. Both are stock ARRIVING with a price on it; nothing else
+ * is.
  */
+export const PRICED_INWARD_REASONS = ["receipt", "produce"] as const;
+
 export function itemCostFromMoves(
   itemId: number,
   moves: { itemId: number; qty: number; reason: string; unitCost: number | null; onDate: string; id: number }[],
 ): CzItemCost {
   const priced = moves
-    .filter((m) => m.itemId === itemId && m.reason === "receipt" && m.qty > 0)
+    .filter((m) => m.itemId === itemId && m.qty > 0 && (PRICED_INWARD_REASONS as readonly string[]).includes(m.reason))
     .filter((m) => m.unitCost != null && Number.isFinite(m.unitCost));
 
   if (priced.length === 0) {

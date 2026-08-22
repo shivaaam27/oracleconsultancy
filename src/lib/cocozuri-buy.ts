@@ -280,7 +280,7 @@ export async function buyChoices(): Promise<{
 /** ⚠️ ONE STRING LITERAL — see the note on BUDGET_COLS. */
 const PURCHASE_COLS = "id,reference,purchased_on,location_id,vendor_id,supplier_name,supplier_ref,budget_id,paid_from,paid_by_person_id,paid_by,currency,ex_rate,vat_rate,tax_inclusive,freight_amount,freight_note,status,approved_by_person_id,approved_by,approved_at,approval_note,cancelled_at,cancel_reason,notes";
 
-const LINE_COLS = "id,purchase_id,line_no,item_id,description,qty,uom,unit_price";
+const LINE_COLS = "id,purchase_id,line_no,item_id,description,qty,uom,unit_price,expires_on";
 
 function toLine(r: Record<string, unknown>): CzPurchaseLine {
   return {
@@ -291,7 +291,27 @@ function toLine(r: Record<string, unknown>): CzPurchaseLine {
     qty: num(r.qty),
     uom: (r.uom as string) || "PCS",
     unitPrice: num(r.unit_price),
+    expiresOn: (r.expires_on as string | null) ?? null,
   };
+}
+
+/**
+ * The next lot number for goods bought in — `LOT-2608-01`.
+ *
+ * ⚠️ ALLOCATED, NEVER TYPED, like every other number in this module. It shares
+ * `cz_batches` with what the kitchen makes, so a lot and a batch can never
+ * collide and one trace query reads both.
+ */
+async function allocateLotNo(companyId: number, onDate: string): Promise<string> {
+  const prefix = `LOT-${onDate.slice(2, 4)}${onDate.slice(5, 7)}-`;
+  const { data } = await sb.from("cz_batches").select("batch_no")
+    .eq("company_id", companyId).like("batch_no", `${prefix}%`);
+  let max = 0;
+  for (const r of data ?? []) {
+    const tail = Number(String(r.batch_no).slice(prefix.length));
+    if (Number.isFinite(tail) && tail > max) max = tail;
+  }
+  return `${prefix}${String(max + 1).padStart(2, "0")}`;
 }
 
 function toPurchase(
@@ -401,6 +421,10 @@ export type PurchaseLineInput = {
   qty: number;
   uom?: string | null;
   unitPrice: number;
+  /** ⚠️ Stage 9 — what the supplier printed on the bag. Optional, always: a form
+   *  that insists on a date nobody has is a form somebody works around by not
+   *  recording the delivery at all. */
+  expiresOn?: string | null;
 };
 
 export type PurchaseInput = {
@@ -571,6 +595,7 @@ async function writeLines(
       qty: Number(l.qty),
       uom: l.uom?.trim() || items.get(l.itemId)?.uom || "PCS",
       unit_price: Number(l.unitPrice) || 0,
+      expires_on: l.expiresOn || null,
     })),
   );
   return error ? { ok: false, error: error.message } : { ok: true };
@@ -601,6 +626,8 @@ export async function approvePurchase(
   opts?: { note?: string | null; acknowledgeOverBudget?: boolean },
   by = "web-ui",
 ): Promise<{ ok: boolean; error?: string; overBy?: number }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
   const purchase = await getPurchase(id);
   if (!purchase) return { ok: false, error: "That purchase does not exist." };
   if (purchase.status === "approved") return { ok: false, error: `${purchase.reference} is already approved.` };
@@ -645,6 +672,37 @@ export async function approvePurchase(
      transaction here to fall back on. `postStockMove` writes every line in one
      statement, so the ledger cannot hold half a delivery either. */
   const costed = landedLines(purchase.lines, purchase.vatRate, purchase.taxInclusive, purchase.freightAmount);
+
+  /* ⚠️ STAGE 9 — A DATED DELIVERY BECOMES A LOT. A line that says when the bag
+     goes off gets its own `cz_batches` row (`source: "purchase"`), and the
+     receipt movement carries it. That is the ONLY way a bar can later inherit
+     "the earliest ingredient, whichever is sooner", and the only way a supplier
+     saying "that batch was bad" can be answered with a list.
+
+     ⚠️ A LINE WITH NO EXPIRY GETS NO LOT, exactly as before. Nobody is forced to
+     type a date they do not have — a form that insists is a form somebody works
+     around by not recording the delivery at all. */
+  const lotByLine = new Map<number, number>();
+  for (const c of costed) {
+    if (!c.line.expiresOn) continue;
+    const lotNo = await allocateLotNo(company.id, purchase.purchasedOn);
+    const { data: lot } = await sb.from("cz_batches").insert({
+      company_id: company.id,
+      item_id: c.line.itemId,
+      batch_no: lotNo,
+      made_on: purchase.purchasedOn,
+      expires_on: c.line.expiresOn,
+      status: "closed",
+      source: "purchase",
+      purchase_line_id: c.line.id,
+      location_id: purchase.locationId,
+      produced_qty: c.line.qty,
+      created_by: by,
+      updated_at: NOW(),
+    }).select("id").maybeSingle();
+    if (lot?.id != null) lotByLine.set(c.line.id, lot.id as number);
+  }
+
   const res = await postStockMove(
     costed.map((c) => ({
       itemId: c.line.itemId,
@@ -653,11 +711,17 @@ export async function approvePurchase(
       qty: c.line.qty,
       reason: "receipt" as const,
       unitCost: c.unitCost,
+      batchId: lotByLine.get(c.line.id) ?? null,
       note: purchase.reference,
     })),
     { type: PURCHASE_VOUCHER, id: purchase.id },
     by,
   );
+  if (!res.ok) {
+    // ⚠️ The lots go too — a lot with no stock behind it would show up in FEFO
+    // as chocolate that is not there.
+    if (lotByLine.size) await sb.from("cz_batches").delete().in("id", [...lotByLine.values()]);
+  }
   if (!res.ok) return { ok: false, error: res.error };
 
   const { error } = await sb.from("cz_purchases").update({

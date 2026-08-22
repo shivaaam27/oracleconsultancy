@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Package, Building2, Tag, AlertTriangle, AlarmClock, Banknote, Receipt, Boxes, ClipboardCheck, ShoppingCart, Wallet, ChefHat, Factory, Truck } from "lucide-react";
+import { Package, Building2, Tag, AlertTriangle, AlarmClock, Banknote, Receipt, Boxes, ClipboardCheck, ShoppingCart, Wallet, ChefHat, Factory, Truck, Undo2 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { cocozuriCompany, defaultVatRate, listCustomers, listInvoices, listPrices, listProducts, listReceipts } from "@/lib/cocozuri";
 import { listItems, listLocations } from "@/lib/cocozuri-stock";
@@ -11,6 +11,8 @@ import { listBatches } from "@/lib/cocozuri-batch";
 import { isOpen } from "@/lib/cocozuri-batch-shared";
 import { listTransfers } from "@/lib/cocozuri-transfer";
 import { transferCheck } from "@/lib/cocozuri-transfer-shared";
+import { listReturns } from "@/lib/cocozuri-return";
+import { returnCheck } from "@/lib/cocozuri-return-shared";
 import { postingOverview } from "@/lib/cocozuri-ledger";
 import { CZ_AGEING_BANDS, ageingSummary, money, outstandingOf } from "@/lib/cocozuri-shared";
 
@@ -51,7 +53,7 @@ export default async function CocozuriPage() {
     listLocations(), listItems(), postingOverview(), listPurchases(), listBudgets(), listRecipes(),
     listBatches(),
   ]);
-  const transfers = await listTransfers();
+  const [transfers, returns] = await Promise.all([listTransfers(), listReturns()]);
 
   /* ⚠️ Stock that has left one shelf and not reached the other. It is the
      number nobody can see today, and the reason a stock-take at the shop keeps
@@ -63,6 +65,13 @@ export default async function CocozuriPage() {
      "which required / running (time)". It is almost always one somebody forgot
      to close rather than a long process. */
   const running = batches.filter(isOpen).length;
+
+  /* ⚠️ Chocolate sitting on a bench being repacked is neither sellable nor
+     written off — the circled "(repairing)" in the notes. It is the one number
+     on this page that nobody can see anywhere else today. */
+  const openReturns = returns.filter((r) => r.status === "open");
+  const onTheBench = openReturns.reduce((s, r) => s + returnCheck(r).beingRepaired, 0);
+  const thrown = returns.reduce((s, r) => s + returnCheck(r).scrapped, 0);
 
   /* ⚠️ A recipe that cannot be costed in full is the one thing that makes this
      page misleading, so it is counted and said rather than left to be found one
@@ -140,6 +149,15 @@ export default async function CocozuriPage() {
           n={transfers.length}
           label={onWay.length > 0 ? `transfers · ${inTransit} on the way, uncounted` : "transfers"}
           tone={onWay.length > 0 ? "warn" : undefined} />
+        {/* Manufacturing Stage 6 — what came back and what went in the bin. */}
+        <Tile href="/cocozuri/returns" icon={<Undo2 size={16} />}
+          n={returns.length}
+          label={
+            onTheBench > 0
+              ? `returns · ${onTheBench} still being looked at`
+              : thrown > 0 ? `returns · ${thrown} thrown away` : "returns and damage"
+          }
+          tone={onTheBench > 0 ? "warn" : undefined} />
       </div>
 
       {/* ⚠️ The five bands, with the one the spreadsheet is missing. Its Sheet2
