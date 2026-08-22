@@ -1,6 +1,6 @@
 ---
 name: cocozuri-manufacturing-plan
-description: "CocoZuri Operations, part two — purchasing, recipes, production batches, transfers, POS, returns and batch costing. Written from the owner's seven pages of notes (22 Aug 2026), checked against ERPNext's own manufacturing model and food-industry practice. Nothing is built yet."
+description: "CocoZuri Operations, part two — purchasing, recipes, production batches, transfers, POS, returns and batch costing. Written from the owner's seven pages of notes (22 Aug 2026), checked against ERPNext's own manufacturing model and food-industry practice. Stage 1 (the stock ledger) is BUILT; Stages 2-9 are not."
 metadata:
   type: project
 ---
@@ -12,7 +12,8 @@ catalogue, invoices, money in, what is owed, the stock book and the general
 ledger. This is the other half — **how the chocolate gets made** — and it comes
 from seven pages of the owner's handwritten notes, photographed 22 Aug 2026.
 
-⚠️ **NOTHING HERE IS BUILT.** This is the plan and the audit against it.
+⚠️ **STAGE 1 IS BUILT (see §6a). STAGES 2–9 ARE NOT.** This is the plan, the
+audit against it, and the owner's answers in §5a.
 
 ⚠️ **THE NOTES ARE TRANSCRIBED IN §1 EXACTLY AS READ, including the bits I could
 not make out.** Read that section first and correct it — every stage below is
@@ -340,6 +341,58 @@ photographed.
 
 ---
 
+## 5a. ⚠️ THE OWNER'S ANSWERS — 22 Aug 2026
+
+Asked and answered. **These change the design; they are not colour.**
+
+### "We don't use batch numbers, but we are introducing them"
+
+⚠️ **STAGE 4 IS A NEW DISCIPLINE, NOT A PAPER PROCESS BEING COPIED.** Nobody at
+CocoZuri writes a batch number today. That is the single most important thing to
+know about this programme, and it cuts both ways:
+
+- **It frees the design.** There is no existing numbering to honour, no legacy
+  format to parse, no habit to match. `BATCH-2608-01` can simply be right.
+- **It raises the bar on friction.** Every field a person must fill before they
+  can start making chocolate is a reason to go back to the notebook. The number
+  must be **allocated by the system**, the batch must be openable in one action,
+  and it must be possible to record what came out **after** the fact rather than
+  only before. A batch that has to be planned in advance to exist will not get
+  used on a busy morning.
+- **It means adoption is part of the work.** Getting this wrong is not a bug
+  report; it is people quietly not using it.
+
+His words for why any of this is happening: *"we have a very basic system run in
+excel but now we are building this so things get professional and organised and
+trackable and manageable."* **Trackable is the operative word** — it is why the
+stock ledger came first.
+
+### "Someone approves a budget"
+
+Not just a purchase — a **budget**. So Stage 2 carries two ideas, not one:
+
+- a **budget** somebody sets and somebody approves;
+- a **purchase** checked against it.
+
+⚠️ **Build the approval as a named step with a person and a moment**, not a
+boolean. "Approved" with nobody's name on it answers no question worth asking.
+
+### "Raw materials come from suppliers but also at random or self-bought — keep it flexible"
+
+⚠️ **THE SUPPLIER IS OPTIONAL ON A PURCHASE, AND MUST STAY OPTIONAL.** Somebody
+buying a kilo of flour from the market with their own money is a real and normal
+event at this size of business, and a form that demands a supplier, an invoice
+number and a tax record for it will simply not be filled in — the purchase then
+never reaches the books at all, which is worse than a purchase with a blank
+supplier.
+
+So: supplier **nullable**, a free-text "bought from" for the market stall, and
+"who paid" recorded — because self-bought means somebody is owed the money back.
+COS already has a `vendors` table; use it where there IS a supplier, and never
+require it.
+
+---
+
 ## 6. ⚠️ What must be settled before Stage 1
 
 Decisions, not preferences. Each one changes what gets built.
@@ -347,18 +400,35 @@ Decisions, not preferences. Each one changes what gets built.
 1. **Is there an eighth page?** Note #43 says "cost distribution — next page".
 2. **What does DA/SA/TA mean** on the kitchen stock sheet? Still unanswered from
    Phase 4, and it is a movement reason, so Stage 1 needs it.
-3. **Do you count in batches today at all**, even on paper? If the kitchen has
-   no batch numbers now, Stage 4 introduces a new discipline for the staff, not
-   just new software — that is a training question as much as a build one.
+3. ~~**Do you count in batches today at all?**~~ ✅ **ANSWERED: no, and they are
+   being introduced.** See §5a — this is the answer that shapes Stage 4 most.
 4. **Shelf life per product** — do the bars carry a best-before? If yes, Stage 9
    stops being optional.
-5. **Who approves a purchase?** Note #47 says "after approval" without saying
-   whose.
+5. ~~**Who approves a purchase?**~~ ✅ **ANSWERED: a budget is approved.** See
+   §5a — Stage 2 gains a budget as well as a purchase.
 6. **Is the shop a separate till** (a real POS with cash-up) or does somebody
    just write down what sold? Changes Stage 5 substantially.
 7. **The carried-over questions** that still block existing work: the 7% VAT
    rate, the money received "in DSC", the price dates, and whether Furaha's
    books should be open.
+
+## 6a. Stage 1 is BUILT — 22 Aug 2026
+
+Migration **0149** applied and proved by effect. `cz_stock_moves` +
+`postStockMove()` are live, `cz_batches` exists and is empty, and the backfill
+turned 529 day rows into **593 movements** — then proved itself by re-reading
+every item's balance both ways: **all 323 items agree.** The stock book renders
+identically (AMBER RABDI, 5 Aug: opens 13, out 2, closes 11).
+
+Verified live: a day sheet re-save REPLACES rather than doubles; clearing a line
+removes its movements; a transfer is two rows that must cancel to nothing;
+same-place and zero transfers are refused; a day sheet cannot be reversed.
+
+⚠️ **THE READ PATH IS STILL THE DAY BOOK, ON PURPOSE.** The screens read
+`cz_stock_days` and the ledger is written alongside. While the day sheet is the
+ONLY writer the two readings are identical — proved by the backfill's check and
+by a test. **They diverge the moment Stage 2 adds a purchase, so the read path
+must move to `ledgerBalanceAt` AS PART OF STAGE 2**, not before and not after.
 
 ## 7. Honest sizing
 

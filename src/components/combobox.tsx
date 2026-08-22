@@ -84,14 +84,24 @@ export function Combobox({
   };
 
   return (
-    <div ref={wrapRef} className="relative">
+    /* ⚠️ `w-full min-w-0`, AND BOTH HALVES MATTER.
+       An <input> with no width class falls back to the browser's default — about
+       242px, from the ancient `size=20` attribute — and that width IGNORES the
+       grid cell it sits in. Measured on the product sheet: three 135px cells
+       each holding a 242px combobox, which overflowed the row, overflowed the
+       form, and put a horizontal scrollbar inside the dialog. `min-w-0` is what
+       lets it shrink below its content in a grid or flex track; `w-full` is what
+       makes it fill the cell instead of guessing. */
+    <div ref={wrapRef} className="relative w-full min-w-0">
       <input
         ref={inputRef}
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}
         autoComplete="off"
-        className={cn(className, "pr-7")}
+        /* `w-full` FIRST so a caller can still override it — tailwind-merge
+           keeps the last width class it sees. */
+        className={cn("w-full min-w-0", className, "pr-7")}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0); onInput?.(e.target.value); }}
         onFocus={() => { if (inputRef.current) setQuery(inputRef.current.value); setOpen(true); }}
         onKeyDown={(e) => {

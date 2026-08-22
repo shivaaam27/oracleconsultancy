@@ -1,6 +1,12 @@
 # COS System - Project Instructions
 
-**⚠️ Most recent work: read `memory/handover_aug21_2026_evening.md` FIRST** —
+**⚠️ Most recent work: read `memory/handover_aug22_2026.md` FIRST** — CocoZuri
+Phases 3-5 built and DEPLOYED, the module swept for bugs (three lists were losing
+their subject column; `Combobox` was overflowing every grid cell in 24 files),
+and the MANUFACTURING half planned in 9 stages with Stage 1 (the stock ledger)
+built. Migrations 0147-0149 applied.
+
+Before that: `memory/handover_aug21_2026_evening.md` —
 offline Notes finished and deployed, the app split into ERP modules, and CocoZuri
 Operations built through Phase 2. All of it is deployed, with migrations 0144-0146 applied.
 Before that: `memory/handover_aug21_2026.md` — the database lock and the Windows
@@ -784,19 +790,33 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   every kitchen figure. Fewer than two days of history gets no figure at all.
 - Still **no MCP tool and no `EntityDef`**, on purpose. **A ledger WRITE tool must
   never exist.**
-- ⚠️ **THE MANUFACTURING HALF IS PLANNED, NOT BUILT — read
+- ⚠️ **THE MANUFACTURING HALF: STAGE 1 IS BUILT, STAGES 2-9 ARE NOT — read
   `memory/cocozuri_manufacturing_plan.md` before touching stock.** Nine stages
   from the owner's own notes (22 Aug 2026): purchasing, recipes, production
   batches, transfers, POS, returns, batch costing, the rest of the accounts, and
-  food traceability. It carries a line-by-line audit of those notes so nothing is
-  lost.
-- ⚠️ **`cz_stock_days` IS A DAY BOOK AND CANNOT TRACE A BATCH.** It records how
-  much moved, never why, from where, on whose document, or from which batch.
-  Stage 1 of that plan replaces it as the source of truth with
-  **`cz_stock_moves` + `postStockMove()`** — the twin of `gl_entries` +
-  `postVoucher()` — and the day sheet becomes one of the doors that writes to it.
-  **Do not build purchasing, production or transfers on the day book**; it would
-  have to be done twice.
+  food traceability. §5 is a line-by-line audit of all 52 points in those notes
+  so nothing is lost; **§5a holds the owner's answers and they change the
+  design.**
+- ⚠️ **STOCK NOW HAS A LEDGER (migration 0149).** `cz_stock_moves` +
+  **`postStockMove()`** are the twin of `gl_entries` + `postVoucher()`: ONE
+  ledger, MANY doors, and nothing else may insert. `qty` is SIGNED, so a transfer
+  is two rows sharing a voucher that must cancel to nothing.
+- ⚠️ **`cz_stock_days` STAYS AS THE DOCUMENT** — the sheet as somebody typed it —
+  and the moves are what it did to stock. Same split the reference system makes
+  between a Stock Entry and a Stock Ledger Entry. **A day sheet may be REWRITTEN
+  (people miscount); every other voucher is REVERSED, never erased.**
+- ⚠️ **THE READ PATH IS STILL THE DAY BOOK, AND MUST MOVE TO `ledgerBalanceAt`
+  AS PART OF STAGE 2.** While the day sheet is the only writer the two readings
+  are identical (proved: all 323 items agree). They diverge the moment a purchase
+  exists.
+- ⚠️ **`day_in`/`day_out`/`day_third` MEAN ONLY "written in that column"** — on
+  the shop's sheet IN is a transfer from the kitchen, on raw materials it is a
+  delivery. Nobody has said which, so the reason claims nothing more.
+- ⚠️ **BATCH NUMBERS ARE BEING INTRODUCED, NOT COPIED** — nobody uses them today.
+  Stage 4 must be low-friction (system-allocated number, openable in one action,
+  recordable after the fact) or it will not be used. **The supplier on a purchase
+  is OPTIONAL and must stay so** — raw materials are often bought at random or
+  self-bought, and a form demanding a supplier simply will not be filled in.
 - Client/server split as everywhere, and it is now TWO PAIRS:
   **`cocozuri-shared.ts` and `cocozuri-stock-shared.ts` are what client components
   import**; `cocozuri.ts` and `cocozuri-stock.ts` are server-only and are the ONE
