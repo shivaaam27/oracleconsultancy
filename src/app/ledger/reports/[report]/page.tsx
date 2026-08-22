@@ -28,6 +28,7 @@ import {
 } from "@/lib/ledger-reports-shared";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Report — Ledger" };
 
 function isReport(v: string): v is ReportKey {
   return REPORTS.some((r) => r.key === v);
@@ -49,7 +50,7 @@ export default async function LedgerReportPage({
     return (
       <div className="space-y-3">
         <PageHeader title="Ledger" sub="No companies yet" />
-        <p className="text-[13px] text-fg-muted">Add a company first, on the Companies screen.</p>
+        <p className="text-base text-fg-muted">Add a company first, on the Companies screen.</p>
       </div>
     );
   }
@@ -101,7 +102,7 @@ export default async function LedgerReportPage({
           period and when it was run is not much use to an accountant. */}
       <div className="hidden print:block">
         <h1 className="text-base font-semibold">{scope} — {label.label}</h1>
-        <p className="text-[12px]">
+        <p className="text-sm">
           {report === "balance-sheet"
             ? `As at ${asAt}`
             : `${from ?? "the beginning"} to ${to ?? today}`} · printed {today}

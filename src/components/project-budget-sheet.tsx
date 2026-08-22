@@ -149,7 +149,7 @@ export function ProjectBudgetSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -170,8 +170,8 @@ export function ProjectBudgetSheet({
         total={lines.length}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">No budget lines yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No budget lines yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add the first one above. Nothing is imported — every line is typed.
             </p>
           </div>
@@ -181,21 +181,21 @@ export function ProjectBudgetSheet({
             key: "itemCode", label: "Item code", width: "minmax(0,1fr)",
             render: (l) => (
               <span className="min-w-0">
-                <span className="block truncate font-mono text-[12px]">{l.itemCode}</span>
+                <span className="block truncate font-mono text-sm">{l.itemCode}</span>
                 {l.description && (
-                  <span className="block truncate text-[11px] text-fg-muted">{l.description}</span>
+                  <span className="block truncate text-xs text-fg-muted">{l.description}</span>
                 )}
               </span>
             ),
           },
           {
             key: "category", label: "Category", width: "150px", hideBelow: "md",
-            render: (l) => <span className="truncate text-[12px]">{l.category}</span>,
+            render: (l) => <span className="truncate text-sm">{l.category}</span>,
           },
           {
             key: "qty", label: "Qty", width: "90px", align: "right", hideBelow: "lg",
             render: (l) => (
-              <span className="tabular text-[12px] text-fg-muted">
+              <span className="tabular text-sm text-fg-muted">
                 {/* Blank, never 0 — a quantity nobody typed is not a quantity of none. */}
                 {l.qty === null ? "—" : `${num(l.qty)}${l.unit ? ` ${l.unit}` : ""}`}
               </span>
@@ -210,9 +210,9 @@ export function ProjectBudgetSheet({
             },
             render: (l) => {
               const diff = splitDifference(l);
-              if (diff === null) return <span className="text-[12px] text-fg-subtle">—</span>;
+              if (diff === null) return <span className="text-sm text-fg-subtle">—</span>;
               return (
-                <span className="inline-flex items-center justify-end gap-1 text-[12px]">
+                <span className="inline-flex items-center justify-end gap-1 text-sm">
                   <span className="tabular text-fg-muted">
                     {money(num(l.materialsAmount) ?? 0)} / {money(num(l.labourAmount) ?? 0)}
                   </span>
@@ -230,7 +230,7 @@ export function ProjectBudgetSheet({
           },
           {
             key: "amount", label: "Amount", width: "120px", align: "right",
-            render: (l) => <span className="tabular text-[12px]">{money(num(l.amount)) ?? "—"}</span>,
+            render: (l) => <span className="tabular text-sm">{money(num(l.amount)) ?? "—"}</span>,
             // Sums what is on screen. On Patamela the whole list must reach
             // 146,801,556 — the figure to check against the spreadsheet.
             total: (shown) => (
@@ -286,7 +286,7 @@ export function ProjectBudgetSheet({
       />
 
       {pending && (
-        <p className="flex items-center gap-1.5 text-[11px] text-fg-subtle">
+        <p className="flex items-center gap-1.5 text-xs text-fg-subtle">
           <Loader2 size={12} className="animate-spin" /> Saving…
         </p>
       )}
@@ -307,7 +307,7 @@ function SplitSummary({ lines }: { lines: BudgetLine[] }) {
   const mismatched = lines.filter((l) => (splitDifference(l) ?? 0) !== 0).length;
   if (t.lines === 0) return null;
   return (
-    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-muted">
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
       <span>Materials <span className="tabular text-fg">{money(t.materials)}</span></span>
       <span>Labour <span className="tabular text-fg">{money(t.labour)}</span></span>
       <span>Split on {t.lines} line{t.lines === 1 ? "" : "s"}</span>
@@ -365,7 +365,7 @@ function Tile({ label, value, sub, strong, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn(
         "tabular mt-0.5",
         strong ? "text-[17px] font-medium" : "text-[15px]",
@@ -373,7 +373,7 @@ function Tile({ label, value, sub, strong, tone }: {
       )}>
         {value}
       </p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
@@ -384,24 +384,24 @@ function CategoryBreakdown({ categories }: { categories: ReturnType<typeof group
   const top = categories.slice(0, 8);
   return (
     <details className="rounded-lg border border-border bg-bg-elev">
-      <summary className="cursor-pointer px-3 py-2 text-[12px] font-medium">
+      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
         By category ({categories.length}) — the workbook&rsquo;s PATAMELA T/U block
       </summary>
       <div className="space-y-1.5 border-t border-border px-3 py-2.5">
         {top.map((c) => (
           <div key={c.category} className="flex items-center gap-2">
-            <span className="w-40 shrink-0 truncate text-[12px]">{c.category}</span>
+            <span className="w-40 shrink-0 truncate text-sm">{c.category}</span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-sm bg-bg-muted">
               <span className="block h-full bg-accent" style={{ width: `${c.share * 100}%` }} />
             </span>
-            <span className="tabular w-24 shrink-0 text-right text-[12px]">{money(c.amount)}</span>
-            <span className="tabular w-12 shrink-0 text-right text-[11px] text-fg-subtle">
+            <span className="tabular w-24 shrink-0 text-right text-sm">{money(c.amount)}</span>
+            <span className="tabular w-12 shrink-0 text-right text-xs text-fg-subtle">
               {(c.share * 100).toFixed(1)}%
             </span>
           </div>
         ))}
         {categories.length > top.length && (
-          <p className="pt-1 text-[11px] text-fg-subtle">
+          <p className="pt-1 text-xs text-fg-subtle">
             …and {categories.length - top.length} smaller categories.
           </p>
         )}
@@ -506,9 +506,9 @@ function AddLineRow({
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[12px] font-medium">Add a line</h3>
+        <h3 className="text-sm font-medium">Add a line</h3>
         {justSaved && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-success">
+          <span className="inline-flex items-center gap-1 text-xs text-success">
             <Check size={12} /> saved {justSaved}
           </span>
         )}
@@ -597,7 +597,7 @@ function AddLineRow({
           <FieldCell className="sm:col-span-4" label="Labour" hint="PATAMELA col L">
             <MoneyInput value={labour} onChange={setLabour} currency={currency} placeholder="optional" />
           </FieldCell>
-          <p className="sm:col-span-12 text-[11px] text-fg-subtle">
+          <p className="sm:col-span-12 text-xs text-fg-subtle">
             All four are optional and none of them changes the amount. Nothing here is
             multiplied out — the amount above stays the figure.
           </p>
@@ -610,11 +610,11 @@ function AddLineRow({
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add line
         </button>
         <button type="button" onClick={toggleExtras}
-          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] text-fg-muted hover:text-fg">
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs text-fg-muted hover:text-fg">
           <ChevronDown size={12} className={cn("transition-transform", extras && "rotate-180")} />
           {extras ? "Hide quantity & split" : "Quantity & split"}
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Press <kbd className="rounded border border-border px-1">Enter</kbd> to save and start the next line.
           The category stays for the next one.
         </span>
@@ -624,7 +624,7 @@ function AddLineRow({
 }
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 /**
  * One field of the add-a-line row.
@@ -669,21 +669,21 @@ function EditLine({
       <MoneyInput value={amount} onChange={setAmount} currency={currency} className="sm:col-span-2" />
 
       <div className="grid grid-cols-2 gap-2 sm:col-span-11 sm:grid-cols-12">
-        <label className="sm:col-span-2 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        <label className="sm:col-span-2 text-xs uppercase tracking-[0.04em] text-fg-subtle">
           Qty
           <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal"
             placeholder="—" className={cn(inputCls, "mt-0.5 normal-case tracking-normal")} />
         </label>
-        <label className="sm:col-span-2 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        <label className="sm:col-span-2 text-xs uppercase tracking-[0.04em] text-fg-subtle">
           Unit
           <input value={unit} onChange={(e) => setUnit(e.target.value)}
             placeholder="—" className={cn(inputCls, "mt-0.5 normal-case tracking-normal")} />
         </label>
-        <label className="sm:col-span-4 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        <label className="sm:col-span-4 text-xs uppercase tracking-[0.04em] text-fg-subtle">
           Materials
           <MoneyInput value={materials} onChange={setMaterials} currency={currency} className="mt-0.5" />
         </label>
-        <label className="sm:col-span-4 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        <label className="sm:col-span-4 text-xs uppercase tracking-[0.04em] text-fg-subtle">
           Labour
           <MoneyInput value={labour} onChange={setLabour} currency={currency} className="mt-0.5" />
         </label>

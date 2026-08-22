@@ -1,5 +1,12 @@
 import {
+  ChefHat,
+  Factory,
+  Truck,
+  Filter,
+  Container,
   Ship,
+  ShoppingCart,
+  Wallet,
   Users,
   Send,
   Settings,
@@ -70,7 +77,18 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "commitments", href: "/hrms/commitments",    label: "Commitments",         icon: FileWarning },
   // The PES trading and import business — Stage 1 is its master lists; the
   // order screens follow. See memory/pes_ops_module.md.
-  { id: "ops",         href: "/ops",                 label: "Orders & Imports",    icon: Ship },
+  /* Orders & Imports — the PES trading and import business. ⚠️ ONE ROUTE PER
+     TAB, because it is a module now: the rail lists its pages the way every
+     other module's does, and ⌘K can reach each of them by name. The in-page
+     tab strip (`ops-tabs.tsx`) stays — the two agree because both are lists of
+     the same seven addresses. */
+  { id: "ops",          href: "/ops",                 label: "Orders",              icon: Ship },
+  { id: "ops-funnel",   href: "/ops/funnel",          label: "Funnel",              icon: Filter },
+  { id: "ops-imports",  href: "/ops/imports",         label: "Imports",             icon: Container },
+  { id: "ops-invoices", href: "/ops/invoices",        label: "Delivery & billing",  icon: Receipt },
+  { id: "ops-payments", href: "/ops/payments",        label: "Payments",            icon: Banknote },
+  { id: "ops-report",   href: "/ops/report",          label: "Report",              icon: BarChart3 },
+  { id: "ops-setup",    href: "/ops/setup",           label: "Setup",               icon: ListChecks },
   // The general ledger — chart of accounts, journals, entries. COS is the
   // accounting system now (owner, Aug 2026); see `memory/erp_gap_plan.md`.
   { id: "ledger",      href: "/ledger",              label: "Ledger",              icon: ScaleIcon },
@@ -128,6 +146,17 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Stock month", icon: ClipboardCheck },
   /* Phase 5 — what to make and send, from the shelf's own history. */
   { id: "cz-order",       href: "/cocozuri/order",       label: "Order form", icon: OrderIcon },
+  /* Manufacturing Stage 2 — what was bought, and the budget it was bought
+     against. See memory/cocozuri_manufacturing_plan.md. */
+  { id: "cz-purchases",   href: "/cocozuri/purchases",   label: "Purchases",  icon: ShoppingCart },
+  { id: "cz-budgets",     href: "/cocozuri/budgets",     label: "Budgets",    icon: Wallet },
+  /* Manufacturing Stage 3 — what a bar costs to make, before one is made. */
+  { id: "cz-recipes",     href: "/cocozuri/recipes",     label: "Recipes",    icon: ChefHat },
+  /* Manufacturing Stage 4 — what was planned, what came out, and where the
+     difference went. */
+  { id: "cz-batches",     href: "/cocozuri/batches",     label: "Production", icon: Factory },
+  /* Manufacturing Stage 5 — kitchen to shop, with what actually arrived. */
+  { id: "cz-transfers",   href: "/cocozuri/transfers",   label: "Transfers",  icon: Truck },
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -220,7 +249,10 @@ export const MODULES: NavModule[] = [
       // Was "Registers" until Aug 2026 — the word meant three things at once (this
       // group, the commitments page, and the legacy /registry task list). The pages
       // in here are the day-to-day operational logs, so that is what it is called.
-      { label: "Operations", ids: ["tax-legal", "commitments", "ops", "pipeline", "leave", "supplies", "cleaning"] },
+      // ⚠️ `ops` LEFT THIS GROUP when Orders & Imports became a module of its
+      // own. A route filed in two modules fails `nav.test.ts`, which is the
+      // guard that exists for exactly this.
+      { label: "Operations", ids: ["tax-legal", "commitments", "pipeline", "leave", "supplies", "cleaning"] },
     ],
   },
   {
@@ -257,6 +289,20 @@ export const MODULES: NavModule[] = [
     groups: [{ label: "Projects", ids: ["projects"] }],
   },
   {
+    id: "ops",
+    label: "Orders & Imports",
+    icon: Ship,
+    blurb: "The trading and import business — orders, shipments, billing and what is owed.",
+    home: "/ops",
+    match: ["/ops"],
+    groups: [
+      { label: "Sell", ids: ["ops", "ops-funnel"] },
+      { label: "Ship", ids: ["ops-imports", "ops-invoices"] },
+      { label: "Money", ids: ["ops-payments", "ops-report"] },
+      { label: "Lists", ids: ["ops-setup"] },
+    ],
+  },
+  {
     id: "cocozuri",
     label: "CocoZuri Operations",
     icon: Candy,
@@ -267,6 +313,9 @@ export const MODULES: NavModule[] = [
       { label: "Sell", ids: ["cz-desk", "cz-invoices"] },
       { label: "Money", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
       { label: "Stock", ids: ["cz-stock", "cz-stock-month", "cz-order"] },
+      { label: "Buy", ids: ["cz-purchases", "cz-budgets"] },
+      { label: "Make", ids: ["cz-recipes", "cz-batches"] },
+      { label: "Move", ids: ["cz-transfers"] },
       { label: "Catalogue", ids: ["cz-products", "cz-customers"] },
     ],
   },

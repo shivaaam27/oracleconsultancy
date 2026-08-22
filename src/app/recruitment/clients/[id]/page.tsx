@@ -6,6 +6,7 @@ import { isOpenOrder } from "@/lib/recruitment-shared";
 import { RecruitmentClientRecord } from "@/components/recruitment-client-record";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Client — Recruitment" };
 
 export default async function RecruitmentClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

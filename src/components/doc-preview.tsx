@@ -92,11 +92,11 @@ export function DocPreview({
           {label ?? name}
         </button>
         <button type="button" onClick={toggle}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent shrink-0">
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent shrink-0">
           {open ? <EyeOff size={13} /> : <Eye size={13} />} {open ? "Hide" : "Preview"}
         </button>
         <button type="button" onClick={openTab}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent shrink-0" title="Open in a new tab">
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent shrink-0" title="Open in a new tab">
           <ExternalLink size={13} /> Open
         </button>
       </div>

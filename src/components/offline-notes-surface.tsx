@@ -154,7 +154,7 @@ export function OfflineNotesSurface() {
           before any other. */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-2 rounded-lg border px-3.5 py-2 text-[12.5px]",
+          "flex flex-wrap items-center gap-2 rounded-lg border px-3.5 py-2 text-sm",
           connected ? "border-border bg-bg-subtle text-fg-muted" : "border-warn/30 bg-warn/10 text-warn",
         )}
       >
@@ -183,7 +183,7 @@ export function OfflineNotesSurface() {
                 type="button"
                 onClick={() => void send()}
                 disabled={busy}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60"
               >
                 {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send
               </button>
@@ -193,13 +193,13 @@ export function OfflineNotesSurface() {
               title="Take a fresh copy"
               onClick={() => void (async () => { setBusy(true); const r = await refreshNoteCache(); setReachable(r.reachable); await load(); setBusy(false); setSaid(r.ok ? "Fresh copy taken." : "COS could not be reached."); })()}
               disabled={busy}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[12px] font-medium text-fg-muted hover:text-fg disabled:opacity-60"
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-sm font-medium text-fg-muted hover:text-fg disabled:opacity-60"
             >
               <RefreshCw size={12} />
             </button>
           </>
         )}
-        {said && <span className="w-full text-[11.5px] opacity-80">{said}</span>}
+        {said && <span className="w-full text-xs opacity-80">{said}</span>}
       </div>
 
       {view.name === "new" ? (
@@ -209,7 +209,7 @@ export function OfflineNotesSurface() {
             <button
               type="button"
               onClick={() => { setView({ name: "shelf" }); void load(); }}
-              className="text-[12px] text-fg-muted hover:text-fg"
+              className="text-sm text-fg-muted hover:text-fg"
             >
               Back to all notes
             </button>
@@ -233,7 +233,7 @@ export function OfflineNotesSurface() {
       ) : (
         <>
           {view.name === "note" && !open && (
-            <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-[12px] text-fg-muted">
+            <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm text-fg-muted">
               That note is not on this device. Open it once with a connection and it will be.
             </p>
           )}
@@ -241,7 +241,7 @@ export function OfflineNotesSurface() {
             <button
               type="button"
               onClick={() => setView({ name: "new" })}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90"
+              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
             >
               <Plus size={13} /> New note
             </button>
@@ -267,7 +267,7 @@ function EmptyDevice({
   return (
     <div className="rounded-lg border border-border bg-bg-elev px-4 py-5 text-sm">
       <p className="font-medium text-fg">No notes have been copied to this device yet.</p>
-      <p className="mt-1.5 text-[12.5px] text-fg-subtle">
+      <p className="mt-1.5 text-sm text-fg-subtle">
         Open this page once while you have a connection and the whole collection is kept here, so you can
         read it anywhere. You can write a new one either way.
       </p>
@@ -277,7 +277,7 @@ function EmptyDevice({
             type="button"
             onClick={onCopy}
             disabled={busy}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-medium text-fg-muted hover:text-fg disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium text-fg-muted hover:text-fg disabled:opacity-60"
           >
             {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Copy them now
           </button>
@@ -285,7 +285,7 @@ function EmptyDevice({
         <button
           type="button"
           onClick={onNew}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
         >
           <Plus size={13} /> New note
         </button>

@@ -166,7 +166,7 @@ export default async function PortalProfile() {
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone="info">{accessLabel}</Badge>
             {staffId && (
-              <span className="inline-flex items-center rounded-full bg-bg-subtle/70 px-2 py-0.5 text-[11px] font-medium tabular text-fg-muted ring-1 ring-border/60">
+              <span className="inline-flex items-center rounded-full bg-bg-subtle/70 px-2 py-0.5 text-xs font-medium tabular text-fg-muted ring-1 ring-border/60">
                 {staffId}
               </span>
             )}
@@ -191,7 +191,7 @@ export default async function PortalProfile() {
           <div className={`grid gap-2 ${glance.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
             {glance.map((g) => (
               <div key={g.label} className={`rounded-2xl p-3 ring-1 ${TONE[g.tone].bg} ${TONE[g.tone].ring}`}>
-                <div className={`text-[11px] font-medium ${TONE[g.tone].text}`}>{g.label}</div>
+                <div className={`text-xs font-medium ${TONE[g.tone].text}`}>{g.label}</div>
                 <p className="mt-1 text-xl font-semibold tabular">{g.value}</p>
               </div>
             ))}
@@ -215,7 +215,7 @@ export default async function PortalProfile() {
             </div>
           ))}
         </Panel>
-        <p className="px-1 text-[11px] text-fg-subtle">
+        <p className="px-1 text-xs text-fg-subtle">
           Need a detail changed? Ask your administrator — these come from your HR record.
         </p>
       </Reveal>
@@ -224,7 +224,7 @@ export default async function PortalProfile() {
         <Reveal delay={0.065} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Contact size={13} />}>Your contact details</SectionLabel>
           <PortalContactDetails initial={contact} />
-          <p className="px-1 text-[11px] text-fg-subtle">
+          <p className="px-1 text-xs text-fg-subtle">
             Keep these up to date yourself — only you can edit them, and only you see them.
           </p>
         </Reveal>
@@ -234,7 +234,7 @@ export default async function PortalProfile() {
         <Reveal delay={0.08} className="flex flex-col gap-2.5">
           <SectionLabel icon={<FileCheck2 size={13} />}>Your documents</SectionLabel>
           <PortalDocuments items={docItems} />
-          <p className="px-1 text-[11px] text-fg-subtle">
+          <p className="px-1 text-xs text-fg-subtle">
             Send anything we ask for. Your administrator files and checks each one.
           </p>
         </Reveal>
@@ -244,7 +244,7 @@ export default async function PortalProfile() {
         <Reveal delay={0.085} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Clock size={13} />}>Your attendance</SectionLabel>
           <PortalAttendance days={attendance.days} todayEditable={attendance.todayEditable} lockReason={attendance.lockReason} />
-          <p className="px-1 text-[11px] text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
+          <p className="px-1 text-xs text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
         </Reveal>
       )}
 
@@ -272,7 +272,7 @@ export default async function PortalProfile() {
               ))}
             </ul>
           </Panel>
-          <p className="px-1 text-[11px] text-fg-subtle">Your administrator ticks these off as they’re completed.</p>
+          <p className="px-1 text-xs text-fg-subtle">Your administrator ticks these off as they’re completed.</p>
         </Reveal>
       )}
 
@@ -285,12 +285,12 @@ export default async function PortalProfile() {
                 <Package size={14} className="text-fg-subtle shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium truncate">{a.name}</span>
-                  <span className="block text-[11px] text-fg-subtle truncate">{[a.category, a.brand, a.tag].filter(Boolean).join(" · ") || "Assigned to you"}</span>
+                  <span className="block text-xs text-fg-subtle truncate">{[a.category, a.brand, a.tag].filter(Boolean).join(" · ") || "Assigned to you"}</span>
                 </span>
               </div>
             ))}
           </Panel>
-          <p className="px-1 text-[11px] text-fg-subtle">Company equipment currently assigned to you.</p>
+          <p className="px-1 text-xs text-fg-subtle">Company equipment currently assigned to you.</p>
         </Reveal>
       )}
 
@@ -298,7 +298,7 @@ export default async function PortalProfile() {
         <Reveal delay={0.125} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Sparkles size={13} />}>Guides &amp; tips</SectionLabel>
           <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
-          <p className="px-1 text-[11px] text-fg-subtle">Re-watch the welcome tour or catch up on what&apos;s new — any time.</p>
+          <p className="px-1 text-xs text-fg-subtle">Re-watch the welcome tour or catch up on what&apos;s new — any time.</p>
         </Reveal>
       )}
 
@@ -311,7 +311,7 @@ export default async function PortalProfile() {
               Sign in faster
             </div>
             <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
-            <p className="mt-2.5 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint — no password needed. Your biometric stays on your device.</p>
+            <p className="mt-2.5 text-xs text-fg-subtle">Add this device to sign in with Face ID or your fingerprint — no password needed. Your biometric stays on your device.</p>
           </div>
           <div className="p-4">
             <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
@@ -319,7 +319,7 @@ export default async function PortalProfile() {
               Get the app
             </div>
             <InstallApp />
-            <p className="mt-2.5 text-[11px] text-fg-subtle">Puts Oracle Consultancy on your home screen or Start menu, in its own window. Nothing is downloaded and it stays up to date on its own.</p>
+            <p className="mt-2.5 text-xs text-fg-subtle">Puts Oracle Consultancy on your home screen or Start menu, in its own window. Nothing is downloaded and it stays up to date on its own.</p>
           </div>
           <div className="p-4">
             <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
@@ -327,7 +327,7 @@ export default async function PortalProfile() {
               Password
             </div>
             <PortalPassword />
-            <p className="mt-2.5 text-[11px] text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
+            <p className="mt-2.5 text-xs text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
           </div>
           <div className="p-4">
             <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
@@ -335,7 +335,7 @@ export default async function PortalProfile() {
               Notifications
             </div>
             <DevicePushToggle />
-            <p className="mt-2.5 text-[11px] text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
+            <p className="mt-2.5 text-xs text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
           </div>
           <div className="p-4">
             <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
@@ -343,7 +343,7 @@ export default async function PortalProfile() {
               Accessibility
             </div>
             <AccessibilityControls />
-            <p className="mt-2.5 text-[11px] text-fg-subtle">These settings are saved on this device only.</p>
+            <p className="mt-2.5 text-xs text-fg-subtle">These settings are saved on this device only.</p>
           </div>
         </Panel>
       </Reveal>

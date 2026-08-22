@@ -10,7 +10,7 @@ import { useToast } from "@/components/toast";
 
 function Tag({ item }: { item: CockpitItem }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-accent-soft/60 ring-1 ring-accent/20 text-accent px-2 py-0.5 text-[10px] font-medium shrink-0">
+    <span className="inline-flex items-center rounded-full bg-accent-soft/60 ring-1 ring-accent/20 text-accent px-2 py-0.5 text-xs font-medium shrink-0">
       {cockpitKindLabel(item)}
     </span>
   );
@@ -66,19 +66,19 @@ export function Cockpit({
       {/* Bands — the "while you were away" summary, three at a glance */}
       <div className="grid grid-cols-3 gap-3">
         <Link href="/?tab=tasks&flag=overdue" className="glass elevated rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md" title={needsYouParts.join(" · ") || "Nothing urgent"}>
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
             <AlertTriangle size={12} className={needsYou ? "text-danger" : "text-fg-muted"} /> Needs you
           </p>
           <p className={`mt-1 text-2xl font-semibold tabular ${needsYou ? "text-danger" : "text-fg-muted"}`}>{needsYou}</p>
         </Link>
         <div className="glass elevated rounded-2xl p-4">
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
             <Inbox size={12} className="text-warn" /> Waiting for you
           </p>
           <p className="mt-1 text-2xl font-semibold tabular text-warn">{approvals.length}</p>
         </div>
         <div className="glass elevated rounded-2xl p-4">
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
             <Sparkles size={12} className="text-accent" /> Done automatically
           </p>
           <p className="mt-1 text-2xl font-semibold tabular text-accent">{activity.length}</p>
@@ -91,7 +91,7 @@ export function Cockpit({
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-accent"><Inbox size={14} /></span>
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-tight">Approvals</p>
-            <p className="text-[11px] text-fg-subtle">Everything across the system waiting for your one tap.</p>
+            <p className="text-xs text-fg-subtle">Everything across the system waiting for your one tap.</p>
           </div>
         </div>
 
@@ -107,12 +107,12 @@ export function Cockpit({
                     <Tag item={s} />
                     <p className="text-sm font-medium leading-snug">{s.summary}</p>
                     {waitingDays(s.createdAt) >= STALE_DAYS && (
-                      <span className="ml-auto shrink-0 inline-flex items-center rounded-full bg-warn-soft text-warn px-1.5 py-0.5 text-[10px] font-semibold">
+                      <span className="ml-auto shrink-0 inline-flex items-center rounded-full bg-warn-soft text-warn px-1.5 py-0.5 text-xs font-semibold">
                         waiting {waitingDays(s.createdAt)}d
                       </span>
                     )}
                   </div>
-                  {s.detail && <p className="text-[11px] text-fg-subtle pl-0.5">{s.detail}</p>}
+                  {s.detail && <p className="text-xs text-fg-subtle pl-0.5">{s.detail}</p>}
                   <div className="flex items-center gap-2 pt-0.5">
                     <button type="button" disabled={isBusy} onClick={() => act(s.key, () => approveCockpitItem(s.key), "Approved.")}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90 transition disabled:opacity-50">
@@ -137,7 +137,7 @@ export function Cockpit({
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-success-soft text-success"><Check size={14} /></span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold leading-tight">Done automatically</p>
-            <p className="text-[11px] text-fg-subtle">{activity.length} recent — review or undo any of them.</p>
+            <p className="text-xs text-fg-subtle">{activity.length} recent — review or undo any of them.</p>
           </div>
           <ChevronDown size={16} className={`shrink-0 text-fg-subtle transition-transform ${showActivity ? "rotate-180" : ""}`} />
         </button>
@@ -145,7 +145,7 @@ export function Cockpit({
         {showActivity && (
           <div className="mt-3 space-y-1">
             {activity.length === 0 ? (
-              <p className="px-1 py-4 text-center text-[12px] text-fg-muted">Nothing applied automatically yet.</p>
+              <p className="px-1 py-4 text-center text-sm text-fg-muted">Nothing applied automatically yet.</p>
             ) : (
               activity.map((h) => {
                 const isBusy = pending && busy === h.key;
@@ -154,12 +154,12 @@ export function Cockpit({
                     <Tag item={h} />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs leading-snug">{h.summary}</p>
-                      {h.detail && <p className="text-[10px] text-fg-subtle leading-snug"><span className="text-fg-muted">Why:</span> {h.detail}</p>}
-                      <p className="text-[10px] text-fg-subtle truncate">{ago(h.createdAt)}</p>
+                      {h.detail && <p className="text-xs text-fg-subtle leading-snug"><span className="text-fg-muted">Why:</span> {h.detail}</p>}
+                      <p className="text-xs text-fg-subtle truncate">{ago(h.createdAt)}</p>
                     </div>
                     {h.canUndo && (
                       <button type="button" disabled={isBusy} onClick={() => act(h.key, () => undoCockpitItem(h.key), "Undone.")}
-                        className="inline-flex shrink-0 items-center gap-1 text-[10px] text-fg-subtle hover:text-danger transition disabled:opacity-50">
+                        className="inline-flex shrink-0 items-center gap-1 text-xs text-fg-subtle hover:text-danger transition disabled:opacity-50">
                         {isBusy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Undo
                       </button>
                     )}
@@ -167,7 +167,7 @@ export function Cockpit({
                 );
               })
             )}
-            <a href="/activity" className="mt-1 block px-2 py-1.5 text-[11px] text-accent hover:underline">
+            <a href="/activity" className="mt-1 block px-2 py-1.5 text-xs text-accent hover:underline">
               See all activity (System · You · Staff) →
             </a>
           </div>

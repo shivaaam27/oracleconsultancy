@@ -72,7 +72,7 @@ export function OpsTaxFields({
     <div className={cn("space-y-1.5", className)}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
         <div className="sm:col-span-5">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.06em] text-fg-subtle">
+          <span className="mb-1 block text-xs uppercase tracking-[0.06em] text-fg-subtle">
             {label ?? taxWord}
           </span>
           <FluidSelect
@@ -91,7 +91,7 @@ export function OpsTaxFields({
         </div>
 
         <div className="sm:col-span-2">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.06em] text-fg-subtle">Rate</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.06em] text-fg-subtle">Rate</span>
           <div className={cn(inputCls, "flex h-8 items-center justify-end tabular text-fg-muted")}>
             {ratePercentLabel(value.percent)}
           </div>
@@ -99,7 +99,7 @@ export function OpsTaxFields({
 
         {side !== "wht" && (
           <div className="sm:col-span-5">
-            <span className="mb-1 block text-[10px] uppercase tracking-[0.06em] text-fg-subtle">
+            <span className="mb-1 block text-xs uppercase tracking-[0.06em] text-fg-subtle">
               The value above
             </span>
             {/* ⚠️ Three buttons, not a switch. "Not said" is a real answer and
@@ -115,7 +115,7 @@ export function OpsTaxFields({
                   type="button"
                   onClick={() => onChange({ ...value, inclusive: o.v })}
                   className={cn(
-                    "h-8 flex-1 rounded-md border text-[11px]",
+                    "h-8 flex-1 rounded-md border text-xs",
                     value.inclusive === o.v
                       ? "border-accent bg-accent-soft text-accent"
                       : "border-border bg-bg text-fg-muted hover:text-fg",
@@ -131,7 +131,7 @@ export function OpsTaxFields({
 
       {/* What that actually means, in money, before it is saved. */}
       {value.rateId !== null && (
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-xs text-fg-subtle">
           {split ? (
             <>
               Net <b className="tabular text-fg-muted">{fmtMoney(split.net, currency, { decimals: 2 })}</b>

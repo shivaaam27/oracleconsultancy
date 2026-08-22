@@ -96,7 +96,7 @@ export function CockpitLive({ seconds = 45 }: { seconds?: number }) {
     ago == null ? "syncing…" : ago < 5 ? "just now" : ago < 60 ? `${ago}s ago` : `${Math.round(ago / 60)}m ago`;
 
   return (
-    <div className="flex items-center justify-center gap-2 text-[11px] text-fg-subtle">
+    <div className="flex items-center justify-center gap-2 text-xs text-fg-subtle">
       <span className="relative inline-flex h-2 w-2" aria-hidden>
         <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />

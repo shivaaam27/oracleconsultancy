@@ -5,7 +5,7 @@ import { Plus, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
-import { SearchInput } from "@/components/ui";
+import { FIELD, SearchInput } from "@/components/ui";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
@@ -84,9 +84,9 @@ export function CocozuriCustomers({
     overrides: {
       name: (r) => (
         <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
-          <span className="truncate text-[13px] font-medium text-fg">{r.name}</span>
+          <span className="truncate text-base font-medium text-fg">{r.name}</span>
           {r.shortName && r.shortName !== r.name && (
-            <span className="truncate text-[11.5px] text-fg-subtle">also written “{r.shortName}”</span>
+            <span className="truncate text-xs text-fg-subtle">also written “{r.shortName}”</span>
           )}
         </span>
       ),
@@ -111,13 +111,13 @@ export function CocozuriCustomers({
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search customers…"
               wrapperClassName="w-[15rem]"
-              className="h-8 text-[12.5px]"
+              className="h-8 text-sm"
             />
             <span className="grow" />
             <button
               type="button"
               onClick={() => setEditing("new")}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
             >
               <Plus size={13} /> New customer
             </button>
@@ -125,7 +125,7 @@ export function CocozuriCustomers({
         }
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <p className="text-[13px] font-medium text-fg-muted">No customers yet.</p>
+            <p className="text-base font-medium text-fg-muted">No customers yet.</p>
           </div>
         }
       />
@@ -240,10 +240,10 @@ function CustomerSheet({
 
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => void save()} disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
             {busy && <Loader2 size={13} className="animate-spin" />} {customer ? "Save" : "Add"}
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">Cancel</button>
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
           {customer && (
             <>
               <span className="grow" />
@@ -253,7 +253,7 @@ function CustomerSheet({
                   await archiveCustomerAction(customer.id, !customer.archived);
                   onSaved(customer.archived ? "Back on the list." : "Archived — nothing was deleted.");
                 })}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] text-fg-muted hover:text-fg"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
               >
                 {customer.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                 {customer.archived ? "Restore" : "Archive"}
@@ -266,15 +266,16 @@ function CustomerSheet({
   );
 }
 
-const INPUT =
-  "w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent";
+/* ⚠️ THE KIT'S FIELD, not a local one. Seven files had grown their own
+   `const INPUT` and no two agreed — see the note on `FIELD` in ui.tsx. */
+const INPUT = FIELD;
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
-      {hint && <span className="text-[11px] leading-snug text-fg-subtle">{hint}</span>}
+      {hint && <span className="text-xs leading-snug text-fg-subtle">{hint}</span>}
     </label>
   );
 }

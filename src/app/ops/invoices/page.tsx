@@ -16,6 +16,7 @@ import { OpsTabs } from "@/components/ops-tabs";
 import { OpsInvoicesSheet } from "@/components/ops-invoices-sheet";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Delivery & billing — Orders & Imports" };
 
 export default async function OpsInvoicesPage({
   searchParams,
@@ -42,7 +43,7 @@ export default async function OpsInvoicesPage({
     return (
       <div className="space-y-3">
         <PageHeader title="Orders & Imports" sub="No companies yet" />
-        <p className="text-[13px] text-fg-muted">Add a company first, on the Companies screen.</p>
+        <p className="text-base text-fg-muted">Add a company first, on the Companies screen.</p>
       </div>
     );
   }

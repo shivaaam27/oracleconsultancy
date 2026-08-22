@@ -79,7 +79,7 @@ export function MoneyInput({
   return (
     <span className="relative block min-w-0">
       {symbol && (
-        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-fg-subtle">
+        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-fg-subtle">
           {symbol}
         </span>
       )}
@@ -107,7 +107,7 @@ export function MoneyInput({
           onChange(next);
         }}
         className={cn(
-          "h-8 w-full rounded-md border border-border bg-bg text-[13px] tabular outline-none placeholder:text-fg-subtle focus:border-accent",
+          "h-8 w-full rounded-md border border-border bg-bg text-base tabular outline-none placeholder:text-fg-subtle focus:border-accent",
           symbol ? "pl-9 pr-2 text-right" : "px-2 text-right",
           className,
         )}

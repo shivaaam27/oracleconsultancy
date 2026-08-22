@@ -27,7 +27,7 @@ export function SettingsCard({ id, icon, title, desc, keywords, children, classN
         <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">{icon}</span>
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold leading-tight">{title}</h2>
-          {desc && <p className="mt-0.5 text-[11px] leading-snug text-fg-muted">{desc}</p>}
+          {desc && <p className="mt-0.5 text-xs leading-snug text-fg-muted">{desc}</p>}
         </div>
       </div>
       <div className="mt-3 space-y-3">{children}</div>

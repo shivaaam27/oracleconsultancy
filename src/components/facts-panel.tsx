@@ -68,7 +68,7 @@ export function FactsPanel({
       <button
         type="button"
         onClick={() => setAdding((a) => !a)}
-        className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle/60 px-2.5 py-1 text-[11px] font-medium text-fg-muted hover:bg-bg-muted/60 transition-colors"
+        className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle/60 px-2.5 py-1 text-xs font-medium text-fg-muted hover:bg-bg-muted/60 transition-colors"
       >
         <Plus size={12} /> Record a fact
       </button>
@@ -85,9 +85,9 @@ export function FactsPanel({
       )}
 
       {!loaded ? (
-        <p className="text-[12px] text-fg-subtle">Loading…</p>
+        <p className="text-sm text-fg-subtle">Loading…</p>
       ) : current.length === 0 ? (
-        <p className="text-[12px] text-fg-subtle">
+        <p className="text-sm text-fg-subtle">
           No facts recorded yet. Use “Record a fact” to log a salary, shareholding, bank account or other detail —
           each one keeps its history and points to the document that proves it.
         </p>
@@ -108,8 +108,8 @@ export function FactsPanel({
                     className={cn("flex min-w-0 flex-1 items-center gap-2 text-left", expandable && "cursor-pointer")}
                   >
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-medium text-fg truncate">{f.field}</span>
-                      <span className="block text-[11px] text-fg-muted truncate">
+                      <span className="block text-base font-medium text-fg truncate">{f.field}</span>
+                      <span className="block text-xs text-fg-muted truncate">
                         {f.display ?? renderFactValue(f.field, f.value)}
                       </span>
                     </span>
@@ -128,12 +128,12 @@ export function FactsPanel({
 
                 {open && expandable && (
                   <div className="border-t border-border/50 px-3 py-2 space-y-1.5">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle">History</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">History</p>
                     {history.map((h) => (
-                      <div key={h.id} className="flex items-center gap-2 text-[12px]">
+                      <div key={h.id} className="flex items-center gap-2 text-sm">
                         <span className="text-fg-muted tabular w-20 shrink-0">{fmtDate(h.effectiveDate)}</span>
                         <span className="text-fg truncate flex-1">{h.display ?? renderFactValue(h.field, h.value)}</span>
-                        {h.source && <span className="text-[10px] text-fg-subtle inline-flex items-center gap-0.5"><FileText size={10} /> {h.source}</span>}
+                        {h.source && <span className="text-xs text-fg-subtle inline-flex items-center gap-0.5"><FileText size={10} /> {h.source}</span>}
                       </div>
                     ))}
                   </div>
@@ -141,7 +141,7 @@ export function FactsPanel({
 
                 {/* Current-row footer: source + effective date, calm and small. */}
                 {(f.source || f.effectiveDate) && (
-                  <div className="flex items-center gap-2 px-3 pb-2 text-[10px] text-fg-subtle">
+                  <div className="flex items-center gap-2 px-3 pb-2 text-xs text-fg-subtle">
                     <span>as at {fmtDate(f.effectiveDate)}</span>
                     {f.source && <span className="inline-flex items-center gap-0.5"><FileText size={10} /> {f.source}</span>}
                   </div>
@@ -225,7 +225,7 @@ function RecordForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent/60";
+  const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-base outline-none focus:border-accent/60";
 
   async function save() {
     setSaving(true);
@@ -256,7 +256,7 @@ function RecordForm({
           placeholder="Fact (e.g. Salary)"
           onInput={setField}
           onCommit={setField}
-          className="text-[13px]"
+          className="text-base"
         />
         <input
           className={input}
@@ -287,25 +287,25 @@ function RecordForm({
         onChange={(e) => setNote(e.target.value)}
       />
       <div className="flex items-center gap-2">
-        <label className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted cursor-pointer">
+        <label className="inline-flex items-center gap-1.5 text-sm text-fg-muted cursor-pointer">
           <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} className="accent-accent" />
           Verified against the source
         </label>
         <div className="ml-auto flex items-center gap-1.5">
-          <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">
+          <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-sm text-fg-muted hover:bg-bg-muted/60">
             Cancel
           </button>
           <button
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Record"}
           </button>
         </div>
       </div>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

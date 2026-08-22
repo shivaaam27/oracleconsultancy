@@ -80,7 +80,7 @@ export function RecruitmentForm({
       {groups.map((g) => (
         <section key={g.id} className="overflow-hidden rounded-lg border border-border bg-bg-elev">
           <div className="border-b border-border bg-bg-subtle px-3 py-2">
-            <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{g.title}</span>
+            <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{g.title}</span>
           </div>
           <div className="grid grid-cols-1 gap-3 px-3 py-3 sm:grid-cols-2">
             {g.fields.map((f) => (
@@ -97,7 +97,7 @@ export function RecruitmentForm({
       ))}
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -119,8 +119,8 @@ export function RecruitmentForm({
             Cancel
           </button>
         )}
-        {saved && !pending && <span className="text-[11px] text-success">Saved.</span>}
-        {footNote && <span className="text-[11px] text-fg-subtle">{footNote}</span>}
+        {saved && !pending && <span className="text-xs text-success">Saved.</span>}
+        {footNote && <span className="text-xs text-fg-subtle">{footNote}</span>}
       </div>
     </form>
   );
@@ -135,12 +135,12 @@ function Field({
   onChange: (v: string | boolean | null) => void;
 }) {
   const label = (
-    <span className="mb-1 block text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+    <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">
       {f.label}{f.required && <span className="ml-0.5 text-danger">*</span>}
     </span>
   );
-  const hint = f.hint ? <span className="mt-0.5 block text-[11px] text-fg-subtle">{f.hint}</span> : null;
-  const box = "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  const hint = f.hint ? <span className="mt-0.5 block text-xs text-fg-subtle">{f.hint}</span> : null;
+  const box = "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
   if (f.kind === "toggle") {
     /* `Switch` is presentational and `aria-hidden` — the button around it owns
@@ -154,7 +154,7 @@ function Field({
           aria-checked={!!value}
           aria-label={f.label}
           onClick={() => onChange(!value)}
-          className="flex h-8 items-center gap-2 text-[13px] text-fg-muted"
+          className="flex h-8 items-center gap-2 text-base text-fg-muted"
         >
           <Switch on={!!value} size="sm" />
           <span>{value ? "Yes" : "No"}</span>
@@ -191,7 +191,7 @@ function Field({
           rows={3}
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         {hint}
       </label>

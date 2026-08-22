@@ -52,7 +52,7 @@ function TaskPreviewBody(data: TaskPreview) {
         <div className="truncate text-xs text-fg-muted">{t.assignees.join(", ")}</div>
       )}
       {t.latestUpdate && (
-        <div className="line-clamp-3 border-t border-border/50 pt-1.5 text-[11px] text-fg-subtle">{t.latestUpdate}</div>
+        <div className="line-clamp-3 border-t border-border/50 pt-1.5 text-xs text-fg-subtle">{t.latestUpdate}</div>
       )}
     </div>
   );

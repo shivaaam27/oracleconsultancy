@@ -79,7 +79,7 @@ export function ChatModelPicker() {
         aria-label="Chat model"
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="inline-flex items-center gap-1 h-7 rounded-lg px-2 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors tabular-nums"
+        className="inline-flex items-center gap-1 h-7 rounded-lg px-2 text-xs text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors tabular-nums"
       >
         <Cpu size={13} />
         <span className="max-w-[6rem] truncate">{label}</span>
@@ -111,7 +111,7 @@ export function ChatModelPicker() {
               onClick={() => choose(m.model)}
             />
           ))}
-          <p className="px-2.5 py-1.5 text-[10px] text-fg-subtle leading-snug">
+          <p className="px-2.5 py-1.5 text-xs text-fg-subtle leading-snug">
             Pinning a 30/day model burns it fast. Auto stays recommended.
           </p>
         </div>
@@ -133,8 +133,8 @@ function Option({
       className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-bg-muted/60 transition-colors"
     >
       <span className="flex-1 min-w-0">
-        <span className="block text-[13px] text-fg truncate">{label}</span>
-        <span className="block text-[11px] text-fg-subtle tabular-nums">{hint}</span>
+        <span className="block text-base text-fg truncate">{label}</span>
+        <span className="block text-xs text-fg-subtle tabular-nums">{hint}</span>
       </span>
       {selected && <Check size={14} className="text-accent shrink-0" />}
     </button>

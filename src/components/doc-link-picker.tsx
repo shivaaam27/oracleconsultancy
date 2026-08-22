@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { Select } from "./ui";
 import { ChevronDown, Link2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -29,13 +31,15 @@ export function DocLinkPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  /* ⚠️ Portalled through the one hook — it is used on the event form, which is
+     a bottom sheet, so an `absolute` panel was clipped. */
+  const { anchorRef: wrapRef, menuRef, pos, mounted, isInside } =
+    useAnchoredMenu<HTMLDivElement, HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
+    // ⚠️ Includes the PORTALLED panel — see `isInside`.
+    const onDoc = (e: MouseEvent) => { if (!isInside(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
@@ -60,8 +64,9 @@ export function DocLinkPicker({
       >
         <Link2 size={11} /> {label} <ChevronDown size={11} className="text-fg-subtle" />
       </button>
-      {open && (
-        <div className="absolute left-0 z-50 mt-1 w-64 max-w-[80vw] overflow-hidden rounded-xl bg-bg-elev p-1 shadow-lg ring-1 ring-border">
+      {mounted && open && pos && createPortal(
+        <div ref={menuRef} style={menuStyle(pos, "min(80vw, 20rem)")}
+          className="overflow-auto rounded-md bg-bg-elev p-1 shadow-lg ring-1 ring-border">
           <div className="flex items-center gap-1.5 border-b border-border/60 px-2 py-1">
             <Search size={12} className="shrink-0 text-fg-subtle" />
             <input
@@ -74,7 +79,7 @@ export function DocLinkPicker({
           </div>
           <ul className="max-h-56 overflow-auto py-1">
             {filtered.length === 0 && (
-              <li className="px-2 py-2 text-[11px] text-fg-subtle">No documents match.</li>
+              <li className="px-2 py-2 text-xs text-fg-subtle">No documents match.</li>
             )}
             {filtered.map((d) => (
               <li key={d.id}>
@@ -93,7 +98,8 @@ export function DocLinkPicker({
               </li>
             ))}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

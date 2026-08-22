@@ -59,7 +59,7 @@ export function CockpitNow({ now, dueToday }: { now: CockpitNowData; dueToday: n
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto rounded-2xl bg-accent-soft/30 px-3 py-2.5 ring-1 ring-accent/15 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <span className="inline-flex shrink-0 items-center gap-1.5 pr-1 text-[11px] font-medium uppercase tracking-[0.08em] text-accent">
+      <span className="inline-flex shrink-0 items-center gap-1.5 pr-1 text-xs font-medium uppercase tracking-[0.08em] text-accent">
         <Clock size={12} /> Now
       </span>
       {chips.length > 0 ? (

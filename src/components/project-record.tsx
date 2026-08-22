@@ -77,7 +77,7 @@ function Derived({ value, from, title }: { value: string | null; from: string; t
 function Missing({ note }: { note?: string }) {
   return (
     <span className="text-fg-subtle" title={note ?? "Not entered yet"}>
-      —{note && <span className="ml-1.5 text-[11px]">{note}</span>}
+      —{note && <span className="ml-1.5 text-xs">{note}</span>}
     </span>
   );
 }
@@ -117,14 +117,14 @@ export function ProjectRecord({
         { label: "Location", value: p.location ?? <Missing /> },
         { label: "Build type", value: p.variant ?? <Missing /> },
         { label: "Company", value: p.companyName ?? <Missing /> },
-        { label: "PO number", value: p.poNumber ? <span className="font-mono text-[12px]">{p.poNumber}</span> : <Missing /> },
+        { label: "PO number", value: p.poNumber ? <span className="font-mono text-sm">{p.poNumber}</span> : <Missing /> },
       ],
     },
     {
       id: "programme",
       title: "Programme",
       body: (
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-xs text-fg-subtle">
           Only the start date and the duration are stored. Everything else here is
           worked out from them, so it can never disagree with them — SNAPSHOT B9–B13.
         </p>
@@ -144,7 +144,7 @@ export function ProjectRecord({
           label: "Days remaining",
           value:
             pr.daysRemaining === null ? <Missing /> : (
-              <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-[12px] font-medium tabular", TONE_CHIP[tone])}>
+              <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-sm font-medium tabular", TONE_CHIP[tone])}>
                 {pr.daysOverdue > 0 ? `${pr.daysOverdue} days overdue` : `${pr.daysRemaining} days`}
               </span>
             ),
@@ -212,7 +212,7 @@ export function ProjectRecord({
 
   return (
     <div className="space-y-3">
-      <Link href="/projects" className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg">
+      <Link href="/projects" className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg">
         <ArrowLeft size={13} /> Projects
       </Link>
 
@@ -228,7 +228,7 @@ export function ProjectRecord({
         // is on time.
         status={
           pr.daysRemaining === null ? undefined : (
-            <span className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-medium", TONE_CHIP[tone])}>
+            <span className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium", TONE_CHIP[tone])}>
               {pr.daysOverdue > 0 ? `${pr.daysOverdue} days overdue` : `${pr.daysRemaining} days left`}
             </span>
           )
@@ -283,8 +283,8 @@ function TimeVsWork({ timeElapsedPct, completion }: { timeElapsedPct: number | n
   const Bar = ({ label, v, tone }: { label: string; v: number | null; tone: string }) => (
     <div className="min-w-0">
       <div className="mb-0.5 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] text-fg-subtle">{label}</span>
-        <span className="tabular text-[11px]">{v === null ? "—" : pct(v, 0)}</span>
+        <span className="text-xs text-fg-subtle">{label}</span>
+        <span className="tabular text-xs">{v === null ? "—" : pct(v, 0)}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-sm bg-bg-muted">
         <div className={cn("h-full", tone)} style={{ width: `${Math.min(100, Math.max(0, (v ?? 0) * 100))}%` }} />
@@ -296,7 +296,7 @@ function TimeVsWork({ timeElapsedPct, completion }: { timeElapsedPct: number | n
       <Bar label="Time used" v={timeElapsedPct} tone={behind ? "bg-danger" : "bg-fg-subtle"} />
       <Bar label="Work completed" v={completion} tone="bg-accent" />
       {behind && (
-        <p className="flex items-start gap-1.5 text-[11px] text-danger">
+        <p className="flex items-start gap-1.5 text-xs text-danger">
           <AlertTriangle size={12} className="mt-px shrink-0" />
           More of the time has gone than the work — the job is behind its programme.
         </p>
@@ -309,7 +309,7 @@ function TimeVsWork({ timeElapsedPct, completion }: { timeElapsedPct: number | n
 function AwaitingBudget({ contract: c, projectId }: { contract: Contract; projectId: number }) {
   if (c.budgetedProfit !== null) return null;
   return (
-    <p className="flex items-start gap-1.5 rounded-md bg-bg-subtle px-2.5 py-2 text-[11px] text-fg-muted">
+    <p className="flex items-start gap-1.5 rounded-md bg-bg-subtle px-2.5 py-2 text-xs text-fg-muted">
       <Info size={12} className="mt-px shrink-0" />
       <span>
         Profit is the quotation minus the <strong>budget</strong>, and this project has no
@@ -328,14 +328,14 @@ function AwaitingBudget({ contract: c, projectId }: { contract: Contract; projec
 function Corrections({ rows }: { rows: ReturnType<typeof contractCorrections> }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         Every figure Phase 1 calculates differently from the spreadsheet, with the
         spreadsheet&rsquo;s own formula. Where both agree, nothing has moved.
       </p>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-[12px]">
+        <table className="w-full min-w-[520px] text-sm">
           <thead>
-            <tr className="border-b border-border text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+            <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
               <th className="py-1.5 pr-3 text-left font-medium">Figure</th>
               <th className="py-1.5 pr-3 text-right font-medium">Spreadsheet</th>
               <th className="py-1.5 pr-3 text-right font-medium">Corrected</th>
@@ -347,7 +347,7 @@ function Corrections({ rows }: { rows: ReturnType<typeof contractCorrections> })
               <tr key={r.label} className="border-b border-border/60 align-top">
                 <td className="py-2 pr-3">
                   <span className="block font-medium">{r.label}</span>
-                  <span className="block font-mono text-[10px] text-fg-subtle">{r.excelFormula}</span>
+                  <span className="block font-mono text-xs text-fg-subtle">{r.excelFormula}</span>
                 </td>
                 <td className="py-2 pr-3 text-right tabular">{money(r.excel) ?? "—"}</td>
                 <td className="py-2 pr-3 text-right tabular">
@@ -356,7 +356,7 @@ function Corrections({ rows }: { rows: ReturnType<typeof contractCorrections> })
                     {r.same ? "same" : "differs"}
                   </span>
                 </td>
-                <td className="py-2 text-[11px] text-fg-muted">{r.why}</td>
+                <td className="py-2 text-xs text-fg-muted">{r.why}</td>
               </tr>
             ))}
           </tbody>
@@ -378,19 +378,19 @@ function NextPhases() {
   ];
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Build phases</h3>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Build phases</h3>
       <ol className="space-y-2">
         {phases.map((ph) => (
           <li key={ph.n} className="flex gap-2">
             <span className={cn(
-              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-medium",
+              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-xs font-medium",
               ph.done ? "bg-success-soft text-success" : "bg-bg-muted text-fg-subtle",
             )}>
               {ph.done ? <Check size={10} /> : ph.n}
             </span>
             <span className="min-w-0">
-              <span className={cn("block text-[12px]", ph.done ? "font-medium" : "text-fg-muted")}>{ph.title}</span>
-              <span className="block text-[11px] text-fg-subtle">{ph.what}</span>
+              <span className={cn("block text-sm", ph.done ? "font-medium" : "text-fg-muted")}>{ph.title}</span>
+              <span className="block text-xs text-fg-subtle">{ph.what}</span>
             </span>
           </li>
         ))}

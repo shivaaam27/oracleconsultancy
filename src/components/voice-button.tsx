@@ -465,7 +465,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
       >
         <Mic size={15} />
       </button>
-      {note && <span className="mt-1 text-[10px] leading-tight text-fg-muted max-w-[10rem] text-center">{note}</span>}
+      {note && <span className="mt-1 text-xs leading-tight text-fg-muted max-w-[10rem] text-center">{note}</span>}
     </span>
   );
 }

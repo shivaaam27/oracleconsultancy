@@ -66,14 +66,14 @@ export function QuickUpdate({
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
         }}
         placeholder={`Add an update on ${code}…`}
-        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-[12px] text-fg outline-none placeholder:text-fg-subtle focus:border-accent/50"
+        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent/50"
       />
       <button
         type="button"
         onClick={submit}
         disabled={busy || !body.trim()}
         aria-label="Post update"
-        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {busy ? <Loader2 size={12} className="animate-spin" /> : <SendHorizontal size={12} />}
         Post

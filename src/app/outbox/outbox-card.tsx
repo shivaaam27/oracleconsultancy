@@ -253,7 +253,7 @@ export function OutboxCard({
 
   const topTask = topTaskOf(draft.tasks);
   const metaLine = (
-    <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-fg-muted">
+    <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
       <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
       {u.overdue > 0 && <span className="text-danger">· {u.overdue} overdue</span>}
       {u.overdue === 0 && u.critical > 0 && <span className="text-danger">· {u.critical} critical</span>}
@@ -290,7 +290,7 @@ export function OutboxCard({
               {!detail && <ChevronDown size={13} className={cn("text-fg-subtle transition-transform shrink-0", expanded && "rotate-180")} />}
             </span>
             {!expanded && topTask ? (
-              <span className="block text-[11px] text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
+              <span className="block text-xs text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
                 <span className="font-mono text-fg-subtle">{topTask.code}</span> · {topTask.actionItem}
               </span>
             ) : (
@@ -348,8 +348,8 @@ export function OutboxCard({
           {/* The Message — company breakdown + shared-assignees live inside the text. */}
           <div className="bg-bg-subtle/50 rounded-xl px-3 py-2.5">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Message</span>
-              {!anyContact && <span className="text-[10px] text-warn inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
+              <span className="text-xs uppercase tracking-[0.08em] text-fg-subtle">Message</span>
+              {!anyContact && <span className="text-xs text-warn inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
             </div>
             {editing ? (
               <textarea
@@ -369,7 +369,7 @@ export function OutboxCard({
                   <button
                     type="button"
                     onClick={() => setShowFull((v) => !v)}
-                    className="mt-1.5 text-[11px] font-medium text-accent hover:underline"
+                    className="mt-1.5 text-xs font-medium text-accent hover:underline"
                   >
                     {showFull ? "Show less" : "Show full message"}
                   </button>
@@ -391,7 +391,7 @@ export function OutboxCard({
               <button
                 type="button"
                 onClick={() => setShowNote(true)}
-                className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
               >
                 <StickyNote size={11} /> Add a personal note
               </button>
@@ -404,7 +404,7 @@ export function OutboxCard({
               type="button"
               onClick={onSkip}
               disabled={pending || !draft.personId}
-              className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
               title="Hide this person until tomorrow"
             >
               <BellOff size={12} /> <span className="hidden sm:inline">Skip today</span>

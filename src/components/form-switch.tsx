@@ -30,7 +30,7 @@ export function FormSwitch({
     >
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-fg">{label}</span>
-        {hint && <span className="mt-0.5 block text-[11px] leading-snug text-fg-muted">{hint}</span>}
+        {hint && <span className="mt-0.5 block text-xs leading-snug text-fg-muted">{hint}</span>}
       </span>
       <Switch on={on} />
       <input type="hidden" name={name} value={on ? "on" : "off"} />

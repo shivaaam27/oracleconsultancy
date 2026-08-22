@@ -112,7 +112,7 @@ export function CompanyDrawer() {
         ].map((t) => (
           <Link key={t.label} href={t.href} onClick={close} className="rounded-xl bg-bg-elev ring-1 ring-border/70 px-2 py-2.5 text-center hover:ring-accent/30 transition-all">
             <div className={cn("text-lg font-semibold tabular leading-none", t.tone)}>{t.value}</div>
-            <div className="mt-1 text-[10px] text-fg-muted leading-tight">{t.label}</div>
+            <div className="mt-1 text-xs text-fg-muted leading-tight">{t.label}</div>
           </Link>
         ))}
       </div>
@@ -128,7 +128,7 @@ export function CompanyDrawer() {
               <span className={cn("ml-auto text-lg font-semibold tabular", comp.status === "Good" ? "text-success" : comp.status === "Watch" ? "text-warn" : "text-danger")}>{comp.score}%</span>
             </div>
             <ProgressTrack value={comp.score} total={100} tone={bandTone[comp.status]} />
-            <div className="text-[11px] text-fg-muted">{comp.missing} missing · {comp.expired} expired · {comp.expiring} expiring</div>
+            <div className="text-xs text-fg-muted">{comp.missing} missing · {comp.expired} expired · {comp.expiring} expiring</div>
           </SectionCard>
         </Link>
       )}
@@ -142,9 +142,9 @@ export function CompanyDrawer() {
               <li key={d.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{d.title}</span>
-                  {d.expiryLabel && <span className="block truncate text-[11px] text-fg-subtle">{d.expiryLabel}</span>}
+                  {d.expiryLabel && <span className="block truncate text-xs text-fg-subtle">{d.expiryLabel}</span>}
                 </span>
-                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${d.status === "Expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>{d.status}</span>
+                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${d.status === "Expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>{d.status}</span>
               </li>
             ))}
           </ul>
@@ -155,8 +155,8 @@ export function CompanyDrawer() {
       <SectionCard>
         <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <Clock size={12} /> Open tasks
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.tasks.open}</span>
-          <Link href={`${base}?tab=tasks`} onClick={close} className="ml-auto inline-flex items-center gap-1 text-[11px] normal-case tracking-normal font-normal text-fg-muted hover:text-accent"><ExternalLink size={11} /> All</Link>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">{data.tasks.open}</span>
+          <Link href={`${base}?tab=tasks`} onClick={close} className="ml-auto inline-flex items-center gap-1 text-xs normal-case tracking-normal font-normal text-fg-muted hover:text-accent"><ExternalLink size={11} /> All</Link>
         </div>
         {data.tasks.top.length === 0 ? (
           <EmptyState icon={<Clock size={20} />} tone="success" title="No open tasks" hint="Everything here is done." />
@@ -165,7 +165,7 @@ export function CompanyDrawer() {
             {data.tasks.top.map((t) => (
               <li key={t.code}>
                 <TaskDrawerLink code={t.code} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
-                  <span className="text-[11px] font-mono text-fg-subtle shrink-0">{t.code}</span>
+                  <span className="text-xs font-mono text-fg-subtle shrink-0">{t.code}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{t.actionItem}</span>
                   <ChevronRight size={14} className="text-fg-subtle shrink-0" />
                 </TaskDrawerLink>
@@ -183,7 +183,7 @@ export function CompanyDrawer() {
       <SectionCard>
         <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <Users size={12} /> People
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.teamCount}</span>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">{data.teamCount}</span>
         </div>
         {data.team.length === 0 ? (
           <EmptyState icon={<Users size={20} />} title="No team yet" hint="No active people linked to this company." />
@@ -194,7 +194,7 @@ export function CompanyDrawer() {
                 <PersonDrawerLink id={p.id} name={p.name} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{p.name}</span>
-                    {p.role && <span className="block truncate text-[11px] text-fg-subtle">{p.role}</span>}
+                    {p.role && <span className="block truncate text-xs text-fg-subtle">{p.role}</span>}
                   </span>
                   <ChevronRight size={14} className="text-fg-subtle shrink-0" />
                 </PersonDrawerLink>
@@ -208,7 +208,7 @@ export function CompanyDrawer() {
       <SectionCard>
         <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <Clock size={12} /> Open tasks
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.tasks.open}</span>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">{data.tasks.open}</span>
         </div>
         {data.tasks.top.length === 0 ? (
           <EmptyState icon={<Clock size={20} />} tone="success" title="No open tasks" hint="Everything here is done." />
@@ -217,7 +217,7 @@ export function CompanyDrawer() {
             {data.tasks.top.map((t) => (
               <li key={t.code}>
                 <TaskDrawerLink code={t.code} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
-                  <span className="text-[11px] font-mono text-fg-subtle shrink-0">{t.code}</span>
+                  <span className="text-xs font-mono text-fg-subtle shrink-0">{t.code}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{t.actionItem}</span>
                   <ChevronRight size={14} className="text-fg-subtle shrink-0" />
                 </TaskDrawerLink>

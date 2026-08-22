@@ -58,7 +58,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
             reset();
             router.push("/outbox");
           }}
-          className="flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-warn-soft/70 text-[11px] font-semibold text-warn"
+          className="flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-warn-soft/70 text-xs font-semibold text-warn"
         >
           <BellRing size={15} />
           Remind
@@ -80,7 +80,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
           className="group block rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 ring-1 ring-border/70 transition-all hover:-translate-y-0.5 hover:ring-accent/30"
         >
           <span className="flex items-center gap-2.5">
-            <span className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold tabular text-fg-muted ring-1 ring-border/60">
+            <span className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-xs font-semibold tabular text-fg-muted ring-1 ring-border/60">
               {t.code}
             </span>
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg group-hover:text-accent">{t.title}</span>
@@ -88,7 +88,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
               {t.badge}
             </span>
           </span>
-          <span className="mt-1 block truncate pl-[3px] text-[11px] text-fg-subtle">{t.meta}</span>
+          <span className="mt-1 block truncate pl-[3px] text-xs text-fg-subtle">{t.meta}</span>
         </Link>
       </div>
     </li>
@@ -99,13 +99,13 @@ export function NeedsYou({ items, totalOverdue }: { items: NeedsYouItem[]; total
   return (
     <div className="flex flex-col rounded-3xl glass p-4 sm:p-5">
       <div className="flex items-center gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">Needs you</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Needs you</p>
         {totalOverdue > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft/60 px-2 py-0.5 text-[10px] font-semibold text-danger ring-1 ring-danger/20">
+          <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft/60 px-2 py-0.5 text-xs font-semibold text-danger ring-1 ring-danger/20">
             <AlertOctagon size={10} /> {totalOverdue}
           </span>
         )}
-        <Link href="/?tab=tasks" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
+        <Link href="/?tab=tasks" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-fg-muted transition-colors hover:text-accent">
           All tasks <ArrowUpRight size={12} />
         </Link>
       </div>
@@ -123,7 +123,7 @@ export function NeedsYou({ items, totalOverdue }: { items: NeedsYouItem[]; total
           </ul>
         </div>
       )}
-      <p className="mt-2.5 text-center text-[10px] text-fg-subtle">worst first · tap to open · swipe left to remind</p>
+      <p className="mt-2.5 text-center text-xs text-fg-subtle">worst first · tap to open · swipe left to remind</p>
     </div>
   );
 }
@@ -164,14 +164,14 @@ export function CompanyHeat({
   return (
     <div className="flex flex-col rounded-3xl glass p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">Company health</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Company health</p>
         {/* Portfolio score + at-risk, mirroring the director board's header
             ("N healthy · X at risk"). */}
-        <span className="text-[11px] text-fg-muted">
+        <span className="text-xs text-fg-muted">
           <b className={cn("font-semibold tabular", tone)}>{health}%</b> healthy
           {atRisk > 0 && <> · <span className="font-medium text-danger">{atRisk} at risk</span></>}
         </span>
-        <Link href="/companies" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
+        <Link href="/companies" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-fg-muted transition-colors hover:text-accent">
           Companies <ArrowUpRight size={12} />
         </Link>
       </div>
@@ -196,8 +196,8 @@ export function CompanyHeat({
                   <Check size={16} className="text-success" strokeWidth={2.5} />
                 )}
               </div>
-              <p className="mt-2 truncate text-[12.5px] font-semibold">{c.name}</p>
-              <p className={cn("mt-0.5 truncate text-[10.5px]", c.overdue > 0 || c.tone === "warn" ? HEAT_TEXT[c.tone] : "text-fg-subtle")}>
+              <p className="mt-2 truncate text-sm font-semibold">{c.name}</p>
+              <p className={cn("mt-0.5 truncate text-xs", c.overdue > 0 || c.tone === "warn" ? HEAT_TEXT[c.tone] : "text-fg-subtle")}>
                 {c.note}
               </p>
             </Link>
@@ -280,15 +280,15 @@ function RoomTile({ r }: { r: Room }) {
       <span className={cn("absolute right-3 top-3 h-1.5 w-1.5 rounded-full", ROOM_DOT[r.tone])} aria-hidden />
       {/* Number card, ERPNext order: LABEL first, then the figure, then the
           one-line heartbeat. The figure is the biggest thing on the card. */}
-      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
         <span className="text-fg-subtle">{ROOM_ICON[r.key]}</span>
         <span className="truncate">{r.label}</span>
       </span>
       <span className="mt-1.5 text-3xl font-bold leading-none tracking-tight tabular text-fg group-hover:text-accent">
         {r.count}
-        {r.suffix && <em className="ml-1 align-middle text-[10px] font-semibold not-italic text-danger">{r.suffix}</em>}
+        {r.suffix && <em className="ml-1 align-middle text-xs font-semibold not-italic text-danger">{r.suffix}</em>}
       </span>
-      <span className="mt-2 block truncate border-t border-dashed border-border/60 pt-1.5 text-[10px] text-fg-subtle">
+      <span className="mt-2 block truncate border-t border-dashed border-border/60 pt-1.5 text-xs text-fg-subtle">
         {r.heartbeat}
       </span>
     </Link>

@@ -96,12 +96,12 @@ export function NoteAiPanel({
     router.refresh();
   };
 
-  const act = "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors disabled:opacity-40";
+  const act = "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors disabled:opacity-40";
 
   return (
     <div className="shrink-0 border-t border-border bg-bg-subtle/60">
       <div className="flex flex-wrap items-center gap-1 px-2 py-1.5">
-        <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-fg-muted">
+        <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
           <Sparkles size={12} /> AI
         </span>
 
@@ -146,7 +146,7 @@ export function NoteAiPanel({
               onAccept={() => void acceptPolish(proposal.text)}
               onDiscard={() => setProposal(null)}
             >
-              <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-bg-subtle/60 p-2 font-sans text-[12px] leading-relaxed text-fg">
+              <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-bg-subtle/60 p-2 font-sans text-sm leading-relaxed text-fg">
                 {proposal.text}
               </pre>
             </Proposed>
@@ -159,7 +159,7 @@ export function NoteAiPanel({
               onAccept={() => { onInsertSummary(proposal.points); setProposal(null); toast("Added at the top.", { tone: "success" }); }}
               onDiscard={() => setProposal(null)}
             >
-              <ul className="list-disc space-y-0.5 pl-4 text-[12px] leading-relaxed text-fg">
+              <ul className="list-disc space-y-0.5 pl-4 text-sm leading-relaxed text-fg">
                 {proposal.points.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
             </Proposed>
@@ -172,7 +172,7 @@ export function NoteAiPanel({
               onAccept={() => { onApplyTitle(proposal.title); setProposal(null); toast("Named.", { tone: "success" }); }}
               onDiscard={() => setProposal(null)}
             >
-              <p className="text-[13px] font-medium text-fg">{proposal.title}</p>
+              <p className="text-base font-medium text-fg">{proposal.title}</p>
             </Proposed>
           )}
 
@@ -188,9 +188,9 @@ export function NoteAiPanel({
                 {proposal.links.map((l, i) => (
                   <li key={`${l.entity}:${l.id}`} className="flex items-start justify-between gap-2">
                     <span className="min-w-0">
-                      <span className="text-[12.5px] font-medium text-fg">{l.label}</span>
-                      <span className="ml-1.5 rounded bg-bg-subtle px-1 py-px text-[10px] text-fg-subtle">{l.entity}</span>
-                      <span className="mt-px block truncate text-[11.5px] text-fg-muted">
+                      <span className="text-sm font-medium text-fg">{l.label}</span>
+                      <span className="ml-1.5 rounded bg-bg-subtle px-1 py-px text-xs text-fg-subtle">{l.entity}</span>
+                      <span className="mt-px block truncate text-xs text-fg-muted">
                         “{l.needle}”{l.why ? ` — ${l.why}` : ""}
                       </span>
                     </span>
@@ -204,7 +204,7 @@ export function NoteAiPanel({
                             : null,
                         );
                       }}
-                      className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:text-fg"
+                      className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-fg-muted hover:text-fg"
                     >
                       Link
                     </button>
@@ -238,8 +238,8 @@ export function NoteAiPanel({
                       className="mt-[3px] h-[13px] w-[13px] shrink-0 cursor-pointer accent-[hsl(var(--accent))]"
                     />
                     <span className="min-w-0">
-                      <span className="block text-[12px] leading-snug text-fg">{t.title}</span>
-                      {t.why && <span className="block text-[11px] text-fg-subtle">because: {t.why}</span>}
+                      <span className="block text-sm leading-snug text-fg">{t.title}</span>
+                      {t.why && <span className="block text-xs text-fg-subtle">because: {t.why}</span>}
                     </span>
                   </li>
                 ))}
@@ -268,19 +268,19 @@ function Proposed({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">{title}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-fg-muted">{title}</h3>
         <span className="grow" />
         <button type="button" onClick={onDiscard}
-          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg">
+          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg">
           <X size={11} /> Discard
         </button>
         <button type="button" onClick={onAccept} disabled={acceptDisabled}
-          className="inline-flex h-6 items-center gap-1 rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
+          className="inline-flex h-6 items-center gap-1 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
           <Check size={11} /> {acceptLabel}
         </button>
       </div>
       {children}
-      <p className="text-[10.5px] leading-relaxed text-fg-subtle">{note}</p>
+      <p className="text-xs leading-relaxed text-fg-subtle">{note}</p>
     </div>
   );
 }

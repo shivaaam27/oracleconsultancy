@@ -50,7 +50,7 @@ export function PortalAttendance({ days, todayEditable, lockReason }: { days: Po
                 );
               })}
             </div>
-            {todayStatus && <div className="mt-2 text-[11px] text-fg-subtle">You marked <span className="font-medium text-fg">{todayStatus}</span> today — tap another to change it.</div>}
+            {todayStatus && <div className="mt-2 text-xs text-fg-subtle">You marked <span className="font-medium text-fg">{todayStatus}</span> today — tap another to change it.</div>}
           </>
         ) : (
           <div className="flex items-center gap-2 text-sm text-fg-muted"><Lock size={14} className="shrink-0" /> {lockReason}</div>
@@ -59,14 +59,14 @@ export function PortalAttendance({ days, todayEditable, lockReason }: { days: Po
 
       {/* This week */}
       <div className="p-4">
-        <div className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle mb-2">This week</div>
+        <div className="text-xs uppercase tracking-[0.06em] text-fg-subtle mb-2">This week</div>
         <div className="grid grid-cols-6 gap-1.5">
           {days.map((d) => {
             const st = d.status;
             return (
               <div key={d.date} className={cn("rounded-lg ring-1 ring-border/60 px-1 py-1.5 text-center", d.isToday && "ring-2 ring-accent/50")}>
-                <div className="text-[10px] text-fg-subtle">{DOW[d.dow]}</div>
-                <div className={cn("mt-1 mx-auto h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold", st ? ATTENDANCE_CELL[st] : "bg-bg-muted/50 text-fg-subtle")}>
+                <div className="text-xs text-fg-subtle">{DOW[d.dow]}</div>
+                <div className={cn("mt-1 mx-auto h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold", st ? ATTENDANCE_CELL[st] : "bg-bg-muted/50 text-fg-subtle")}>
                   {st ? ATTENDANCE_ABBR[st] : "·"}
                 </div>
               </div>

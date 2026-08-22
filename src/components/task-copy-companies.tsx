@@ -96,7 +96,7 @@ export function TaskCopyToCompanies({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-2.5 text-[12.5px] transition-colors hover:bg-bg-muted")}
+        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-2.5 text-sm transition-colors hover:bg-bg-muted")}
       >
         <span className="flex min-w-0 items-center gap-2">
           <Building2 size={14} className="shrink-0 text-fg-muted" />
@@ -115,7 +115,7 @@ export function TaskCopyToCompanies({
             ...(anchor.openUp ? { bottom: anchor.bottomOffset + 6 } : { top: anchor.top + 6 }),
           }}
         >
-          <p className="border-b border-border/60 px-3 py-2 text-[11px] text-fg-muted">Tick a company to create a copy of this task there.</p>
+          <p className="border-b border-border/60 px-3 py-2 text-xs text-fg-muted">Tick a company to create a copy of this task there.</p>
           <label className="relative block border-b border-border/60">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
@@ -139,8 +139,8 @@ export function TaskCopyToCompanies({
                       {rowBusy ? <Loader2 size={11} className="animate-spin" /> : on && <Check size={11} />}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                    {isCurrent && <span className="shrink-0 rounded-full bg-bg-subtle px-1.5 py-0.5 text-[10px] text-fg-subtle">current</span>}
-                    {copies[c.id] && <span className="shrink-0 font-mono text-[10px] text-fg-subtle">{copies[c.id].code}</span>}
+                    {isCurrent && <span className="shrink-0 rounded-full bg-bg-subtle px-1.5 py-0.5 text-xs text-fg-subtle">current</span>}
+                    {copies[c.id] && <span className="shrink-0 font-mono text-xs text-fg-subtle">{copies[c.id].code}</span>}
                   </button>
                 </li>
               );

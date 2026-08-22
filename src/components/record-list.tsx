@@ -116,7 +116,7 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
           key={f.key}
           filter={f}
           className={cn(
-            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[12px] transition-colors",
+            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm transition-colors",
             f.active
               ? "border-accent/40 bg-accent-soft font-medium text-accent"
               : "border-border bg-bg-elev text-fg-muted"
@@ -124,7 +124,7 @@ function FilterStrip({ filters }: { filters: RecordFilter[] }) {
         >
           <span className="whitespace-nowrap">{f.label}</span>
           {f.count !== undefined && (
-            <span className={cn("tabular text-[11px]", !f.active && f.tone && TONE_TEXT[f.tone], f.active ? "text-accent" : "text-fg-subtle")}>
+            <span className={cn("tabular text-xs", !f.active && f.tone && TONE_TEXT[f.tone], f.active ? "text-accent" : "text-fg-subtle")}>
               {f.count}
             </span>
           )}
@@ -173,7 +173,7 @@ function FilterRail({ filters }: { filters: RecordFilter[] }) {
       {groups.map((g, i) => (
         <div key={g.label ?? i}>
           {g.label && (
-            <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+            <p className="px-2 pb-1 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
               {g.label}
             </p>
           )}
@@ -183,7 +183,7 @@ function FilterRail({ filters }: { filters: RecordFilter[] }) {
                 <FilterLink
                   filter={f}
                   className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
+                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-base transition-colors",
                     f.active
                       ? "bg-accent-soft font-medium text-accent"
                       : "text-fg-muted hover:bg-bg-subtle hover:text-fg"
@@ -191,7 +191,7 @@ function FilterRail({ filters }: { filters: RecordFilter[] }) {
                 >
                   <span className="truncate">{f.label}</span>
                   {f.count !== undefined && (
-                    <span className={cn("tabular text-[12px]", !f.active && f.tone && TONE_TEXT[f.tone], f.active ? "text-accent" : "text-fg-subtle")}>
+                    <span className={cn("tabular text-sm", !f.active && f.tone && TONE_TEXT[f.tone], f.active ? "text-accent" : "text-fg-subtle")}>
                       {f.count}
                     </span>
                   )}
@@ -316,7 +316,7 @@ export function RecordListHeader<T>({
     <div
       data-list-head
       style={gridFor(columns, hasSelection)}
-      className={cn(RL_GRID, "grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3", className)}
+      className={cn(RL_GRID, "grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3 text-xs", className)}
     >
       {hasSelection && <span />}
       {columns.map((c) => {
@@ -401,7 +401,7 @@ function ExportButton<T>({
           columns.map((c) => (c.csv ? c.csv(r) : nodeText(c.render(r)))));
         downloadCsv(listFileName(name), toCsv(headers, body));
       }}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"
     >
       <Download size={12} /> Export
     </button>
@@ -418,7 +418,7 @@ function ColumnChooser<T>({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Choose columns"
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-fg-muted transition-colors hover:text-fg"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"
       >
         <Columns3 size={12} /> Columns
       </button>
@@ -436,7 +436,7 @@ function ColumnChooser<T>({
                   disabled={locked}
                   onClick={() => onToggle(c.key)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px]",
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
                     locked ? "cursor-default text-fg-subtle" : "text-fg hover:bg-bg-subtle"
                   )}
                 >
@@ -520,14 +520,14 @@ function ShortcutsCard({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-[320px] rounded-lg border border-border bg-bg-elev p-3 shadow-lg"
       >
-        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-fg">
+        <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
           <Keyboard size={13} className="text-fg-subtle" /> Keyboard
         </p>
         <ul className="space-y-1">
           {SHORTCUTS.map((s) => (
-            <li key={s.keys} className="flex items-center justify-between gap-3 text-[12px]">
+            <li key={s.keys} className="flex items-center justify-between gap-3 text-sm">
               <span className="text-fg-muted">{s.what}</span>
-              <kbd className="rounded-sm border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-fg">
+              <kbd className="rounded-sm border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-fg">
                 {s.keys}
               </kbd>
             </li>
@@ -536,7 +536,7 @@ function ShortcutsCard({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={onClose}
-          className="mt-3 w-full rounded-md border border-border py-1 text-[12px] text-fg-muted hover:text-fg"
+          className="mt-3 w-full rounded-md border border-border py-1 text-sm text-fg-muted hover:text-fg"
         >
           Close
         </button>
@@ -825,7 +825,7 @@ export function RecordList<T>({
                   onChange={(e) => setSearch({ [searchParam]: e.target.value })}
                   placeholder={search.placeholder ?? "Search this list…"}
                   aria-label={search.placeholder ?? "Search this list"}
-                  className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-7 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+                  className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-7 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
                 />
                 {needle && (
                   <button type="button" onClick={() => setSearch({ [searchParam]: "" })}
@@ -851,7 +851,7 @@ export function RecordList<T>({
         )}
         {bulkBar}
         {bulkOn && pickedRows.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent-soft px-3 py-1.5 text-[12px]">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent-soft px-3 py-1.5 text-sm">
             <span className="font-medium text-accent">
               <b className="tabular">{pickedRows.length}</b> selected
             </span>
@@ -867,7 +867,7 @@ export function RecordList<T>({
                     finally { setRunning(false); }
                   }}
                   className={cn(
-                    "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ring-1 transition-colors disabled:opacity-50",
+                    "inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium ring-1 transition-colors disabled:opacity-50",
                     a.tone === "danger"
                       ? "bg-bg-elev text-danger ring-border hover:bg-danger hover:text-white"
                       : "bg-bg-elev text-fg ring-border hover:bg-bg-subtle"
@@ -877,7 +877,7 @@ export function RecordList<T>({
                 </button>
               ))}
               <button type="button" onClick={() => setPicked(new Set())}
-                className="inline-flex h-7 items-center rounded-md px-2 text-[11px] text-fg-muted hover:text-fg">
+                className="inline-flex h-8 items-center rounded-md px-2 text-xs text-fg-muted hover:text-fg">
                 Clear
               </button>
             </span>
@@ -892,7 +892,7 @@ export function RecordList<T>({
             <div
               data-list-head
               style={gridStyle}
-              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3")}
+              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3 text-xs")}
             >
               {tick && (
                 <span>
@@ -937,7 +937,7 @@ export function RecordList<T>({
                   "none yet" there sends someone hunting for data that is
                   sitting right behind the box they typed in. */}
               {needle ? (
-                <p className="text-center text-[12px] text-fg-subtle">
+                <p className="text-center text-sm text-fg-subtle">
                   Nothing matches “{needle}”.{" "}
                   <button type="button" onClick={() => setSearch({ [searchParam]: "" })}
                     className="text-accent hover:underline">Clear the search</button>
@@ -952,7 +952,12 @@ export function RecordList<T>({
                 const starts = group !== null && group !== lastGroup;
                 if (starts) lastGroup = group;
                 const cells = (
-                  <div data-list-row className="group/row relative px-3">
+                  /* ⚠️ `text-sm` HERE IS NOT DECORATION. The row set no type size
+                     at all, so any cell that did not set its own fell back to
+                     the browser's 16px — which is most of them, on most lists.
+                     Setting it on the ROW means a cell inherits the right size
+                     for free and can never leak the default again. */
+                  <div data-list-row className="group/row relative px-3 text-sm">
                     <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3")}>
                       {tick && (
                         <span onClick={(e) => e.stopPropagation()}>{tick(row)}</span>
@@ -1020,9 +1025,9 @@ export function RecordList<T>({
                          company and priority bands, and a band you can't read is
                          just a stripe. Now 12.5px semibold in full `text-fg`, with
                          the room to breathe. */
-                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1.5 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-fg">
+                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1.5 text-sm font-semibold uppercase tracking-[0.06em] text-fg">
                         <span className="truncate">{group}</span>
-                        <span className="tabular text-[11.5px] font-medium normal-case tracking-normal text-fg-muted">
+                        <span className="tabular text-xs font-medium normal-case tracking-normal text-fg-muted">
                           {paged.filter((r) => (groupOf?.(r) ?? null) === group).length}
                         </span>
                       </li>
@@ -1061,7 +1066,7 @@ export function RecordList<T>({
               grid as the rows, so a figure sits under its own column. */}
           {showFooter && paged.length > 0 && visibleColumns.some((c) => c.total) && (
             <div data-list-total className="border-t border-border bg-bg-subtle px-3 py-1.5">
-              <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3 text-[12px] font-medium")}>
+              <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3 text-sm font-medium")}>
                 {tick && <span />}
                 {visibleColumns.map((c) => (
                   <div key={c.key} className={cn("min-w-0 truncate", c.align === "right" && "text-right",
@@ -1075,7 +1080,7 @@ export function RecordList<T>({
 
           {/* Footer: how many of how many — ERPNext tells you, always. */}
           {showFooter && rows.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle px-3 py-1.5 text-[11px] text-fg-muted">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle px-3 py-1.5 text-xs text-fg-muted">
               <span>
                 <b className="tabular font-semibold text-fg">{shown ?? paged.length}</b>
                 {" of "}
@@ -1086,11 +1091,11 @@ export function RecordList<T>({
               {more > 0 && (
                 <span className="flex items-center gap-2">
                   <button type="button" onClick={() => setLimit((n) => n + pageSize)}
-                    className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-[11px] text-fg hover:bg-bg-subtle">
+                    className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-fg hover:bg-bg-subtle">
                     Show {Math.min(more, pageSize)} more
                   </button>
                   <button type="button" onClick={() => setLimit(rows.length)}
-                    className="text-[11px] text-accent hover:underline">
+                    className="text-xs text-accent hover:underline">
                     Show all {rows.length}
                   </button>
                 </span>

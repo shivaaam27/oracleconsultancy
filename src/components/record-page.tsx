@@ -53,8 +53,8 @@ function FieldGrid({ fields }: { fields: RecordField[] }) {
     <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
       {fields.map((f, i) => (
         <div key={i} className={cn("min-w-0", f.full && "sm:col-span-2")}>
-          <dt className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{f.label}</dt>
-          <dd className="mt-0.5 min-w-0 text-[13px] text-fg">{f.value}</dd>
+          <dt className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{f.label}</dt>
+          <dd className="mt-0.5 min-w-0 text-base text-fg">{f.value}</dd>
         </div>
       ))}
     </dl>
@@ -80,7 +80,7 @@ function Section({ section }: { section: RecordSection }) {
             aria-expanded={open}
             className="flex w-full items-center justify-between gap-2 border-b border-border bg-bg-subtle px-3 py-2 text-left"
           >
-            <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{section.title}</span>
+            <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{section.title}</span>
             <ChevronDown size={13} className={cn("shrink-0 text-fg-subtle transition-transform", !open && "-rotate-90")} />
           </button>
           {open && body}
@@ -88,7 +88,7 @@ function Section({ section }: { section: RecordSection }) {
       ) : (
         <>
           <div className="border-b border-border bg-bg-subtle px-3 py-2">
-            <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{section.title}</span>
+            <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{section.title}</span>
           </div>
           {body}
         </>
@@ -214,14 +214,14 @@ export function RecordPage({
         <div className="min-w-0 flex-1 max-sm:basis-full">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {code && (
-              <span className="tabular shrink-0 rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border">
+              <span className="tabular shrink-0 rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted ring-1 ring-border">
                 {code}
               </span>
             )}
             {status}
           </div>
           <h2 className="mt-1 text-[18px] font-semibold leading-tight text-fg">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-[12px] text-fg-muted">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-sm text-fg-muted">{subtitle}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {actions}
@@ -244,13 +244,13 @@ export function RecordPage({
           {tabs.map((t) => {
             const active = t.id === activeTab;
             const cls = cn(
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-[13px] transition-colors",
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-base transition-colors",
               active ? "border-accent font-medium text-fg" : "border-transparent text-fg-muted hover:text-fg"
             );
             const inner = (
               <>
                 {t.label}
-                {t.count !== undefined && <span className="tabular ml-1.5 text-[11px] text-fg-subtle">{t.count}</span>}
+                {t.count !== undefined && <span className="tabular ml-1.5 text-xs text-fg-subtle">{t.count}</span>}
               </>
             );
             return t.href ? (
@@ -312,9 +312,9 @@ export function RecordSidebarBlock({ title, children }: { title: string; childre
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
       </div>
-      <div className="space-y-2 px-3 py-2.5 text-[13px]">{children}</div>
+      <div className="space-y-2 px-3 py-2.5 text-base">{children}</div>
     </section>
   );
 }

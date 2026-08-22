@@ -184,16 +184,16 @@ export function LedgerJournalForm({
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">{error}</div>
+        <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">{error}</div>
       )}
       {saved && !error && (
-        <div className="rounded-lg border border-success/40 bg-success-soft px-3 py-2 text-[13px] text-success">
+        <div className="rounded-lg border border-success/40 bg-success-soft px-3 py-2 text-base text-success">
           Saved.
         </div>
       )}
 
       {frozen && (
-        <div className="rounded-lg border border-border bg-bg-muted px-3 py-2 text-[13px] text-fg-muted">
+        <div className="rounded-lg border border-border bg-bg-muted px-3 py-2 text-base text-fg-muted">
           <strong className="text-fg">{entry.entryNo} is in the books and can never be changed.</strong>{" "}
           That is not a setting — a posted entry is a fact, and the way to correct a fact is to post a
           reversal beside it, so both remain on the record.
@@ -260,7 +260,7 @@ export function LedgerJournalForm({
           </div>
         </div>
         {needsRate && !frozen && (
-          <p className="mt-2 text-[12px] text-warn">
+          <p className="mt-2 text-sm text-warn">
             This entry is in {head.currency} and has no rate. The books are kept in shillings, and recording
             foreign money without a rate would make them fiction — so it cannot be posted until you give one.
           </p>
@@ -270,7 +270,7 @@ export function LedgerJournalForm({
       {/* ── the lines ────────────────────────────────────────────────────── */}
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-[13px]">
+          <table className="w-full min-w-[860px] text-base">
             <thead>
               <tr data-list-head className="border-b border-border text-left">
                 <Th className="w-[30%]">Account</Th>
@@ -382,7 +382,7 @@ export function LedgerJournalForm({
 
         {/* ── the balance strip: always visible, and it decides ───────────── */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-bg-muted/50 px-3 py-2">
-          <div className="flex items-center gap-4 text-[13px]">
+          <div className="flex items-center gap-4 text-base">
             {!frozen && (
               <Button variant="ghost" size="sm" onClick={() => setRows((rs) => [...rs, blank()])}>
                 <Plus className="h-3.5 w-3.5" /> Line
@@ -423,7 +423,7 @@ export function LedgerJournalForm({
 
         {/* Why Post is dead, in the same words the server would use. */}
         {!frozen && !check.ok && (
-          <ul className="border-t border-border px-3 py-2 text-[12px] text-fg-muted">
+          <ul className="border-t border-border px-3 py-2 text-sm text-fg-muted">
             {check.errors.map((e, i) => (
               <li key={i} className="flex gap-1.5">
                 <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warn" aria-hidden />
@@ -438,7 +438,7 @@ export function LedgerJournalForm({
       {bookRows.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-            <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+            <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
               What this put in the books
             </h2>
             <Badge tone={undone ? "warn" : "success"}>
@@ -446,7 +446,7 @@ export function LedgerJournalForm({
             </Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-[13px]">
+            <table className="w-full min-w-[640px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -469,7 +469,7 @@ export function LedgerJournalForm({
                       <Td>{accountLabel(accounts, e.accountId)}</Td>
                       <Td className="tabular text-right">{ledgerAmount(num(e.debit))}</Td>
                       <Td className="tabular text-right">{ledgerAmount(num(e.credit))}</Td>
-                      <Td className="text-[12px]">
+                      <Td className="text-sm">
                         {fromReversal ? `reversed by ${e.voucherNo ?? "a later entry"}` : e.isReversal ? "reversal" : "posting"}
                       </Td>
                     </tr>
@@ -478,7 +478,7 @@ export function LedgerJournalForm({
               </tbody>
             </table>
           </div>
-          <p className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+          <p className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
             These rows are the books. Nothing here is ever edited or deleted — a reversal is written beside
             what it undoes and both stay for good.
           </p>
@@ -503,7 +503,7 @@ export function LedgerJournalForm({
             <RotateCcw className="h-3.5 w-3.5" /> Reverse this entry
           </Button>
         )}
-        <span className="text-[12px] text-fg-subtle">
+        <span className="text-sm text-fg-subtle">
           {entry.status === "Draft"
             ? "A draft is not in the books. Deleting it changes nothing."
             : entry.postedBy
@@ -554,7 +554,7 @@ function ReverseSheet({
       }
     >
       <div className="space-y-3">
-        <p className="text-[13px] text-fg-muted">
+        <p className="text-base text-fg-muted">
           This writes a <b className="text-fg">new journal entry</b> with the sides swapped, pointing back at{" "}
           {entry.entryNo}. Nothing is deleted: both entries stay in the books and their effect cancels. The new
           entry gets its own number, so the correction can be explained on the correction itself.
@@ -562,7 +562,7 @@ function ReverseSheet({
         <div>
           <FieldLabel>Date of the reversal</FieldLabel>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             Defaults to the original date, so the month the mistake was made in goes back to nothing. Put a
             later date only if that period has already been reported and must not move.
           </p>
@@ -608,7 +608,7 @@ function Amount({
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );

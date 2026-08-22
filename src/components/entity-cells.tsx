@@ -41,7 +41,7 @@ export const CELL_FORMATTERS: Record<CellFormat, (value: unknown, row: Record<st
 
   code: (v) =>
     v == null ? <Empty /> : (
-      <span className="tabular inline-flex items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border">
+      <span className="tabular inline-flex items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted ring-1 ring-border">
         {String(v)}
       </span>
     ),
@@ -69,7 +69,7 @@ export const CELL_FORMATTERS: Record<CellFormat, (value: unknown, row: Record<st
 
   people: (v) => {
     const names = Array.isArray(v) ? v.filter(Boolean).map(String) : v ? [String(v)] : [];
-    if (!names.length) return <span className="text-[11px] italic text-fg-subtle">—</span>;
+    if (!names.length) return <span className="text-xs italic text-fg-subtle">—</span>;
     return <span className="truncate">{names.join(", ")}</span>;
   },
 

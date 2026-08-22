@@ -121,7 +121,7 @@ export function PeekPreview({
                   <div className="text-[15px] font-semibold leading-snug">{title}</div>
                 </div>
                 {(creator || when || whenISO) && (
-                  <div className="flex items-center gap-1.5 mt-2 text-[11px] text-fg-muted">
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-fg-muted">
                     {creator && (
                       <>
                         <span
@@ -191,7 +191,7 @@ export function PeekPreview({
                       type="button"
                       onClick={() => { onClose(); a.onClick(); }}
                       className={cn(
-                        "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-[11px] font-medium active:scale-95 transition-all",
+                        "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-medium active:scale-95 transition-all",
                         a.tone === "danger" ? "text-danger hover:bg-danger-soft/60"
                           : a.tone === "accent" ? "text-accent bg-accent-soft/50 hover:bg-accent-soft/80"
                           : "text-fg-muted hover:bg-bg-muted/60 hover:text-fg"

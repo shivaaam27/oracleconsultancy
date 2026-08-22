@@ -219,13 +219,13 @@ function RemovedSection({
         <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90 shrink-0" />
         <Trash2 size={13} className="text-fg-subtle shrink-0" />
         <span className="text-sm font-medium">Recently removed</span>
-        <span className="text-[11px] text-fg-subtle tabular ml-auto">{total} hidden</span>
+        <span className="text-xs text-fg-subtle tabular ml-auto">{total} hidden</span>
       </summary>
       <div className="px-4 pb-4 space-y-2 opacity-80">
         {updates.map((u) => (
           <div key={`u-${u.id}`} className="flex items-start justify-between gap-2 text-xs bg-bg-subtle/60 rounded-xl px-3 py-2">
             <div className="min-w-0">
-              <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Update · {codeById.get(u.task_id) ?? "—"}</span>
+              <span className="text-xs uppercase tracking-wider text-fg-subtle">Update · {codeById.get(u.task_id) ?? "—"}</span>
               <p className="text-fg-muted line-through truncate mt-0.5">{u.body}</p>
             </div>
             <UpdateMenu updateId={u.id} body={u.body} pinned={false} showPin={false} deleted />
@@ -234,7 +234,7 @@ function RemovedSection({
         {audits.map((a) => (
           <div key={`a-${a.id}`} className="flex items-start justify-between gap-2 text-xs bg-bg-subtle/60 rounded-xl px-3 py-2">
             <div className="min-w-0">
-              <span className="text-[10px] uppercase tracking-wider text-fg-subtle">{a.field || a.entry_type} · {a.task_code ?? "—"}</span>
+              <span className="text-xs uppercase tracking-wider text-fg-subtle">{a.field || a.entry_type} · {a.task_code ?? "—"}</span>
               <p className="text-fg-muted line-through truncate mt-0.5">
                 {[a.old_value, a.new_value].filter(Boolean).join(" → ") || "Audit entry"}
               </p>
@@ -288,7 +288,7 @@ function ActivitySummary({ items }: { items: TimelineItem[] }) {
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {tiles.map((s) => (
         <div key={s.label} className="glass elevated rounded-xl px-3 py-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
+          <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-fg-muted">
             <s.Icon size={11} /> <span className="truncate">{s.label}</span>
           </div>
           <div className={`text-lg font-semibold tabular mt-0.5 ${s.tone}`}>{s.value}</div>
@@ -315,13 +315,13 @@ function TaskThread({
         {code !== "—" && (
           <Link
             href={`/task/${code}`}
-            className="font-mono text-[11px] font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/80 ring-1 ring-border/60 shrink-0 hover:text-accent"
+            className="font-mono text-xs font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/80 ring-1 ring-border/60 shrink-0 hover:text-accent"
           >
             {code}
           </Link>
         )}
         <span className="text-sm font-medium truncate min-w-0 flex-1 max-sm:whitespace-normal max-sm:text-clip">{title ?? "Task"}</span>
-        <span className="text-[11px] text-fg-subtle tabular shrink-0">{items.length} event{items.length === 1 ? "" : "s"}</span>
+        <span className="text-xs text-fg-subtle tabular shrink-0">{items.length} event{items.length === 1 ? "" : "s"}</span>
       </summary>
 
       <div className="px-4 pb-4">
@@ -358,22 +358,22 @@ function EventRow({ item }: { item: TimelineItem }) {
       {item.kind === "editgroup" ? (
         <div className="flex items-start justify-between gap-2">
           <TimelineEditGroupView group={item} />
-          <span className="text-[10px] text-fg-subtle tabular shrink-0 pt-0.5">{fmtTime(item.createdAt)}</span>
+          <span className="text-xs text-fg-subtle tabular shrink-0 pt-0.5">{fmtTime(item.createdAt)}</span>
         </div>
       ) : item.kind === "bulk" ? (
         <BulkRow item={item} />
       ) : item.kind === "update" ? (
         <div className="bg-accent/5 ring-1 ring-accent/15 rounded-xl p-2.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-fg-muted">Update</span>
+            <span className="text-xs uppercase tracking-wider text-fg-muted">Update</span>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
+              <span className="text-xs text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
               <UpdateMenu updateId={item.id} body={item.body} pinned={false} showPin={false} />
             </div>
           </div>
           <p className="text-sm leading-relaxed mt-1"><CodeLinkedText text={item.body} /></p>
           {item.editedAt && item.originalBody && (
-            <details className="text-[11px] mt-1">
+            <details className="text-xs mt-1">
               <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-fg-subtle hover:text-fg w-fit">
                 <Pencil size={9} /> edited · view original
               </summary>
@@ -383,7 +383,7 @@ function EventRow({ item }: { item: TimelineItem }) {
             </details>
           )}
           {item.statusChange && (
-            <div className="inline-flex items-center gap-1.5 text-[11px] bg-bg-subtle rounded-full px-2 py-0.5 mt-1.5">
+            <div className="inline-flex items-center gap-1.5 text-xs bg-bg-subtle rounded-full px-2 py-0.5 mt-1.5">
               <GitCommitHorizontal size={10} className="text-fg-subtle" />
               {item.statusChange.from && <span className="text-fg-muted">{item.statusChange.from}</span>}
               <span className="text-fg-subtle">→</span>
@@ -396,14 +396,14 @@ function EventRow({ item }: { item: TimelineItem }) {
           {item.entryType === "CREATE" ? (
             <div className="flex items-center justify-between gap-2 py-0.5">
               <span className="text-fg-muted">Task created</span>
-              <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
+              <span className="text-xs text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
             </div>
           ) : (
             <div className="space-y-0.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-fg">{item.field || item.entryType}</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
+                  <span className="text-xs text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
                   <AuditMenu entryId={item.id} currentReason={item.changeReason} />
                 </div>
               </div>
@@ -431,13 +431,13 @@ function BulkRow({ item }: { item: TimelineBulk }) {
         <span className="font-medium text-fg truncate">{item.changeReason} · {item.items.length} tasks</span>
         {item.field && item.newValue && <span className="text-fg-muted hidden sm:inline">— {item.field} → {item.newValue}</span>}
         <ChevronDown size={11} className="ml-auto transition-transform group-open/bulk:rotate-180 shrink-0" />
-        <span className="text-[10px] text-fg-subtle tabular shrink-0">{fmtTime(item.createdAt)}</span>
+        <span className="text-xs text-fg-subtle tabular shrink-0">{fmtTime(item.createdAt)}</span>
       </summary>
       <ul className="mt-2 space-y-0.5 pl-4">
         {item.items.map((a) => (
           <li key={a.id} className="flex items-center gap-2">
             {a.taskCode && (
-              <Link href={`/task/${a.taskCode}`} className="font-mono text-[10px] text-fg-muted hover:text-accent">{a.taskCode}</Link>
+              <Link href={`/task/${a.taskCode}`} className="font-mono text-xs text-fg-muted hover:text-accent">{a.taskCode}</Link>
             )}
           </li>
         ))}

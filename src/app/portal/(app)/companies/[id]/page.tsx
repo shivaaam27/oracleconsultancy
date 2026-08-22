@@ -22,7 +22,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "da
   return (
     <div className="rounded-2xl bg-bg-subtle/50 px-3 py-3 text-center ring-1 ring-border/40">
       <div className={`text-xl font-semibold tabular ${tone === "danger" && value > 0 ? "text-danger" : "text-fg"}`}>{value}</div>
-      <div className="mt-0.5 text-[11px] text-fg-muted">{label}</div>
+      <div className="mt-0.5 text-xs text-fg-muted">{label}</div>
     </div>
   );
 }

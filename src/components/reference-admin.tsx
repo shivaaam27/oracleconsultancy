@@ -80,7 +80,7 @@ export function ReferenceAdmin({
                     <>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-fg truncate">{d.name}</div>
-                        {d.meta && <div className="text-[11px] text-fg-subtle mt-0.5">{d.meta}</div>}
+                        {d.meta && <div className="text-xs text-fg-subtle mt-0.5">{d.meta}</div>}
                       </div>
                       <button type="button" onClick={() => { setEditId(d.id); setEditName(d.name); setMergeId(null); setConfirmDelete(null); }} title="Rename" className="h-8 w-8 max-sm:h-10 max-sm:w-10 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors"><Pencil size={14} /></button>
                       <button type="button" onClick={() => { setMergeId(mergeId === d.id ? null : d.id); setConfirmDelete(null); setEditId(null); }} title="Merge into another" disabled={others.length === 0} className={cn("h-8 w-8 max-sm:h-10 max-sm:w-10 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-30", mergeId === d.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-accent hover:bg-bg-muted/60")}><GitMerge size={14} /></button>
@@ -101,7 +101,7 @@ export function ReferenceAdmin({
                       if (!v) { toast("Choose a target.", { tone: "warn" }); return; }
                       run(() => onMerge(d.id, Number(v)), `Merged ${many.toLowerCase()}`);
                     }}><GitMerge size={13} /> Merge</Button>
-                    <span className="text-[11px] text-fg-subtle">{mergeNote}</span>
+                    <span className="text-xs text-fg-subtle">{mergeNote}</span>
                   </div>
                 )}
 

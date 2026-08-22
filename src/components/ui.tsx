@@ -6,6 +6,38 @@ import type { ComponentProps, ReactNode } from "react";
 
 /** Search field — leading icon + design-system input. Pass-through props
  *  (name/defaultValue/value/onChange…) so it works in forms or controlled. */
+/* ══════════════════════════════════════════════════ ONE CONTROL BOX ══
+ *
+ * ⚠️ EVERY CONTROL IN COS IS THIS BOX: a text field, `Select`, `FluidSelect`,
+ * `Combobox`, `SearchInput`. One height, one radius, one type size. If you
+ * change one, you have changed them all — which is the point.
+ *
+ * ⚠️ IT WAS MEASURED, NOT GUESSED. Before this existed, one dialog held four
+ * control heights (26 · 28 · 32 · 36px) and four type sizes (11.5 · 12 · 12.5 ·
+ * 16px), and the kit carried three radii (6 · 8 · 12px). Controls that sit
+ * beside each other must not read as three different products.
+ *
+ * ⚠️ `text-sm`, NOT `text-sm`. The scale is wired to the density tokens,
+ * so Compact really is denser; a hard-coded pixel size silently opts out of
+ * that and is why nothing lined up. Never write `text-[Npx]` for body text —
+ * use `text-xs` / `text-sm` / `text-base`.
+ *
+ * 6px is the Desk radius for a CONTROL (4px chips, 6px controls, 8px cards).
+ * ══════════════════════════════════════════════════════════════════════ */
+
+/** The shared box, minus the padding — which differs by what sits inside. */
+export const CONTROL_BOX = "h-8 rounded-md text-sm";
+/** The dense variant, for a control INSIDE a grid row. */
+export const CONTROL_BOX_SM = "h-7 rounded-md text-xs";
+/**
+ * A full-width text field. ⚠️ Use this rather than hand-writing the classes:
+ * seven files had grown their own `const INPUT = "…"`, each subtly different,
+ * which is how a form ends up with three field heights in one column.
+ */
+export const FIELD = "w-full h-8 rounded-md px-2.5 text-sm";
+/** The same field for a figure — right-aligned and lining. */
+export const FIELD_NUM = "w-full h-8 rounded-md px-2.5 text-sm text-right tabular";
+
 export function SearchInput({
   wrapperClassName,
   className,
@@ -13,12 +45,14 @@ export function SearchInput({
 }: { wrapperClassName?: string } & ComponentProps<"input">) {
   return (
     <div className={cn("relative", wrapperClassName)}>
-      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
+      <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
       <input
         type="search"
         {...p}
         className={cn(
-          "w-full h-9 pl-9 pr-3 text-sm rounded-xl border border-border bg-bg-subtle/60",
+          // ⚠️ THE ONE BOX. Was `h-9 rounded-xl`, which put a 36px pill beside
+          // 32px buttons and 28px fields on every list toolbar in COS.
+          "w-full h-8 pl-8 pr-2.5 text-sm rounded-md border border-border bg-bg-subtle/60",
           "focus:outline-none focus:ring-2 focus:ring-accent/50 placeholder:text-fg-subtle",
           className
         )}
@@ -127,7 +161,7 @@ export function SectionHeading({
 }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+      <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
         {children}
       </h2>
       {action}
@@ -188,7 +222,7 @@ export const CONTROL_SHELL =
  * `md` = 28px (panel rows). `lead` carries BOTH halves of the accountable look —
  * the blue fill and the blue edge — so the two can never disagree.
  */
-const avatarSizes = { sm: "h-6 w-6 text-[10px]", md: "h-7 w-7 text-[10.5px]" };
+const avatarSizes = { sm: "h-6 w-6 text-xs", md: "h-7 w-7 text-xs" };
 
 export function Avatar({
   name,
@@ -231,7 +265,7 @@ const buttonSizes = {
   /* Desk radii: 4px chips · 6px CONTROLS · 8px cards. `rounded-xl` is 8px, so the
      large button was wearing a card's corner — every size is 6px now, which is
      what made a row of buttons look like it came from two different kits. */
-  xs: "h-7 px-2 text-[11px] rounded-md",
+  xs: "h-7 px-2 text-xs rounded-md",
   sm: "h-8 px-2.5 text-xs rounded-md",
   md: "h-9 px-3.5 text-sm rounded-md",
   lg: "h-10 px-4 text-sm rounded-md",
@@ -347,7 +381,7 @@ export function SwitchRow({
       {icon && <span className="shrink-0 text-fg-muted">{icon}</span>}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-fg">{label}</span>
-        {hint && <span className="mt-0.5 block text-[11px] text-fg-muted">{hint}</span>}
+        {hint && <span className="mt-0.5 block text-xs text-fg-muted">{hint}</span>}
       </span>
       <Switch on={on} busy={busy} />
     </button>
@@ -420,7 +454,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap leading-5",
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap leading-5",
         badgeTones[tone],
         className
       )}
@@ -473,7 +507,7 @@ export function CountPill({
     <span
       className={cn(
         "inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full",
-        "text-[11px] font-semibold leading-none tabular whitespace-nowrap",
+        "text-xs font-semibold leading-none tabular whitespace-nowrap",
         countPillTones[tone],
         className
       )}
@@ -532,7 +566,7 @@ export function Stat({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">{label}</div>
+        <div className="text-xs uppercase tracking-[0.08em] text-fg-muted">{label}</div>
         {icon && (
           <span className={cn("h-7 w-7 rounded-xl grid place-items-center shrink-0 [&_svg]:h-3.5 [&_svg]:w-3.5", tile[tone])}>
             {icon}
@@ -542,7 +576,7 @@ export function Stat({
       <div className={cn("text-[28px] leading-tight font-semibold mt-2 tabular tracking-tight", valueTint[tone])}>
         {value}
       </div>
-      {hint && <div className="text-[11px] text-fg-subtle mt-0.5">{hint}</div>}
+      {hint && <div className="text-xs text-fg-subtle mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -590,7 +624,7 @@ export function Th({
   return (
     <th
       className={cn(
-        "px-3.5 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted bg-bg-subtle/60 backdrop-blur-sm border-b border-border",
+        "px-3.5 py-2.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted bg-bg-subtle/60 backdrop-blur-sm border-b border-border",
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
         className
       )}
@@ -728,7 +762,7 @@ export function RegisterGroupHeader({
   return (
     <div className="flex items-center gap-2 px-3.5 py-2.5 bg-bg-subtle/50">
       <span className={cn("h-2 w-2 rounded-full shrink-0", dot)} />
-      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+      <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
         {children}
       </span>
       {action && <span className="ml-auto">{action}</span>}
@@ -767,7 +801,7 @@ export function EmptyState({
 
 export function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-1.5">
+    <label className="block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-1.5">
       {children}
     </label>
   );
@@ -874,13 +908,15 @@ export function Select({
    *  three different heights, and a px override collapses the chevron gap. */
   size?: "sm" | "md";
 } & Omit<ComponentProps<"select">, "size">) {
-  const box = size === "sm" ? "h-8 pl-2.5 pr-7 text-xs" : "h-9 pl-3 pr-8 text-sm";
+  // ⚠️ THE ONE BOX — see CONTROL_BOX above. `md` was `h-9`, which is why a
+  // dropdown stood a head taller than the field beside it.
+  const box = size === "sm" ? "h-7 pl-2 pr-6 text-xs" : "h-8 pl-2.5 pr-7 text-sm";
   return (
     <div className={cn("relative", wrapperClassName)}>
       <select
         data-kit-select
         {...p}
-        className={cn("w-full py-1.5 rounded-lg appearance-none cursor-pointer", box, className)}
+        className={cn("w-full rounded-md appearance-none cursor-pointer", box, className)}
       />
       <ChevronDown
         size={size === "sm" ? 13 : 14}
@@ -897,7 +933,7 @@ export function Textarea(p: ComponentProps<"textarea">) {
   return (
     <textarea
       {...p}
-      className={cn("w-full px-3 py-2 text-sm rounded-lg", p.className)}
+      className={cn("w-full px-2.5 py-1.5 text-sm rounded-md", p.className)}
     />
   );
 }
@@ -939,7 +975,7 @@ export function FieldCell({
       <span
         title={hint ? `${label} — ${hint}` : undefined}
         className={cn(
-          "mb-1 flex h-4 items-center overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle",
+          "mb-1 flex h-4 items-center overflow-hidden text-xs uppercase tracking-[0.04em] text-fg-subtle",
           hint && "cursor-help decoration-dotted underline-offset-2 hover:underline",
         )}
       >

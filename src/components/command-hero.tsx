@@ -38,7 +38,7 @@ export function CommandHero({
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">Command Centre</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Command Centre</p>
             <CockpitLive />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -61,7 +61,7 @@ export function CommandHero({
             <b className={cn("font-semibold tabular", dueToday > 0 ? "text-warn" : "text-fg")}>{dueToday}</b> due today
           </p>
         </div>
-        <p className="mt-1.5 flex items-start gap-1.5 border-t border-border/60 pt-2 text-[13px] leading-relaxed text-accent">
+        <p className="mt-1.5 flex items-start gap-1.5 border-t border-border/60 pt-2 text-base leading-relaxed text-accent">
           <Sparkles size={13} className="mt-0.5 shrink-0" />
           <span className="min-w-0">{oriLine}</span>
         </p>

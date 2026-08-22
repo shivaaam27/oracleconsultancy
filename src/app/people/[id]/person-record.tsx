@@ -164,7 +164,7 @@ export function PersonRecord({
           ].map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-bg-subtle/50 px-2.5 py-2">
               <span className={cn("block text-lg font-semibold leading-none tabular", s.tone)}>{s.value}</span>
-              <span className="mt-1 block text-[11px] text-fg-subtle">{s.label}</span>
+              <span className="mt-1 block text-xs text-fg-subtle">{s.label}</span>
             </div>
           ))}
         </div>
@@ -173,20 +173,20 @@ export function PersonRecord({
       <RecordSidebarBlock title="Staff portal">
         {portal.enabled ? (
           <>
-            <p className="flex items-center gap-1.5 text-[12px] text-success">
+            <p className="flex items-center gap-1.5 text-sm text-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden /> Enabled · {portal.role}
             </p>
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               {portal.lastLoginAt ? `Last signed in ${fmt(portal.lastLoginAt)}` : "Never signed in"}
             </p>
           </>
         ) : (
-          <p className="text-[12px] text-fg-muted">No portal login. Turn one on in Settings.</p>
+          <p className="text-sm text-fg-muted">No portal login. Turn one on in Settings.</p>
         )}
       </RecordSidebarBlock>
 
       <RecordSidebarBlock title="Danger zone">
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           Deactivating keeps the record and is almost always what you want. Deleting is for a
           duplicate or a row created by mistake.
         </p>
@@ -199,10 +199,10 @@ export function PersonRecord({
             {reports.map((r) => (
               <li key={`${r.id}-${r.dotted}`}>
                 <Link href={`/people/${r.id}`} className="flex min-w-0 items-center gap-1.5 hover:text-accent">
-                  <span className="truncate text-[12.5px]">{r.name}</span>
-                  {r.dotted && <span className="shrink-0 text-[10px] text-fg-subtle">(also)</span>}
+                  <span className="truncate text-sm">{r.name}</span>
+                  {r.dotted && <span className="shrink-0 text-xs text-fg-subtle">(also)</span>}
                 </Link>
-                {r.role && <span className="block truncate text-[11px] text-fg-subtle">{r.role}</span>}
+                {r.role && <span className="block truncate text-xs text-fg-subtle">{r.role}</span>}
               </li>
             ))}
           </ul>
@@ -255,7 +255,7 @@ export function PersonRecord({
       {tab === "tasks" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {tasks.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-fg-muted">No open tasks.</p>
+            <p className="px-3 py-8 text-center text-base text-fg-muted">No open tasks.</p>
           ) : (
             <ul>
               {tasks.map((t) => (
@@ -269,12 +269,12 @@ export function PersonRecord({
                       itself and the company and status go underneath. */}
                   <Link href={t.href} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle max-sm:flex-col max-sm:items-stretch max-sm:gap-0.5 max-sm:py-2">
                     <span className="flex min-w-0 items-center gap-2 sm:contents">
-                      <span className="shrink-0 text-[11px] tabular text-fg-subtle">{t.code}</span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{t.title}</span>
+                      <span className="shrink-0 text-xs tabular text-fg-subtle">{t.code}</span>
+                      <span className="min-w-0 flex-1 truncate text-base group-hover:text-accent">{t.title}</span>
                     </span>
                     <span className="flex min-w-0 items-center gap-2 max-sm:pl-[3.4rem] sm:contents">
-                      <span className="min-w-0 truncate text-[11px] text-fg-muted sm:shrink-0">{t.companyName}</span>
-                      <span className={cn("shrink-0 text-[11px]", t.overdue ? "font-medium text-danger" : "text-fg-subtle")}>
+                      <span className="min-w-0 truncate text-xs text-fg-muted sm:shrink-0">{t.companyName}</span>
+                      <span className={cn("shrink-0 text-xs", t.overdue ? "font-medium text-danger" : "text-fg-subtle")}>
                         {t.overdue ? "Overdue" : t.status}
                       </span>
                     </span>
@@ -309,7 +309,7 @@ export function PersonRecord({
       {tab === "documents" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {documents.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-fg-muted">Nothing filed against this person.</p>
+            <p className="px-3 py-8 text-center text-base text-fg-muted">Nothing filed against this person.</p>
           ) : (
             <ul>
               {documents.map((d) => (
@@ -319,11 +319,11 @@ export function PersonRecord({
                     data-list-row
                     className="group flex items-center gap-2 px-3 hover:bg-bg-subtle"
                   >
-                    <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{d.title}</span>
-                    <span className="shrink-0 text-[11px] text-fg-muted">{d.category}</span>
+                    <span className="min-w-0 flex-1 truncate text-base group-hover:text-accent">{d.title}</span>
+                    <span className="shrink-0 text-xs text-fg-muted">{d.category}</span>
                     <span
                       className={cn(
-                        "shrink-0 text-[11px]",
+                        "shrink-0 text-xs",
                         d.status === "Expired" ? "font-medium text-danger" : d.status === "Expiring" ? "text-warn" : "text-fg-subtle"
                       )}
                     >

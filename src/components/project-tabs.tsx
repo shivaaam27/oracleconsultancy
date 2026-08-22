@@ -35,7 +35,7 @@ export function ProjectTabs({ projectId, active }: { projectId: number; active: 
           href={t.href(projectId)}
           aria-current={active === t.key ? "page" : undefined}
           className={cn(
-            "-mb-px border-b-2 px-3 py-1.5 text-[13px] transition-colors",
+            "-mb-px border-b-2 px-3 py-1.5 text-base transition-colors",
             active === t.key
               ? "border-accent font-medium text-fg"
               : "border-transparent text-fg-muted hover:text-fg",

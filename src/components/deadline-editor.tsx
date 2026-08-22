@@ -119,7 +119,7 @@ export function DeadlineEditor({
         ref={btnRef}
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium tabular rounded-md px-1 -mx-1 hover:bg-bg-muted/60 transition-colors", tone, className)}
+        className={cn("inline-flex items-center gap-1.5 text-xs font-medium tabular rounded-md px-1 -mx-1 hover:bg-bg-muted/60 transition-colors", tone, className)}
       >
         <CalendarDays size={12} className="opacity-70" />
         {overdue ? `${Math.abs(daysToDeadline as number)}d late` : label}
@@ -135,7 +135,7 @@ export function DeadlineEditor({
           className="fixed z-[140] glass glass-menu elevated rounded-2xl p-2.5 shadow-lg"
         >
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Set deadline</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Set deadline</span>
             {pending ? <Loader2 size={13} className="animate-spin text-fg-muted" /> : (
               <button type="button" onClick={() => setOpen(false)} className="text-fg-subtle hover:text-fg"><X size={14} /></button>
             )}
@@ -143,14 +143,14 @@ export function DeadlineEditor({
 
           {deadline ? (
             <div className={cn(
-              "mb-2 rounded-xl px-2.5 py-1.5 text-[11px] ring-1",
+              "mb-2 rounded-xl px-2.5 py-1.5 text-xs ring-1",
               overdue ? "bg-danger-soft/40 text-danger ring-danger/20" : soon ? "bg-warn-soft/40 text-warn ring-warn/25" : "bg-bg-subtle/60 text-fg-muted ring-border/60",
             )}>
               Currently <b>{shortDate(deadline)}</b>
               {typeof daysToDeadline === "number" && (overdue ? ` — ${Math.abs(daysToDeadline)} days late` : daysToDeadline === 0 ? " — due today" : ` — in ${daysToDeadline} days`)}
             </div>
           ) : (
-            <div className="mb-2 rounded-xl bg-bg-subtle/60 px-2.5 py-1.5 text-[11px] text-fg-muted ring-1 ring-border/60">No deadline set</div>
+            <div className="mb-2 rounded-xl bg-bg-subtle/60 px-2.5 py-1.5 text-xs text-fg-muted ring-1 ring-border/60">No deadline set</div>
           )}
 
           <div className="grid grid-cols-2 gap-1.5">
@@ -168,7 +168,7 @@ export function DeadlineEditor({
                   )}
                 >
                   <span className={cn("text-xs font-semibold", on ? "text-accent" : "text-fg")}>{q.label}</span>
-                  <span className="text-[10px] text-fg-subtle">{shortDate(q.date)}</span>
+                  <span className="text-xs text-fg-subtle">{shortDate(q.date)}</span>
                 </button>
               );
             })}
@@ -190,7 +190,7 @@ export function DeadlineEditor({
               type="button"
               disabled={pending}
               onClick={() => apply(null, `${code} deadline cleared`)}
-              className="mt-1.5 w-full rounded-xl px-2 py-1.5 text-[11px] text-fg-muted transition-colors hover:bg-danger-soft/50 hover:text-danger disabled:opacity-50"
+              className="mt-1.5 w-full rounded-xl px-2 py-1.5 text-xs text-fg-muted transition-colors hover:bg-danger-soft/50 hover:text-danger disabled:opacity-50"
             >
               Clear deadline
             </button>

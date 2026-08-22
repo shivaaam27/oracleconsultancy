@@ -148,12 +148,12 @@ function MetricTile({
 
   return (
     <div className="rounded-lg bg-bg-subtle p-3 space-y-1.5">
-      <div className="text-[10px] uppercase tracking-wider text-fg-muted">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-fg-muted">{label}</div>
       <div className="flex items-baseline gap-1.5">
         <div className={`text-2xl font-semibold tabular ${valueCls}`}>{value}</div>
-        {valueSuffix && <div className="text-[10px] text-fg-subtle">{valueSuffix}</div>}
+        {valueSuffix && <div className="text-xs text-fg-subtle">{valueSuffix}</div>}
       </div>
-      <div className="flex items-center gap-1.5 text-[11px]">
+      <div className="flex items-center gap-1.5 text-xs">
         <TrendIcon size={11} className={deltaCls} />
         <span className={`tabular ${deltaCls}`}>
           {rounded > 0 ? "+" : ""}{rounded}

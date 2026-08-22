@@ -115,7 +115,7 @@ export function BriefNotesSection({
   return (
     <div className="print-hidden">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted flex items-center gap-1.5">
+        <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted flex items-center gap-1.5">
           <StickyNote size={13} className="text-accent" /> Admin &amp; HR updates · {notes.length}
         </div>
         <div className="flex items-center gap-1">
@@ -192,14 +192,14 @@ export function BriefNotesSection({
                 <StickyNote size={14} className="text-accent shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm whitespace-pre-wrap break-words">{n.body}</div>
-                  <div className="text-[11px] text-fg-subtle mt-0.5">
+                  <div className="text-xs text-fg-subtle mt-0.5">
                     {n.companyName && <span className="brief-note-company">{n.companyName} · </span>}
                     {fmtDay(n.noteDate)}
                   </div>
                 </div>
                 {confirmingId === n.id ? (
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] text-fg-muted">Delete?</span>
+                    <span className="text-xs text-fg-muted">Delete?</span>
                     <button
                       onClick={() => remove(n)}
                       disabled={pending}

@@ -68,7 +68,7 @@ export function PasskeyManager({ initial, begin, finish, remove }: {
               <Fingerprint size={16} className="text-accent shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium truncate">{c.label ?? "Passkey"}</div>
-                <div className="text-[11px] text-fg-subtle">Added {relDate(c.created_at)}{c.last_used_at ? ` · last used ${relDate(c.last_used_at)}` : ""}</div>
+                <div className="text-xs text-fg-subtle">Added {relDate(c.created_at)}{c.last_used_at ? ` · last used ${relDate(c.last_used_at)}` : ""}</div>
               </div>
               <button type="button" disabled={busy} onClick={() => del(c.id)} title="Remove" className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-danger hover:bg-danger-soft/50 transition-colors"><Trash2 size={14} /></button>
             </li>

@@ -32,17 +32,17 @@ export function PoBalances({
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-        <h3 className="text-[12px] font-medium">What each order still owes us</h3>
-        <p className="text-[11px] text-fg-subtle">
+        <h3 className="text-sm font-medium">What each order still owes us</h3>
+        <p className="text-xs text-fg-subtle">
           Ordered less billed, biggest first
           {totals.unknown > 0 && ` · ${totals.unknown} could not be worked out`}
         </p>
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] border-collapse text-[12px]">
+        <table className="w-full min-w-[680px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+            <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
               <Th className="text-left">PO</Th>
               <Th className="text-left">Client</Th>
               <Th>Lines</Th>
@@ -69,7 +69,7 @@ export function PoBalances({
                   : r.deliveredLines < r.lines ? "text-warn" : "text-success")}>
                   {r.deliveredLines} of {r.lines}
                   {r.partLines > 0 && (
-                    <span className="ml-1 text-[10px] text-warn"
+                    <span className="ml-1 text-xs text-warn"
                       title={`${r.partLines} line${r.partLines === 1 ? "" : "s"} only part-delivered`}>
                       part
                     </span>
@@ -100,7 +100,7 @@ export function PoBalances({
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-bg-subtle text-[12px]">
+            <tr className="border-t border-border bg-bg-subtle text-sm">
               <Td className="text-left font-medium">{totals.pos} orders</Td>
               <Td className="text-left text-fg-subtle">{totals.complete} finished</Td>
               <Td /><Td />
@@ -113,7 +113,7 @@ export function PoBalances({
       </div>
 
       {totals.unknown > 0 && (
-        <footer className="border-t border-border px-3 py-1.5 text-[11px] text-fg-subtle">
+        <footer className="border-t border-border px-3 py-1.5 text-xs text-fg-subtle">
           {totals.unknown} order{totals.unknown === 1 ? " is" : "s are"} left out of these totals
           because a line on {totals.unknown === 1 ? "it has" : "them has"} no price. The workbook
           subtracts anyway and prints a balance that reads as though somebody checked it.

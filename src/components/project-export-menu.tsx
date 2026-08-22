@@ -49,7 +49,7 @@ export function ProjectExportMenu({ projectId, tab }: { projectId: number; tab: 
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="menu"
-          className="inline-flex items-center gap-1 rounded-[6px] border border-border px-2 py-1 text-[12px] text-fg-muted hover:text-fg"
+          className="inline-flex items-center gap-1 rounded-[6px] border border-border px-2 py-1 text-sm text-fg-muted hover:text-fg"
         >
           <Download size={13} /> Export <ChevronDown size={12} />
         </button>
@@ -66,12 +66,12 @@ export function ProjectExportMenu({ projectId, tab }: { projectId: number; tab: 
                 href={`/api/projects/${projectId}/export?what=${it.key}`}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center justify-between px-3 py-1.5 text-[12px] hover:bg-bg-muted/60",
+                  "flex items-center justify-between px-3 py-1.5 text-sm hover:bg-bg-muted/60",
                   it.key === here ? "font-medium text-fg" : "text-fg-muted",
                 )}
               >
                 {it.label}
-                {it.key === here && <span className="text-[10px] text-fg-subtle">this tab</span>}
+                {it.key === here && <span className="text-xs text-fg-subtle">this tab</span>}
               </a>
             ))}
           </div>
@@ -80,7 +80,7 @@ export function ProjectExportMenu({ projectId, tab }: { projectId: number; tab: 
 
       <Link
         href={`/projects/${projectId}/print`}
-        className="inline-flex items-center gap-1 rounded-[6px] border border-border px-2 py-1 text-[12px] text-fg-muted hover:text-fg"
+        className="inline-flex items-center gap-1 rounded-[6px] border border-border px-2 py-1 text-sm text-fg-muted hover:text-fg"
       >
         <Printer size={13} /> Print
       </Link>

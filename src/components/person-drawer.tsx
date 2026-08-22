@@ -229,11 +229,11 @@ function KpiCard({
       <div className="grid grid-cols-2 divide-x divide-border/50">
         <div className="px-4 py-3.5 text-center">
           <div className="text-2xl font-semibold tabular leading-none text-success">{kpi.completed}</div>
-          <div className="mt-1.5 text-[10px] text-fg-muted leading-tight">Tasks completed</div>
+          <div className="mt-1.5 text-xs text-fg-muted leading-tight">Tasks completed</div>
         </div>
         <button type="button" onClick={onOpenTasks} className="px-4 py-3.5 text-center hover:bg-bg-muted/50 transition-colors">
           <div className="text-2xl font-semibold tabular leading-none text-fg-muted">{kpi.openInvolved}</div>
-          <div className="mt-1.5 text-[10px] text-fg-muted leading-tight">Open now</div>
+          <div className="mt-1.5 text-xs text-fg-muted leading-tight">Open now</div>
         </button>
       </div>
     </div>
@@ -585,7 +585,7 @@ export function PersonDrawer() {
         {vitals.map((v) => (
           <button key={v.key} type="button" onClick={v.onClick} className={cn("rounded-xl ring-1 px-2 py-2.5 text-center transition-all", vitalTint(v.tone))}>
             <div className={cn("text-lg font-semibold tabular leading-none", v.tone)}>{v.value}</div>
-            <div className="mt-1 text-[10px] text-fg-muted leading-tight">{v.label}</div>
+            <div className="mt-1 text-xs text-fg-muted leading-tight">{v.label}</div>
           </button>
         ))}
       </div>
@@ -599,7 +599,7 @@ export function PersonDrawer() {
       <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
           To handle
-          {attention.length > 0 && <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft text-danger text-[11px] font-semibold tabular normal-case">{attention.length}</span>}
+          {attention.length > 0 && <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft text-danger text-xs font-semibold tabular normal-case">{attention.length}</span>}
         </div>
         {attention.length === 0 ? (
           <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All clear" hint="Nothing needs action right now." />
@@ -611,7 +611,7 @@ export function PersonDrawer() {
                   {a.icon}
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium truncate">{a.label}</span>
-                    {a.sub && <span className="block text-[11px] text-fg-subtle truncate">{a.sub}</span>}
+                    {a.sub && <span className="block text-xs text-fg-subtle truncate">{a.sub}</span>}
                   </span>
                   <ExternalLink size={13} className="text-fg-subtle shrink-0" />
                 </button>
@@ -627,16 +627,16 @@ export function PersonDrawer() {
         <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
             <Users size={12} /> Team
-            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.directReports.length}</span>
+            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">{data.directReports.length}</span>
           </div>
           <ul className="divide-y divide-border/50">
             {data.directReports.map((r) => (
               <li key={r.id}>
                 <button type="button" onClick={() => goToManager(r.id)} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
-                  <span className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent ring-1 ring-accent/25">{initials(r.name)}</span>
+                  <span className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent ring-1 ring-accent/25">{initials(r.name)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium truncate">{r.name}</span>
-                    <span className="block text-[11px] text-fg-subtle truncate">{[r.role, r.companyName].filter(Boolean).join(" · ") || "—"}</span>
+                    <span className="block text-xs text-fg-subtle truncate">{[r.role, r.companyName].filter(Boolean).join(" · ") || "—"}</span>
                   </span>
                   {r.kind === "dotted" && <Badge tone="info" className="shrink-0 normal-case">Also reports</Badge>}
                   <ExternalLink size={13} className="text-fg-subtle shrink-0" />
@@ -649,7 +649,7 @@ export function PersonDrawer() {
 
       {person.notes && (
         <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 p-4">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Notes</div>
+          <div className="text-xs font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Notes</div>
           <p className="text-xs text-fg-muted leading-relaxed whitespace-pre-wrap">{person.notes}</p>
         </div>
       )}
@@ -675,7 +675,7 @@ export function PersonDrawer() {
                     <span className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block text-sm font-medium truncate", done && "line-through text-fg-subtle")}>{t.actionItem}</span>
-                        <span className="block text-[11px] text-fg-subtle truncate"><span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger font-medium" : ""}>{t.status}</span></span>
+                        <span className="block text-xs text-fg-subtle truncate"><span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger font-medium" : ""}>{t.status}</span></span>
                       </span>
                       <Badge tone={priorityTone(t.priority)} className="shrink-0">{t.priority}</Badge>
                     </span>
@@ -694,7 +694,7 @@ export function PersonDrawer() {
                   <div key={u.id} className="relative">
                     <div className="absolute -left-[13px] top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-accent" />
                     <p className="text-xs leading-relaxed text-fg">{u.body}</p>
-                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-fg-subtle">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-subtle">
                       <TaskDrawerLink code={u.taskCode} className="font-mono hover:text-accent transition-colors">{u.taskCode}</TaskDrawerLink>
                       <span className="tabular">{fmtTime(new Date(u.createdAt))}</span>
                     </div>
@@ -753,7 +753,7 @@ export function PersonDrawer() {
             const doc = docFor(kind);
             if (!doc) return undefined;
             return (
-              <Link href={`/documents?person=${person.id}&from=person:${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
+              <Link href={`/documents?person=${person.id}&from=person:${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-accent hover:underline max-w-full">
                 <FileText size={10} className="shrink-0" /><span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
               </Link>
             );
@@ -783,7 +783,7 @@ export function PersonDrawer() {
           ];
           const editBtn = (
             <button type="button" onClick={(e) => { e.stopPropagation(); setMode("edit"); }}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-subtle transition-colors">
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-fg-muted hover:text-accent hover:bg-bg-subtle transition-colors">
               <Pencil size={11} /> Edit
             </button>
           );
@@ -804,8 +804,8 @@ export function PersonDrawer() {
                     {data.directReports.map((r) => (
                       <button key={`${r.kind}-${r.id}`} type="button" onClick={() => goToManager(r.id)}
                         className="w-full flex items-center gap-2 px-3.5 py-2 text-left hover:bg-bg-muted/40 transition-colors">
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{r.name}</span>
-                        <span className="text-[11px] text-fg-subtle truncate shrink-0 max-w-[45%]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>
+                        <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{r.name}</span>
+                        <span className="text-xs text-fg-subtle truncate shrink-0 max-w-[45%]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>
                         {r.kind === "dotted" && <span className="text-[9px] font-semibold uppercase tracking-wide text-info/80 shrink-0">dotted</span>}
                       </button>
                     ))}
@@ -828,7 +828,7 @@ export function PersonDrawer() {
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", doc.status === "Expired" ? "bg-danger" : doc.status === "Expiring" ? "bg-warn" : doc.status === "Valid" ? "bg-success" : "bg-fg-subtle")} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-medium truncate">{doc.title}</span>
-                    <span className="block text-[10px] text-fg-muted truncate">{[doc.category, doc.docType, doc.expiryLabel].filter(Boolean).join(" · ") || "No expiry date"}</span>
+                    <span className="block text-xs text-fg-muted truncate">{[doc.category, doc.docType, doc.expiryLabel].filter(Boolean).join(" · ") || "No expiry date"}</span>
                   </span>
                   <Badge tone={documentTone(doc.status)} className="shrink-0">{doc.status}</Badge>
                 </button>
@@ -865,20 +865,20 @@ export function PersonDrawer() {
             className="flex-1 min-w-[8.5rem] rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
           <Button type="button" size="sm" onClick={handleSnoozeSave} disabled={actionPending}>Save</Button>
         </div>
-        {person.snoozedUntil && <p className="text-[11px] text-fg-subtle">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
+        {person.snoozedUntil && <p className="text-xs text-fg-subtle">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
       </SectionCard>
 
       <SectionCard className="p-3.5 space-y-2">
         <GroupLabel>Tools</GroupLabel>
         <Link href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
-          className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
+          className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-sm font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
           <ExternalLink size={14} className="shrink-0" /> View all of their tasks
         </Link>
       </SectionCard>
 
       <SectionCard className="p-3.5 space-y-2">
         <GroupLabel>{person.active ? "Archive" : "Restore"}</GroupLabel>
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-xs text-fg-subtle">
           {person.active
             ? "Moves this person out of the active directory and starts offboarding. Nothing is deleted — you can restore them any time."
             : "Brings this person back into the active directory."}
@@ -899,7 +899,7 @@ export function PersonDrawer() {
         <SectionCard>
           <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
             <Clock size={12} /> History
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events.length}</span>
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">{data.events.length}</span>
           </div>
           {/* Life spine (D5) — a vertical timeline, newest first, each event a
               node on the accent rail with its own relative-time eyebrow. */}
@@ -907,8 +907,8 @@ export function PersonDrawer() {
             {data.events.map((e) => (
               <li key={e.id} className="relative pl-4">
                 <span className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-accent ring-2 ring-bg-elev" />
-                <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{relTime(e.createdAt)} · {personActor(e.createdBy)}</div>
-                <div className="text-[12.5px] leading-snug text-fg-muted break-words">{personEventText(e)}</div>
+                <div className="text-xs uppercase tracking-wider text-fg-subtle">{relTime(e.createdAt)} · {personActor(e.createdBy)}</div>
+                <div className="text-sm leading-snug text-fg-muted break-words">{personEventText(e)}</div>
               </li>
             ))}
           </ol>
@@ -950,7 +950,7 @@ export function PersonDrawer() {
     return (
       <div className="space-y-3">
         <BackBar label="Back" onBack={goBack} />
-        <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-bg-subtle ring-1 ring-border/60 text-[11px]">
+        <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-bg-subtle ring-1 ring-border/60 text-xs">
           {(["onboarding", "offboarding"] as const).map((k) => (
             <button key={k} type="button" onClick={() => setJourneyKind(k)}
               className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full transition-colors",

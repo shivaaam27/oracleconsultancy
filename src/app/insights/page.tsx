@@ -111,7 +111,7 @@ export default async function InsightsPage() {
       >
         <span className="min-w-0 flex-1">
           <span className="block font-medium">Looking for forecasts?</span>
-          <span className="block text-[13px] text-fg-muted">Leave, renewals and probations now live on the Director Brief.</span>
+          <span className="block text-base text-fg-muted">Leave, renewals and probations now live on the Director Brief.</span>
         </span>
         <span className="inline-flex items-center gap-1.5 text-fg-muted group-hover:text-accent transition-colors shrink-0">
           Open Brief <ArrowRight size={15} />
@@ -119,7 +119,7 @@ export default async function InsightsPage() {
       </Link>
 
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Open by company</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-fg-muted px-1">Open by company</p>
         <div className="glass elevated rounded-2xl p-4 space-y-2.5">
           {companyRows.length === 0 ? (
             <p className="text-sm text-fg-muted py-2">No open tasks. 🎉</p>
@@ -127,24 +127,24 @@ export default async function InsightsPage() {
             <CompanyDrawerLink key={c.id} id={c.id} className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group w-full text-left">
               <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
               <Bar value={c.open} max={maxCompanyOpen} />
-              {c.overdue > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger shrink-0">{c.overdue} overdue</span>}
+              {c.overdue > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger shrink-0">{c.overdue} overdue</span>}
             </CompanyDrawerLink>
           ))}
         </div>
       </section>
 
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Workload — open tasks per person</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-fg-muted px-1">Workload — open tasks per person</p>
         <div className="glass elevated rounded-2xl overflow-hidden">
           {/* Tinted header band (§13): team average + one-line read. */}
           <div className="flex items-center gap-3 px-4 py-3 bg-accent-soft/40 border-b border-border/50">
             <span className="inline-flex items-center justify-center size-8 rounded-xl bg-accent/15 text-accent shrink-0"><Users size={16} /></span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium leading-tight">Team average <span className="tabular text-accent">{avgLabel}</span> open each</p>
-              {read && <p className="text-[12px] text-fg-muted truncate">{read}</p>}
+              {read && <p className="text-sm text-fg-muted truncate">{read}</p>}
             </div>
             {workload.overloaded.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn shrink-0">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn shrink-0">
                 <AlertTriangle size={12} /> {workload.overloaded.length} above average
               </span>
             )}
@@ -164,13 +164,13 @@ export default async function InsightsPage() {
                     {p.companyName ? (
                       <CompanyAvatar name={p.companyName} accent={p.companyAccent} size={26} rounded="rounded-lg" iconSize={12} />
                     ) : (
-                      <span className="inline-flex items-center justify-center size-[26px] rounded-lg bg-bg-muted text-[10px] font-semibold text-fg-muted shrink-0">{inits}</span>
+                      <span className="inline-flex items-center justify-center size-[26px] rounded-lg bg-bg-muted text-xs font-semibold text-fg-muted shrink-0">{inits}</span>
                     )}
                     <span className="truncate">{p.name}</span>
                   </span>
                   <Bar value={p.open} max={workload.maxOpen} tone={p.overloaded ? "warn" : "accent"} />
                   <span className="flex items-center gap-1.5 justify-end shrink-0">
-                    {p.overdue > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">{p.overdue} overdue</span>}
+                    {p.overdue > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">{p.overdue} overdue</span>}
                     <span className="tabular font-semibold w-6 text-right">{p.open}</span>
                   </span>
                 </div>
@@ -182,7 +182,7 @@ export default async function InsightsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Status distribution</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Status distribution</p>
           <div className="glass elevated rounded-2xl p-4 space-y-2.5">
             {statuses.map((s) => (
               <div key={s.status} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
@@ -193,7 +193,7 @@ export default async function InsightsPage() {
           </div>
         </section>
         <section>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Priority breakdown</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Priority breakdown</p>
           <div className="glass elevated rounded-2xl p-4 space-y-2.5">
             {priorities.map((p) => (
               <div key={p.priority} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">

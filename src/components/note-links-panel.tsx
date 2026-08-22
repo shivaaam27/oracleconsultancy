@@ -80,7 +80,7 @@ export function NoteLinksPanel({ links, incoming }: { links: ResolvedLink[]; inc
       </Section>
 
       {empty && (
-        <p className="px-1 text-[11px] leading-relaxed text-fg-subtle">
+        <p className="px-1 text-xs leading-relaxed text-fg-subtle">
           Links are made by writing, not by filing — mention something in the note and it appears here.
         </p>
       )}
@@ -101,11 +101,11 @@ function Section({
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex items-center gap-1.5 border-b border-border bg-bg-subtle/60 px-2.5 py-1.5">
         <span className="text-fg-subtle">{icon}</span>
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">{title}</h2>
-        {count > 0 && <span className="ml-auto text-[11px] tabular text-fg-subtle">{count}</span>}
+        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-fg-muted">{title}</h2>
+        {count > 0 && <span className="ml-auto text-xs tabular text-fg-subtle">{count}</span>}
       </header>
       {count === 0 ? (
-        <p className="px-2.5 py-2.5 text-[11.5px] leading-relaxed text-fg-subtle">{empty}</p>
+        <p className="px-2.5 py-2.5 text-xs leading-relaxed text-fg-subtle">{empty}</p>
       ) : (
         <ul className="divide-y divide-border">{children}</ul>
       )}
@@ -130,14 +130,14 @@ function Row({
       <span className="mt-0.5 shrink-0">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          {code && <span className="shrink-0 font-mono text-[10px] text-fg-subtle">{code}</span>}
-          <span className={cn("truncate text-[12px] font-medium", missing ? "text-fg-subtle line-through" : muted ? "text-fg-muted" : "text-fg")}>
+          {code && <span className="shrink-0 font-mono text-xs text-fg-subtle">{code}</span>}
+          <span className={cn("truncate text-sm font-medium", missing ? "text-fg-subtle line-through" : muted ? "text-fg-muted" : "text-fg")}>
             {label}
           </span>
           {badge && <span className="shrink-0 rounded bg-bg-subtle px-1 py-px text-[9.5px] font-medium text-fg-subtle">{badge}</span>}
         </span>
         {(sublabel || missing) && (
-          <span className="mt-px block truncate text-[11px] text-fg-subtle">
+          <span className="mt-px block truncate text-xs text-fg-subtle">
             {missing ? "No longer available" : sublabel}
           </span>
         )}

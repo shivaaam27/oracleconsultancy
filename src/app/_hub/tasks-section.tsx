@@ -524,7 +524,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </div>
         <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="min-w-0 sm:flex-1">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">
               Task Management
               <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
                 <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
@@ -605,12 +605,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       />
 
       {showArchived && (
-        <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-fg-subtle">
+        <p className="-mt-2 flex items-center gap-1.5 text-xs text-fg-subtle">
           <Archive size={12} /> Showing archived tasks — retire a task without losing its history. Untick it in ⋯ More to return.
         </p>
       )}
       {kindAuto && (
-        <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-fg-subtle">
+        <p className="-mt-2 flex items-center gap-1.5 text-xs text-fg-subtle">
           <Sparkles size={12} /> Auto-created by the system from expiring documents &amp; commitments. Complete or undo them like any task.
         </p>
       )}

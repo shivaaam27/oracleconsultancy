@@ -148,10 +148,10 @@ function GroupHeader({ label, hint, count }: { label: string; hint: string; coun
   return (
     <div className="flex items-center justify-between gap-3 bg-bg-subtle/60 px-4 py-2.5">
       <div className="flex items-baseline gap-2">
-        <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</h2>
-        <span className="text-[11px] tabular text-fg-subtle">{count}</span>
+        <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</h2>
+        <span className="text-xs tabular text-fg-subtle">{count}</span>
       </div>
-      <span className="text-[11px] text-fg-subtle">{hint}</span>
+      <span className="text-xs text-fg-subtle">{hint}</span>
     </div>
   );
 }
@@ -168,7 +168,7 @@ function RuleRow({ r }: { r: DescribedRule }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium leading-snug text-fg">{r.title}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted">
           <span className="rounded px-1.5 py-0.5 ring-1 ring-border/60 bg-bg-elev">{r.kindLabel}</span>
           <span className="truncate">{r.target}</span>
           {r.done && <span className="text-fg-subtle">· completed</span>}
@@ -194,7 +194,7 @@ function EmptyState() {
         <span className="text-fg">&ldquo;tell me when PES raises a blocker&rdquo;</span> — the standing rule appears here to
         pause or cancel.
       </p>
-      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-fg-subtle">
+      <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-fg-subtle">
         <Command size={12} /> Open the palette with Ctrl + Space
       </p>
     </div>

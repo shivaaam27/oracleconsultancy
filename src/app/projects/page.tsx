@@ -13,6 +13,7 @@ import { isOpen } from "@/lib/projects-shared";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Projects" };
 
 export default async function ProjectsPage() {
   const [items, { data: companyRows }, savedViews] = await Promise.all([

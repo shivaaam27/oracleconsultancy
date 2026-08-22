@@ -11,6 +11,8 @@ import {
   type CzCustomer, type CzInvoice, type CzReceipt,
 } from "@/lib/cocozuri-shared";
 import { createReceiptsAction } from "@/app/cocozuri/actions";
+import { FIELD } from "@/components/ui";
+import { typedNumber, typedNumberOr, hasPositive } from "@/lib/typed-number";
 
 /* ------------------------------------------------------------------ *
  * Recording money that has come in.
@@ -27,7 +29,9 @@ import { createReceiptsAction } from "@/app/cocozuri/actions";
  * which is a better guard than an error message after the fact.
  * ------------------------------------------------------------------ */
 
-const INPUT = "w-full rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] outline-none focus:border-accent";
+/* ⚠️ THE KIT'S FIELD, not a local one. Seven files had grown their own
+   `const INPUT` and no two agreed — see the note on `FIELD` in ui.tsx. */
+const INPUT = FIELD;
 
 /** Today, as an <input type="date"> wants it — in the LOCAL wall clock.
  *  ⚠️ Slicing the ISO string would put the UTC day in the box, which in Dar
@@ -81,7 +85,7 @@ export function CocozuriReceiptSheet({
     );
   }, [customer, invoices, receipts]);
 
-  const total = Object.values(allocated).reduce((t, v) => t + (Number(v) || 0), 0);
+  const total = Object.values(allocated).reduce((t, v) => t + (typedNumberOr(v)), 0);
   const picked = Object.entries(allocated).filter(([, v]) => Number(v) > 0).length;
 
   function pickCustomer(name: string) {
@@ -174,7 +178,7 @@ export function CocozuriReceiptSheet({
             onInput={setIntoName}
             placeholder="Which company's account took it"
           />
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             Leave blank if it came into Cocozuri&rsquo;s own account. The old spreadsheet kept saying
             &ldquo;received in DSC&rdquo; — this is where that goes, so it can be counted later.
           </span>
@@ -182,17 +186,17 @@ export function CocozuriReceiptSheet({
 
         {/* What it is paying for. */}
         {!customer ? (
-          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2.5 text-[12.5px] text-fg-subtle">
+          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2.5 text-sm text-fg-subtle">
             Pick a customer and their unpaid invoices appear here.
           </p>
         ) : open.length === 0 ? (
-          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2.5 text-[12.5px] text-fg-muted">
+          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2.5 text-sm text-fg-muted">
             {customer.name} has nothing outstanding. Only an <strong>issued</strong> invoice with a
             balance can be paid — a draft has not been sent to anybody.
           </p>
         ) : (
           <div className="rounded-md border border-border">
-            <div className="grid grid-cols-[24px_minmax(0,1fr)_90px_110px_120px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+            <div className="grid grid-cols-[24px_minmax(0,1fr)_90px_110px_120px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
               <span /><span>Invoice</span><span>Age</span><span className="text-right">Owed</span><span>Paying</span>
             </div>
             <div className="max-h-[15rem] overflow-y-auto">
@@ -203,14 +207,14 @@ export function CocozuriReceiptSheet({
                     className="grid grid-cols-[24px_minmax(0,1fr)_90px_110px_120px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
                     <input type="checkbox" checked={on} onChange={() => toggle(o.invoice.id, o.balance)}
                       aria-label={`Pay ${o.invoice.number}`} />
-                    <span className="truncate text-[12.5px] text-fg">
+                    <span className="truncate text-sm text-fg">
                       {o.invoice.number}
                       {o.invoice.branchName && <span className="text-fg-subtle"> · {o.invoice.branchName}</span>}
                     </span>
-                    <span className={o.days > 0 ? "text-[12px] text-warn" : "text-[12px] text-fg-subtle"}>
+                    <span className={o.days > 0 ? "text-sm text-warn" : "text-sm text-fg-subtle"}>
                       {o.days > 0 ? `${o.days}d late` : "not due"}
                     </span>
-                    <span className="text-right text-[12.5px] tabular text-fg-muted">{money(o.balance, o.invoice.currency)}</span>
+                    <span className="text-right text-sm tabular text-fg-muted">{money(o.balance, o.invoice.currency)}</span>
                     <input
                       value={allocated[o.invoice.id] ?? ""}
                       onChange={(e) => setAllocated((a) => ({ ...a, [o.invoice.id]: e.target.value }))}
@@ -225,7 +229,7 @@ export function CocozuriReceiptSheet({
         )}
 
         {total > 0 && (
-          <div className="flex items-center justify-between rounded-md border border-border bg-bg-subtle px-3 py-2 text-[13px]">
+          <div className="flex items-center justify-between rounded-md border border-border bg-bg-subtle px-3 py-2 text-base">
             <span className="text-fg-muted">
               {picked === 1 ? "One invoice" : `${picked} invoices`}
               {picked > 1 && <span className="text-fg-subtle"> · one row each, sharing this reference</span>}
@@ -236,7 +240,7 @@ export function CocozuriReceiptSheet({
 
         {/* Overpaying is allowed — it happens — but it is never silent. */}
         {customer && open.some((o) => Number(allocated[o.invoice.id] ?? 0) > o.balance + 0.5) && (
-          <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn">
+          <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
             <AlertTriangle size={13} className="mt-px shrink-0" />
             More is being paid than is owed on at least one invoice. That is recorded as it stands —
             the invoice will show a credit rather than a balance.
@@ -250,10 +254,10 @@ export function CocozuriReceiptSheet({
 
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void save()} disabled={busy || total === 0}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
             {busy && <Loader2 size={13} className="animate-spin" />} Record it
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">Cancel</button>
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
         </div>
       </div>
     </BottomSheet>
@@ -263,7 +267,7 @@ export function CocozuriReceiptSheet({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>
   );

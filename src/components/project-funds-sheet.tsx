@@ -30,8 +30,8 @@ export function ProjectFundsSheet({
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-bg-elev p-6 text-center">
-        <p className="text-[13px] font-medium">Nothing requested yet</p>
-        <p className="mx-auto mt-1 max-w-md text-[12px] text-fg-subtle">
+        <p className="text-base font-medium">Nothing requested yet</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-fg-subtle">
           This page groups requisitions by their batch number — PT-01, PT-02 — and
           counts the budget down as head office approves them. It fills in as soon
           as the first request is raised.
@@ -59,7 +59,7 @@ export function ProjectFundsSheet({
       {/* ── the countdown, as a bar ── */}
       {budget !== null && budget > 0 && (
         <div>
-          <div className="mb-1 flex items-baseline justify-between text-[11px]">
+          <div className="mb-1 flex items-baseline justify-between text-xs">
             <span className="text-fg-muted">Budget consumed by approvals</span>
             <span className="tabular">{pct(totals.utilisation, 1) ?? "—"}</span>
           </div>
@@ -69,7 +69,7 @@ export function ProjectFundsSheet({
               style={{ width: `${Math.min(100, (totals.utilisation ?? 0) * 100)}%` }}
             />
           </div>
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             {m(last.diminishing)} of budget left after {rows.length} batch{rows.length === 1 ? "" : "es"}.
             This is the workbook&rsquo;s &ldquo;diminishing budget&rdquo; column.
           </p>
@@ -78,9 +78,9 @@ export function ProjectFundsSheet({
 
       {/* ── the sheet ── */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[1040px] border-collapse bg-bg-elev text-[12px]">
+        <table className="w-full min-w-[1040px] border-collapse bg-bg-elev text-sm">
           <thead>
-            <tr className="border-b border-border bg-bg-subtle text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+            <tr className="border-b border-border bg-bg-subtle text-xs uppercase tracking-[0.04em] text-fg-subtle">
               <th className="px-2 py-1.5 text-left font-medium">Batch</th>
               <th className="px-2 py-1.5 text-right font-medium">Requested</th>
               <th className="px-2 py-1.5 text-right font-medium">Approved</th>
@@ -100,7 +100,7 @@ export function ProjectFundsSheet({
               <tr key={r.batchNo} className="border-b border-border/60">
                 <td className="px-2 py-1.5">
                   <span className="block font-medium">{r.batchNo}</span>
-                  <span className="block text-[10px] text-fg-subtle">
+                  <span className="block text-xs text-fg-subtle">
                     {[fmtDate(r.firstDate), `${r.requests} request${r.requests === 1 ? "" : "s"}`]
                       .filter(Boolean).join(" · ")}
                     {r.awaitingApproval && " · not approved yet"}
@@ -129,7 +129,7 @@ export function ProjectFundsSheet({
                   ) : (
                     <>
                       <span className="block tabular">{m(r.released)}</span>
-                      <span className="block text-[10px] text-fg-subtle">
+                      <span className="block text-xs text-fg-subtle">
                         {Object.entries(r.releasedBy)
                           .sort((a, b) => b[1] - a[1])
                           .map(([route, amt]) => `${route} ${m(amt)}`)
@@ -137,7 +137,7 @@ export function ProjectFundsSheet({
                         {r.lastPaidDate && ` · ${fmtDate(r.lastPaidDate)}`}
                       </span>
                       {r.notYetReleased !== null && r.notYetReleased > 0.005 && (
-                        <span className="block text-[10px] text-warn">
+                        <span className="block text-xs text-warn">
                           {m(r.notYetReleased)} approved, not sent
                         </span>
                       )}
@@ -171,7 +171,7 @@ export function ProjectFundsSheet({
         </table>
       </div>
 
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         Amounts are in {currency}. Rejected and cancelled requests are left out —
         the spreadsheet has no notion of either, so its batch totals quietly
         include money that was refused. Everything here is worked out from the
@@ -186,9 +186,9 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]", tone === "danger" && "text-danger")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }

@@ -59,7 +59,7 @@ export default async function AssetVendorPage({
           {metrics.map((mt) => (
             <div key={mt.label} className="flex items-baseline gap-1.5">
               <span className={`text-xl font-semibold tabular ${TONE[mt.tone].text}`}>{mt.value}</span>
-              <span className="text-[11px] text-fg-muted">{mt.label}</span>
+              <span className="text-xs text-fg-muted">{mt.label}</span>
             </div>
           ))}
         </div>

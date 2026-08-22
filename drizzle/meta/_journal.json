@@ -1058,6 +1058,34 @@
       "when": 1787403210780,
       "tag": "0149_cocozuri_stock_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1787405712905,
+      "tag": "0150_cocozuri_purchases",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1787408773225,
+      "tag": "0151_cocozuri_recipes",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1787412401376,
+      "tag": "0152_cocozuri_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1787415376228,
+      "tag": "0153_cocozuri_transfers",
+      "breakpoints": true
     }
   ]
 }

@@ -373,7 +373,7 @@ export function CalendarBoard({
         <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.22), transparent 70%)" }} />
         <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="min-w-0 sm:flex-1">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">
               Brief
               <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" /></span>
               <span className="normal-case tracking-normal text-success/90">live</span>
@@ -471,7 +471,7 @@ export function CalendarBoard({
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
                   <DropdownMenu.Content align="end" sideOffset={6} className="z-[140] w-56 glass glass-menu elevated rounded-2xl p-1.5 shadow-lg text-sm">
-                    <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">Source</div>
+                    <div className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Source</div>
                     {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((s) => (
                       <button key={s.v} type="button" onClick={() => setSourceFilter(s.v)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors", sourceFilter === s.v ? "bg-accent/12 font-medium text-fg" : "text-fg-muted hover:bg-bg-muted")}>
                         <span className="flex-1">{s.l}</span>{sourceFilter === s.v && <Check size={14} className="text-accent" />}
@@ -535,7 +535,7 @@ function EventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => 
   return (
     <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }}
       title={event.title}
-      className="w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-tight hover:bg-bg-muted transition-colors"
+      className="w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs leading-tight hover:bg-bg-muted transition-colors"
       style={{ borderLeft: `3px solid ${accentOf(event)}` }}>
       {event.categoryId != null && (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColor(event.categoryId) }} title={event.categoryName ?? undefined} />
@@ -549,7 +549,7 @@ function EventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => 
 
 function OverlayChip({ item }: { item: OverlayItem }) {
   const m = OVERLAY_META[item.kind]; const Icon = m.icon;
-  const cls = "w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-tight text-fg-muted hover:bg-bg-muted transition-colors";
+  const cls = "w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs leading-tight text-fg-muted hover:bg-bg-muted transition-colors";
   const inner = <><Icon size={11} className={cn("shrink-0", m.tone)} /><span className="truncate">{item.title}</span></>;
   return item.href
     ? <a href={item.href} onClick={(e) => e.stopPropagation()} className={cls}>{inner}</a>
@@ -566,8 +566,8 @@ function OverlayRow({ item }: { item: OverlayItem }) {
         <Icon size={15} style={{ color: c }} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-fg">{item.title}</span>
-        <span className="block text-[11px] text-fg-subtle">{OVERLAY_LABELS[item.kind]}</span>
+        <span className="block truncate text-base font-medium text-fg">{item.title}</span>
+        <span className="block text-xs text-fg-subtle">{OVERLAY_LABELS[item.kind]}</span>
       </span>
       {item.href && <ExternalLink size={13} className="shrink-0 text-fg-subtle" />}
     </>
@@ -596,7 +596,7 @@ function DaySheet({
       {evs.length > 0 && <div className="space-y-2">{evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}</div>}
       {ovs.length > 0 && (
         <section className="overflow-hidden rounded-2xl bg-bg-elev/40 ring-1 ring-border/60">
-          <div className="border-b border-border/60 bg-bg-subtle/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-subtle">
+          <div className="border-b border-border/60 bg-bg-subtle/60 px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-fg-subtle">
             {evs.length > 0 ? "Also on this day" : "On this day"} · {ovs.length}
           </div>
           <div className="space-y-1.5 p-2">{ovs.map((o) => <OverlayRow key={o.id} item={o} />)}</div>
@@ -646,7 +646,7 @@ function MonthView({
       <div className="hidden sm:block bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
         <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
           {dows.map((d) => (
-            <div key={d} className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
+            <div key={d} className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7">
@@ -664,13 +664,13 @@ function MonthView({
               <button key={i} type="button" onClick={() => onPickDay(cell)}
                 className={cn("min-h-[96px] text-left border-b border-r border-border/50 p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus:ring-1 focus:ring-accent/50",
                   i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20")}>
-                <div className={cn("text-[11px] mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
+                <div className={cn("text-xs mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
                   isToday ? "bg-accent text-white font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
                   {cell.getDate()}
                 </div>
                 <div className="space-y-0.5">
                   {chips.slice(0, 3)}
-                  {chips.length > 3 && <div className="text-[10px] text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
+                  {chips.length > 3 && <div className="text-xs text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
                 </div>
               </button>
             );
@@ -683,7 +683,7 @@ function MonthView({
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
           <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
             {dows.map((d) => (
-              <div key={d} className="py-1 text-[10px] font-medium uppercase tracking-wider text-fg-subtle text-center">{d.charAt(0)}</div>
+              <div key={d} className="py-1 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d.charAt(0)}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">
@@ -706,7 +706,7 @@ function MonthView({
                   aria-pressed={isSelected}
                   className={cn("min-h-[44px] flex flex-col items-center justify-start gap-0.5 py-1 border-b border-r border-border/50 transition-colors focus:outline-none",
                     i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20", isSelected && "bg-accent-soft/40")}>
-                  <span className={cn("text-[11px] inline-flex h-5 w-5 items-center justify-center rounded-full",
+                  <span className={cn("text-xs inline-flex h-5 w-5 items-center justify-center rounded-full",
                     isToday ? "bg-accent text-white font-semibold" : isSelected ? "text-accent font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
                     {cell.getDate()}
                   </span>
@@ -729,7 +729,7 @@ function MonthView({
               {selectedDate.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
             </span>
             <button type="button" onClick={() => onPickDay(selectedDate)}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
+              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
               Open day →
             </button>
           </div>
@@ -764,12 +764,12 @@ function WeekView({
             <button type="button" onClick={() => onPickDay(d)}
               className={cn("w-full flex sm:flex-col items-center sm:items-start gap-1.5 px-2.5 py-1.5 border-b border-border/60 hover:bg-bg-subtle/40 transition-colors",
                 isToday && "bg-accent-soft/40")}>
-              <span className="text-[11px] uppercase tracking-wider text-fg-subtle">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
+              <span className="text-xs uppercase tracking-wider text-fg-subtle">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
               <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{d.getDate()}</span>
             </button>
             <div className="p-1.5 space-y-1 min-h-[44px]">
               {evs.length === 0 && ovs.length === 0
-                ? <div className="text-[11px] text-fg-subtle px-1 py-1">—</div>
+                ? <div className="text-xs text-fg-subtle px-1 py-1">—</div>
                 : <>
                     {evs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
                     {ovs.map((o) => <OverlayChip key={o.id} item={o} />)}
@@ -835,8 +835,8 @@ function HousedAgenda({
           <section key={key} className={cn("overflow-hidden rounded-2xl bg-bg-elev/40 ring-1", isToday ? "ring-accent/30" : "ring-border/60")}>
             <div className={cn("flex items-center gap-2 border-b px-3.5 py-2.5", isToday ? "border-accent/20 bg-accent-soft/40" : "border-border/60 bg-bg-subtle/60")}>
               {isToday && <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-accent opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" /></span>}
-              <span className={cn("text-[12.5px] font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
-              <span className="ml-auto text-[10.5px] text-fg-subtle">{evs.length} event{evs.length === 1 ? "" : "s"}</span>
+              <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
+              <span className="ml-auto text-xs text-fg-subtle">{evs.length} event{evs.length === 1 ? "" : "s"}</span>
             </div>
             <div className="space-y-2 p-2">
               {evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
@@ -845,7 +845,7 @@ function HousedAgenda({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/60 bg-bg-subtle/30 px-3.5 py-2">
                 {ovs.map((o) => {
                   const m = OVERLAY_META[o.kind]; const Icon = m.icon;
-                  return <span key={o.id} className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><Icon size={12} className={m.tone} /> {o.title}</span>;
+                  return <span key={o.id} className="inline-flex items-center gap-1 text-xs text-fg-muted"><Icon size={12} className={m.tone} /> {o.title}</span>;
                 })}
               </div>
             )}
@@ -877,7 +877,7 @@ function MiniMonth({
   return (
     <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{monthLabel}</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{monthLabel}</span>
         <span className="ml-auto flex items-center gap-0.5">
           <button type="button" onClick={() => setViewMonth((m) => addMonths(m, -1))} title="Previous month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronLeft size={13} /></button>
           <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} title="Next month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronRight size={13} /></button>
@@ -894,7 +894,7 @@ function MiniMonth({
           const dots = [...evs.map((e) => accentOf(e)), ...ovs.map((o) => OVERLAY_META[o.kind].dot)].slice(0, 3);
           return (
             <button key={i} type="button" onClick={() => onPickDay(cell)}
-              className={cn("relative flex h-8 flex-col items-center justify-center rounded-md text-[10px] transition-colors hover:bg-bg-muted",
+              className={cn("relative flex h-8 flex-col items-center justify-center rounded-md text-xs transition-colors hover:bg-bg-muted",
                 isToday ? "bg-accent font-semibold text-white" : inMonth ? "text-fg" : "text-fg-subtle/60")}>
               {cell.getDate()}
               {dots.length > 0 && (
@@ -932,13 +932,13 @@ function BriefRail({
 
       {!meetingsOnly && availableLayers.length > 0 && (
         <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle"><LayersIcon size={12} /> Layers</p>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle"><LayersIcon size={12} /> Layers</p>
           <div className="flex flex-wrap gap-1.5">
             {availableLayers.map((k) => {
               const m = OVERLAY_META[k]; const Icon = m.icon; const on = enabledLayers.has(k);
               return (
                 <button key={k} type="button" onClick={() => toggleLayer(k)}
-                  className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-medium ring-1 transition-colors",
+                  className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1 transition-colors",
                     on ? "bg-bg-subtle text-fg ring-border" : "text-fg-subtle opacity-55 ring-border/60 hover:opacity-100")}>
                   <Icon size={11} className={on ? m.tone : ""} /> {OVERLAY_LABELS[k]}
                 </button>
@@ -950,18 +950,18 @@ function BriefRail({
 
       <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
         <div className="mb-1.5 flex items-center gap-2">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-500"><Megaphone size={12} /> Announcements</p>
-          <Link href="/announcements" className="ml-auto text-[10.5px] font-medium text-accent hover:underline">Manage →</Link>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-violet-500"><Megaphone size={12} /> Announcements</p>
+          <Link href="/announcements" className="ml-auto text-xs font-medium text-accent hover:underline">Manage →</Link>
         </div>
         {live.length === 0 ? (
-          <p className="text-[11px] text-fg-subtle">Nothing live right now.</p>
+          <p className="text-xs text-fg-subtle">Nothing live right now.</p>
         ) : (
           <div className="space-y-2">
             {live.slice(0, 2).map((a) => {
               const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
               return (
                 <div key={a.id} className="rounded-xl border-l-2 border-violet-400 bg-bg-elev px-2.5 py-1.5 ring-1 ring-border/50">
-                  <p className="truncate text-[11px] font-medium text-fg">{a.title}</p>
+                  <p className="truncate text-xs font-medium text-fg">{a.title}</p>
                   {a.requireAck && (
                     <>
                       <div className="mt-1 h-1 overflow-hidden rounded-full bg-violet-100"><span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div>
@@ -1094,7 +1094,7 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
         <div className="shrink-0 w-14 text-center">
           <div className="text-sm font-semibold tabular-nums">{event.allDay ? "All day" : fmtTime(event.startAt)}</div>
           {!event.allDay && event.endAt && (
-            <div className="text-[11px] text-fg-muted tabular-nums">{fmtTime(event.endAt)}</div>
+            <div className="text-xs text-fg-muted tabular-nums">{fmtTime(event.endAt)}</div>
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -1408,8 +1408,8 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
                         {active && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-medium text-fg">{o.label}</span>
-                        <span className="block text-[11px] text-fg-muted">{o.desc}</span>
+                        <span className="block text-base font-medium text-fg">{o.label}</span>
+                        <span className="block text-xs text-fg-muted">{o.desc}</span>
                       </span>
                     </button>
                   );
@@ -1724,7 +1724,7 @@ function EventForm({
         {/* ── When: start, end and all-day on ONE row ──────────────────── */}
         <div className="sm:col-span-2">
           <div className="mb-1.5 flex items-end justify-between gap-3">
-            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">When</span>
+            <span className="block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">When</span>
             {/* Quick templates sit WITH the times they change, rather than
                 floating above the title as the first thing you met. */}
             {!editing && (
@@ -1788,7 +1788,7 @@ function EventForm({
           <FieldLabel>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company"}</FieldLabel>
           <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(FIELD_SHELL, "flex w-full items-center justify-between")} />
           {companyIds.length > 1 && (
-            <p className="mt-1 text-[11px] text-fg-subtle">One task per company; the first is the lead.</p>
+            <p className="mt-1 text-xs text-fg-subtle">One task per company; the first is the lead.</p>
           )}
         </div>
         <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
@@ -1814,7 +1814,7 @@ function EventForm({
           <FieldLabel>Meeting link</FieldLabel>
           <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" className={FIELD} />
           {!editing && (
-            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] text-fg-muted">
+            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-xs text-fg-muted">
               <input type="checkbox" checked={addMeet} onChange={(e) => setAddMeet(e.target.checked)} className="accent-[var(--accent)]" />
               {addMeet ? "A Google Meet link is added on create" : "No Meet link will be added"}
             </label>
@@ -1881,9 +1881,9 @@ function EventForm({
         {isRecurring && (
           <div className="space-y-2 rounded-xl bg-bg-subtle/60 p-3 ring-1 ring-border/70 sm:col-span-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
+              <span className="text-sm text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
               {alreadySkipped ? (
-                <span className="shrink-0 text-[11px] font-medium text-danger">This date is cancelled</span>
+                <span className="shrink-0 text-xs font-medium text-danger">This date is cancelled</span>
               ) : (
                 <Button type="button" size="sm" variant="ghost" onClick={doSkip} disabled={pending} className="shrink-0">
                   Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
@@ -1892,10 +1892,10 @@ function EventForm({
             </div>
             {editing!.excludedDates.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-                <span className="text-[11px] text-fg-subtle">Cancelled dates (tap to restore):</span>
+                <span className="text-xs text-fg-subtle">Cancelled dates (tap to restore):</span>
                 {editing!.excludedDates.map((d) => (
                   <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
-                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-[11px] text-danger ring-1 ring-danger/20 transition-colors hover:bg-danger-soft/70">
+                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-xs text-danger ring-1 ring-danger/20 transition-colors hover:bg-danger-soft/70">
                     {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
                   </button>
                 ))}
@@ -1916,7 +1916,7 @@ function EventForm({
             />
             <span className="text-sm">
               Tell guests about this change
-              <span className="block text-[12px] text-fg-muted">
+              <span className="block text-sm text-fg-muted">
                 {notifyGuests
                   ? "They will get an email saying exactly what changed."
                   : "Their calendar updates by itself — tick this only if they need to be told."}
@@ -1989,22 +1989,22 @@ function AnnouncementsPanel({ announcements }: { announcements: BriefAnnouncemen
     return (
       <div className={cn("rounded-2xl border-l-[3px] bg-bg-elev p-3.5 ring-1 ring-border/60", tc.border, faded && "opacity-70")}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-semibold ring-1", tc.pill)}>{meta.label}</span>
+          <span className={cn("inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold ring-1", tc.pill)}>{meta.label}</span>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{a.title}</span>
           {a.scheduled && a.publishAt && (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-border/60">
+            <span className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle px-2 py-0.5 text-xs font-medium text-fg-muted ring-1 ring-border/60">
               scheduled · {new Date(a.publishAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
             </span>
           )}
-          {a.status === "draft" && <span className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-border/60">draft</span>}
+          {a.status === "draft" && <span className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs font-medium text-fg-muted ring-1 ring-border/60">draft</span>}
         </div>
-        {a.body && <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-fg-muted">{a.body}</p>}
+        {a.body && <p className="mt-1.5 line-clamp-2 text-base leading-relaxed text-fg-muted">{a.body}</p>}
         {a.live && a.requireAck && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
             <div className="h-1.5 min-w-[120px] flex-1 overflow-hidden rounded-full bg-violet-100">
               <span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-[11px] tabular text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</span>
+            <span className="text-xs tabular text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</span>
             {outstanding > 0 && (
               <button type="button" onClick={() => nudge(a.id)} disabled={busy === a.id}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-warn transition-colors hover:border-warn/40 disabled:opacity-50">
@@ -2014,8 +2014,8 @@ function AnnouncementsPanel({ announcements }: { announcements: BriefAnnouncemen
           </div>
         )}
         <div className="mt-2 flex items-center gap-1.5">
-          {a.live && !a.requireAck && <span className="text-[11px] text-fg-subtle">Seen by {a.stats.seen}/{a.stats.total}</span>}
-          <Link href="/announcements" className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
+          {a.live && !a.requireAck && <span className="text-xs text-fg-subtle">Seen by {a.stats.seen}/{a.stats.total}</span>}
+          <Link href="/announcements" className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
             <Pencil size={12} /> Edit
           </Link>
         </div>
@@ -2032,27 +2032,27 @@ function AnnouncementsPanel({ announcements }: { announcements: BriefAnnouncemen
       <div className="min-w-0 space-y-4">
         {live.length > 0 && (
           <section className="space-y-2">
-            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Live</p>
+            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Live</p>
             {live.map((a) => <Card_ key={a.id} a={a} />)}
           </section>
         )}
         {scheduled.length > 0 && (
           <section className="space-y-2">
-            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Scheduled</p>
+            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Scheduled</p>
             {scheduled.map((a) => <Card_ key={a.id} a={a} faded />)}
           </section>
         )}
         {drafts.length > 0 && (
           <section className="space-y-2">
-            <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Drafts</p>
+            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Drafts</p>
             {drafts.map((a) => <Card_ key={a.id} a={a} faded />)}
           </section>
         )}
       </div>
       <aside className="hidden lg:block">
         <div className="rounded-2xl bg-bg-elev/50 p-3.5 ring-1 ring-border/60">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">This board</p>
-          <p className="mt-2 text-[13px] leading-relaxed text-fg-muted">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">This board</p>
+          <p className="mt-2 text-base leading-relaxed text-fg-muted">
             Announcements publish to staff&apos;s portal + phone, mirror into their Announcements chat, and (when you tick <b className="text-fg">require acknowledge</b>) track who&apos;s read them. Scheduled ones also appear on the Events agenda until they go live.
           </p>
           <Link href="/announcements" className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent/40">

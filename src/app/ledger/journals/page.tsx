@@ -12,6 +12,7 @@ import { listJournalEntries, linesByEntry } from "@/lib/ledger-journal";
 import { num, voucherTotals } from "@/lib/ledger-shared";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Journals — Ledger" };
 
 export default async function LedgerJournalsPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function LedgerJournalsPage({
     return (
       <div className="space-y-3">
         <PageHeader title="Ledger" sub="No companies yet" />
-        <p className="text-[13px] text-fg-muted">Add a company first, on the Companies screen.</p>
+        <p className="text-base text-fg-muted">Add a company first, on the Companies screen.</p>
       </div>
     );
   }

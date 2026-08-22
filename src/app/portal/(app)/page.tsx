@@ -183,7 +183,7 @@ export default async function PortalHome() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-tight">{stripLabel}</p>
-            <p className="text-[11px] text-fg-subtle">{dateLabel} · {stripSub}</p>
+            <p className="text-xs text-fg-subtle">{dateLabel} · {stripSub}</p>
           </div>
           <div className="flex items-center gap-1" aria-hidden>
             {week.days.map((d) => {
@@ -206,7 +206,7 @@ export default async function PortalHome() {
       <Reveal delay={0.04} className="flex flex-col gap-2.5">
         <SectionLabel
           icon={<Video size={13} />}
-          action={<Link href="/portal/meetings" className="text-[11px] text-accent hover:underline">View all</Link>}
+          action={<Link href="/portal/meetings" className="text-xs text-accent hover:underline">View all</Link>}
         >
           Your meetings
         </SectionLabel>

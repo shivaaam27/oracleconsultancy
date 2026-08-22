@@ -148,7 +148,7 @@ function Chip({
       type="button"
       onClick={count === 0 ? undefined : onClick}
       disabled={count === 0}
-      className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 text-[11px] rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
+      className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
     >
       <CountPill count={count} tone={tone === "danger" ? "danger" : "default"} />
       <span className="font-medium">{label}</span>

@@ -37,9 +37,9 @@ export function AutomationSettings({ statuses, recordsConfidence = 0 }: { status
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium leading-snug">{rule.label}</p>
-                <p className="text-[12px] text-fg-muted leading-snug">{rule.description}</p>
+                <p className="text-sm text-fg-muted leading-snug">{rule.description}</p>
                 {st && (st.applied > 0 || st.suggested > 0) && (
-                  <p className="mt-1 text-[11px] text-fg-subtle">{st.applied} done · {st.suggested} suggested so far</p>
+                  <p className="mt-1 text-xs text-fg-subtle">{st.applied} done · {st.suggested} suggested so far</p>
                 )}
               </div>
               <div className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-bg p-0.5 ring-1 ring-border/60">
@@ -49,7 +49,7 @@ export function AutomationSettings({ statuses, recordsConfidence = 0 }: { status
                     type="button"
                     onClick={() => setMode(rule.kind, o)}
                     disabled={busy === rule.kind}
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-60 ${mode === o ? "bg-accent text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${mode === o ? "bg-accent text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
                   >
                     {busy === rule.kind && mode === o && <Loader2 size={10} className="animate-spin" />}
                     {MODE_LABEL[o]}
@@ -60,7 +60,7 @@ export function AutomationSettings({ statuses, recordsConfidence = 0 }: { status
           </div>
         );
       })}
-      <p className="text-[11px] text-fg-subtle leading-snug">
+      <p className="text-xs text-fg-subtle leading-snug">
         <b>Auto</b> — certain matches happen on their own. <b>Suggest</b> — it waits for your one-click approval in the Inbox. <b>Off</b> — it does nothing. Everything it does is logged in the Inbox and can be undone.
       </p>
 
@@ -69,7 +69,7 @@ export function AutomationSettings({ statuses, recordsConfidence = 0 }: { status
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium leading-snug">Auto-fill confidence</p>
-            <p className="text-[12px] text-fg-muted leading-snug">
+            <p className="text-sm text-fg-muted leading-snug">
               {conf === 0
                 ? "A clean read is enough to fill records automatically."
                 : `Only auto-fill records when the scan is at least ${conf}% confident — otherwise propose it.`}

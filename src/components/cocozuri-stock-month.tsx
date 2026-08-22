@@ -7,8 +7,9 @@ import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { BottomSheet } from "@/components/bottom-sheet";
 import {
-  balanceAt, monthRows, qty, salesRows,
+  ledgerBalanceAt, monthRows, qty, salesRows,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
+  type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
 import { money, priceInForce, type CzPrice } from "@/lib/cocozuri-shared";
 import { recordStockCountAction } from "@/app/cocozuri/actions";
@@ -30,13 +31,16 @@ import { cn } from "@/lib/cn";
  * ------------------------------------------------------------------ */
 
 export function CocozuriStockMonth({
-  location, locations, items, days, counts, prices, from, to, productNames,
+  location, locations, items, days, counts, moves, prices, from, to, productNames,
 }: {
   location: CzStockLocation;
   locations: CzStockLocation[];
   items: CzStockItem[];
   days: CzStockDay[];
   counts: CzStockCount[];
+  /** ⚠️ THE LEDGER. Every figure on this page is read from it (Stage 2); the
+   *  day sheets are kept only to say how many days were actually counted. */
+  moves: CzStockMove[];
   prices: CzPrice[];
   from: string;
   to: string;
@@ -51,14 +55,17 @@ export function CocozuriStockMonth({
   const nameOf = (it: CzStockItem) =>
     (it.productId != null ? productNames[it.productId] : null) ?? it.name;
 
-  const rows = useMemo(() => monthRows(items, days, counts, from, to), [items, days, counts, from, to]);
+  const rows = useMemo(
+    () => monthRows(items, location.id, moves, days, counts, from, to),
+    [items, location.id, moves, days, counts, from, to],
+  );
 
   // ⚠️ Valued at the price of the DAY each unit went out — `priceInForce`
   // already knows the price in force is the newest whose date has arrived.
   const sales = useMemo(
-    () => salesRows(items, days, from, to, (productId, on) =>
+    () => salesRows(items, location.id, moves, from, to, (productId, on) =>
       priceInForce(prices, { productId, on: `${on}T23:59:59.999Z` })?.price ?? null),
-    [items, days, prices, from, to],
+    [items, location.id, moves, prices, from, to],
   );
   const salesById = useMemo(() => new Map(sales.map((s) => [s.item.id, s] as const)), [sales]);
 
@@ -101,24 +108,24 @@ export function CocozuriStockMonth({
         <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
           {locations.map((l) => (
             <button key={l.id} type="button" onClick={() => go({ loc: l.id })}
-              className={cn("h-7 rounded px-2.5 text-[12px] font-medium transition-colors",
+              className={cn("h-7 rounded px-2.5 text-sm font-medium transition-colors",
                 l.id === location.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
               {l.name}
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           From
           <input type="date" value={from} onChange={(e) => e.target.value && go({ from: e.target.value })}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-[12px] text-fg outline-none focus:border-accent" />
+            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
         </label>
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           To
           <input type="date" value={to} onChange={(e) => e.target.value && go({ to: e.target.value })}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-[12px] text-fg outline-none focus:border-accent" />
+            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
         </label>
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[13rem]" className="h-7 text-[12px]" />
+          wrapperClassName="w-[13rem]" className="h-7 text-sm" />
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
@@ -129,7 +136,7 @@ export function CocozuriStockMonth({
           ["uncounted", `Not counted ${rows.filter((r) => r.count == null).length}`],
         ] as const).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setOnly(k)}
-            className={cn("h-7 rounded-md border px-2.5 text-[12px] transition-colors",
+            className={cn("h-7 rounded-md border px-2.5 text-sm transition-colors",
               only === k ? "border-accent bg-accent-soft text-accent" : "border-border text-fg-muted hover:text-fg",
               k === "variance" && withVariance.length > 0 && only !== k && "text-warn")}>
             {label}
@@ -141,7 +148,7 @@ export function CocozuriStockMonth({
           has a VARIANCE column and a REMARKS column beside it, and the remarks
           are empty. Recording a count here refuses to save without a reason. */}
       {withVariance.length > 0 && (
-        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn">
+        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
           <AlertTriangle size={13} className="mt-px shrink-0" />
           <span>
             <strong>{withVariance.length}</strong> item{withVariance.length === 1 ? "" : "s"} counted differently from
@@ -152,7 +159,7 @@ export function CocozuriStockMonth({
 
       <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev">
         <div className="min-w-[54rem]">
-          <div className="grid grid-cols-[minmax(0,1fr)_70px_70px_70px_80px_80px_75px_75px_110px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+          <div className="grid grid-cols-[minmax(0,1fr)_70px_70px_70px_80px_80px_75px_75px_110px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
             <span>Item</span>
             <span className="text-right">Opening</span>
             <span className="text-right">In</span>
@@ -170,27 +177,27 @@ export function CocozuriStockMonth({
             return (
               <div key={r.item.id}
                 className="grid grid-cols-[minmax(0,1fr)_70px_70px_70px_80px_80px_75px_75px_110px] items-center gap-2 border-b border-border px-3 py-1 last:border-0">
-                <span className="min-w-0 truncate text-[12.5px] text-fg" title={r.count?.note ?? nameOf(r.item)}>
+                <span className="min-w-0 truncate text-sm text-fg" title={r.count?.note ?? nameOf(r.item)}>
                   {nameOf(r.item)}
-                  <span className="ml-1.5 text-[11px] text-fg-subtle">{r.item.uom}</span>
+                  <span className="ml-1.5 text-xs text-fg-subtle">{r.item.uom}</span>
                 </span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{qty(r.opening)}</span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{r.totalIn ? qty(r.totalIn) : "–"}</span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{r.totalOut ? qty(r.totalOut) : "–"}</span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{r.totalThird ? qty(r.totalThird) : "–"}</span>
-                <span className={cn("text-right text-[12.5px] tabular", r.computed < 0 ? "text-danger" : "text-fg")}>{qty(r.computed)}</span>
-                <button type="button" onClick={() => setTaking({ item: r.item, expected: balanceAt(r.item.id, days, counts, to).closing })}
-                  className="text-right text-[12.5px] tabular text-fg-muted hover:text-accent"
+                <span className="text-right text-sm tabular text-fg-muted">{qty(r.opening)}</span>
+                <span className="text-right text-sm tabular text-fg-muted">{r.totalIn ? qty(r.totalIn) : "–"}</span>
+                <span className="text-right text-sm tabular text-fg-muted">{r.totalOut ? qty(r.totalOut) : "–"}</span>
+                <span className="text-right text-sm tabular text-fg-muted">{r.totalThird ? qty(r.totalThird) : "–"}</span>
+                <span className={cn("text-right text-sm tabular", r.computed < 0 ? "text-danger" : "text-fg")}>{qty(r.computed)}</span>
+                <button type="button" onClick={() => setTaking({ item: r.item, expected: ledgerBalanceAt(r.item.id, location.id, moves, counts, to).closing })}
+                  className="text-right text-sm tabular text-fg-muted hover:text-accent"
                   title={r.count ? `Counted on ${r.count.countedOn}` : "Record a count"}>
                   {r.count ? qty(r.count.qty) : "–"}
                 </button>
                 {/* ⚠️ "Nobody counted" is a dash, never a zero. A variance of
                     zero is a real finding; not having looked is not. */}
-                <span className={cn("text-right text-[12.5px] tabular",
+                <span className={cn("text-right text-sm tabular",
                   v == null ? "text-fg-subtle" : Math.abs(v) < 0.0005 ? "text-success" : v < 0 ? "text-danger" : "text-warn")}>
                   {v == null ? "–" : v > 0 ? `+${qty(v)}` : qty(v)}
                 </span>
-                <span className={cn("text-right text-[12.5px] tabular", s?.value == null ? "text-fg-subtle" : "text-fg-muted")}>
+                <span className={cn("text-right text-sm tabular", s?.value == null ? "text-fg-subtle" : "text-fg-muted")}>
                   {s?.value == null ? (s && s.units > 0 ? "no price" : "–") : money(s.value)}
                 </span>
               </div>
@@ -198,10 +205,10 @@ export function CocozuriStockMonth({
           })}
 
           {shown.length === 0 && (
-            <p className="px-3 py-8 text-center text-[12.5px] text-fg-subtle">Nothing matches that.</p>
+            <p className="px-3 py-8 text-center text-sm text-fg-subtle">Nothing matches that.</p>
           )}
 
-          <div className="grid grid-cols-[minmax(0,1fr)_70px_70px_70px_80px_80px_75px_75px_110px] items-center gap-2 border-t-2 border-border bg-bg-subtle px-3 py-1.5 text-[12px] font-semibold text-fg">
+          <div className="grid grid-cols-[minmax(0,1fr)_70px_70px_70px_80px_80px_75px_75px_110px] items-center gap-2 border-t-2 border-border bg-bg-subtle px-3 py-1.5 text-sm font-semibold text-fg">
             <span>{shown.length} items</span>
             <span />
             <span className="text-right tabular">{qty(totals.inQ)}</span>
@@ -220,7 +227,7 @@ export function CocozuriStockMonth({
           they came into force. A total that quietly leaves things out is the
           fault this module exists to end, so it is never silent either way. */}
       {unpriced.length > 0 && (
-        <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-[11.5px] leading-relaxed text-fg-muted">
+        <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-xs leading-relaxed text-fg-muted">
           <strong className="text-fg">{unpriced.length}</strong> item{unpriced.length === 1 ? "" : "s"} went out with no
           price in force on the day, so {unpriced.length === 1 ? "it is" : "they are"} not in that total — nothing here
           will invent a figure.
@@ -298,24 +305,24 @@ function CountSheet({
     <BottomSheet open onClose={onClose} title="Count the shelf" maxWidth="max-w-lg">
       <div className="flex flex-col gap-3 px-1 pb-2">
         <div>
-          <p className="text-[13px] font-medium text-fg">{name}</p>
-          <p className="text-[11.5px] text-fg-subtle">Counted as at the end of {countedOn}</p>
+          <p className="text-base font-medium text-fg">{name}</p>
+          <p className="text-xs text-fg-subtle">Counted as at the end of {countedOn}</p>
         </div>
 
-        <div className="flex items-center justify-between rounded-md border border-border bg-bg-subtle px-3 py-2 text-[12.5px]">
+        <div className="flex items-center justify-between rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
           <span className="text-fg-muted">The book says</span>
           <span className="tabular font-medium text-fg">{qty(expected)} {item.uom}</span>
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Actually on the shelf</span>
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Actually on the shelf</span>
           <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" autoFocus
-            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[13px] tabular outline-none focus:border-accent"
+            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-base tabular outline-none focus:border-accent"
             placeholder="Count it and type the number" />
         </label>
 
         {variance != null && (
-          <div className={cn("rounded-md border px-3 py-2 text-[12.5px]",
+          <div className={cn("rounded-md border px-3 py-2 text-sm",
             Math.abs(variance) < 0.0005 ? "border-success/30 bg-success/10 text-success" : "border-warn/30 bg-warn/10 text-warn")}>
             {Math.abs(variance) < 0.0005
               ? "That agrees with the book."
@@ -324,14 +331,14 @@ function CountSheet({
         )}
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
             Why {needsReason && <span className="text-warn">— required</span>}
           </span>
           <input value={note} onChange={(e) => setNote(e.target.value)}
-            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
+            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
             placeholder={needsReason ? "Breakages, samples, a delivery not written down…" : "Anything worth remembering"} />
           {needsReason && (
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               A count that finds a difference and says nothing is a number nobody can act on.
             </span>
           )}
@@ -339,13 +346,13 @@ function CountSheet({
 
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void save()} disabled={busy || counted == null || (needsReason && !note.trim())}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
             {busy ? <Loader2 size={13} className="animate-spin" /> : <ClipboardCheck size={13} />} Save the count
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">Cancel</button>
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
         </div>
 
-        <p className="text-[11px] leading-relaxed text-fg-subtle">
+        <p className="text-xs leading-relaxed text-fg-subtle">
           A count is the position at the <strong>end</strong> of its date, and it becomes the new truth — everything
           after it is carried forward from what was counted, not from what the book said.
         </p>

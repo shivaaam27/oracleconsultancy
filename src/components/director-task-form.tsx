@@ -59,7 +59,7 @@ const DAY_CHIPS = [
 // Every field is a defined, filled box (matching the Responsible-people picker)
 // so none of them read as "invisible" on the sheet.
 const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
-const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 const selectBtn = "flex w-full items-center justify-between rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm transition-colors hover:ring-accent/40";
 const FORM_ID = "director-task-form";
 
@@ -285,7 +285,7 @@ export function DirectorTaskForm({
           <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
         )}
         {companyIds.length > 1 && (
-          <p className="mt-1.5 text-[11px] text-accent">Creates {companyIds.length} tasks — one per company</p>
+          <p className="mt-1.5 text-xs text-accent">Creates {companyIds.length} tasks — one per company</p>
         )}
       </div>
 
@@ -317,7 +317,7 @@ export function DirectorTaskForm({
                       : "bg-bg-subtle text-fg-muted ring-border hover:ring-accent/40"
                   }`}
                 >
-                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-medium ${lead ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted"}`}>
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-medium ${lead ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted"}`}>
                     {initials(p.name)}
                   </span>
                   {firstName(p.name)}
@@ -326,7 +326,7 @@ export function DirectorTaskForm({
               );
             })}
           </div>
-          <p className="mt-1.5 text-[11px] text-fg-muted">Tap a star to set the lead. At least one is required.</p>
+          <p className="mt-1.5 text-xs text-fg-muted">Tap a star to set the lead. At least one is required.</p>
         </div>
       )}
 
@@ -372,7 +372,7 @@ export function DirectorTaskForm({
               <RefreshCw size={14} className="text-fg-muted" /> Repeat
             </span>
             <span className="flex items-center gap-2 text-fg-subtle">
-              {repeatOn && <span className="text-[11px] text-accent">On</span>}
+              {repeatOn && <span className="text-xs text-accent">On</span>}
               <ChevronDown size={14} className={`transition-transform ${repeatOpen ? "rotate-180" : ""}`} />
             </span>
           </button>
@@ -410,7 +410,7 @@ export function DirectorTaskForm({
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-fg-muted">Day of month</span>
+                      <span className="text-xs text-fg-muted">Day of month</span>
                       <input
                         type="number" min={1} max={31} value={repeatDayOfMonth}
                         onChange={(e) => setRepeatDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}

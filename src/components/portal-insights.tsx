@@ -117,7 +117,7 @@ export function PortalInsights({ openTotal, overdueTotal, statuses, priorities, 
 
       {/* Open by company */}
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Open by company</p>
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Open by company</p>
         <div className="glass elevated rounded-2xl p-4 space-y-2.5">
           {companies.length === 0 ? (
             <p className="py-2 text-sm text-fg-muted">No open tasks — all clear.</p>
@@ -127,7 +127,7 @@ export function PortalInsights({ openTotal, overdueTotal, statuses, priorities, 
                 <div className="truncate text-fg">{c.name}</div>
                 <Bar value={c.open} max={maxCompanyOpen} tone="accent" reduced={reduced} />
                 {c.overdue > 0 ? (
-                  <span className="shrink-0 inline-flex items-center rounded-full bg-danger-soft/60 px-2 py-0.5 text-[11px] font-medium text-danger ring-1 ring-danger/25">
+                  <span className="shrink-0 inline-flex items-center rounded-full bg-danger-soft/60 px-2 py-0.5 text-xs font-medium text-danger ring-1 ring-danger/25">
                     {c.overdue} overdue
                   </span>
                 ) : (
@@ -142,11 +142,11 @@ export function PortalInsights({ openTotal, overdueTotal, statuses, priorities, 
       {/* Status + priority */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Status distribution</p>
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Status distribution</p>
           <BarList segments={statuses} reduced={reduced} />
         </section>
         <section className="space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Priority breakdown</p>
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted px-1">Priority breakdown</p>
           <BarList segments={priorities} reduced={reduced} />
         </section>
       </div>

@@ -487,17 +487,17 @@ export function ChatSurface(props: Props) {
                           {t.title}
                         </span>
                         {t.lastMessageAt && (
-                          <span className={`shrink-0 text-[12px] ${t.unread > 0 ? "font-semibold text-accent" : "text-fg-subtle"}`}>
+                          <span className={`shrink-0 text-sm ${t.unread > 0 ? "font-semibold text-accent" : "text-fg-subtle"}`}>
                             {dayKey(t.lastMessageAt)}
                           </span>
                         )}
                       </span>
                       <span className="mt-0.5 flex items-center justify-between gap-2">
-                        <span className={`truncate text-[13px] ${t.unread > 0 ? "text-fg" : "text-fg-muted"}`}>
+                        <span className={`truncate text-base ${t.unread > 0 ? "text-fg" : "text-fg-muted"}`}>
                           {t.preview ?? "Tap to start chatting"}
                         </span>
                         {t.unread > 0 && (
-                          <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-fg">
+                          <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-fg">
                             {t.unread > 99 ? "99+" : t.unread}
                           </span>
                         )}
@@ -548,7 +548,7 @@ export function ChatSurface(props: Props) {
               <Avatar name={detail?.title ?? "?"} group={detail?.kind === "group"} system={detail?.kind === "system"} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold">{detail?.title ?? "Conversation"}</p>
-                <p className="truncate text-[12px] text-fg-muted">
+                <p className="truncate text-sm text-fg-muted">
                   {typing.length > 0
                     ? `${typing.join(", ")} ${typing.length === 1 ? "is" : "are"} typing…`
                     : detail?.kind === "system"
@@ -597,7 +597,7 @@ export function ChatSurface(props: Props) {
                   <button
                     type="button"
                     onClick={() => selected != null && reloadThread(selected)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-accent-fg shadow-sm transition-transform hover:scale-105 active:scale-95"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-base font-semibold text-accent-fg shadow-sm transition-transform hover:scale-105 active:scale-95"
                   >
                     <RotateCw size={14} /> Try again
                   </button>
@@ -630,7 +630,7 @@ export function ChatSurface(props: Props) {
               <button
                 type="button"
                 onClick={jumpToLatest}
-                className="absolute bottom-[5.25rem] left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-accent-fg shadow-pill transition-transform hover:scale-105 active:scale-95"
+                className="absolute bottom-[5.25rem] left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent px-3.5 py-1.5 text-sm font-semibold text-accent-fg shadow-pill transition-transform hover:scale-105 active:scale-95"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                   <path d={ARROW_DOWN} strokeLinecap="round" strokeLinejoin="round" />
@@ -640,7 +640,7 @@ export function ChatSurface(props: Props) {
             )}
 
             {detail?.kind === "system" ? (
-              <div className="border-t border-border/60 px-4 py-3 text-center text-[13px] text-fg-muted">
+              <div className="border-t border-border/60 px-4 py-3 text-center text-base text-fg-muted">
                 {/reminder/i.test(detail.title ?? "") ? "Task reminders appear here automatically." : "Announcements appear here."} This channel is read-only.
               </div>
             ) : (
@@ -777,7 +777,7 @@ export function ChatSurface(props: Props) {
 
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-[70] flex justify-center px-4">
-          <span className="rounded-full bg-fg/90 px-4 py-2 text-[13px] font-medium text-bg shadow-lg backdrop-blur">
+          <span className="rounded-full bg-fg/90 px-4 py-2 text-base font-medium text-bg shadow-lg backdrop-blur">
             {toast}
           </span>
         </div>
@@ -802,7 +802,7 @@ function ActionSheet({ title, items, onClose }: { title: string; items: SheetIte
     <div className="fixed inset-0 z-[65] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       <button type="button" aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative m-3 w-full max-w-sm overflow-hidden rounded-3xl bg-bg-elev/95 shadow-pill ring-1 ring-border backdrop-blur-xl">
-        <p className="truncate px-5 pb-1 pt-4 text-[13px] font-semibold text-fg-subtle">{title}</p>
+        <p className="truncate px-5 pb-1 pt-4 text-base font-semibold text-fg-subtle">{title}</p>
         <div className="pb-2">
           {items.map((it, i) => {
             const Icon = it.icon;
@@ -957,7 +957,7 @@ function MessageList({
           <div key={m.id}>
             {showDay && (
               <div className="my-3 flex justify-center">
-                <span className="rounded-full bg-bg-elev/80 px-3 py-1 text-[12px] font-semibold text-fg-muted shadow-sm ring-1 ring-border/60 backdrop-blur">
+                <span className="rounded-full bg-bg-elev/80 px-3 py-1 text-sm font-semibold text-fg-muted shadow-sm ring-1 ring-border/60 backdrop-blur">
                   {day}
                 </span>
               </div>
@@ -1040,7 +1040,7 @@ const Bubble = memo(function Bubble({
   if (m.deletedAt) {
     return (
       <div className={`flex ${mine ? "justify-end" : "justify-start"} ${lastInGroup ? "mb-2.5" : "mb-0.5"}`}>
-        <span className="rounded-2xl bg-bg-muted/50 px-3.5 py-2 text-[13px] italic text-fg-subtle ring-1 ring-border/50">
+        <span className="rounded-2xl bg-bg-muted/50 px-3.5 py-2 text-base italic text-fg-subtle ring-1 ring-border/50">
           🚫 This message was deleted
         </span>
       </div>
@@ -1061,7 +1061,7 @@ const Bubble = memo(function Bubble({
       {showAvatar && (lastInGroup ? <Avatar name={m.senderName} size={28} /> : <span className="w-7 shrink-0" />)}
       <div className={`flex max-w-[80%] flex-col ${mine ? "items-end" : "items-start"} ${m.pending ? "opacity-70" : ""}`}>
         {showAvatar && firstInGroup && (
-          <span className="mb-0.5 ml-1 text-[12px] font-semibold text-fg-muted">{m.senderName}</span>
+          <span className="mb-0.5 ml-1 text-sm font-semibold text-fg-muted">{m.senderName}</span>
         )}
 
         {images.length > 0 && (
@@ -1092,11 +1092,11 @@ const Bubble = memo(function Bubble({
                   <button
                     type="button"
                     onClick={() => onEdit(m.id, draft)}
-                    className="rounded-md bg-white/25 px-2 py-0.5 text-[12px] font-medium"
+                    className="rounded-md bg-white/25 px-2 py-0.5 text-sm font-medium"
                   >
                     Save
                   </button>
-                  <button type="button" onClick={onCancelEdit} className="px-2 py-0.5 text-[12px] opacity-80">
+                  <button type="button" onClick={onCancelEdit} className="px-2 py-0.5 text-sm opacity-80">
                     Cancel
                   </button>
                 </div>
@@ -1128,7 +1128,7 @@ const Bubble = memo(function Bubble({
                       const { url } = await signAttachment(a.path);
                       if (url) window.open(url, "_blank");
                     }}
-                    className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[13px] transition-colors ${
+                    className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-base transition-colors ${
                       mine ? "bg-white/20 hover:bg-white/30" : "bg-bg-subtle hover:bg-bg-muted"
                     }`}
                   >
@@ -1141,7 +1141,7 @@ const Bubble = memo(function Bubble({
             {m.taskCode && (
               <Link
                 href={`${taskBase}/${m.taskCode}`}
-                className={`mt-1.5 inline-block rounded-lg px-2 py-0.5 text-[12px] font-semibold ${
+                className={`mt-1.5 inline-block rounded-lg px-2 py-0.5 text-sm font-semibold ${
                   mine ? "bg-white/20 hover:bg-white/30" : "bg-accent-soft text-accent hover:brightness-95"
                 }`}
               >
@@ -1153,7 +1153,7 @@ const Bubble = memo(function Bubble({
 
         {lastInGroup && (
           <div className={`mt-1 flex items-center gap-1.5 px-1 ${mine ? "flex-row-reverse" : ""}`}>
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               {fmtTime(m.createdAt)}
               {m.editedAt ? " · edited" : ""}
             </span>
@@ -1271,7 +1271,7 @@ function Composer({
       {files.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5 px-1">
           {files.map((f, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-bg-muted px-2.5 py-1 text-[12px]">
+            <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-bg-muted px-2.5 py-1 text-sm">
               {isImage(f.type) ? <ImageIcon size={12} /> : <Paperclip size={12} />}
               <span className="max-w-[12rem] truncate">{f.name}</span>
               <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-fg-muted hover:text-danger">
@@ -1281,7 +1281,7 @@ function Composer({
           ))}
         </div>
       )}
-      {error && <p className="mb-1.5 px-2 text-[12px] text-danger">{error}</p>}
+      {error && <p className="mb-1.5 px-2 text-sm text-danger">{error}</p>}
       <div className="flex items-end gap-1.5 rounded-xl bg-bg-subtle px-1.5 py-1 transition-shadow focus-within:ring-2 ring-accent/30">
         <button
           type="button"
@@ -1406,7 +1406,7 @@ function NewChatDialog({
                         <X size={11} />
                       </span>
                     </span>
-                    <span className="max-w-[3.5rem] truncate text-[11px] text-fg-muted">{p.name.split(/\s+/)[0]}</span>
+                    <span className="max-w-[3.5rem] truncate text-xs text-fg-muted">{p.name.split(/\s+/)[0]}</span>
                   </button>
                 ))}
               </div>
@@ -1475,7 +1475,7 @@ function NewChatDialog({
 
         {mode === "group" && (
           <div className="border-t border-border/60 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-            {err && <p className="mb-2 text-[12px] text-danger">{err}</p>}
+            {err && <p className="mb-2 text-sm text-danger">{err}</p>}
             <button
               type="button"
               disabled={!title.trim() || picked.length === 0 || busy}

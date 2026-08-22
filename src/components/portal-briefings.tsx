@@ -34,14 +34,14 @@ export function PortalBriefings({
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded px-3 text-[13px] font-medium transition-colors",
+              "inline-flex h-7 items-center gap-1.5 rounded px-3 text-base font-medium transition-colors",
               tab === t.key ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border/50" : "text-fg-muted hover:text-fg",
             )}
           >
             {t.label}
             {t.count > 0 && (
               <span className={cn(
-                "min-w-[18px] rounded-full px-1.5 text-center text-[11px] font-semibold tabular",
+                "min-w-[18px] rounded-full px-1.5 text-center text-xs font-semibold tabular",
                 t.key === "announcements" ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted",
               )}>
                 {t.count}

@@ -22,14 +22,14 @@ export function HomeAutonomyRecap({ items }: { items: CockpitItem[] }) {
         <Sparkles size={15} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-fg">
+        <div className="text-base font-medium text-fg">
           ORI handled {items.length} thing{items.length === 1 ? "" : "s"} for you
         </div>
-        <div className="text-[11px] text-fg-subtle truncate">
+        <div className="text-xs text-fg-subtle truncate">
           {top.map((t) => t.summary).join(" · ")}
         </div>
       </div>
-      <span className="text-[11px] text-fg-subtle flex items-center gap-1 shrink-0 group-hover:text-accent transition">
+      <span className="text-xs text-fg-subtle flex items-center gap-1 shrink-0 group-hover:text-accent transition">
         Review <ArrowRight size={12} />
       </span>
     </Link>

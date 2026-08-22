@@ -141,7 +141,7 @@ export function HeroMetrics({ items }: { items: { label: string; value: ReactNod
         const inner = (
           <>
             <span className={cn("text-xl font-semibold leading-none tabular", m.tone ? TONE[m.tone].text : "text-fg")}>{m.value}</span>
-            <span className="text-[11px] text-fg-muted">{m.label}</span>
+            <span className="text-xs text-fg-muted">{m.label}</span>
           </>
         );
         return m.href ? (
@@ -173,7 +173,7 @@ export function TrendChip({
   const tone: Tone = good ? "success" : "danger";
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-semibold tabular leading-none", TONE[tone].text, className)}>
+    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular leading-none", TONE[tone].text, className)}>
       <Icon size={11} />
       {Math.abs(delta)}
       {suffix}

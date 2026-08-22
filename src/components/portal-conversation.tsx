@@ -167,7 +167,7 @@ export function PortalConversation(props: Props) {
   const AckRow = ({ m }: { m: ConvoMessage }) => (
     <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
       {canAck && ackAction && m.iAcked && (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
           <CheckCheck size={12} /> You confirmed you&apos;ve read this
         </span>
       )}
@@ -177,21 +177,21 @@ export function PortalConversation(props: Props) {
           <input type="hidden" name="code" value={code} />
           <button
             type="submit"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 text-[11px] font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 text-xs font-semibold hover:opacity-90 transition-opacity"
           >
             <Check size={12} /> Understood
           </button>
         </form>
       )}
-      {m.ackNames.length > 0 && <span className="text-[11px] text-fg-subtle">Read by {m.ackNames.join(", ")}</span>}
+      {m.ackNames.length > 0 && <span className="text-xs text-fg-subtle">Read by {m.ackNames.join(", ")}</span>}
       {canAck === false && m.ackNames.length === 0 && (
-        <span className="text-[11px] text-fg-subtle">Not yet acknowledged</span>
+        <span className="text-xs text-fg-subtle">Not yet acknowledged</span>
       )}
     </div>
   );
 
   const EventMarker = ({ e }: { e: ConvoEvent }) => (
-    <div className="flex items-center gap-2 px-1 py-0.5 text-[11px] text-fg-subtle">
+    <div className="flex items-center gap-2 px-1 py-0.5 text-xs text-fg-subtle">
       <span className="h-px grow bg-border/60" />
       <span className="shrink-0">{e.text} · {time(e.at)}</span>
       <span className="h-px grow bg-border/60" />
@@ -245,7 +245,7 @@ export function PortalConversation(props: Props) {
       </div>
 
       {m.parent && (
-        <div className="mt-1.5 rounded-lg border-l-2 border-accent/40 bg-bg-subtle/50 px-2 py-1 text-[11px] text-fg-muted">
+        <div className="mt-1.5 rounded-lg border-l-2 border-accent/40 bg-bg-subtle/50 px-2 py-1 text-xs text-fg-muted">
           <span className="font-medium text-fg-subtle">↪ {m.parent.authorName}: </span>
           <span className="italic">{m.parent.snippet}{m.parent.snippet.length >= 80 ? "…" : ""}</span>
         </div>
@@ -257,8 +257,8 @@ export function PortalConversation(props: Props) {
           <input type="hidden" name="code" value={code} />
           <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-xl bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40" />
           <div className="flex items-center gap-2">
-            <button type="submit" className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-90 transition-opacity"><Check size={12} /> Save</button>
-            <button type="button" onClick={() => setEditingId(null)} className="inline-flex h-7 items-center rounded-md px-3 text-[12px] text-fg-muted hover:text-fg">Cancel</button>
+            <button type="submit" className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-semibold text-accent-fg hover:opacity-90 transition-opacity"><Check size={12} /> Save</button>
+            <button type="button" onClick={() => setEditingId(null)} className="inline-flex h-7 items-center rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
           </div>
         </form>
       ) : (
@@ -274,13 +274,13 @@ export function PortalConversation(props: Props) {
       )}
 
       {deletingId === m.id && deleteAction && (
-        <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-2 flex items-center gap-2 rounded-lg bg-danger-soft/40 px-2.5 py-1.5 text-[12px] ring-1 ring-danger/20">
+        <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-2 flex items-center gap-2 rounded-lg bg-danger-soft/40 px-2.5 py-1.5 text-sm ring-1 ring-danger/20">
           <input type="hidden" name="updateId" value={m.id} />
           <input type="hidden" name="code" value={code} />
           <span className="text-fg-muted">Delete this note?</span>
           <span className="grow" />
-          <button type="submit" className="inline-flex h-6 items-center gap-1 rounded bg-danger px-2 text-[11px] font-medium text-white hover:opacity-90"><Trash2 size={11} /> Delete</button>
-          <button type="button" onClick={() => setDeletingId(null)} className="inline-flex h-6 items-center rounded px-1.5 text-[11px] text-fg-muted hover:text-fg">Keep</button>
+          <button type="submit" className="inline-flex h-6 items-center gap-1 rounded bg-danger px-2 text-xs font-medium text-white hover:opacity-90"><Trash2 size={11} /> Delete</button>
+          <button type="button" onClick={() => setDeletingId(null)} className="inline-flex h-6 items-center rounded px-1.5 text-xs text-fg-muted hover:text-fg">Keep</button>
         </form>
       )}
 
@@ -297,7 +297,7 @@ export function PortalConversation(props: Props) {
         </a>
       )}
       {latestId === m.id && seenLabel.length > 0 && (
-        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
+        <p className="mt-1.5 flex items-center gap-1 text-xs text-fg-subtle">
           <CheckCheck size={12} className="text-info" /> Seen by {seenLabel.join(", ")}
         </p>
       )}
@@ -312,7 +312,7 @@ export function PortalConversation(props: Props) {
         <div className="flex flex-col gap-2">
           {pinned.map((m) => (
             <div key={m.id} className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-accent">
                 <Pin size={12} /> Current instruction
                 <span className="grow" />
                 {canPin && (
@@ -326,7 +326,7 @@ export function PortalConversation(props: Props) {
                 )}
               </div>
               <p className="mt-1 text-sm font-medium leading-relaxed whitespace-pre-wrap">{m.body}</p>
-              <p className="mt-0.5 text-[11px] text-fg-muted">— {m.authorName}, {time(m.at)}</p>
+              <p className="mt-0.5 text-xs text-fg-muted">— {m.authorName}, {time(m.at)}</p>
               <AckRow m={m} />
             </div>
           ))}
@@ -421,7 +421,7 @@ export function PortalConversation(props: Props) {
                 <Send size={13} /> {replyTo ? "Reply" : "Post"}
               </button>
             </div>
-            {composerHint && <p className="text-[11px] text-fg-subtle">{composerHint}</p>}
+            {composerHint && <p className="text-xs text-fg-subtle">{composerHint}</p>}
           </form>
         </div>
       )}
@@ -439,12 +439,12 @@ export function PortalConversation(props: Props) {
         {groups.map((g, i) =>
           i < 2 ? (
             <div key={g.label} className="flex flex-col gap-2">
-              <p className="px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
+              <p className="px-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
               {g.items.map(renderItem)}
             </div>
           ) : (
             <details key={g.label}>
-              <summary className="cursor-pointer list-none px-1 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
+              <summary className="cursor-pointer list-none px-1 py-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
                 {g.label} · {g.items.length} item{g.items.length === 1 ? "" : "s"} — tap to show
               </summary>
               <div className="mt-1 flex flex-col gap-2">{g.items.map(renderItem)}</div>

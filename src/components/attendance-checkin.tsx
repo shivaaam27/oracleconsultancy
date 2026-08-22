@@ -50,13 +50,13 @@ export function AttendanceCheckin({ firstName, status, editable }: { firstName: 
           <div className="mt-4 grid grid-cols-2 gap-2">
             {ATTENDANCE_SELF_STATUSES.map((s) => (
               <button key={s} type="button" disabled={pending} onClick={() => mark(s)}
-                className={cn("group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-bg-subtle ring-1 ring-border py-3.5 text-[13px] font-medium transition-all hover:bg-accent hover:text-accent-fg hover:ring-accent hover:-translate-y-0.5 disabled:opacity-50")}>
+                className={cn("group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-bg-subtle ring-1 ring-border py-3.5 text-base font-medium transition-all hover:bg-accent hover:text-accent-fg hover:ring-accent hover:-translate-y-0.5 disabled:opacity-50")}>
                 <span className="text-fg-muted group-hover:text-accent-fg transition-colors">{ICON[s]}</span>
                 {s}
               </button>
             ))}
           </div>
-          <button type="button" onClick={dismiss} className="mt-3.5 w-full text-center text-[11px] text-fg-subtle hover:text-fg transition-colors">Maybe later</button>
+          <button type="button" onClick={dismiss} className="mt-3.5 w-full text-center text-xs text-fg-subtle hover:text-fg transition-colors">Maybe later</button>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

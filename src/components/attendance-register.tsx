@@ -124,12 +124,12 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
       {/* Brush palette — shared by both modes; chips sit at a 44px target on
           phones (py-2.5) and tighten to py-1 from sm up. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] text-fg-subtle">Paint:</span>
+        <span className="text-xs text-fg-subtle">Paint:</span>
         {BRUSHES.map((b) => {
           const active = brush === b;
           return (
             <button key={b} type="button" onClick={() => setBrush(b)}
-              className={cn("inline-flex items-center gap-1 rounded-full px-3 sm:px-2.5 py-2.5 sm:py-1 text-xs sm:text-[11px] font-medium ring-1 transition-colors",
+              className={cn("inline-flex items-center gap-1 rounded-full px-3 sm:px-2.5 py-2.5 sm:py-1 text-xs sm:text-xs font-medium ring-1 transition-colors",
                 active ? "bg-accent text-accent-fg ring-accent" : b === "Clear" ? "bg-bg-subtle ring-border text-fg-muted hover:text-fg" : cn(ATTENDANCE_CELL[b as AttendanceStatus], "ring-transparent opacity-90 hover:opacity-100"))}>
               {b === "Clear" ? <Eraser size={13} /> : <span className="font-bold">{ATTENDANCE_ABBR[b as AttendanceStatus]}</span>} {b}
             </button>
@@ -146,7 +146,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
               badge). Hidden on phones, where the 31-column grid forces a long
               horizontal scroll and only 4–5 days are ever in view. */}
           <div className="hidden sm:block glass elevated rounded-2xl overflow-auto">
-            <table className="border-collapse text-[11px]">
+            <table className="border-collapse text-xs">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-bg-elev text-left font-medium text-fg-muted px-3 py-2 min-w-[7.5rem]">Person</th>
@@ -177,7 +177,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
                         <td key={day} className={cn("p-0.5 text-center", dow === 0 && "bg-bg-muted/20")}>
                           <button type="button" disabled={pending} onClick={() => paint(p.id, day, derived)}
                             title={title}
-                            className={cn("relative h-6 w-6 rounded-md inline-flex items-center justify-center text-[10px] font-bold transition-colors",
+                            className={cn("relative h-6 w-6 rounded-md inline-flex items-center justify-center text-xs font-bold transition-colors",
                               status ? ATTENDANCE_CELL[status] : "bg-bg-muted/30 text-fg-subtle hover:bg-bg-muted/60",
                               derived && "opacity-60 cursor-not-allowed", day === todayKey && "ring-1 ring-accent/50")}>
                             {status ? ATTENDANCE_ABBR[status] : ""}
@@ -246,7 +246,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
                     >
                       {/* Date block */}
                       <span className="shrink-0 w-12 text-center">
-                        <span className="block text-[11px] uppercase tracking-wider text-fg-subtle">{weekday}</span>
+                        <span className="block text-xs uppercase tracking-wider text-fg-subtle">{weekday}</span>
                         <span className={cn("block text-base font-semibold tabular", day === todayKey && "text-accent")}>{dnum}</span>
                       </span>
                       {/* Status pill */}
@@ -255,17 +255,17 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
                           <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium", ATTENDANCE_CELL[status])}>
                             <span className="font-bold">{ATTENDANCE_ABBR[status]}</span>
                             {status}
-                            {derived && <span className="text-[10px] opacity-70">(auto)</span>}
-                            {selfBy && <span className="text-[10px] opacity-70">· self check-in</span>}
+                            {derived && <span className="text-xs opacity-70">(auto)</span>}
+                            {selfBy && <span className="text-xs opacity-70">· self check-in</span>}
                           </span>
                         ) : (
                           <span className="text-xs text-fg-subtle">Not recorded</span>
                         )}
-                        {hol && <span className="block text-[11px] text-info mt-0.5 truncate">{hol}</span>}
+                        {hol && <span className="block text-xs text-info mt-0.5 truncate">{hol}</span>}
                       </span>
                       {/* What a tap will do (the active brush) */}
                       {!derived && (
-                        <span className="shrink-0 text-[11px] text-fg-subtle">
+                        <span className="shrink-0 text-xs text-fg-subtle">
                           Tap → <span className="font-medium text-fg">{brush}</span>
                         </span>
                       )}
@@ -278,7 +278,7 @@ export function AttendanceRegister({ month, companies, basePath = "/hrms/leave" 
         </>
       )}
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-fg-subtle px-1">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-subtle px-1">
         {ATTENDANCE_STATUSES.map((s) => (
           <span key={s} className="inline-flex items-center gap-1"><span className={cn("h-3 w-3 rounded-sm inline-flex items-center justify-center font-bold text-[8px]", ATTENDANCE_CELL[s])}>{ATTENDANCE_ABBR[s]}</span>{s}</span>
         ))}

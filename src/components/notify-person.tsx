@@ -35,7 +35,7 @@ export function NotifyPerson({
   // Explicit height tokens, not padding: `sm` is the 28px secondary tier (a task
   // row, the per-task page), `md` the 36px primary tier. Derived heights were how
   // these two ended up a couple of pixels off every control beside them.
-  const pad = size === "sm" ? "h-7 px-2.5 text-[12px]" : "h-9 px-3.5 text-sm";
+  const pad = size === "sm" ? "h-7 px-2.5 text-sm" : "h-9 px-3.5 text-sm";
   const tid = scope === "task" ? taskId : undefined;
   const noun = scope === "task" ? "this task" : "summary";
 
@@ -72,7 +72,7 @@ export function NotifyPerson({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {taskId != null && (
-        <div className="inline-flex self-start items-center gap-0.5 rounded-md bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[11px]">
+        <div className="inline-flex self-start items-center gap-0.5 rounded-md bg-bg-subtle/70 p-0.5 ring-1 ring-border text-xs">
           {(["task", "all"] as const).map((s) => (
             <button
               key={s}

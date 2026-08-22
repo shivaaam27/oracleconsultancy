@@ -88,10 +88,10 @@ export function PersonCard({ p }: { p: TeamPerson }) {
   return (
     <Panel className="overflow-hidden p-0">
       <div className="flex items-center gap-3 p-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">{initials(p.name)}</span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">{initials(p.name)}</span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{p.name}</p>
-          <p className="truncate text-[11px] text-fg-muted">
+          <p className="truncate text-xs text-fg-muted">
             {[p.role, p.company].filter(Boolean).join(" · ") || "—"}
             {hasTasks ? (
               <>

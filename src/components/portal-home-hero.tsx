@@ -37,7 +37,7 @@ export function PortalHomeHero({
     <section data-page-header style={PORTAL_HEADER_CARD}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-fg-subtle">My work</p>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">My work</p>
           <h1 className="text-xl font-semibold tracking-tight">{greeting}, {firstName}</h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-fg-muted">
             {subtitle && <><span>{subtitle}</span><span className="text-fg-subtle">·</span></>}
@@ -49,7 +49,7 @@ export function PortalHomeHero({
             </span>
           </div>
         </div>
-        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-[11px] font-semibold text-accent sm:grid">{initials}</span>
+        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-xs font-semibold text-accent sm:grid">{initials}</span>
       </div>
     </section>
   );

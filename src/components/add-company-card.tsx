@@ -76,7 +76,7 @@ export function AddCompanyCard() {
 
       <div className="space-y-2.5">
         <div>
-          <label className="text-[11px] font-medium text-fg-subtle">Name</label>
+          <label className="text-xs font-medium text-fg-subtle">Name</label>
           <input
             value={name} autoFocus onChange={(e) => onName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
@@ -87,7 +87,7 @@ export function AddCompanyCard() {
 
         <div className="flex items-end gap-2.5">
           <div className="flex-1">
-            <label className="text-[11px] font-medium text-fg-subtle">Task-code prefix</label>
+            <label className="text-xs font-medium text-fg-subtle">Task-code prefix</label>
             <input
               value={prefix}
               onChange={(e) => { setPrefixTouched(true); setPrefix(e.target.value.toUpperCase().slice(0, 4)); }}
@@ -97,14 +97,14 @@ export function AddCompanyCard() {
             />
           </div>
           <div>
-            <label className="text-[11px] font-medium text-fg-subtle">Colour</label>
+            <label className="text-xs font-medium text-fg-subtle">Colour</label>
             <input
               type="color" value={accent} onChange={(e) => setAccent(e.target.value)}
               className="mt-1 h-[38px] w-12 rounded-lg bg-bg-subtle ring-1 ring-border p-1 cursor-pointer"
             />
           </div>
         </div>
-        <p className="text-[11px] text-fg-subtle">Tasks for this company will be coded <span className="font-mono">{(prefix || "XX")}-001</span>, <span className="font-mono">{(prefix || "XX")}-002</span>…</p>
+        <p className="text-xs text-fg-subtle">Tasks for this company will be coded <span className="font-mono">{(prefix || "XX")}-001</span>, <span className="font-mono">{(prefix || "XX")}-002</span>…</p>
       </div>
 
       <div className="flex items-center gap-2 pt-1">

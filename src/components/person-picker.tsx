@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { X, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -45,6 +47,8 @@ export function PersonPicker({
   }, [selected]);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const { anchorRef, menuRef, pos, mounted: menuReady } =
+    useAnchoredMenu<HTMLDivElement, HTMLUListElement>(open);
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -93,7 +97,10 @@ export function PersonPicker({
   }
 
   return (
-    <div className="relative">
+    /* ⚠️ The menu is PORTALLED (see `useAnchoredMenu`) — this picker sits on the
+       new-task form and in the task drawer, both of which scroll, so an
+       `absolute` list was clipped at the panel edge. */
+    <div ref={anchorRef} className="relative">
       <input type="hidden" name={name} value={selected.join(", ")} />
       <div
         className={cn(
@@ -128,8 +135,9 @@ export function PersonPicker({
         />
       </div>
 
-      {open && options.length > 0 && (
-        <ul className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-border bg-bg-elev shadow-lg p-1">
+      {menuReady && open && pos && options.length > 0 && createPortal(
+        <ul ref={menuRef} role="listbox" style={menuStyle(pos)}
+          className="overflow-y-auto rounded-md border border-border bg-bg-elev shadow-lg p-1">
           {options.map((opt, i) => (
             <li key={opt.key}>
               <button
@@ -153,7 +161,8 @@ export function PersonPicker({
               </button>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

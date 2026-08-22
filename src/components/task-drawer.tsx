@@ -107,7 +107,7 @@ const FILTER_LABELS: Record<TimelineFilter, string> = {
 function EditCard({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <SectionCard className="p-3 space-y-2.5">
-      {title && <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{title}</div>}
+      {title && <div className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{title}</div>}
       {children}
     </SectionCard>
   );
@@ -117,7 +117,7 @@ function EditCard({ title, children }: { title?: string; children: React.ReactNo
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("space-y-1 min-w-0", className)}>
-      <label className="block text-[11px] font-medium text-fg-muted">{label}</label>
+      <label className="block text-xs font-medium text-fg-muted">{label}</label>
       {children}
     </div>
   );
@@ -140,7 +140,7 @@ const TASK_FORM_SECTIONS = ENTITY_VIEWS.task!.formSections ?? [];
 /** Muted "Set …" placeholder that jumps to the Edit tab. */
 function SetLink({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="text-[13px] text-fg-subtle hover:text-accent transition-colors">
+    <button type="button" onClick={onClick} className="text-base text-fg-subtle hover:text-accent transition-colors">
       {children}
     </button>
   );
@@ -398,7 +398,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   const needsAttention = !!t && !done && (lateDays > 0 || (quietDays !== null && quietDays >= 7) || quietDays === null);
   const decisionStrip = t && needsAttention ? (
     <div className="rounded-2xl bg-danger-soft/25 p-2.5 ring-1 ring-danger/20">
-      <p className="flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-danger">
+      <p className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-danger">
         <AlertOctagon size={12} className="shrink-0" />
         {lateDays > 0 && <span>{lateDays}d late</span>}
         {lateDays > 0 && (quietDays === null || quietDays >= 7) && <span aria-hidden>·</span>}
@@ -438,7 +438,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   const heroNode = t ? (
     <div className="pr-8 space-y-2.5">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">{t.code}</span>
+        <span className="font-mono text-xs font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">{t.code}</span>
         <CompanyDrawerLink id={t.companyId} className="text-xs text-fg-muted hover:text-accent truncate transition-colors text-left">{t.companyName}</CompanyDrawerLink>
         {/* Prev/Next step-through (only when an ordered list was supplied) */}
         {seq.length > 1 && (
@@ -446,7 +446,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             <IconButton size="sm" aria-label="Previous task" disabled={!prevCode} onClick={() => prevCode && goToCode(prevCode)}>
               <ChevronLeft size={15} />
             </IconButton>
-            <span className="text-[10px] tabular text-fg-subtle">{seqIdx + 1}/{seq.length}</span>
+            <span className="text-xs tabular text-fg-subtle">{seqIdx + 1}/{seq.length}</span>
             <IconButton size="sm" aria-label="Next task" disabled={!nextCode} onClick={() => nextCode && goToCode(nextCode)}>
               <ChevronRight size={15} />
             </IconButton>
@@ -471,10 +471,10 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       {/* Pinned-instruction banner (info tint) */}
       {pinnedUpdate && (
         <div className="rounded-2xl ring-1 ring-info/30 bg-info-soft/40 p-3.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-info">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-info">
             <Pin size={12} /> Current instruction
             <button type="button" onClick={() => setActiveTab("conversation")}
-              className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium normal-case tracking-normal hover:underline">
+              className="ml-auto inline-flex items-center gap-0.5 text-xs font-medium normal-case tracking-normal hover:underline">
               Manage <ArrowRight size={11} />
             </button>
           </div>
@@ -533,14 +533,14 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       {t.latestActivity && (
         <div className="px-0.5 pt-3 border-t border-border/50 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Latest update</span>
+            <span className="text-xs uppercase tracking-wider text-fg-subtle">Latest update</span>
             <button type="button" onClick={() => setActiveTab("conversation")}
-              className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium text-accent hover:underline">
+              className="ml-auto inline-flex items-center gap-0.5 text-xs font-medium text-accent hover:underline">
               View all{convoCount > 0 ? ` ${convoCount}` : ""} <ArrowRight size={11} />
             </button>
           </div>
           <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-full bg-accent-soft text-accent text-[10px] font-semibold leading-none" aria-hidden>
+            <span className="mt-0.5 shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-full bg-accent-soft text-accent text-xs font-semibold leading-none" aria-hidden>
               {getInitials(t.latestActivity.author)}
             </span>
             <div className="min-w-0 flex-1">
@@ -575,7 +575,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             className="w-full resize-y bg-transparent text-sm placeholder:text-fg-subtle focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-fg-subtle">@mention, attach or set status? Open Conversation.</span>
+            <span className="text-xs text-fg-subtle">@mention, attach or set status? Open Conversation.</span>
             <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
               {!posting && <Send size={13} />} Post
             </Button>
@@ -588,7 +588,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       <div className="flex flex-wrap items-center justify-end gap-2">
         {t.assignees.length > 0 && !done && (
           <>
-            <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[11px]">
+            <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-xs">
               {(["task", "all"] as const).map((s) => (
                 <button
                   key={s}
@@ -646,14 +646,14 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           differently depending on which tab you were on. */}
       <aside className="hidden lg:block overflow-hidden rounded-xl border border-border bg-bg-elev">
         <div className="border-b border-border bg-bg-subtle px-3 py-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">At a glance</span>
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">At a glance</span>
         </div>
         <div className="space-y-1 px-3 py-2.5">
         <FactRow label="Accountable">
           {t.assignees.length ? (
             <span className="inline-flex items-center gap-1.5 min-w-0 align-middle">
               <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={3} size={20} />
-              <span className="truncate max-w-[7rem] text-[12px] text-fg-muted">{getGivenName(t.assignees[0])}{t.assignees.length > 1 ? ` +${t.assignees.length - 1}` : ""}</span>
+              <span className="truncate max-w-[7rem] text-sm text-fg-muted">{getGivenName(t.assignees[0])}{t.assignees.length > 1 ? ` +${t.assignees.length - 1}` : ""}</span>
             </span>
           ) : <SetLink onClick={() => setActiveTab("edit")}>Assign</SetLink>}
         </FactRow>
@@ -661,15 +661,15 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
         </FactRow>
         <FactRow label="Category">
-          {t.category ? <span className="text-[12px] font-medium text-fg">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
+          {t.category ? <span className="text-sm font-medium text-fg">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
         </FactRow>
         <FactRow label="Department" last>
-          {t.department ? <span className="text-[12px] font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
+          {t.department ? <span className="text-sm font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}
         </FactRow>
         {t.comments && t.comments.trim() && (
           <div className="pt-2">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">About</div>
-            <p className="text-[12px] leading-relaxed text-fg-muted whitespace-pre-wrap break-words line-clamp-6"><CodeLinkedText text={t.comments} /></p>
+            <div className="text-xs uppercase tracking-wider text-fg-subtle mb-1">About</div>
+            <p className="text-sm leading-relaxed text-fg-muted whitespace-pre-wrap break-words line-clamp-6"><CodeLinkedText text={t.comments} /></p>
           </div>
         )}
         <div className="pt-2 flex flex-wrap gap-1.5">
@@ -726,7 +726,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             className="w-full"
             buttonClassName="w-full justify-between"
           />
-          <p className="text-[10.5px] text-fg-subtle leading-snug">Changing this issues a new code; the old one keeps redirecting.</p>
+          <p className="text-xs text-fg-subtle leading-snug">Changing this issues a new code; the old one keeps redirecting.</p>
         </Field>
       </EditCard>
 
@@ -828,12 +828,12 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
      shell, so it is the same shape as every other record screen. */
   if (mode === "page") {
     if (loading && !data) {
-      return <p className="py-16 text-center text-[13px] text-fg-muted">Loading {code}…</p>;
+      return <p className="py-16 text-center text-base text-fg-muted">Loading {code}…</p>;
     }
     if (error || !t) {
       return (
         <div className="py-16 text-center">
-          <p className="text-[13px] text-fg-muted">Couldn&apos;t load {code}.</p>
+          <p className="text-base text-fg-muted">Couldn&apos;t load {code}.</p>
           <Button type="button" onClick={() => router.push("/?tab=tasks")} variant="ghost" size="sm" className="mt-3">
             Back to tasks
           </Button>

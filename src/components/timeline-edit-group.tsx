@@ -23,7 +23,7 @@ export function TimelineEditGroupView({
   compact?: boolean;
 }) {
   const { label } = summariseEditGroup(group);
-  const size = compact ? "text-[11px]" : "text-xs";
+  const size = compact ? "text-xs" : "text-xs";
 
   return (
     <details className={`group/edit rounded-lg bg-bg-subtle px-3 py-2 ${size}`}>
@@ -40,7 +40,7 @@ export function TimelineEditGroupView({
             <li key={a.id} className="space-y-0.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {showTaskCode && a.taskCode && (
-                  <Link href={`/task/${a.taskCode}`} className="font-mono text-[10px] text-fg-subtle hover:text-accent">
+                  <Link href={`/task/${a.taskCode}`} className="font-mono text-xs text-fg-subtle hover:text-accent">
                     {a.taskCode}
                   </Link>
                 )}

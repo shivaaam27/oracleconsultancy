@@ -146,7 +146,7 @@ function Block({ node }: { node: DocNode }): ReactNode {
 
     case "codeBlock":
       return (
-        <pre className="my-2 overflow-x-auto rounded-md border border-border bg-bg-subtle p-3 text-[12px]">
+        <pre className="my-2 overflow-x-auto rounded-md border border-border bg-bg-subtle p-3 text-sm">
           <code>{(kids ?? []).map((c) => c.text ?? "").join("")}</code>
         </pre>
       );
@@ -157,7 +157,7 @@ function Block({ node }: { node: DocNode }): ReactNode {
     case "table":
       return (
         <div className="my-3 overflow-x-auto">
-          <table className="w-full border-collapse text-[12px]">
+          <table className="w-full border-collapse text-sm">
             <tbody>
               {kids.map((row, r) => (
                 <tr key={r}>
@@ -183,7 +183,7 @@ function Block({ node }: { node: DocNode }): ReactNode {
 
     case "image":
       return (
-        <span className="my-2 inline-flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-[12px] text-fg-subtle">
+        <span className="my-2 inline-flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm text-fg-subtle">
           <ImageOff size={14} />
           {(node.attrs?.alt as string) || "Picture"} — needs a connection
         </span>

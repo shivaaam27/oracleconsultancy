@@ -73,19 +73,19 @@ export function ReadSummary({ prefill, onDismiss }: { prefill: EventPrefill; onD
             Filled in from the {prefill.kind === "flight" ? "ticket" : "document"} — check it before saving.
           </p>
           {prefill.whenSummary && (
-            <p className="text-[11px] text-fg-muted">
+            <p className="text-xs text-fg-muted">
               <span className="text-fg-subtle">When: </span>
               {prefill.whenSummary}
             </p>
           )}
           {prefill.gaps.length > 0 && (
-            <p className="text-[11px] text-fg-muted">
+            <p className="text-xs text-fg-muted">
               <span className="text-fg-subtle">Couldn&rsquo;t read: </span>
               {prefill.gaps.join("; ")} — please fill that in.
             </p>
           )}
           {unsure && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            <p className="text-xs text-amber-600 dark:text-amber-500">
               The scan was hard to read, so check every field.
             </p>
           )}
@@ -302,7 +302,7 @@ export function EventAttachments({
                   onClick={() => toggleShare(doc)}
                   title={doc.share ? "Sent to guests and openable from the calendar entry" : "Kept for reference — not sent, not on the public page"}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 transition-colors",
+                    "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 transition-colors",
                     doc.share
                       ? "bg-accent/10 text-accent ring-accent/25"
                       : "bg-bg-subtle text-fg-subtle ring-border"
@@ -346,7 +346,7 @@ export function EventAttachments({
           )}
 
           {working && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle">
+            <span className="inline-flex items-center gap-1.5 text-xs text-fg-subtle">
               <Loader2 size={11} className="animate-spin" />
               {reading ? (
                 <>
@@ -359,7 +359,7 @@ export function EventAttachments({
           )}
 
           {!working && !value.length && (
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               Any file. A ticket or booking is read and fills the event in for you.
             </span>
           )}
@@ -378,7 +378,7 @@ export function EventAttachments({
       </div>
 
       {note && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-fg-muted">
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
           <AlertTriangle size={11} className="mt-0.5 shrink-0 text-amber-500" />
           {note}
         </p>

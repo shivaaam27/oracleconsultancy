@@ -71,7 +71,7 @@ type TabKey = "deadlines" | "permits";
 function Pill({ flag }: { flag: CcFlag }) {
   const m = FLAG_META[flag];
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1", m.bg, m.text, m.ring)}>
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1", m.bg, m.text, m.ring)}>
       {m.label}
     </span>
   );
@@ -164,7 +164,7 @@ export function CommandCentreView({
             )}
           >
             <Icon size={14} /> {label}
-            <span className="inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-bg-muted px-1 text-[11px] tabular text-fg-muted">{count}</span>
+            <span className="inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-bg-muted px-1 text-xs tabular text-fg-muted">{count}</span>
           </button>
         ))}
       </div>
@@ -192,7 +192,7 @@ export function CommandCentreView({
                       <span className="h-8 w-1.5 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{d.label}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-subtle">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-subtle">
                           <span className="capitalize">{d.frequency}</span>
                           <span>· {d.category}</span>
                           {d.dueDate && <span>· {fmtDate(d.dueDate)}</span>}
@@ -200,12 +200,12 @@ export function CommandCentreView({
                       </div>
                       {/* Per-company completion badge — the guarantee you can see. */}
                       <span className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1",
                         allDone ? "bg-success-soft/60 text-success ring-success/20" : "bg-bg-muted/70 text-fg-muted ring-border/50",
                       )}>
                         {d.doneCount}/{d.applicableCount} {period}
                       </span>
-                      <span className="hidden sm:inline shrink-0 text-[11px] tabular text-fg-muted">{daysLabel(d.daysLeft)}</span>
+                      <span className="hidden sm:inline shrink-0 text-xs tabular text-fg-muted">{daysLabel(d.daysLeft)}</span>
                       <Pill flag={d.flag} />
                       <ChevronDown size={15} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
                     </button>
@@ -213,7 +213,7 @@ export function CommandCentreView({
                     {/* Expanded per-company tick grid */}
                     {open && (
                       <div className="bg-bg-subtle/40 px-3.5 pb-3 pt-1">
-                        <div className="mb-1.5 px-1 text-[11px] text-fg-subtle">
+                        <div className="mb-1.5 px-1 text-xs text-fg-subtle">
                           Tick each company once it&apos;s done {period}. Resets next period.
                         </div>
                         <div className="space-y-1">
@@ -224,10 +224,10 @@ export function CommandCentreView({
                                 <div key={c.companyId} className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 opacity-60">
                                   {c.accent ? <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: c.accent }} /> : <span className="h-5 w-1 shrink-0" />}
                                   <span className="min-w-0 flex-1 truncate text-sm line-through">{c.name}</span>
-                                  <span className="text-[11px] text-fg-subtle">{c.autoReason ?? "Not applicable"}</span>
+                                  <span className="text-xs text-fg-subtle">{c.autoReason ?? "Not applicable"}</span>
                                   {!c.autoReason && (
                                     <button type="button" disabled={cbusy} onClick={() => setApplicable(d.id, c.companyId, true)}
-                                      className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50" title="Mark applicable again">
+                                      className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50" title="Mark applicable again">
                                       <RotateCcw size={12} /> Restore
                                     </button>
                                   )}
@@ -245,12 +245,12 @@ export function CommandCentreView({
                                 </button>
                                 {d.taskable && !c.done && (
                                   <button type="button" disabled={cbusy} onClick={() => promote(d.id, c.companyId)}
-                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50" title="Make a trackable task for this company">
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50" title="Make a trackable task for this company">
                                     <Plus size={12} /> Task
                                   </button>
                                 )}
                                 <button type="button" disabled={cbusy} onClick={() => setApplicable(d.id, c.companyId, false)}
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-subtle ring-1 ring-border/60 transition-colors hover:bg-bg-muted disabled:opacity-50" title="Not applicable to this company">
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-fg-subtle ring-1 ring-border/60 transition-colors hover:bg-bg-muted disabled:opacity-50" title="Not applicable to this company">
                                   <MinusCircle size={12} /> N/A
                                 </button>
                               </div>
@@ -270,7 +270,7 @@ export function CommandCentreView({
             <Panel className="overflow-hidden">
               <div className="border-b border-border/60 px-4 py-3">
                 <SectionLabel icon={<ListChecks size={13} className="text-accent" />}
-                  action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">tick as you go — they don&apos;t become tasks</span>}>
+                  action={<span className="text-xs font-normal normal-case tracking-normal text-fg-subtle">tick as you go — they don&apos;t become tasks</span>}>
                   Routine duties
                 </SectionLabel>
               </div>
@@ -290,7 +290,7 @@ export function CommandCentreView({
                         : <Circle size={17} className="shrink-0 text-fg-subtle" />}
                     <div className="min-w-0 flex-1">
                       <div className={cn("truncate text-sm", h.fresh ? "text-fg-muted line-through" : "font-medium")}>{h.label}</div>
-                      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-fg-subtle">
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-subtle">
                         <span className="capitalize">{h.frequency}</span>
                         {h.dueRule && <span>· {h.dueRule}</span>}
                         {h.lastDone && <span>· last {fmtDate(h.lastDone)}</span>}
@@ -309,7 +309,7 @@ export function CommandCentreView({
         <Panel glass className="overflow-hidden">
           <div className="border-b border-border/60 px-4 py-3">
             <SectionLabel icon={<Plane size={13} className="text-accent" />}
-              action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">90 / 60 / 30-day early warning</span>}>
+              action={<span className="text-xs font-normal normal-case tracking-normal text-fg-subtle">90 / 60 / 30-day early warning</span>}>
               Work / residence permits
             </SectionLabel>
           </div>
@@ -322,13 +322,13 @@ export function CommandCentreView({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{p.title}</div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-fg-subtle">
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-subtle">
                     {p.ownerName && <span className="inline-flex items-center gap-1"><UserIcon size={11} />{p.ownerName}</span>}
                     {p.category && <span>· {p.category}</span>}
                     <span>· expires {fmtDate(p.expiryDate)}</span>
                   </div>
                 </div>
-                <span className="shrink-0 text-[11px] tabular text-fg-muted">{daysLabel(p.daysLeft)}</span>
+                <span className="shrink-0 text-xs tabular text-fg-muted">{daysLabel(p.daysLeft)}</span>
                 <Pill flag={p.flag} />
               </div>
             ))}

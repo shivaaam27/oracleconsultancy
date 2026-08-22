@@ -30,8 +30,8 @@ export function ReportCard({ title, meta, children }: { title: string; meta?: Re
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-bg-elev print:border-0">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-        <h2 className="text-[13px] font-medium">{title}</h2>
-        {meta && <span className="text-[12px] text-fg-muted">{meta}</span>}
+        <h2 className="text-base font-medium">{title}</h2>
+        {meta && <span className="text-sm text-fg-muted">{meta}</span>}
       </header>
       {children}
     </section>
@@ -40,7 +40,7 @@ export function ReportCard({ title, meta, children }: { title: string; meta?: Re
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );
@@ -98,7 +98,7 @@ function AccountCell({
 
 function Nothing({ what }: { what: string }) {
   return (
-    <div className="px-3 py-8 text-center text-[13px] text-fg-muted">
+    <div className="px-3 py-8 text-center text-base text-fg-muted">
       Nothing to show — {what}
     </div>
   );
@@ -130,13 +130,13 @@ export function TrialBalanceView({
           this screen. Every voucher is checked before it is written, so it
           should be unreachable. */}
       {!report.balanced && (
-        <p className="border-b border-border bg-danger-soft px-3 py-2 text-[12px] text-danger">
+        <p className="border-b border-border bg-danger-soft px-3 py-2 text-sm text-danger">
           The books do not balance. Every voucher is checked before it is written, so this means something
           reached the ledger another way. Stop and find it before relying on any figure here.
         </p>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-[13px]">
+        <table className="w-full min-w-[820px] text-base">
           <thead>
             <tr data-list-head className="border-b border-border text-left">
               <Th className="w-[38%]">Account</Th>
@@ -171,7 +171,7 @@ export function TrialBalanceView({
           </tfoot>
         </table>
       </div>
-      <p className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+      <p className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
         Headings show their whole branch and are left out of the total, so nothing is counted twice.
       </p>
     </ReportCard>
@@ -192,7 +192,7 @@ export function ProfitAndLossView({
   const section = (title: string, rows: StatementRow[], total: number) => (
     <>
       <tr className="border-b border-border bg-bg-muted/60">
-        <Td className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-muted">{title}</Td>
+        <Td className="text-xs font-medium uppercase tracking-[0.06em] text-fg-muted">{title}</Td>
         <Td />
       </tr>
       {rows.length === 0 && (
@@ -217,7 +217,7 @@ export function ProfitAndLossView({
       meta={from || to ? `${from || "the beginning"} to ${to || "today"}` : "everything, since the books opened"}
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-[13px]">
+        <table className="w-full min-w-[560px] text-base">
           <thead>
             <tr data-list-head className="border-b border-border text-left">
               <Th className="w-[70%]">Account</Th>
@@ -236,7 +236,7 @@ export function ProfitAndLossView({
           </tfoot>
         </table>
       </div>
-      <p className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+      <p className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
         Only what happened inside the period — a profit and loss never carries an opening balance, or it
         would report every year&rsquo;s trading every year.
       </p>
@@ -257,7 +257,7 @@ export function BalanceSheetView({
   const section = (title: string, rows: StatementRow[], total: number, extra?: React.ReactNode) => (
     <>
       <tr className="border-b border-border bg-bg-muted/60">
-        <Td className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-muted">{title}</Td>
+        <Td className="text-xs font-medium uppercase tracking-[0.06em] text-fg-muted">{title}</Td>
         <Td />
       </tr>
       {rows.length === 0 && (
@@ -287,13 +287,13 @@ export function BalanceSheetView({
       }
     >
       {!bs.balanced && (
-        <p className="border-b border-border bg-danger-soft px-3 py-2 text-[12px] text-danger">
+        <p className="border-b border-border bg-danger-soft px-3 py-2 text-sm text-danger">
           Assets do not equal liabilities plus equity. Since this figure is worked out from the entries every
           time, the fault is in the books rather than in the report.
         </p>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-[13px]">
+        <table className="w-full min-w-[560px] text-base">
           <thead>
             <tr data-list-head className="border-b border-border text-left">
               <Th className="w-[70%]">Account</Th>
@@ -312,7 +312,7 @@ export function BalanceSheetView({
                   <tr data-list-row className="border-b border-border/60">
                     <Td>
                       <span className="italic">Retained from earlier years</span>{" "}
-                      <span className="text-[11px] text-fg-subtle">worked out, not posted</span>
+                      <span className="text-xs text-fg-subtle">worked out, not posted</span>
                     </Td>
                     <Money v={bs.earlierYearsEarnings} />
                   </tr>
@@ -320,7 +320,7 @@ export function BalanceSheetView({
                 <tr data-list-row className="border-b border-border/60">
                   <Td>
                     <span className="italic">Profit this financial year</span>{" "}
-                    <span className="text-[11px] text-fg-subtle">
+                    <span className="text-xs text-fg-subtle">
                       since {bs.fyStartedOn} · worked out, not posted
                     </span>
                   </Td>
@@ -337,7 +337,7 @@ export function BalanceSheetView({
           </tfoot>
         </table>
       </div>
-      <p className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+      <p className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
         The year&rsquo;s profit is worked out from the income and expense accounts and added into equity here —
         no journal creates it. That is what makes the two sides agree before anybody has run a year-end.
         The financial year is taken to start in {monthName(bs.fyStartedOn)}; change it in Settings if that is wrong.
@@ -368,7 +368,7 @@ export function GeneralLedgerView({ blocks, group }: { blocks: LedgerBlock[]; gr
           meta={<>Closing <b className={cn("tabular", b.closing < 0 && "text-danger")}>{ledgerAmount(b.closing) || "0.00"}</b></>}
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-[13px]">
+            <table className="w-full min-w-[760px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -392,11 +392,11 @@ export function GeneralLedgerView({ blocks, group }: { blocks: LedgerBlock[]; gr
                     <Td className="tabular">{e.postingDate?.slice(0, 10)}</Td>
                     <Td>
                       <span className="block truncate">{e.voucherNo ?? e.voucherType}</span>
-                      <span className="text-[11px] text-fg-subtle">{e.voucherType}{e.isReversal ? " · reversal" : ""}</span>
+                      <span className="text-xs text-fg-subtle">{e.voucherType}{e.isReversal ? " · reversal" : ""}</span>
                     </Td>
                     <Td>
                       <span className="block truncate">{e.party ?? <span className="text-fg-subtle">—</span>}</span>
-                      {e.remarks && <span className="block truncate text-[11px] text-fg-subtle">{e.remarks}</span>}
+                      {e.remarks && <span className="block truncate text-xs text-fg-subtle">{e.remarks}</span>}
                     </Td>
                     <Money v={num(e.debit)} />
                     <Money v={num(e.credit)} />
@@ -419,7 +419,7 @@ export function GeneralLedgerView({ blocks, group }: { blocks: LedgerBlock[]; gr
         </ReportCard>
       ))}
       {group && (
-        <p className="text-[12px] text-fg-subtle">
+        <p className="text-sm text-fg-subtle">
           Each entry is prefixed with the company that produced it, so a group figure can still be traced home.
         </p>
       )}
@@ -452,7 +452,7 @@ export function StatementsView({ statements }: { statements: PartyStatement[] })
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-[13px]">
+            <table className="w-full min-w-[720px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -491,7 +491,7 @@ export function StatementsView({ statements }: { statements: PartyStatement[] })
           </div>
         </ReportCard>
       ))}
-      <p className="text-[12px] text-fg-subtle">
+      <p className="text-sm text-fg-subtle">
         Grouped by the name typed on the entry. ⚠️ &ldquo;Barrick&rdquo; and &ldquo;Barrick Ltd&rdquo; are two parties here — real
         customer and supplier records come in a later phase, and until then nothing is merged for you, because
         a statement that quietly joined two names would be worse than one showing both.

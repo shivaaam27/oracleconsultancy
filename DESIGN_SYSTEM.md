@@ -229,6 +229,74 @@ Reuse before inventing: `Card`, `Surface`, `Button`, `Badge`, `Pill`, `Switch`,
 `BottomSheet`, `Combobox`, `FluidSelect`, `EntityDrawer`, `InsightPopover`,
 `ReferenceAdmin`, `PasskeyManager`, `useSwipeRow`.
 
+### ⚠️ ONE CONTROL BOX, ONE TYPE SCALE (settled Aug 2026, measured)
+
+**Every control in COS is the same box: `h-8` (32px) · `rounded-md` (6px) ·
+`text-sm`.** A text field, `Select`, `FluidSelect`, `Combobox`, `SearchInput`,
+an action button. Declared once as **`CONTROL_BOX` / `FIELD` / `FIELD_NUM` in
+`ui.tsx`** — change one and you have changed them all, which is the point.
+
+It was measured, not decided by taste. Before this rule, a single dialog held
+**four control heights (26 · 28 · 32 · 36px)**, **four type sizes (11.5 · 12 ·
+12.5 · 16px)** and the kit itself carried **three radii (6 · 8 · 12px)**.
+
+**⚠️ NEVER WRITE `text-[Npx]` FOR BODY TEXT. Use `text-xs` / `text-sm` /
+`text-base`.** The scale is wired to the density tokens — `--text-sm` is 12.5px
+on Comfortable and 12px on Compact — so a pixel literal silently opts out of
+the density system, which is why Compact was not actually denser and why no two
+modules agreed on a size. **2,619 literals in fourteen distinct sizes** were
+collapsed onto the scale in one sweep. 14px and up is a heading or a tile
+figure, where the size is a deliberate statement, and is left alone.
+
+**⚠️ THE TWO BUGS THIS FIXED WERE THE SAME SHAPE, and it is the one to watch
+for: a container that sets no `font-size`, so anything inside it falls back to
+the browser's 16px default.**
+- `Combobox`'s input had no size at all — *every* typeable dropdown in COS
+  rendered at 16px, a head taller than the field beside it.
+- `RecordList`'s row had no size — any cell that did not set its own rendered
+  at 16px, which was most cells on most lists.
+
+Both are fixed by setting the size on the **container**, so a child inherits
+the right size for free and can never leak the default again. If you build a
+new list or a new field wrapper, set the type size on the wrapper.
+
+**The exceptions, and they are narrow:**
+- A control **inside a grid row** may use `CONTROL_BOX_SM` (`h-7`, `text-xs`) —
+  a hundred of them in a column need the room. It still takes a kit type size.
+- An inline **add-link chip** (`+ Raw material`) is a chip, not a control: 24px,
+  `text-xs`, 4px radius, per rule 3 above.
+
+### ⚠️ AN ANCHORED MENU IS PORTALLED. ALWAYS. (settled Aug 2026, measured)
+
+**Every pop-up menu anchored to a field goes through `useAnchoredMenu()`
+(`lib/use-anchored-menu.ts`)** — `Combobox`, `PersonPicker`, `AttendeePicker`,
+`DateTimeField`, `DocLinkPicker`. `FluidSelect` carries its own equivalent and
+predates the hook. **Do not write another one by hand.**
+
+The same bug was written six times, and it has TWO halves that must both be
+fixed or the second one bites:
+
+1. **Clipping.** A menu written as an `absolute` child of its field is cut off
+   by ANY ancestor that scrolls or hides overflow — a bottom sheet, a drawer, a
+   panel, a card. Photographed on "Start a batch": the option list ran past the
+   bottom of the sheet and was chopped mid-row, so half the choices could not be
+   reached. **A dropdown inside a dialog is the normal case in COS.**
+2. **Stacking.** Portalling fixes the clipping and immediately puts the menu
+   BEHIND the sheet, because it is now a sibling of every overlay. It needs
+   `zIndex: MENU_Z` (1000) — a Tailwind `z-[60]` class was the first attempt and
+   lost to the bottom sheet at `z-[91]`. The highest class-based z anywhere is
+   140.
+
+The hook also **flips the menu up when there is no room below**, clamps its
+height to the space available (so it scrolls inside itself instead of running off
+screen), re-places on scroll *with capture* — a sheet body is an inner scroller —
+and measures with `layoutRect`, not `getBoundingClientRect`, so a browser zoom
+cannot make it open over its own field.
+
+⚠️ **AND THE OUTSIDE-CLICK TEST MUST USE `isInside()`.** The menu is no longer a
+child of the field, so a naive "did the click land in my wrapper" check treats
+choosing an option as clicking away and closes the list before the choice lands.
+
 ### Dropdowns — two controls, one rule (settled Aug 2026)
 
 There is **no third option, and never a bare `<select>`.** Pick by where it sits:
@@ -239,10 +307,11 @@ There is **no third option, and never a bare `<select>`.** Pick by where it sits
 | A fixed list in a **toolbar or filter** | **`FluidSelect`** | Nothing is being submitted; a portalled popover with check marks and colour `dot`s, never clipped by a scroll container |
 | Anything you can **type into, or invent a new value for** | **`Combobox`** | The typeable field — ERPNext's Link field, in effect |
 
-The two look **identical by construction**: same `h-9`, `pl-3 pr-8`, `text-sm`,
-`rounded-lg`, hairline border, hover and focus ring. A filter dropdown beside a
-form dropdown must not read as two different products. If you change one box,
-change the other.
+All three look **identical by construction** — the one control box above:
+`h-8`, `text-sm`, `rounded-md`, hairline border, same hover and focus ring. A
+filter dropdown beside a form dropdown beside a text field must not read as
+three different products. They now share the constants in `ui.tsx`, so this is
+enforced by construction rather than by everyone remembering.
 
 **Traps:**
 - `Select` renders a positioning `<div>` around the native element. A caller that

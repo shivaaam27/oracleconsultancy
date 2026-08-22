@@ -397,7 +397,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           >
             <MessageSquare size={14} className="mt-0.5 shrink-0 text-accent" />
             <span className="min-w-0">
-              <span className="block text-[11px] text-fg-subtle">
+              <span className="block text-xs text-fg-subtle">
                 {latestAuthor} · {fmtWhen(latestUpdate.created_at)}
                 {all.length > 1 ? ` · ${all.length} updates` : ""}
               </span>
@@ -476,20 +476,20 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       {isModerator && deletedUpdates.length > 0 && (
         <Reveal delay={0.1}>
           <details className="rounded-2xl bg-bg-elev/70 ring-1 ring-border p-3">
-            <summary className="cursor-pointer list-none text-[12px] font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
+            <summary className="cursor-pointer list-none text-sm font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
               Recently deleted · {deletedUpdates.length} — tap to review
             </summary>
             <ul className="mt-2 flex flex-col gap-2">
               {deletedUpdates.map((d) => (
                 <li key={d.id} className="flex items-start gap-2 rounded-xl bg-bg-subtle/60 ring-1 ring-border/60 p-2.5">
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] text-fg-subtle">{d.author} · deleted</span>
-                    <span className="block truncate text-[13px] text-fg-muted line-through">{d.body}</span>
+                    <span className="block text-xs text-fg-subtle">{d.author} · deleted</span>
+                    <span className="block truncate text-base text-fg-muted line-through">{d.body}</span>
                   </span>
                   <form action={portalRestoreUpdate}>
                     <input type="hidden" name="updateId" value={d.id} />
                     <input type="hidden" name="code" value={task.code as string} />
-                    <button type="submit" className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-accent-soft px-2.5 text-[11px] font-medium text-accent ring-1 ring-accent/25 hover:bg-accent-soft/70 transition-colors">
+                    <button type="submit" className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-accent-soft px-2.5 text-xs font-medium text-accent ring-1 ring-accent/25 hover:bg-accent-soft/70 transition-colors">
                       Restore
                     </button>
                   </form>

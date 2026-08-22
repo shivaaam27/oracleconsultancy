@@ -12,6 +12,7 @@ import { OpsLists } from "@/components/ops-lists";
 import { OpsTabs } from "@/components/ops-tabs";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Setup — Orders & Imports" };
 
 export default async function OpsPage({
   searchParams,
@@ -40,7 +41,7 @@ export default async function OpsPage({
     return (
       <div className="space-y-3">
         <PageHeader title="Orders & Imports" sub="No companies yet" />
-        <p className="text-[13px] text-fg-muted">Add a company first, on the Companies screen.</p>
+        <p className="text-base text-fg-muted">Add a company first, on the Companies screen.</p>
       </div>
     );
   }
@@ -54,7 +55,7 @@ export default async function OpsPage({
         sub={`${chosen.name} · ${refs.filter((r) => r.active).length} entries across 8 lists`}
       />
       <OpsTabs active="setup" company={chosen.id} companies={companies} />
-      <p className="max-w-2xl text-[12px] text-fg-muted">
+      <p className="max-w-2xl text-sm text-fg-muted">
         The lists every order will pick from. Filling these in first is what stops the same
         supplier being typed three ways and the analysis quietly splitting in two.
         The order screens themselves come next.

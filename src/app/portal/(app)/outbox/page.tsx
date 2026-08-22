@@ -97,7 +97,7 @@ export default async function PortalOutboxPage() {
             {metrics.map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
                 <span className={`text-2xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
-                <span className="text-[11px] text-fg-muted">{m.label}</span>
+                <span className="text-xs text-fg-muted">{m.label}</span>
               </div>
             ))}
           </div>

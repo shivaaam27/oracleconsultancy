@@ -5,7 +5,7 @@ import { Plus, Loader2, Archive, ArchiveRestore, Merge, AlertTriangle } from "lu
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
-import { SearchInput } from "@/components/ui";
+import { FIELD, SearchInput } from "@/components/ui";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { Combobox } from "@/components/combobox";
 import { useToast } from "@/components/toast";
@@ -100,7 +100,7 @@ export function CocozuriProducts({
   const columns = buildColumns<Row>(ENTITY_VIEWS.cz_product!.listColumns, {
     overrides: {
       name: (r) => (
-        <button type="button" onClick={() => setEditing(r)} className="truncate text-left text-[13px] font-medium text-fg hover:text-accent">
+        <button type="button" onClick={() => setEditing(r)} className="truncate text-left text-base font-medium text-fg hover:text-accent">
           {r.name}
         </button>
       ),
@@ -132,13 +132,13 @@ export function CocozuriProducts({
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search products…"
               wrapperClassName="w-[15rem]"
-              className="h-8 text-[12.5px]"
+              className="h-8 text-sm"
             />
             <span className="grow" />
             <button
               type="button"
               onClick={() => setEditing("new")}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
             >
               <Plus size={13} /> New product
             </button>
@@ -146,8 +146,8 @@ export function CocozuriProducts({
         }
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <p className="text-[13px] font-medium text-fg-muted">Nothing here.</p>
-            <p className="max-w-[26rem] text-[12px] text-fg-subtle">
+            <p className="text-base font-medium text-fg-muted">Nothing here.</p>
+            <p className="max-w-[26rem] text-sm text-fg-subtle">
               {q ? "No product matches that." : "Add the first product, or run the seed to bring in the spreadsheets."}
             </p>
           </div>
@@ -269,10 +269,10 @@ function ProductSheet({
 
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => void save()} disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
             {busy && <Loader2 size={13} className="animate-spin" />} {product ? "Save" : "Add"}
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">
             Cancel
           </button>
           {product && (
@@ -284,7 +284,7 @@ function ProductSheet({
                   await archiveProductAction(product.id, !product.archived);
                   onSaved(product.archived ? "Back on the list." : "Archived — nothing was deleted.");
                 })}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] text-fg-muted hover:text-fg"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
               >
                 {product.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                 {product.archived ? "Restore" : "Archive"}
@@ -323,7 +323,7 @@ function MergeSheet({
   return (
     <BottomSheet open onClose={onClose} title={`Merge ${rows.length} products`}>
       <div className="flex flex-col gap-3 px-1 pb-2">
-        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[12px] leading-relaxed text-warn">
+        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm leading-relaxed text-warn">
           <AlertTriangle size={14} className="mt-px shrink-0" />
           <span>
             Only do this when these really are the same product typed differently. The others are{" "}
@@ -332,7 +332,7 @@ function MergeSheet({
           </span>
         </p>
 
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Keep which one?</p>
+        <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Keep which one?</p>
         <ul className="divide-y divide-border rounded-md border border-border">
           {rows.map((r) => (
             <li key={r.id}>
@@ -345,8 +345,8 @@ function MergeSheet({
                   className="mt-1 shrink-0"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-fg">{r.name}</span>
-                  <span className="block truncate text-[11.5px] text-fg-subtle">
+                  <span className="block truncate text-base font-medium text-fg">{r.name}</span>
+                  <span className="block truncate text-xs text-fg-subtle">
                     {[r.category, r.brand, r.packLabel, r.listPrice === "—" ? "no price" : r.listPrice]
                       .filter(Boolean)
                       .join(" · ")}
@@ -359,11 +359,11 @@ function MergeSheet({
 
         <div className="mt-1 flex items-center gap-2">
           <button type="button" onClick={() => void run()} disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Merge size={13} />}
             Merge into “{keeper.name.length > 28 ? keeper.name.slice(0, 28) + "…" : keeper.name}”
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">
             Cancel
           </button>
         </div>
@@ -372,15 +372,16 @@ function MergeSheet({
   );
 }
 
-const INPUT =
-  "w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent";
+/* ⚠️ THE KIT'S FIELD, not a local one. Seven files had grown their own
+   `const INPUT` and no two agreed — see the note on `FIELD` in ui.tsx. */
+const INPUT = FIELD;
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
-      {hint && <span className="text-[11px] leading-snug text-fg-subtle">{hint}</span>}
+      {hint && <span className="text-xs leading-snug text-fg-subtle">{hint}</span>}
     </label>
   );
 }

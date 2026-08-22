@@ -95,7 +95,7 @@ export function PortalTaskManage({
       <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg-elev">
         {canEdit && (
           <ManageRow icon={<Flag size={12} />} label="Priority & due">
-            <FluidSelect value={cmd.priority} options={priorityOptions} onSelect={changePriority} className="min-w-[7.5rem] flex-1 sm:w-[136px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-[12.5px]" />
+            <FluidSelect value={cmd.priority} options={priorityOptions} onSelect={changePriority} className="min-w-[7.5rem] flex-1 sm:w-[136px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-sm" />
             <span className="min-w-[7.5rem] flex-1 sm:w-[150px] sm:flex-none">
               <DatePopover value={cmd.deadlineInput} label={cmd.dueLabel} tone={cmd.overdue ? "text-danger" : cmd.withinSoon ? "text-warn" : "text-fg-muted"} onChange={changeDue} block />
             </span>
@@ -138,7 +138,7 @@ export function PortalTaskManage({
 function ManageRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-fg-muted">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm text-fg-muted">
         {icon} {label}
       </span>
       <span className="flex flex-wrap items-center gap-1.5 sm:justify-end">{children}</span>

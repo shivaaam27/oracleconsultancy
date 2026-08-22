@@ -198,7 +198,7 @@ function ItemRows({
         <Td align="right"><span className="font-semibold tabular">{cur}</span></Td>
         <Td align="right" className="hidden md:table-cell tabular text-fg-muted">{fmtMoney(stockValue(item, purchases, issues))}</Td>
         <Td>
-          <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", stockStatusColor[status])}>{status}</span>
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", stockStatusColor[status])}>{status}</span>
         </Td>
         <Td align="right">
           <ChevronDown size={15} className={cn("inline text-fg-subtle transition-transform", isOpen && "rotate-180")} />
@@ -233,7 +233,7 @@ function ItemRows({
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle">{label}</div>
+      <div className="text-xs uppercase tracking-[0.08em] text-fg-subtle">{label}</div>
       <div className="tabular font-medium">{value}</div>
     </div>
   );
@@ -300,7 +300,7 @@ function ItemForm({
       </div>
 
       {mode === "edit" && (
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-xs text-fg-subtle">
           Opening stock is the starting count. To change the quantity on hand, log a purchase or an issue rather than editing opening stock.
         </p>
       )}

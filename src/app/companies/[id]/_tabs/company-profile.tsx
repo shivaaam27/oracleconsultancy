@@ -26,7 +26,7 @@ export type CompanyProfile = {
 
 const inputCls =
   "w-full rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40 transition";
-const labelCls = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+const labelCls = "block text-xs font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
 export function CompanyProfile({
   companyId,
@@ -111,14 +111,14 @@ export function CompanyProfile({
                 </button>
               )}
             </div>
-            <span className="text-[11px] text-fg-subtle">Square PNG/JPG works best. Shows across the site and on letters.</span>
+            <span className="text-xs text-fg-subtle">Square PNG/JPG works best. Shows across the site and on letters.</span>
           </div>
         </div>
 
         <div>
           <label className={labelCls} htmlFor="name">Display name</label>
           <input id="name" name="name" defaultValue={companyName} required className={inputCls} />
-          <p className="text-[11px] text-fg-subtle mt-1">The short name shown everywhere (lists, reports, tasks).</p>
+          <p className="text-xs text-fg-subtle mt-1">The short name shown everywhere (lists, reports, tasks).</p>
         </div>
         <div>
           <label className={labelCls} htmlFor="legalName">Legal name</label>
@@ -127,7 +127,7 @@ export function CompanyProfile({
         <div>
           <label className={labelCls} htmlFor="filePrefix">Document file prefix</label>
           <input id="filePrefix" name="filePrefix" defaultValue={profile.filePrefix ?? ""} placeholder="DarSpices" className={inputCls} />
-          <p className="text-[11px] text-fg-subtle mt-1">Brand short-name used to name this company&apos;s documents, e.g. <code>DarSpices_TIN-Certificate</code>. Letters/spaces only; no spaces stored.</p>
+          <p className="text-xs text-fg-subtle mt-1">Brand short-name used to name this company&apos;s documents, e.g. <code>DarSpices_TIN-Certificate</code>. Letters/spaces only; no spaces stored.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -145,7 +145,7 @@ export function CompanyProfile({
           <div>
             <label className={labelCls} htmlFor="vrn">VRN / VAT</label>
             <input id="vrn" name="vrn" defaultValue={profile.vrn ?? ""} className={inputCls} />
-            <p className="text-[11px] text-fg-subtle mt-1">Enter the VRN if VAT-registered — this adds the VAT Certificate to the checklist.</p>
+            <p className="text-xs text-fg-subtle mt-1">Enter the VRN if VAT-registered — this adds the VAT Certificate to the checklist.</p>
           </div>
         </div>
 
@@ -154,7 +154,7 @@ export function CompanyProfile({
           <input type="checkbox" name="sectorRegulated" defaultChecked={profile.sectorRegulated} className="mt-0.5 h-4 w-4 accent-[var(--accent)]" />
           <span className="text-sm">
             Regulated sector (construction / industrial)
-            <span className="block text-[11px] text-fg-subtle">Adds CRB, OSHA, Local Content &amp; Fire safety to this company&apos;s required-documents checklist. Leave off for general trading, food or services.</span>
+            <span className="block text-xs text-fg-subtle">Adds CRB, OSHA, Local Content &amp; Fire safety to this company&apos;s required-documents checklist. Leave off for general trading, food or services.</span>
           </span>
         </label>
       </section>

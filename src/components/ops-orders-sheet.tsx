@@ -176,7 +176,7 @@ export function OpsOrdersSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -215,8 +215,8 @@ export function OpsOrdersSheet({
         ]}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">No order lines yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No order lines yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add the first one above. Nothing is imported — every line is typed.
             </p>
           </div>
@@ -228,11 +228,11 @@ export function OpsOrdersSheet({
             sortHref: sortHref("po"), sorted: sortedAs("po"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">
+                <span className="block truncate text-sm">
                   <span className="font-mono text-fg-muted">{v.line.poNo}</span>{" "}
                   {v.line.description}
                 </span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-xs text-fg-muted">
                   {[v.line.client, v.line.costCentre, v.line.supplier, v.line.kind]
                     .filter(Boolean).join(" · ") || "—"}
                 </span>
@@ -247,8 +247,8 @@ export function OpsOrdersSheet({
               const f = lineFlag(v);
               return (
                 <span className="min-w-0">
-                  <span className="block truncate text-[12px]">{fmtDate(v.line.dueDate) ?? "—"}</span>
-                  <span className={cn("block text-[11px]",
+                  <span className="block truncate text-sm">{fmtDate(v.line.dueDate) ?? "—"}</span>
+                  <span className={cn("block text-xs",
                     f === "overdue" ? "text-danger" : f === "due-soon" ? "text-warn" : "text-fg-subtle")}>
                     {v.overdueDays === null
                       ? FLAG_LABEL[f]
@@ -263,7 +263,7 @@ export function OpsOrdersSheet({
             csv: (v) => v.saleTotalTzs,
             sortHref: sortHref("sale"), sorted: sortedAs("sale"),
             render: (v) => (
-              <span className="tabular text-[12px]">
+              <span className="tabular text-sm">
                 {/* Unknown stays a dash. A line nobody has priced has no value. */}
                 {v.saleTotalTzs === null ? "—" : money(v.saleTotalTzs)}
               </span>
@@ -279,7 +279,7 @@ export function OpsOrdersSheet({
             csv: (v) => v.margin,
             sortHref: sortHref("margin"), sorted: sortedAs("margin"),
             render: (v) => (
-              <span className={cn("tabular text-[12px]",
+              <span className={cn("tabular text-sm",
                 v.margin !== null && v.margin < 0 ? "text-danger" : "text-fg-muted")}>
                 {v.margin === null ? "—" : `${money(v.margin)}${v.marginPct !== null ? ` · ${pct(v.marginPct, 0)}` : ""}`}
               </span>
@@ -295,9 +295,9 @@ export function OpsOrdersSheet({
             csv: (v) => v.line.status ?? FLAG_LABEL[lineFlag(v)],
             render: (v) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">{v.line.status ?? "—"}</span>
+                <span className="block truncate text-sm">{v.line.status ?? "—"}</span>
                 {v.line.pendingWith && (
-                  <span className="block truncate text-[11px] text-fg-subtle">
+                  <span className="block truncate text-xs text-fg-subtle">
                     with {v.line.pendingWith}
                   </span>
                 )}
@@ -381,10 +381,10 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "danger" && "text-danger", tone === "warn" && "text-warn")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
@@ -392,7 +392,7 @@ function Tile({ label, value, sub, tone }: {
 /* ────────────────────────────────────────────────────────────── add a line ─ */
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 function AddLine({
   companyId, suggest, defaultExRate, onSaved, onError,
@@ -459,9 +459,9 @@ function AddLine({
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[12px] font-medium">Add a line</h3>
+        <h3 className="text-sm font-medium">Add a line</h3>
         {justSaved && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-success">
+          <span className="inline-flex items-center gap-1 text-xs text-success">
             <Check size={12} /> saved {justSaved.slice(0, 28)}
           </span>
         )}
@@ -499,7 +499,7 @@ function AddLine({
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
                 onClick={() => setCurrency(currency === c ? "" : c)}
-                className={cn("h-8 flex-1 rounded-md border text-[11px]",
+                className={cn("h-8 flex-1 rounded-md border text-xs",
                   currency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {c}
               </button>
@@ -515,7 +515,7 @@ function AddLine({
             {defaultExRate > 0 && exRate === "" && (
               <button type="button" onClick={() => setExRate(String(defaultExRate))}
                 title="Use the rate from Setup"
-                className="shrink-0 rounded-md border border-border px-1.5 text-[11px] text-fg-muted hover:border-accent hover:text-accent">
+                className="shrink-0 rounded-md border border-border px-1.5 text-xs text-fg-muted hover:border-accent hover:text-accent">
                 {defaultExRate.toLocaleString("en-GB")}
               </button>
             )}
@@ -536,7 +536,7 @@ function AddLine({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add line
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           <kbd className="rounded border border-border px-1">Enter</kbd> saves and starts the next
           item on the same PO — the PO, client, rate and dates carry over. The buying side, the
           status and the invoice are filled in on the line itself, later.
@@ -663,7 +663,7 @@ function EditLine({
           <div className="flex gap-1">
             {ORDER_KINDS.map((k) => (
               <button key={k} type="button" onClick={() => set("kind", f.kind === k ? "" : k)}
-                className={cn("h-8 flex-1 rounded-md border px-1 text-[10px]",
+                className={cn("h-8 flex-1 rounded-md border px-1 text-xs",
                   f.kind === k ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {k}
               </button>
@@ -682,7 +682,7 @@ function EditLine({
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
                 onClick={() => set("purchaseCurrency", f.purchaseCurrency === c ? "" : c)}
-                className={cn("h-8 flex-1 rounded-md border text-[11px]",
+                className={cn("h-8 flex-1 rounded-md border text-xs",
                   f.purchaseCurrency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {c}
               </button>
@@ -798,7 +798,7 @@ function EditLine({
 
       {/* the sale half is already on the strip, so it folds away here */}
       <button type="button" onClick={() => setOpenSale((v) => !v)}
-        className="inline-flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg">
+        className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg">
         <ChevronDown size={13} className={cn("transition-transform", openSale && "rotate-180")} />
         {openSale ? "Hide" : "Correct"} the sale side — PO, client, quantity, price, dates
       </button>
@@ -828,7 +828,7 @@ function EditLine({
               {["TZS", "USD"].map((c) => (
                 <button key={c} type="button"
                   onClick={() => set("saleCurrency", f.saleCurrency === c ? "" : c)}
-                  className={cn("h-8 flex-1 rounded-md border text-[11px]",
+                  className={cn("h-8 flex-1 rounded-md border text-xs",
                     f.saleCurrency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                   {c}
                 </button>
@@ -860,7 +860,7 @@ function EditLine({
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg">
           <X size={13} /> Cancel
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Every change is recorded — what it was, what it became, and who changed it.
         </span>
       </div>
@@ -871,7 +871,7 @@ function EditLine({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium text-fg-muted">{title}</p>
+      <p className="mb-1.5 text-xs font-medium text-fg-muted">{title}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">{children}</div>
     </div>
   );

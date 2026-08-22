@@ -78,7 +78,7 @@ export function ArcGauge({
       </svg>
       <div className="absolute inset-x-0 text-center" style={{ top: cy * 0.42 }}>
         <div className="text-2xl font-semibold leading-none tabular">{label ?? `${animated}%`}</div>
-        {sublabel && <div className="mt-0.5 text-[10px] uppercase tracking-wide text-fg-muted">{sublabel}</div>}
+        {sublabel && <div className="mt-0.5 text-xs uppercase tracking-wide text-fg-muted">{sublabel}</div>}
       </div>
     </div>
   );

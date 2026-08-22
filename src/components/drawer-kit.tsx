@@ -92,7 +92,7 @@ export function SectionPulse({
 /** A status chip with a leading dot. */
 export function StatusChip({ tone, children }: { tone: KitTone; children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/80 px-2 py-0.5 text-[11px] font-medium text-fg-muted">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/80 px-2 py-0.5 text-xs font-medium text-fg-muted">
       <span className={cn("h-1.5 w-1.5 rounded-full", DOT[tone])} /> {children}
     </span>
   );
@@ -127,7 +127,7 @@ export function DrawerRow({
       <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT[tone])} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{title}</span>
-        {meta && <span className="block truncate text-[11px] text-fg-subtle">{meta}</span>}
+        {meta && <span className="block truncate text-xs text-fg-subtle">{meta}</span>}
       </span>
       {actions && (
         <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
@@ -184,7 +184,7 @@ export function CollapsibleSection({
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
           className="group flex min-w-0 flex-1 items-center gap-2 text-left">
           {icon && <span className="shrink-0 text-fg-muted">{icon}</span>}
-          <span className="truncate text-[13px] font-semibold">{title}</span>
+          <span className="truncate text-base font-semibold">{title}</span>
           {count != null && <CountPill>{count}</CountPill>}
         </button>
         {right && <span className="flex shrink-0 items-center gap-1">{right}</span>}
@@ -200,7 +200,7 @@ export function CollapsibleSection({
 
 /** A small caption used to head a group within a card. */
 export function GroupLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">{children}</div>;
+  return <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">{children}</div>;
 }
 
 /** A two-column definition grid (label + value, "—" when empty). */
@@ -209,7 +209,7 @@ export function DefGrid({ rows }: { rows: Array<{ label: string; value: string |
     <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
       {rows.map((r) => (
         <div key={r.label}>
-          <div className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle">{r.label}</div>
+          <div className="text-xs uppercase tracking-[0.08em] text-fg-subtle">{r.label}</div>
           <div className={cn("text-sm", r.value ? "text-fg" : "text-fg-subtle")}>{r.value || "—"}</div>
           {r.hint}
         </div>

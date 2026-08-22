@@ -136,7 +136,7 @@ export type CzBalance = {
 };
 
 /**
- * What should be on the shelf at the end of `on`.
+ * What the DAY BOOK says should be on the shelf at the end of `on`.
  *
  * Start at the most recent count on or before that date, then apply every
  * movement dated AFTER the count and up to and including `on`.
@@ -145,6 +145,13 @@ export type CzBalance = {
  * position at the end of its date and therefore already contains them. Get this
  * wrong by one day and every figure after a stock-take is out by that day's
  * trade — quietly, and in a direction nobody can see.
+ *
+ * ⚠️ THIS IS NO LONGER WHAT THE SCREENS READ. Manufacturing Stage 2 moved
+ * every screen onto `ledgerBalanceAt`, because a day sheet cannot see a
+ * purchase: it holds three columns somebody typed, and stock arriving on a
+ * supplier's delivery is not one of them. This is kept because it is the OTHER
+ * reading, and the two agreeing is what proved the Stage 1 backfill correct —
+ * all 323 items, both ways. Do not build anything new on it.
  */
 export function balanceAt(
   itemId: number,
@@ -183,6 +190,16 @@ export type CzDayRow = {
   qtyIn: number;
   qtyOut: number;
   qtyThird: number;
+  /**
+   * Everything that moved this day WITHOUT being written on the sheet — a
+   * delivery received, a transfer, a batch. Signed, and normally zero.
+   *
+   * ⚠️ IT EXISTS SO THE SHEET CANNOT LIE BY ARITHMETIC. Closing is opening
+   * + in − out − third only while the sheet is the only thing that moves stock.
+   * The day a purchase lands, that sum stops adding up, and a grid that showed
+   * it anyway would have somebody hunting a phantom discrepancy.
+   */
+  other: number;
   closing: number;
   note: string | null;
   /** True when nothing has been typed for this item on this day. The grid shows
@@ -201,24 +218,36 @@ export type CzDayRow = {
  */
 export function dayRows(
   items: CzStockItem[],
+  locationId: number,
+  moves: CzStockMove[],
   days: CzStockDay[],
   counts: CzStockCount[],
   on: string,
 ): CzDayRow[] {
   const yesterday = previousDay(on);
   return items.map((item) => {
-    const today = days.find((d) => d.itemId === item.id && d.onDate === on);
-    const opening = balanceAt(item.id, days, counts, yesterday).closing;
-    const qtyIn = today?.qtyIn ?? 0;
-    const qtyOut = today?.qtyOut ?? 0;
-    const qtyThird = today?.qtyThird ?? 0;
+    // ⚠️ THE DOCUMENT AND THE TRUTH ARE READ SEPARATELY, AND THAT IS THE
+    // WHOLE POINT. `days` is the sheet as somebody typed it — it is what says
+    // whether anything was written down at all, and it carries the note. The
+    // moves are what actually happened to stock.
+    const written = days.find((d) => d.itemId === item.id && d.onDate === on);
+    const opening = ledgerBalanceAt(item.id, locationId, moves, counts, yesterday).closing;
+    const sheet = daySheetFromMoves(item.id, locationId, moves, on);
+    const other = moves
+      .filter((m) =>
+        m.itemId === item.id && m.locationId === locationId && m.onDate === on && !isSheetReason(m.reason))
+      .reduce((t, m) => t + (Number.isFinite(m.qty) ? m.qty : 0), 0);
     return {
       item,
       opening,
-      qtyIn, qtyOut, qtyThird,
-      closing: opening + qtyIn - qtyOut - qtyThird,
-      note: today?.note ?? null,
-      untouched: !today,
+      qtyIn: sheet.qtyIn, qtyOut: sheet.qtyOut, qtyThird: sheet.qtyThird,
+      other,
+      closing: opening + sheet.qtyIn - sheet.qtyOut - sheet.qtyThird + other,
+      note: written?.note ?? null,
+      // ⚠️ "Nobody wrote anything down" is a fact about the SHEET, not about
+      // the ledger. A day whose only movement was a delivery is still an
+      // unwritten day, and showing it as filled in would be a small lie.
+      untouched: !written,
     };
   });
 }
@@ -229,6 +258,11 @@ export type CzMonthRow = {
   totalIn: number;
   totalOut: number;
   totalThird: number;
+  /** Stock that arrived without being written on the sheet — deliveries,
+   *  transfers in, a batch finished. */
+  otherIn: number;
+  /** And stock that left the same way. Both are positive figures. */
+  otherOut: number;
   /** What the book says should be there. */
   computed: number;
   /** The most recent count INSIDE the period, if there was one. */
@@ -257,6 +291,8 @@ export type CzMonthRow = {
  */
 export function monthRows(
   items: CzStockItem[],
+  locationId: number,
+  moves: CzStockMove[],
   days: CzStockDay[],
   counts: CzStockCount[],
   from: string,
@@ -264,8 +300,11 @@ export function monthRows(
 ): CzMonthRow[] {
   const before = previousDay(from);
   return items.map((item) => {
-    const opening = balanceAt(item.id, days, counts, before).closing;
-    const inRange = days.filter((d) => d.itemId === item.id && d.onDate >= from && d.onDate <= to);
+    const opening = ledgerBalanceAt(item.id, locationId, moves, counts, before).closing;
+    const mine = moves.filter((m) =>
+      m.itemId === item.id && m.locationId === locationId && m.onDate >= from && m.onDate <= to);
+    const abs = (f: (m: CzStockMove) => boolean) =>
+      mine.filter(f).reduce((t, m) => t + (Number.isFinite(m.qty) ? Math.abs(m.qty) : 0), 0);
     const count = counts
       .filter((c) => c.itemId === item.id && c.countedOn >= from && c.countedOn <= to)
       .reduce<CzStockCount | null>(
@@ -273,12 +312,17 @@ export function monthRows(
           !best || c.countedOn > best.countedOn || (c.countedOn === best.countedOn && c.id > best.id) ? c : best,
         null,
       );
-    const totalIn = inRange.reduce((t, d) => t + d.qtyIn, 0);
-    const totalOut = inRange.reduce((t, d) => t + d.qtyOut, 0);
-    const totalThird = inRange.reduce((t, d) => t + d.qtyThird, 0);
-    const computed = balanceAt(item.id, days, counts, to).closing;
+    const totalIn = abs((m) => m.reason === "day_in");
+    const totalOut = abs((m) => m.reason === "day_out");
+    const totalThird = abs((m) => m.reason === "day_third");
+    // Kept apart from the three sheet columns rather than folded into them.
+    // A delivery is not something the shop wrote in its IN column, and saying
+    // it was would put a fact in somebody's mouth.
+    const otherIn = abs((m) => !isSheetReason(m.reason) && m.qty > 0);
+    const otherOut = abs((m) => !isSheetReason(m.reason) && m.qty < 0);
+    const computed = ledgerBalanceAt(item.id, locationId, moves, counts, to).closing;
     return {
-      item, opening, totalIn, totalOut, totalThird, computed, count,
+      item, opening, totalIn, totalOut, totalThird, otherIn, otherOut, computed, count,
       // ⚠️ THROUGH `varianceOf`, NOT `balanceAt`. Measured against what the book
       // says on the day of the COUNT — a count taken on the 20th cannot be
       // judged against the 31st's figure — and with THAT COUNT TAKEN OUT of the
@@ -286,8 +330,11 @@ export function monthRows(
       // date, so asking it about the count's own day hands the counted figure
       // straight back and every variance in the system reads zero. Written
       // wrong here first; the test caught it.
-      variance: count ? varianceOf(item.id, days, counts, count) : null,
-      daysWritten: inRange.length,
+      variance: count ? varianceOf(item.id, locationId, moves, counts, count) : null,
+      // ⚠️ FROM THE SHEET, NOT FROM THE LEDGER. This counts days somebody was
+      // actually counting — the kitchen skips 7 to 10 August — and a day whose
+      // only movement was a delivery is not one of them.
+      daysWritten: days.filter((d) => d.itemId === item.id && d.onDate >= from && d.onDate <= to).length,
     };
   });
 }
@@ -302,12 +349,13 @@ export function monthRows(
  */
 export function varianceOf(
   itemId: number,
-  days: CzStockDay[],
+  locationId: number,
+  moves: CzStockMove[],
   counts: CzStockCount[],
   count: CzStockCount,
 ): number {
   const earlier = counts.filter((c) => c.id !== count.id && c.countedOn <= count.countedOn);
-  return count.qty - balanceAt(itemId, days, earlier, count.countedOn).closing;
+  return count.qty - ledgerBalanceAt(itemId, locationId, moves, earlier, count.countedOn).closing;
 }
 
 /* ------------------------------------------------------------------ *
@@ -339,13 +387,20 @@ export type CzSalesRow = {
  */
 export function salesRows(
   items: CzStockItem[],
-  days: CzStockDay[],
+  locationId: number,
+  moves: CzStockMove[],
   from: string,
   to: string,
   priceOn: (productId: number, on: string) => number | null,
 ): CzSalesRow[] {
   return items.map((item) => {
-    const inRange = days.filter((d) => d.itemId === item.id && d.onDate >= from && d.onDate <= to && d.qtyOut > 0);
+    // ⚠️ WHAT WENT OUT TO BE SOLD — not everything that left. A transfer to
+    // the shop, a breakage and a batch consuming raw material all reduce stock
+    // and none of them is a sale, so valuing them would invent revenue.
+    const inRange = moves.filter((m) =>
+      m.itemId === item.id && m.locationId === locationId &&
+      m.onDate >= from && m.onDate <= to && isDemandReason(m.reason) && m.qty < 0)
+      .map((m) => ({ onDate: m.onDate, qtyOut: Math.abs(m.qty) }));
     const units = inRange.reduce((t, d) => t + d.qtyOut, 0);
     if (item.productId == null) {
       return { item, units, unitPrice: null, value: null };
@@ -434,6 +489,8 @@ export type CzOrderRow = {
  */
 export function orderSuggestions(
   items: CzStockItem[],
+  locationId: number,
+  moves: CzStockMove[],
   days: CzStockDay[],
   counts: CzStockCount[],
   opts: { from: string; to: string; coverDays: number; asOf?: string },
@@ -443,10 +500,20 @@ export function orderSuggestions(
 
   return items
     .map((item) => {
-      const window = days.filter((d) => d.itemId === item.id && d.onDate >= opts.from && d.onDate <= opts.to);
-      const soldInWindow = window.reduce((t, d) => t + d.qtyOut, 0);
-      const daysMeasured = window.length;
-      const onHand = balanceAt(item.id, days, counts, asOf).closing;
+      // ⚠️ TWO DIFFERENT SOURCES, AND SWAPPING THEM BREAKS THE FORM. What went
+      // out comes from the LEDGER (it is the truth about demand); how many days
+      // were measured comes from the SHEET (it is a fact about how often
+      // somebody counted). Taking `daysMeasured` from the ledger would count a
+      // day whose only movement was a delivery as a day of trading and halve
+      // the rate.
+      const soldInWindow = moves
+        .filter((m) =>
+          m.itemId === item.id && m.locationId === locationId &&
+          m.onDate >= opts.from && m.onDate <= opts.to && isDemandReason(m.reason) && m.qty < 0)
+        .reduce((t, m) => t + Math.abs(m.qty), 0);
+      const daysMeasured = days.filter(
+        (d) => d.itemId === item.id && d.onDate >= opts.from && d.onDate <= opts.to).length;
+      const onHand = ledgerBalanceAt(item.id, locationId, moves, counts, asOf).closing;
 
       // ⚠️ One day of history is not a rate. Two rows is the least that can
       // describe a trend, and below that the honest answer is "not known".
@@ -503,6 +570,26 @@ export type CzMoveReason =
 /** Whether a reason describes stock arriving. Used for wording, never for the
  *  arithmetic — `qty` carries its own sign. */
 export const INWARD_REASONS: CzMoveReason[] = ["day_in", "receipt", "produce", "return"];
+
+/** The three reasons that came off a day sheet, as opposed to a document. */
+export const SHEET_REASONS: CzMoveReason[] = ["day_in", "day_out", "day_third"];
+
+export function isSheetReason(r: CzMoveReason): boolean {
+  return r === "day_in" || r === "day_out" || r === "day_third";
+}
+
+/**
+ * Stock leaving to be SOLD, as against leaving for any other reason.
+ *
+ * ⚠️ A TRANSFER IS NOT A SALE, AND NEITHER IS A BREAKAGE. Both reduce what is
+ * on the shelf, and counting either as demand would have the order form asking
+ * for chocolate to replace chocolate that was merely carried next door.
+ */
+export const DEMAND_REASONS: CzMoveReason[] = ["day_out", "sale"];
+
+export function isDemandReason(r: CzMoveReason): boolean {
+  return r === "day_out" || r === "sale";
+}
 
 export type CzStockMove = {
   id: number;

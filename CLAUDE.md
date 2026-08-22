@@ -1,6 +1,38 @@
 # COS System - Project Instructions
 
-**⚠️ Most recent work: read `memory/handover_aug22_2026.md` FIRST** — CocoZuri
+**⚠️ Most recent work: CocoZuri MANUFACTURING STAGES 2-5 are BUILT**
+(migrations **0150 · 0151 · 0152 · 0153**, each applied and proved by effect) —
+buying with landed cost, recipes that cost themselves, production with the
+owner's "inter check", and kitchen-to-shop transfers. The whole chain was proved
+live end to end: buy → cost → make → check → move → trace → reverse. Read
+`memory/cocozuri_manufacturing_plan.md` §6b–§6e.
+
+**⚠️ THE OWNER SETTLED THE ITEM-IDENTITY QUESTION (22 Aug 2026):** the shop's
+`AMBER RABDI` and the kitchen's ARE the same chocolate — but still two rows, so
+a transfer moves between two item rows joined by **`product_id`, never by name**
+(64 of 75 already pair). **A transfer has TWO MOMENTS** — sent and received —
+and the gap between them is stock lost in transit, which is what made the shop's
+opening figure a mystery. ⚠️ `transferStock` from Stage 1 is SUPERSEDED.
+
+**⚠️ AN ANCHORED MENU IS PORTALLED, ALWAYS** — `useAnchoredMenu()` in
+`lib/use-anchored-menu.ts`. An `absolute` menu is CLIPPED by any scrolling
+ancestor (a bottom sheet, a drawer, a card), and portalling it then puts it
+BEHIND that overlay unless it carries `zIndex: MENU_Z` (1000). Both halves were
+photographed by the owner in turn. Six components had written it by hand; they
+all use the hook now. **Do not write a seventh.**
+
+**⚠️ AND THE DESIGN WAS MADE UNIFORM ACROSS THE WHOLE SYSTEM** (owner's ask):
+ONE control box everywhere, and **2,619 hard-coded `text-[Npx]` sizes in
+fourteen variants collapsed onto the density-aware scale**. Two of the faults
+were outright bugs of the same shape — `Combobox` and `RecordList`'s row set no
+type size, so everything inside them fell back to the browser's **16px**. Read
+`DESIGN_SYSTEM.md` — the rule is now "never `text-[Npx]` for body text".
+**Orders & Imports (`/ops`) became a module of its own** at the same time.
+
+Read `memory/handover_aug22_2026_evening.md` for the full account of that
+session, including the four bugs and the questions still waiting on the owner.
+
+Before that: `memory/handover_aug22_2026.md` — CocoZuri
 Phases 3-5 built and DEPLOYED, the module swept for bugs (three lists were losing
 their subject column; `Combobox` was overflowing every grid cell in 24 files),
 and the MANUFACTURING half planned in 9 stages with Stage 1 (the stock ledger)
@@ -262,7 +294,11 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0148** (`cz_stock_*`, the CocoZuri stock book). Before it, **0147** (`cz_receipts` + `cz_invoices.applies_to_invoice_id`, CocoZuri money in). Before it, **0146** (`cz_invoices`, CocoZuri invoicing). Before it, **0145** (`cz_*`, the CocoZuri catalogue). Before it, **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0153** (`cz_transfers` · `cz_transfer_lines` — kitchen to shop).
+Before it, **0152** (production — nine columns on `cz_batches`).
+Before it, **0151** (`cz_recipes` · `cz_recipe_lines` — CocoZuri recipes).
+Before it, **0150** (`cz_budgets` · `cz_purchases` · `cz_purchase_lines` — CocoZuri buying).
+Before it, **0149** (`cz_stock_moves` + `cz_batches`, the stock ledger). Before it, **0148** (`cz_stock_*`, the CocoZuri stock book). Before it, **0147** (`cz_receipts` + `cz_invoices.applies_to_invoice_id`, CocoZuri money in). Before it, **0146** (`cz_invoices`, CocoZuri invoicing). Before it, **0145** (`cz_*`, the CocoZuri catalogue). Before it, **0144** (`note_offline_edits`, offline note editing). Before it, **0138** (the general ledger — see that section; 0137 is the
 four tables, 0138 an index predicate. Both applied). **0116–0122 are all APPLIED** (0116/0117 verified 16 Aug 2026; 0118–0122 applied 17 Aug 2026, each after a `db:backup`).
 
 See `memory/database_schema.md`.
@@ -381,8 +417,10 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   Company picked with `?co=`, never `?company=`.
 - `/cocozuri` - **CocoZuri Operations** (Furaha Innovation Ltd, prefix CC):
   products · customers · invoices · money in · owed · statements · the stock book
-  and the month-end stock-take · **the order form, and posting to the general
-  ledger**. See the CocoZuri section above.
+  and the month-end stock-take · the order form, and posting to the general
+  ledger · **purchases and budgets** (Stage 2) · **recipes** (Stage 3) ·
+  **production** (Stage 4) · **transfers** (Stage 5). See the CocoZuri section
+  above.
 - `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
   Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
   wait first), `/interviews` (the diary, in both Dar and India time) and
@@ -393,12 +431,17 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/settings`
 
 **⚠️ NAVIGATION IS MODULES NOW (Aug 2026).** COS is divided the way the
-BUSINESSES are: **Task Management · Recruitment · Ledger · Projects · CocoZuri
-Operations** (the last is a "Being built" tile). `/apps` is the launcher; the
+BUSINESSES are: **Task Management · Recruitment · Ledger · Projects · Orders &
+Imports · CocoZuri Operations**. `/apps` is the launcher; the
 sidebar shows **only the module you are in**, with a switcher under the brand and
 **System (Insights/Activity/ORI/Settings) pinned at the foot of every rail**.
 - **`src/lib/nav.ts` holds `MODULES`** — one entry per module, listing existing
-  route ids. ⚠️ **`NAV_ROUTES` IS NOT TOUCHED BY THE SPLIT, and that is the whole
+  route ids. ⚠️ **Orders & Imports (`/ops`) became a module of its own** (Aug
+  2026): it was ONE nav id filed under Task Management's "Operations" group while
+  actually being seven pages and a whole business. It now has a route per tab, so
+  the rail lists its pages the way every other module's does and ⌘K can reach
+  each by name. The in-page tab strip (`ops-tabs.tsx`) stays — both are lists of
+  the same seven addresses. **A route filed in two modules fails `nav.test.ts`.** ⚠️ **`NAV_ROUTES` IS NOT TOUCHED BY THE SPLIT, and that is the whole
   trick**: pins are stored as ids and silently drop unknown ones, and ⌘K, recents
   and the mobile launcher all read that list. A module only ARRANGES routes.
 - **`moduleForPath()` falls back to Task Management**, so a page in no module
@@ -790,13 +833,47 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   every kitchen figure. Fewer than two days of history gets no figure at all.
 - Still **no MCP tool and no `EntityDef`**, on purpose. **A ledger WRITE tool must
   never exist.**
-- ⚠️ **THE MANUFACTURING HALF: STAGE 1 IS BUILT, STAGES 2-9 ARE NOT — read
-  `memory/cocozuri_manufacturing_plan.md` before touching stock.** Nine stages
-  from the owner's own notes (22 Aug 2026): purchasing, recipes, production
-  batches, transfers, POS, returns, batch costing, the rest of the accounts, and
-  food traceability. §5 is a line-by-line audit of all 52 points in those notes
-  so nothing is lost; **§5a holds the owner's answers and they change the
-  design.**
+- ⚠️ **THE MANUFACTURING HALF: STAGES 1-5 ARE BUILT, STAGES 6-9 ARE NOT —
+  read `memory/cocozuri_manufacturing_plan.md` before touching stock.** Nine
+  stages from the owner's own notes (22 Aug 2026): purchasing, recipes,
+  production batches, transfers, POS, returns, batch costing, the rest of the
+  accounts, and food traceability. §5 is a line-by-line audit of all 52 points in
+  those notes so nothing is lost; **§5a holds the owner's answers and they change
+  the design.** §6a–§6d record what was built.
+- ⚠️ **PRODUCTION (Stage 4) IS SHAPED ENTIRELY BY §5a — "we don't use batch
+  numbers, but we are introducing them".** It does not fail by being wrong, it
+  fails by NOT BEING USED. So: the number is **allocated, never typed**; a batch
+  **opens in ONE action** and lands `running`; the **recipe is optional**; and
+  **every question is asked at CLOSE**, when somebody has finished.
+- ⚠️ **MATERIALS ARE CONSUMED AT CLOSE, NOT AT START.** The kitchen's shelf
+  reads true all day, and — the real reason — **abandoning a batch costs
+  nothing**, so nobody avoids opening one "just in case". Closing writes every
+  `consume` and the one `produce` in ONE voucher, all carrying the `batch_id`,
+  which is the whole traceability story.
+- ⚠️ **A BATCH DOES NOT NET** — `postStockMove` is called WITHOUT `mustNet`.
+  Two kilos of cocoa become 108 bars; a transfer nets, production does not.
+- ⚠️ **THE INTER CHECK READS THE MOVEMENTS, NOT THE RECIPE** (note #37). The
+  recipe is what was MEANT to go in. Reading it back as fact would make every
+  batch agree with itself. **A shortfall must say where it went** — in the
+  making, or the materials (note #12) — and naming the kind is not enough, it
+  has to say why. The expectation is measured AFTER the recipe's expected loss.
+- ⚠️ **A RECIPE SOMETHING HAS BEEN MADE FROM CANNOT BE DELETED**, and reopening
+  a batch REVERSES its movements rather than erasing them.
+- ⚠️ **TRANSFERS (Stage 5): TWO ITEM ROWS, JOINED BY `product_id`, NEVER BY
+  NAME.** The owner settled it — same chocolate, two rows. 64 of the kitchen's
+  75 pair with a shop row; the rest are REPORTED with a reason, never dropped
+  and never auto-created.
+- ⚠️ **A TRANSFER HAS TWO MOMENTS AND DOES NOT ALWAYS NET.** Sending writes the
+  OUT movements (it is now in transit — on neither shelf); receiving writes the
+  IN movements for **what actually arrived**. A shortfall must be explained;
+  MORE arriving than was sent is refused outright. **The missing units get no
+  movement of their own** — they belong to neither shelf, and both sides carry
+  the transfer's voucher so the loss is always answerable. ⚠️ `postStockMove` is
+  therefore called WITHOUT `mustNet`, and Stage 1's `transferStock` is
+  SUPERSEDED — do not build on it.
+- ⚠️ **THE POS HALF OF STAGE 5 IS DELIBERATELY NOT BUILT.** Question §6.6 —
+  is the shop a real till with a cash-up, or does somebody write down what sold?
+  — is unanswered, and the two answers make completely different software.
 - ⚠️ **STOCK NOW HAS A LEDGER (migration 0149).** `cz_stock_moves` +
   **`postStockMove()`** are the twin of `gl_entries` + `postVoucher()`: ONE
   ledger, MANY doors, and nothing else may insert. `qty` is SIGNED, so a transfer
@@ -805,10 +882,97 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   and the moves are what it did to stock. Same split the reference system makes
   between a Stock Entry and a Stock Ledger Entry. **A day sheet may be REWRITTEN
   (people miscount); every other voucher is REVERSED, never erased.**
-- ⚠️ **THE READ PATH IS STILL THE DAY BOOK, AND MUST MOVE TO `ledgerBalanceAt`
-  AS PART OF STAGE 2.** While the day sheet is the only writer the two readings
-  are identical (proved: all 323 items agree). They diverge the moment a purchase
-  exists.
+- ⚠️ **THE READ PATH IS THE LEDGER NOW (Stage 2), AND MUST STAY THERE.** Every
+  CocoZuri stock screen reads `ledgerBalanceAt`; `stockBook()` returns `moves`,
+  and `dayRows`/`monthRows`/`varianceOf`/`salesRows`/`orderSuggestions` all take
+  a location and the movements. `balanceAt` survives as the day book's OWN
+  reading — it is what proved the Stage 1 backfill — but **nothing new is built
+  on it**. Proved live: before a delivery both read 406; after it the ledger
+  reads 446 and the day book still 406.
+- ⚠️ **THE SHEET AND THE LEDGER ARE READ SEPARATELY, FOR DIFFERENT THINGS.**
+  `cz_stock_days` stays the DOCUMENT: it is what says whether anybody wrote
+  anything down, it carries the note, and it is what `daysWritten` /
+  `daysMeasured` count. The movements are the truth about quantity. Take
+  `daysMeasured` off the ledger and a day whose only movement was a delivery
+  counts as a day of trading — which halves the order form's rate.
+- ⚠️ **THE DAY SHEET HAS AN "OTHER" COLUMN, AND IT IS READ-ONLY.**
+  `closing = opening + IN − OUT − third` holds only while the sheet is the sole
+  writer. `CzDayRow.other` is the net of movements recorded on a document, shown
+  rather than hidden — otherwise the grid would print a closing figure that
+  appears not to add up. It cannot be typed into: a delivery belongs to the
+  purchase that recorded it, and retyping it would move the same stock twice.
+- ⚠️ **BUYING (Stage 2): `cocozuri-buy-shared.ts` IS CLIENT-SAFE,
+  `cocozuri-buy.ts` IS SERVER-ONLY AND IS THE ONE DOOR FOR WRITES.** Tables
+  `cz_budgets` · `cz_purchases` · `cz_purchase_lines` (migration **0150**).
+  ⚠️ **NO TOTAL COLUMN AND NO `spent` COLUMN, ever** — goods, VAT, the freight
+  share, the landed unit cost and what a budget has left are all derived.
+- ⚠️ **THE SUPPLIER ON A PURCHASE IS OPTIONAL AND MUST STAY OPTIONAL** (the
+  owner, 22 Aug 2026). Raw materials are often bought at random or self-bought;
+  a form demanding a supplier will not be filled in, and a purchase nobody
+  records never reaches the books at all. "Not named" is shown as a plain fact,
+  never as a warning.
+- ⚠️ **`paid_from` IS FOUR CASES, AND `own_money` MEANS SOMEBODY IS OWED IT
+  BACK.** That voucher credits **creditors with the PERSON as the party**, never
+  the bank — the money never left it. Approving refuses a self-bought purchase
+  with nobody named.
+- ⚠️ **APPROVAL IS WHAT MAKES A PURCHASE COUNT** (note #47). A draft moves no
+  stock and posts nothing, which is what makes it safe to type while the delivery
+  is still coming through the door. Approving writes `receipt` movements through
+  `postStockMove()` at the LANDED cost; cancelling REVERSES them and is refused
+  while the general ledger still holds it. ⚠️ The movements are written BEFORE
+  the status and rolled back if it fails — there is no transaction to fall back on.
+- ⚠️ **FREIGHT IS SPREAD BY VALUE, LAST LINE TAKES THE REMAINDER, AND IT GOES
+  INTO THE STOCK — NOT INTO AN EXPENSE.** Booking it to carriage makes the
+  almonds look cheaper than they were and every batch costed from them wrong the
+  same way. Where the goods are worth nothing it falls back to quantity; where
+  there is no quantity either, `unitCost` is **null** rather than invented.
+  ⚠️ Freight carries **no VAT split** — nobody has said whether the transit
+  charge is itself rated.
+- ⚠️ **`cz_purchases.tax_inclusive` IS THREE-STATE, AND AN UNANSWERED RATED
+  PURCHASE CANNOT BE APPROVED OR POSTED.** The same 1,180,000 is either +VAT or
+  includes-VAT.
+- ⚠️ **AN OVERRUN BUDGET IS REFUSED UNTIL SOMEBODY SAYS SO** (`acknowledgeOver
+  Budget`), and a budget nobody has approved cannot be charged to. The approval
+  is a **person and a moment**, with the NAME stored beside the id because a
+  person may leave and the decision still happened. An approved budget is not
+  edited — reopen it, which clears the approval.
+- ⚠️ **A BUDGET IS MEASURED AGAINST WHAT LEAVES THE BANK** — payable, VAT and
+  freight included. Said on both screens; changeable on a word from the owner.
+- ⚠️ **THERE IS NO `stock` ROLE IN THE CHART.** `resolveBuyAccounts` finds 1150
+  by account TYPE, then by number, then by `settings["cocozuri.stockAccount"]`,
+  and **refuses rather than guesses**. `postingOverview` checks BOTH sides of the
+  chart — selling can be ready while buying is not.
+- ⚠️ **RECIPES (Stage 3): `cocozuri-recipe-shared.ts` IS CLIENT-SAFE,
+  `cocozuri-recipe.ts` IS SERVER-ONLY AND IS THE ONE DOOR FOR WRITES.** Tables
+  `cz_recipes` · `cz_recipe_lines` (migration **0151**). ⚠️ **NO COST COLUMN,
+  EVER** — a recipe costs itself on read from `cz_stock_moves.unit_cost`, which
+  is the LANDED figure Stage 2 wrote.
+- ⚠️ **A MATERIAL NOBODY HAS BOUGHT HAS NO COST — said, never shown as nil.**
+  Every screen renders an incomplete costing as **"≥"** with the material NAMED.
+  A total with a silent zero in it reads as cheap.
+- ⚠️ **THE MATERIAL COST IS A WEIGHTED AVERAGE OF THE RECEIPTS**, not the latest
+  price (one emergency bag would rewrite every recipe), and movements with **no**
+  `unit_cost` are IGNORED rather than averaged in as free — every day-sheet
+  movement is one of those.
+- ⚠️ **QUANTITIES ARE PER BATCH; COST PER UNIT DIVIDES BY THE **GOOD** UNITS.**
+  A 10% expected loss on 120 gives 108 good units — the survivors carry the cost
+  of all 120. Dividing by the yield understates every bar by exactly the loss.
+- ⚠️ **A RECIPE LINE CARRIES THE OWNER'S THREE HEADINGS** (raw material ·
+  packaging · **finishing**) because note #31 names three. **"Finish" is his word
+  and nobody has said what it covers** — stored as written, like DA/SA/TA.
+  `other_cost` (gas, labour) **must carry a note**.
+- ⚠️ **A RECIPE LANDS AS A DRAFT and activating RE-CHECKS the rules.** Several
+  ACTIVE recipes per item is correct; **ONE default**, enforced in the library.
+  An active recipe MAY be edited — it is a live instruction, not a document
+  somebody acted on.
+- ⚠️ **A STOCK ITEM BELONGS TO A LOCATION, SO ITS NAME DOES NOT IDENTIFY IT.**
+  `AMBER RABDI` is a different row on the shop's sheet and the kitchen's, and
+  matching by name filed the first live recipe as making the SHOP's — fault #4
+  creeping back in through a form. Every picker now shows `NAME · Location`.
+  **⚠️ THE SAME TENSION IS UNRESOLVED IN THE LEDGER:** `transferMoves()` moves
+  ONE `item_id` between two locations while `cz_stock_items.location_id` says an
+  item belongs to one. Stage 5 cannot build "kitchen → shop" until somebody
+  decides whether the two sheets' rows are one thing or two.
 - ⚠️ **`day_in`/`day_out`/`day_third` MEAN ONLY "written in that column"** — on
   the shop's sheet IN is a transfer from the kitchen, on raw materials it is a
   delivery. Nobody has said which, so the reason claims nothing more.
@@ -1121,7 +1285,10 @@ look, and do not reintroduce glass, blur, glows or pills.**
 Desk = **flat** (one solid surface + a hairline; no glass, blur, glow or
 gradient) · **grey page `#f4f5f6`, white content** · **crisp corners** (4px chips,
 6px controls, 8px cards — nothing is a pill) · **dense** (13px body, 9px rows,
-4px on Compact) · **hairlines separate, shadows only float** · **one blue
+4px on Compact) · **ONE CONTROL BOX everywhere** (`h-8` · `rounded-md` ·
+`text-sm`, declared as `CONTROL_BOX`/`FIELD` in `ui.tsx`) · **never
+`text-[Npx]` for body text** — `text-xs`/`text-sm`/`text-base` are wired to the
+density tokens and a pixel literal opts out of them · **hairlines separate, shadows only float** · **one blue
 `#2490ef`** with semantic colour kept separate · status as small dots/text, never
 blocks · glanceable, every-number-a-door · calm 120–240ms motion (`Reveal`,
 `lib/motion.ts`), reduced-motion safe · **every screen works the same way**.

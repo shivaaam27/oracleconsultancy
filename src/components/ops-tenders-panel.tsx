@@ -27,7 +27,7 @@ import {
 import { createOpsRefAction } from "@/app/ops/actions";
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 export function OpsTendersPanel({
   companyId, tenders: serverRows, clients,
@@ -63,17 +63,17 @@ export function OpsTendersPanel({
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <button type="button" onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-1.5 text-[12px] font-medium hover:text-accent">
+          className="flex items-center gap-1.5 text-sm font-medium hover:text-accent">
           <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
           <Gavel size={13} className="text-fg-subtle" />
           Tenders being chased
-          <span className="ml-1 text-[11px] font-normal text-fg-subtle">
+          <span className="ml-1 text-xs font-normal text-fg-subtle">
             {totals.open} live
             {totals.dueSoon > 0 && ` · ${totals.dueSoon} due this week`}
           </span>
         </button>
         {totals.missed > 0 && (
-          <span className="text-[11px] text-danger">
+          <span className="text-xs text-danger">
             {totals.missed} deadline{totals.missed === 1 ? "" : "s"} passed with nothing submitted
           </span>
         )}
@@ -88,21 +88,21 @@ export function OpsTendersPanel({
           />
 
           {error && (
-            <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
               {error}
             </p>
           )}
 
           {shown.length === 0 ? (
-            <p className="py-3 text-center text-[12px] text-fg-subtle">
+            <p className="py-3 text-center text-sm text-fg-subtle">
               Nothing being chased. Add a tender when one is advertised — it is not an enquiry
               until a client asks you directly, so it is kept apart from the conversion figures.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] border-collapse text-[12px]">
+              <table className="w-full min-w-[620px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+                  <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
                     <th className="px-2 py-1.5 text-left font-normal">What for</th>
                     <th className="px-2 py-1.5 text-left font-normal">Client</th>
                     <th className="px-2 py-1.5 text-left font-normal">Type</th>
@@ -123,7 +123,7 @@ export function OpsTendersPanel({
                         <td className="px-2 py-1.5 text-center">
                           <span className="block">{fmtDate(v.tender.deadline) ?? "—"}</span>
                           {v.daysLeft !== null && v.open && (
-                            <span className={cn("block text-[11px]",
+                            <span className={cn("block text-xs",
                               v.daysLeft < 0 ? "text-danger" : v.daysLeft <= 7 ? "text-warn" : "text-fg-subtle")}>
                               {v.daysLeft < 0 ? `${-v.daysLeft}d ago` : `${v.daysLeft}d left`}
                             </span>
@@ -136,7 +136,7 @@ export function OpsTendersPanel({
                             : v.closed ? "text-fg-subtle" : "")}>
                             {v.tender.outcome ?? (v.submitted ? "Submitted" : "Live")}
                           </span>
-                          <span className="block truncate text-[11px] text-fg-subtle">
+                          <span className="block truncate text-xs text-fg-subtle">
                             {v.waitingOn ?? v.tender.outcomeReason ?? "—"}
                           </span>
                         </td>
@@ -224,23 +224,23 @@ function AddTender({
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
       <label className="block min-w-0 sm:col-span-5">
-        <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">What for</span>
+        <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">What for</span>
         <input ref={ref} value={description} onChange={(e) => setDescription(e.target.value)}
           placeholder="SUPPLY OF MAPTEK SENTRY DMS" className={inputCls} />
       </label>
       <label className="block min-w-0 sm:col-span-2">
-        <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Client</span>
+        <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Client</span>
         <Combobox key={`c${comboKey}`} options={clients} defaultValue={client}
           onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client"
           placeholder="" onInput={setClient} onCommit={setClient} className={inputCls} />
       </label>
       <label className="block min-w-0 sm:col-span-2">
-        <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Type</span>
+        <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Type</span>
         <Combobox key={`t${comboKey}`} options={TENDER_TYPES} defaultValue={quoteType}
           placeholder="" onInput={setQuoteType} onCommit={setQuoteType} className={inputCls} />
       </label>
       <label className="block min-w-0 sm:col-span-2">
-        <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Deadline</span>
+        <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Deadline</span>
         <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputCls} />
       </label>
       <div className="flex items-end sm:col-span-1">
@@ -288,35 +288,35 @@ function EditTender({
       onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
         <label className="block min-w-0 sm:col-span-5">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">What for</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">What for</span>
           <input value={f.description} onChange={(e) => set("description", e.target.value)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-2">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Client</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Client</span>
           <Combobox options={clients} defaultValue={f.client}
             onCreate={(v) => createOpsRefAction(companyId, "client", v)} createNoun="client"
             placeholder="" onInput={(v) => set("client", v)} onCommit={(v) => set("client", v)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-2">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Type</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Type</span>
           <Combobox options={TENDER_TYPES} defaultValue={f.quoteType} placeholder=""
             onInput={(v) => set("quoteType", v)} onCommit={(v) => set("quoteType", v)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-3">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Deadline</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Deadline</span>
           <input type="date" value={f.deadline} onChange={(e) => set("deadline", e.target.value)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-3">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Submitted on</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Submitted on</span>
           <input type="date" value={f.submittedDate} onChange={(e) => set("submittedDate", e.target.value)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-3">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Outcome</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Outcome</span>
           <Combobox options={TENDER_OUTCOMES} defaultValue={f.outcome} placeholder=""
             onInput={(v) => set("outcome", v)} onCommit={(v) => set("outcome", v)} className={inputCls} />
         </label>
         <label className="block min-w-0 sm:col-span-6">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">Why / notes</span>
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">Why / notes</span>
           <input value={f.outcomeReason} onChange={(e) => set("outcomeReason", e.target.value)} className={inputCls} />
         </label>
       </div>

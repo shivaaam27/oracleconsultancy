@@ -146,19 +146,19 @@ export function NotesShelf({
           <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
             <span className="inline-flex min-w-0 items-center gap-1.5">
               {row.pinnedAt && <Pin size={11} className="shrink-0 text-accent" aria-label="Pinned" />}
-              <span className="truncate text-[13px] font-medium text-fg">{noteTitle(row)}</span>
+              <span className="truncate text-base font-medium text-fg">{noteTitle(row)}</span>
               {row.kind === "daily" && (
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent">
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-accent-soft px-1.5 py-px text-xs font-medium text-accent">
                   <CalendarDays size={9} /> Daily
                 </span>
               )}
               {row.folderName && (
-                <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-[10px] font-medium text-fg-subtle">
+                <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-xs font-medium text-fg-subtle">
                   {row.folderName}
                 </span>
               )}
             </span>
-            <span className="truncate text-[12px] leading-snug text-fg-muted">
+            <span className="truncate text-sm leading-snug text-fg-muted">
               {row.snippet || <span className="text-fg-subtle italic">Empty note</span>}
             </span>
           </span>
@@ -201,7 +201,7 @@ export function NotesShelf({
             onChange={(e) => set({ q: e.target.value })}
             placeholder="Search notes…"
             wrapperClassName="w-[15rem]"
-            className="h-8 text-[12.5px]"
+            className="h-8 text-sm"
           />
           {/* Ask a question of everything you have written — Phase 5. It sits on
               the shelf, not inside a note, because the question is nearly always
@@ -214,14 +214,14 @@ export function NotesShelf({
             type="button"
             onClick={() => start(async () => { await openTodaysNote(); })}
             title="Open today's page — one per day"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg"
           >
             <CalendarDays size={12} /> Today
           </button>
           <button
             type="button"
             onClick={newFolder}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg"
           >
             <FolderPlus size={12} /> New folder
           </button>
@@ -230,7 +230,7 @@ export function NotesShelf({
             onClick={newNote}
             disabled={creating}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg transition-opacity hover:opacity-90",
+              "inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90",
               creating && "opacity-60",
             )}
           >
@@ -243,11 +243,11 @@ export function NotesShelf({
       empty={
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <StickyNote size={22} className="text-fg-subtle" />
-          <p className="text-[13px] font-medium">
+          <p className="text-base font-medium">
             {q ? "Nothing matches that." : filter === "archived" ? "Nothing archived." : "No notes yet."}
           </p>
           {!q && filter !== "archived" && (
-            <p className="max-w-[30rem] text-[12px] text-fg-muted">
+            <p className="max-w-[30rem] text-sm text-fg-muted">
               Start rough — a blank note, a few lines, tidy it later. Nothing here needs a title,
               a folder or a plan.
             </p>

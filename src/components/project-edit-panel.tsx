@@ -79,7 +79,7 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
     return (
       <span className="inline-flex items-center gap-2">
         <button type="button" onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg">
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm text-fg-muted hover:text-fg">
           <Pencil size={13} /> Edit details
         </button>
         {/* ⚠️ The save itself is instant; re-rendering the record from the
@@ -89,11 +89,11 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
             transition, `router.refresh()` included, so it clears when the new
             numbers are actually on screen. */}
         {pending && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
+          <span className="inline-flex items-center gap-1 text-xs text-fg-subtle">
             <Loader2 size={12} className="animate-spin" /> Updating the record…
           </span>
         )}
-        {saved && !pending && <span className="text-[11px] text-success">Saved</span>}
+        {saved && !pending && <span className="text-xs text-success">Saved</span>}
       </span>
     );
   }
@@ -101,7 +101,7 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
   return (
     <section className="rounded-lg border border-border bg-bg-elev p-3">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[13px] font-medium">Edit project</h3>
+        <h3 className="text-base font-medium">Edit project</h3>
         <button type="button" onClick={() => setOpen(false)} className="text-fg-subtle hover:text-fg">
           <X size={15} />
         </button>
@@ -145,11 +145,11 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
 
       <F label="Notes" className="mt-3">
         <textarea value={f.notes} onChange={(e) => set("notes", e.target.value)} rows={2}
-          className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent" />
+          className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-base outline-none focus:border-accent" />
       </F>
 
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="mt-3 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -171,8 +171,8 @@ export function ProjectEditPanel({ project }: { project: EditableProject }) {
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save changes
         </button>
-        {saved && <span className="text-[11px] text-success">Saved</span>}
-        <span className="text-[11px] text-fg-subtle">
+        {saved && <span className="text-xs text-success">Saved</span>}
+        <span className="text-xs text-fg-subtle">
           Percentages: type 98 for 98%. Everything else on the record is worked out from these.
         </span>
       </div>
@@ -185,7 +185,7 @@ function F({ label, hint, className, children }: {
 }) {
   return (
     <label className={cn("block min-w-0", className)}>
-      <span className="mb-1 block text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+      <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">
         {label}{hint && <span className="ml-1 normal-case tracking-normal opacity-60">{hint}</span>}
       </span>
       {children}
@@ -198,7 +198,7 @@ function I({ value, onChange, type, right }: {
 }) {
   return (
     <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      className={cn("h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none focus:border-accent",
+      className={cn("h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none focus:border-accent",
         right && "tabular text-right")} />
   );
 }

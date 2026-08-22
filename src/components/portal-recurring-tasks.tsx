@@ -31,7 +31,7 @@ const DAY_CHIPS = [
 const DAY_LABEL: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
 
 const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
-const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 
 type Draft = {
   title: string;
@@ -173,7 +173,7 @@ export function PortalRecurringTasks({
             <div key={r.id} className="flex items-center justify-between gap-2 rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border/60">
               <div className={`min-w-0 ${r.paused ? "opacity-50" : ""}`}>
                 <p className="truncate text-sm font-medium text-fg">{r.title}</p>
-                <p className="mt-0.5 text-[11px] text-fg-muted">
+                <p className="mt-0.5 text-xs text-fg-muted">
                   {scheduleLabel(r)} · {r.companyName || "—"}{r.paused ? " · Off" : ""}
                 </p>
               </div>
@@ -255,7 +255,7 @@ export function PortalRecurringTasks({
               </div>
             ) : (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-[11px] text-fg-muted">Day of month</span>
+                <span className="text-xs text-fg-muted">Day of month</span>
                 <input
                   type="number" min={1} max={31} value={d.dayOfMonth}
                   onChange={(e) => set({ dayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
@@ -288,7 +288,7 @@ export function PortalRecurringTasks({
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {d.assigneeNames.map((n) => (
                   <button key={n} type="button" onClick={() => set({ assigneeNames: d.assigneeNames.filter((x) => x !== n) })}
-                    className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[11px] ring-1 ring-border hover:bg-danger/10 hover:text-danger">
+                    className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs ring-1 ring-border hover:bg-danger/10 hover:text-danger">
                     {n} ×
                   </button>
                 ))}

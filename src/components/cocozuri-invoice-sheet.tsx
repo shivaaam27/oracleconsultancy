@@ -11,6 +11,8 @@ import {
   type CzCustomer, type CzPrice, type CzProduct,
 } from "@/lib/cocozuri-shared";
 import { createInvoiceAction } from "@/app/cocozuri/actions";
+import { FIELD } from "@/components/ui";
+import { typedNumber, typedNumberOr, hasPositive } from "@/lib/typed-number";
 
 /* ------------------------------------------------------------------ *
  * Raising an invoice.
@@ -64,7 +66,7 @@ export function CocozuriInvoiceSheet({
   const customer = customers.find((c) => c.name === customerName) ?? null;
   const vatRate = vatRateFor(customer, defaultVat);
   const totals = useMemo(
-    () => invoiceTotals(lines.map((l) => ({ qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0 })), vatRate),
+    () => invoiceTotals(lines.map((l) => ({ qty: typedNumberOr(l.qty), unitPrice: typedNumberOr(l.unitPrice) })), vatRate),
     [lines, vatRate],
   );
 
@@ -176,7 +178,7 @@ export function CocozuriInvoiceSheet({
         </div>
 
         {customer && (
-          <p className="text-[11.5px] text-fg-subtle">
+          <p className="text-xs text-fg-subtle">
             VAT <strong className="text-fg-muted">{vatRate}%</strong>
             {customer.vatRate == null ? " (the company default)" : " (theirs)"} · terms{" "}
             {customer.paymentTermsDays} days · {customer.currency}
@@ -184,7 +186,7 @@ export function CocozuriInvoiceSheet({
         )}
 
         <div className="rounded-md border border-border">
-          <div className="grid grid-cols-[minmax(0,1fr)_70px_110px_90px_28px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+          <div className="grid grid-cols-[minmax(0,1fr)_70px_110px_90px_28px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
             <span>Item</span><span>Qty</span><span>Price</span><span className="text-right">Amount</span><span />
           </div>
           {lines.map((l, i) => (
@@ -203,8 +205,8 @@ export function CocozuriInvoiceSheet({
                 className={INPUT}
                 placeholder="no price"
               />
-              <span className="text-right text-[12.5px] tabular text-fg-muted">
-                {money((Number(l.qty) || 0) * (Number(l.unitPrice) || 0))}
+              <span className="text-right text-sm tabular text-fg-muted">
+                {money((typedNumberOr(l.qty)) * (typedNumberOr(l.unitPrice)))}
               </span>
               <button
                 type="button"
@@ -221,13 +223,13 @@ export function CocozuriInvoiceSheet({
         <button
           type="button"
           onClick={() => setLines((ls) => [...ls, blank()])}
-          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg"
+          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg"
         >
           <Plus size={13} /> Another line
         </button>
 
         {/* The total, worked out as you type. Nothing is stored. */}
-        <div className="flex flex-col gap-0.5 rounded-md border border-border bg-bg-subtle px-3 py-2 text-[12.5px]">
+        <div className="flex flex-col gap-0.5 rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
           <Row label={`Before VAT`} value={money(totals.net)} />
           <Row label={`VAT at ${vatRate}%`} value={money(totals.vat)} />
           <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-[14px] font-semibold text-fg">
@@ -241,10 +243,10 @@ export function CocozuriInvoiceSheet({
 
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void save()} disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
             {busy && <Loader2 size={13} className="animate-spin" />} Raise as draft
           </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-[12.5px] text-fg-muted hover:text-fg">Cancel</button>
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
         </div>
       </div>
     </BottomSheet>
@@ -260,12 +262,14 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-const INPUT = "w-full rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] outline-none focus:border-accent";
+/* ⚠️ THE KIT'S FIELD, not a local one. Seven files had grown their own
+   `const INPUT` and no two agreed — see the note on `FIELD` in ui.tsx. */
+const INPUT = FIELD;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>
   );

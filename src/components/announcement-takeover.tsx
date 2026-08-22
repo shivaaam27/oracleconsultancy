@@ -30,7 +30,7 @@ export function AnnouncementTakeover({ items }: { items: FeedAnnouncement[] }) {
           <AlertTriangle size={18} />
           <span className="text-xs font-semibold uppercase tracking-[0.1em]">Urgent — please read</span>
           {items.length > 1 && (
-            <span className="ml-auto text-[11px] text-fg-subtle">{items.length - queue.length + 1} of {items.length}</span>
+            <span className="ml-auto text-xs text-fg-subtle">{items.length - queue.length + 1} of {items.length}</span>
           )}
         </div>
         <h2 className="mt-3 text-lg font-semibold leading-snug">{current.title}</h2>

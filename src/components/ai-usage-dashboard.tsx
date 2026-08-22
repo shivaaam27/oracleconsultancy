@@ -77,8 +77,8 @@ export function AiUsageDashboard() {
     return () => clearInterval(id);
   }, []);
 
-  if (loading && !data) return <p className="text-[13px] text-fg-muted">Loading usage…</p>;
-  if (error && !data) return <p className="text-[13px] text-fg-muted">Usage unavailable right now.</p>;
+  if (loading && !data) return <p className="text-base text-fg-muted">Loading usage…</p>;
+  if (error && !data) return <p className="text-base text-fg-muted">Usage unavailable right now.</p>;
   if (!data) return null;
 
   const maxTrend = Math.max(1, ...data.trend.map((d) => d.calls));
@@ -92,11 +92,11 @@ export function AiUsageDashboard() {
           <Gauge size={13} />
         </span>
         <div className="flex-1 min-w-0">
-          <span className="block text-[13px] text-fg">
+          <span className="block text-base text-fg">
             {data.totals.today.calls} call{data.totals.today.calls !== 1 ? "s" : ""} today
             {data.totals.today.tokens > 0 ? ` · ${fmtTokens(data.totals.today.tokens)} tokens` : ""}
           </span>
-          <span className="block text-[11px] text-fg-subtle">
+          <span className="block text-xs text-fg-subtle">
             resets in {untilReset(data.resetsAt)} (midnight Pacific)
           </span>
         </div>
@@ -115,9 +115,9 @@ export function AiUsageDashboard() {
         <div className="space-y-2.5">
           {data.models.map((m) => (
             <div key={m.model} className="space-y-1">
-              <div className="flex items-center gap-2 text-[13px]">
+              <div className="flex items-center gap-2 text-base">
                 <span className="truncate text-fg">{m.model}</span>
-                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-fg-subtle">
+                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-xs uppercase tracking-wide text-fg-subtle">
                   {TIER_LABEL[m.tier]}
                 </span>
                 <span className="ml-auto shrink-0 text-fg-muted">
@@ -136,29 +136,29 @@ export function AiUsageDashboard() {
                 </div>
               )}
               {m.quota != null && m.remaining != null && (
-                <span className="block text-[11px] text-fg-subtle">{m.remaining} left today</span>
+                <span className="block text-xs text-fg-subtle">{m.remaining} left today</span>
               )}
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-fg-muted">No AI calls yet today.</p>
+        <p className="text-base text-fg-muted">No AI calls yet today.</p>
       )}
 
       {/* Per-tier rollup */}
       <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-3">
         {data.tiers.map((t) => (
           <div key={t.tier} className="rounded-lg border border-border/60 px-2.5 py-2">
-            <span className="block text-[10px] uppercase tracking-wider text-fg-subtle">{TIER_LABEL[t.tier]}</span>
+            <span className="block text-xs uppercase tracking-wider text-fg-subtle">{TIER_LABEL[t.tier]}</span>
             <span className="block text-sm text-fg">{t.calls}</span>
-            <span className="block text-[11px] text-fg-subtle">{fmtTokens(t.tokens)} tok</span>
+            <span className="block text-xs text-fg-subtle">{fmtTokens(t.tokens)} tok</span>
           </div>
         ))}
       </div>
 
       {/* Week total + 7-day sparkline */}
       <div className="border-t border-border/60 pt-3">
-        <div className="flex items-center justify-between text-[13px] mb-2">
+        <div className="flex items-center justify-between text-base mb-2">
           <span className="text-fg-muted">Last 7 days</span>
           <span className="text-fg">
             {data.totals.week.calls} calls · {fmtTokens(data.totals.week.tokens)} tokens
@@ -177,7 +177,7 @@ export function AiUsageDashboard() {
       </div>
 
       {!data.fallbacksTracked && (
-        <p className="text-[11px] text-fg-subtle border-t border-border/60 pt-3">
+        <p className="text-xs text-fg-subtle border-t border-border/60 pt-3">
           Fallbacks/429s aren&apos;t tracked — the ledger records successful calls only. Quotas are
           Google&apos;s stated free-tier limits and may change.
         </p>

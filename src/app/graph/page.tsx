@@ -31,7 +31,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-soft text-accent"><Center size={20} /></span>
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight truncate">{graph.center.label}</h1>
-          <p className="text-[11px] text-fg-subtle inline-flex items-center gap-1.5"><Network size={11} /> Connections{graph.center.sub ? ` · ${graph.center.sub}` : ""}</p>
+          <p className="text-xs text-fg-subtle inline-flex items-center gap-1.5"><Network size={11} /> Connections{graph.center.sub ? ` · ${graph.center.sub}` : ""}</p>
         </div>
       </div>
 
@@ -49,7 +49,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
                     <I size={15} className="shrink-0 text-fg-muted" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{n.label}</span>
-                      {n.sub && <span className="block truncate text-[11px] text-fg-subtle">{n.sub}</span>}
+                      {n.sub && <span className="block truncate text-xs text-fg-subtle">{n.sub}</span>}
                     </span>
                   </span>
                 );

@@ -38,13 +38,13 @@ export function AnnouncementBanner({ items }: { items: Item[] }) {
     <div className="print-hidden flex items-center gap-3 rounded-2xl border border-accent/25 bg-gradient-to-r from-accent-soft to-bg-elev px-3.5 py-2.5">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-fg"><Megaphone size={15} /></span>
       <button type="button" onClick={open} className="min-w-0 flex-1 text-left">
-        <p className="truncate text-[13px] font-semibold">{top.title}</p>
-        {top.body && <p className="truncate text-[11px] text-fg-muted">{top.body}</p>}
+        <p className="truncate text-base font-semibold">{top.title}</p>
+        {top.body && <p className="truncate text-xs text-fg-muted">{top.body}</p>}
       </button>
       <button
         type="button"
         onClick={open}
-        className="hidden shrink-0 items-center gap-1 rounded-full bg-bg-elev px-3 py-1.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-colors hover:bg-accent-soft sm:inline-flex"
+        className="hidden shrink-0 items-center gap-1 rounded-full bg-bg-elev px-3 py-1.5 text-sm font-medium text-accent ring-1 ring-accent/25 transition-colors hover:bg-accent-soft sm:inline-flex"
       >
         Open <ChevronRight size={13} />
       </button>

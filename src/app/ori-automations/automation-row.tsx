@@ -70,12 +70,12 @@ export function AutomationControls({ id, active }: { id: number; active: boolean
   if (confirming) {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-fg-muted">Cancel it?</span>
+        <span className="text-xs text-fg-muted">Cancel it?</span>
         <button
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="rounded-lg px-2.5 py-1 text-[11px] font-medium ring-1 bg-danger/12 text-danger ring-danger/30 hover:bg-danger/20 disabled:opacity-60"
+          className="rounded-lg px-2.5 py-1 text-xs font-medium ring-1 bg-danger/12 text-danger ring-danger/30 hover:bg-danger/20 disabled:opacity-60"
         >
           {busy ? <Loader2 size={12} className="animate-spin" /> : "Yes, cancel"}
         </button>
@@ -83,7 +83,7 @@ export function AutomationControls({ id, active }: { id: number; active: boolean
           type="button"
           onClick={() => setConfirming(false)}
           disabled={busy}
-          className="rounded-lg px-2.5 py-1 text-[11px] font-medium ring-1 ring-border/60 text-fg-muted hover:bg-bg-subtle disabled:opacity-60"
+          className="rounded-lg px-2.5 py-1 text-xs font-medium ring-1 ring-border/60 text-fg-muted hover:bg-bg-subtle disabled:opacity-60"
         >
           Keep
         </button>
@@ -149,7 +149,7 @@ export function FiringHistory({ id, lastFired }: { id: number; lastFired: string
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-fg-muted"
+        className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-fg-muted"
       >
         {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         {lastFired ? `Last fired ${lastFired}` : "Not fired yet"}
@@ -157,17 +157,17 @@ export function FiringHistory({ id, lastFired }: { id: number; lastFired: string
       {open && (
         <div className="mt-1 pl-4">
           {loading ? (
-            <span className="text-[11px] text-fg-subtle">Loading…</span>
+            <span className="text-xs text-fg-subtle">Loading…</span>
           ) : rows && rows.length ? (
             <ul className="space-y-0.5">
               {rows.map((r, i) => (
-                <li key={i} className="text-[11px] text-fg-muted">
+                <li key={i} className="text-xs text-fg-muted">
                   <span className="text-fg-subtle">{relTime(r.at)}</span> — {r.note}
                 </li>
               ))}
             </ul>
           ) : (
-            <span className="text-[11px] text-fg-subtle">No recorded firings yet.</span>
+            <span className="text-xs text-fg-subtle">No recorded firings yet.</span>
           )}
         </div>
       )}

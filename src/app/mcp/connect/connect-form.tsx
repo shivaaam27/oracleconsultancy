@@ -142,7 +142,7 @@ export function ConnectForm({
         </button>
       </form>
 
-      <p className="flex items-center justify-center gap-1.5 text-[11px] text-fg-subtle">
+      <p className="flex items-center justify-center gap-1.5 text-xs text-fg-subtle">
         <Lock className="h-3 w-3" aria-hidden />
         Only approve this if you started it yourself.
       </p>

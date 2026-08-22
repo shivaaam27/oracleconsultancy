@@ -20,6 +20,7 @@ import { fmtDate } from "@/lib/recruitment-shared";
 import { NoAgencyCompany } from "@/components/recruitment-empty";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Recruitment desk" };
 
 export default async function RecruitmentPage() {
   const companyId = await agencyCompanyId();
@@ -82,10 +83,10 @@ export default async function RecruitmentPage() {
 
       {(checkInsLate > 0 || noReasoning > 0) && (
         <section className="rounded-lg border border-warn/30 bg-warn-soft/40 px-3 py-3">
-          <p className="flex items-center gap-1.5 text-[12px] font-medium">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
             <AlertTriangle size={13} className="text-warn" /> Owed
           </p>
-          <ul className="mt-1.5 space-y-1 text-[12px] text-fg-muted">
+          <ul className="mt-1.5 space-y-1 text-sm text-fg-muted">
             {checkInsLate > 0 && (
               <li>
                 · <Link href="/recruitment/placements?view=owed" className="text-accent underline">
@@ -108,13 +109,13 @@ export default async function RecruitmentPage() {
 
       <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
         <div className="flex items-center gap-2 border-b border-border bg-bg-subtle px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Open roles</span>
-          <Link href="/recruitment/orders" className="ml-auto text-[11px] text-accent hover:underline">
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Open roles</span>
+          <Link href="/recruitment/orders" className="ml-auto text-xs text-accent hover:underline">
             All job orders
           </Link>
         </div>
         {open.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[12px] text-fg-subtle">
+          <p className="px-3 py-6 text-center text-sm text-fg-subtle">
             Nothing open. Raise a job order when a brief is agreed.
           </p>
         ) : (
@@ -133,16 +134,16 @@ export default async function RecruitmentPage() {
                       className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 transition-colors hover:bg-bg-subtle"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium">{o.title}</span>
-                        <span className="block truncate text-[11px] text-fg-muted">
+                        <span className="block truncate text-base font-medium">{o.title}</span>
+                        <span className="block truncate text-xs text-fg-muted">
                           <span className="font-mono">{o.ref}</span>
                           {" · "}
                           {o.clientName ?? "Oracle's own hiring"}
                           {o.openedOn ? ` · opened ${fmtDate(o.openedOn)}` : ""}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[12px] text-fg-muted">{o.stage}</span>
-                      <span className="w-[110px] shrink-0 text-right tabular text-[12px]">
+                      <span className="shrink-0 text-sm text-fg-muted">{o.stage}</span>
+                      <span className="w-[110px] shrink-0 text-right tabular text-sm">
                         {o.clientId == null ? "—" : fee ? tzs(fee.netTZS) : "not agreed"}
                       </span>
                     </Link>
@@ -152,7 +153,7 @@ export default async function RecruitmentPage() {
           </ul>
         )}
         {open.length > 8 && (
-          <p className="border-t border-border bg-bg-subtle px-3 py-1.5 text-[11px] text-fg-muted">
+          <p className="border-t border-border bg-bg-subtle px-3 py-1.5 text-xs text-fg-muted">
             8 of {open.length} shown.{" "}
             <Link href="/recruitment/orders" className="text-accent hover:underline">See them all</Link>
           </p>
@@ -161,11 +162,11 @@ export default async function RecruitmentPage() {
 
       <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
         <div className="border-b border-border bg-bg-subtle px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Fees on the table</span>
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Fees on the table</span>
         </div>
         <div className="px-3 py-3">
           <p className="tabular text-[22px] font-semibold">TZS {tzs(onTheTable)}</p>
-          <p className="mt-1 text-[12px] text-fg-muted">
+          <p className="mt-1 text-sm text-fg-muted">
             One month of gross on every open role where a salary has been agreed, at{" "}
             {tzs(USD_TZS)}/USD. Not a forecast, and not counting VAT — the {Math.round(VAT_RATE * 100)}%
             is collected for TRA and is never income.
@@ -174,8 +175,8 @@ export default async function RecruitmentPage() {
       </section>
 
       <section className="rounded-lg border border-border bg-bg-subtle px-3 py-3">
-        <p className="text-[12px] font-medium">What is not here yet</p>
-        <ul className="mt-1.5 space-y-1 text-[12px] text-fg-muted">
+        <p className="text-sm font-medium">What is not here yet</p>
+        <ul className="mt-1.5 space-y-1 text-sm text-fg-muted">
           <li>· The invoice, and posting it to the ledger — Phase 3.</li>
           <li>· Permit renewals, the 10:1 ratio, the VAT threshold and the launch registrations — Phase 4.</li>
         </ul>
@@ -192,11 +193,11 @@ function Tile({ href, icon, label, figure, note }: {
       href={href}
       className="group rounded-lg border border-border bg-bg-elev px-3 py-3 transition-colors hover:border-accent/40"
     >
-      <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+      <span className="flex items-center gap-1.5 text-xs uppercase tracking-[0.04em] text-fg-subtle">
         {icon} {label}
       </span>
       <span className="mt-1.5 block tabular text-[24px] font-semibold leading-none">{figure}</span>
-      <span className="mt-1 flex items-center gap-1 text-[12px] text-fg-muted">
+      <span className="mt-1 flex items-center gap-1 text-sm text-fg-muted">
         {note}
         <ArrowRight size={11} className="opacity-0 transition-opacity group-hover:opacity-100" />
       </span>

@@ -24,6 +24,38 @@ const day = (itemId: number, onDate: string, qtyIn = 0, qtyOut = 0, qtyThird = 0
 const count = (id: number, itemId: number, countedOn: string, q: number): CzStockCount =>
   ({ id, itemId, countedOn, qty: q, note: null });
 
+/**
+ * The movements a set of day sheets makes.
+ *
+ * ⚠️ THE SCREENS READ THE LEDGER NOW (Stage 2), so the fixtures below stay
+ * written as day sheets — which is how a person enters them — and are turned
+ * into movements by the SAME function the real save path uses. If that rewrite
+ * is ever wrong, these tests go wrong with it, which is the point.
+ */
+const movesOf = (rows: CzStockDay[], locationId = 1): CzStockMove[] =>
+  rows.flatMap((d, i) =>
+    daySheetMoves(d).map((m, j) => ({
+      id: i * 10 + j,
+      itemId: d.itemId,
+      locationId,
+      batchId: null,
+      onDate: d.onDate,
+      qty: m.qty,
+      reason: m.reason,
+      unitCost: null,
+      voucherType: "day_sheet",
+      voucherId: null,
+      note: null,
+    })));
+
+/** A movement that did NOT come off a day sheet — a delivery, a transfer. */
+const doc = (
+  itemId: number, onDate: string, qty: number, reason: CzMoveReason = "receipt", locationId = 1,
+): CzStockMove => ({
+  id: 900000 + itemId * 100 + Number(onDate.slice(-2)), itemId, locationId, batchId: null,
+  onDate, qty, reason, unitCost: null, voucherType: "purchase", voucherId: 1, note: null,
+});
+
 describe("one day's arithmetic", () => {
   it("is the workbook's own formula: previous close + IN − OUT − the third column", () => {
     expect(dayEffect({ qtyIn: 15, qtyOut: 4, qtyThird: 1 })).toBe(10);
@@ -88,7 +120,7 @@ describe("the day sheet", () => {
   const days = [day(1, "2026-08-01", 0, 1, 0), day(2, "2026-08-02", 15, 0, 0)];
 
   it("opens each item on yesterday's close", () => {
-    const rows = dayRows(items, days, counts, "2026-08-02");
+    const rows = dayRows(items, 1, movesOf(days), days, counts, "2026-08-02");
     expect(rows[0]!.opening).toBe(13);
     expect(rows[0]!.closing).toBe(13);
     expect(rows[1]!.opening).toBe(2);
@@ -98,7 +130,7 @@ describe("the day sheet", () => {
   it("⚠️ marks a row nobody has written on, rather than showing three zeros", () => {
     // "Nothing moved" and "nobody wrote anything down" are different claims, and
     // a stock book that cannot tell them apart cannot be audited.
-    const rows = dayRows(items, days, counts, "2026-08-02");
+    const rows = dayRows(items, 1, movesOf(days), days, counts, "2026-08-02");
     expect(rows[0]!.untouched).toBe(true);
     expect(rows[1]!.untouched).toBe(false);
   });
@@ -118,7 +150,7 @@ describe("the month block", () => {
   it("⚠️ FAULT #3: totals every day in the range, including the last one", () => {
     // The workbook adds its columns as a typed chain `=D5+H5+L5+…`, and the
     // three chains disagree: the shop's IN adds 29 days, OUT 30, RETURN only 26.
-    const [r] = monthRows(items, days, counts, "2026-08-01", "2026-08-31");
+    const [r] = monthRows(items, 1, movesOf(days), days, counts, "2026-08-01", "2026-08-31");
     expect(r!.totalIn).toBe(15);
     expect(r!.totalOut).toBe(1);
     expect(r!.totalThird).toBe(3); // the 31st, which the workbook drops
@@ -128,29 +160,29 @@ describe("the month block", () => {
 
   it("⚠️ FAULT #5: the period is the caller's, never a title typed on the sheet", () => {
     // The sales sheet is headed "MONTH: MAY 2026" over August's columns.
-    const [july] = monthRows(items, days, counts, "2026-07-01", "2026-07-31");
+    const [july] = monthRows(items, 1, movesOf(days), days, counts, "2026-07-01", "2026-07-31");
     expect(july!.totalIn).toBe(0);
     expect(july!.daysWritten).toBe(0);
-    const [aug] = monthRows(items, days, counts, "2026-08-01", "2026-08-31");
+    const [aug] = monthRows(items, 1, movesOf(days), days, counts, "2026-08-01", "2026-08-31");
     expect(aug!.daysWritten).toBe(3);
   });
 
   it("reports no variance at all when nobody counted — not a variance of zero", () => {
-    const [r] = monthRows(items, days, counts, "2026-08-01", "2026-08-31");
+    const [r] = monthRows(items, 1, movesOf(days), days, counts, "2026-08-01", "2026-08-31");
     expect(r!.count).toBeNull();
     expect(r!.variance).toBeNull();
   });
 
   it("works the variance out against the book, and eleven missing bars show as −11", () => {
     const withTake = [...counts, count(9, 1, "2026-08-31", 14)];
-    const [r] = monthRows(items, days, withTake, "2026-08-01", "2026-08-31");
+    const [r] = monthRows(items, 1, movesOf(days), days, withTake, "2026-08-01", "2026-08-31");
     expect(r!.count!.qty).toBe(14);
     expect(r!.variance).toBe(-11); // book says 25, shelf holds 14
   });
 
   it("judges a mid-month count against the book ON THAT DAY, not at the month end", () => {
     const withTake = [...counts, count(9, 1, "2026-08-15", 30)];
-    const [r] = monthRows(items, days, withTake, "2026-08-01", "2026-08-31");
+    const [r] = monthRows(items, 1, movesOf(days), days, withTake, "2026-08-01", "2026-08-31");
     // On the 15th the book said 28 (14 − 1 + 15). The shelf held 30.
     expect(r!.variance).toBe(2);
   });
@@ -164,7 +196,7 @@ describe("varianceOf", () => {
     const opening = count(1, 1, "2026-07-31", 14);
     const take = count(2, 1, "2026-08-01", 10);
     expect(balanceAt(1, days, [opening, take], "2026-08-01").closing).toBe(10);
-    expect(varianceOf(1, days, [opening, take], take)).toBe(-3); // book said 13
+    expect(varianceOf(1, 1, movesOf(days), [opening, take], take)).toBe(-3); // book said 13
   });
 });
 
@@ -176,7 +208,7 @@ describe("sales value", () => {
     // scores zero: stock said 1,014 units went out in August, sales said 814.
     const items = [item(1), item(2, { productId: null, name: "ALMOND POWDER" })];
     const days = [day(1, "2026-08-01", 0, 2, 0), day(2, "2026-08-01", 0, 500, 0)];
-    const rows = salesRows(items, days, "2026-08-01", "2026-08-31", priced);
+    const rows = salesRows(items, 1, movesOf(days), "2026-08-01", "2026-08-31", priced);
     expect(rows[0]!.units).toBe(2);
     expect(rows[0]!.value).toBe(7000);
     // Raw material: counted, but not something that is sold. No value invented.
@@ -188,20 +220,20 @@ describe("sales value", () => {
     // 2 units on the 1st at 3,500 and 2 on the 20th at 4,000 is 15,000 — not 4
     // at either price.
     const days = [day(1, "2026-08-01", 0, 2, 0), day(1, "2026-08-20", 0, 2, 0)];
-    const rows = salesRows([item(1)], days, "2026-08-01", "2026-08-31", priced);
+    const rows = salesRows([item(1)], 1, movesOf(days), "2026-08-01", "2026-08-31", priced);
     expect(rows[0]!.units).toBe(4);
     expect(rows[0]!.value).toBe(15_000);
   });
 
   it("says nothing rather than zero when a sold item has no price at all", () => {
-    const rows = salesRows([item(1)], [day(1, "2026-08-01", 0, 3, 0)], "2026-08-01", "2026-08-31", () => null);
+    const rows = salesRows([item(1)], 1, movesOf([day(1, "2026-08-01", 0, 3, 0)]), "2026-08-01", "2026-08-31", () => null);
     expect(rows[0]!.units).toBe(3);
     expect(rows[0]!.value).toBeNull();
   });
 
   it("counts what went OUT, and not what came in or was returned", () => {
     const days = [day(1, "2026-08-02", 50, 3, 7)];
-    const rows = salesRows([item(1)], days, "2026-08-01", "2026-08-31", priced);
+    const rows = salesRows([item(1)], 1, movesOf(days), "2026-08-01", "2026-08-31", priced);
     expect(rows[0]!.units).toBe(3);
   });
 });
@@ -253,22 +285,22 @@ describe("the order form", () => {
   it("works the rate out over the days actually counted, not the calendar", () => {
     // ⚠️ The kitchen skips 7–10 August entirely. Dividing by 30 would halve
     // every kitchen figure and under-order the lot.
-    const [first] = orderSuggestions([item(1)], days, counts, opts);
+    const [first] = orderSuggestions([item(1)], 1, movesOf(days), days, counts, opts);
     expect(first!.daysMeasured).toBe(10);
     expect(first!.perDay).toBe(2);
   });
 
   it("suggests enough to carry the cover asked for, less what is on the shelf", () => {
-    const rows = orderSuggestions(items, days, counts, opts);
+    const rows = orderSuggestions(items, 1, movesOf(days), days, counts, opts);
     const one = rows.find((r) => r.item.id === 1)!;
     expect(one.onHand).toBe(80);          // 100 counted − 20 sold
     expect(one.suggested).toBe(0);         // 2/day × 14 = 28, already has 80
-    const tight = orderSuggestions([item(1)], days, counts, { ...opts, coverDays: 60 });
+    const tight = orderSuggestions([item(1)], 1, movesOf(days), days, counts, { ...opts, coverDays: 60 });
     expect(tight[0]!.suggested).toBe(40);  // 2 × 60 = 120, less 80 on hand
   });
 
   it("⚠️ gives no suggestion at all when there is not enough history to judge", () => {
-    const rows = orderSuggestions(items, days, counts, opts);
+    const rows = orderSuggestions(items, 1, movesOf(days), days, counts, opts);
     const three = rows.find((r) => r.item.id === 3)!;
     expect(three.daysMeasured).toBe(1);
     expect(three.perDay).toBeNull();
@@ -277,7 +309,7 @@ describe("the order form", () => {
   });
 
   it("treats something that sells nothing as covered for ever, not as urgent", () => {
-    const rows = orderSuggestions(items, days, counts, opts);
+    const rows = orderSuggestions(items, 1, movesOf(days), days, counts, opts);
     const two = rows.find((r) => r.item.id === 2)!;
     expect(two.perDay).toBe(0);
     expect(two.daysOfCover).toBe(Infinity);
@@ -285,7 +317,7 @@ describe("the order form", () => {
   });
 
   it("puts whatever runs out soonest first, and the unknowable last", () => {
-    const rows = orderSuggestions(items, days, counts, opts);
+    const rows = orderSuggestions(items, 1, movesOf(days), days, counts, opts);
     expect(rows[0]!.item.id).toBe(1);              // 40 days of cover
     expect(rows[rows.length - 1]!.item.id).toBe(3); // cannot be judged
   });
@@ -417,5 +449,77 @@ describe("a transfer", () => {
   it("carries the batch to both sides, so a trace survives the move", () => {
     const m = transferMoves(1, 1, 2, 5, 42);
     expect(m.every((x) => x.batchId === 42)).toBe(true);
+  });
+});
+
+
+/* ================================================================== *
+ * Manufacturing Stage 2 — the read path is the LEDGER, not the day book.
+ *
+ * ⚠️ While the day sheet was the only writer the two readings were identical,
+ * which is what proved the Stage 1 backfill correct across all 323 items. The
+ * moment a purchase exists they part company, and every screen has to be on the
+ * ledger side of that split — a delivery is not something the shop typed in its
+ * IN column.
+ * ================================================================== */
+
+describe("a delivery the sheet never saw", () => {
+  const items = [item(1)];
+  const counts = [count(1, 1, "2026-07-31", 14)];
+  const days = [day(1, "2026-08-01", 0, 1, 0)];
+  // 50 arrived on a purchase on the 2nd. Nobody wrote it on the shop's sheet.
+  const moves = [...movesOf(days), doc(1, "2026-08-02", 50)];
+
+  it("the day book cannot see it, and the ledger can", () => {
+    expect(balanceAt(1, days, counts, "2026-08-02").closing).toBe(13);
+    expect(ledgerBalanceAt(1, 1, moves, counts, "2026-08-02").closing).toBe(63);
+  });
+
+  it("shows it on the sheet as OTHER, apart from the three typed columns", () => {
+    const [r] = dayRows(items, 1, moves, days, counts, "2026-08-02");
+    expect(r!.qtyIn).toBe(0);      // nothing was typed in the IN column
+    expect(r!.other).toBe(50);
+    expect(r!.opening).toBe(13);
+    expect(r!.closing).toBe(63);
+    // ⚠️ Still an unwritten day. "Nobody wrote anything down" is a fact about
+    // the SHEET, and a delivery does not turn it into a day somebody counted.
+    expect(r!.untouched).toBe(true);
+  });
+
+  it("keeps it out of the month's IN column and counts it separately", () => {
+    const [r] = monthRows(items, 1, moves, days, counts, "2026-08-01", "2026-08-31");
+    expect(r!.totalIn).toBe(0);
+    expect(r!.otherIn).toBe(50);
+    expect(r!.totalOut).toBe(1);
+    expect(r!.computed).toBe(63);
+    expect(r!.daysWritten).toBe(1); // one sheet row, not two
+  });
+
+  it("⚠️ does not report a delivery as an unexplained surplus at the stock-take", () => {
+    // Judged against the day book, a count of 63 on the 2nd would read +50 and
+    // demand a reason for stock that is perfectly well accounted for.
+    const take = count(9, 1, "2026-08-02", 63);
+    expect(varianceOf(1, 1, [...moves], [...counts, take], take)).toBe(0);
+  });
+
+  it("⚠️ is not demand, so the order form does not ask for more because of it", () => {
+    const rows = orderSuggestions(items, 1, moves, days, counts, {
+      from: "2026-08-01", to: "2026-08-02", coverDays: 14,
+    });
+    expect(rows[0]!.soldInWindow).toBe(1);  // the one that went out, not the 50 in
+    expect(rows[0]!.onHand).toBe(63);
+  });
+
+  it("⚠️ is not a sale, so it is never given a value", () => {
+    const rows = salesRows(items, 1, moves, "2026-08-01", "2026-08-31", () => 1000);
+    expect(rows[0]!.units).toBe(1);
+    expect(rows[0]!.value).toBe(1000);
+  });
+
+  it("counts a transfer out as movement but never as a sale", () => {
+    const withTransfer = [...moves, doc(1, "2026-08-03", -10, "transfer")];
+    const rows = salesRows(items, 1, withTransfer, "2026-08-01", "2026-08-31", () => 1000);
+    expect(rows[0]!.units).toBe(1);
+    expect(ledgerBalanceAt(1, 1, withTransfer, counts, "2026-08-03").closing).toBe(53);
   });
 });

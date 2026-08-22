@@ -53,7 +53,7 @@ export function TourReplay({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium">Replay the welcome tour</span>
-            <span className="block text-[11px] text-fg-subtle">A quick guided walk through your portal.</span>
+            <span className="block text-xs text-fg-subtle">A quick guided walk through your portal.</span>
           </span>
           <Play size={15} className="shrink-0 text-fg-subtle" />
         </button>
@@ -75,9 +75,9 @@ export function TourReplay({
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium truncate">{s.title ?? "New feature"}</span>
-                    {s.body && <span className="block text-[11px] text-fg-subtle truncate">{s.body}</span>}
+                    {s.body && <span className="block text-xs text-fg-subtle truncate">{s.body}</span>}
                   </span>
-                  <span className="shrink-0 text-[11px] font-medium text-accent">Watch</span>
+                  <span className="shrink-0 text-xs font-medium text-accent">Watch</span>
                 </button>
               </li>
             ))}

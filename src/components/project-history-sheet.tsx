@@ -64,13 +64,13 @@ export function ProjectHistorySheet({
       </div>
 
       {rows.length === 0 ? (
-        <p className="rounded-[8px] border border-border p-6 text-center text-[13px] text-fg-muted">
+        <p className="rounded-[8px] border border-border p-6 text-center text-base text-fg-muted">
           Nothing has been changed yet. Every figure you type, approve or delete from
           here on is recorded on this page — what it was, what it became, and when.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-[8px] border border-border">
-          <table className="w-full min-w-[760px] text-[12px]">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border bg-bg-muted/40 text-left text-fg-muted">
                 <th className="px-3 py-2 font-normal">When</th>
@@ -109,7 +109,7 @@ export function ProjectHistorySheet({
         </div>
       )}
 
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         {rows.length === 1 ? "1 entry" : `${rows.length} entries`} · nothing here can be
         edited or removed, including by an assistant. Deleting a row from a sheet leaves
         its history behind on purpose.
@@ -126,7 +126,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[4px] border px-2 py-1 text-[12px]",
+        "rounded-[4px] border px-2 py-1 text-sm",
         on ? "border-accent bg-accent-soft text-accent" : "border-border text-fg-muted hover:text-fg",
       )}
     >

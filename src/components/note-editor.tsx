@@ -669,7 +669,7 @@ export function NoteEditor({
           value={currentStyle}
           options={STYLE_OPTIONS}
           onSelect={setStyle}
-          buttonClassName="h-7 min-w-[6.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[12px] font-medium text-fg hover:bg-bg-muted"
+          buttonClassName="h-7 min-w-[6.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-sm font-medium text-fg hover:bg-bg-muted"
         />
 
         <Divider />
@@ -738,18 +738,18 @@ export function NoteEditor({
           lesser version ships. */}
       {line && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-accent-soft/40 px-2 py-1">
-          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-accent">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-xs font-medium text-accent">
             <ListChecks size={12} /> Checklist
           </span>
           {linePromoted ? (
             <>
-              <span className="inline-flex items-center gap-1 text-[11px] text-success">
+              <span className="inline-flex items-center gap-1 text-xs text-success">
                 <Check size={12} /> On your to-do list
               </span>
               <button
                 type="button"
                 onClick={() => void unpromoteLine(line)}
-                className="inline-flex h-6 items-center rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+                className="inline-flex h-6 items-center rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
               >
                 Take it off
               </button>
@@ -760,7 +760,7 @@ export function NoteEditor({
                 type="button"
                 disabled={!line.text.trim() || promoting}
                 onClick={() => void promoteLine(line, null)}
-                className="inline-flex h-6 items-center gap-1.5 rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="inline-flex h-6 items-center gap-1.5 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 <ListPlus size={12} /> Make a to-do
               </button>
@@ -768,11 +768,11 @@ export function NoteEditor({
                 type="button"
                 disabled={!line.text.trim() || promoting}
                 onClick={() => void promoteLine(line, "tomorrow")}
-                className="inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40"
+                className="inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40"
               >
                 <Bell size={12} /> Remind me tomorrow
               </button>
-              {!line.text.trim() && <span className="px-1 text-[10.5px] text-fg-subtle">Write the line first</span>}
+              {!line.text.trim() && <span className="px-1 text-xs text-fg-subtle">Write the line first</span>}
             </>
           )}
         </div>
@@ -781,7 +781,7 @@ export function NoteEditor({
       {/* Callout tone — again, only while the caret is inside one. */}
       {editor.isActive("callout") && (
         <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border bg-bg-subtle/70 px-2 py-1">
-          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-fg-muted">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
             <Info size={12} /> Callout
           </span>
           {CALLOUT_TONES.map((tone) => (
@@ -791,7 +791,7 @@ export function NoteEditor({
               onClick={() => editor.chain().focus().updateAttributes("callout", { tone }).run()}
               aria-pressed={editor.isActive("callout", { tone })}
               className={cn(
-                "h-6 rounded-md px-2 text-[11px] font-medium transition-colors",
+                "h-6 rounded-md px-2 text-xs font-medium transition-colors",
                 editor.isActive("callout", { tone })
                   ? "bg-accent-soft text-accent"
                   : "text-fg-muted hover:bg-bg-muted hover:text-fg",
@@ -804,7 +804,7 @@ export function NoteEditor({
           <button
             type="button"
             onClick={() => editor.chain().focus().lift("callout").run()}
-            className="h-6 rounded-md px-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+            className="h-6 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
           >
             Remove the box
           </button>
@@ -813,7 +813,7 @@ export function NoteEditor({
 
       {editor.isActive("table") && (
         <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border bg-accent-soft/40 px-2 py-1">
-          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-[11px] font-medium text-accent">
+          <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-xs font-medium text-accent">
             <TableIcon size={12} /> Table
           </span>
           <ToolButton title="Add row below" onClick={() => editor.chain().focus().addRowAfter().run()}><Rows3 size={13} /></ToolButton>
@@ -822,7 +822,7 @@ export function NoteEditor({
           <ToolButton title="Delete column" onClick={() => editor.chain().focus().deleteColumn().run()}><Columns3 size={13} className="text-danger" /></ToolButton>
           <ToolButton title="Delete the whole table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} className="text-danger" /></ToolButton>
           <span className="grow" />
-          <span className="px-1 text-[10.5px] text-fg-muted">Tab moves to the next cell</span>
+          <span className="px-1 text-xs text-fg-muted">Tab moves to the next cell</span>
         </div>
       )}
 
@@ -972,7 +972,7 @@ export function NoteEditor({
           thing that has no business in front of someone who is thinking. */}
       {unlinked.length > 0 && !full && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border bg-bg-subtle/60 px-3 py-1.5">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle">
+          <span className="inline-flex items-center gap-1.5 text-xs text-fg-subtle">
             <Sparkles size={11} /> Mentioned, not linked:
           </span>
           {unlinked.map((c) => (
@@ -981,7 +981,7 @@ export function NoteEditor({
                 type="button"
                 onClick={() => linkSuggestion(c)}
                 title={`Link ${c.label}`}
-                className="inline-flex h-6 items-center gap-1 px-1.5 text-[11px] font-medium text-fg transition-colors hover:bg-accent-soft hover:text-accent"
+                className="inline-flex h-6 items-center gap-1 px-1.5 text-xs font-medium text-fg transition-colors hover:bg-accent-soft hover:text-accent"
               >
                 <Link2 size={10} />
                 {c.entity === "task" && c.code ? c.code : c.label}
@@ -1001,7 +1001,7 @@ export function NoteEditor({
       )}
 
       {state.kind === "stale" && (
-        <p className="flex items-start gap-2 border-t border-warn/30 bg-warn-soft/40 px-6 py-3 text-[12px] text-fg">
+        <p className="flex items-start gap-2 border-t border-warn/30 bg-warn-soft/40 px-6 py-3 text-sm text-fg">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
           <span>
             This note changed somewhere else — probably another tab. <strong>Nothing you have typed is lost</strong> and
@@ -1150,14 +1150,14 @@ function countWords(text: string): number {
 function WordCount({ words }: { words: number }) {
   if (words === 0) return null;
   return (
-    <span className="mr-1 hidden shrink-0 px-1 text-[11px] tabular-nums text-fg-subtle sm:inline">
+    <span className="mr-1 hidden shrink-0 px-1 text-xs tabular-nums text-fg-subtle sm:inline">
       {words.toLocaleString("en-GB")} {words === 1 ? "word" : "words"}
     </span>
   );
 }
 
 function SaveBadge({ state }: { state: SaveState }) {
-  const base = "inline-flex h-7 items-center gap-1.5 px-2 text-[11px] font-medium";
+  const base = "inline-flex h-7 items-center gap-1.5 px-2 text-xs font-medium";
   if (state.kind === "saving") return <span className={cn(base, "text-fg-muted")}><Loader2 size={12} className="animate-spin" /> Saving…</span>;
   if (state.kind === "saved") return <span className={cn(base, "text-success")}><Check size={12} /> Saved</span>;
   if (state.kind === "dirty") return <span className={cn(base, "text-fg-subtle")}>Editing…</span>;

@@ -7,6 +7,7 @@ import { RecruitmentOrdersList, type OrderRow } from "@/components/recruitment-o
 import { NoAgencyCompany } from "@/components/recruitment-empty";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Job orders — Recruitment" };
 
 export default async function JobOrdersPage() {
   const companyId = await agencyCompanyId();

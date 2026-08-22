@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { DatePopover } from "@/components/date-popover";
 import { cn } from "@/lib/cn";
 import { formatTimeLabel, parseTimeInput, timeSuggestions } from "@/lib/time-input";
@@ -63,15 +65,17 @@ export function TimeField({
 }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState<string | null>(null);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  /* ⚠️ Portalled through the one hook — this field lives inside the director's
+     event sheet, so an `absolute` menu was clipped by the sheet. */
+  const { anchorRef: wrapRef, menuRef, pos, mounted, isInside } =
+    useAnchoredMenu<HTMLDivElement, HTMLUListElement>(open);
 
   // Click-away commits whatever is typed. No dependency array on purpose: `close`
   // reads `typed`, and a stale closure here would commit yesterday's keystrokes.
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close();
-    };
+    // ⚠️ Includes the PORTALLED menu — see `isInside`.
+    const onDoc = (e: MouseEvent) => { if (!isInside(e.target as Node)) close(); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   });
@@ -149,8 +153,9 @@ export function TimeField({
         aria-label="Time"
         className={cn(FIELD_TRIGGER, "w-full bg-bg-subtle text-left outline-none focus:ring-2 focus:ring-accent/40", inputClassName)}
       />
-      {open && suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-auto rounded-xl bg-bg-elev p-1 shadow-lg ring-1 ring-border">
+      {mounted && open && pos && suggestions.length > 0 && createPortal(
+        <ul ref={menuRef} role="listbox" style={menuStyle(pos)}
+          className="overflow-auto rounded-md bg-bg-elev p-1 shadow-lg ring-1 ring-border">
           {suggestions.map((o) => (
             <li key={o.value}>
               <button
@@ -165,7 +170,8 @@ export function TimeField({
               </button>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

@@ -68,7 +68,7 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
     };
   }, [open]);
 
-  const skin = "inline-flex items-center gap-2 bg-accent px-2.5 py-1.5 text-[12.5px] font-medium text-accent-fg transition-opacity hover:opacity-90";
+  const skin = "inline-flex items-center gap-2 bg-accent px-2.5 py-1.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90";
 
   return (
     <div ref={wrap} className="relative">
@@ -117,7 +117,7 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
           role="menu"
           className="glass-menu absolute left-0 z-50 mt-1 min-w-[186px] rounded-md p-1"
         >
-          <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+          <p className="px-2 py-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
             Create
           </p>
           {items.map((c) => {
@@ -128,7 +128,7 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
                 href={c.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg hover:bg-bg-subtle"
+                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-fg hover:bg-bg-subtle"
               >
                 <Icon size={14} className="shrink-0 text-fg-subtle" />
                 <span className="truncate">{c.label}</span>

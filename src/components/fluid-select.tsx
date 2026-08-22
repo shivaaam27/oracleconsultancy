@@ -131,7 +131,10 @@ export function FluidSelect({
            form fields — but a filter dropdown and a form dropdown sitting near
            each other must not look like two different products. */
         className={cn(
-          "relative inline-flex h-9 w-full items-center gap-1.5 px-3 text-sm rounded-lg border border-border bg-bg-elev text-fg",
+          // ⚠️ THE ONE BOX — identical to `Select`, `Combobox` and a text
+          // field. Was `h-9 rounded-lg`: a 36px control with an 8px radius
+          // sitting beside 32px controls with a 6px one.
+          "relative inline-flex h-8 w-full items-center gap-1.5 px-2.5 text-sm rounded-md border border-border bg-bg-elev text-fg",
           "hover:border-border-strong transition-colors select-none whitespace-nowrap",
           "focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent-ring/60",
           buttonClassName

@@ -170,7 +170,7 @@ export function TableView({
         {rows.map((r) => (
           <div key={r.id} className="space-y-2.5">
           {headerAt.has(r.id) && (
-            <p className="px-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{headerAt.get(r.id)}</p>
+            <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">{headerAt.get(r.id)}</p>
           )}
           <TaskCard
             row={r}
@@ -226,25 +226,25 @@ export function TableView({
                   {r.unread && (
                     <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
                   )}
-                  <span className="tabular inline-flex shrink-0 items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-fg-muted ring-1 ring-border">
+                  <span className="tabular inline-flex shrink-0 items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium tracking-wide text-fg-muted ring-1 ring-border">
                     {r.code}
                   </span>
                   <PinnedMarker task={r} className="shrink-0" />
                   <span className={cn(
-                    "truncate text-[13px] font-medium leading-snug",
+                    "truncate text-base font-medium leading-snug",
                     (r.status === "Completed" || r.status === "Closed") && "text-fg-muted line-through decoration-fg-subtle/40",
                   )}>
                     {r.actionItem}
                   </span>
                 </div>
               ),
-              status: (r) => <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-[11px]" /></Stop>,
+              status: (r) => <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-xs" /></Stop>,
               deadline: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>,
               assignees: (r) => (
                 <div className="flex justify-end">
                   {r.assignees.length > 0
                     ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
-                    : <span className="text-[11px] italic text-fg-subtle">—</span>}
+                    : <span className="text-xs italic text-fg-subtle">—</span>}
                 </div>
               ),
             },
@@ -262,7 +262,7 @@ export function TableView({
             <div className="space-y-0.5">
               <div className="flex min-w-0 items-center gap-2">
                 {!hideCompany && (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-fg-muted">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-fg-muted">
                     <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
                     <span className="max-w-[9rem] truncate">{r.companyName}</span>
                   </span>

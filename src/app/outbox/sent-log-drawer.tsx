@@ -56,7 +56,7 @@ export function SentLogDrawer({
       >
         <History size={12} /> {triggerLabel}
         {todayDoneCount > 0 && (
-          <span className="text-[10px] tabular bg-bg-muted px-1.5 py-0.5 rounded-full">{todayDoneCount}</span>
+          <span className="text-xs tabular bg-bg-muted px-1.5 py-0.5 rounded-full">{todayDoneCount}</span>
         )}
       </button>
 
@@ -121,7 +121,7 @@ function Section({
         <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">{title}</div>
       )}
       {subtle && (
-        <div className="text-[11px] font-medium text-fg-subtle mb-1.5">{title}</div>
+        <div className="text-xs font-medium text-fg-subtle mb-1.5">{title}</div>
       )}
       {entries.length === 0 ? (
         <div className="text-xs text-fg-subtle italic">{emptyHint}</div>

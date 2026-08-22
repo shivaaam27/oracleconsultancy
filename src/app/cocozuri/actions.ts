@@ -12,7 +12,28 @@ import {
   archiveItem, createItem, createLocation, deleteCount, recordCount, saveDay,
   updateItem, updateLocation, type StockItemInput,
 } from "@/lib/cocozuri-stock";
-import { postInvoice, postReceipt, unpostInvoice, unpostReceipt } from "@/lib/cocozuri-ledger";
+import {
+  postInvoice, postPurchase, postReceipt,
+  purchaseIsPosted, unpostInvoice, unpostPurchase, unpostReceipt,
+} from "@/lib/cocozuri-ledger";
+import {
+  approvePurchase, cancelPurchase, closeBudget, createBudget, createPurchase,
+  decideBudget, deleteBudget, deletePurchase, reopenBudget, updateBudget, updatePurchase,
+  type BudgetInput, type PurchaseInput,
+} from "@/lib/cocozuri-buy";
+import {
+  createRecipe, deleteRecipe, setRecipeDefault, setRecipeStatus, updateRecipe,
+  type RecipeInput,
+} from "@/lib/cocozuri-recipe";
+import type { CzRecipeStatus } from "@/lib/cocozuri-recipe-shared";
+import {
+  cancelBatch, closeBatch, openBatch, reopenBatch, updateBatch,
+  type CloseBatchInput, type OpenBatchInput,
+} from "@/lib/cocozuri-batch";
+import {
+  cancelTransfer, receiveTransfer, sendTransfer,
+  type ReceiveTransferInput, type SendTransferInput,
+} from "@/lib/cocozuri-transfer";
 
 /**
  * CocoZuri's write actions — thin wrappers over `lib/cocozuri.ts`.
@@ -36,6 +57,12 @@ function refresh() {
   revalidatePath("/cocozuri/statements", "layout");
   revalidatePath("/cocozuri/stock");
   revalidatePath("/cocozuri/stock/month");
+  revalidatePath("/cocozuri/order");
+  revalidatePath("/cocozuri/purchases");
+  revalidatePath("/cocozuri/budgets");
+  revalidatePath("/cocozuri/recipes", "layout");
+  revalidatePath("/cocozuri/batches", "layout");
+  revalidatePath("/cocozuri/transfers", "layout");
   // A posting shows in the ledger too — the entries list and every report.
   revalidatePath("/ledger", "layout");
 }
@@ -270,6 +297,246 @@ export async function postReceiptAction(receiptId: number) {
 
 export async function unpostReceiptAction(receiptId: number, reason?: string | null) {
   const res = await unpostReceipt(receiptId, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ------------- buying, and the budget (manufacturing Stage 2) ------------- */
+
+/** ⚠️ Approving is a NAMED step — see `decideBudget`. */
+export async function createBudgetAction(input: BudgetInput) {
+  const res = await createBudget(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses to edit an APPROVED budget — reopen it first. */
+export async function updateBudgetAction(id: number, input: Partial<BudgetInput>) {
+  const res = await updateBudget(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A person and a moment, never a boolean, and a refusal must say why. */
+export async function decideBudgetAction(
+  id: number,
+  decision: "approved" | "rejected",
+  who: { personId?: number | null; name?: string | null },
+  note?: string | null,
+) {
+  const res = await decideBudget(id, decision, who, note);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Clears the old approver's name — it was against a figure that is about to
+ *  change. */
+export async function reopenBudgetAction(id: number, reason?: string | null) {
+  const res = await reopenBudget(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function closeBudgetAction(id: number) {
+  const res = await closeBudget(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses while purchases are charged to it — close it instead. */
+export async function deleteBudgetAction(id: number) {
+  const res = await deleteBudget(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Lands as a DRAFT, which moves no stock and reaches no books — see
+ *  `createPurchase`. That is what makes it safe to type the moment the flour
+ *  comes through the door. */
+export async function createPurchaseAction(input: PurchaseInput) {
+  const res = await createPurchase(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Only a draft. Once approved, the stock has moved — cancel and re-record. */
+export async function updatePurchaseAction(id: number, input: Partial<PurchaseInput>) {
+  const res = await updatePurchase(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ APPROVING IS WHAT PUTS IT ON THE SHELF — it writes the `receipt`
+ * movements with their landed unit cost. It refuses to overrun an approved
+ * budget unless told to; the caller passes `acknowledgeOverBudget` after asking.
+ */
+export async function approvePurchaseAction(
+  id: number,
+  who: { personId?: number | null; name?: string | null },
+  opts?: { note?: string | null; acknowledgeOverBudget?: boolean },
+) {
+  const res = await approvePurchase(id, who, opts);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ Cancelling an approved purchase REVERSES its stock movements rather than
+ * erasing them, and refuses while the general ledger still holds it — taking
+ * the stock out and leaving the creditor standing would put the two ledgers
+ * out of step silently. The ledger check is done HERE because `cocozuri-buy.ts`
+ * must not import `cocozuri-ledger.ts`, which imports it.
+ */
+export async function cancelPurchaseAction(id: number, reason: string | null) {
+  const postedInBooks = await purchaseIsPosted(id);
+  const res = await cancelPurchase(id, reason, { postedInBooks });
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Only a draft — nothing moved, nothing posted, nobody put a name to it. */
+export async function deletePurchaseAction(id: number) {
+  const res = await deletePurchase(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Posting is explicit (the ledger's fifth rule) and only an APPROVED
+ *  purchase goes in. */
+export async function postPurchaseAction(purchaseId: number) {
+  const res = await postPurchase(purchaseId);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A reversal, never an erasure — both sides stay in the general ledger. */
+export async function unpostPurchaseAction(purchaseId: number, reason?: string | null) {
+  const res = await unpostPurchase(purchaseId, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ------------------------- recipes (Stage 3) ------------------------- */
+
+/** ⚠️ Lands as a DRAFT — a recipe nobody has checked should not be what a
+ *  kitchen follows at seven in the morning. */
+export async function createRecipeAction(input: RecipeInput) {
+  const res = await createRecipe(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ An ACTIVE recipe may be edited, deliberately — it is a live instruction,
+ *  not a document somebody acted on, and what a batch actually consumed will be
+ *  recorded by Stage 4 rather than by this. */
+export async function updateRecipeAction(id: number, input: Partial<RecipeInput>) {
+  const res = await updateRecipe(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refuses to activate a recipe that does not add up — the blockers are
+ *  re-checked here, never trusted from the form. */
+export async function setRecipeStatusAction(id: number, status: CzRecipeStatus) {
+  const res = await setRecipeStatus(id, status);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ ONE default per output, enforced in the library. */
+export async function setRecipeDefaultAction(id: number) {
+  const res = await setRecipeDefault(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Archive is the normal answer — and this must start refusing once Stage 4
+ *  gives batches a recipe to point at. */
+export async function deleteRecipeAction(id: number) {
+  const res = await deleteRecipe(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ------------------------ production (Stage 4) ------------------------ */
+
+/**
+ * ⚠️ ONE ACTION, AND IT IS ALREADY RUNNING — plan §5a. Nobody at CocoZuri
+ * writes a batch number today, so every field demanded before somebody can
+ * start making chocolate is a reason to go back to the notebook. The number is
+ * allocated by the system; the recipe and the expected quantity are optional.
+ */
+export async function openBatchAction(input: OpenBatchInput) {
+  const res = await openBatch(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Only an OPEN batch — a closed one has already moved stock. */
+export async function updateBatchAction(id: number, input: Partial<OpenBatchInput>) {
+  const res = await updateBatch(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ CLOSING IS WHAT MOVES THE STOCK: every `consume` and the one `produce`, in
+ * one voucher, all tagged with the batch. It refuses a shortfall nobody has
+ * explained — note #12, and the same discipline as an unexplained stock-take.
+ */
+export async function closeBatchAction(id: number, input: CloseBatchInput) {
+  const res = await closeBatch(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Reverses the movements rather than erasing them. */
+export async function reopenBatchAction(id: number, reason: string | null) {
+  const res = await reopenBatch(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Costs nothing, deliberately — materials are not consumed until close, so
+ *  nobody has a reason to avoid opening a batch "just in case". */
+export async function cancelBatchAction(id: number, reason: string | null) {
+  const res = await cancelBatch(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+
+/* ---------------------- kitchen → shop (Stage 5) ---------------------- */
+
+/**
+ * ⚠️ SENDING TAKES THE STOCK OFF THE SENDING SHELF and nothing more. It is now
+ * IN TRANSIT — off one shelf and not yet on the other — which is the truth.
+ * Pretending it arrived the instant it left is what stops anybody noticing a
+ * crate that went missing.
+ */
+export async function sendTransferAction(input: SendTransferInput) {
+  const res = await sendTransfer(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ WHAT ARRIVED, NOT WHAT WAS SENT. A shortfall must be explained, and more
+ * arriving than was sent is refused — stock cannot appear in transit.
+ */
+export async function receiveTransferAction(id: number, input: ReceiveTransferInput) {
+  const res = await receiveTransfer(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Puts the stock back on the sending shelf with an opposite movement. */
+export async function cancelTransferAction(id: number, reason: string | null) {
+  const res = await cancelTransfer(id, reason);
   if (res.ok) refresh();
   return res;
 }

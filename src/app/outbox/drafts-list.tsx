@@ -121,11 +121,11 @@ export function DraftCard({ draft, onGone, detail = false }: { draft: OutboxDraf
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><Icon size={13} /></span>
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>
-        <span className="text-[11px] text-fg-subtle">· {channelLabel(draft.channel)}</span>
-        {draft.todoId && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><ListTodo size={11} /> from to-do</span>}
-        {pack && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><PackageCheck size={11} /> {pack.label}</span>}
-        {autoLabel && <span className="inline-flex items-center gap-1 text-[11px] text-accent" title="Prepared automatically — review and send"><Bot size={11} /> {autoLabel}</span>}
-        {draft.recipientContact && <span className="ml-auto text-[11px] text-fg-subtle truncate max-w-[160px] hidden sm:inline tabular">{draft.recipientContact}</span>}
+        <span className="text-xs text-fg-subtle">· {channelLabel(draft.channel)}</span>
+        {draft.todoId && <span className="inline-flex items-center gap-1 text-xs text-fg-subtle"><ListTodo size={11} /> from to-do</span>}
+        {pack && <span className="inline-flex items-center gap-1 text-xs text-fg-subtle"><PackageCheck size={11} /> {pack.label}</span>}
+        {autoLabel && <span className="inline-flex items-center gap-1 text-xs text-accent" title="Prepared automatically — review and send"><Bot size={11} /> {autoLabel}</span>}
+        {draft.recipientContact && <span className="ml-auto text-xs text-fg-subtle truncate max-w-[160px] hidden sm:inline tabular">{draft.recipientContact}</span>}
       </div>
 
       {editing && draft.channel === "EMAIL" && (

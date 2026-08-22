@@ -87,7 +87,7 @@ export function TaskQuickActions({
             type="button"
             onClick={() => setMoreOpen((o) => !o)}
             aria-expanded={moreOpen}
-            className="inline-flex items-center gap-1 text-[11px] text-fg-muted transition-colors hover:text-fg"
+            className="inline-flex items-center gap-1 text-xs text-fg-muted transition-colors hover:text-fg"
           >
             Remind {getGivenName(ownerName ?? "them")} — this task or their whole list
             <ChevronDown size={12} className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"} />

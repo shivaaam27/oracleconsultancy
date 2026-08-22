@@ -131,12 +131,12 @@ export function DirectoryView({
             type="button"
             onClick={() => selectTab(t)}
             className={cn(
-              "inline-flex h-7 items-center rounded px-3 text-[13px] font-medium capitalize transition-colors",
+              "inline-flex h-7 items-center rounded px-3 text-base font-medium capitalize transition-colors",
               tab === t ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border/50" : "text-fg-muted hover:text-fg",
             )}
           >
             {t}
-            <span className="ml-1.5 text-[11px] text-fg-subtle">{tabCount(t)}</span>
+            <span className="ml-1.5 text-xs text-fg-subtle">{tabCount(t)}</span>
           </button>
         ))}
       </div>
@@ -237,20 +237,20 @@ export function DirectoryView({
             <Panel className="overflow-hidden p-0">
               <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2.5">
                 <span className="text-sm font-semibold">{presentCount} in · {shownAttendance.length - markedCount} not marked</span>
-                <span className="text-[11px] text-fg-subtle">{markedCount}/{shownAttendance.length} recorded today</span>
+                <span className="text-xs text-fg-subtle">{markedCount}/{shownAttendance.length} recorded today</span>
               </div>
               <ul className="divide-y divide-border/40">
                 {shownAttendance.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">{initials(a.name)}</span>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent">{initials(a.name)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{a.name}</p>
-                      {a.company && <p className="truncate text-[11px] text-fg-subtle">{a.company}</p>}
+                      {a.company && <p className="truncate text-xs text-fg-subtle">{a.company}</p>}
                     </div>
                     {a.status ? (
                       <Badge tone={ATTENDANCE_TONE[a.status as keyof typeof ATTENDANCE_TONE] ?? "default"}>{a.status}</Badge>
                     ) : (
-                      <span className="text-[11px] text-fg-subtle">Not marked</span>
+                      <span className="text-xs text-fg-subtle">Not marked</span>
                     )}
                   </li>
                 ))}
@@ -282,12 +282,12 @@ function PersonRow({ p, canOpenProfile }: { p: DirectoryPerson; canOpenProfile: 
   const first = p.name.split(" ")[0];
   return (
     <div className="flex items-center gap-3 p-3">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
         {initials(p.name)}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{p.name}</p>
-        <p className="truncate text-[11px] text-fg-muted">{[p.role, p.company].filter(Boolean).join(" · ") || "—"}</p>
+        <p className="truncate text-xs text-fg-muted">{[p.role, p.company].filter(Boolean).join(" · ") || "—"}</p>
       </div>
       <div className="flex items-center gap-1.5">
         {p.callHref ? (
@@ -349,7 +349,7 @@ function CompanyCard({ c }: { c: DirectoryCompany }) {
         <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={40} rounded="rounded-full" iconSize={18} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium group-hover:text-accent">{c.name}</p>
-          <p className="truncate text-[11px] text-fg-muted">
+          <p className="truncate text-xs text-fg-muted">
             {c.headcount} {c.headcount === 1 ? "person" : "people"} · {c.open} open
             {c.overdue > 0 && (
               <span className="text-danger">

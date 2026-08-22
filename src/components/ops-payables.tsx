@@ -37,17 +37,17 @@ export function OpsPayables({
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-        <h3 className="text-[12px] font-medium">What we owe, and to whom</h3>
-        <p className="text-[11px] text-fg-subtle">
+        <h3 className="text-sm font-medium">What we owe, and to whom</h3>
+        <p className="text-xs text-fg-subtle">
           Billed less paid, biggest first
           {totals.unknown > 0 && ` · ${totals.unknown} could not be worked out`}
         </p>
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[12px]">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+            <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
               <Th className="text-left">Paid to</Th>
               <Th>Payments</Th>
               <Th className="text-right">Billed</Th>
@@ -88,18 +88,18 @@ export function OpsPayables({
                 </Td>
                 <Td className="text-left">
                   {r.worstAgeing
-                    ? <span className={cn("text-[11px]", BAND_TONE[r.worstAgeing] ?? "text-fg-muted")}>
+                    ? <span className={cn("text-xs", BAND_TONE[r.worstAgeing] ?? "text-fg-muted")}>
                         {r.worstAgeing}
                         {r.oldestOverdueDays !== null && r.oldestOverdueDays > 0
                           && <span className="ml-1 text-fg-subtle">({r.oldestOverdueDays}d)</span>}
                       </span>
-                    : <span className="text-[11px] text-fg-subtle">—</span>}
+                    : <span className="text-xs text-fg-subtle">—</span>}
                 </Td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-bg-subtle text-[12px]">
+            <tr className="border-t border-border bg-bg-subtle text-sm">
               <Td className="text-left font-medium">
                 {totals.payees} payee{totals.payees === 1 ? "" : "s"}
               </Td>
@@ -107,7 +107,7 @@ export function OpsPayables({
               <Td className="tabular text-right">{money(totals.billed)}</Td>
               <Td className="tabular text-right">{money(totals.paid)}</Td>
               <Td className="tabular text-right text-warn">{money(totals.owed)}</Td>
-              <Td className="text-left text-[11px] text-fg-subtle">
+              <Td className="text-left text-xs text-fg-subtle">
                 {totals.advance > 0 ? `${money(totals.advance)} in advance` : ""}
               </Td>
             </tr>
@@ -115,7 +115,7 @@ export function OpsPayables({
         </table>
       </div>
 
-      <footer className="border-t border-border px-3 py-1.5 text-[11px] text-fg-subtle">
+      <footer className="border-t border-border px-3 py-1.5 text-xs text-fg-subtle">
         A purchase with no cost on it is left out of these totals and counted separately — you
         cannot subtract from a figure nobody has worked out. Ageing runs from the supplier&apos;s
         own due date, and stops the moment a purchase is settled.

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 
 /**
  * Typeable combobox: a text input with an app-styled, properly-anchored
@@ -12,6 +14,14 @@ import { cn } from "@/lib/cn";
  * Uncontrolled by design (defaultValue + a `name` for form submission), so
  * external DOM writes (e.g. AI scan-to-fill) keep working. `onCommit` fires
  * when an option is picked or Enter is pressed — used by the bulk actions.
+ *
+ * ⚠️ THE MENU IS PORTALLED TO THE BODY AND POSITIONED `fixed`, exactly as
+ * `FluidSelect` does it, and that is not a detail. As an `absolute` child of the
+ * field it was CLIPPED by any ancestor that scrolls or hides its overflow — a
+ * bottom sheet, a panel, a card. Measured on the "Start a batch" sheet: the
+ * option list ran past the bottom of the card and was cut off mid-row, so the
+ * choices below the fold were unreachable. A dropdown inside a dialog is the
+ * normal case here, not the exception.
  */
 export function Combobox({
   name, options, defaultValue = "", placeholder, className, onCommit, onInput, clearOnCommit = false,
@@ -38,7 +48,6 @@ export function Combobox({
   /** What is being created, for the menu wording: `+ Add category "CEMENT"`. */
   createNoun?: string;
 }) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -46,16 +55,28 @@ export function Combobox({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  /* ⚠️ ONE HOOK FOR EVERY ANCHORED MENU — see `lib/use-anchored-menu.ts`. It
+     portals, positions `fixed`, flips up when there is no room below, clamps to
+     the viewport, and sits above every overlay. Six components used to write
+     this by hand and all six were clipped inside a sheet. */
+  const { anchorRef: wrapRef, menuRef, pos, mounted, isInside } =
+    useAnchoredMenu<HTMLDivElement, HTMLUListElement>(open);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
     return base.slice(0, 60);
   }, [query, options]);
 
+  // ⚠️ The outside-click test goes through `isInside`, which knows about the
+  // PORTALLED menu as well as the field. A naive "is it inside my wrapper"
+  // check treats choosing an option as clicking away, and closes the list
+  // before the choice can land.
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => { if (!isInside(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Offer to create only when there is something typed and no option matches it
@@ -101,7 +122,12 @@ export function Combobox({
         autoComplete="off"
         /* `w-full` FIRST so a caller can still override it — tailwind-merge
            keeps the last width class it sees. */
-        className={cn("w-full min-w-0", className, "pr-7")}
+        /* ⚠️ THE BUG THIS FIXES: there was NO type size and NO height here, so
+           the input fell back to the browser's 16px default — every typeable
+           dropdown in COS rendered a head larger than the field beside it, and
+           it showed up the moment two sat side by side on the recipe form.
+           It is the same box as `Select` and `FluidSelect`, by construction. */
+        className={cn("w-full min-w-0 h-8 rounded-md px-2.5 text-sm", className, "pr-7")}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0); onInput?.(e.target.value); }}
         onFocus={() => { if (inputRef.current) setQuery(inputRef.current.value); setOpen(true); }}
         onKeyDown={(e) => {
@@ -115,8 +141,13 @@ export function Combobox({
         }}
       />
       <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
-      {open && (filtered.length > 0 || canCreate) && (
-        <ul className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-auto rounded-xl bg-bg-elev ring-1 ring-border shadow-lg py-1">
+      {mounted && open && pos && (filtered.length > 0 || canCreate) && createPortal(
+        <ul
+          ref={menuRef}
+          role="listbox"
+          style={menuStyle(pos)}
+          className="overflow-auto rounded-md bg-bg-elev ring-1 ring-border shadow-lg py-1"
+        >
           {filtered.map((o, i) => (
             <li key={o}>
               <button
@@ -145,9 +176,10 @@ export function Combobox({
             </li>
           )}
           {createError && (
-            <li className="px-3 py-1.5 text-[11px] text-danger">{createError}</li>
+            <li className="px-3 py-1.5 text-xs text-danger">{createError}</li>
           )}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

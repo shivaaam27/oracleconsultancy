@@ -42,7 +42,7 @@ export function AskNotes() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-fg"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg"
       >
         <Sparkles size={12} /> Ask your notes
       </button>
@@ -60,46 +60,46 @@ export function AskNotes() {
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void ask(); } }}
           placeholder="What did I decide about the permits?"
           aria-label="Ask your notes"
-          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-[12px] text-fg placeholder:text-fg-subtle"
+          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-sm text-fg placeholder:text-fg-subtle"
         />
         <button
           type="button"
           onClick={() => void ask()}
           disabled={busy || !q.trim()}
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[11.5px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {busy ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />} Ask
         </button>
         <button
           type="button"
           onClick={() => { setOpen(false); setResult(null); }}
-          className="h-7 shrink-0 rounded-md px-1.5 text-[11px] text-fg-muted hover:text-fg"
+          className="h-7 shrink-0 rounded-md px-1.5 text-xs text-fg-muted hover:text-fg"
         >
           Close
         </button>
       </div>
 
-      {busy && <p className="px-1 text-[11.5px] text-fg-subtle">Reading your notes…</p>}
+      {busy && <p className="px-1 text-xs text-fg-subtle">Reading your notes…</p>}
 
       {result && !result.ok && (
-        <p className="rounded-md border border-border bg-bg-subtle/60 px-2 py-1.5 text-[12px] text-fg-muted">
+        <p className="rounded-md border border-border bg-bg-subtle/60 px-2 py-1.5 text-sm text-fg-muted">
           {result.message}
         </p>
       )}
 
       {result?.ok && (
         <div className="space-y-2">
-          <p className="whitespace-pre-wrap rounded-md border border-border bg-bg-subtle/50 px-2.5 py-2 text-[12.5px] leading-relaxed text-fg">
+          <p className="whitespace-pre-wrap rounded-md border border-border bg-bg-subtle/50 px-2.5 py-2 text-sm leading-relaxed text-fg">
             {result.answer}
           </p>
           {result.sources.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5 px-1">
-              <span className="text-[10.5px] uppercase tracking-[0.06em] text-fg-subtle">From</span>
+              <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">From</span>
               {result.sources.map((s) => (
                 <Link
                   key={s.id}
                   href={`/notes/${s.id}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-1.5 py-0.5 text-[11px] font-medium text-fg transition-colors hover:bg-accent-soft hover:text-accent"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-1.5 py-0.5 text-xs font-medium text-fg transition-colors hover:bg-accent-soft hover:text-accent"
                 >
                   <StickyNote size={10} /> {s.title || "Untitled note"}
                 </Link>
@@ -108,7 +108,7 @@ export function AskNotes() {
           ) : (
             /* No citations means the model found nothing to stand on. Saying so is
                more useful than a confident answer with nothing behind it. */
-            <p className="px-1 text-[11px] text-fg-subtle">
+            <p className="px-1 text-xs text-fg-subtle">
               No note backs this up — treat it with care.
             </p>
           )}

@@ -40,7 +40,7 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
     <div className="space-y-3">
       <Link
         href="/hrms/assets?view=vendors"
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition-colors hover:text-accent"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
       >
         <ArrowLeft size={13} /> Vendors
       </Link>

@@ -285,6 +285,88 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Payment", href: "/cocozuri/receipts?new=1" },
   },
 
+  /* Manufacturing Stage 2 — what was bought.
+     ⚠️ FIVE FIXED COLUMNS COME TO 430px, which fits the card at `lg` with the
+     desk sidebar taking 208px. The supplier is the flexible one because it is
+     what somebody scans down; adding a sixth would start squeezing it. */
+  cz_purchase: {
+    listColumns: [
+      { key: "reference", label: "Ref", width: "90px", format: "text", sortable: true },
+      { key: "purchasedLabel", label: "Bought", width: "100px", format: "muted", sortable: true },
+      { key: "supplier", label: "From", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "locationName", label: "Into", width: "110px", format: "muted", hideBelow: "md", sortable: true },
+      { key: "paidLabel", label: "Paid", width: "110px", format: "muted", hideBelow: "lg", defaultHidden: true },
+      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
+      { key: "totalLabel", label: "Total", width: "110px", format: "muted", align: "right", sortable: true },
+    ],
+    defaultSort: { key: "purchasedLabel", dir: "desc" },
+    create: { label: "Purchase", href: "/cocozuri/purchases?new=1" },
+  },
+
+  /* Manufacturing Stage 3 — recipes.
+     ⚠️ COST PER UNIT IS THE COLUMN SOMEBODY OPENS THIS PAGE FOR, so it is kept
+     at every width; the yield folds away first. */
+  /* Manufacturing Stage 4 — production.
+     ⚠️ MADE and CAME OUT sit next to each other on purpose: the whole reason
+     this record exists is the owner's "inter check", and a variance you have to
+     scroll for is one nobody checks. */
+  /* Manufacturing Stage 5 — kitchen to shop.
+     ⚠️ SENT and ARRIVED sit side by side because the gap between them is the
+     entire reason this record exists. */
+  cz_transfer: {
+    listColumns: [
+      { key: "reference", label: "Ref", width: "110px", format: "text", sortable: true },
+      { key: "onDate", label: "Sent", width: "100px", format: "muted", sortable: true },
+      { key: "route", label: "From → to", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
+      { key: "sentLabel", label: "Sent", width: "90px", format: "muted", align: "right" },
+      { key: "receivedLabel", label: "Arrived", width: "90px", format: "muted", align: "right" },
+      { key: "varianceLabel", label: "Lost", width: "90px", format: "muted", align: "right" },
+    ],
+    defaultSort: { key: "onDate", dir: "desc" },
+    create: { label: "Transfer", href: "/cocozuri/transfers?new=1" },
+  },
+
+  cz_batch: {
+    listColumns: [
+      { key: "batchNo", label: "Batch", width: "120px", format: "text", sortable: true },
+      { key: "itemName", label: "What", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "madeOn", label: "Made", width: "100px", format: "muted", sortable: true },
+      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
+      { key: "plannedLabel", label: "Expected", width: "90px", format: "muted", align: "right", hideBelow: "md" },
+      { key: "producedLabel", label: "Came out", width: "90px", format: "muted", align: "right", sortable: true },
+      { key: "varianceLabel", label: "Difference", width: "100px", format: "muted", align: "right" },
+    ],
+    defaultSort: { key: "madeOn", dir: "desc" },
+    create: { label: "Batch", href: "/cocozuri/batches?new=1" },
+  },
+
+  cz_recipe: {
+    listColumns: [
+      { key: "name", label: "Recipe", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "outputItemName", label: "Makes", width: "150px", format: "muted", hideBelow: "md", sortable: true },
+      { key: "yieldLabel", label: "Per batch", width: "100px", format: "muted", align: "right", hideBelow: "lg" },
+      { key: "statusLabel", label: "Status", width: "90px", format: "status", sortable: true },
+      { key: "batchCostLabel", label: "A batch", width: "110px", format: "muted", align: "right", sortable: true },
+      { key: "unitCostLabel", label: "Each", width: "100px", format: "muted", align: "right", sortable: true },
+    ],
+    defaultSort: { key: "name", dir: "asc" },
+    create: { label: "Recipe", href: "/cocozuri/recipes?new=1" },
+  },
+
+  cz_budget: {
+    listColumns: [
+      { key: "title", label: "Budget", width: "minmax(0,1fr)", format: "text", sortable: true },
+      { key: "periodLabel", label: "Period", width: "150px", format: "muted", sortable: true },
+      { key: "locationLabel", label: "Where", width: "110px", format: "muted", hideBelow: "md" },
+      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
+      { key: "amountLabel", label: "Amount", width: "110px", format: "muted", align: "right", sortable: true },
+      { key: "leftLabel", label: "Left", width: "110px", format: "muted", align: "right", sortable: true },
+    ],
+    defaultSort: { key: "periodLabel", dir: "desc" },
+    create: { label: "Budget", href: "/cocozuri/budgets?new=1" },
+  },
+
   asset: {
     listColumns: [
       { key: "name", label: "Asset", width: "minmax(0,1fr)", format: "text", sortable: true },

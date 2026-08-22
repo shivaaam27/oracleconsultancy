@@ -48,7 +48,7 @@ export function CocozuriCreditApply({
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-subtle px-3 py-2 print:hidden">
-      <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted">
+      <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
         {busy || pending ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
         Answers invoice
       </span>
@@ -60,7 +60,7 @@ export function CocozuriCreditApply({
           placeholder="none — credit on account"
         />
       </div>
-      <span className="text-[11.5px] text-fg-subtle">
+      <span className="text-xs text-fg-subtle">
         {appliesTo
           ? "It comes off that invoice's balance."
           : "Left blank it reduces what the customer owes overall, but no single invoice — so it cannot be aged."}

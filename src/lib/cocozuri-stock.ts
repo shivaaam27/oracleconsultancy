@@ -330,12 +330,18 @@ export async function recordCount(
   if (!Number.isFinite(q) || q < 0) return { ok: false, error: "A count needs a quantity, and it cannot be negative." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.countedOn)) return { ok: false, error: "A count needs a date." };
 
-  const [days, counts] = await Promise.all([
-    listDays({ to: input.countedOn, itemIds: [input.itemId] }),
+  /* ⚠️ MEASURED AGAINST THE LEDGER, NOT THE DAY SHEET. Once a purchase exists
+     the two readings differ by exactly the deliveries nobody wrote in the IN
+     column — and a stock-take judged against the sheet would report every
+     delivery as an unexplained surplus and demand a reason for it. */
+  const locationId = (await locationOfItems([input.itemId])).get(input.itemId);
+  if (locationId == null) return { ok: false, error: "That item is not on any location's list." };
+  const [moves, counts] = await Promise.all([
+    listMoves({ itemIds: [input.itemId], locationId, to: input.countedOn }),
     listCounts({ itemIds: [input.itemId], to: input.countedOn }),
   ]);
   const candidate: CzStockCount = { id: -1, itemId: input.itemId, countedOn: input.countedOn, qty: q, note: null };
-  const variance = varianceOf(input.itemId, days, counts, candidate);
+  const variance = varianceOf(input.itemId, locationId, moves, counts, candidate);
 
   if (Math.abs(variance) > 0.0005 && !input.note?.trim()) {
     return {
@@ -374,21 +380,34 @@ export async function deleteCount(id: number): Promise<{ ok: boolean; error?: st
  * back — fetching only the month shown would silently open every item at zero.
  * The volumes make it affordable: three locations, 323 items, a few thousand
  * rows a year.
+ *
+ * ⚠️ IT HANDS OVER BOTH THE SHEET AND THE LEDGER, AND EVERY BALANCE NOW COMES
+ * FROM THE LEDGER (Stage 2). `days` is still the DOCUMENT — it says whether
+ * anybody wrote anything down that day and carries the note — but what is on
+ * the shelf is `cz_stock_moves`. While the day sheet was the only writer the
+ * two readings were identical, which is what proved the Stage 1 backfill; they
+ * part company the moment a purchase is approved, because a delivery is not
+ * something the shop typed in its IN column.
  */
 export async function stockBook(locationId: number): Promise<{
   location: CzStockLocation | null;
   items: CzStockItem[];
   days: CzStockDay[];
   counts: CzStockCount[];
+  moves: CzStockMove[];
 }> {
   const locations = await listLocations({ includeInactive: true });
   const location = locations.find((l) => l.id === locationId) ?? null;
-  if (!location) return { location: null, items: [], days: [], counts: [] };
+  if (!location) return { location: null, items: [], days: [], counts: [], moves: [] };
   const items = await listItems({ locationId });
   const ids = items.map((i) => i.id);
-  if (ids.length === 0) return { location, items, days: [], counts: [] };
-  const [days, counts] = await Promise.all([listDays({ itemIds: ids }), listCounts({ itemIds: ids })]);
-  return { location, items, days, counts };
+  if (ids.length === 0) return { location, items, days: [], counts: [], moves: [] };
+  const [days, counts, moves] = await Promise.all([
+    listDays({ itemIds: ids }),
+    listCounts({ itemIds: ids }),
+    listMoves({ itemIds: ids, locationId }),
+  ]);
+  return { location, items, days, counts, moves };
 }
 
 /* ================================================================== *
@@ -544,11 +563,19 @@ export async function replaceDaySheetMoves(
 }
 
 /**
- * Move stock from one place to another.
+ * Move stock from one place to another, in ONE moment.
  *
- * ⚠️ TWO MOVES, ONE VOUCHER, AND IT MUST NET TO NOTHING. That is what makes
- * "twenty went from the kitchen to the shop" a fact rather than two numbers
- * that happen to agree.
+ * ⚠️ SUPERSEDED BY STAGE 5 — use `sendTransfer` / `receiveTransfer` in
+ * `cocozuri-transfer.ts` instead. This was written at Stage 1, before the owner
+ * had said whether the shop's row and the kitchen's row were the same
+ * chocolate; it therefore moves ONE `item_id` between two locations, which
+ * `cz_stock_items` does not actually allow — an item belongs to exactly one
+ * place. It also records a single moment, so it cannot tell "the kitchen sent
+ * 20" from "the shop received 18", which is the whole point of the real thing.
+ *
+ * Kept because it is the one place the "a transfer must net to nothing" rule is
+ * expressed at its simplest, and because nothing has ever called it.
+ * ⚠️ Do not build on it.
  */
 export async function transferStock(
   input: {

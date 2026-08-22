@@ -45,7 +45,7 @@ function staffSeverity(g: StaffFileGroup): number {
 
 function Pill({ cls, children }: { cls: string; children: React.ReactNode }) {
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cls}`}>{children}</span>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>{children}</span>
   );
 }
 
@@ -180,16 +180,16 @@ export function CompanyDocuments({
             ) : (
               <span className="block truncate text-sm font-medium">{doc.title}</span>
             )}
-            <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
+            <span className="mt-0.5 block truncate text-xs text-fg-subtle">
               {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
             </span>
           </div>
           {stage && (
-            <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/30 text-info" title="Application stage">
+            <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-info-soft/60 ring-1 ring-info/30 text-info" title="Application stage">
               {stage}
             </span>
           )}
-          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
+          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[status]}`}>
             {status}
           </span>
           {renaming ? (
@@ -204,7 +204,7 @@ export function CompanyDocuments({
             </button>
           )}
           <button type="button" onClick={() => setEditDoc(doc)} title="Edit details"
-            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors text-[10px] font-semibold">
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors text-xs font-semibold">
             ⋯
           </button>
           <button type="button" onClick={() => deleteDoc(doc)} disabled={deletingId === doc.id} title="Delete document"
@@ -223,7 +223,7 @@ export function CompanyDocuments({
         <summary className="list-none cursor-pointer flex items-center gap-2.5 px-4 py-3 select-none">
           <FolderOpen size={16} className="text-accent shrink-0" />
           <span className="text-sm font-semibold">Company files</span>
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular">
             {documents.length}
           </span>
           <button
@@ -274,13 +274,13 @@ export function CompanyDocuments({
                 return (
                   <details key={shelf} open={q.length > 0 && shelfDocs.length > 0} className="group/shelf rounded-xl ring-1 ring-border/60 overflow-hidden bg-bg-elev/30">
                     <summary className="list-none cursor-pointer flex items-center gap-2.5 px-3.5 py-2.5 select-none">
-                      <span className="text-[10px] font-semibold tabular text-fg-subtle">{code}</span>
+                      <span className="text-xs font-semibold tabular text-fg-subtle">{code}</span>
                       <span className="text-sm font-medium">{shelf}</span>
-                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">
+                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular">
                         {shelfDocs.length}
                       </span>
                       {attention > 0 && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warn-soft text-warn">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-warn-soft text-warn">
                           {attention} need{attention === 1 ? "s" : ""} attention
                         </span>
                       )}
@@ -288,7 +288,7 @@ export function CompanyDocuments({
                         type="button"
                         onClick={(e) => { e.preventDefault(); startAdd({ category: null }); }}
                         title={`Add a document to ${shelf}`}
-                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2 py-0.5 hover:bg-accent-soft/40"
+                        className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2 py-0.5 hover:bg-accent-soft/40"
                       >
                         <FilePlus size={12} /> Add
                       </button>
@@ -299,7 +299,7 @@ export function CompanyDocuments({
                         {shelfDocs.map((doc) => renderDocRow(doc))}
                       </ul>
                     ) : (
-                      <p className="border-t border-border/50 px-3.5 py-3 text-[11px] text-fg-subtle">
+                      <p className="border-t border-border/50 px-3.5 py-3 text-xs text-fg-subtle">
                         Nothing filed here yet — drop a document and it lands automatically.
                       </p>
                     )}
@@ -316,7 +316,7 @@ export function CompanyDocuments({
         <summary className="list-none cursor-pointer flex items-center gap-2.5 px-4 py-3 select-none">
           <Users size={16} className="text-accent shrink-0" />
           <span className="text-sm font-semibold">Staff files</span>
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular">
             {staffTotal}
           </span>
           <ChevronDown size={16} className="ml-auto shrink-0 text-fg-subtle transition-transform group-open:rotate-180" />
@@ -347,14 +347,14 @@ export function CompanyDocuments({
                     className={`group/card w-full text-left rounded-xl ring-1 bg-bg-elev/40 px-3 py-2.5 hover:-translate-y-0.5 hover:shadow-sm hover:ring-accent/30 transition-all ${ring}`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <span className={`h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full text-[11px] font-semibold ${avatarCls}`}>
+                      <span className={`h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full text-xs font-semibold ${avatarCls}`}>
                         {initials(g.personName)}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium group-hover/card:text-accent transition-colors">{g.personName}</span>
-                        {g.role && <span className="block truncate text-[11px] text-fg-subtle">{g.role}</span>}
+                        {g.role && <span className="block truncate text-xs text-fg-subtle">{g.role}</span>}
                       </span>
-                      <span className="shrink-0 text-[11px] text-fg-muted tabular">
+                      <span className="shrink-0 text-xs text-fg-muted tabular">
                         {g.docs.length} file{g.docs.length === 1 ? "" : "s"}
                       </span>
                     </span>

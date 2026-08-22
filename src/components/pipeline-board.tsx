@@ -69,7 +69,7 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
           const tone = STAGE_TONE[stage];
           return (
             <div key={stage} className={cn("rounded-2xl border bg-bg-subtle/30 p-2.5", COL_TONE[tone])}>
-              <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
+              <div className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-fg-muted">
                 <span className={cn("h-1.5 w-1.5 rounded-full", DOT[tone])} /> {stage}
                 <span className="ml-auto tabular text-fg-subtle">{col.length}</span>
               </div>
@@ -78,8 +78,8 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
                   <div key={i.id} className="rounded-xl bg-bg-elev ring-1 ring-border/60 p-2.5">
                     <div className="flex items-start gap-1.5">
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium truncate">{i.subject}</span>
-                        <span className="block text-[11px] text-fg-muted truncate">{i.type}{i.companyName ? ` · ${i.companyName}` : ""}</span>
+                        <span className="block text-base font-medium truncate">{i.subject}</span>
+                        <span className="block text-xs text-fg-muted truncate">{i.type}{i.companyName ? ` · ${i.companyName}` : ""}</span>
                       </span>
                       <button type="button" onClick={() => archive(i.id)} disabled={busy === i.id} title="Archive"
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted hover:text-danger">
@@ -87,9 +87,9 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
                       </button>
                     </div>
                     {(i.controlNo || i.amount) && (
-                      <div className="mt-1 text-[11px] text-fg-muted">{[i.controlNo && `Ctrl ${i.controlNo}`, i.amount].filter(Boolean).join(" · ")}</div>
+                      <div className="mt-1 text-xs text-fg-muted">{[i.controlNo && `Ctrl ${i.controlNo}`, i.amount].filter(Boolean).join(" · ")}</div>
                     )}
-                    {i.nextAction && <div className="mt-1 text-[11px] text-fg-subtle">→ {i.nextAction}</div>}
+                    {i.nextAction && <div className="mt-1 text-xs text-fg-subtle">→ {i.nextAction}</div>}
                     <div className="mt-1.5 flex items-center gap-1">
                       <button type="button" disabled={PIPELINE_STAGES.indexOf(stage) === 0 || busy === i.id} onClick={() => move(i.id, -1, stage)}
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronLeft size={14} /></button>
@@ -97,23 +97,23 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronRight size={14} /></button>
                       <span className="ml-auto inline-flex items-center gap-1.5">
                         {i.taskId ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-1.5 py-0.5 text-[10px] text-accent" title="Driving task — completing it advances this application a stage">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-1.5 py-0.5 text-xs text-accent" title="Driving task — completing it advances this application a stage">
                             <CheckSquare size={10} /> {i.taskCode ?? "Task"}
                             <button type="button" onClick={() => unlinkTask(i.id)} disabled={busy === i.id} title="Unlink task" className="hover:text-danger"><X size={9} /></button>
                           </span>
                         ) : (
                           <button type="button" onClick={() => createTask(i.id)} disabled={busy === i.id} title="Create a task that drives this application (completing it advances the stage)"
-                            className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle hover:text-accent">
+                            className="inline-flex items-center gap-0.5 text-xs text-fg-subtle hover:text-accent">
                             <Plus size={10} /> Task
                           </button>
                         )}
                         <DocLinkControl documentId={i.documentId} documents={documents} companyId={i.companyId} onLink={(docId) => linkPipelineDocumentAction(i.id, docId).then(() => {})} />
-                        {i.deadline && <span className="text-[10px] text-fg-subtle">due {fmtDate(i.deadline)}</span>}
+                        {i.deadline && <span className="text-xs text-fg-subtle">due {fmtDate(i.deadline)}</span>}
                       </span>
                     </div>
                   </div>
                 ))}
-                {col.length === 0 && <p className="px-1 py-2 text-[11px] text-fg-subtle">—</p>}
+                {col.length === 0 && <p className="px-1 py-2 text-xs text-fg-subtle">—</p>}
               </div>
             </div>
           );
@@ -134,7 +134,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Layout only — the box comes from the global field rule.
-  const input = "w-full px-2.5 py-1.5 text-[13px]";
+  const input = "w-full px-2.5 py-1.5 text-base";
 
   async function save() {
     setSaving(true); setError(null);
@@ -147,7 +147,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   return (
     <div className="rounded-xl border border-border/70 bg-bg-subtle/30 p-3 space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">New application</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted">New application</span>
         <button type="button" onClick={onDone} className="ml-auto rounded-md p-1 text-fg-subtle hover:bg-bg-muted"><X size={13} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -162,15 +162,15 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <input className={input} placeholder="Next action" value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <label className="text-[11px] text-fg-muted">Deadline<input type="date" className={input} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
-        <label className="text-[11px] text-fg-muted">Control no.<input className={input} value={controlNo} onChange={(e) => setControlNo(e.target.value)} /></label>
-        <label className="text-[11px] text-fg-muted">Amount/fee<input className={input} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Deadline<input type="date" className={input} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Control no.<input className={input} value={controlNo} onChange={(e) => setControlNo(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Amount/fee<input className={input} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
       </div>
       <div className="flex items-center justify-end gap-1.5">
-        <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">Cancel</button>
-        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add application"}</button>
+        <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-sm text-fg-muted hover:bg-bg-muted/60">Cancel</button>
+        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add application"}</button>
       </div>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

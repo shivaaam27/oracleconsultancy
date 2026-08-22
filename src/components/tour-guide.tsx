@@ -199,7 +199,7 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-semibold tracking-tight">{step.title}</p>
-              <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">{step.body}</p>
+              <p className="mt-1 text-base leading-relaxed text-fg-muted">{step.body}</p>
             </div>
             <button
               type="button"
@@ -230,7 +230,7 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
                 <button
                   type="button"
                   onClick={() => setIndex((i) => i - 1)}
-                  className="rounded-full px-3 py-1.5 text-[13px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+                  className="rounded-full px-3 py-1.5 text-base font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
                 >
                   Back
                 </button>
@@ -238,7 +238,7 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
               <button
                 type="button"
                 onClick={() => (last ? finish() : setIndex((i) => i + 1))}
-                className="rounded-full bg-fg px-4 py-1.5 text-[13px] font-semibold text-bg transition-opacity hover:opacity-90"
+                className="rounded-full bg-fg px-4 py-1.5 text-base font-semibold text-bg transition-opacity hover:opacity-90"
               >
                 {last ? "Done" : "Next"}
               </button>

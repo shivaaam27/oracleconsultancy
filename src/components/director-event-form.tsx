@@ -23,7 +23,7 @@ type EventResult =
 // Every field is a defined, FILLED box (matching the task composer) so none of
 // them read as "invisible", and every control is the same height.
 const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
-const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 const selectBtn = "flex w-full items-center justify-between rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm transition-colors hover:ring-accent/40";
 const FORM_ID = "director-event-form";
 
@@ -231,7 +231,7 @@ export function DirectorEventForm({
             <label className={fieldLabel}>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company (optional)"}</label>
             <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={selectBtn} />
             {companyIds.length > 1 && (
-              <p className="mt-1.5 text-[11px] text-accent">One task is created per company; the first is the event&apos;s lead company.</p>
+              <p className="mt-1.5 text-xs text-accent">One task is created per company; the first is the event&apos;s lead company.</p>
             )}
           </div>
 

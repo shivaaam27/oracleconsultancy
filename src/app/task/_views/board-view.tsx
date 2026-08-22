@@ -224,8 +224,8 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                 note on the row above. */}
             <div className="flex shrink-0 items-center gap-2 px-2 py-1.5">
               <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: `hsl(var(--${toneVar(statusTone(col.status))}))` }} />
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted truncate">{col.status}</div>
-              <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">{col.items.length}</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-fg-muted truncate">{col.status}</div>
+              <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular">{col.items.length}</div>
               {/* + per column → create straight into this status */}
               {col.status !== "Completed" && col.status !== "Closed" && (
                 <IconButton
@@ -291,7 +291,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0" onClick={(e) => e.stopPropagation()}>
                       <SelectCheckbox code={r.code} />
-                      <span className="font-mono text-[10px] text-fg-muted">{r.code}</span>
+                      <span className="font-mono text-xs text-fg-muted">{r.code}</span>
                       {r.unread && <span title="New activity since you last looked" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                       <PinnedMarker task={r} />
                     </div>
@@ -301,7 +301,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                   </div>
 
                   {/* Title */}
-                  <div className={"text-[13px] leading-snug mb-1 line-clamp-2" + (done ? " line-through decoration-fg-subtle/40" : "")}>{r.actionItem}</div>
+                  <div className={"text-base leading-snug mb-1 line-clamp-2" + (done ? " line-through decoration-fg-subtle/40" : "")}>{r.actionItem}</div>
 
                   {/* Description snippet */}
                   <TaskMetaLine task={r} className="mb-1.5" />
@@ -316,12 +316,12 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
 
                   {/* In-row glass inline edits */}
                   <div className="flex items-center gap-1.5 mb-2" onClick={(e) => e.stopPropagation()}>
-                    <TaskInlineStatus task={r} buttonClassName="text-[11px] py-0.5" />
-                    <TaskInlinePriority task={r} buttonClassName="text-[11px] py-0.5" />
+                    <TaskInlineStatus task={r} buttonClassName="text-xs py-0.5" />
+                    <TaskInlinePriority task={r} buttonClassName="text-xs py-0.5" />
                   </div>
 
                   {/* Footer: company · assignees */}
-                  <div className="flex items-center justify-between text-[11px] text-fg-muted gap-2">
+                  <div className="flex items-center justify-between text-xs text-fg-muted gap-2">
                     <span className="truncate inline-flex items-center gap-1.5 min-w-0">
                       <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
                       <span className="truncate">{r.companyName}</span>
@@ -341,7 +341,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
               })}
 
               {col.items.length === 0 && addInStatus !== col.status && (
-                <div className="rounded-lg border border-dashed border-border/70 text-center text-[11px] text-fg-subtle py-6">
+                <div className="rounded-lg border border-dashed border-border/70 text-center text-xs text-fg-subtle py-6">
                   Drop here
                 </div>
               )}
@@ -442,7 +442,7 @@ function ColumnQuickAdd({
   return (
     <div className="glass glass-menu elevated rounded-xl p-2 mb-2 mx-0.5 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">New in {status}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">New in {status}</span>
         <IconButton
           variant="ghost"
           size="sm"
@@ -467,7 +467,7 @@ function ColumnQuickAdd({
             if (e.key === "Escape") onClose();
           }}
           placeholder="What needs doing?"
-          className="w-full rounded-lg px-2.5 py-1.5 text-[13px] bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
+          className="w-full rounded-lg px-2.5 py-1.5 text-base bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
         />
       </div>
       <div className="flex items-center gap-1.5">
@@ -477,7 +477,7 @@ function ColumnQuickAdd({
           options={companyOptions}
           onSelect={(v) => setCompanyId(Number(v))}
           placeholder="Company"
-          buttonClassName="text-[11px] py-0.5"
+          buttonClassName="text-xs py-0.5"
         />
       </div>
       <Combobox
@@ -485,10 +485,10 @@ function ColumnQuickAdd({
         placeholder="Assignee (optional)"
         onInput={setAssignee}
         onCommit={setAssignee}
-        className="w-full rounded-lg px-2.5 py-1.5 text-[12px] bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
+        className="w-full rounded-lg px-2.5 py-1.5 text-sm bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
       />
       <div className="flex items-center justify-end gap-2 pt-0.5">
-        <span className="mr-auto text-[10px] text-fg-subtle">⌘↵ to add</span>
+        <span className="mr-auto text-xs text-fg-subtle">⌘↵ to add</span>
         <Button
           size="sm"
           type="button"

@@ -57,13 +57,13 @@ export function AnnouncementAdminList({ items }: { items: AdminAnnouncement[] })
             {a.takeover && <Badge tone="danger">Takeover</Badge>}
             {a.channels.map((c) => <Badge key={c} tone="default">{c === "email" ? "Email" : "WhatsApp"}</Badge>)}
             <span className="grow" />
-            <span className="text-[11px] text-fg-subtle">{a.scheduledLabel ?? a.whenLabel}</span>
+            <span className="text-xs text-fg-subtle">{a.scheduledLabel ?? a.whenLabel}</span>
           </div>
 
           <p className="mt-1.5 text-sm font-semibold leading-snug">{a.title}</p>
           {a.body && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-fg-muted">{a.body}</p>}
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-muted">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
             <span className="inline-flex items-center gap-1"><Users size={12} /> {a.audienceText}</span>
             {a.status === "published" && !a.scheduledLabel && (
               <>

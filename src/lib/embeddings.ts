@@ -48,6 +48,20 @@ export type SourceType =
   // Phase 3. A screen only — nothing is indexed, and a payment is not a thing
   // anybody searches for by name.
   | "cz_receipt"
+  /** Manufacturing Stage 2 — buying. A screen only, for the same reason: a
+   *  purchase reference is looked up on its own list, and a budget is something
+   *  you decide rather than something you search for. */
+  | "cz_purchase"
+  | "cz_budget"
+  /** Manufacturing Stage 3 — recipes. A screen only; what a bar is made of is
+   *  not something anybody types into a search box. */
+  | "cz_recipe"
+  /** Manufacturing Stage 4 — a production batch. A screen only for now; ⚠️ this
+   *  is the ONE cz record that will eventually earn a search entry, because a
+   *  batch number is exactly the thing somebody quotes when a bar is wrong. */
+  | "cz_batch"
+  /** Manufacturing Stage 5 — kitchen to shop. A screen only. */
+  | "cz_transfer"
   /** The PES trading module (Stages 2–5). Four record types, each carrying a
    *  reference number somebody quotes down the phone — a PO, a bill of lading,
    *  an RFQ, an invoice — which is exactly what a search box is for. */

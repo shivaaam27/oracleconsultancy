@@ -383,7 +383,7 @@ export function DocumentsTable({
 
   const statusBadge = (doc: DocumentRow) => {
     const s = deriveDocStatus(doc);
-    return <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", docStatusColor[s])}>{s}</span>;
+    return <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", docStatusColor[s])}>{s}</span>;
   };
 
   // Expiry-timeline buckets — same filtered rows, grouped by how soon they lapse.
@@ -431,22 +431,22 @@ export function DocumentsTable({
               <FileText size={14} className="shrink-0 text-fg-subtle" />
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[13px] font-medium">{displayDocName(d)}</span>
+                  <span className="truncate text-base font-medium">{displayDocName(d)}</span>
                   {(d.storagePath || d.fileUrl) && <Paperclip size={11} className="shrink-0 text-fg-subtle" />}
-                  {d.personId && <span className="shrink-0 rounded-sm bg-info-soft px-1 py-0.5 text-[10px] text-info">Person file</span>}
-                  {openLinkedTask && <span className="shrink-0 rounded-sm bg-accent-soft px-1 py-0.5 text-[10px] text-accent">{openLinkedTask.code}</span>}
+                  {d.personId && <span className="shrink-0 rounded-sm bg-info-soft px-1 py-0.5 text-xs text-info">Person file</span>}
+                  {openLinkedTask && <span className="shrink-0 rounded-sm bg-accent-soft px-1 py-0.5 text-xs text-accent">{openLinkedTask.code}</span>}
                 </span>
                 {/* Below `sm` the Expires column is folded away (entity-view.ts) so the
                     NAME can have the row — five licences all reading
                     "PES_Business-Lic…" is not a list you can use. The expiry is far
                     too important to lose with the column, so it leads this line on a
                     phone, keeping its colour. */}
-                <span className="mt-0.5 block text-[11px] sm:hidden">
+                <span className="mt-0.5 block text-xs sm:hidden">
                   <span className={cn(expiryTone(d))}>{expiryLabel(d) || "No expiry"}</span>
                   {fmtDate(d.expiryDate) && <span className="text-fg-subtle"> · {fmtDate(d.expiryDate)}</span>}
                 </span>
                 {(company || person || (d.notes && d.notes.trim())) && (
-                  <span className="block truncate text-[11px] text-fg-subtle">
+                  <span className="block truncate text-xs text-fg-subtle">
                     {[company, person, d.notes?.trim()].filter(Boolean).join(" · ")}
                   </span>
                 )}
@@ -457,8 +457,8 @@ export function DocumentsTable({
         expiryDate: (d) => {
           return (
             <span className="block text-right">
-              <span className="block text-[11px] text-fg-muted">{fmtDate(d.expiryDate) || "—"}</span>
-              <span className={cn("block text-[11px]", expiryTone(d))}>
+              <span className="block text-xs text-fg-muted">{fmtDate(d.expiryDate) || "—"}</span>
+              <span className={cn("block text-xs", expiryTone(d))}>
                 {expiryLabel(d) || "No expiry"}
               </span>
             </span>
@@ -519,30 +519,30 @@ export function DocumentsTable({
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate text-sm font-medium">{displayDocName(doc)}</span>
             {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
-            {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
-            {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
+            {doc.category && <span className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
+            {doc.personId && <span className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
             {openLinkedTask && (
-              <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
+              <span className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
                 {openLinkedTask.code}
               </span>
             )}
           </div>
           {((!opts.hideCompany && companyName(doc.companyId)) || (!opts.hidePerson && personName(doc.personId))) && (
-            <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-fg-subtle mt-0.5 min-w-0">
               {!opts.hideCompany && companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
               {!opts.hidePerson && personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
             </div>
           )}
           {doc.notes && doc.notes.trim() && (
-            <div className="text-[11px] text-fg-muted truncate mt-0.5">{doc.notes}</div>
+            <div className="text-xs text-fg-muted truncate mt-0.5">{doc.notes}</div>
           )}
         </div>
         <div className="text-right shrink-0">
           <div className="hidden sm:block text-xs text-fg-muted">{fmtDate(doc.expiryDate)}</div>
           {expiryLabel(doc) ? (
-            <div className={cn("text-[11px]", urgent ? "text-danger font-medium" : soon ? "text-warn" : "text-fg-subtle")}>{expiryLabel(doc)}</div>
+            <div className={cn("text-xs", urgent ? "text-danger font-medium" : soon ? "text-warn" : "text-fg-subtle")}>{expiryLabel(doc)}</div>
           ) : (
-            <div className="text-[11px] text-fg-subtle">No expiry</div>
+            <div className="text-xs text-fg-subtle">No expiry</div>
           )}
         </div>
         <div className="shrink-0">{statusBadge(doc)}</div>
@@ -575,7 +575,7 @@ export function DocumentsTable({
         </button>
         {documents.length > 0 && (
           <button type="button" onClick={() => setDeleteTarget({ scope: { kind: "all" }, label: `ALL ${documents.length} documents` })}
-            className="inline-flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-danger transition-colors">
+            className="inline-flex items-center gap-1.5 text-xs text-fg-subtle hover:text-danger transition-colors">
             <Trash2 size={12} /> Delete all documents
           </button>
         )}
@@ -632,8 +632,8 @@ export function DocumentsTable({
                         <Users size={12} />
                       </span>
                     )}
-                    <span className="truncate text-[12.5px] font-semibold text-fg max-sm:whitespace-normal max-sm:text-clip">{g.name}</span>
-                    <span className="ml-auto flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-muted">
+                    <span className="truncate text-sm font-semibold text-fg max-sm:whitespace-normal max-sm:text-clip">{g.name}</span>
+                    <span className="ml-auto flex shrink-0 items-center gap-2.5 text-xs text-fg-muted">
                       {g.expired > 0 && (
                         <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="font-bold text-danger tabular">{g.expired}</b> expired</span>
                       )}
@@ -676,10 +676,10 @@ export function DocumentsTable({
                                   the label does not; a person sub-group has no code and
                                   keeps its icon. */}
                               {sub.code
-                                ? (sub.code !== sub.label && <span className="font-mono text-[10px] text-fg-subtle">{sub.code}</span>)
+                                ? (sub.code !== sub.label && <span className="font-mono text-xs text-fg-subtle">{sub.code}</span>)
                                 : <UserIcon size={12} className="shrink-0 text-fg-subtle" />}
                               <span className="truncate text-xs font-medium text-fg-muted max-sm:whitespace-normal max-sm:text-clip">{sub.label}</span>
-                              <span className="ml-auto flex shrink-0 items-center gap-2 text-[10px] text-fg-muted">
+                              <span className="ml-auto flex shrink-0 items-center gap-2 text-xs text-fg-muted">
                                 {sub.expired > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="text-danger tabular">{sub.expired}</b></span>}
                                 {sub.expiring > 0 && <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warn" /><b className="text-warn tabular">{sub.expiring}</b></span>}
                                 <span className="tabular">{sub.rows.length}</span>
@@ -759,11 +759,11 @@ export function DocumentsTable({
         pills={peek ? (
           <>
             {statusBadge(peek)}
-            {peek.expiryDate && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-muted text-fg-muted">{fmtDate(peek.expiryDate)}{expiryLabel(peek) ? ` · ${expiryLabel(peek)}` : ""}</span>}
+            {peek.expiryDate && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-bg-muted text-fg-muted">{fmtDate(peek.expiryDate)}{expiryLabel(peek) ? ` · ${expiryLabel(peek)}` : ""}</span>}
           </>
         ) : undefined}
         body={peek && (peek.issuer || peek.referenceNo || peek.notes || linkedTasks[peek.id]?.length) ? (
-          <div className="space-y-1 text-[13px] text-fg-muted">
+          <div className="space-y-1 text-base text-fg-muted">
             {peek.issuer && <div><span className="text-fg-subtle">Issuer:</span> {peek.issuer}</div>}
             {peek.referenceNo && <div><span className="text-fg-subtle">Ref:</span> {peek.referenceNo}</div>}
             {peek.notes && <div className="line-clamp-3">{peek.notes}</div>}

@@ -11,6 +11,7 @@ import { ShortlistChaseList, type ChaseRow } from "@/components/recruitment-chas
 import { NoAgencyCompany } from "@/components/recruitment-empty";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Shortlists — Recruitment" };
 
 export default async function ShortlistsPage() {
   const companyId = await agencyCompanyId();

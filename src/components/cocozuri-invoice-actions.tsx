@@ -25,7 +25,7 @@ export function CocozuriInvoiceActions({
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
 
-  const btn = "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors";
+  const btn = "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors";
 
   return (
     <>

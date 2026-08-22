@@ -71,7 +71,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
         />
 
         {note.archived && (
-          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-[12px] text-fg-muted">
+          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm text-fg-muted">
             This note is archived — off the shelf, but nothing has been deleted. Restore it any time.
           </p>
         )}

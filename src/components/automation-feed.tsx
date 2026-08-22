@@ -33,7 +33,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 
 function Tag({ kind }: { kind: string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-accent-soft/60 ring-1 ring-accent/20 text-accent px-2 py-0.5 text-[10px] font-medium">
+    <span className="inline-flex items-center rounded-full bg-accent-soft/60 ring-1 ring-accent/20 text-accent px-2 py-0.5 text-xs font-medium">
       {KIND_LABEL[kind] ?? kind}
     </span>
   );
@@ -102,7 +102,7 @@ export function AutomationFeed({
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-accent"><Zap size={14} /></span>
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-tight">Automations</p>
-          <p className="text-[11px] text-fg-subtle">Work moves forward on its own as documents land and dates pass.</p>
+          <p className="text-xs text-fg-subtle">Work moves forward on its own as documents land and dates pass.</p>
         </div>
         <button type="button" onClick={runChecks} disabled={checking}
           className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-fg-muted hover:text-fg transition disabled:opacity-50">
@@ -110,9 +110,9 @@ export function AutomationFeed({
         </button>
       </div>
 
-      {checkMsg && <p className="text-[11px] text-fg-subtle pl-1">{checkMsg}</p>}
+      {checkMsg && <p className="text-xs text-fg-subtle pl-1">{checkMsg}</p>}
       {applied.length === 0 && suggestions.length === 0 && !checkMsg && (
-        <p className="text-[11px] text-fg-subtle pl-1">All caught up — nothing pending.</p>
+        <p className="text-xs text-fg-subtle pl-1">All caught up — nothing pending.</p>
       )}
 
       {/* Suggestions — need a one-click decision */}
@@ -126,7 +126,7 @@ export function AutomationFeed({
                   <Tag kind={s.kind} />
                   <p className="text-sm font-medium leading-snug">{s.summary}</p>
                 </div>
-                {s.detail && <p className="text-[11px] text-fg-subtle pl-0.5">{s.detail}</p>}
+                {s.detail && <p className="text-xs text-fg-subtle pl-0.5">{s.detail}</p>}
                 <div className="flex items-center gap-2 pt-0.5">
                   <button type="button" disabled={isBusy} onClick={() => act(s.id, () => applyAutomationSuggestion(s.id))}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90 transition disabled:opacity-50">
@@ -146,7 +146,7 @@ export function AutomationFeed({
       {/* History — the full logbook, with filters */}
       <div>
         <button type="button" onClick={toggleHistory}
-          className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg transition">
+          className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg transition">
           <History size={13} /> History
           <ChevronDown size={13} className={`transition-transform ${openHistory ? "rotate-180" : ""}`} />
         </button>
@@ -157,20 +157,20 @@ export function AutomationFeed({
             <div className="flex flex-wrap items-center gap-1">
               {KIND_FILTERS.map(([k, label]) => (
                 <button key={k} type="button" onClick={() => setKind(k)}
-                  className={`rounded-full px-2 py-0.5 text-[10px] transition ${fKind === k ? "bg-accent text-white" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
+                  className={`rounded-full px-2 py-0.5 text-xs transition ${fKind === k ? "bg-accent text-white" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               {STATUS_FILTERS.map(([s, label]) => (
                 <button key={s} type="button" onClick={() => setStatus(s)}
-                  className={`rounded-full px-2 py-0.5 text-[10px] transition ${fStatus === s ? "bg-fg text-bg" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
+                  className={`rounded-full px-2 py-0.5 text-xs transition ${fStatus === s ? "bg-fg text-bg" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
               ))}
             </div>
 
             {loadingHist ? (
-              <p className="px-1 py-2 text-[11px] text-fg-subtle inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>
+              <p className="px-1 py-2 text-xs text-fg-subtle inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>
             ) : !history || history.length === 0 ? (
-              <p className="px-1 py-2 text-[11px] text-fg-subtle">Nothing here yet.</p>
+              <p className="px-1 py-2 text-xs text-fg-subtle">Nothing here yet.</p>
             ) : (
               <div className="space-y-1">
                 {history.map((h) => {
@@ -182,18 +182,18 @@ export function AutomationFeed({
                       <Tag kind={h.kind} />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs leading-snug truncate">{h.summary}</p>
-                        <p className="text-[10px] text-fg-subtle truncate">{[h.owner, ago(h.actedAt ?? h.createdAt)].filter(Boolean).join(" · ")}</p>
+                        <p className="text-xs text-fg-subtle truncate">{[h.owner, ago(h.actedAt ?? h.createdAt)].filter(Boolean).join(" · ")}</p>
                       </div>
                       {h.status === "applied" && (
                         <button type="button" disabled={isBusy} onClick={() => act(h.id, () => undoAutomationEvent(h.id))}
-                          className="inline-flex items-center gap-1 text-[10px] text-fg-subtle hover:text-danger transition disabled:opacity-50 shrink-0">
+                          className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-danger transition disabled:opacity-50 shrink-0">
                           {isBusy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Undo
                         </button>
                       )}
                       {h.status === "suggested" && (
                         <span className="inline-flex shrink-0 items-center gap-1">
-                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => applyAutomationSuggestion(h.id))} className="text-[10px] text-accent hover:underline disabled:opacity-50">Apply</button>
-                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => dismissAutomationSuggestion(h.id))} className="text-[10px] text-fg-subtle hover:text-danger disabled:opacity-50">Dismiss</button>
+                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => applyAutomationSuggestion(h.id))} className="text-xs text-accent hover:underline disabled:opacity-50">Apply</button>
+                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => dismissAutomationSuggestion(h.id))} className="text-xs text-fg-subtle hover:text-danger disabled:opacity-50">Dismiss</button>
                         </span>
                       )}
                     </div>

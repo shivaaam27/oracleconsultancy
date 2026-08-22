@@ -72,7 +72,7 @@ export function RecruitmentRecord({
     <div className="space-y-3">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition-colors hover:text-fg"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-fg"
       >
         <ArrowLeft size={13} /> {backLabel}
       </Link>
@@ -92,7 +92,7 @@ export function RecruitmentRecord({
           <button
             type="button"
             onClick={async () => { await onArchive(!archived); router.refresh(); }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:bg-bg-muted"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-fg-muted hover:bg-bg-muted"
           >
             {archived ? <><RotateCcw size={13} /> Restore</> : <><Archive size={13} /> Archive</>}
           </button>

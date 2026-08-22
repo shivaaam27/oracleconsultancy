@@ -143,7 +143,7 @@ export function CleaningToday({
         <div className="text-center">
           <div className="text-sm font-medium">{fmtLongDate(dateIso)}</div>
           {dateIso !== today && (
-            <Link href="/hrms/cleaning" className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
+            <Link href="/hrms/cleaning" className="text-xs text-accent hover:underline inline-flex items-center gap-1">
               <Calendar size={11} /> Back to today
             </Link>
           )}
@@ -160,7 +160,7 @@ export function CleaningToday({
         <div className="flex items-center gap-4">
           <Ring pct={comp.pct} done={comp.done} total={comp.total} />
           <div className="min-w-0 flex-1">
-            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", dayStatusColor[status])}>{status}</span>
+            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", dayStatusColor[status])}>{status}</span>
             <div className="mt-2">
               <FieldLabel>Attendance — who cleaned</FieldLabel>
               <Select defaultValue={day.attendancePersonId != null ? String(day.attendancePersonId) : ""}
@@ -202,7 +202,7 @@ export function CleaningToday({
               </button>
               <div className="min-w-0 flex-1">
                 <div className={cn("text-sm font-medium", st.done && "text-fg")}>{area.name}</div>
-                <div className="text-[11px] text-fg-subtle flex items-center gap-2">
+                <div className="text-xs text-fg-subtle flex items-center gap-2">
                   {st.done && st.doneAt && <span>done {fmtTime(st.doneAt)}</span>}
                   {st.comment && <span className="inline-flex items-center gap-1 text-fg-muted truncate"><MessageSquare size={10} />{st.comment}</span>}
                 </div>

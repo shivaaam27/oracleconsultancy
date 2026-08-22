@@ -13,6 +13,7 @@ import { RecruitmentOrderRecord } from "@/components/recruitment-order-record";
 import { NoAgencyCompany } from "@/components/recruitment-empty";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Job order — Recruitment" };
 
 export default async function JobOrderPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;

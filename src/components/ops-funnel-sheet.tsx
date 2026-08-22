@@ -161,7 +161,7 @@ export function OpsFunnelSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -200,8 +200,8 @@ export function OpsFunnelSheet({
         ]}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">No enquiries yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No enquiries yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add one when a client asks for a price. Write the PO number on it when it is won,
               and the order&apos;s value follows from the order lines.
             </p>
@@ -214,11 +214,11 @@ export function OpsFunnelSheet({
             sortHref: sortHref("rfq"), sorted: sortedAs("rfq"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">
+                <span className="block truncate text-sm">
                   <span className="font-mono">{v.enquiry.rfqNo}</span>
                   {v.enquiry.client && <span className="ml-1.5 text-fg-muted">{v.enquiry.client}</span>}
                 </span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-xs text-fg-muted">
                   {[fmtDate(v.enquiry.rfqDate), v.enquiry.description, v.enquiry.assignedTo]
                     .filter(Boolean).join(" · ") || "—"}
                 </span>
@@ -231,11 +231,11 @@ export function OpsFunnelSheet({
             sortHref: sortHref("quote"), sorted: sortedAs("quote"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="tabular block truncate text-[12px]">
+                <span className="tabular block truncate text-sm">
                   {/* A quote with no figure stays a dash — it is not a quote for nothing. */}
                   {v.quoteValueTzs === null ? (v.quoted ? "no value" : "—") : money(v.quoteValueTzs)}
                 </span>
-                <span className="block truncate text-[11px] text-fg-subtle">
+                <span className="block truncate text-xs text-fg-subtle">
                   {v.enquiry.quotationNo ?? (v.quoted ? "quoted" : "not quoted")}
                 </span>
               </span>
@@ -252,11 +252,11 @@ export function OpsFunnelSheet({
             sortHref: sortHref("order"), sorted: sortedAs("order"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="tabular block truncate text-[12px]">
+                <span className="tabular block truncate text-sm">
                   {/* ⚠️ Read from the order lines, never typed here. */}
                   {v.orderValueTzs === null ? (v.ordered ? "not priced" : "—") : money(v.orderValueTzs)}
                 </span>
-                <span className={cn("block truncate text-[11px]",
+                <span className={cn("block truncate text-xs",
                   v.ordered && v.orderLines === 0 ? "text-warn" : "text-fg-subtle")}>
                   {!v.ordered ? "—"
                     : v.orderLines === 0 ? `PO ${v.enquiry.poNo} — no lines yet`
@@ -276,7 +276,7 @@ export function OpsFunnelSheet({
             csv: (v) => v.ageDays,
             sortHref: sortHref("age"), sorted: sortedAs("age"),
             render: (v) => (
-              <span className="tabular text-[12px] text-fg-muted">
+              <span className="tabular text-sm text-fg-muted">
                 {v.ageDays === null ? "—" : `${v.ageDays}d`}
               </span>
             ),
@@ -286,12 +286,12 @@ export function OpsFunnelSheet({
             csv: (v) => (v.lost ? v.enquiry.outcome ?? "Closed" : STAGE_LABEL[v.stage]),
             render: (v) => (
               <span className="min-w-0">
-                <span className={cn("block truncate text-[12px]",
+                <span className={cn("block truncate text-sm",
                   v.invoiced ? "text-success" : v.ordered ? "text-accent"
                   : v.lost ? "text-fg-subtle" : "")}>
                   {v.lost ? (v.enquiry.outcome ?? "Closed") : STAGE_LABEL[v.stage]}
                 </span>
-                <span className="block truncate text-[11px] text-fg-subtle">
+                <span className="block truncate text-xs text-fg-subtle">
                   {v.waitingOn ?? v.enquiry.outcomeReason ?? "—"}
                 </span>
               </span>
@@ -347,16 +347,16 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "warn" && "text-warn", tone === "danger" && "text-danger")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 
 /* ──────────────────────────────────────────────────── an enquiry arrives ─── */
@@ -401,7 +401,7 @@ function AddEnquiry({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
         <MessageSquareQuote size={13} className="text-fg-subtle" /> A client has asked for a price
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
@@ -432,7 +432,7 @@ function AddEnquiry({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Log the enquiry
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           The date, client and owner carry to the next enquiry. The quote, the PO and the
           outcome are filled in on the row itself, later.
         </span>
@@ -500,14 +500,14 @@ function EditEnquiry({
       onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
 
       {view.waitingOn && (
-        <p className="text-[11px] text-warn">
+        <p className="text-xs text-warn">
           {view.waitingOn}
           {view.ageDays !== null && ` — ${view.ageDays} days since they asked`}.
         </p>
       )}
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium text-fg-muted">The enquiry</p>
+        <p className="mb-1.5 text-xs font-medium text-fg-muted">The enquiry</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <FieldCell className="sm:col-span-2" label="RFQ number">
             <input value={f.rfqNo} onChange={(e) => set("rfqNo", e.target.value)} className={inputCls} />
@@ -532,7 +532,7 @@ function EditEnquiry({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium text-fg-muted">What we quoted</p>
+        <p className="mb-1.5 text-xs font-medium text-fg-muted">What we quoted</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <FieldCell className="sm:col-span-2" label="Quotation no">
             <input value={f.quotationNo} onChange={(e) => set("quotationNo", e.target.value)}
@@ -549,7 +549,7 @@ function EditEnquiry({
               {["TZS", "USD"].map((c) => (
                 <button key={c} type="button"
                   onClick={() => set("quoteCurrency", f.quoteCurrency === c ? "" : c)}
-                  className={cn("h-8 flex-1 rounded-md border text-[11px]",
+                  className={cn("h-8 flex-1 rounded-md border text-xs",
                     f.quoteCurrency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                   {c}
                 </button>
@@ -563,7 +563,7 @@ function EditEnquiry({
               {needsRate && defaultExRate > 0 && (
                 <button type="button" onClick={() => set("quoteExRate", String(defaultExRate))}
                   title="Use the rate set up on the Setup tab"
-                  className="h-8 shrink-0 rounded-md border border-border px-2 text-[11px] text-fg-muted hover:text-fg">
+                  className="h-8 shrink-0 rounded-md border border-border px-2 text-xs text-fg-muted hover:text-fg">
                   {defaultExRate.toLocaleString("en-GB")}
                 </button>
               )}
@@ -571,7 +571,7 @@ function EditEnquiry({
           </FieldCell>
         </div>
         {needsRate && (
-          <p className="mt-1 text-[11px] text-warn">
+          <p className="mt-1 text-xs text-warn">
             Priced in {f.quoteCurrency} with no rate — this quote will not be counted in the
             shilling totals until one is entered.
           </p>
@@ -579,7 +579,7 @@ function EditEnquiry({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium text-fg-muted">What became of it</p>
+        <p className="mb-1.5 text-xs font-medium text-fg-muted">What became of it</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <FieldCell className="sm:col-span-3" label="PO number" hint="won — links to the order lines">
             <Combobox options={suggest.poNumbers} defaultValue={f.poNo} placeholder=""
@@ -600,7 +600,7 @@ function EditEnquiry({
         </div>
         {/* ⚠️ The order's value is REPORTED here, never typed. It is the sum of
             the order lines carrying this PO number. */}
-        <p className="mt-1 text-[11px] text-fg-subtle">
+        <p className="mt-1 text-xs text-fg-subtle">
           {!view.ordered
             ? "No PO yet. Write the number here when the client places the order — its value comes from the order lines, so it is never typed twice."
             : view.orderLines === 0
@@ -621,7 +621,7 @@ function EditEnquiry({
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg">
           <X size={13} /> Cancel
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Every change is recorded — what it was, what it became, and who changed it.
         </span>
       </div>

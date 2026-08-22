@@ -55,7 +55,7 @@ export function RecruitmentCandidateRecord({ candidate }: { candidate: Candidate
       onArchive={(a) => archiveCandidateAction(candidate.id, a)}
       banner={
         missing.includes("Registration & Consent") ? (
-          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-[12px] text-fg">
+          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-sm text-fg">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
             <span>
               <strong>Registration &amp; Consent is not signed.</strong> Without it there is no
@@ -72,7 +72,7 @@ export function RecruitmentCandidateRecord({ candidate }: { candidate: Candidate
                 on a job order. */}
             <Row label="Expected gross" value={candidate.expectedSalaryUsd ? usd(Number(candidate.expectedSalaryUsd)) : "Not recorded"} />
             <Row label="Fee would be" value={fee ? tzsFull(fee.netTZS) : "—"} />
-            <p className="pt-1 text-[11px] text-fg-subtle">
+            <p className="pt-1 text-xs text-fg-subtle">
               One month of gross, plus 18% VAT. Indicative until a job order agrees the salary.
             </p>
           </Panel>
@@ -89,7 +89,7 @@ export function RecruitmentCandidateRecord({ candidate }: { candidate: Candidate
             <Row label="Registration & Consent" value={fmtDate(candidate.consentSignedOn) ?? "Not signed"} bad={!candidate.consentSignedOn} />
             <Row label="Terms of Engagement" value={fmtDate(candidate.engagementSignedOn) ?? "Not signed"} bad={!candidate.engagementSignedOn} />
           </Panel>
-          <p className="px-1 text-[11px] text-fg-subtle">
+          <p className="px-1 text-xs text-fg-subtle">
             This candidate pays Oracle nothing, in any circumstance. There is nowhere on this
             record to say otherwise, and that is deliberate.
           </p>
@@ -109,7 +109,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
       </div>
       <div className="space-y-1.5 px-3 py-2.5">{children}</div>
     </section>
@@ -119,8 +119,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function Row({ label, value, bad }: { label: string; value: string; bad?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[11px] text-fg-subtle">{label}</span>
-      <span className={bad ? "text-[12px] font-medium text-warn" : "text-[12px] tabular"}>{value}</span>
+      <span className="text-xs text-fg-subtle">{label}</span>
+      <span className={bad ? "text-sm font-medium text-warn" : "text-sm tabular"}>{value}</span>
     </div>
   );
 }

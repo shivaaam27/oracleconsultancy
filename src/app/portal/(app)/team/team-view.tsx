@@ -28,7 +28,7 @@ export function TeamView({ people }: { people: TeamPerson[] }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <SectionLabel icon={<Users size={13} />}>Team</SectionLabel>
-        <span className="text-[11px] text-fg-muted">{people.length} people</span>
+        <span className="text-xs text-fg-muted">{people.length} people</span>
       </div>
 
       <div className="flex items-center gap-2 rounded-xl bg-bg-elev px-3.5 py-2.5 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">

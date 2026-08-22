@@ -67,7 +67,7 @@ export function StockDashboard({
           { label: "Units Issued", value: num(m.unitsIssued) },
         ].map((c) => (
           <Card key={c.label} className="p-4">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">{c.label}</div>
+            <div className="text-xs uppercase tracking-[0.08em] text-fg-muted">{c.label}</div>
             <div className="text-xl font-semibold mt-1.5 tabular tracking-tight">{c.value}</div>
           </Card>
         ))}
@@ -75,7 +75,7 @@ export function StockDashboard({
 
       {/* Needs attention */}
       <div>
-        <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2">
+        <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2">
           Needs attention
         </div>
         {attention.length === 0 ? (
@@ -90,7 +90,7 @@ export function StockDashboard({
                 <Badge tone={statusTone[status as Exclude<StockStatus, "OK">]}>{status}</Badge>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{it.name}</div>
-                  <div className="text-[11px] text-fg-subtle tabular">
+                  <div className="text-xs text-fg-subtle tabular">
                     {it.code} · {qty} {it.unit ?? "in stock"} · reorder at {it.reorderLevel}
                   </div>
                 </div>

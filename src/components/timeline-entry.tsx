@@ -205,13 +205,13 @@ export function TimelineEntry({
       onClick={(e) => { e.stopPropagation(); onOpenTask?.(task.code); }}
       className="group/chip inline-flex items-center gap-1.5 min-w-0 max-w-full text-left"
     >
-      <span className="font-mono text-[10px] font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/70 ring-1 ring-border/50 shrink-0 group-hover/chip:text-accent group-hover/chip:ring-accent/30 transition-colors">{task.code}</span>
-      {task.actionItem && <span className="truncate text-[11px] text-fg-muted group-hover/chip:text-fg transition-colors">{task.actionItem}</span>}
+      <span className="font-mono text-xs font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/70 ring-1 ring-border/50 shrink-0 group-hover/chip:text-accent group-hover/chip:ring-accent/30 transition-colors">{task.code}</span>
+      {task.actionItem && <span className="truncate text-xs text-fg-muted group-hover/chip:text-fg transition-colors">{task.actionItem}</span>}
     </button>
   ) : null;
 
   const meta = (
-    <div className="flex items-center gap-1.5 text-[10px] text-fg-subtle shrink-0">
+    <div className="flex items-center gap-1.5 text-xs text-fg-subtle shrink-0">
       {actor && <span className="px-1.5 py-0.5 rounded-full bg-bg-subtle/60 text-fg-muted font-medium">{actor}</span>}
       <span title={exactTime(item.createdAt)}>{relTime(item.createdAt)}</span>
       {menu}
@@ -245,7 +245,7 @@ export function TimelineEntry({
               placeholder="What is actually correct? The original entry stays for the record."
               className="w-full rounded-md border border-border bg-bg-elev px-2.5 py-2 text-xs leading-relaxed focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40"
             />
-            <div className="flex items-center justify-end gap-1.5 text-[11px]">
+            <div className="flex items-center justify-end gap-1.5 text-xs">
               <button
                 type="button"
                 onClick={() => { setCorrecting(false); setCorrectionNote(""); }}
@@ -285,18 +285,18 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
             "SA 189 · Pulin — …". Below `sm` the two stack: the title gets the
             whole first line, the when goes underneath. */}
         <div className="flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
-          {taskChip ?? <span className="text-[11px] font-medium text-accent inline-flex items-center gap-1">{u.pinnedAt && <Pin size={9} className="fill-accent" />}Update</span>}
+          {taskChip ?? <span className="text-xs font-medium text-accent inline-flex items-center gap-1">{u.pinnedAt && <Pin size={9} className="fill-accent" />}Update</span>}
           {meta}
         </div>
         <p className="text-xs leading-relaxed text-fg"><CodeLinkedText text={u.body} /></p>
         {u.statusChange && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-fg-muted">
+          <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
             <GitCommitHorizontal size={9} />
             {u.statusChange.from && <span>{u.statusChange.from}</span>}<span>→</span>
             <span className="font-medium text-fg">{u.statusChange.to}</span>
           </span>
         )}
-        {u.editedAt && <span className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle ml-2"><Pencil size={8} /> edited</span>}
+        {u.editedAt && <span className="inline-flex items-center gap-0.5 text-xs text-fg-subtle ml-2"><Pencil size={8} /> edited</span>}
       </div>
     );
   }
@@ -317,7 +317,7 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
         {open && (
           <ul className="mt-1.5 space-y-1">
             {item.items.map((a) => (
-              <li key={a.id} className="flex items-center gap-1 flex-wrap text-[11px]">
+              <li key={a.id} className="flex items-center gap-1 flex-wrap text-xs">
                 <span className="font-medium text-fg">{a.field || "Field"}</span>
                 {a.oldValue && <span className="text-fg-muted">{formatAuditValue(a.field, a.oldValue)}</span>}
                 {a.oldValue && a.newValue && <GitCommitHorizontal size={8} className="text-fg-subtle" />}
@@ -356,7 +356,7 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
             {item.correctedAt && (
               <span
                 title={`Corrected ${exactTime(item.correctedAt)} — see the Correction entry above`}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-warn-soft/70 text-warn text-[10px] font-medium"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-warn-soft/70 text-warn text-xs font-medium"
               >
                 <Eraser size={9} /> Corrected
               </span>

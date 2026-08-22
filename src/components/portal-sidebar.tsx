@@ -96,8 +96,8 @@ export function PortalSidebar({
       <div className={cn("flex items-center gap-2 border-b border-border px-3 py-2.5", collapsed && "justify-center px-0")}>
         {!collapsed && (
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-semibold tracking-tight text-fg">{name}</span>
-            <span className="block truncate text-[10px] uppercase tracking-[0.12em] text-fg-subtle">{subtitle}</span>
+            <span className="block truncate text-sm font-semibold tracking-tight text-fg">{name}</span>
+            <span className="block truncate text-xs uppercase tracking-[0.12em] text-fg-subtle">{subtitle}</span>
           </span>
         )}
         <button
@@ -120,7 +120,7 @@ export function PortalSidebar({
             onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-ori"))}
             title={collapsed ? "Search (Ctrl+K)" : undefined}
             className={cn(
-              "inline-flex h-7 w-full items-center gap-2 rounded-md border border-border bg-bg-subtle/60 px-2.5 text-[12.5px] text-fg-subtle transition-colors hover:border-accent/40 hover:text-fg",
+              "inline-flex h-7 w-full items-center gap-2 rounded-md border border-border bg-bg-subtle/60 px-2.5 text-sm text-fg-subtle transition-colors hover:border-accent/40 hover:text-fg",
               collapsed && "justify-center px-0"
             )}
           >
@@ -128,7 +128,7 @@ export function PortalSidebar({
             {!collapsed && (
               <>
                 <span className="truncate">Search</span>
-                <span className="ml-auto shrink-0 text-[10px] text-fg-subtle">⌘K</span>
+                <span className="ml-auto shrink-0 text-xs text-fg-subtle">⌘K</span>
               </>
             )}
           </button>
@@ -139,7 +139,7 @@ export function PortalSidebar({
         {groups.map((g) => (
           <div key={g.label} className="mb-3">
             {!collapsed && (
-              <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+              <p className="px-2 pb-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
                 {g.label}
               </p>
             )}
@@ -154,7 +154,7 @@ export function PortalSidebar({
                       title={collapsed ? it.label : undefined}
                       data-tour={it.tourTag}
                       className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] transition-colors",
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
                         collapsed && "justify-center px-0",
                         active
                           ? "bg-accent-soft font-medium text-accent"

@@ -155,7 +155,7 @@ export function ConversationPane({
         </span>
         <div className="flex flex-col leading-tight min-w-0">
           <span className="font-semibold text-sm tracking-tight">ORI</span>
-          <span className="text-[10px] text-fg-muted truncate">{pageLabel}</span>
+          <span className="text-xs text-fg-muted truncate">{pageLabel}</span>
         </div>
         {/* Chat model picker — pins which model ORI chat leads with (fallback intact). */}
         <div className="ml-auto"><ChatModelPicker /></div>
@@ -187,7 +187,7 @@ export function ConversationPane({
                 <MagneticChip
                   key={s.q}
                   onClick={() => onSubmit(s.q)}
-                  className="inline-flex items-center gap-1.5 rounded-lg ring-1 ring-border/60 bg-bg-elev/60 px-3 py-1.5 text-[13px] text-fg hover:bg-accent-soft hover:ring-accent/30 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg ring-1 ring-border/60 bg-bg-elev/60 px-3 py-1.5 text-base text-fg hover:bg-accent-soft hover:ring-accent/30 transition-colors"
                 >
                   <Sparkles size={13} className="text-accent" />
                   {s.label}
@@ -214,7 +214,7 @@ export function ConversationPane({
               <MagneticChip
                 key={f}
                 onClick={() => onSubmit(f)}
-                className="inline-flex items-center gap-1.5 rounded-lg ring-1 ring-border/60 bg-bg-elev/40 px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg hover:bg-accent-soft hover:ring-accent/30 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg ring-1 ring-border/60 bg-bg-elev/40 px-3 py-1.5 text-sm text-fg-muted hover:text-fg hover:bg-accent-soft hover:ring-accent/30 transition-colors"
               >
                 <ArrowRight size={12} className="text-accent" />
                 {f}
@@ -298,9 +298,9 @@ function MessageBubble({
             <span className="inline-block w-1.5 h-3.5 -mb-0.5 ml-0.5 bg-accent/70 rounded-sm animate-pulse" aria-hidden />
           )}
           {!msg.streaming && msg.sourceSummary ? (
-            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.sourceSummary}</div>
+            <div className="mt-1.5 text-xs text-fg-subtle">based on {msg.sourceSummary}</div>
           ) : (!msg.streaming && msg.taskCount != null && (
-            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}{msg.meetingCount ? ` · ${msg.meetingCount} meeting${msg.meetingCount !== 1 ? "s" : ""}` : ""}</div>
+            <div className="mt-1.5 text-xs text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}{msg.meetingCount ? ` · ${msg.meetingCount} meeting${msg.meetingCount !== 1 ? "s" : ""}` : ""}</div>
           ))}
         </div>
       </div>

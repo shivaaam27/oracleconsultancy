@@ -183,7 +183,7 @@ export function OfflineNoteWriter() {
                   <div className="truncate text-sm">
                     {d.text.split("\n").find((l) => l.trim())?.slice(0, 90) || "Empty note"}
                   </div>
-                  <div className="text-[11px] text-fg-subtle">
+                  <div className="text-xs text-fg-subtle">
                     {new Date(d.createdAt).toLocaleString("en-GB")}
                   </div>
                 </div>
@@ -207,7 +207,7 @@ export function OfflineNoteWriter() {
         </div>
       )}
 
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         Notes written here are held on this device until COS can be reached, then they appear on your
         shelf. Nothing is deleted from here until the server confirms it has it.
       </p>

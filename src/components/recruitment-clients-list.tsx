@@ -103,7 +103,7 @@ export function RecruitmentClientsList({
           value={f.q}
           onChange={(e) => set({ q: e.target.value })}
           placeholder="Search clients, sectors, contacts…"
-          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         <button
           type="button"
@@ -152,8 +152,8 @@ export function RecruitmentClientsList({
         empty={
           <div className="py-6 text-center">
             <Building2 size={20} className="mx-auto mb-2 text-fg-subtle" />
-            <p className="text-[13px] font-medium">No clients yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No clients yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add the employer you are sourcing for. Nothing is filled in for you.
             </p>
           </div>
@@ -164,8 +164,8 @@ export function RecruitmentClientsList({
           overrides: {
             name: (c) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{c.name}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{c.name}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   {[c.sector, c.city].filter(Boolean).join(" · ") || "—"}
                 </span>
               </span>
@@ -175,11 +175,11 @@ export function RecruitmentClientsList({
             papers: (c) => {
               const missing = clientPapersMissing(c);
               if (missing.length === 0) {
-                return <span className="text-[11px] text-success">Signed</span>;
+                return <span className="text-xs text-success">Signed</span>;
               }
               return (
                 <span
-                  className={cn("inline-flex items-center gap-1 rounded-sm bg-warn-soft px-1.5 py-0.5 text-[11px] font-medium text-warn")}
+                  className={cn("inline-flex items-center gap-1 rounded-sm bg-warn-soft px-1.5 py-0.5 text-xs font-medium text-warn")}
                   title={`Not signed: ${missing.join(", ")}`}
                 >
                   <AlertTriangle size={10} />
@@ -188,7 +188,7 @@ export function RecruitmentClientsList({
               );
             },
             openOrders: (c) => (
-              <span className="tabular text-[12px]">{c.openOrders || "—"}</span>
+              <span className="tabular text-sm">{c.openOrders || "—"}</span>
             ),
           },
         })}

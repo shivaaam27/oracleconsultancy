@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { X, Check, Mail, MailX, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { CalendarAttendee } from "@/lib/calendar";
@@ -25,6 +27,10 @@ export function AttendeePicker({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  /* ⚠️ Portalled — the calendar board scrolls, so an `absolute` list was
+     clipped the moment the field sat low in the form. */
+  const { anchorRef, menuRef, pos, mounted } =
+    useAnchoredMenu<HTMLDivElement, HTMLUListElement>(open);
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +75,7 @@ export function AttendeePicker({
 
   return (
     <div className="space-y-2">
-      <div className="relative">
+      <div ref={anchorRef} className="relative">
         <div
           className={cn(
             // min-h-10 / rounded-xl to match every other field in the event form
@@ -117,8 +123,9 @@ export function AttendeePicker({
           </div>
         </div>
 
-        {open && matches.length > 0 && (
-          <ul className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-bg-elev shadow-lg p-1">
+        {mounted && open && pos && matches.length > 0 && createPortal(
+          <ul ref={menuRef} role="listbox" style={menuStyle(pos)}
+            className="overflow-y-auto rounded-md border border-border bg-bg-elev shadow-lg p-1">
             {matches.map((p, i) => (
               <li key={p.id}>
                 <button
@@ -138,7 +145,7 @@ export function AttendeePicker({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm truncate">{p.name}</span>
-                    <span className={cn("block text-[11px] truncate", p.email ? "text-fg-muted" : "text-warn")}>
+                    <span className={cn("block text-xs truncate", p.email ? "text-fg-muted" : "text-warn")}>
                       {p.email || "No email on file"}
                     </span>
                   </span>
@@ -146,7 +153,8 @@ export function AttendeePicker({
                 </button>
               </li>
             ))}
-          </ul>
+          </ul>,
+          document.body,
         )}
       </div>
 

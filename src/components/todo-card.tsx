@@ -200,7 +200,7 @@ export function TodoCard({
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><ListChecks size={13} /></span>
         <h3 className="text-sm font-semibold">{title}</h3>
-        {visible.length > 0 && <span className="ml-auto text-[11px] text-fg-subtle tabular">{visible.length} open</span>}
+        {visible.length > 0 && <span className="ml-auto text-xs text-fg-subtle tabular">{visible.length} open</span>}
       </div>
 
       {/* Quick add — the to-do field, a bell that opens the reminder popover, and
@@ -241,7 +241,7 @@ export function TodoCard({
 
         {/* When a reminder is set but the popover is closed, show it as a chip. */}
         {when && !showWhen && (
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
             <Bell size={11} /> {whenLabel(when, true).text}
             <button type="button" onClick={() => setWhen("")} aria-label="Clear reminder" className="ml-0.5 text-accent/70 transition-colors hover:text-danger"><X size={11} /></button>
           </span>
@@ -252,7 +252,7 @@ export function TodoCard({
             can be used without dismissing this panel). */}
         {showWhen && (
           <div className="absolute inset-x-0 top-full z-30 mt-2 rounded-2xl bg-bg-elev p-3 shadow-lg ring-1 ring-border">
-            <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-fg-muted"><Bell size={12} className="text-accent" /> Remind me on</p>
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-fg-muted"><Bell size={12} className="text-accent" /> Remind me on</p>
             <ReminderFields value={when} onChange={setWhen} />
             <div className="mt-2.5 flex items-center gap-2">
               <button type="button" onClick={() => setShowWhen(false)} className="flex-1 rounded-xl bg-accent py-2 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90">Done</button>
@@ -281,10 +281,10 @@ export function TodoCard({
                     <CaretInput value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="To-do…" className="text-sm" />
                   </div>
                   <div className="rounded-xl bg-bg-subtle/40 p-2 ring-1 ring-border">
-                    <p className="mb-1.5 ml-1 flex items-center gap-1.5 text-[11px] font-medium text-fg-muted"><Bell size={11} className="text-accent" /> Reminder</p>
+                    <p className="mb-1.5 ml-1 flex items-center gap-1.5 text-xs font-medium text-fg-muted"><Bell size={11} className="text-accent" /> Reminder</p>
                     <ReminderFields value={editWhen} onChange={setEditWhen} />
                     {editWhen && (
-                      <button type="button" onClick={() => setEditWhen("")} className="mt-1.5 ml-1 inline-flex items-center gap-1 text-[11px] text-fg-subtle transition-colors hover:text-danger"><X size={11} /> Clear reminder</button>
+                      <button type="button" onClick={() => setEditWhen("")} className="mt-1.5 ml-1 inline-flex items-center gap-1 text-xs text-fg-subtle transition-colors hover:text-danger"><X size={11} /> Clear reminder</button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -316,12 +316,12 @@ export function TodoCard({
                   </span>
                   <span className="flex items-center gap-2 mt-0.5">
                     {stamp && (
-                      <span className={cn("inline-flex items-center gap-1 text-[11px] tabular", stamp.overdue ? "text-danger" : "text-fg-subtle")}>
+                      <span className={cn("inline-flex items-center gap-1 text-xs tabular", stamp.overdue ? "text-danger" : "text-fg-subtle")}>
                         {r.remindAt ? <Bell size={10} /> : <CalendarDays size={10} />}
                         {stamp.overdue && r.remindAt ? `⚠ ${stamp.text}` : stamp.text}
                       </span>
                     )}
-                    {context && <span className="text-[11px] text-fg-subtle truncate">{context}</span>}
+                    {context && <span className="text-xs text-fg-subtle truncate">{context}</span>}
                   </span>
                 </span>
                 {updateAction && (

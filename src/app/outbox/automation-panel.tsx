@@ -28,15 +28,15 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
   const { paused, allOff, liveCategories, recentSends, windowStartHour, windowEndHour, dailyCap } = snapshot;
 
   const statusPill = paused ? (
-    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-warn-soft/70 text-warn">
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-warn-soft/70 text-warn">
       <Pause size={10} /> Paused
     </span>
   ) : allOff ? (
-    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-bg-muted text-fg-subtle">
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-bg-muted text-fg-subtle">
       Off
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-success-soft/70 text-success">
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-soft/70 text-success">
       <Check size={10} /> On · {liveCategories.length}
     </span>
   );
@@ -51,7 +51,7 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
         {statusPill}
         <span className="ml-auto inline-flex items-center gap-3">
           {recentSends.length > 0 && (
-            <span className="text-[11px] text-fg-subtle hidden sm:inline">
+            <span className="text-xs text-fg-subtle hidden sm:inline">
               {recentSends.length} sent this week
             </span>
           )}
@@ -61,7 +61,7 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
 
       <div className="border-t border-border/60 px-4 py-3 space-y-3 text-sm">
         {/* Status line */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
           {!paused && !allOff && (
             <span className="inline-flex items-center gap-1">
               <Clock size={11} /> Sends {String(windowStartHour).padStart(2, "0")}:00–{String(windowEndHour).padStart(2, "0")}:00 EAT · cap {dailyCap}/day
@@ -89,7 +89,7 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
                 <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
                 <span className="font-medium text-fg">{c.label}</span>
                 <span className="text-fg-subtle">· {modeLabel(c.mode)}</span>
-                <span className="ml-auto text-[11px] text-fg-subtle tabular">{relDay(c.lastRun)}</span>
+                <span className="ml-auto text-xs text-fg-subtle tabular">{relDay(c.lastRun)}</span>
               </li>
             ))}
           </ul>
@@ -98,19 +98,19 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
         {/* What sent automatically */}
         {recentSends.length > 0 && (
           <div className="pt-1">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1.5">Sent automatically · last 7 days</div>
+            <div className="text-xs uppercase tracking-wider text-fg-subtle mb-1.5">Sent automatically · last 7 days</div>
             <ul className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
               {recentSends.map((s) => (
                 <li key={s.id} className="px-3 py-2 flex items-center gap-2 bg-bg-subtle/40">
                   <Check size={11} className="text-success shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-medium truncate">{s.subject || s.sourceLabel || "Automated email"}</div>
-                    <div className="text-[11px] text-fg-subtle truncate">
+                    <div className="text-xs text-fg-subtle truncate">
                       {s.sourceLabel && <span>{s.sourceLabel} · </span>}
                       {s.recipientName || s.recipientContact || "—"}
                     </div>
                   </div>
-                  <span className="text-[11px] text-fg-muted whitespace-nowrap tabular shrink-0">{timeOf(s.sentAt)}</span>
+                  <span className="text-xs text-fg-muted whitespace-nowrap tabular shrink-0">{timeOf(s.sentAt)}</span>
                 </li>
               ))}
             </ul>

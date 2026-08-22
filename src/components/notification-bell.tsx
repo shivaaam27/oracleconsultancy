@@ -308,7 +308,7 @@ export function NotificationBell({
                     <button
                       type="button"
                       onClick={markAllRead}
-                      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-accent-soft/60 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-fg-muted hover:text-accent hover:bg-accent-soft/60 transition-colors"
                     >
                       <CheckCheck size={12} /> Mark all read
                     </button>
@@ -374,7 +374,7 @@ export function NotificationBell({
                     return (
                       <div key={g.key}>
                         {bucket !== prevBucket && (
-                          <div className="px-4 pt-2.5 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+                          <div className="px-4 pt-2.5 pb-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
                             {bucket}
                           </div>
                         )}
@@ -392,7 +392,7 @@ export function NotificationBell({
               </div>
 
               {items.length > 0 && (
-                <div className="border-t border-border/70 px-4 py-2 text-center text-[11px] text-fg-subtle">
+                <div className="border-t border-border/70 px-4 py-2 text-center text-xs text-fg-subtle">
                   Read notifications clear themselves after 14 days
                 </div>
               )}
@@ -461,8 +461,8 @@ function NotifGroupRow({
           </span>
           <span className="min-w-0 flex-1">
             {/* The subject leads; who did what is the quiet line beneath. */}
-            <span className="block text-[13px] font-medium leading-snug line-clamp-2">{headline}</span>
-            <span className="block text-[11px] text-fg-muted mt-0.5">
+            <span className="block text-base font-medium leading-snug line-clamp-2">{headline}</span>
+            <span className="block text-xs text-fg-muted mt-0.5">
               {g.count > 1 ? `${g.count} updates · ` : ""}
               {meta}
             </span>
@@ -486,7 +486,7 @@ function NotifGroupRow({
           <button
             type="button"
             onClick={onToggleExpand}
-            className="flex w-full items-center gap-1 px-4 pb-2 pl-[3.4rem] text-[11px] font-medium text-fg-subtle hover:text-fg transition-colors"
+            className="flex w-full items-center gap-1 px-4 pb-2 pl-[3.4rem] text-xs font-medium text-fg-subtle hover:text-fg transition-colors"
           >
             <ChevronDown size={12} className={expanded ? "rotate-180 transition-transform" : "transition-transform"} />
             {expanded ? "Hide" : `Show all ${g.count}`}
@@ -496,7 +496,7 @@ function NotifGroupRow({
           g.items.slice(1).map((n) => {
             const s = notifSubject(n);
             return (
-              <div key={n.id} className="px-4 pb-2 pl-[3.4rem] text-[11px] text-fg-muted">
+              <div key={n.id} className="px-4 pb-2 pl-[3.4rem] text-xs text-fg-muted">
                 <span className="block truncate">{s.headline}</span>
                 <span className="block text-fg-subtle">{s.meta}</span>
               </div>

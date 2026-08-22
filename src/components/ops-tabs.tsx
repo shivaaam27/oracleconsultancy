@@ -64,7 +64,7 @@ export function OpsTabs({
             href={withCompany(t.href, company)}
             aria-current={active === t.key ? "page" : undefined}
             className={cn(
-              "-mb-px border-b-2 px-3 py-1.5 text-[13px] transition-colors",
+              "-mb-px border-b-2 px-3 py-1.5 text-base transition-colors",
               active === t.key
                 ? "border-accent font-medium text-fg"
                 : "border-transparent text-fg-muted hover:text-fg",
@@ -76,14 +76,14 @@ export function OpsTabs({
       </nav>
 
       {companies.length > 1 && (
-        <span className="mb-1 flex items-center gap-1.5 text-[12px]">
+        <span className="mb-1 flex items-center gap-1.5 text-sm">
           <span className="text-fg-subtle">Company</span>
           <FluidSelect
             value={String(company)}
             options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
             onSelect={(v) => router.push(withCompany(
               TABS.find((t) => t.key === active)?.href ?? "/ops", Number(v)))}
-            buttonClassName="h-7"
+            buttonClassName="h-8"
           />
         </span>
       )}

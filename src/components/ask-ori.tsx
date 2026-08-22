@@ -67,7 +67,7 @@ export function AskOri() {
       </div>
 
       {turns.length === 0 && (
-        <p className="px-1 text-[13px] text-fg-subtle">
+        <p className="px-1 text-base text-fg-subtle">
           ORI reads your live data and answers grounded in it — try “what’s outstanding for Furaha?” or
           “who’s overdue this week?”. Answers arrive within a minute or two.
         </p>
@@ -81,11 +81,11 @@ export function AskOri() {
               <p className="text-sm font-medium text-fg">{t.question}</p>
               <div className="mt-2 border-t border-border/50 pt-2.5">
                 {t.status === "thinking" ? (
-                  <p className="inline-flex items-center gap-2 text-[13px] text-fg-muted">
+                  <p className="inline-flex items-center gap-2 text-base text-fg-muted">
                     <Loader2 size={13} className="animate-spin text-accent" /> ORI is thinking…
                   </p>
                 ) : t.status === "error" ? (
-                  <p className="text-[13px] text-danger">{t.error}</p>
+                  <p className="text-base text-danger">{t.error}</p>
                 ) : (
                   <p className={cn("text-sm leading-relaxed text-fg whitespace-pre-wrap")}>{t.answer}</p>
                 )}

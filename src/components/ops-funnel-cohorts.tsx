@@ -28,17 +28,17 @@ export function FunnelCohorts({ cohorts }: { cohorts: Cohort[] }) {
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-        <h3 className="text-[12px] font-medium">Conversion, by the month the client asked</h3>
-        <p className="text-[11px] text-fg-subtle">
+        <h3 className="text-sm font-medium">Conversion, by the month the client asked</h3>
+        <p className="text-xs text-fg-subtle">
           An order counts in the month of its enquiry, not the month it landed
           {live > 0 && ` · ${live} month${live === 1 ? "" : "s"} still open`}
         </p>
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-[12px]">
+        <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+            <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
               <Th className="text-left">Month</Th>
               <Th>Enquiries</Th>
               <Th>Quoted</Th>
@@ -64,7 +64,7 @@ export function FunnelCohorts({ cohorts }: { cohorts: Cohort[] }) {
                 <Td className="tabular text-right">
                   {c.orderValue > 0 ? money(c.orderValue) : "—"}
                   {c.unvalued > 0 && (
-                    <span className="ml-1 text-[10px] text-warn" title={
+                    <span className="ml-1 text-xs text-warn" title={
                       `${c.unvalued} enquir${c.unvalued === 1 ? "y" : "ies"} in this month have no value ` +
                       `recorded — a quote with no figure, or a won order with no priced line. ` +
                       `They are counted, but they are not in this total.`
@@ -78,8 +78,8 @@ export function FunnelCohorts({ cohorts }: { cohorts: Cohort[] }) {
                 </Td>
                 <Td className="text-left">
                   {c.open === 0
-                    ? <span className="text-[11px] text-success">finished</span>
-                    : <span className="text-[11px] text-fg-muted">{c.open} live</span>}
+                    ? <span className="text-xs text-success">finished</span>
+                    : <span className="text-xs text-fg-muted">{c.open} live</span>}
                 </Td>
               </tr>
             ))}
@@ -87,7 +87,7 @@ export function FunnelCohorts({ cohorts }: { cohorts: Cohort[] }) {
         </table>
       </div>
 
-      <footer className="border-t border-border px-3 py-1.5 text-[11px] text-fg-subtle">
+      <footer className="border-t border-border px-3 py-1.5 text-xs text-fg-subtle">
         Win rate is orders ÷ quotes <em>within the same month&apos;s enquiries</em>, so it can never
         pass 100%. A month still holding live enquiries shows a floor — the figure can only rise.
         {cohorts.some((c) => c.unvalued > 0) && " A “+n?” marks enquiries with no value recorded."}
@@ -100,7 +100,7 @@ function Rate({ value, settled }: { value: number | null; settled: boolean }) {
   if (value === null) return <span className="text-fg-subtle">—</span>;
   return (
     <span className={cn("tabular", !settled && "text-fg-muted")}>
-      {!settled && <span className="mr-0.5 text-[10px]">≥</span>}
+      {!settled && <span className="mr-0.5 text-xs">≥</span>}
       {(value * 100).toFixed(0)}%
     </span>
   );

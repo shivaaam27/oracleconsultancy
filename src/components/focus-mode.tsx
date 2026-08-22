@@ -56,7 +56,7 @@ export function FocusToggle({ className, withLabel }: { className?: string; with
       )}
     >
       <Icon size={14} />
-      {withLabel && <span className="text-[11px] font-medium">Focus</span>}
+      {withLabel && <span className="text-xs font-medium">Focus</span>}
     </button>
   );
 }

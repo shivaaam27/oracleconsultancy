@@ -184,7 +184,7 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
       )}
       {/* Playful spring bounce on hover (motion-safe honours reduced motion). */}
       <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
-      {showLabel && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
+      {showLabel && <span className="relative whitespace-nowrap text-base font-medium">{label}</span>}
     </Link>
   );
 }
@@ -206,7 +206,7 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
   return (
     <div
       style={{ position: "absolute", left, bottom: "calc(100% + 10px)", transform: "translateX(-50%)" }}
-      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-[11px] font-semibold text-fg shadow-pill"
+      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-xs font-semibold text-fg shadow-pill"
     >
       {tip.label}
     </div>

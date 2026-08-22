@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );
@@ -32,7 +32,7 @@ function Money({ v, className, zero }: { v: number | null | undefined; className
 function Unconfirmed({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
-    <div className="border-b border-border bg-warn-soft px-3 py-2 text-[12px] text-warn">
+    <div className="border-b border-border bg-warn-soft px-3 py-2 text-sm text-warn">
       <strong className="flex items-center gap-1.5">
         <AlertTriangle className="h-3.5 w-3.5" />
         Not ready to file — {names.length} rate{names.length === 1 ? "" : "s"} in this period {names.length === 1 ? "has" : "have"} not been confirmed
@@ -66,7 +66,7 @@ export function VatReturnView({
         <Unconfirmed names={vat.unconfirmedRates} />
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-[13px]">
+          <table className="w-full min-w-[560px] text-base">
             <thead>
               <tr data-list-head className="border-b border-border text-left">
                 <Th className="w-[52%]">Box</Th>
@@ -76,7 +76,7 @@ export function VatReturnView({
             </thead>
             <tbody>
               <tr className="border-b border-border bg-bg-muted/60">
-                <Td className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                <Td className="text-xs font-medium uppercase tracking-[0.06em] text-fg-muted">
                   What we charged
                 </Td><Td /><Td />
               </tr>
@@ -92,7 +92,7 @@ export function VatReturnView({
               </tr>
 
               <tr className="border-b border-border bg-bg-muted/60">
-                <Td className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                <Td className="text-xs font-medium uppercase tracking-[0.06em] text-fg-muted">
                   What we paid
                 </Td><Td /><Td />
               </tr>
@@ -115,7 +115,7 @@ export function VatReturnView({
           </table>
         </div>
 
-        <div className="space-y-1 border-t border-border px-3 py-2 text-[12px] text-fg-subtle">
+        <div className="space-y-1 border-t border-border px-3 py-2 text-sm text-fg-subtle">
           <p>
             Output VAT less input VAT. Taxable turnover is standard-rated plus zero-rated sales; exempt sales
             are deliberately outside it.
@@ -139,13 +139,13 @@ export function VatReturnView({
           title={`${vat.unknown.length} not counted`}
           meta={<span className="text-warn">these need a rate before the return is right</span>}
         >
-          <p className="border-b border-border px-3 py-2 text-[12px] text-fg-muted">
+          <p className="border-b border-border px-3 py-2 text-sm text-fg-muted">
             Each of these is a document with no tax rate set, or a foreign one with no exchange rate — so its
             VAT is <b>unknown</b>, not nil. They are left out of every figure above rather than quietly
             counted as zero.
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-[13px]">
+            <table className="w-full min-w-[560px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -170,7 +170,7 @@ export function VatReturnView({
       )}
 
       {vat.lines.length === 0 && (
-        <p className="text-[13px] text-fg-muted">
+        <p className="text-base text-fg-muted">
           Nothing taxable in this period yet. VAT is recorded on an invoice on the Delivery &amp; billing tab
           of Orders &amp; Imports, and on a purchase on the order line.
         </p>
@@ -190,8 +190,8 @@ function Row({
     <tr data-list-row className="border-b border-border/60">
       <Td>
         {label}
-        {hint && <> <span className="text-[11px] text-fg-subtle">{hint}</span></>}
-        {box.count > 0 && <> <span className="text-[11px] text-fg-subtle">({box.count})</span></>}
+        {hint && <> <span className="text-xs text-fg-subtle">{hint}</span></>}
+        {box.count > 0 && <> <span className="text-xs text-fg-subtle">({box.count})</span></>}
       </Td>
       <Money v={box.net} />
       <Money v={box.tax} />
@@ -217,13 +217,13 @@ export function WithholdingView({
         <Unconfirmed names={wht.unconfirmedRates} />
 
         {wht.byParty.length === 0 && wht.unknown.length === 0 ? (
-          <div className="px-3 py-8 text-center text-[13px] text-fg-muted">
+          <div className="px-3 py-8 text-center text-base text-fg-muted">
             Nothing was withheld in this period. Withholding is recorded on a payment, on the Payments tab of
             Orders &amp; Imports.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-[13px]">
+            <table className="w-full min-w-[560px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-[48%]">Kept back from</Th>
@@ -254,7 +254,7 @@ export function WithholdingView({
           </div>
         )}
 
-        <p className="border-t border-border px-3 py-2 text-[12px] text-fg-subtle">
+        <p className="border-t border-border px-3 py-2 text-sm text-fg-subtle">
           Worked out on what each supplier invoiced, not on what left the bank — those differ by the tax
           itself. A payment with no base recorded is reported below rather than guessed at.
         </p>
@@ -266,7 +266,7 @@ export function WithholdingView({
           meta={<span className="text-warn">no amount recorded to work the tax out on</span>}
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-[13px]">
+            <table className="w-full min-w-[520px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -294,7 +294,7 @@ export function WithholdingView({
 /** A tiny legend used on the tax rates screen and the return. */
 export function TreatmentLegend() {
   return (
-    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-subtle">
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
       <Percent className="h-3 w-3" />
       {Object.entries(TREATMENT_LABELS).map(([k, v]) => (
         <span key={k}>{v}</span>

@@ -23,7 +23,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
   className?: string;
 }) {
-  const pad = size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
+  const pad = size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-xs";
   const groupId = useId();
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Arrow-key roving (proper tablist behaviour); selection follows focus.

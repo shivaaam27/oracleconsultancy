@@ -35,12 +35,12 @@ export function NoteVersionsPanel({
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex items-center gap-1.5 border-b border-border bg-bg-subtle/60 px-2.5 py-1.5">
         <History size={12} className="text-fg-subtle" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">Versions</h2>
-        {revisions.length > 0 && <span className="ml-auto text-[11px] tabular text-fg-subtle">{revisions.length}</span>}
+        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-fg-muted">Versions</h2>
+        {revisions.length > 0 && <span className="ml-auto text-xs tabular text-fg-subtle">{revisions.length}</span>}
       </header>
 
       {revisions.length === 0 ? (
-        <p className="px-2.5 py-2.5 text-[11.5px] leading-relaxed text-fg-subtle">
+        <p className="px-2.5 py-2.5 text-xs leading-relaxed text-fg-subtle">
           None yet. One is kept automatically before AI rewrites this note or a template goes over it.
         </p>
       ) : (
@@ -48,8 +48,8 @@ export function NoteVersionsPanel({
           {revisions.map((r) => (
             <li key={r.id} className="px-2.5 py-1.5">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-[11.5px] font-medium text-fg">{agoLabel(r.createdAt)}</span>
-                <span className="text-[10.5px] text-fg-subtle">{REVISION_REASON_LABELS[r.reason]}</span>
+                <span className="text-xs font-medium text-fg">{agoLabel(r.createdAt)}</span>
+                <span className="text-xs text-fg-subtle">{REVISION_REASON_LABELS[r.reason]}</span>
                 <span className="grow" />
                 {confirming === r.id ? (
                   <span className="flex items-center gap-1">
@@ -67,11 +67,11 @@ export function NoteVersionsPanel({
                            restored note, which is the honest thing to do. */
                         window.location.reload();
                       })}
-                      className="h-5 rounded bg-accent px-1.5 text-[10.5px] font-medium text-accent-fg"
+                      className="h-5 rounded bg-accent px-1.5 text-xs font-medium text-accent-fg"
                     >
                       Yes, put it back
                     </button>
-                    <button type="button" onClick={() => setConfirming(null)} className="h-5 rounded px-1 text-[10.5px] text-fg-muted hover:text-fg">
+                    <button type="button" onClick={() => setConfirming(null)} className="h-5 rounded px-1 text-xs text-fg-muted hover:text-fg">
                       No
                     </button>
                   </span>
@@ -80,13 +80,13 @@ export function NoteVersionsPanel({
                     type="button"
                     onClick={() => setConfirming(r.id)}
                     title="Put this version back"
-                    className="inline-flex h-5 items-center gap-1 rounded px-1 text-[10.5px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+                    className="inline-flex h-5 items-center gap-1 rounded px-1 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
                   >
                     <RotateCcw size={10} /> Restore
                   </button>
                 )}
               </div>
-              <p className={cn("truncate text-[11px]", confirming === r.id ? "text-fg" : "text-fg-subtle")}>
+              <p className={cn("truncate text-xs", confirming === r.id ? "text-fg" : "text-fg-subtle")}>
                 {r.title ? `${r.title} — ` : ""}{r.preview}
               </p>
             </li>
@@ -102,7 +102,7 @@ export function NoteVersionsPanel({
             toast(res.ok ? "Version saved." : "Nothing to save yet.", { tone: res.ok ? "success" : "danger" });
             router.refresh();
           })}
-          className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[11.5px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+          className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
         >
           <Save size={12} /> Save a version
         </button>

@@ -202,8 +202,8 @@ export function AssetsTable({
                     <Laptop size={12} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-medium">{a.name}</span>
-                    <span className="block truncate text-[11px] text-fg-muted">
+                    <span className="block truncate text-base font-medium">{a.name}</span>
+                    <span className="block truncate text-xs text-fg-muted">
                       {[a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ") || "—"}
                     </span>
                   </span>
@@ -212,7 +212,7 @@ export function AssetsTable({
               assignedToName: (a) => {
                 if (a.status === "assigned" && a.assignedToName) {
                   return (
-                    <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-info">
+                    <span className="inline-flex min-w-0 items-center gap-1 text-xs text-info">
                       <User size={11} className="shrink-0" />
                       <span className="truncate">{a.assignedToName}</span>
                     </span>
@@ -220,7 +220,7 @@ export function AssetsTable({
                 }
                 if (a.status === "assigned" && (a.assignedToCompanyName || a.custodianName)) {
                   return (
-                    <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-info">
+                    <span className="inline-flex min-w-0 items-center gap-1 text-xs text-info">
                       <Users size={11} className="shrink-0" />
                       <span className="truncate">{a.assignedToCompanyName || `custodian ${a.custodianName}`}</span>
                     </span>
@@ -237,13 +237,13 @@ export function AssetsTable({
               <span className="flex items-center gap-1.5">
                 {a.status === "in_store" && (
                   <button type="button" disabled={busy} onClick={() => setAssigning(a)}
-                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
+                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-xs font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
                     <UserPlus size={12} /> Assign
                   </button>
                 )}
                 {a.status === "assigned" && (
                   <button type="button" disabled={busy} onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
-                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
+                    className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-xs font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex">
                     <RotateCcw size={12} /> Return
                   </button>
                 )}
@@ -352,7 +352,7 @@ function AssetHistoryDialog({ asset, onOpenChange }: { asset: AssetRow | null; o
               <div className="min-w-0 flex-1">
                 <span className="font-medium">{h.personName ?? "Unknown"}</span>
                 <span className="text-fg-muted"> · {fmtDate(h.assignedAt)} → {h.returnedAt ? fmtDate(h.returnedAt) : "present"}</span>
-                {h.notes && <div className="text-[11px] text-fg-subtle">{h.notes}</div>}
+                {h.notes && <div className="text-xs text-fg-subtle">{h.notes}</div>}
               </div>
             </div>
           ))}
@@ -395,10 +395,10 @@ function ArchivedAssetsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             <div key={a.id} className="flex items-center gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium truncate">{a.name}</div>
-                <div className="text-[11px] text-fg-subtle truncate">{[a.tag, a.category, a.serialNo].filter(Boolean).join(" · ") || "—"}</div>
+                <div className="text-xs text-fg-subtle truncate">{[a.tag, a.category, a.serialNo].filter(Boolean).join(" · ") || "—"}</div>
               </div>
               <button type="button" disabled={busyId === a.id} onClick={() => restore(a.id)}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
                 {busyId === a.id ? <Loader2 size={11} className="animate-spin" /> : <ArchiveRestore size={11} />} Restore
               </button>
             </div>
@@ -800,7 +800,7 @@ function AssetDialog({
             {isShared && <option value="shared">Shared / team — leave as is</option>}
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
-          <p className="text-[11px] text-fg-subtle mt-1">Change this to correct or move who holds the asset.</p>
+          <p className="text-xs text-fg-subtle mt-1">Change this to correct or move who holds the asset.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

@@ -42,7 +42,7 @@ export function NoteRecordBar({
   const { toast } = useToast();
   const [, start] = useTransition();
 
-  const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium transition-colors";
+  const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors";
 
   const folderOptions: FluidOption[] = [
     { value: "", label: "No folder" },
@@ -68,7 +68,7 @@ export function NoteRecordBar({
           if (!res.ok) { toast("Could not move the note.", { tone: "danger" }); return; }
           router.refresh();
         })}
-        buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[11.5px] font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
+        buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-xs font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
       />
 
       <button
@@ -153,12 +153,12 @@ export function NoteRecordBar({
               window.location.reload();
             });
           }}
-          buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-[11.5px] font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
+          buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-xs font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
         />
       )}
 
       <span className="grow" />
-      <span className="px-1 text-[11px] text-fg-subtle">
+      <span className="px-1 text-xs text-fg-subtle">
         Updated {new Date(updatedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
       </span>
     </div>

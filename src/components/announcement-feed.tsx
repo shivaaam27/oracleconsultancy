@@ -81,7 +81,7 @@ function FeedCard({ a }: { a: FeedAnnouncement }) {
         <Badge tone={TYPE_BADGE[TYPE_TONE[a.type]] ?? "default"}>{TYPE_LABEL[a.type]}</Badge>
         {a.pinned && <Pin size={12} className="text-accent" />}
         <span className="grow" />
-        <span className="text-[11px] text-fg-subtle">{authorLabel(a.createdBy)} · {timeLabel(a.publishedAt ?? a.createdAt)}</span>
+        <span className="text-xs text-fg-subtle">{authorLabel(a.createdBy)} · {timeLabel(a.publishedAt ?? a.createdAt)}</span>
       </div>
       <p className="mt-1.5 text-sm font-semibold leading-snug">{a.title}</p>
       {a.body && <p className="mt-1 whitespace-pre-wrap text-sm text-fg-muted leading-relaxed">{a.body}</p>}
@@ -139,7 +139,7 @@ function FeedCard({ a }: { a: FeedAnnouncement }) {
             <ul className="flex flex-col gap-2">
               {comments.map((c) => (
                 <li key={c.id} className={cn("rounded-xl px-3 py-2 text-sm", c.isAnswer ? "bg-accent-soft/50 ring-1 ring-accent/20" : "bg-bg-subtle/50")}>
-                  <p className="text-[11px] font-medium text-fg-muted">{c.authorName}{c.isAnswer ? " · reply" : ""}</p>
+                  <p className="text-xs font-medium text-fg-muted">{c.authorName}{c.isAnswer ? " · reply" : ""}</p>
                   <p className="whitespace-pre-wrap text-fg">{c.body}</p>
                 </li>
               ))}

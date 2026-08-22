@@ -254,7 +254,7 @@ export function QuickTaskPopover({
                     )}
                   />
                   {polishState === "done" && (
-                    <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
+                    <p className="mt-1 flex items-center gap-1 text-xs text-success">
                       <CheckCircle2 size={11} /> Polished
                     </p>
                   )}
@@ -318,7 +318,7 @@ export function QuickTaskPopover({
                     Add task
                   </Button>
                 </div>
-                <p className="text-[10px] text-fg-subtle -mt-1">
+                <p className="text-xs text-fg-subtle -mt-1">
                   Priority defaults to Medium · ⌘↵ to save
                 </p>
               </div>

@@ -17,7 +17,7 @@ type Person = { id: number; name: string };
 type Reminder = { taskCode: string; title: string; personId: number; personName: string };
 
 const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
-const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 
 const CHANNELS = [
   { value: "CHAT", label: "Chat" },
@@ -182,7 +182,7 @@ export function DirectorMessage({
               key={r.taskCode}
               type="button"
               onClick={() => openFor(r)}
-              className="inline-flex items-center gap-1 rounded-full bg-warn-soft/50 px-2.5 py-1 text-[11px] text-warn ring-1 ring-warn/25 transition-[background-color,transform] hover:bg-warn-soft active:scale-95"
+              className="inline-flex items-center gap-1 rounded-full bg-warn-soft/50 px-2.5 py-1 text-xs text-warn ring-1 ring-warn/25 transition-[background-color,transform] hover:bg-warn-soft active:scale-95"
             >
               <Bell size={11} /> Remind {getGivenName(r.personName)} · {r.taskCode}
             </button>
@@ -217,7 +217,7 @@ export function DirectorMessage({
                     key={c.value || "auto"}
                     type="button"
                     onClick={() => setChannel(c.value)}
-                    className={`rounded-xl py-2.5 text-[11px] font-medium ring-1 transition-colors ${active ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-border hover:text-fg"}`}
+                    className={`rounded-xl py-2.5 text-xs font-medium ring-1 transition-colors ${active ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-border hover:text-fg"}`}
                   >
                     {c.label}
                   </button>
@@ -239,7 +239,7 @@ export function DirectorMessage({
                     key={p.id}
                     type="button"
                     onClick={() => setPicked((cur) => cur.filter((x) => x !== p.id))}
-                    className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[12px] font-medium text-accent ring-1 ring-accent/25"
+                    className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-sm font-medium text-accent ring-1 ring-accent/25"
                     title={`Remove ${p.name}`}
                   >
                     {p.name.split(/\s+/)[0]} <X size={12} />
@@ -260,7 +260,7 @@ export function DirectorMessage({
 
             <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-xl ring-1 ring-border/60 p-1">
               {list.length === 0 ? (
-                <p className="px-3 py-6 text-center text-[13px] text-fg-muted">No people found.</p>
+                <p className="px-3 py-6 text-center text-base text-fg-muted">No people found.</p>
               ) : (
                 list.map((p) => {
                   const on = picked.includes(p.id);
@@ -280,7 +280,7 @@ export function DirectorMessage({
                 })
               )}
             </div>
-            <p className="mt-1.5 text-[11px] text-fg-subtle">{recipientHint(channel)}</p>
+            <p className="mt-1.5 text-xs text-fg-subtle">{recipientHint(channel)}</p>
           </div>
 
           <div>

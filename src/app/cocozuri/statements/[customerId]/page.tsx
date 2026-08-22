@@ -55,12 +55,12 @@ export default async function CocozuriStatementPage({
       </div>
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link href="/cocozuri/statements"
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
           <ArrowLeft size={13} /> All statements
         </Link>
         <CocozuriStatementControls customerId={id} from={sp.from} to={sp.to} />
         <span className="grow" />
-        <span className="text-[11.5px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           {rows.length} line{rows.length === 1 ? "" : "s"}
           {(from || to) && " in this period"}
         </span>
@@ -76,22 +76,22 @@ export default async function CocozuriStatementPage({
                   : b.key === "over90" ? "text-danger" : b.key === "d61_90" ? "text-warn" : "text-fg"}`}>
                 {money(bands[b.key])}
               </p>
-              <p className="mt-1 text-[11px] text-fg-muted">{b.label}</p>
+              <p className="mt-1 text-xs text-fg-muted">{b.label}</p>
             </div>
           ))}
         </div>
       )}
 
       {/* The paper. */}
-      <article className="rounded-lg border border-border bg-bg-elev px-6 py-6 text-[12.5px] print:border-0 print:px-0">
-        <p className="text-center text-[11px] leading-relaxed text-fg-muted">
+      <article className="rounded-lg border border-border bg-bg-elev px-6 py-6 text-sm print:border-0 print:px-0">
+        <p className="text-center text-xs leading-relaxed text-fg-muted">
           P.O.BOX 20865, DAR-ES-SALAAM, TANZANIA · TIN NO: 104 679 218 · VAT NO: 400117481
         </p>
         <h1 className="mt-3 text-center text-[15px] font-semibold tracking-wide text-fg">STATEMENT OF ACCOUNT</h1>
 
         <div className="mt-5 flex flex-wrap justify-between gap-4">
           <div className="min-w-[16rem]">
-            <p className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Customer details:</p>
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Customer details:</p>
             <p className="mt-1 font-semibold text-fg">{customer.name}</p>
             {customer.poBox && <p className="text-fg-muted">P.O.BOX {customer.poBox}</p>}
             {customer.city && <p className="text-fg-muted">{customer.city}</p>}
@@ -111,7 +111,7 @@ export default async function CocozuriStatementPage({
 
         <table className="mt-5 w-full border-collapse">
           <thead>
-            <tr className="border-y border-border text-[10.5px] uppercase tracking-[0.06em] text-fg-subtle">
+            <tr className="border-y border-border text-xs uppercase tracking-[0.06em] text-fg-subtle">
               <th className="py-1.5 pr-2 text-left font-medium">Date</th>
               <th className="py-1.5 pr-2 text-left font-medium">Ref</th>
               <th className="py-1.5 pr-2 text-left font-medium">Detail</th>
@@ -153,14 +153,14 @@ export default async function CocozuriStatementPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-[12px] text-fg-subtle">
+                <td colSpan={6} className="py-6 text-center text-sm text-fg-subtle">
                   Nothing on this account{(from || to) && " in this period"}. Only issued invoices appear here.
                 </td>
               </tr>
             )}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-border text-[13px] font-semibold text-fg">
+            <tr className="border-t-2 border-border text-base font-semibold text-fg">
               <td className="py-2 pr-2" colSpan={5}>BALANCE DUE</td>
               <td className="py-2 text-right tabular">{money(closing, customer.currency)}</td>
             </tr>
@@ -171,7 +171,7 @@ export default async function CocozuriStatementPage({
             question "on what?" and the workbook's own statements answer it. */}
         {outstanding.length > 0 && (
           <div className="mt-6">
-            <p className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Outstanding invoices</p>
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Outstanding invoices</p>
             <table className="mt-1.5 w-full border-collapse">
               <tbody>
                 {outstanding.map((o) => (
@@ -190,7 +190,7 @@ export default async function CocozuriStatementPage({
           </div>
         )}
 
-        <p className="mt-6 text-[11px] leading-relaxed text-fg-subtle">
+        <p className="mt-6 text-xs leading-relaxed text-fg-subtle">
           Payment terms are {customer.paymentTermsDays} days from the date of invoice. Please quote the
           invoice number when paying. If any item on this statement is not recognised, tell us and we
           will look into it.

@@ -49,7 +49,7 @@ export function UpdateMenu({ updateId, body, pinned, showPin = true, deleted = f
         type="button"
         onClick={onRestore}
         disabled={pending}
-        className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-accent disabled:opacity-50"
+        className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-accent disabled:opacity-50"
       >
         <RotateCcw size={12} /> Restore
       </button>
@@ -211,7 +211,7 @@ export function UpdateMenu({ updateId, body, pinned, showPin = true, deleted = f
               "focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40"
             )}
           />
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-xs">
             <span className="text-fg-subtle">⌘+Enter to save · Esc to cancel</span>
             <div className="flex items-center gap-1.5">
               <button

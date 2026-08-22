@@ -43,7 +43,7 @@ export function PortalMeetings({ meetings }: { meetings: PortalMeetingView[] }) 
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{e.title}</p>
-                <p className="truncate text-[11px] text-fg-subtle">
+                <p className="truncate text-xs text-fg-subtle">
                   {fmtWhen(e)}{e.companyName ? ` · ${e.companyName}` : ""}
                 </p>
               </div>
@@ -53,7 +53,7 @@ export function PortalMeetings({ meetings }: { meetings: PortalMeetingView[] }) 
                   target="_blank"
                   rel="noreferrer"
                   onClick={(ev) => ev.stopPropagation()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
                 >
                   <Video size={13} /> Join
                 </a>

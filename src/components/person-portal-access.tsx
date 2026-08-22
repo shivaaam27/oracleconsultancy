@@ -114,10 +114,10 @@ export function PersonPortalAccess({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
           {portal.enabled ? <Shield size={12} /> : <ShieldOff size={12} />} Portal access
         </span>
-        <span className={cn("inline-flex items-center gap-1.5 text-[11px]", portal.enabled ? "text-success" : "text-fg-subtle")}>
+        <span className={cn("inline-flex items-center gap-1.5 text-xs", portal.enabled ? "text-success" : "text-fg-subtle")}>
           <span className={cn("h-1.5 w-1.5 rounded-full", portal.enabled ? "bg-success" : "bg-fg-subtle/50")} />
           {portal.enabled ? "Active" : "Not set up"}
         </span>
@@ -126,7 +126,7 @@ export function PersonPortalAccess({
       {portal.enabled ? (
         <>
           {isAdmin ? (
-            <p className="text-[11px] text-fg-muted">
+            <p className="text-xs text-fg-muted">
               This person has the <span className="font-medium">Admin</span> (every-company) role — change it in Settings.
             </p>
           ) : (
@@ -136,7 +136,7 @@ export function PersonPortalAccess({
                 return (
                   <button key={value} type="button" onClick={() => changeRole(value)} disabled={pending}
                     className={cn(
-                      "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] transition-colors disabled:opacity-50",
+                      "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs transition-colors disabled:opacity-50",
                       on ? "bg-bg-elev text-accent ring-1 ring-accent/50 font-medium" : "text-fg-muted hover:bg-bg-muted/60",
                     )}>
                     <Icon size={15} /> {label}
@@ -165,16 +165,16 @@ export function PersonPortalAccess({
             <div className="flex items-center gap-2">
               {pwField("New password")}
               <Button type="button" size="sm" onClick={resetPassword} disabled={pending}>Save</Button>
-              <button type="button" onClick={() => { setShowReset(false); setPw(""); }} className="text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+              <button type="button" onClick={() => { setShowReset(false); setPw(""); }} className="text-xs text-fg-subtle hover:text-fg">Cancel</button>
             </div>
           ) : (
             <div className="flex items-center justify-between pt-0.5">
-              <span className="text-[11px] text-fg-subtle">
+              <span className="text-xs text-fg-subtle">
                 {portal.lastLoginAt ? `Last in ${fmtDate(new Date(portal.lastLoginAt))}` : "Never signed in"}
               </span>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => { setShowReset(true); setShowEnable(false); }} className="text-[11px] text-accent hover:underline">Reset password</button>
-                <button type="button" onClick={revoke} disabled={pending} className="text-[11px] text-danger hover:underline disabled:opacity-50">Revoke</button>
+                <button type="button" onClick={() => { setShowReset(true); setShowEnable(false); }} className="text-xs text-accent hover:underline">Reset password</button>
+                <button type="button" onClick={revoke} disabled={pending} className="text-xs text-danger hover:underline disabled:opacity-50">Revoke</button>
               </div>
             </div>
           )}
@@ -187,7 +187,7 @@ export function PersonPortalAccess({
               return (
                 <button key={value} type="button" onClick={() => setPwRole(value)} disabled={pending}
                   className={cn(
-                    "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] transition-colors disabled:opacity-50",
+                    "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs transition-colors disabled:opacity-50",
                     on ? "bg-bg-elev text-accent ring-1 ring-accent/50 font-medium" : "text-fg-muted hover:bg-bg-muted/60",
                   )}>
                   <Icon size={15} /> {label}
@@ -198,7 +198,7 @@ export function PersonPortalAccess({
           <div className="flex items-center gap-2">
             {pwField("Set a password")}
             <Button type="button" size="sm" onClick={enable} disabled={pending}>Enable</Button>
-            <button type="button" onClick={() => { setShowEnable(false); setPw(""); }} className="text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+            <button type="button" onClick={() => { setShowEnable(false); setPw(""); }} className="text-xs text-fg-subtle hover:text-fg">Cancel</button>
           </div>
         </div>
       ) : (

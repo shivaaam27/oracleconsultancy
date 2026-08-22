@@ -72,7 +72,7 @@ export function TaskUpdateLine({
   if (!a) {
     const quiet = daysSince(task.lastActivityISO);
     return (
-      <div className={cn("flex items-center gap-1.5 text-[11px] text-fg-subtle italic", className)}>
+      <div className={cn("flex items-center gap-1.5 text-xs text-fg-subtle italic", className)}>
         <MessageSquare size={11} className="opacity-60 not-italic" />
         <span>
           No updates yet
@@ -114,7 +114,7 @@ export function TaskUpdateLine({
 
       {/* Update-count chip (only worth showing when there's more than one) */}
       {task.updateCount > 1 && (
-        <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] text-fg-subtle">
+        <span className="shrink-0 inline-flex items-center gap-0.5 text-xs text-fg-subtle">
           <MessageSquare size={10} className="opacity-70" />
           {task.updateCount}
         </span>
@@ -128,7 +128,7 @@ export function TaskUpdateLine({
         type="button"
         onClick={(e) => { e.stopPropagation(); onOpenConversation(); }}
         className={cn(
-          "group/upd flex items-center gap-1.5 text-[11px] min-w-0 max-w-full text-left",
+          "group/upd flex items-center gap-1.5 text-xs min-w-0 max-w-full text-left",
           "rounded-md px-1 -mx-1 py-0.5 hover:bg-bg-muted/60 transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring/50",
           className,
@@ -141,7 +141,7 @@ export function TaskUpdateLine({
   }
 
   return (
-    <div className={cn("flex items-center gap-1.5 text-[11px] min-w-0 max-w-full", className)}>
+    <div className={cn("flex items-center gap-1.5 text-xs min-w-0 max-w-full", className)}>
       {content}
     </div>
   );

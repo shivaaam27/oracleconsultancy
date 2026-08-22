@@ -87,8 +87,8 @@ export function OpsReportSheet({
   if (lines.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-bg-elev py-10 text-center">
-        <p className="text-[13px] font-medium">Nothing to report yet</p>
-        <p className="mx-auto mt-1 max-w-md text-[12px] text-fg-subtle">
+        <p className="text-base font-medium">Nothing to report yet</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-fg-subtle">
           This screen is worked out from the order lines, the shipments and the deliveries — there
           is nothing to type on it. Add an order on the Orders tab and it will fill itself in.
         </p>
@@ -121,8 +121,8 @@ export function OpsReportSheet({
       {/* ── PENDING ──────────────────────────────────────────────────────── */}
       <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-          <h3 className="text-[12px] font-medium">Where the open work is sitting</h3>
-          <nav className="flex items-center gap-1 text-[11px]">
+          <h3 className="text-sm font-medium">Where the open work is sitting</h3>
+          <nav className="flex items-center gap-1 text-xs">
             <span className="text-fg-subtle">Group by</span>
             {[["desk", "whose desk"], ["status", "status"]].map(([key, label]) => (
               <Link key={key} href={`/ops/report?${co}&group=${key}`}
@@ -136,9 +136,9 @@ export function OpsReportSheet({
         </header>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-[12px]">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+              <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
                 <Th className="text-left">{groupBy === "status" ? "Status" : "With"}</Th>
                 <Th>Lines</Th>
                 <Th>Overdue</Th>
@@ -162,18 +162,18 @@ export function OpsReportSheet({
       {/* ── the worst individual lines ───────────────────────────────────── */}
       <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
         <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-          <h3 className="text-[12px] font-medium">The ten most overdue</h3>
-          <Link href={`/ops?${co}&flag=overdue`} className="text-[11px] text-accent hover:underline">
+          <h3 className="text-sm font-medium">The ten most overdue</h3>
+          <Link href={`/ops?${co}&flag=overdue`} className="text-xs text-accent hover:underline">
             See them all
           </Link>
         </header>
         {pending.filter((r) => (r.overdueDays ?? 0) > 0).length === 0 ? (
-          <p className="px-3 py-3 text-[12px] text-success">Nothing is past its date.</p>
+          <p className="px-3 py-3 text-sm text-success">Nothing is past its date.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse text-[12px]">
+            <table className="w-full min-w-[620px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-border text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+                <tr className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-subtle">
                   <Th className="text-left">PO</Th>
                   <Th className="text-left">Item</Th>
                   <Th className="text-left">Client</Th>
@@ -209,7 +209,7 @@ export function OpsReportSheet({
       {/* ── what we owe, from the real payments (Stage 7) ────────────────── */}
       <OpsPayables rows={payees} totals={payable} companyId={companyId} />
 
-      <p className="px-1 text-[11px] text-fg-subtle">
+      <p className="px-1 text-xs text-fg-subtle">
         Nothing on this screen is stored. It is worked out from the orders, the shipments and the
         deliveries each time you open it, so it cannot go stale the way a spreadsheet formula does.
         The month-by-month conversion lives on the{" "}
@@ -238,7 +238,7 @@ function GroupRow({ g, co, emptyLabel }: { g: DeskGroup; co: string; emptyLabel:
       <Td className="tabular text-right">
         {g.valueTzs === null ? "—" : money(g.valueTzs)}
         {g.unpriced > 0 && (
-          <span className="ml-1 text-[10px] text-warn"
+          <span className="ml-1 text-xs text-warn"
             title={`${g.unpriced} line${g.unpriced === 1 ? "" : "s"} here have no price, so they are not in this figure.`}>
             +{g.unpriced}?
           </span>
@@ -253,10 +253,10 @@ function Tile({ label, value, sub, tone, href }: {
 }) {
   const body = (
     <>
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "warn" && "text-warn", tone === "danger" && "text-danger")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </>
   );
   return href

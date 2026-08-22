@@ -60,12 +60,12 @@ export function CleaningOverview({
         <Ring pct={comp.pct} done={comp.done} total={comp.total} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">{fmtLongDate(dateIso)}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 font-medium", dayStatusColor[status])}>{status}</span>
             {cleanerName && <span className="inline-flex items-center gap-1 text-fg-muted"><UserIcon size={11} /> {cleanerName}</span>}
             {day.signedAt && <span className="inline-flex items-center gap-1 text-success"><Lock size={11} /> submitted {fmtTime(day.signedAt)}</span>}
           </div>
-          {day.note && <p className="mt-1.5 text-[11px] text-fg-subtle">Note: {day.note}</p>}
+          {day.note && <p className="mt-1.5 text-xs text-fg-subtle">Note: {day.note}</p>}
         </div>
       </Card>
 
@@ -82,9 +82,9 @@ export function CleaningOverview({
               </span>
               <div className="min-w-0 flex-1">
                 <div className={cn("text-sm", done ? "font-medium" : "text-fg-muted")}>{area.name}</div>
-                {c?.comment && <div className="flex items-center gap-1 truncate text-[11px] text-fg-muted"><MessageSquare size={10} />{c.comment}</div>}
+                {c?.comment && <div className="flex items-center gap-1 truncate text-xs text-fg-muted"><MessageSquare size={10} />{c.comment}</div>}
               </div>
-              {done && c?.doneAt && <span className="shrink-0 text-[11px] text-fg-subtle inline-flex items-center gap-1"><Clock size={10} />{fmtTime(c.doneAt)}</span>}
+              {done && c?.doneAt && <span className="shrink-0 text-xs text-fg-subtle inline-flex items-center gap-1"><Clock size={10} />{fmtTime(c.doneAt)}</span>}
             </div>
           );
         })}
@@ -93,16 +93,16 @@ export function CleaningOverview({
       {/* Recent history */}
       {history.length > 0 && (
         <div>
-          <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
+          <div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-fg-muted">
             <SprayCan size={12} /> Recent days
           </div>
           <Card className="divide-y divide-border/60">
             {history.map((h) => (
               <div key={h.date.toISOString()} className="flex items-center gap-2.5 px-4 py-2">
                 <span className="min-w-0 flex-1 truncate text-xs">{fmtShortDate(h.date)}</span>
-                {h.cleanerName && <span className="truncate text-[11px] text-fg-subtle">{h.cleanerName}</span>}
-                <span className="shrink-0 text-[11px] tabular text-fg-subtle">{h.done}/{h.total}</span>
-                <span className={cn("inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium", dayStatusColor[h.status])}>{h.status}</span>
+                {h.cleanerName && <span className="truncate text-xs text-fg-subtle">{h.cleanerName}</span>}
+                <span className="shrink-0 text-xs tabular text-fg-subtle">{h.done}/{h.total}</span>
+                <span className={cn("inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium", dayStatusColor[h.status])}>{h.status}</span>
               </div>
             ))}
           </Card>

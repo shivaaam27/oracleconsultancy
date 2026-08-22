@@ -65,7 +65,7 @@ export function CompleteTaskSheet({
       <div className="flex flex-col gap-3.5">
         <p className="text-xs text-fg-muted">Finishing this task records what was done — a quick note keeps everyone in the loop.</p>
         <div>
-          <label className="mb-1.5 block text-[11px] font-medium text-fg-muted">What was done?</label>
+          <label className="mb-1.5 block text-xs font-medium text-fg-muted">What was done?</label>
           <CaretTextarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -85,7 +85,7 @@ export function CompleteTaskSheet({
             <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="hidden" />
           </label>
           {requiresAttachment && !file && (
-            <p className="mt-1.5 text-[11px] text-warn">This task needs a file attached before it can be completed.</p>
+            <p className="mt-1.5 text-xs text-warn">This task needs a file attached before it can be completed.</p>
           )}
         </div>
       </div>

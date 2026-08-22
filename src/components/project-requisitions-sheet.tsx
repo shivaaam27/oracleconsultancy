@@ -122,7 +122,7 @@ export function ProjectRequisitionsSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -135,18 +135,18 @@ export function ProjectRequisitionsSheet({
           <button
             key={f.key} type="button" onClick={() => setFilter(f.key)}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[12px]",
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-sm",
               f.active ? "border-accent/40 bg-accent-soft font-medium text-accent"
                        : "border-border bg-bg-elev text-fg-muted",
             )}
           >
             {f.label}
-            <span className={cn("tabular text-[11px]", f.active ? "text-accent" : "text-fg-subtle")}>{f.count}</span>
+            <span className={cn("tabular text-xs", f.active ? "text-accent" : "text-fg-subtle")}>{f.count}</span>
           </button>
         ))}
       </div>
 
-      <p className="text-[11px] text-fg-subtle">Click a request to approve it or record its delivery.</p>
+      <p className="text-xs text-fg-subtle">Click a request to approve it or record its delivery.</p>
 
       <RecordList
         rows={shown}
@@ -162,8 +162,8 @@ export function ProjectRequisitionsSheet({
         total={rows.length}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">No requests yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No requests yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Raise one above. You can only request against an item that is on the budget.
             </p>
           </div>
@@ -173,8 +173,8 @@ export function ProjectRequisitionsSheet({
             key: "itemCode", label: "Item", width: "minmax(0,1fr)",
             render: (r) => (
               <span className="min-w-0">
-                <span className="block truncate font-mono text-[12px]">{r.itemCode}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate font-mono text-sm">{r.itemCode}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   {[r.batchNo, r.supplier, r.route].filter(Boolean).join(" · ") || "—"}
                 </span>
               </span>
@@ -182,7 +182,7 @@ export function ProjectRequisitionsSheet({
           },
           {
             key: "requested", label: "Requested", width: "110px", align: "right",
-            render: (r) => <span className="tabular text-[12px]">{money(num(r.amountRequested)) ?? "—"}</span>,
+            render: (r) => <span className="tabular text-sm">{money(num(r.amountRequested)) ?? "—"}</span>,
             total: (rows) => (
               <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.amountRequested) ?? 0), 0))}</span>
             ),
@@ -190,7 +190,7 @@ export function ProjectRequisitionsSheet({
           {
             key: "approved", label: "Approved", width: "110px", align: "right",
             render: (r) => (
-              <span className={cn("tabular text-[12px]", r.amountApproved === null && "text-fg-subtle")}>
+              <span className={cn("tabular text-sm", r.amountApproved === null && "text-fg-subtle")}>
                 {r.amountApproved === null ? "not yet" : money(num(r.amountApproved))}
               </span>
             ),
@@ -201,7 +201,7 @@ export function ProjectRequisitionsSheet({
           {
             key: "received", label: "Received", width: "110px", align: "right", hideBelow: "md",
             render: (r) => (
-              <span className={cn("tabular text-[12px]", r.amountReceived === null && "text-fg-subtle")}>
+              <span className={cn("tabular text-sm", r.amountReceived === null && "text-fg-subtle")}>
                 {r.amountReceived === null ? "—" : money(num(r.amountReceived))}
               </span>
             ),
@@ -212,7 +212,7 @@ export function ProjectRequisitionsSheet({
           {
             key: "status", label: "Status", width: "104px",
             render: (r) => (
-              <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium", TONE_CHIP[statusTone(r.status)])}>
+              <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium", TONE_CHIP[statusTone(r.status)])}>
                 {r.status}
               </span>
             ),
@@ -279,10 +279,10 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "danger" && "text-danger", tone === "warn" && "text-warn")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
@@ -357,7 +357,7 @@ function RaiseRequest({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 text-[12px] font-medium">Raise a request</h3>
+      <h3 className="mb-2 text-sm font-medium">Raise a request</h3>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
@@ -416,7 +416,7 @@ function RaiseRequest({
 
       {/* The control the workbook puts in columns C/D: what is left BEFORE you ask. */}
       {balance && (
-        <div className={cn("mt-2 rounded-md px-2.5 py-1.5 text-[11px]",
+        <div className={cn("mt-2 rounded-md px-2.5 py-1.5 text-xs",
           wouldOverspend ? "bg-danger-soft text-danger" : "bg-bg-subtle text-fg-muted")}>
           {wouldOverspend && <AlertTriangle size={12} className="mr-1 inline" />}
           <strong>{money(balance.remaining)}</strong> left on this item
@@ -439,7 +439,7 @@ function RaiseRequest({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Raise request
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Raising does not approve it — head office does that separately.
         </span>
       </div>
@@ -454,7 +454,7 @@ function unitOf(items: BudgetItem[], itemCode: string): string {
 }
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 function Field({ label, hint, className, children }: {
   label: string; hint?: string; className?: string; children: React.ReactNode;
@@ -462,7 +462,7 @@ function Field({ label, hint, className, children }: {
   return (
     <label className={cn("block min-w-0", className)}>
       <span title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-xs uppercase tracking-[0.04em] text-fg-subtle">
         <span className="shrink-0">{label}</span>
         {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
       </span>
@@ -492,7 +492,7 @@ function RowActions({
 
   if (r.status === "Rejected" || r.status === "Cancelled") {
     return (
-      <div className="flex items-center gap-2 rounded-md bg-bg-subtle px-2.5 py-2 text-[11px] text-fg-muted">
+      <div className="flex items-center gap-2 rounded-md bg-bg-subtle px-2.5 py-2 text-xs text-fg-muted">
         This request was {r.status.toLowerCase()}. It counts against nothing.
         <button type="button" disabled={pending}
           onClick={() => start(async () => {
@@ -522,7 +522,7 @@ function RowActions({
               onPatched(r.id, { amountApproved: value.replace(/[\s,]/g, ""), status: "Approved" });
               onRefresh();
             })}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg disabled:opacity-60">
             {pending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Approve
           </button>
           <button type="button" disabled={pending}
@@ -531,10 +531,10 @@ function RowActions({
               if (!res.ok) { onError(res.error!); return; }
               onPatched(r.id, { status: "Rejected" }); onRefresh();
             })}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] text-fg-muted hover:text-danger">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-danger">
             <Ban size={12} /> Reject
           </button>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             Leave blank to approve the full {money(num(r.amountRequested))}.
           </span>
         </div>
@@ -559,15 +559,15 @@ function RowActions({
               });
               onRefresh();
             })}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg disabled:opacity-60">
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg disabled:opacity-60">
             {pending ? <Loader2 size={12} className="animate-spin" /> : <PackageCheck size={12} />} Record delivery
           </button>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             Type what actually arrived — nothing is filled in from the order.
           </span>
         </div>
       ) : (
-        <p className="flex items-center gap-1.5 text-[11px] text-fg-muted">
+        <p className="flex items-center gap-1.5 text-xs text-fg-muted">
           <PackageCheck size={12} className="text-success" />
           Received {money(num(r.amountReceived))}
           {r.grnNo && <> on GRN {r.grnNo}</>}

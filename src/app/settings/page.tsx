@@ -191,7 +191,7 @@ export default async function SettingsPage({
                     ))}
                   </Select>
                 </div>
-                <p className="text-[12px] text-fg-muted sm:pt-5">
+                <p className="text-sm text-fg-muted sm:pt-5">
                   {/* ⚠️ Not cosmetic. The balance sheet works out the profit earned since this
                       month and adds it into equity — that is what makes the two sides agree.
                       A wrong month puts a whole run of trading in the wrong year. */}
@@ -308,7 +308,7 @@ export default async function SettingsPage({
                     <input type="checkbox" name="remove_geminiApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here
                   </label>
                 )}
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   Free at aistudio.google.com/apikey — no card required. This one key powers all AI. Never shown again; blank keeps the current key.
                 </p>
               </div>
@@ -345,7 +345,7 @@ export default async function SettingsPage({
                     <input type="checkbox" name="remove_ocrSpaceApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here (fall back to the built-in one)
                   </label>
                 )}
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   Reads scanned documents and photos when the AI vision model is unavailable. Free at ocr.space/ocrapi (~25,000 pages/month). Never shown again; blank keeps the current key.
                 </p>
               </div>
@@ -465,7 +465,7 @@ export default async function SettingsPage({
             <form action={setCommandCentrePause} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">{s.commandCentrePaused ? "Paused" : "Live"}</p>
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   {s.commandCentrePaused
                     ? "Hidden everywhere and dormant. Resume to start fresh from today."
                     : "Visible in navigation; recurring obligations can spawn tasks."}
@@ -497,12 +497,12 @@ export default async function SettingsPage({
                 <div>
                   <FieldLabel>Not started — remind after (hours)</FieldLabel>
                   <Input name="portalNudgeNotStartedHours" type="number" min={0} max={168} defaultValue={s.portalNudgeNotStartedHours} />
-                  <p className="mt-1 text-[11px] text-fg-muted">How long a task can sit at &ldquo;Not Started&rdquo;, untouched, before it&apos;s flagged. Shown to everyone.</p>
+                  <p className="mt-1 text-xs text-fg-muted">How long a task can sit at &ldquo;Not Started&rdquo;, untouched, before it&apos;s flagged. Shown to everyone.</p>
                 </div>
                 <div>
                   <FieldLabel>Raised by me — remind after (days)</FieldLabel>
                   <Input name="portalNudgeNoUpdateDays" type="number" min={0} max={90} defaultValue={s.portalNudgeNoUpdateDays} />
-                  <p className="mt-1 text-[11px] text-fg-muted">How long a task someone raised can go without an update before it&apos;s flagged. Managers, directors &amp; admin only.</p>
+                  <p className="mt-1 text-xs text-fg-muted">How long a task someone raised can go without an update before it&apos;s flagged. Managers, directors &amp; admin only.</p>
                 </div>
               </div>
 
@@ -510,12 +510,12 @@ export default async function SettingsPage({
                 <div>
                   <FieldLabel>&ldquo;Not started&rdquo; wording</FieldLabel>
                   <Input name="portalNudgeNotStartedMsg" defaultValue={s.portalNudgeNotStartedMsg} placeholder="not started yet. Please take a look." />
-                  <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;3 tasks &hellip;&rdquo;. Blank restores the default.</p>
+                  <p className="mt-1 text-xs text-fg-muted">Appears right after the count — e.g. &ldquo;3 tasks &hellip;&rdquo;. Blank restores the default.</p>
                 </div>
                 <div>
                   <FieldLabel>&ldquo;No update&rdquo; wording</FieldLabel>
                   <Input name="portalNudgeNoUpdateMsg" defaultValue={s.portalNudgeNoUpdateMsg} placeholder="you raised with no recent update. Review or send a reminder." />
-                  <p className="mt-1 text-[11px] text-fg-muted">Appears right after the count — e.g. &ldquo;2 tasks &hellip;&rdquo;. Blank restores the default.</p>
+                  <p className="mt-1 text-xs text-fg-muted">Appears right after the count — e.g. &ldquo;2 tasks &hellip;&rdquo;. Blank restores the default.</p>
                 </div>
               </div>
             </SettingsCard>
@@ -559,7 +559,7 @@ export default async function SettingsPage({
                   defaultValue={s.emailSignature}
                   placeholder={"Oracle Consultancy\nadmin@oracle.co.tz\n+255 ..."}
                 />
-                <p className="mt-1 text-[11px] text-fg-muted">
+                <p className="mt-1 text-xs text-fg-muted">
                   Added to every email (your Gmail signature isn&apos;t). Blank = sender name + address.
                 </p>
               </div>
@@ -579,7 +579,7 @@ export default async function SettingsPage({
                   </div>
                 ) : null}
                 <Input name="emailSignatureImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   Shown at the foot of each email. Wide PNG/JPG up to ~360px; transparent looks best.
                 </p>
               </div>
@@ -593,7 +593,7 @@ export default async function SettingsPage({
             <form action={setEmailAutomation} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ${emailTestMode ? "bg-warn-soft/50 ring-1 ring-warn/30" : "bg-bg-subtle/50"}`}>
               <div className="min-w-0">
                 <p className="text-sm font-medium">{emailTestMode ? "🧪 Test mode is ON" : "Test mode"}</p>
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   {emailTestMode
                     ? "Every email is redirected to your inbox — nothing reaches staff or clients. Turn off to go live."
                     : "Redirect every outgoing email to your own inbox, so you can trial safely."}
@@ -607,7 +607,7 @@ export default async function SettingsPage({
             <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div>
                 <p className="text-sm font-medium">All email automation</p>
-                <p className="text-[11px] text-fg-muted">{emailAuto.paused ? "Paused — nothing runs." : "Active."}</p>
+                <p className="text-xs text-fg-muted">{emailAuto.paused ? "Paused — nothing runs." : "Active."}</p>
               </div>
               <input type="hidden" name="field" value="paused" />
               <input type="hidden" name="value" value={emailAuto.paused ? "0" : "1"} />
@@ -620,7 +620,7 @@ export default async function SettingsPage({
                 <form key={c.key} action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{c.label}</p>
-                    <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.onDescription}`}</p>
+                    <p className="text-xs text-fg-muted">{off ? "Off." : `On — ${c.onDescription}`}</p>
                   </div>
                   <input type="hidden" name="field" value={c.key} />
                   <input type="hidden" name="value" value={off ? "1" : "0"} />
@@ -633,27 +633,27 @@ export default async function SettingsPage({
             <form action={setAutomationTuning} className="border-t border-border/60 pt-3 space-y-3">
               <p className="text-sm font-medium">How it behaves</p>
               <div className="grid grid-cols-2 gap-3">
-                <label className="text-[11px] text-fg-muted">
+                <label className="text-xs text-fg-muted">
                   Send only between (from)
                   <Select wrapperClassName="w-full" name="windowStartHour" defaultValue={String(emailAuto.windowStartHour)} className="mt-1 text-fg">
                     {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
                   </Select>
                 </label>
-                <label className="text-[11px] text-fg-muted">
+                <label className="text-xs text-fg-muted">
                   …and (to)
                   <Select wrapperClassName="w-full" name="windowEndHour" defaultValue={String(emailAuto.windowEndHour)} className="mt-1 text-fg">
                     {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
                   </Select>
                 </label>
-                <label className="text-[11px] text-fg-muted">
+                <label className="text-xs text-fg-muted">
                   Daily email cap
                   <Input name="dailyCap" type="number" min={1} max={500} defaultValue={emailAuto.dailyCap} className="mt-1" />
                 </label>
-                <label className="text-[11px] text-fg-muted">
+                <label className="text-xs text-fg-muted">
                   Don&apos;t re-chase within (days)
                   <Input name="cooldownDays" type="number" min={0} max={30} defaultValue={emailAuto.cooldownDays} className="mt-1" />
                 </label>
-                <label className="text-[11px] text-fg-muted col-span-2">
+                <label className="text-xs text-fg-muted col-span-2">
                   Send the weekly Director Brief on
                   <Select wrapperClassName="w-full" name="briefDay" defaultValue={String(emailAuto.briefDay)} className="mt-1 text-fg">
                     {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d, i) => <option key={i} value={i}>{d}</option>)}
@@ -666,7 +666,7 @@ export default async function SettingsPage({
             <form action={sendDirectorBriefNow} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div>
                 <p className="text-sm font-medium">Send the Director Brief now</p>
-                <p className="text-[11px] text-fg-muted">One-off — emails the current brief to you immediately (great for a test run).</p>
+                <p className="text-xs text-fg-muted">One-off — emails the current brief to you immediately (great for a test run).</p>
               </div>
               <Button type="submit" variant="secondary"><Save size={13} /> Send now</Button>
             </form>
@@ -674,7 +674,7 @@ export default async function SettingsPage({
             <form action={runEmailAutomationNow} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div>
                 <p className="text-sm font-medium">Run all automation now</p>
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   Fires every switched-on category right now (ignores the schedule).
                   {emailTestMode ? " Test mode is on, so it all comes to you." : " ⚠️ Test mode is OFF — this will email staff."}
                 </p>
@@ -735,7 +735,7 @@ export default async function SettingsPage({
                     <div className="text-xs text-fg-muted">{c.detail}</div>
                     {c.fix && <div className="mt-0.5 text-xs text-fg-subtle">{c.fix}</div>}
                   </div>
-                  <span className="ml-auto shrink-0 text-[11px] uppercase tracking-wide text-fg-subtle">
+                  <span className="ml-auto shrink-0 text-xs uppercase tracking-wide text-fg-subtle">
                     {c.state === "ok" ? "Good" : c.state === "warn" ? "Needs you" : "Unknown"}
                   </span>
                 </li>
@@ -763,7 +763,7 @@ export default async function SettingsPage({
                 <Input name="ownerEmail" type="email" defaultValue={ownerIdentity.email ?? ""} placeholder="admin@oracle.co.tz" autoComplete="email" />
               </div>
               <Button type="submit" variant="secondary">Save identity</Button>
-              <p className="-mt-1 text-[11px] text-fg-subtle sm:col-span-3">
+              <p className="-mt-1 text-xs text-fg-subtle sm:col-span-3">
                 When set, the Command Centre sign-in requires this name or email <span className="font-medium">and</span> the password. Leave both blank to sign in with the password alone.
               </p>
             </form>
@@ -806,8 +806,8 @@ export default async function SettingsPage({
               delete anything, and it never sends a message on your behalf</strong> — those wait in
               the Outbox for you. Creating a meeting is the one thing that emails anybody, because an
               invitation is part of the meeting. Add it to Claude Code with{" "}
-              <code className="rounded bg-surface px-1 py-0.5 text-[11px]">claude mcp add --transport http cos {appUrl}/api/mcp -H &quot;Authorization: Bearer YOUR_KEY&quot;</code>
-              , or add <code className="rounded bg-surface px-1 py-0.5 text-[11px]">{appUrl}/api/mcp</code> as a connector in Claude on your phone and sign in.
+              <code className="rounded bg-surface px-1 py-0.5 text-xs">claude mcp add --transport http cos {appUrl}/api/mcp -H &quot;Authorization: Bearer YOUR_KEY&quot;</code>
+              , or add <code className="rounded bg-surface px-1 py-0.5 text-xs">{appUrl}/api/mcp</code> as a connector in Claude on your phone and sign in.
             </p>
             <McpKeyManager initial={mcpKeys} create={createMcpKey} revoke={revokeMcpKey} connections={mcpConnections} revokeConnection={revokeMcpConnection} />
           </SettingsCard>
@@ -836,7 +836,7 @@ export default async function SettingsPage({
                 {portalEnabled.map((p) => (
                   <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border">
                     <span className="min-w-0 grow text-sm font-medium truncate">{p.name}</span>
-                    <span className="text-[11px] text-fg-subtle">
+                    <span className="text-xs text-fg-subtle">
                       {p.lastLogin
                         ? `Last in ${new Date(p.lastLogin).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
                         : "Never signed in"}
@@ -862,7 +862,7 @@ export default async function SettingsPage({
                     </form>
                   </div>
                 ))}
-                <p className="text-[11px] text-fg-subtle">
+                <p className="text-xs text-fg-subtle">
                   Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, chat messages, documents, attendance, leave) stays in the system, and you can grant access again at any time.
                 </p>
               </div>
@@ -902,7 +902,7 @@ export default async function SettingsPage({
             <form action={setDirectorOutreach} className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Director outreach</p>
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   {directorPaused
                     ? "Paused — directors can't draft messages/reminders right now."
                     : "Active — directors can draft messages/reminders (saved to Outbox first)."}
@@ -931,7 +931,7 @@ export default async function SettingsPage({
             <SettingsCard id="quiet-hours" icon={<Bell size={15} />} title="Quiet hours & batching" desc="Hold routine alerts; urgent ones always go through." keywords="quiet hours batching digest notifications mute window">
               <div className="max-w-xl space-y-3">
                 <div>
-                  <p className="text-[11px] text-fg-muted">Hold routine alerts in this window (Dar es Salaam time). Blank = off; can wrap midnight.</p>
+                  <p className="text-xs text-fg-muted">Hold routine alerts in this window (Dar es Salaam time). Blank = off; can wrap midnight.</p>
                   <div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-xs">
                     <div>
                       <FieldLabel>From</FieldLabel>
@@ -961,7 +961,7 @@ export default async function SettingsPage({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Rebuild task summaries</p>
-                <p className="text-[11px] text-fg-muted">Only if a task&apos;s latest note looks wrong. Rebuilds the short &ldquo;latest note&rdquo; line on each task from its full update history.</p>
+                <p className="text-xs text-fg-muted">Only if a task&apos;s latest note looks wrong. Rebuilds the short &ldquo;latest note&rdquo; line on each task from its full update history.</p>
               </div>
               <ResyncLatestUpdateButton />
             </div>

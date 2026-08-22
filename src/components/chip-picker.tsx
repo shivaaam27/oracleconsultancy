@@ -57,7 +57,7 @@ export function ChipPicker({
             type="button"
             onClick={() => onSelect(allowClear && value === o ? "" : o)}
             className={cn(
-              "h-8 rounded-md border px-2 text-[11px] transition-colors",
+              "h-8 rounded-md border px-2 text-xs transition-colors",
               value === o
                 ? "border-accent bg-accent-soft text-accent"
                 : "border-border bg-bg text-fg-muted hover:text-fg",
@@ -72,7 +72,7 @@ export function ChipPicker({
             type="button"
             onClick={() => setAdding(true)}
             title={`Add a new ${createNoun ?? "entry"}`}
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-dashed border-border px-2 text-[11px] text-fg-subtle hover:border-accent hover:text-accent"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-fg-subtle hover:border-accent hover:text-accent"
           >
             <Plus size={12} /> New
           </button>
@@ -89,10 +89,10 @@ export function ChipPicker({
                 if (e.key === "Escape") { setAdding(false); setDraft(""); setError(null); }
               }}
               placeholder={placeholder ?? "name"}
-              className="h-8 w-32 rounded-md border border-accent bg-bg px-2 text-[11px] outline-none"
+              className="h-8 w-32 rounded-md border border-accent bg-bg px-2 text-xs outline-none"
             />
             <button type="button" onClick={add} disabled={pending || !draft.trim()}
-              className="inline-flex h-8 items-center rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg disabled:opacity-50">
+              className="inline-flex h-8 items-center rounded-md bg-accent px-2 text-xs font-medium text-accent-fg disabled:opacity-50">
               {pending ? <Loader2 size={12} className="animate-spin" /> : "Add"}
             </button>
             <button type="button" onClick={() => { setAdding(false); setDraft(""); setError(null); }}
@@ -104,11 +104,11 @@ export function ChipPicker({
       </div>
 
       {options.length === 0 && !adding && (
-        <p className="mt-1 text-[10px] text-fg-subtle">
+        <p className="mt-1 text-xs text-fg-subtle">
           Nothing on this list yet — press <strong>New</strong>.
         </p>
       )}
-      {error && <p className="mt-1 text-[10px] text-danger">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }

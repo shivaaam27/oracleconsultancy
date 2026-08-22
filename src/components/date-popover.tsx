@@ -75,7 +75,7 @@ export function DatePopover({
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open, selected, today]);
 
-  const sz = compact ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-[12px]";
+  const sz = compact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-sm";
   const text = selected ? selected.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
   const cells = monthGrid(view);
 
@@ -119,7 +119,7 @@ export function DatePopover({
             <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors" aria-label="Previous month">
               <ChevronLeft size={16} />
             </button>
-            <span className="text-[13px] font-semibold text-fg">{MONTHS[view.getMonth()]} {view.getFullYear()}</span>
+            <span className="text-base font-semibold text-fg">{MONTHS[view.getMonth()]} {view.getFullYear()}</span>
             <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors" aria-label="Next month">
               <ChevronRight size={16} />
             </button>
@@ -127,7 +127,7 @@ export function DatePopover({
 
           {/* Weekday row */}
           <div className="grid grid-cols-7 gap-0.5 px-0.5">
-            {WEEK.map((w) => <span key={w} className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-fg-subtle">{w}</span>)}
+            {WEEK.map((w) => <span key={w} className="py-1 text-center text-xs font-medium uppercase tracking-wide text-fg-subtle">{w}</span>)}
           </div>
           {/* Days */}
           <div className="grid grid-cols-7 gap-0.5 px-0.5">
@@ -141,7 +141,7 @@ export function DatePopover({
                   type="button"
                   onClick={() => pick(d)}
                   className={cn(
-                    "inline-flex h-8 items-center justify-center rounded-lg text-[12.5px] transition-colors",
+                    "inline-flex h-8 items-center justify-center rounded-lg text-sm transition-colors",
                     isSel ? "bg-accent font-semibold text-accent-fg" : "text-fg hover:bg-bg-muted",
                     !isSel && isToday && "font-semibold text-accent ring-1 ring-accent/40",
                   )}
@@ -155,13 +155,13 @@ export function DatePopover({
           {/* Quick chips */}
           <div className="mt-2 grid grid-cols-2 gap-1 border-t border-border/60 pt-2">
             {quick.map((q) => (
-              <button key={q.label} type="button" onClick={() => pick(q.d())} className="rounded-lg bg-bg-subtle/70 px-2 py-1.5 text-[11px] font-medium ring-1 ring-border/60 transition-colors hover:text-accent hover:ring-accent/40">
+              <button key={q.label} type="button" onClick={() => pick(q.d())} className="rounded-lg bg-bg-subtle/70 px-2 py-1.5 text-xs font-medium ring-1 ring-border/60 transition-colors hover:text-accent hover:ring-accent/40">
                 {q.label}
               </button>
             ))}
           </div>
           {value && (
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="mt-1 w-full rounded-lg px-2 py-1.5 text-[11px] text-fg-muted transition-colors hover:bg-danger-soft/50 hover:text-danger">
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="mt-1 w-full rounded-lg px-2 py-1.5 text-xs text-fg-muted transition-colors hover:bg-danger-soft/50 hover:text-danger">
               Clear date
             </button>
           )}

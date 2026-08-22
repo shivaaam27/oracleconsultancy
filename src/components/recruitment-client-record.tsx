@@ -40,7 +40,7 @@ export function RecruitmentClientRecord({ client }: { client: ClientRecordData }
           /* The profile's own words: "We do not begin sourcing before it is
              signed." So it is said at the top of the record, not buried in a
              date field halfway down. */
-          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-[12px] text-fg">
+          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-sm text-fg">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
             <span>
               <strong>{missing.join(" and ")}</strong> {missing.length === 1 ? "is" : "are"} not signed.
@@ -75,7 +75,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
       </div>
       <div className="space-y-1.5 px-3 py-2.5">{children}</div>
     </section>
@@ -85,8 +85,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function Row({ label, value, bad }: { label: string; value: string; bad?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[11px] text-fg-subtle">{label}</span>
-      <span className={bad ? "text-[12px] font-medium text-warn" : "text-[12px] tabular"}>{value}</span>
+      <span className="text-xs text-fg-subtle">{label}</span>
+      <span className={bad ? "text-sm font-medium text-warn" : "text-sm tabular"}>{value}</span>
     </div>
   );
 }

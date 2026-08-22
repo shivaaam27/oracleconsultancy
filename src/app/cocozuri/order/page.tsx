@@ -40,7 +40,7 @@ export default async function CocozuriOrderPage({
     return (
       <div className="space-y-4">
         <PageHeader title="Order form" sub={company.name} />
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-[12.5px] text-fg-subtle">
+        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
           No stock locations yet — the order form is worked out from the stock book.
         </p>
       </div>
@@ -82,6 +82,7 @@ export default async function CocozuriOrderPage({
         items={book.items}
         days={book.days}
         counts={book.counts}
+        moves={book.moves}
         from={from}
         to={to}
         coverDays={cover}

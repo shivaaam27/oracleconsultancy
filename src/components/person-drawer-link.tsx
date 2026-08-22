@@ -48,7 +48,7 @@ function PersonPreviewBody(data: PersonPreview) {
           {expired > 0 && <span className="text-danger"> · {expired} expired</span>}
         </span>
       </div>
-      <div className="border-t border-border/50 pt-1.5 text-[11px] text-fg-subtle">Click to open the person</div>
+      <div className="border-t border-border/50 pt-1.5 text-xs text-fg-subtle">Click to open the person</div>
     </div>
   );
 }

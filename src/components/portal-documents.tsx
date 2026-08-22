@@ -60,10 +60,10 @@ export function PortalDocuments({ items }: { items: PortalDocumentItem[] }) {
               <FileText size={15} className="shrink-0 text-fg-subtle" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{d.title}</div>
-                {d.category && <div className="text-[11px] text-fg-subtle">{d.category}</div>}
+                {d.category && <div className="text-xs text-fg-subtle">{d.category}</div>}
               </div>
               {d.status !== "No expiry" && (
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", STATUS_TONE[d.status] ?? "bg-bg-muted text-fg-muted")}>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", STATUS_TONE[d.status] ?? "bg-bg-muted text-fg-muted")}>
                   {d.expiryLabel ?? d.status}
                 </span>
               )}

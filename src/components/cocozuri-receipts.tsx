@@ -122,10 +122,10 @@ export function CocozuriReceipts({
   const columns = buildColumns<Row>(ENTITY_VIEWS.cz_receipt!.listColumns, {
     overrides: {
       invoiceNumber: (r) => (
-        <span className="truncate text-[12.5px] text-fg-muted">{r.invoiceNumber ?? "—"}</span>
+        <span className="truncate text-sm text-fg-muted">{r.invoiceNumber ?? "—"}</span>
       ),
       amountLabel: (r) => (
-        <span className="tabular text-[12.5px] text-fg">
+        <span className="tabular text-sm text-fg">
           {r.amountLabel}
           {/* ⚠️ A quiet mark, not a column of its own — six columns already
               crowd this card. Green means it reached the accounts. */}
@@ -216,10 +216,10 @@ export function CocozuriReceipts({
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Customer, invoice, reference…"
-              wrapperClassName="w-[16rem]" className="h-8 text-[12.5px]" />
+              wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
             <button type="button" onClick={() => setRecording(true)}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90">
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a payment
             </button>
           </div>
@@ -227,8 +227,8 @@ export function CocozuriReceipts({
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
             <Banknote size={20} className="text-fg-subtle" />
-            <p className="text-[13px] font-medium text-fg-muted">No payments recorded yet.</p>
-            <p className="max-w-[28rem] text-[12px] text-fg-subtle">
+            <p className="text-base font-medium text-fg-muted">No payments recorded yet.</p>
+            <p className="max-w-[28rem] text-sm text-fg-subtle">
               Record one and the invoice it settles stops appearing on the Owed page. One cheque can
               cover several invoices — tick them all and it is written down once against each.
             </p>

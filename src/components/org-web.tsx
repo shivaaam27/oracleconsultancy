@@ -276,7 +276,7 @@ export function OrgWeb({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-[11px] text-fg-subtle">Tap a node to focus its links · drag to rearrange · tap empty space to clear.</div>
+        <div className="text-xs text-fg-subtle">Tap a node to focus its links · drag to rearrange · tap empty space to clear.</div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative flex-1 min-w-[9rem] sm:flex-none">
             <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
@@ -296,7 +296,7 @@ export function OrgWeb({
           const m = LINK_META[k]; const on = visible[k];
           return (
             <button key={k} type="button" onClick={() => setVisible((v) => ({ ...v, [k]: !v[k] }))}
-              className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ring-1 transition-all", on ? "bg-bg-elev/70 ring-border text-fg" : "bg-transparent ring-border/60 text-fg-subtle line-through opacity-60")}>
+              className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 transition-all", on ? "bg-bg-elev/70 ring-border text-fg" : "bg-transparent ring-border/60 text-fg-subtle line-through opacity-60")}>
               <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke={m.color} strokeWidth={m.width} strokeDasharray={m.dash} /></svg>
               {m.label}
             </button>
@@ -365,20 +365,20 @@ export function OrgWeb({
           <div className="org-pop absolute z-20 w-60 rounded-xl p-3" style={{ left: `${((selPos.x * t.scale + t.x) / W) * 100}%`, top: `${((selPos.y * t.scale + t.y) / H) * 100}%`, transform: "translate(-50%, calc(-100% - 16px))" }}>
             {selPerson ? (
               <>
-                <div className="text-[13px] font-semibold text-fg leading-tight">{selPerson.name}</div>
-                <div className="text-[11px] text-fg-muted">{selPerson.role || PERSON_TYPE_LABELS[selPerson.personType as keyof typeof PERSON_TYPE_LABELS] || ""}{selPerson.companyName ? ` · ${selPerson.companyName}` : ""}</div>
-                <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+                <div className="text-base font-semibold text-fg leading-tight">{selPerson.name}</div>
+                <div className="text-xs text-fg-muted">{selPerson.role || PERSON_TYPE_LABELS[selPerson.personType as keyof typeof PERSON_TYPE_LABELS] || ""}{selPerson.companyName ? ` · ${selPerson.companyName}` : ""}</div>
+                <div className="mt-1.5 flex flex-wrap gap-1 text-xs">
                   {(reportsCount.get(selPerson.id) ?? 0) > 0 && <span className="rounded bg-accent-soft text-accent px-1.5 py-0.5 font-medium">{reportsCount.get(selPerson.id)} report{reportsCount.get(selPerson.id) === 1 ? "" : "s"}</span>}
                   {selX?.open ? <span className="rounded bg-info-soft text-info px-1.5 py-0.5 font-medium">{selX.open} open</span> : null}
                   {selX?.overdue ? <span className="rounded bg-danger-soft text-danger px-1.5 py-0.5 font-medium">{selX.overdue} overdue</span> : null}
                 </div>
-                <button type="button" onClick={() => openPerson(selPerson.id)} className="mt-2 w-full h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-[11px] font-medium hover:bg-accent-hover transition-colors"><UserRound size={12} /> Open profile</button>
+                <button type="button" onClick={() => openPerson(selPerson.id)} className="mt-2 w-full h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:bg-accent-hover transition-colors"><UserRound size={12} /> Open profile</button>
               </>
             ) : selCompany ? (
               <>
-                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-fg leading-tight"><Building2 size={13} style={{ color: selCompany.accentColor || undefined }} /> {selCompany.name}</div>
-                <div className="text-[11px] text-fg-muted mt-0.5">{headcount.get(selCompany.id) ?? 0} employed</div>
-                {onPickCompany && <button type="button" onClick={() => onPickCompany(selCompany.id)} className="mt-2 w-full h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-[11px] font-medium hover:bg-accent-hover transition-colors">Open company tree <ArrowRight size={12} /></button>}
+                <div className="flex items-center gap-1.5 text-base font-semibold text-fg leading-tight"><Building2 size={13} style={{ color: selCompany.accentColor || undefined }} /> {selCompany.name}</div>
+                <div className="text-xs text-fg-muted mt-0.5">{headcount.get(selCompany.id) ?? 0} employed</div>
+                {onPickCompany && <button type="button" onClick={() => onPickCompany(selCompany.id)} className="mt-2 w-full h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:bg-accent-hover transition-colors">Open company tree <ArrowRight size={12} /></button>}
               </>
             ) : null}
           </div>

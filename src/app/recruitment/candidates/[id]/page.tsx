@@ -5,6 +5,7 @@ import { getCandidate } from "@/lib/recruitment";
 import { RecruitmentCandidateRecord } from "@/components/recruitment-candidate-record";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Candidate — Recruitment" };
 
 export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

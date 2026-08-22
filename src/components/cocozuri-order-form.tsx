@@ -7,6 +7,7 @@ import { SearchInput } from "@/components/ui";
 import {
   orderSuggestions, qty,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
+  type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
 import { cn } from "@/lib/cn";
 
@@ -26,13 +27,19 @@ import { cn } from "@/lib/cn";
  * ------------------------------------------------------------------ */
 
 export function CocozuriOrderForm({
-  location, locations, items, days, counts, from, to, coverDays, productNames,
+  location, locations, items, days, counts, moves, from, to, coverDays, productNames,
 }: {
   location: CzStockLocation;
   locations: CzStockLocation[];
   items: CzStockItem[];
+  /** ⚠️ THE SHEET, and it is what says how many days were actually counted —
+   *  the kitchen skips 7 to 10 August, and dividing by the calendar would halve
+   *  every kitchen figure. */
   days: CzStockDay[];
   counts: CzStockCount[];
+  /** ⚠️ THE LEDGER, and it is where what went out and what is on hand come
+   *  from. Two sources, on purpose — see `orderSuggestions`. */
+  moves: CzStockMove[];
   from: string;
   to: string;
   coverDays: number;
@@ -48,8 +55,8 @@ export function CocozuriOrderForm({
     (it.productId != null ? productNames[it.productId] : null) ?? it.name;
 
   const rows = useMemo(
-    () => orderSuggestions(items, days, counts, { from, to, coverDays }),
-    [items, days, counts, from, to, coverDays],
+    () => orderSuggestions(items, location.id, moves, days, counts, { from, to, coverDays }),
+    [items, location.id, moves, days, counts, from, to, coverDays],
   );
 
   const shown = useMemo(() => {
@@ -74,7 +81,7 @@ export function CocozuriOrderForm({
         <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
           {locations.map((l) => (
             <button key={l.id} type="button" onClick={() => go({ loc: l.id })}
-              className={cn("h-7 rounded px-2.5 text-[12px] font-medium transition-colors",
+              className={cn("h-7 rounded px-2.5 text-sm font-medium transition-colors",
                 l.id === location.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
               {l.name}
             </button>
@@ -83,32 +90,32 @@ export function CocozuriOrderForm({
         {/* ⚠️ Buttons, not a native `<select>` — CLAUDE.md bans them outright
             (their popup mis-renders against this design) and four choices do
             not need a menu anyway. */}
-        <span className="flex items-center gap-1 text-[11.5px] text-fg-subtle">
+        <span className="flex items-center gap-1 text-xs text-fg-subtle">
           Enough for
           <span className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
             {[7, 14, 21, 28].map((d) => (
               <button key={d} type="button" onClick={() => go({ cover: d })}
-                className={cn("h-6 rounded px-2 text-[12px] font-medium transition-colors",
+                className={cn("h-6 rounded px-2 text-sm font-medium transition-colors",
                   d === coverDays ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
                 {d}d
               </button>
             ))}
           </span>
         </span>
-        <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+        <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} />
           Only what needs ordering
         </label>
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[13rem]" className="h-7 text-[12px]" />
+          wrapperClassName="w-[13rem]" className="h-7 text-sm" />
         <span className="grow" />
         <button type="button" onClick={() => window.print()}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
           <Printer size={13} /> Print
         </button>
       </div>
 
-      <p className="text-[11.5px] leading-relaxed text-fg-subtle print:text-fg-muted">
+      <p className="text-xs leading-relaxed text-fg-subtle print:text-fg-muted">
         Worked out from what actually went out between <strong className="text-fg-muted">{from}</strong> and{" "}
         <strong className="text-fg-muted">{to}</strong>, over the days that were counted — <strong className="text-fg-muted">{location.name}</strong> is
         not counted every day and dividing by the calendar would under-order everything. Every figure
@@ -117,7 +124,7 @@ export function CocozuriOrderForm({
 
       <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev">
         <div className="min-w-[42rem]">
-          <div className="grid grid-cols-[minmax(9rem,1fr)_80px_90px_90px_100px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+          <div className="grid grid-cols-[minmax(9rem,1fr)_80px_90px_90px_100px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
             <span>Item</span>
             <span className="text-right">On hand</span>
             <span className="text-right">A day</span>
@@ -130,16 +137,16 @@ export function CocozuriOrderForm({
             return (
               <div key={r.item.id}
                 className="grid grid-cols-[minmax(9rem,1fr)_80px_90px_90px_100px] items-center gap-2 border-b border-border px-3 py-1 last:border-0">
-                <span className="min-w-0 truncate text-[12.5px] text-fg" title={nameOf(r.item)}>
+                <span className="min-w-0 truncate text-sm text-fg" title={nameOf(r.item)}>
                   {nameOf(r.item)}
-                  <span className="ml-1.5 text-[11px] text-fg-subtle">{r.item.uom}</span>
+                  <span className="ml-1.5 text-xs text-fg-subtle">{r.item.uom}</span>
                 </span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{qty(r.onHand)}</span>
-                <span className="text-right text-[12px] tabular text-fg-subtle">
+                <span className="text-right text-sm tabular text-fg-muted">{qty(r.onHand)}</span>
+                <span className="text-right text-sm tabular text-fg-subtle">
                   {r.perDay == null ? "—" : r.perDay === 0 ? "0" : r.perDay.toFixed(1)}
                 </span>
                 {/* ⚠️ Three different things, said three different ways. */}
-                <span className={cn("text-right text-[12px] tabular",
+                <span className={cn("text-right text-sm tabular",
                   cover == null ? "text-fg-subtle"
                     : !Number.isFinite(cover) ? "text-fg-subtle"
                       : cover < 7 ? "text-danger" : cover < 14 ? "text-warn" : "text-fg-muted")}>
@@ -151,14 +158,14 @@ export function CocozuriOrderForm({
                   inputMode="decimal"
                   placeholder={r.suggested == null ? "?" : "0"}
                   aria-label={`Order quantity for ${nameOf(r.item)}`}
-                  className="w-full rounded-md border border-border bg-bg px-1.5 py-1 text-right text-[12.5px] tabular outline-none focus:border-accent print:border-0"
+                  className="w-full rounded-md border border-border bg-bg px-1.5 py-1 text-right text-sm tabular outline-none focus:border-accent print:border-0"
                 />
               </div>
             );
           })}
 
           {shown.length === 0 && (
-            <p className="px-3 py-8 text-center text-[12.5px] text-fg-subtle">
+            <p className="px-3 py-8 text-center text-sm text-fg-subtle">
               {rows.length === 0
                 ? "No items on this location's list yet."
                 : only
@@ -167,7 +174,7 @@ export function CocozuriOrderForm({
             </p>
           )}
 
-          <div className="grid grid-cols-[minmax(9rem,1fr)_80px_90px_90px_100px] items-center gap-2 border-t-2 border-border bg-bg-subtle px-3 py-1.5 text-[12px] font-semibold text-fg">
+          <div className="grid grid-cols-[minmax(9rem,1fr)_80px_90px_90px_100px] items-center gap-2 border-t-2 border-border bg-bg-subtle px-3 py-1.5 text-sm font-semibold text-fg">
             <span>{ordering.length} line{ordering.length === 1 ? "" : "s"} to order</span>
             <span /><span /><span />
             <span className="text-right tabular">{qty(totalUnits)}</span>
@@ -179,7 +186,7 @@ export function CocozuriOrderForm({
           forecast, and a confident zero beside it is how a product quietly
           stops being made. */}
       {rows.some((r) => r.suggested == null) && (
-        <p className="text-[11.5px] text-fg-subtle print:hidden">
+        <p className="text-xs text-fg-subtle print:hidden">
           {rows.filter((r) => r.suggested == null).length} item
           {rows.filter((r) => r.suggested == null).length === 1 ? " has" : "s have"} too little history to
           judge — fewer than two days written down. They are listed with no figure rather than a zero.

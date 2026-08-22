@@ -46,7 +46,7 @@ export function PasswordField({
         </button>
       </div>
       {caps && (
-        <span className="inline-flex items-center gap-1 text-[11px] text-warn">
+        <span className="inline-flex items-center gap-1 text-xs text-warn">
           <TriangleAlert size={11} /> Caps Lock is on
         </span>
       )}

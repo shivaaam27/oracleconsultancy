@@ -335,7 +335,7 @@ export function PortalCommand({ canAct = false }: { canAct?: boolean }) {
                   <X size={13} />
                 </button>
               )}
-              <kbd className="shrink-0 rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] text-fg-subtle">ESC</kbd>
+              <kbd className="shrink-0 rounded-md border border-border px-1.5 py-0.5 font-mono text-xs text-fg-subtle">ESC</kbd>
             </div>
 
             {/* Body — scroll-fade list */}
@@ -343,7 +343,7 @@ export function PortalCommand({ canAct = false }: { canAct?: boolean }) {
               {/* Ask ORI answer, above the native results */}
               {(asking || answer || (asked && askNote)) && (
                 <div className="mb-1.5 rounded-2xl bg-accent-soft/50 p-3 ring-1 ring-accent/15">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                  <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
                     <Sparkles size={12} /> ORI
                   </div>
                   {asking ? (
@@ -356,11 +356,11 @@ export function PortalCommand({ canAct = false }: { canAct?: boolean }) {
                       onOpen={(href) => { close(); router.push(href); }}
                     />
                   ) : askNote ? (
-                    <p className="text-[13px] leading-relaxed text-fg-muted">{askNote}</p>
+                    <p className="text-base leading-relaxed text-fg-muted">{askNote}</p>
                   ) : null}
                   {/* A scoped viewer's note sits under the card (or standalone). */}
                   {!asking && answer && askNote && (
-                    <p className="mt-1.5 text-[11px] text-fg-subtle">{askNote}</p>
+                    <p className="mt-1.5 text-xs text-fg-subtle">{askNote}</p>
                   )}
                 </div>
               )}
@@ -535,7 +535,7 @@ function ActPanel({ onNavigate }: { onNavigate: (href: string) => void }) {
 
   return (
     <div className="p-4">
-      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
         <Wand2 size={13} /> ORI can do this
       </p>
 
@@ -554,14 +554,14 @@ function ActPanel({ onNavigate }: { onNavigate: (href: string) => void }) {
             className="w-full resize-none rounded-2xl bg-bg-subtle px-3.5 py-3 text-[14px] leading-relaxed outline-none ring-1 ring-border placeholder:text-fg-subtle focus:ring-accent/40"
             aria-label="Tell ORI what to do"
           />
-          <p className="mt-1.5 text-[11px] text-fg-subtle">
+          <p className="mt-1.5 text-xs text-fg-subtle">
             ORI will show you what it plans to do first — nothing happens until you confirm. Actions stay within your permissions and company scope.
           </p>
           <button
             type="button"
             disabled={!instruction.trim()}
             onClick={start}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-base font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             <Wand2 size={14} /> Ask ORI to plan it
           </button>
@@ -598,8 +598,8 @@ function ActPanel({ onNavigate }: { onNavigate: (href: string) => void }) {
               <div className="divide-y divide-border/60 rounded-xl border border-border bg-bg-subtle/60">
                 {phase.plan.map((s, i) => (
                   <div key={i} className="flex items-start gap-2 px-3 py-2">
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-[10px] font-semibold text-accent">{i + 1}</span>
-                    <span className="text-[13px] text-fg">{s.summary}</span>
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-xs font-semibold text-accent">{i + 1}</span>
+                    <span className="text-base text-fg">{s.summary}</span>
                   </div>
                 ))}
               </div>
@@ -624,7 +624,7 @@ function ActPanel({ onNavigate }: { onNavigate: (href: string) => void }) {
             <div className="space-y-1.5">
               <div className="font-medium text-fg">{phase.reply}</div>
               {phase.results.map((r, i) => (
-                <div key={i} className="flex items-start gap-2 text-[13px]">
+                <div key={i} className="flex items-start gap-2 text-base">
                   {r.ok ? <Check size={14} className="mt-0.5 shrink-0 text-success" /> : <X size={14} className="mt-0.5 shrink-0 text-danger" />}
                   <span className={cn("flex-1", r.ok ? "text-fg" : "text-danger")}>{r.message}</span>
                 </div>
@@ -662,11 +662,11 @@ function ActPanel({ onNavigate }: { onNavigate: (href: string) => void }) {
 function AnswerCard({ answer, onOpen }: { answer: SmartAnswer; onOpen: (href: string) => void }) {
   return (
     <div>
-      <p className="text-[13.5px] font-semibold text-fg">
+      <p className="text-base font-semibold text-fg">
         {answer.title}
         {answer.count > 0 && <span className="ml-1.5 text-fg-muted">· {answer.count}</span>}
       </p>
-      {answer.note && <p className="mt-0.5 text-[11px] text-fg-subtle">{answer.note}</p>}
+      {answer.note && <p className="mt-0.5 text-xs text-fg-subtle">{answer.note}</p>}
       {answer.rows.length > 0 && (
         <div className="mt-1.5 space-y-0.5">
           {answer.rows.map((row, i) => (
@@ -676,9 +676,9 @@ function AnswerCard({ answer, onOpen }: { answer: SmartAnswer; onOpen: (href: st
               onClick={() => onOpen(row.href)}
               className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-bg-muted/60"
             >
-              <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{row.label}</span>
-              {row.sub && <span className="shrink-0 text-[11px] text-fg-subtle">{row.sub}</span>}
-              {row.badge && <span className="shrink-0 rounded-md bg-bg-muted px-1.5 py-0.5 text-[10px] text-fg-muted">{row.badge}</span>}
+              <span className="min-w-0 flex-1 truncate text-base text-fg">{row.label}</span>
+              {row.sub && <span className="shrink-0 text-xs text-fg-subtle">{row.sub}</span>}
+              {row.badge && <span className="shrink-0 rounded-md bg-bg-muted px-1.5 py-0.5 text-xs text-fg-muted">{row.badge}</span>}
               <ArrowUpRight size={13} className="shrink-0 text-fg-subtle" />
             </button>
           ))}
@@ -688,7 +688,7 @@ function AnswerCard({ answer, onOpen }: { answer: SmartAnswer; onOpen: (href: st
         <button
           type="button"
           onClick={() => onOpen(answer.href!)}
-          className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline"
+          className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
         >
           See all <ArrowUpRight size={13} />
         </button>
@@ -701,7 +701,7 @@ function AnswerCard({ answer, onOpen }: { answer: SmartAnswer; onOpen: (href: st
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-1">
-      <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">{label}</p>
+      <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">{label}</p>
       {children}
     </div>
   );
@@ -728,7 +728,7 @@ function ModeChip({ active, onClick, icon: Icon, label }: { active: boolean; onC
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors",
         active ? "bg-accent-soft text-accent" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
       )}
     >
@@ -760,10 +760,10 @@ function TaskRow({ task, onOpen }: { task: CoreTask; onOpen?: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="shrink-0 font-mono text-[11px] text-fg-muted">{task.code}</span>
+          <span className="shrink-0 font-mono text-xs text-fg-muted">{task.code}</span>
           <span className="min-w-0 truncate text-sm">{task.actionItem}</span>
         </span>
-        <span className="block truncate text-[11px] text-fg-muted">
+        <span className="block truncate text-xs text-fg-muted">
           {[task.companyName, task.status].filter(Boolean).join(" · ")}
         </span>
       </span>
@@ -780,7 +780,7 @@ function PersonRow({ person, onOpen }: { person: CorePerson; onOpen?: () => void
       </span>
       <span className="min-w-0 flex-1">
         <span className="min-w-0 truncate text-sm">{person.name}</span>
-        <span className="block truncate text-[11px] text-fg-muted">
+        <span className="block truncate text-xs text-fg-muted">
           {[person.role, person.company].filter(Boolean).join(" · ")}
         </span>
       </span>
@@ -798,7 +798,7 @@ function ResultRow({ result, onOpen }: { result: OriResult; onOpen?: () => void 
       </span>
       <span className="min-w-0 flex-1">
         <span className="min-w-0 truncate text-sm">{result.title}</span>
-        {result.subtitle && <span className="block truncate text-[11px] text-fg-muted">{result.subtitle}</span>}
+        {result.subtitle && <span className="block truncate text-xs text-fg-muted">{result.subtitle}</span>}
         {result.snippet && <HighlightSnippet text={result.snippet} />}
       </span>
       <WhyTag kind={undefined} />

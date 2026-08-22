@@ -22,7 +22,7 @@ export function CompanyKeyDocuments({ rows }: { rows: KeyDocumentRow[] }) {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
         <KeyRound size={15} className="text-accent" />
         <h2 className="text-sm font-semibold">Key documents</h2>
-        <span className="text-[11px] text-fg-subtle">pulled from filed documents</span>
+        <span className="text-xs text-fg-subtle">pulled from filed documents</span>
       </div>
       <ul className="divide-y divide-border/50">
         {rows.map((r) => {
@@ -31,7 +31,7 @@ export function CompanyKeyDocuments({ rows }: { rows: KeyDocumentRow[] }) {
             <li key={r.key} className="flex items-center gap-3 px-4 py-2.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{r.label}</span>
-                <span className="block truncate text-[11px] text-fg-subtle">
+                <span className="block truncate text-xs text-fg-subtle">
                   {r.value
                     ? `${r.value}${r.documentTitle ? ` · ${r.documentTitle}` : ""}${r.expiryLabel ? ` · ${r.expiryLabel}` : ""}`
                     : onFile
@@ -40,15 +40,15 @@ export function CompanyKeyDocuments({ rows }: { rows: KeyDocumentRow[] }) {
                 </span>
               </span>
               {r.status ? (
-                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[r.status]}`}>
+                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[r.status]}`}>
                   {r.status}
                 </span>
               ) : r.value ? (
-                <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-muted text-fg-muted">
+                <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-bg-muted text-fg-muted">
                   Recorded
                 </span>
               ) : (
-                <span className="shrink-0 text-[11px] text-fg-subtle">—</span>
+                <span className="shrink-0 text-xs text-fg-subtle">—</span>
               )}
             </li>
           );

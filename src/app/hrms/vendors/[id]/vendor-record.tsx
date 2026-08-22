@@ -85,15 +85,15 @@ export function VendorRecord({
           ].map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-bg-subtle/50 px-2.5 py-2">
               <span className={cn("block text-lg font-semibold leading-none tabular", s.tone)}>{s.value}</span>
-              <span className="mt-1 block text-[11px] text-fg-subtle">{s.label}</span>
+              <span className="mt-1 block text-xs text-fg-subtle">{s.label}</span>
             </div>
           ))}
         </div>
       </RecordSidebarBlock>
 
       <RecordSidebarBlock title="Manage">
-        <p className="text-[12px] text-fg-muted">Editing and archiving happen on the vendor register.</p>
-        <Link href="/hrms/assets?view=vendors" className="text-[12px] text-accent hover:underline">
+        <p className="text-sm text-fg-muted">Editing and archiving happen on the vendor register.</p>
+        <Link href="/hrms/assets?view=vendors" className="text-sm text-accent hover:underline">
           Open the register
         </Link>
       </RecordSidebarBlock>
@@ -122,7 +122,7 @@ export function VendorRecord({
       {tab === "contracts" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {documents.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-fg-muted">No contracts filed against this vendor.</p>
+            <p className="px-3 py-8 text-center text-base text-fg-muted">No contracts filed against this vendor.</p>
           ) : (
             <ul>
               {documents.map((d) => (
@@ -132,11 +132,11 @@ export function VendorRecord({
                     data-list-row
                     className="group flex items-center gap-2 px-3 hover:bg-bg-subtle"
                   >
-                    <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{d.title}</span>
-                    <span className="shrink-0 text-[11px] text-fg-muted">{d.category}</span>
+                    <span className="min-w-0 flex-1 truncate text-base group-hover:text-accent">{d.title}</span>
+                    <span className="shrink-0 text-xs text-fg-muted">{d.category}</span>
                     <span
                       className={cn(
-                        "shrink-0 text-[11px]",
+                        "shrink-0 text-xs",
                         d.status === "Expired" ? "font-medium text-danger" : d.status === "Expiring" ? "text-warn" : "text-fg-subtle"
                       )}
                     >

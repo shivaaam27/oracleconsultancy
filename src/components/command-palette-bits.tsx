@@ -59,7 +59,7 @@ export function MagneticChip({ onClick, className, children }: { onClick?: () =>
 export function HighlightSnippet({ text }: { text: string }) {
   const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
   return (
-    <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
+    <span className="mt-0.5 block truncate text-xs text-fg-subtle">
       <span className="opacity-60">“</span>
       {parts.map((p, i) =>
         p.startsWith("«")
@@ -91,7 +91,7 @@ export function WhyTag({ kind }: { kind?: "name" | "inside" | "meaning" }) {
 export function HighlightBlock({ text }: { text: string }) {
   const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
   return (
-    <span className="block text-[13px] leading-relaxed text-fg whitespace-pre-wrap">
+    <span className="block text-base leading-relaxed text-fg whitespace-pre-wrap">
       {parts.map((p, i) =>
         p.startsWith("«")
           ? <mark key={i} className="rounded bg-accent/20 px-0.5 text-accent">{p.slice(1, -1)}</mark>

@@ -131,7 +131,7 @@ export function LedgerChart({
           should always be quiet. If it is not, something reached gl_entries
           without going through postVoucher — worth stopping to find. */}
       {!health.ok && (
-        <div className="rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+        <div className="rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">
           <strong>The books do not balance.</strong> Debits {ledgerAmount(health.debit)} against credits{" "}
           {ledgerAmount(health.credit)} — out by {ledgerAmount(Math.abs(health.difference))}. Every voucher is
           checked before it is written, so this means something was posted another way. Do not carry on
@@ -140,7 +140,7 @@ export function LedgerChart({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[12px] text-fg-muted">
+        <div className="flex items-center gap-2 text-sm text-fg-muted">
           <button
             type="button"
             onClick={() => setCollapsed(new Set(accounts.filter((a) => a.isGroup).map((a) => a.id)))}
@@ -175,7 +175,7 @@ export function LedgerChart({
 
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[13px]">
+          <table className="w-full min-w-[720px] text-base">
             <thead>
               <tr data-list-head className="border-b border-border text-left">
                 <Th className="w-[42%]">Account</Th>
@@ -239,7 +239,7 @@ export function LedgerChart({
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+        <div className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
           {rows.length} of {accounts.length} shown · a balance is worked out from the entries every time this page
           loads, never stored
         </div>
@@ -323,7 +323,7 @@ function AccountSheet({
       icon={<BookOpen className="h-4 w-4" />}
       footer={
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] text-fg-subtle">
+          <span className="text-sm text-fg-subtle">
             {posted > 0 ? `${posted} posting${posted === 1 ? "" : "s"}` : "No postings yet"}
           </span>
           <div className="flex gap-2">
@@ -355,7 +355,7 @@ function AccountSheet({
             }}
           />
           {posted > 0 && (
-            <p className="mt-1 text-[11px] text-fg-subtle">
+            <p className="mt-1 text-xs text-fg-subtle">
               ⚠️ Frozen — this account has postings, so changing its kind would change every past report.
             </p>
           )}
@@ -387,7 +387,7 @@ function AccountSheet({
             onChange={(e) => set("currency", e.target.value.toUpperCase() || null)}
             placeholder="TZS (leave blank)"
           />
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             Only for an account genuinely held in another money — a dollar bank account. The books are still
             kept in shillings.
           </p>
@@ -401,9 +401,9 @@ function AccountSheet({
             className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
             disabled={posted > 0}
           />
-          <span className="text-[13px]">
+          <span className="text-base">
             This is a heading
-            <span className="block text-[11px] text-fg-subtle">
+            <span className="block text-xs text-fg-subtle">
               A heading holds other accounts and takes no postings of its own. Its total is the sum of
               everything beneath it.
             </span>
@@ -422,7 +422,7 @@ function AccountSheet({
             onSelect={(v) => set("defaultFor", v || null)}
             placeholder="— none —"
           />
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             How the system finds this account without being told its number — so when an invoice starts
             posting itself, it asks for &ldquo;the debtors account&rdquo; and gets this one. One account per job.
           </p>
@@ -443,7 +443,7 @@ function AccountSheet({
             <Button variant="ghost" size="sm" onClick={() => onArchive(!account.archived)} loading={busy}>
               {account.archived ? "Bring back into use" : "Archive"}
             </Button>
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               {account.archived
                 ? "It is closed to new postings; what it already holds still counts."
                 : "Stops new postings. Everything already posted still counts and still shows."}
@@ -470,7 +470,7 @@ function AccountSheet({
 
 function Problem({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+    <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">
       {children}
     </div>
   );
@@ -478,7 +478,7 @@ function Problem({ children }: { children: React.ReactNode }) {
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );

@@ -123,8 +123,8 @@ export function PortalCleaning({
           <Ring pct={comp.pct} done={comp.done} total={comp.total} />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">{fmtLongDate(dateIso)}</div>
-            <span className={cn("mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", dayStatusColor[status])}>{status}</span>
-            <p className="mt-1.5 text-[11px] text-fg-subtle">
+            <span className={cn("mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", dayStatusColor[status])}>{status}</span>
+            <p className="mt-1.5 text-xs text-fg-subtle">
               {signed ? "Submitted for today." : "Tick each room as you finish it, then submit."}
             </p>
           </div>
@@ -159,7 +159,7 @@ export function PortalCleaning({
                   </button>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{area.name}</div>
-                    <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
+                    <div className="flex items-center gap-2 text-xs text-fg-subtle">
                       {st.done && st.doneAt && <span>done {fmtTime(st.doneAt)}</span>}
                       {st.comment && !editing && <span className="inline-flex items-center gap-1 truncate text-fg-muted"><MessageSquare size={10} />{st.comment}</span>}
                     </div>

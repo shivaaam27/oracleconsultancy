@@ -1,8 +1,16 @@
 import Link from "next/link";
-import { Package, Building2, Tag, AlertTriangle, AlarmClock, Banknote, Receipt, Boxes, ClipboardCheck } from "lucide-react";
+import { Package, Building2, Tag, AlertTriangle, AlarmClock, Banknote, Receipt, Boxes, ClipboardCheck, ShoppingCart, Wallet, ChefHat, Factory, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { cocozuriCompany, defaultVatRate, listCustomers, listInvoices, listPrices, listProducts, listReceipts } from "@/lib/cocozuri";
 import { listItems, listLocations } from "@/lib/cocozuri-stock";
+import { listBudgets, listPurchases } from "@/lib/cocozuri-buy";
+import { budgetUsage, purchaseTotals } from "@/lib/cocozuri-buy-shared";
+import { listRecipes, materialCosts } from "@/lib/cocozuri-recipe";
+import { costRecipe } from "@/lib/cocozuri-recipe-shared";
+import { listBatches } from "@/lib/cocozuri-batch";
+import { isOpen } from "@/lib/cocozuri-batch-shared";
+import { listTransfers } from "@/lib/cocozuri-transfer";
+import { transferCheck } from "@/lib/cocozuri-transfer-shared";
 import { postingOverview } from "@/lib/cocozuri-ledger";
 import { CZ_AGEING_BANDS, ageingSummary, money, outstandingOf } from "@/lib/cocozuri-shared";
 
@@ -39,7 +47,41 @@ export default async function CocozuriPage() {
     listInvoices(),
     listReceipts(),
   ]);
-  const [locations, stockItems, books] = await Promise.all([listLocations(), listItems(), postingOverview()]);
+  const [locations, stockItems, books, purchases, budgets, recipes, batches] = await Promise.all([
+    listLocations(), listItems(), postingOverview(), listPurchases(), listBudgets(), listRecipes(),
+    listBatches(),
+  ]);
+  const transfers = await listTransfers();
+
+  /* ⚠️ Stock that has left one shelf and not reached the other. It is the
+     number nobody can see today, and the reason a stock-take at the shop keeps
+     blaming the shop. */
+  const onWay = transfers.filter((t) => t.status === "sent");
+  const inTransit = onWay.reduce((s, t) => s + transferCheck(t).inTransit, 0);
+
+  /* ⚠️ A batch left open is the number worth putting on the desk — note #26,
+     "which required / running (time)". It is almost always one somebody forgot
+     to close rather than a long process. */
+  const running = batches.filter(isOpen).length;
+
+  /* ⚠️ A recipe that cannot be costed in full is the one thing that makes this
+     page misleading, so it is counted and said rather than left to be found one
+     recipe at a time. */
+  const costs = Object.fromEntries(await materialCosts(stockItems.map((i) => i.id)));
+  const activeRecipes = recipes.filter((r) => r.status === "active");
+  const uncostable = activeRecipes.filter(
+    (r) => !costRecipe(r, (id) => costs[id]?.unitCost ?? null).complete,
+  ).length;
+
+  /* ⚠️ Worked out on read, like everything else. A draft purchase has moved no
+     stock and reaches no books — it is a job waiting for somebody, and that is
+     the number worth putting on the desk. */
+  const waitingApproval = purchases.filter((p) => p.status === "draft").length;
+  const bought = purchases
+    .filter((p) => p.status === "approved")
+    .reduce((t, p) => t + purchaseTotals(p.lines, p.vatRate, p.taxInclusive, p.freightAmount).payable, 0);
+  const liveBudgets = budgets.filter((b) => b.status === "approved");
+  const overrun = liveBudgets.filter((b) => budgetUsage(b, purchases).over).length;
 
   const priced = new Set(prices.map((p) => p.productId)).size;
   const missing = products.length - priced;
@@ -73,6 +115,31 @@ export default async function CocozuriPage() {
         <Tile href="/cocozuri/stock" icon={<Boxes size={16} />} n={stockItems.length} label={`items counted, in ${locations.length} place${locations.length === 1 ? "" : "s"}`} />
         <Tile href="/cocozuri/stock/month" icon={<ClipboardCheck size={16} />} value="Stock-take" label="the month, and the count" />
         <Tile href="/cocozuri/products" icon={<Tag size={16} />} n={prices.length} label="prices on record" />
+        {/* Manufacturing Stage 2 — buying. ⚠️ A draft purchase is a job nobody
+            has done yet: nothing is on the shelf until it is approved. */}
+        <Tile href="/cocozuri/purchases" icon={<ShoppingCart size={16} />}
+          value={money(bought)}
+          label={waitingApproval > 0 ? `bought · ${waitingApproval} waiting to be approved` : "bought and on the shelf"}
+          tone={waitingApproval > 0 ? "warn" : undefined} />
+        <Tile href="/cocozuri/budgets" icon={<Wallet size={16} />}
+          n={liveBudgets.length}
+          label={overrun > 0 ? `budgets approved · ${overrun} overrun` : "budgets approved"}
+          tone={overrun > 0 ? "danger" : undefined} />
+        {/* Manufacturing Stage 3 — what a bar costs to make. */}
+        <Tile href="/cocozuri/recipes" icon={<ChefHat size={16} />}
+          n={activeRecipes.length}
+          label={uncostable > 0 ? `recipes in use · ${uncostable} cannot be costed in full` : "recipes in use"}
+          tone={uncostable > 0 ? "warn" : undefined} />
+        {/* Manufacturing Stage 4 — production. */}
+        <Tile href="/cocozuri/batches" icon={<Factory size={16} />}
+          n={batches.length}
+          label={running > 0 ? `batches · ${running} still being made` : "batches made"}
+          tone={running > 0 ? "warn" : undefined} />
+        {/* Manufacturing Stage 5 — kitchen to shop. */}
+        <Tile href="/cocozuri/transfers" icon={<Truck size={16} />}
+          n={transfers.length}
+          label={onWay.length > 0 ? `transfers · ${inTransit} on the way, uncounted` : "transfers"}
+          tone={onWay.length > 0 ? "warn" : undefined} />
       </div>
 
       {/* ⚠️ The five bands, with the one the spreadsheet is missing. Its Sheet2
@@ -88,7 +155,7 @@ export default async function CocozuriPage() {
                   : b.key === "over90" ? "text-danger" : b.key === "d61_90" ? "text-warn" : "text-fg"}`}>
                 {money(bands[b.key])}
               </span>
-              <span className="mt-1 block text-[11px] text-fg-muted">{b.label}</span>
+              <span className="mt-1 block text-xs text-fg-muted">{b.label}</span>
             </Link>
           ))}
         </div>
@@ -99,7 +166,7 @@ export default async function CocozuriPage() {
           outside the accounts until somebody puts them in. That is correct, and
           it is also easy to forget, which is why it is on the desk. */}
       {(books.waiting > 0 || !books.ready || books.blocked.length > 0) && (
-        <div className="rounded-lg border border-border bg-bg-elev px-3.5 py-2.5 text-[12.5px]">
+        <div className="rounded-lg border border-border bg-bg-elev px-3.5 py-2.5 text-sm">
           <p className="font-medium text-fg">The books</p>
           {!books.ready ? (
             <p className="mt-1 text-fg-muted">
@@ -118,7 +185,7 @@ export default async function CocozuriPage() {
             </p>
           )}
           {books.blocked.length > 0 && (
-            <p className="mt-1 text-[11.5px] text-fg-subtle">
+            <p className="mt-1 text-xs text-fg-subtle">
               {books.blocked.length} payment{books.blocked.length === 1 ? "" : "s"} cannot be posted at all:
               {" "}{books.blocked.slice(0, 3).map((b) => `${b.number} (${b.why})`).join(", ")}
               {books.blocked.length > 3 && ` and ${books.blocked.length - 3} more`}. Whether COS should carry
@@ -131,7 +198,7 @@ export default async function CocozuriPage() {
       {/* ⚠️ Said out loud rather than left to be discovered. A product with no
           price cannot be invoiced, and the module refuses to invent one. */}
       {missing > 0 && (
-        <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
+        <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-sm text-warn">
           <AlertTriangle size={14} className="mt-px shrink-0" />
           <span>
             <strong>{missing}</strong> product{missing === 1 ? " has" : "s have"} no price yet. They cannot
@@ -141,15 +208,15 @@ export default async function CocozuriPage() {
       )}
 
       <div className="rounded-lg border border-border bg-bg-elev px-4 py-3.5">
-        <h2 className="text-[13px] font-semibold text-fg">What is built so far</h2>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-fg-muted">
+        <h2 className="text-base font-semibold text-fg">What is built so far</h2>
+        <p className="mt-1 text-sm leading-relaxed text-fg-muted">
           The catalogue, the customers with their branches and terms, and prices — per customer,
           each with the date it starts. Invoices and credit notes, raised and printed here. The
           money: what has been received, what is still owed and how late, and a statement of account
           for any customer. And the daily stock book — the shop, the kitchen and raw materials —
           with the month-end count and the variance it has to explain.
         </p>
-        <p className="mt-2 text-[12px] leading-relaxed text-fg-subtle">
+        <p className="mt-2 text-sm leading-relaxed text-fg-subtle">
           VAT currently defaults to <strong className="text-fg-muted">{vat}%</strong>, which is what the
           spreadsheets use. Tanzania&rsquo;s standard rate is 18% and nobody has confirmed which is
           right — so it is a setting, per customer, and changing it will not touch anything already
@@ -181,7 +248,7 @@ function Tile({ href, icon, n, value, label, tone }: {
           tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "text-fg"}`}>
           {value ?? n}
         </span>
-        <span className="mt-1 block text-[12px] text-fg-muted">{label}</span>
+        <span className="mt-1 block text-sm text-fg-muted">{label}</span>
       </span>
     </Link>
   );

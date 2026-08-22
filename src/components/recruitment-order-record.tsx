@@ -100,7 +100,7 @@ export function RecruitmentOrderRecord({
       ]}
       banner={
         !internal && !order.signedOn ? (
-          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-[12px] text-fg">
+          <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft/50 px-3 py-2 text-sm text-fg">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
             <span>
               <strong>The Job Order is not signed yet.</strong> The salary on it is what the fee is
@@ -122,11 +122,11 @@ export function RecruitmentOrderRecord({
 
           <Panel title={internal ? "No fee" : "The fee"}>
             {internal ? (
-              <p className="text-[12px] text-fg-muted">
+              <p className="text-sm text-fg-muted">
                 Oracle is hiring for itself, so there is no fee, no invoice and no guarantee.
               </p>
             ) : !fee ? (
-              <p className="text-[12px] text-fg-muted">
+              <p className="text-sm text-fg-muted">
                 No salary agreed yet, so there is no fee to show. It is one month of the gross,
                 whatever that turns out to be.
               </p>
@@ -139,7 +139,7 @@ export function RecruitmentOrderRecord({
                 <Row label={`VAT at ${Math.round(VAT_RATE * 100)}%`} value={tzs(fee.vatTZS)} />
                 <div className="my-1.5 border-t border-border" />
                 <Row label="Invoice total" value={tzs(fee.totalTZS)} strong />
-                <p className="flex items-start gap-1.5 pt-2 text-[11px] text-fg-subtle">
+                <p className="flex items-start gap-1.5 pt-2 text-xs text-fg-subtle">
                   <Info size={11} className="mt-0.5 shrink-0" />
                   <span>
                     Payable in full when the candidate accepts. VAT is collected for TRA and is
@@ -151,7 +151,7 @@ export function RecruitmentOrderRecord({
           </Panel>
 
           <Panel title="The client's obligations">
-            <p className="text-[12px] text-fg-muted">
+            <p className="text-sm text-fg-muted">
               Permits, visas, flights and relocation are the employer&rsquo;s own arrangements,
               paid direct at the official amount. Oracle does not handle them and takes no margin
               on them.
@@ -180,7 +180,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
       </div>
       <div className="space-y-1.5 px-3 py-2.5">{children}</div>
     </section>
@@ -190,8 +190,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[11px] text-fg-subtle">{label}</span>
-      <span className={strong ? "text-[13px] font-medium tabular" : "text-[12px] tabular"}>{value}</span>
+      <span className="text-xs text-fg-subtle">{label}</span>
+      <span className={strong ? "text-base font-medium tabular" : "text-sm tabular"}>{value}</span>
     </div>
   );
 }

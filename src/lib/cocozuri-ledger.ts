@@ -6,6 +6,11 @@ import {
   invoiceVoucherLines, receiptVoucherLines,
   type CzInvoice, type CzPostingAccounts, type CzReceipt,
 } from "@/lib/cocozuri-shared";
+import { getPurchase, listPurchases } from "@/lib/cocozuri-buy";
+import {
+  purchaseBlockers, purchaseTotals, purchaseVoucherLines,
+  type CzBuyAccounts, type CzPurchase,
+} from "@/lib/cocozuri-buy-shared";
 import type { GlAccount } from "@/lib/ledger-shared";
 
 /* ------------------------------------------------------------------ *
@@ -40,6 +45,8 @@ export const CZ_VOUCHER = {
   invoice: "CocoZuri Invoice",
   creditNote: "CocoZuri Credit Note",
   receipt: "CocoZuri Receipt",
+  /** Manufacturing Stage 2 — what was bought. */
+  purchase: "CocoZuri Purchase",
 } as const;
 
 /** The account number the sale lands on when nobody has said otherwise — 4100
@@ -111,6 +118,142 @@ export async function resolveAccounts(companyId: number): Promise<ResolveResult>
       cash: cash?.id ?? null,
     },
   };
+}
+
+/* --------------------------- buying (Stage 2) --------------------------- */
+
+/** The stock account when nobody has said otherwise — 1150 in the shared chart
+ *  template, which carries `accountType: "Stock"` and no role of its own. */
+const STOCK_ACCOUNT_NUMBER = "1150";
+const STOCK_SETTING = "cocozuri.stockAccount";
+
+export type ResolveBuyResult =
+  | { ok: true; accounts: CzBuyAccounts; all: GlAccount[] }
+  | { ok: false; error: string; needsChart?: boolean };
+
+/**
+ * Find the accounts a purchase needs.
+ *
+ * ⚠️ IT REFUSES RATHER THAN GUESSES, exactly as `resolveAccounts` does. There is
+ * no `stock` ROLE in the chart — the template numbers it 1150 and types it
+ * "Stock" but marks it for nothing — so it is found by type, then by number,
+ * then by a setting the owner types. Never by "the one that looks closest".
+ */
+export async function resolveBuyAccounts(companyId: number): Promise<ResolveBuyResult> {
+  if (!(await hasChart(companyId))) {
+    return {
+      ok: false,
+      needsChart: true,
+      error: "Cocozuri has no chart of accounts yet. Set one up on the Ledger before posting anything.",
+    };
+  }
+  const all = await listAccounts(companyId, { includeArchived: false });
+  const [payable, vatInput, bank, cash] = await Promise.all([
+    defaultAccount(companyId, "payable"),
+    defaultAccount(companyId, "vat_input"),
+    defaultAccount(companyId, "bank"),
+    defaultAccount(companyId, "cash"),
+  ]);
+  if (!payable) return { ok: false, error: "No account is marked as trade creditors (the 'payable' role)." };
+  if (!bank) return { ok: false, error: "No account is marked as the bank (the 'bank' role)." };
+
+  const { data: setting } = await sb.from("settings").select("value").eq("key", STOCK_SETTING).maybeSingle();
+  const chosen = (setting?.value as string | null)?.trim();
+  const stock =
+    (chosen ? all.find((a) => !a.isGroup && (a.number === chosen || String(a.id) === chosen)) : null) ??
+    all.find((a) => !a.isGroup && a.accountType === "Stock") ??
+    all.find((a) => !a.isGroup && a.number === STOCK_ACCOUNT_NUMBER) ??
+    null;
+  if (!stock) {
+    return {
+      ok: false,
+      error: chosen
+        ? `The stock account is set to "${chosen}", and there is no postable account with that number.`
+        : `No stock account (type "Stock", or numbered ${STOCK_ACCOUNT_NUMBER}) to hold what was bought. Set "${STOCK_SETTING}" to the account number you want.`,
+    };
+  }
+  // ⚠️ VAT only matters when something is actually rated, so a missing input-VAT
+  // account is not an error until it is — same as the selling side.
+  return {
+    ok: true,
+    all,
+    accounts: { stock: stock.id, vatInput: vatInput?.id ?? -1, payable: payable.id, bank: bank.id, cash: cash?.id ?? null },
+  };
+}
+
+/**
+ * Put a purchase in the books.
+ *
+ * ⚠️ ONLY AN APPROVED PURCHASE POSTS. A draft is somebody thinking about it and
+ * a cancelled one has already been taken back off the shelf. The same rule as
+ * "only an issued invoice goes in the books" — and it is also why approving is
+ * what moves the stock, so the two ledgers can never disagree about whether the
+ * delivery happened.
+ */
+export async function postPurchase(purchaseId: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
+
+  const purchase = await getPurchase(purchaseId);
+  if (!purchase) return { ok: false, error: "That purchase does not exist." };
+  if (purchase.status !== "approved") {
+    return { ok: false, error: `${purchase.reference} is a ${purchase.status}. Only an approved purchase goes in the books.` };
+  }
+  const blockers = purchaseBlockers(purchase);
+  if (blockers.length) return { ok: false, error: blockers[0] };
+
+  const res = await resolveBuyAccounts(company.id);
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const lines = purchaseVoucherLines(purchase, res.accounts);
+  // ⚠️ Caught HERE with a sentence somebody can act on, rather than as a
+  // foreign-key error from `postVoucher` three layers down.
+  if (lines.some((l) => l.accountId === -1)) {
+    return {
+      ok: false,
+      error: `${purchase.reference} carries VAT at ${purchase.vatRate}% and no account is marked as VAT recoverable (the 'vat_input' role).`,
+    };
+  }
+
+  return postVoucher({
+    companyId: company.id,
+    voucherType: CZ_VOUCHER.purchase,
+    voucherId: purchase.id,
+    voucherNo: purchase.reference,
+    postingDate: purchase.purchasedOn,
+    lines,
+    // ⚠️ Handed over as it stands. A foreign-currency purchase with no rate is
+    // refused by `postVoucher` rather than quietly recorded as shillings.
+    currency: purchase.currency,
+    exRate: purchase.exRate,
+    remarks: purchase.vendorName || purchase.supplierName || null,
+    createdBy: by,
+    accounts: res.all,
+  });
+}
+
+/** Take a purchase back out — by writing a reversal, never by erasing. */
+export async function unpostPurchase(
+  purchaseId: number, reason?: string | null, by = "web-ui",
+): Promise<{ ok: boolean; error?: string }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
+  return unpostVoucher({
+    companyId: company.id,
+    voucherType: CZ_VOUCHER.purchase,
+    voucherId: purchaseId,
+    reason: reason ?? null,
+    createdBy: by,
+  });
+}
+
+/** Whether a purchase has a live posting — used by `cancelPurchase` to refuse a
+ *  cancellation that would take the stock out and leave the creditor standing. */
+export async function purchaseIsPosted(purchaseId: number): Promise<boolean> {
+  const company = await cocozuriCompany();
+  if (!company) return false;
+  const entries = await entriesForVoucher(company.id, CZ_VOUCHER.purchase, purchaseId);
+  return entries.some((e) => !e.isReversal) && !entries.some((e) => e.isReversal);
 }
 
 /* ------------------------------- invoices ------------------------------- */
@@ -279,9 +422,14 @@ export async function invoiceBooksState(invoice: CzInvoice): Promise<BooksState>
  * about — and the entries are already indexed by company and voucher.
  */
 export async function booksStateFor(
-  kinds: { invoices?: number[]; creditNotes?: number[]; receipts?: number[] },
-): Promise<{ invoices: Map<number, BooksState>; creditNotes: Map<number, BooksState>; receipts: Map<number, BooksState> }> {
-  const empty = { invoices: new Map(), creditNotes: new Map(), receipts: new Map() };
+  kinds: { invoices?: number[]; creditNotes?: number[]; receipts?: number[]; purchases?: number[] },
+): Promise<{
+  invoices: Map<number, BooksState>;
+  creditNotes: Map<number, BooksState>;
+  receipts: Map<number, BooksState>;
+  purchases: Map<number, BooksState>;
+}> {
+  const empty = { invoices: new Map(), creditNotes: new Map(), receipts: new Map(), purchases: new Map() };
   const company = await cocozuriCompany();
   if (!company) return empty;
 
@@ -289,7 +437,7 @@ export async function booksStateFor(
     .from("gl_entries")
     .select("voucher_type,voucher_id,is_reversal")
     .eq("company_id", company.id)
-    .in("voucher_type", [CZ_VOUCHER.invoice, CZ_VOUCHER.creditNote, CZ_VOUCHER.receipt]);
+    .in("voucher_type", [CZ_VOUCHER.invoice, CZ_VOUCHER.creditNote, CZ_VOUCHER.receipt, CZ_VOUCHER.purchase]);
 
   const seen = new Map<string, { live: boolean; reversed: boolean }>();
   for (const r of data ?? []) {
@@ -308,6 +456,7 @@ export async function booksStateFor(
     invoices: new Map((kinds.invoices ?? []).map((id) => [id, stateOf(CZ_VOUCHER.invoice, id)])),
     creditNotes: new Map((kinds.creditNotes ?? []).map((id) => [id, stateOf(CZ_VOUCHER.creditNote, id)])),
     receipts: new Map((kinds.receipts ?? []).map((id) => [id, stateOf(CZ_VOUCHER.receipt, id)])),
+    purchases: new Map((kinds.purchases ?? []).map((id) => [id, stateOf(CZ_VOUCHER.purchase, id)])),
   };
 }
 
@@ -330,13 +479,18 @@ export async function postingOverview(): Promise<{
   const company = await cocozuriCompany();
   if (!company) return { ready: false, reason: "Cocozuri is not in the company list.", needsChart: false, posted: 0, waiting: 0, blocked: [] };
 
-  const res = await resolveAccounts(company.id);
-  const [invoices, receipts] = await Promise.all([listInvoices(), listReceipts()]);
+  const [res, buyRes] = await Promise.all([resolveAccounts(company.id), resolveBuyAccounts(company.id)]);
+  const [invoices, receipts, purchases] = await Promise.all([listInvoices(), listReceipts(), listPurchases()]);
   const issued = invoices.filter((i) => i.status === "issued");
+  // ⚠️ Only APPROVED purchases are countable here. A draft has moved no stock
+  // and is not waiting for anything — counting it would put a job on the desk
+  // that nobody can do.
+  const approved = purchases.filter((p: CzPurchase) => p.status === "approved");
   const state = await booksStateFor({
     invoices: issued.filter((i) => i.docType === "invoice").map((i) => i.id),
     creditNotes: issued.filter((i) => i.docType === "credit_note").map((i) => i.id),
     receipts: receipts.map((r) => r.id),
+    purchases: approved.map((p: CzPurchase) => p.id),
   });
 
   const stateOfDoc = (i: CzInvoice) =>
@@ -344,24 +498,42 @@ export async function postingOverview(): Promise<{
 
   const posted =
     issued.filter((i) => stateOfDoc(i) === "posted").length +
-    receipts.filter((r) => state.receipts.get(r.id) === "posted").length;
+    receipts.filter((r) => state.receipts.get(r.id) === "posted").length +
+    approved.filter((p: CzPurchase) => state.purchases.get(p.id) === "posted").length;
   const waiting =
     issued.filter((i) => stateOfDoc(i) === "unposted").length +
-    receipts.filter((r) => state.receipts.get(r.id) === "unposted").length;
+    receipts.filter((r) => state.receipts.get(r.id) === "unposted").length +
+    approved.filter((p: CzPurchase) => state.purchases.get(p.id) === "unposted").length;
 
   // The ones that will not post even when the chart is ready, and why.
-  const blocked = receipts
-    .filter((r) => r.receivedIntoCompanyId != null && r.receivedIntoCompanyId !== company.id)
-    .filter((r) => state.receipts.get(r.id) !== "posted")
-    .map((r) => ({
-      number: r.reference || `Payment #${r.id}`,
-      why: `received into ${r.receivedIntoName ?? "another company"}`,
-    }));
+  const blocked = [
+    ...receipts
+      .filter((r) => r.receivedIntoCompanyId != null && r.receivedIntoCompanyId !== company.id)
+      .filter((r) => state.receipts.get(r.id) !== "posted")
+      .map((r) => ({
+        number: r.reference || `Payment #${r.id}`,
+        why: `received into ${r.receivedIntoName ?? "another company"}`,
+      })),
+    // ⚠️ A rated purchase where nobody has said whether the prices include the
+    // VAT. Reported as blocked rather than posted at a guess — the same figure
+    // is either +VAT or includes-VAT and the difference is real money.
+    ...approved
+      .filter((p: CzPurchase) => state.purchases.get(p.id) !== "posted")
+      .filter((p: CzPurchase) => !purchaseTotals(p.lines, p.vatRate, p.taxInclusive, p.freightAmount).vatKnown)
+      .map((p: CzPurchase) => ({
+        number: p.reference,
+        why: `nobody has said whether the ${p.vatRate}% VAT is included`,
+      })),
+  ];
 
   return {
-    ready: res.ok,
-    reason: res.ok ? null : res.error,
-    needsChart: !res.ok && !!res.needsChart,
+    // ⚠️ BOTH SIDES OF THE CHART. Selling can be ready while buying is not —
+    // 4100 Sales exists in the template and the stock account carries no role
+    // at all — and saying "ready" on the strength of one of them would leave
+    // somebody pressing a button that cannot work.
+    ready: res.ok && buyRes.ok,
+    reason: res.ok ? (buyRes.ok ? null : buyRes.error) : res.error,
+    needsChart: (!res.ok && !!res.needsChart) || (!buyRes.ok && !!buyRes.needsChart),
     posted, waiting, blocked,
   };
 }

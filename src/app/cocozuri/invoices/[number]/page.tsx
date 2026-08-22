@@ -66,7 +66,7 @@ export default async function CocozuriInvoicePage({
       {/* Everything in here is chrome, and none of it prints. */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link href="/cocozuri/invoices"
-          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-fg-muted hover:bg-bg-subtle hover:text-fg">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-subtle hover:text-fg">
           <ArrowLeft size={13} /> All invoices
         </Link>
         <span className="grow" />
@@ -97,7 +97,7 @@ export default async function CocozuriInvoicePage({
 
       {/* What is left on it. Derived from the receipts every time it is asked. */}
       {settled && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[12.5px] print:hidden">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-sm print:hidden">
           <span className="text-fg-muted">Invoiced <span className="tabular text-fg">{money(bal.gross, invoice.currency)}</span></span>
           {bal.credited > 0 && <span className="text-fg-muted">Credited <span className="tabular text-fg">{money(bal.credited, invoice.currency)}</span></span>}
           <span className="text-fg-muted">Received <span className="tabular text-fg">{money(bal.paid, invoice.currency)}</span></span>
@@ -113,20 +113,20 @@ export default async function CocozuriInvoicePage({
       )}
 
       {invoice.status === "draft" && (
-        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2 text-[12.5px] text-warn print:hidden">
+        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2 text-sm text-warn print:hidden">
           This is a draft. Nothing is fixed until you issue it — and once issued it cannot be edited,
           only answered with a credit note.
         </p>
       )}
       {invoice.status === "cancelled" && (
-        <p className="rounded-lg border border-border bg-bg-subtle px-3.5 py-2 text-[12.5px] text-fg-muted print:hidden">
+        <p className="rounded-lg border border-border bg-bg-subtle px-3.5 py-2 text-sm text-fg-muted print:hidden">
           Cancelled. It was never issued, so nobody was ever asked to pay it.
         </p>
       )}
 
       {/* The paper. */}
-      <article className="rounded-lg border border-border bg-bg-elev px-6 py-6 text-[12.5px] print:border-0 print:px-0">
-        <p className="text-center text-[11px] leading-relaxed text-fg-muted">
+      <article className="rounded-lg border border-border bg-bg-elev px-6 py-6 text-sm print:border-0 print:px-0">
+        <p className="text-center text-xs leading-relaxed text-fg-muted">
           P.O.BOX 20865, DAR-ES-SALAAM, TANZANIA · TIN NO: 104 679 218 · VAT NO: 400117481
         </p>
 
@@ -136,7 +136,7 @@ export default async function CocozuriInvoicePage({
 
         <div className="mt-5 flex flex-wrap justify-between gap-4">
           <div className="min-w-[16rem]">
-            <p className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Customer details:</p>
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Customer details:</p>
             {/* Frozen at the moment it was raised — see the note on the table. */}
             <p className="mt-1 font-semibold text-fg">
               {invoice.customerName}
@@ -166,7 +166,7 @@ export default async function CocozuriInvoicePage({
 
         <table className="mt-5 w-full border-collapse">
           <thead>
-            <tr className="border-y border-border text-[10.5px] uppercase tracking-[0.06em] text-fg-subtle">
+            <tr className="border-y border-border text-xs uppercase tracking-[0.06em] text-fg-subtle">
               <th className="py-1.5 pr-2 text-left font-medium">No</th>
               <th className="py-1.5 pr-2 text-left font-medium">Brand</th>
               <th className="py-1.5 pr-2 text-left font-medium">Item</th>
@@ -211,12 +211,12 @@ export default async function CocozuriInvoicePage({
             invoices, which is both a wasted minute and a place for the words to
             disagree with the figure above them. */}
         <p className="mt-4 border-t border-border pt-2.5">
-          <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">In words: </span>
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">In words: </span>
           <span className="font-medium text-fg">{amountInWords(t.gross)}</span>
           <span className="text-fg-muted"> {invoice.currency} ONLY</span>
         </p>
 
-        {invoice.notes && <p className="mt-2 text-[11.5px] text-fg-muted">{invoice.notes}</p>}
+        {invoice.notes && <p className="mt-2 text-xs text-fg-muted">{invoice.notes}</p>}
       </article>
     </div>
   );

@@ -121,13 +121,13 @@ export default async function PortalLayout({ children }: { children: React.React
             {scopedDirector && scopedCompanyName ? (
               <>
                 <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-fg-subtle">By Oracle Consultancy</p>
-                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
-                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
+                <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
                 <p className="truncate text-sm font-semibold">{me.name}</p>
               </>
             ) : (
               <>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">
                   Oracle Consultancy · {portalHeaderLabel(me.portalRole, me.portalDesignation)}
                 </p>
                 <p className="truncate text-sm font-semibold">{me.name}</p>

@@ -51,7 +51,7 @@ export function PortalPermissionsEditor({
       <input type="hidden" name="config" value={json} />
 
       {/* Safety note */}
-      <div className="flex items-start gap-2.5 rounded-xl bg-bg-subtle/60 px-3 py-2.5 text-[12px] text-fg-muted ring-1 ring-border">
+      <div className="flex items-start gap-2.5 rounded-xl bg-bg-subtle/60 px-3 py-2.5 text-sm text-fg-muted ring-1 ring-border">
         <ShieldCheck size={15} className="mt-0.5 shrink-0 text-accent" />
         <p>
           Two rules are always on and can&apos;t be switched off: a person can always manage a task they raised,
@@ -61,16 +61,16 @@ export function PortalPermissionsEditor({
 
       {/* Data scope per role */}
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Data visibility</p>
-        <p className="text-[11px] text-fg-muted">Which companies&apos; tasks and records each role can see. Wider scope shows more of the group.</p>
+        <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Data visibility</p>
+        <p className="text-xs text-fg-muted">Which companies&apos; tasks and records each role can see. Wider scope shows more of the group.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {PORTAL_ROLES.map((role) => (
             <label key={role} className="flex items-center justify-between gap-3 rounded-xl bg-bg-elev px-3 py-2.5 ring-1 ring-border">
-              <span className="text-[13px] font-medium">{ROLE_LABEL[role]}</span>
+              <span className="text-base font-medium">{ROLE_LABEL[role]}</span>
               <Select
                 value={scope[role]}
                 onChange={(e) => setScope((s) => ({ ...s, [role]: e.target.value as ScopeLevel }))}
-                className="text-[12px] text-fg"
+                className="text-sm text-fg"
               >
                 {SCOPE_LEVELS.map((lvl) => (
                   <option key={lvl.value} value={lvl.value}>{lvl.label}</option>
@@ -84,14 +84,14 @@ export function PortalPermissionsEditor({
       {/* Capability matrix */}
       {CAPABILITY_GROUPS.map((group) => (
         <section key={group.id} className="space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{group.label}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{group.label}</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[34rem] border-separate border-spacing-y-1.5 text-left">
               <thead>
                 <tr>
                   <th className="w-1/2" />
                   {PORTAL_ROLES.map((role) => (
-                    <th key={role} className="px-1 pb-1 text-center text-[11px] font-medium text-fg-muted">{ROLE_LABEL[role]}</th>
+                    <th key={role} className="px-1 pb-1 text-center text-xs font-medium text-fg-muted">{ROLE_LABEL[role]}</th>
                   ))}
                 </tr>
               </thead>
@@ -99,8 +99,8 @@ export function PortalPermissionsEditor({
                 {group.caps.map((cap) => (
                   <tr key={cap.key}>
                     <td className="pr-3 align-top">
-                      <p className="text-[13px] font-medium leading-tight">{cap.label}</p>
-                      <p className="mt-0.5 text-[11px] leading-snug text-fg-subtle">{cap.desc}</p>
+                      <p className="text-base font-medium leading-tight">{cap.label}</p>
+                      <p className="mt-0.5 text-xs leading-snug text-fg-subtle">{cap.desc}</p>
                     </td>
                     {PORTAL_ROLES.map((role) => {
                       const on = caps[cap.key][role];
@@ -131,10 +131,10 @@ export function PortalPermissionsEditor({
       ))}
 
       <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-        <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg">
+        <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg">
           <RotateCcw size={13} /> Reset to defaults
         </button>
-        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90">
+        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-base font-medium text-accent-fg transition-opacity hover:opacity-90">
           <Save size={13} /> Save permissions
         </button>
       </div>

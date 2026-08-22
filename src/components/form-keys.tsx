@@ -51,7 +51,7 @@ export function SubmitTextarea({ className, onKeyDown, ...p }: ComponentProps<"t
 /** Inline per-field validation message (danger tone). Renders nothing when empty. */
 export function FieldError({ message, className }: { message?: string | null; className?: string }) {
   if (!message) return null;
-  return <p role="alert" className={cn("mt-1 text-[11px] text-danger", className)}>{message}</p>;
+  return <p role="alert" className={cn("mt-1 text-xs text-danger", className)}>{message}</p>;
 }
 
 /** Classes to mark an input visually invalid (red ring + border). */
@@ -67,9 +67,9 @@ export const invalidFieldClass = "ring-1 ring-danger/60 border-danger/60";
  * lines to fit next to it.
  */
 export function EnterHint({ verb = "save", className }: { verb?: string; className?: string }) {
-  const kbd = "rounded border border-border bg-bg-subtle px-1 py-0.5 text-[10px] font-medium text-fg-muted";
+  const kbd = "rounded border border-border bg-bg-subtle px-1 py-0.5 text-xs font-medium text-fg-muted";
   return (
-    <p className={cn("hidden text-[11px] text-fg-subtle sm:block", className)}>
+    <p className={cn("hidden text-xs text-fg-subtle sm:block", className)}>
       <kbd className={kbd}>Enter</kbd> to {verb} · <kbd className={kbd}>Shift</kbd>/<kbd className={kbd}>Alt</kbd>+<kbd className={kbd}>Enter</kbd> for a new line
     </p>
   );

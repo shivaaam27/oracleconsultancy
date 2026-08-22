@@ -134,7 +134,7 @@ export function ProjectsList({
           value={f.q}
           onChange={(e) => setFilter({ q: e.target.value })}
           placeholder="Search projects, clients, places…"
-          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         <FluidSelect
           value={f.company}
@@ -171,7 +171,7 @@ export function ProjectsList({
           seconds after the save on this link. Saying so is the difference
           between "it is coming" and "it did not work". */}
       {justAdded && !ranked.some((p) => p.name.trim() === justAdded.trim()) && (
-        <p className="flex items-center gap-1.5 text-[12px] text-fg-subtle">
+        <p className="flex items-center gap-1.5 text-sm text-fg-subtle">
           <Loader2 size={12} className="animate-spin" /> Adding {justAdded}…
         </p>
       )}
@@ -191,8 +191,8 @@ export function ProjectsList({
         empty={
           <div className="py-6 text-center">
             <DraftingCompass size={20} className="mx-auto mb-2 text-fg-subtle" />
-            <p className="text-[13px] font-medium">No projects yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No projects yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add one with “New project”. Nothing is filled in for you — every figure is typed.
             </p>
           </div>
@@ -203,8 +203,8 @@ export function ProjectsList({
             // shape the tasks and commitments lists use.
             name: (p) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{p.name}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{p.name}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   {[p.variant, p.location, p.companyName].filter(Boolean).join(" · ") || "—"}
                 </span>
               </span>
@@ -212,7 +212,7 @@ export function ProjectsList({
             completionPct: (p) => {
               const v = p.completionPct === null ? null : Number(p.completionPct);
               return (
-                <span className="tabular text-[12px]">
+                <span className="tabular text-sm">
                   {v === null || !Number.isFinite(v) ? "—" : pct(v, 0)}
                 </span>
               );
@@ -225,11 +225,11 @@ export function ProjectsList({
                 p.status,
               );
               if (p.daysRemaining === null) {
-                return <span className="text-[12px] text-fg-subtle" title="No start date or duration set yet">—</span>;
+                return <span className="text-sm text-fg-subtle" title="No start date or duration set yet">—</span>;
               }
               return (
                 <span
-                  className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium tabular", TONE_CHIP[tone])}
+                  className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium tabular", TONE_CHIP[tone])}
                   title={p.expectedCompletion ? `Expected ${fmtDate(p.expectedCompletion)}` : undefined}
                 >
                   {p.daysOverdue > 0 ? `${p.daysOverdue} over` : `${p.daysRemaining}`}
@@ -327,7 +327,7 @@ function NewProjectForm({
       }}
     >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[13px] font-medium">New project</h3>
+        <h3 className="text-base font-medium">New project</h3>
         <button type="button" onClick={onDone} className="text-fg-subtle hover:text-fg"><X size={15} /></button>
       </div>
 
@@ -378,7 +378,7 @@ function NewProjectForm({
       </div>
 
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="mt-3 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -388,7 +388,7 @@ function NewProjectForm({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending && <Loader2 size={13} className="animate-spin" />} Save project
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Only the company and name are needed now — the rest can be filled in later.
         </span>
       </div>
@@ -401,11 +401,11 @@ function Field({ label, hint, required, children }: {
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+      <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">
         {label}{required && <span className="ml-0.5 text-danger">*</span>}
       </span>
       {children}
-      {hint && <span className="mt-0.5 block text-[11px] text-fg-subtle">{hint}</span>}
+      {hint && <span className="mt-0.5 block text-xs text-fg-subtle">{hint}</span>}
     </label>
   );
 }
@@ -414,7 +414,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+      className="h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
     />
   );
 }

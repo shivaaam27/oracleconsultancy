@@ -49,7 +49,7 @@ function CompanyPreviewBody(data: CompanyPreview) {
           {data.documents.attention.length > 0 && <span className="text-warn"> ({data.documents.attention.length}!)</span>}
         </span>
       </div>
-      <div className="border-t border-border/50 pt-1.5 text-[11px] text-fg-subtle">Click to open the company</div>
+      <div className="border-t border-border/50 pt-1.5 text-xs text-fg-subtle">Click to open the company</div>
     </div>
   );
 }

@@ -46,7 +46,7 @@ export function HomeControlBar({ pendingApprovals }: { pendingApprovals: number 
         <ListChecks size={15} className="hidden text-accent sm:block" />
         <span className="whitespace-nowrap">Approvals</span>
         {pendingApprovals > 0 && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular text-white">
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold tabular text-white">
             {pendingApprovals}
           </span>
         )}

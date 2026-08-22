@@ -188,7 +188,7 @@ export function OpsPaymentsSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -224,8 +224,8 @@ export function OpsPaymentsSheet({
         ]}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">No payments recorded yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No payments recorded yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Record one every time money leaves — an advance, a balance, duty, freight. A purchase
               can take as many as it needs, and what is still owed follows from them.
             </p>
@@ -238,11 +238,11 @@ export function OpsPaymentsSheet({
             csv: (p) => [p.paidDate?.slice(0, 10), p.payee, p.kind].filter(Boolean).join(" — "),
             render: (p) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">
+                <span className="block truncate text-sm">
                   {p.payee ?? <span className="text-fg-subtle">nobody named</span>}
-                  {p.kind && <span className="ml-1.5 text-[11px] text-fg-subtle">{p.kind}</span>}
+                  {p.kind && <span className="ml-1.5 text-xs text-fg-subtle">{p.kind}</span>}
                 </span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-xs text-fg-muted">
                   {[fmtDate(p.paidDate) ?? "no date", p.reference].filter(Boolean).join(" · ")}
                 </span>
               </span>
@@ -261,7 +261,7 @@ export function OpsPaymentsSheet({
               const s = shipments.find((x) => x.id === p.shipmentId);
               if (!l && !s) {
                 return (
-                  <span className="text-[11px] text-warn"
+                  <span className="text-xs text-warn"
                     title="This payment is not against any purchase or shipment, so it is not taken off anything.">
                     not matched up
                   </span>
@@ -269,8 +269,8 @@ export function OpsPaymentsSheet({
               }
               return (
                 <span className="min-w-0">
-                  {l && <span className="block truncate text-[12px]">PO {l.line.poNo}</span>}
-                  {s && <span className="block truncate text-[11px] text-fg-muted">BL {s.blNo}</span>}
+                  {l && <span className="block truncate text-sm">PO {l.line.poNo}</span>}
+                  {s && <span className="block truncate text-xs text-fg-muted">BL {s.blNo}</span>}
                 </span>
               );
             },
@@ -283,12 +283,12 @@ export function OpsPaymentsSheet({
               const tzs = paymentTzs(p);
               return (
                 <span className="min-w-0">
-                  <span className="tabular block truncate text-[12px]">
+                  <span className="tabular block truncate text-sm">
                     {/* ⚠️ A foreign payment with no rate is UNKNOWN in shillings
                         and says so, rather than being counted at face value. */}
                     {tzs === null ? <span className="text-danger">no rate</span> : money(tzs)}
                   </span>
-                  <span className="block truncate text-[11px] text-fg-subtle">
+                  <span className="block truncate text-xs text-fg-subtle">
                     {p.currency && p.currency !== "TZS"
                       ? `${p.currency} ${p.amount ?? ""}`.trim()
                       : "shillings"}
@@ -353,16 +353,16 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "warn" && "text-warn", tone === "danger" && "text-danger")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 
 type Opt = { value: string; label: string };
@@ -420,7 +420,7 @@ function AddPayment({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
         <Banknote size={13} className="text-fg-subtle" /> Money has gone out
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
@@ -446,7 +446,7 @@ function AddPayment({
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
                 onClick={() => setCurrency(currency === c ? "" : c)}
-                className={cn("h-8 flex-1 rounded-md border text-[10px]",
+                className={cn("h-8 flex-1 rounded-md border text-xs",
                   currency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {c}
               </button>
@@ -460,7 +460,7 @@ function AddPayment({
             {needsRate && defaultExRate > 0 && (
               <button type="button" onClick={() => setExRate(String(defaultExRate))}
                 title="Use the rate set up on the Setup tab"
-                className="h-8 shrink-0 rounded-md border border-border px-2 text-[11px] text-fg-muted hover:text-fg">
+                className="h-8 shrink-0 rounded-md border border-border px-2 text-xs text-fg-muted hover:text-fg">
                 {defaultExRate.toLocaleString("en-GB")}
               </button>
             )}
@@ -485,13 +485,13 @@ function AddPayment({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Record it
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           The payee, date and currency carry to the next payment. A purchase can take as many
           as it needs — an advance now, the balance later.
         </span>
       </div>
       {needsRate && (
-        <p className="mt-1 text-[11px] text-warn">
+        <p className="mt-1 text-xs text-warn">
           Paid in {currency} with no rate — this will not be counted in the shilling totals until
           one is entered.
         </p>
@@ -580,7 +580,7 @@ function EditPayment({
             {["TZS", "USD"].map((c) => (
               <button key={c} type="button"
                 onClick={() => set("currency", f.currency === c ? "" : c)}
-                className={cn("h-8 flex-1 rounded-md border text-[10px]",
+                className={cn("h-8 flex-1 rounded-md border text-xs",
                   f.currency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {c}
               </button>
@@ -593,7 +593,7 @@ function EditPayment({
               className={cn(inputCls, "tabular text-right")} />
             {needsRate && defaultExRate > 0 && (
               <button type="button" onClick={() => set("exRate", String(defaultExRate))}
-                className="h-8 shrink-0 rounded-md border border-border px-2 text-[11px] text-fg-muted hover:text-fg">
+                className="h-8 shrink-0 rounded-md border border-border px-2 text-xs text-fg-muted hover:text-fg">
                 {defaultExRate.toLocaleString("en-GB")}
               </button>
             )}
@@ -653,7 +653,7 @@ function EditPayment({
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg">
           <X size={13} /> Cancel
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Every change is recorded — what it was, what it became, and who changed it.
         </span>
       </div>

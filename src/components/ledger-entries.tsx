@@ -54,7 +54,7 @@ export function LedgerEntries({
   return (
     <>
       {!health.ok && (
-        <div className="rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+        <div className="rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">
           <strong>The books do not balance.</strong> Across everything, debits {ledgerAmount(health.debit)} against
           credits {ledgerAmount(health.credit)} — out by {ledgerAmount(Math.abs(health.difference))}. Every
           voucher is checked before it is written, so something got in another way.
@@ -64,7 +64,7 @@ export function LedgerEntries({
       {/* ── the filter strip ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-bg-elev p-2.5">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">Account</span>
+          <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">Account</span>
           <FluidSelect
             value={values.account}
             options={[
@@ -77,15 +77,15 @@ export function LedgerEntries({
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">From</span>
+          <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">From</span>
           <Input type="date" value={values.from} onChange={(e) => set({ from: e.target.value })} className="h-8" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">To</span>
+          <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">To</span>
           <Input type="date" value={values.to} onChange={(e) => set({ to: e.target.value })} className="h-8" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">Against</span>
+          <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">Against</span>
           <Input
             value={values.party}
             onChange={(e) => set({ party: e.target.value })}
@@ -118,7 +118,7 @@ export function LedgerEntries({
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-[13px]">
+            <table className="w-full min-w-[900px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-28">Date</Th>
@@ -148,7 +148,7 @@ export function LedgerEntries({
                       )}
                       <Td>
                         <span className="block truncate">{e.voucherNo ?? e.voucherType}</span>
-                        <span className="text-[11px] text-fg-subtle">
+                        <span className="text-xs text-fg-subtle">
                           {e.voucherType}{e.isReversal ? " · reversal" : ""}
                         </span>
                       </Td>
@@ -156,7 +156,7 @@ export function LedgerEntries({
                         <span className="block truncate">
                           {e.party ?? <span className="text-fg-subtle">—</span>}
                         </span>
-                        {e.remarks && <span className="block truncate text-[11px] text-fg-subtle">{e.remarks}</span>}
+                        {e.remarks && <span className="block truncate text-xs text-fg-subtle">{e.remarks}</span>}
                       </Td>
                       <Td className="tabular text-right">{ledgerAmount(num(e.debit))}</Td>
                       <Td className="tabular text-right">{ledgerAmount(num(e.credit))}</Td>
@@ -191,7 +191,7 @@ export function LedgerEntries({
               </tfoot>
             </table>
           </div>
-          <p className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+          <p className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
             Reversals are shown, not hidden — they are part of the record, and they cancel by arithmetic rather
             than by anything being removed. The reports that read these entries come next.
           </p>
@@ -203,7 +203,7 @@ export function LedgerEntries({
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );

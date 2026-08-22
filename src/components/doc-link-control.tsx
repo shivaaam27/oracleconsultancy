@@ -40,7 +40,7 @@ export function DocLinkControl({
     return (
       <span className="inline-flex items-center gap-1">
         <button type="button" onClick={open} disabled={busy} title={doc?.title ?? "Open document"}
-          className="inline-flex items-center gap-1 rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] text-fg-muted hover:bg-bg-muted">
+          className="inline-flex items-center gap-1 rounded-md bg-bg-subtle px-1.5 py-0.5 text-xs text-fg-muted hover:bg-bg-muted">
           {busy ? <Loader2 size={10} className="animate-spin" /> : <ExternalLink size={10} />} Doc
         </button>
         <button type="button" title="Unlink" onClick={() => start(async () => { await onLink(null); })}

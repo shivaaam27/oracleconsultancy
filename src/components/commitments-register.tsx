@@ -137,15 +137,15 @@ export function CommitmentsRegister({ items, companies, documents = [], savedVie
           },
         ]}
         total={ranked.length}
-        empty={<p className="text-center text-[12px] text-fg-subtle">No commitments yet. Add a lease, insurance policy or contract.</p>}
+        empty={<p className="text-center text-sm text-fg-subtle">No commitments yet. Add a lease, insurance policy or contract.</p>}
         columns={buildColumns<(typeof ranked)[number] & Record<string, unknown>>(COMMITMENT_COLUMNS, {
           overrides: {
             title: (c) => (
               <span className="flex min-w-0 items-center gap-2">
                 <span className="shrink-0 text-fg-subtle" title={KIND_LABEL[c.kind]}>{KIND_ICON[c.kind]}</span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-medium">{c.title}</span>
-                  <span className="block truncate text-[11px] text-fg-muted">
+                  <span className="block truncate text-base font-medium">{c.title}</span>
+                  <span className="block truncate text-xs text-fg-muted">
                     {[KIND_LABEL[c.kind], c.companyName, c.counterparty, c.amount].filter(Boolean).join(" · ")}
                   </span>
                 </span>
@@ -158,10 +158,10 @@ export function CommitmentsRegister({ items, companies, documents = [], savedVie
               const hasNotice = (c.noticeDays ?? 0) > 0;
               return (
                 <span className="flex items-center justify-end gap-2">
-                  <span className="hidden text-right text-[11px] text-fg-subtle sm:block">
+                  <span className="hidden text-right text-xs text-fg-subtle sm:block">
                     {nb && hasNotice ? fmt(nb.toISOString()) : "—"}
                   </span>
-                  <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
+                  <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-xs font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
                     {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired")
                       : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}`
                       : urg === "ok" ? "OK" : statusLabel(c.status)}
@@ -198,7 +198,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Layout only — the box comes from the global field rule.
-  const input = "w-full px-2.5 py-1.5 text-[13px]";
+  const input = "w-full px-2.5 py-1.5 text-base";
 
   async function save() {
     setSaving(true); setError(null);
@@ -215,7 +215,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   return (
     <div className="rounded-xl border border-border/70 bg-bg-subtle/30 p-3 space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">New commitment</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted">New commitment</span>
         <button type="button" onClick={onDone} className="ml-auto rounded-md p-1 text-fg-subtle hover:bg-bg-muted"><X size={13} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -232,21 +232,21 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <input className={input} placeholder="Other party (landlord/insurer)" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <label className="text-[11px] text-fg-muted">End date<input type="date" className={input} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
-        <label className="text-[11px] text-fg-muted">Notice (days)<input type="number" min={0} className={input} value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} /></label>
-        <label className="text-[11px] text-fg-muted">Amount<input className={input} placeholder="rent/premium" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">End date<input type="date" className={input} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Notice (days)<input type="number" min={0} className={input} value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Amount<input className={input} placeholder="rent/premium" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="text-[11px] text-fg-muted">Status<Select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+        <label className="text-xs text-fg-muted">Status<Select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="active">Active</option><option value="needs_doc">Needs document</option><option value="quoting">Quoting</option><option value="partial">Partial</option><option value="expired">Expired</option>
         </Select></label>
-        <label className="text-[11px] text-fg-muted">Reference / policy no.<input className={input} value={reference} onChange={(e) => setReference(e.target.value)} /></label>
+        <label className="text-xs text-fg-muted">Reference / policy no.<input className={input} value={reference} onChange={(e) => setReference(e.target.value)} /></label>
       </div>
       <div className="flex items-center justify-end gap-1.5">
-        <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">Cancel</button>
-        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add"}</button>
+        <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-sm text-fg-muted hover:bg-bg-muted/60">Cancel</button>
+        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Add"}</button>
       </div>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

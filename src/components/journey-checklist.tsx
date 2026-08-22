@@ -36,10 +36,10 @@ function StepEditor({ initial, onSave, onCancel, busy }: {
         className="rounded-lg bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
       <div className="flex flex-wrap items-center gap-2">
         <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)}
-          className="rounded-lg bg-bg-elev text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1" />
+          className="rounded-lg bg-bg-elev text-xs text-fg-muted ring-1 ring-border px-1.5 py-1" />
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
-            className="rounded-lg px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
+            className="rounded-lg px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
           <Button type="button" size="xs" variant="primary" disabled={busy || !label.trim()}
             onClick={() => onSave({ label: label.trim(), dueAt: dueAt || null })}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
@@ -183,8 +183,8 @@ export function JourneyChecklist({
     return (
       <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 flex items-center gap-2 px-3.5 py-2.5">
         <Icon size={14} className="shrink-0 text-fg-muted" />
-        <span className="text-[13px] font-semibold">{title}</span>
-        <span className="text-[11px] text-fg-subtle">· not started</span>
+        <span className="text-base font-semibold">{title}</span>
+        <span className="text-xs text-fg-subtle">· not started</span>
         <Button type="button" size="xs" variant="primary" onClick={start} disabled={busyId === -1} className="ml-auto">
           {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />} Start
         </Button>
@@ -244,8 +244,8 @@ export function JourneyChecklist({
                   </div>
                   {(due || link) && (
                     <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                      {due && <span className={cn("text-[11px]", overdue ? "text-danger" : "text-fg-subtle")}>{overdue ? "Overdue · " : "Due "}{due}</span>}
-                      {link && <Link href={link} onClick={onNavigate} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><Package size={11} /> Open Assets</Link>}
+                      {due && <span className={cn("text-xs", overdue ? "text-danger" : "text-fg-subtle")}>{overdue ? "Overdue · " : "Due "}{due}</span>}
+                      {link && <Link href={link} onClick={onNavigate} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Package size={11} /> Open Assets</Link>}
                     </div>
                   )}
                 </div>
@@ -261,13 +261,13 @@ export function JourneyChecklist({
       <div className="flex items-center justify-between border-t border-border/50 px-3 py-2">
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => setAdding(true)} disabled={adding}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"><Plus size={12} /> Add step</button>
+            className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"><Plus size={12} /> Add step</button>
           <button type="button" onClick={doSync} disabled={busyId === -4}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-accent transition-colors disabled:opacity-50">
             {busyId === -4 ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync</button>
         </div>
         <button type="button" onClick={clearAll} disabled={busyId === -2}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-danger transition-colors disabled:opacity-50">
+          className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-danger transition-colors disabled:opacity-50">
           {busyId === -2 ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Remove</button>
       </div>
     </CollapsibleSection>

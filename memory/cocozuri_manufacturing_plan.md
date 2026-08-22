@@ -1,6 +1,6 @@
 ---
 name: cocozuri-manufacturing-plan
-description: "CocoZuri Operations, part two — purchasing, recipes, production batches, transfers, POS, returns and batch costing. Written from the owner's seven pages of notes (22 Aug 2026), checked against ERPNext's own manufacturing model and food-industry practice. Stage 1 (the stock ledger) is BUILT; Stages 2-9 are not."
+description: "CocoZuri Operations, part two — purchasing, recipes, production batches, transfers, POS, returns and batch costing. Written from the owner's seven pages of notes (22 Aug 2026), checked against ERPNext's own manufacturing model and food-industry practice. Stages 1-5 are BUILT (the stock ledger, purchases, recipes, production and kitchen-to-shop transfers); Stages 6-9 are not."
 metadata:
   type: project
 ---
@@ -12,8 +12,8 @@ catalogue, invoices, money in, what is owed, the stock book and the general
 ledger. This is the other half — **how the chocolate gets made** — and it comes
 from seven pages of the owner's handwritten notes, photographed 22 Aug 2026.
 
-⚠️ **STAGE 1 IS BUILT (see §6a). STAGES 2–9 ARE NOT.** This is the plan, the
-audit against it, and the owner's answers in §5a.
+⚠️ **STAGES 1–5 ARE BUILT (see §6a–§6e). STAGES 6–9 ARE NOT.**
+This is the plan, the audit against it, and the owner's answers in §5a.
 
 ⚠️ **THE NOTES ARE TRANSCRIBED IN §1 EXACTLY AS READ, including the bits I could
 not make out.** Read that section first and correct it — every stage below is
@@ -217,7 +217,7 @@ the existing stock screens read from it unchanged; **batches** table
 (`cz_batches`: number, item, made on, expiry, qty made, status).
 **Nothing new is visible.** This is plumbing, and everything else stands on it.
 
-### Stage 2 — purchases and suppliers *(page 7, page 3)*
+### Stage 2 — purchases and suppliers *(page 7, page 3)* ✅ **BUILT — see §6b**
 Raw materials and packaging as stock items you can buy. Purchase orders → goods
 received → supplier bill. Qty · unit price · total · date · supplier · UoM.
 **Approval before it counts.** **Transit/landed cost spread over the items
@@ -225,14 +225,14 @@ received** so a bag of almonds carries its freight. Posts Dr Inventory,
 Cr Creditors through `postVoucher()`.
 **Gives you:** what you bought, what it cost, what you owe suppliers.
 
-### Stage 3 — recipes *(pages 4, 5, 7)*
+### Stage 3 — recipes *(pages 4, 5, 7)* ✅ **BUILT — see §6c**
 `cz_recipes` — a product's ingredients, packaging and quantities, and how many
 units one batch yields. Costed from what materials actually cost:
 **raw material + packaging + finishing**. An expected-loss percentage per recipe.
 Shared ingredients across recipes handled properly.
 **Gives you:** what a bar costs to make, before you make one.
 
-### Stage 4 — production *(pages 3, 6, 7)*
+### Stage 4 — production *(pages 3, 6, 7)* ✅ **BUILT — see §6d**
 Requisition (the chef asks) → production plan (how many to make) → **batch**
 with a number → consume materials → produce finished goods → close the batch.
 **Expected versus actual, with the variance named** — the "inter check". Batch
@@ -240,13 +240,14 @@ status: required · running · closed. Abnormal loss split production vs raw
 materials.
 **Gives you:** what was planned, what came out, and where the difference went.
 
-### Stage 5 — transfers and the shop *(page 5)*
+### Stage 5 — transfers and the shop *(page 5)* ✅ **BUILT — see §6e**
+*(the POS half is deliberately NOT built — see §6e)*
 Kitchen → shop as a real movement with a quantity and a batch. The shop's
 opening stock stops being a mystery. Optionally a simple POS for over-the-counter
 sales at the shop and kitchen.
 **Gives you:** one honest stock position per place, and shop sales in the books.
 
-### Stage 6 — returns, repairs and damage *(pages 2, 4)*
+### Stage 6 — returns, repairs and damage *(pages 2, 4)* ← **NEXT**
 Goods come back → into stock → **repaired** (back to saleable) or **damaged**.
 Fully damaged is disposed of and written off. A sales return reverses the sale
 **and** puts the cost back — the notes are explicit that both the sale value and
@@ -429,6 +430,449 @@ same-place and zero transfers are refused; a day sheet cannot be reversed.
 ONLY writer the two readings are identical — proved by the backfill's check and
 by a test. **They diverge the moment Stage 2 adds a purchase, so the read path
 must move to `ledgerBalanceAt` AS PART OF STAGE 2**, not before and not after.
+
+## 6b. Stage 2 is BUILT — 22 Aug 2026
+
+Migration **0150** applied and **proved by effect** (three tables present,
+`vendor_id` nullable, `tax_inclusive` nullable, RLS on, no anon grants) — never
+by the migrator's success message. `npm run db:check-security` clean across 145
+tables. **955 tests pass**, 30 of them new.
+
+**What exists:** `cz_budgets` · `cz_purchases` · `cz_purchase_lines`;
+`src/lib/cocozuri-buy-shared.ts` (client-safe, all the arithmetic, tested) and
+`src/lib/cocozuri-buy.ts` (server-only, the ONE DOOR for writes); the screens
+**`/cocozuri/purchases`** and **`/cocozuri/budgets`**; posting through
+`postVoucher()` as `"CocoZuri Purchase"`.
+
+### The read path moved to the ledger, which §6a said had to happen HERE
+
+Every CocoZuri stock screen now reads `ledgerBalanceAt`, not the day book:
+`stockBook()` returns `moves`, and `dayRows` / `monthRows` / `varianceOf` /
+`salesRows` / `orderSuggestions` all take a location and the movements.
+**Proved live:** before the purchase, ledger 406 and day book 406; after it,
+ledger 446 and day book still 406. The two readings have parted company exactly
+as predicted, and every screen is on the right side of it.
+
+⚠️ **THE SHEET AND THE LEDGER ARE READ SEPARATELY AND FOR DIFFERENT THINGS.**
+`cz_stock_days` is still the DOCUMENT — it is what says whether anybody wrote
+anything down, it carries the note, and it is what `daysWritten`/`daysMeasured`
+count. The movements are the truth about quantity. Swapping the two breaks the
+order form: a day whose only movement was a delivery would count as a day of
+trading and halve the rate.
+
+⚠️ **THE DAY SHEET GAINED AN "OTHER" COLUMN, READ-ONLY.** Closing is
+`opening + IN − OUT − third` only while the sheet is the only writer; the day a
+purchase lands, that sum stops adding up. `CzDayRow.other` is the net of
+movements recorded on a document, and the grid shows it rather than presenting a
+closing figure that appears wrong. It cannot be typed into — a delivery belongs
+to the purchase that recorded it.
+
+⚠️ **A STOCK-TAKE IS NOW JUDGED AGAINST THE LEDGER.** Judged against the sheet, a
+count taken after a delivery would report the whole delivery as an unexplained
+surplus and demand a reason for stock that is perfectly well accounted for.
+
+### The owner's two answers, as built
+
+⚠️ **THE SUPPLIER IS OPTIONAL AND THE FORM IS DELIBERATELY EASY TO SATISFY.**
+A purchase needs a date, a place, and what was bought. Nothing else. A vendor on
+file, a typed market-stall name, or nothing at all are all valid, and "Not named"
+is shown as a plain fact rather than a warning. The failure to design against is
+not a blank supplier — it is a purchase nobody records, which never reaches the
+books at all.
+
+⚠️ **`paid_from` IS FOUR CASES AND `own_money` IS THE ONE THAT MATTERS.**
+Self-bought means somebody is owed the money back, so the voucher credits
+**creditors with that person as the party**, never the bank — money that never
+left it. Approving refuses a self-bought purchase with nobody named. Proved live.
+
+⚠️ **THE BUDGET IS APPROVED BY A NAMED PERSON AT A MOMENT**, and the name is
+stored beside the id because a person may leave and the decision still happened.
+A budget nobody has approved cannot be charged to. An approved budget cannot be
+edited — reopen it first, which clears the approval, because it was a name
+against a figure that is about to change. A refusal must say why.
+
+### Approval is what makes a purchase count
+
+A **draft** moves no stock and reaches no books (note #47, "after approval") —
+which is what makes it safe to type while the delivery is still being carried in.
+**Approving** writes one `receipt` movement per line through `postStockMove()`,
+carrying the **landed** unit cost. **Cancelling** an approved purchase reverses
+those movements and refuses while the general ledger still holds it. All proved
+live: 2 movements netting to 0 after cancellation, stock back at 406.
+
+⚠️ **THE MOVEMENTS ARE WRITTEN BEFORE THE STATUS, AND ROLLED BACK IF THE STATUS
+FAILS.** The other order leaves a purchase marked approved with nothing on the
+shelf, and there is no transaction here to fall back on.
+
+### Landed cost, which is the point of note #21
+
+Freight is spread over the lines **BY VALUE**, on read, with the **last line
+taking the rounding remainder** so the shares add back exactly. Weight is not
+recorded, and per-line would put as much freight on a sachet of vanilla as on
+forty kilos of cocoa. Where the goods are worth nothing (a free sample) it falls
+back to quantity; where there is no quantity either, `unitCost` is **null**
+rather than invented.
+
+Proved live: 40 × 10,000 and 1 × 100,000 with 20,000 transit → the first line
+carries 16,000 of it and costs **10,400 a unit**, not 10,000.
+
+⚠️ **FREIGHT GOES INTO THE VALUE OF THE STOCK, NOT INTO AN EXPENSE.** Booking it
+to carriage would make the almonds look cheaper than they were and every batch
+costed from them wrong in the same direction. ⚠️ **It carries no VAT split** —
+whether the transit charge is itself rated depends on who raised it and nobody
+has said, so treating it as rated would invent a reclaim.
+
+### The books
+
+`Dr Stock` the landed cost · `Dr VAT recoverable` (only when rated) ·
+`Cr` whichever side actually paid, the whole payable. Proved live: Dr 610,000 =
+Cr 610,000, stock debited 520,000 not 610,000.
+
+⚠️ **THERE IS NO `stock` ROLE IN THE CHART** — the template numbers it 1150 and
+types it "Stock" but marks it for nothing. `resolveBuyAccounts` finds it by type,
+then by number, then by the setting **`cocozuri.stockAccount`**, and **refuses
+rather than guesses**. `postingOverview` now checks BOTH sides of the chart:
+selling can be ready while buying is not.
+
+⚠️ **`tax_inclusive` IS THREE-STATE AND AN UNANSWERED RATED PURCHASE CANNOT BE
+APPROVED OR POSTED.** The same 1,180,000 is either +VAT or includes-VAT. The
+desk lists such a purchase as blocked and says why; the list marks it with a `?`.
+
+⚠️ **AN OVERRUN IS REFUSED UNTIL SOMEBODY SAYS SO.** Not because overspending is
+impossible — the flour was bought — but because it must be a decision rather than
+a number that quietly appears. Same shape as `recordCount` refusing a variance
+nobody has explained. Proved live: refused at "over by 110,000", approved on the
+second call.
+
+⚠️ **A BUDGET IS MEASURED AGAINST WHAT LEAVES THE BANK** — the payable figure,
+VAT and freight and all — not against the net. That is the cash reading, it is
+said on both screens, and it can be changed on a word from the owner. Measuring
+the net would understate every budget by the VAT while the 7%-versus-18%
+question is still open.
+
+### Still open after Stage 2
+
+- **The reference is `PUR-0001`.** There is no paper series to honour, so the
+  floor is the string `"0000"` (start at one, pad to four).
+  `settings["cocozuri.seriesFloor"]` overrides it, as for every other series.
+- **A budget is matched by period and place only.** Per-category budgets would be
+  one more column; nobody has asked for them.
+- **No MCP tool and no `EntityDef`**, on purpose — a purchase reference is looked
+  up on its own list, and a ledger write tool must never exist. `cz_purchase` and
+  `cz_budget` are registered as `SourceType`s so the module can have
+  `ENTITY_VIEWS` entries, with `searchOrder: -1`.
+- **Nothing is in there.** The tables are live and EMPTY; the smoke test cleaned
+  up after itself.
+
+## 6c. Stage 3 is BUILT — 22 Aug 2026
+
+Migration **0151** applied and **proved by effect** (both tables present,
+`output_item_id` NOT NULL, RLS on, no anon grants) — never by the migrator's
+success message. `npm run db:check-security` clean across 147 tables. **979
+tests pass**, 24 of them new.
+
+**What exists:** `cz_recipes` · `cz_recipe_lines`;
+`src/lib/cocozuri-recipe-shared.ts` (client-safe, all the arithmetic, tested)
+and `src/lib/cocozuri-recipe.ts` (server-only, the ONE DOOR for writes); the
+screens **`/cocozuri/recipes`** and **`/cocozuri/recipes/[id]`**.
+
+### The claim the whole stage rests on, proved live
+
+⚠️ **A RECIPE COSTS ITSELF FROM WHAT THE MATERIALS ACTUALLY COST, AND NOBODY
+EDITS IT.** Proved end to end: a recipe was written while its materials had
+never been bought (reported **unknown**, and the batch cost only the gas). A
+purchase of 400 cocoa at 1,000 and 1,200 packaging at 100, with 20,000 transit,
+was then approved — and the same recipe, untouched, came back costed. Cocoa at
+**1,038.4616 a unit, not 1,000**, because Stage 2 spread the freight onto the
+movement. Batch 59,000; 546.30 a bar.
+
+That is only possible because the cost is read from `cz_stock_moves.unit_cost`
+on `receipt` movements — the LANDED figure. Nothing else in COS knows what a bag
+of almonds actually cost.
+
+### The rules, and why each one is there
+
+⚠️ **A MATERIAL NOBODY HAS BOUGHT HAS NO COST — "not known", never nil.** Every
+screen shows an incomplete costing as **"≥"** with the material NAMED. A total
+with a silent zero inside it reads as cheap, and the entire point of Stage 7 is
+to find out which chocolate makes money.
+
+⚠️ **THE MATERIAL COST IS A WEIGHTED AVERAGE, NOT THE LATEST PRICE.** One small
+emergency bag at three times the rate would otherwise rewrite the cost of every
+recipe that uses it. The latest is shown BESIDE it so a real price rise is still
+visible. This is the moving-average valuation the reference system uses.
+
+⚠️ **MOVEMENTS WITH NO `unit_cost` ARE IGNORED, NOT COUNTED AS FREE.** Every
+day-sheet movement is one of those — somebody wrote "12 in" and nobody said what
+it cost — and averaging them in at zero would halve the cost of anything that has
+ever been counted.
+
+⚠️ **QUANTITIES ARE PER BATCH AND THE COST PER UNIT IS DIVIDED BY THE **GOOD**
+UNITS.** If a tenth is expected to be lost, the nine that survive carry the cost
+of all ten — that is what an expected loss MEANS. Dividing by the raw yield
+understates every bar by exactly the loss, invisibly. 10% loss on 120 gives 108
+good units and 546.30 rather than 491.67.
+
+⚠️ **THE LINE CARRIES THE OWNER'S THREE HEADINGS** — raw material · packaging ·
+**finishing** — because note #31 names three, not one. **"Finish" is his word and
+nobody has said what it covers** (materials? work?), so it is stored as written,
+exactly as DA/SA/TA is on the kitchen's stock sheet. Anything that is not a
+stock item at all — gas, an hour of somebody's time — goes in `other_cost`, and
+**it must carry a note**, because a number with no explanation is a number
+nobody can check.
+
+⚠️ **IT REFUSES RATHER THAN REPAIRS**, like `purchaseBlockers`: a material listed
+twice is not quietly added up, and **a recipe that contains what it makes is
+refused outright** — Stage 4 would loop for ever on it. Both proved live.
+
+⚠️ **A RECIPE LANDS AS A DRAFT, AND ACTIVATING RE-CHECKS THE RULES.** A recipe
+nobody has checked should not be what Stage 4 reaches for at seven in the
+morning. **Several ACTIVE recipes per item is correct** — a large batch and a
+small batch are genuinely different — with **ONE default**, enforced in the
+library, because two defaults is a question with two answers.
+
+⚠️ **AN ACTIVE RECIPE MAY BE EDITED, DELIBERATELY.** Unlike an invoice or a
+purchase it is not a document somebody acted on — it is a live instruction. What
+a batch ACTUALLY consumed will be the Stage 4 movements, so editing a recipe can
+never rewrite the cost of something already made.
+
+### ⚠️ THE BUG THAT MATTERED, AND IT WILL BITE STAGE 5 TOO
+
+**A STOCK ITEM BELONGS TO A LOCATION, SO ITS NAME DOES NOT IDENTIFY IT.**
+`AMBER RABDI` exists on the shop's sheet AND the kitchen's as two different
+rows. The recipe form matched materials BY NAME and took whichever came back
+first — which filed the very first recipe typed into the live screen as making
+the SHOP's Amber Rabdi, when it is made in the kitchen. Found by reading the
+page, not by a test.
+
+That is **fault #4 — matching by name — creeping back in through a form**, which
+is the one mistake this whole module exists to stop. Every choice now carries its
+place (`AMBER RABDI · Kitchen`), and the state is seeded from the ID through the
+same label so re-opening a recipe cannot silently re-point it.
+
+⚠️ **THE SAME TENSION IS UNRESOLVED IN THE LEDGER AND STAGE 5 MUST FACE IT.**
+`transferMoves()` moves ONE `item_id` between two locations, but
+`cz_stock_items.location_id` says an item belongs to exactly one. So a transfer
+today gives an item a balance at a place it does not belong to. Nothing is wrong
+yet — no transfer has been recorded — but "kitchen → shop" cannot be built until
+somebody decides whether the two sheets' rows are the same thing or two things.
+
+### Also built
+
+- **"How many batches would the shelf run to"** on the recipe record — read
+  straight off the ledger, per item AND per location. ⚠️ **It SHOWS, it does not
+  PLAN**: working out what to make and holding the materials for it is Stage 4
+  (note #40). The answer is the **weakest line** — a hundred boxes is no use
+  with two kilos of cocoa.
+- **"Shared with other recipes"** — note #33, common ingredients. It works only
+  because a recipe line points at an ID and not at a name, and it is the recall
+  question in miniature: one bag was bad, what else did it reach.
+- **The yield against the 95% benchmark**, warned when below. Stage 4 measures
+  the actual against it — the owner's "inter check against plan" (note #37).
+
+### Still open after Stage 3
+
+- **What does "finish" mean?** Recorded under his own word; ask.
+- **No MCP tool and no `EntityDef`**, on purpose — what a bar is made of is not
+  something anybody types into a search box. `cz_recipe` is registered as a
+  `SourceType` with `searchOrder: -1` so the module can have an `ENTITY_VIEWS`
+  entry.
+- **`deleteRecipe` must start refusing** once Stage 4 gives batches a recipe to
+  point at, the way `deleteBudget` refuses a budget with spending against it.
+- **Nothing is in there.** The tables are live and EMPTY; both smoke tests
+  cleaned up after themselves.
+
+## 6d. Stage 4 is BUILT — 22 Aug 2026
+
+Migration **0152** applied and **proved by effect** (nine new columns on
+`cz_batches`, four foreign keys, `recipe_id` and `location_id` nullable).
+`npm run db:check-security` clean across 147 tables. **999 tests pass**, 20 of
+them new.
+
+**What exists:** `src/lib/cocozuri-batch-shared.ts` (client-safe, tested) and
+`cocozuri-batch.ts` (server-only, the ONE DOOR); the screens
+**`/cocozuri/batches`** and **`/cocozuri/batches/[batchNo]`**.
+
+### ⚠️ THE WHOLE STAGE IS SHAPED BY §5a, AND THAT IS NOT DECORATION
+
+*"We don't use batch numbers, but we are introducing them."* **This stage does
+not fail by being wrong — it fails by not being used.** Every decision follows
+from that:
+
+- **The number is allocated, never typed** (`BATCH-2608-01`, month in the
+  number so the sequence stays short). Ask somebody to invent one at seven in
+  the morning and they will write "1" for the third time that week.
+- **A batch opens in ONE action** and lands `running`, not `planned`. The
+  ordinary case is somebody making chocolate NOW; planning ahead is the
+  exception and gets its own status.
+- **The recipe is OPTIONAL.** Making something for the first time, or
+  off-recipe, must still be recordable.
+- **Every question is asked at the END.** Somebody opening a batch has their
+  hands full; somebody closing one has finished and is writing down what
+  happened. That is when it is fair to ask.
+
+### ⚠️ MATERIALS ARE CONSUMED AT **CLOSE**, NOT AT START
+
+Two reasons and both matter. A batch open for two hours does not need its cocoa
+in a limbo nobody can see — the kitchen's shelf reads true all day. And an
+**abandoned batch would otherwise destroy stock for nothing**, which gives
+people a reason not to open one "just in case" — the friction §5a warns about,
+in its most damaging form. **Proved live: abandoning a batch moved nothing.**
+
+The movements are dated the batch's own date, so the books do not care.
+
+### The inter check (note #37), proved live
+
+The full chain ran end to end: bought 400 cocoa + 1,200 packaging with freight →
+the recipe costed itself → a batch opened in one action → **nothing left the
+shelf** → closing it took **44 cocoa (the recipe said 40)** and produced **90
+(108 expected)** → the check reported **−18 and a 75% yield, flagged below the
+95% benchmark** → 806 became 762 and the chocolate went 39 → 129.
+
+⚠️ **THE MATERIAL CHECK READS WHAT WAS TAKEN, NOT THE RECIPE.** The recipe is
+what was *meant* to go in; the `consume` movements are what did. Reading the
+recipe back as fact would make every batch agree with itself and the check would
+be worthless. The close form starts at the recipe and lets you change it.
+
+⚠️ **A SHORTFALL MUST SAY WHERE IT WENT** — in the making, or the materials
+(note #12) — **and naming the kind is not enough; it has to say why.** Same
+discipline as `recordCount` refusing an unexplained stock-take. Proved: the
+close was refused twice before it was explained.
+
+⚠️ **THE EXPECTATION IS AFTER THE EXPECTED LOSS.** Measuring against the raw
+yield would report the ordinary, already-budgeted-for loss as a failure on every
+single batch — and a warning that fires every time is a warning nobody reads.
+
+⚠️ **A MATERIAL THE RECIPE ASKED FOR THAT NOBODY TOOK is a variance too**, and
+the easiest of all to miss: it simply is not in the movements. It is reported.
+
+### Traceability — what all of this was for
+
+Every movement a batch makes carries its `batch_id`: three of them on the test
+run, one `produce` and two `consume`. **That is the answer to "one bag of almond
+powder was bad — which bars used it, and who got them"**, forwards and
+backwards, which is the reason food is traced by lot at all.
+
+⚠️ **A RECIPE SOMETHING HAS BEEN MADE FROM NOW REFUSES TO BE DELETED** — the
+batch is the record of a real morning's work and its recipe is how anybody knows
+what went into it. Proved live. (The forward rule written in §6c, now honoured.)
+
+⚠️ **REOPENING REVERSES, NEVER ERASES.** Proved: 3 movements became 6, netting
+to zero, and the shelf returned to exactly where it started.
+
+⚠️ **A BATCH DELIBERATELY DOES NOT NET** — `postStockMove` is called WITHOUT
+`mustNet`. Two kilos of cocoa become a hundred and eight bars; the two sides are
+different things in different units. A transfer nets; production does not.
+
+### Still open after Stage 4
+
+- **⚠️ STAGE 5 IS BLOCKED ON A DECISION, and it is the one flagged in §6c.**
+  `cz_stock_items.location_id` says an item belongs to exactly ONE place, so
+  `AMBER RABDI` is a different row on the shop's sheet and the kitchen's — but
+  `transferMoves()` moves ONE `item_id` between two locations. **"Kitchen →
+  shop" cannot be built until somebody decides whether those two rows are the
+  same chocolate or two different things.** Nothing is wrong today (no transfer
+  has ever been recorded), and Stage 4 sidesteps it by consuming and producing
+  within one place. Ask the owner.
+- **Batch costing is Stage 7**, not this one. `unitCost` is accepted on the
+  `produce` movement and nothing computes it yet.
+- **Expiry is Stage 9.** `expires_on` exists and nothing fills it in.
+- **No MCP tool and no `EntityDef`** yet. ⚠️ `cz_batch` is the ONE CocoZuri
+  record that will eventually earn a search entry — a batch number is exactly
+  what somebody quotes when a bar is wrong.
+- **Nothing is in there.** All three tables are live and EMPTY; the smoke test
+  cleaned up after itself.
+
+## 6e. Stage 5 is BUILT — 22 Aug 2026
+
+Migration **0153** applied and **proved by effect** (two tables, RLS on, no anon
+grants). **1,026 tests pass**, 19 of them new.
+
+**What exists:** `cz_transfers` · `cz_transfer_lines`;
+`src/lib/cocozuri-transfer-shared.ts` (client-safe, tested) and
+`cocozuri-transfer.ts` (server-only, the ONE DOOR); the screens
+**`/cocozuri/transfers`** and **`/cocozuri/transfers/[reference]`**; the pairing
+route `/api/cocozuri/transfer-options`.
+
+### ⚠️ THE OWNER ANSWERED THE QUESTION THAT BLOCKED THIS
+
+*"Yes, same chocolates — but the system was still a bit messy, that's why we are
+building a proper ERP for it so we can trace everything."* (22 Aug 2026)
+
+So the shop's `AMBER RABDI` and the kitchen's ARE the same chocolate — but they
+are still **two rows**, because `cz_stock_items` belongs to exactly one
+location. A transfer therefore moves **between two item rows**, and the two are
+joined by **`product_id`, NEVER by name**. That is fault #4 again: the workbook
+matches its sheets by name and loses 200 units a month to it.
+
+**Measured live: 64 of the kitchen's 75 chocolates already pair with a shop row
+by product.** The other 11 are reported with a reason ("the receiving list has
+no line for this") rather than silently dropped — a line quietly missing from a
+list is how somebody spends ten minutes wondering where a chocolate went.
+
+⚠️ **A MISSING COUNTERPART IS REPORTED, NEVER INVENTED.** Adding a line to a
+shelf is a deliberate act on the stock book; creating one here would put a row
+on a shelf nobody chose to count.
+
+### ⚠️ A TRANSFER HAS TWO MOMENTS, AND THAT IS THE WHOLE POINT
+
+The kitchen sends 20; the shop counts 18. **Recording one figure at both ends is
+exactly what makes the shop's opening stock a mystery today** — and then a
+stock-take blames the shop for something that went missing in a crate.
+
+- **Sending** writes `transfer` movements OUT of the source. The stock is now
+  **in transit**: off one shelf and not yet on the other, which is the truth.
+- **Receiving** writes movements INTO the destination for **what actually
+  arrived**.
+
+Proved live: kitchen 83 → 63 on send, shop still 5; then shop 5 → 23 on receipt
+of 18. Both figures survive on the document, with the reason.
+
+⚠️ **THERE IS NO DRAFT.** By the time somebody records this the chocolate is in
+a crate. A transfer sitting unsent while the stock has already gone is the gap
+this replaces.
+
+⚠️ **SO A TRANSFER IS NOT POSTED WITH `mustNet`, AND DOES NOT ALWAYS NET.** It
+nets only when everything arrived. Stage 1's `transferMoves` netted by
+construction because it recorded ONE moment; `transferStock` is now marked
+superseded and must not be built on.
+
+⚠️ **THE MISSING UNITS GET NO MOVEMENT OF THEIR OWN.** The kitchen is down 20
+and the shop is up 18; the 2 belong to neither shelf. Both movements carry the
+transfer's voucher, so "what did TRF-2608-01 lose" is always answerable —
+inventing a third movement to tidy the arithmetic would put those 2 somewhere
+they never were.
+
+### What it refuses, all proved live
+
+- a place sending to itself;
+- two rows that are **not the same product** ("nothing can say they are the same
+  chocolate");
+- a shortfall nobody has explained;
+- **MORE arriving than was sent** — stock cannot appear in transit, so that is a
+  typo, not a windfall;
+- cancelling a transfer that has already arrived (send it back the other way).
+
+Cancelling one that never went **reverses** the out-movements rather than
+erasing them.
+
+⚠️ **THE BATCH TRAVELS WITH THE CHOCOLATE** (`cz_transfer_lines.batch_id`).
+Without it a bar reaching the shop loses the thread back to the morning it was
+made, which is the one thing this programme exists to keep.
+
+### ⚠️ THE POS HALF IS DELIBERATELY NOT BUILT
+
+Stage 5 says "optionally a simple POS". **Question §6.6 is still unanswered — is
+the shop a real till with a cash-up, or does somebody just write down what
+sold?** The two answers produce completely different software, the day sheet
+already records what left the shop, and building the wrong one would be worse
+than building nothing. **Ask the owner.**
+
+### Still open after Stage 5
+
+- **The POS question above.**
+- **No MCP tool and no `EntityDef`**, on purpose.
+- **Nothing is in there** beyond whatever the demo left; the tables are live.
 
 ## 7. Honest sizing
 

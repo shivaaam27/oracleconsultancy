@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Printer, X } from "lucide-react";
+import { FIELD } from "@/components/ui";
 
 /* ------------------------------------------------------------------ *
  * The statement's period, and printing it.
@@ -33,26 +34,28 @@ export function CocozuriStatementControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2 print:hidden">
-      <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+      <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
         From
         <input type="date" value={from ?? ""} onChange={(e) => go({ from: e.target.value })} className={INPUT} />
       </label>
-      <label className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+      <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
         To
         <input type="date" value={to ?? ""} onChange={(e) => go({ to: e.target.value })} className={INPUT} />
       </label>
       {(from || to) && (
         <button type="button" onClick={() => router.push(`/cocozuri/statements/${customerId}`)}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg">
+          className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
           <X size={12} /> Whole account
         </button>
       )}
       <button type="button" onClick={() => window.print()}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg">
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
         <Printer size={13} /> Print / PDF
       </button>
     </div>
   );
 }
 
-const INPUT = "h-7 rounded-md border border-border bg-bg px-1.5 text-[12px] text-fg outline-none focus:border-accent";
+/* ⚠️ THE KIT'S FIELD, not a local one. Seven files had grown their own
+   `const INPUT` and no two agreed — see the note on `FIELD` in ui.tsx. */
+const INPUT = FIELD;

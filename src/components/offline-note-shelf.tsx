@@ -106,19 +106,19 @@ export function OfflineNoteShelf({
           <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
             <span className="inline-flex min-w-0 items-center gap-1.5">
               {row.pinnedAt && <Pin size={11} className="shrink-0 text-accent" aria-label="Pinned" />}
-              <span className="truncate text-[13px] font-medium text-fg">{noteTitle(row)}</span>
+              <span className="truncate text-base font-medium text-fg">{noteTitle(row)}</span>
               {row.kind === "daily" && (
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent">
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-accent-soft px-1.5 py-px text-xs font-medium text-accent">
                   <CalendarDays size={9} /> Daily
                 </span>
               )}
               {row.folderName && (
-                <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-[10px] font-medium text-fg-subtle">
+                <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-xs font-medium text-fg-subtle">
                   {row.folderName}
                 </span>
               )}
             </span>
-            <span className="truncate text-[12px] leading-snug text-fg-muted">
+            <span className="truncate text-sm leading-snug text-fg-muted">
               {row.snippet || <span className="text-fg-subtle italic">Empty note</span>}
             </span>
           </span>
@@ -151,14 +151,14 @@ export function OfflineNoteShelf({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search notes…"
             wrapperClassName="w-[15rem]"
-            className="h-8 text-[12.5px]"
+            className="h-8 text-sm"
           />
         </div>
       }
       empty={
         <div className="flex flex-col items-center gap-2 py-10 text-center">
-          <p className="text-[13px] font-medium text-fg-muted">Nothing here.</p>
-          <p className="max-w-[24rem] text-[12px] text-fg-subtle">
+          <p className="text-base font-medium text-fg-muted">Nothing here.</p>
+          <p className="max-w-[24rem] text-sm text-fg-subtle">
             {q ? "No note on this device matches that." : "This device has no copy of your notes yet."}
           </p>
         </div>

@@ -7,7 +7,8 @@ import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import {
   dayRows, previousDay, qty,
-  type CzDayRow, type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
+  type CzDayRow, type CzStockCount, type CzStockDay, type CzStockItem,
+  type CzStockLocation, type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
 import { saveStockDayAction } from "@/app/cocozuri/actions";
 import { cn } from "@/lib/cn";
@@ -28,21 +29,29 @@ import { cn } from "@/lib/cn";
  * actually happened.
  * ------------------------------------------------------------------ */
 
+/* ⚠️ A GRID CELL, NOT A FORM FIELD — deliberately tighter than the kit's
+   `FIELD`, because a hundred of them sit in a column. It still takes the
+   kit TYPE size, so it reads the same as everything around it. */
 const INPUT =
-  "w-full rounded-md border border-border bg-bg px-1.5 py-1 text-right text-[12.5px] tabular outline-none focus:border-accent";
+  "w-full h-7 rounded-md border border-border bg-bg px-1.5 text-right text-sm tabular outline-none focus:border-accent";
 
 type Draft = Record<number, { i: string; o: string; t: string }>;
 
 const asNum = (s: string) => (s.trim() === "" ? 0 : Number(s));
 
 export function CocozuriStockDay({
-  location, locations, items, days, counts, onDate, productNames,
+  location, locations, items, days, counts, moves, onDate, productNames,
 }: {
   location: CzStockLocation;
   locations: CzStockLocation[];
   items: CzStockItem[];
+  /** The sheet as somebody typed it — what says whether anything was written
+   *  down at all, and where the note lives. */
   days: CzStockDay[];
   counts: CzStockCount[];
+  /** ⚠️ THE LEDGER, AND WHERE EVERY BALANCE NOW COMES FROM. A day sheet cannot
+   *  see a delivery; `cz_stock_moves` can. */
+  moves: CzStockMove[];
   onDate: string;
   /** productId → the catalogue's name. The stock sheet's own wording is only
    *  used where nothing is linked, so a merge cannot leave two names for one
@@ -59,7 +68,10 @@ export function CocozuriStockDay({
   // in the boxes and get saved onto today.
   useEffect(() => { setDraft({}); }, [onDate, location.id]);
 
-  const rows = useMemo(() => dayRows(items, days, counts, onDate), [items, days, counts, onDate]);
+  const rows = useMemo(
+    () => dayRows(items, location.id, moves, days, counts, onDate),
+    [items, location.id, moves, days, counts, onDate],
+  );
 
   const nameOf = (it: CzStockItem) =>
     (it.productId != null ? productNames[it.productId] : null) ?? it.name;
@@ -88,9 +100,12 @@ export function CocozuriStockDay({
       },
     }));
 
-  /** Closing, live, from whatever is in the boxes right now. */
+  /** Closing, live, from whatever is in the boxes right now.
+   *  ⚠️ PLUS ANYTHING THAT MOVED WITHOUT BEING TYPED HERE — a delivery, a
+   *  transfer. Leaving `r.other` out would show a closing figure that disagreed
+   *  with the shelf and with every other screen in the module. */
   const closingOf = (r: CzDayRow) =>
-    r.opening + asNum(cell(r, "i")) - asNum(cell(r, "o")) - asNum(cell(r, "t"));
+    r.opening + asNum(cell(r, "i")) - asNum(cell(r, "o")) - asNum(cell(r, "t")) + r.other;
 
   const dirty = Object.keys(draft).length;
   const negative = shown.filter((r) => closingOf(r) < 0);
@@ -131,7 +146,7 @@ export function CocozuriStockDay({
               key={l.id}
               type="button"
               onClick={() => router.push(`/cocozuri/stock?loc=${l.id}&on=${onDate}`)}
-              className={cn("h-7 rounded px-2.5 text-[12px] font-medium transition-colors",
+              className={cn("h-7 rounded px-2.5 text-sm font-medium transition-colors",
                 l.id === location.id ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}
             >
               {l.name}
@@ -145,7 +160,7 @@ export function CocozuriStockDay({
             <ChevronLeft size={14} />
           </button>
           <input type="date" value={onDate} onChange={(e) => e.target.value && go(e.target.value)}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-[12px] text-fg outline-none focus:border-accent" />
+            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
           <button type="button" onClick={() => { const d = new Date(`${onDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); go(d.toISOString().slice(0, 10)); }}
             title="The day after"
             className="grid h-7 w-7 place-items-center rounded-md border border-border text-fg-muted hover:text-fg">
@@ -154,12 +169,12 @@ export function CocozuriStockDay({
         </div>
 
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[14rem]" className="h-7 text-[12px]" />
+          wrapperClassName="w-[14rem]" className="h-7 text-sm" />
 
         <span className="grow" />
 
         <button type="button" onClick={() => void save()} disabled={busy || dirty === 0}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
           {dirty ? `Save ${dirty} line${dirty === 1 ? "" : "s"}` : "Save"}
         </button>
@@ -169,7 +184,7 @@ export function CocozuriStockDay({
           was ever there. It is allowed to be typed — the numbers are what
           somebody actually counted — but never allowed to pass silently. */}
       {negative.length > 0 && (
-        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn">
+        <p className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
           <AlertTriangle size={13} className="mt-px shrink-0" />
           <span>
             <strong>{negative.length}</strong> item{negative.length === 1 ? " closes" : "s close"} below zero — more has
@@ -186,8 +201,8 @@ export function CocozuriStockDay({
           `overflow-x-auto` housing with a floor under it — the month page
           already does this, and the day book was the one that did not. */}
       <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev">
-        <div className="min-w-[38rem]">
-        <div className="grid grid-cols-[minmax(9rem,1fr)_70px_80px_80px_80px_80px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+        <div className="min-w-[43rem]">
+        <div className="grid grid-cols-[minmax(9rem,1fr)_70px_80px_80px_80px_70px_80px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
           <span>Item</span>
           <span className="text-right">Opening</span>
           <span className="text-right">In</span>
@@ -196,6 +211,10 @@ export function CocozuriStockDay({
               kitchen, DAMAGE in raw materials — read off the sheet, never
               translated into a guess. */}
           <span className="truncate text-right" title={location.thirdLabel}>{location.thirdLabel}</span>
+          {/* ⚠️ What moved on a DOCUMENT rather than on this sheet — a purchase
+              received, a transfer. Normally blank; when it is not, the sheet
+              would otherwise appear not to add up. */}
+          <span className="text-right" title="Deliveries and transfers — movements recorded on a document rather than typed here">Other</span>
           <span className="text-right">Closing</span>
         </div>
 
@@ -205,25 +224,32 @@ export function CocozuriStockDay({
             const changed = draft[r.item.id] != null;
             return (
               <div key={r.item.id}
-                className={cn("grid grid-cols-[minmax(9rem,1fr)_70px_80px_80px_80px_80px] items-center gap-2 border-b border-border px-3 py-1 last:border-0",
+                className={cn("grid grid-cols-[minmax(9rem,1fr)_70px_80px_80px_80px_70px_80px] items-center gap-2 border-b border-border px-3 py-1 last:border-0",
                   changed && "bg-accent-soft/40")}>
-                <span className="min-w-0 truncate text-[12.5px] text-fg" title={nameOf(r.item)}>
+                <span className="min-w-0 truncate text-sm text-fg" title={nameOf(r.item)}>
                   {nameOf(r.item)}
-                  <span className="ml-1.5 text-[11px] text-fg-subtle">{r.item.uom}</span>
+                  <span className="ml-1.5 text-xs text-fg-subtle">{r.item.uom}</span>
                   {/* An item with no product cannot be valued in the sales
                       figures. Said quietly, but said. */}
                   {r.item.productId == null && (
-                    <span className="ml-1.5 text-[10.5px] text-fg-subtle" title="Not linked to a product — it has no sales value">·  unlinked</span>
+                    <span className="ml-1.5 text-xs text-fg-subtle" title="Not linked to a product — it has no sales value">·  unlinked</span>
                   )}
                 </span>
-                <span className="text-right text-[12.5px] tabular text-fg-muted">{qty(r.opening)}</span>
+                <span className="text-right text-sm tabular text-fg-muted">{qty(r.opening)}</span>
                 <input value={cell(r, "i")} onChange={(e) => setCell(r, "i", e.target.value)}
                   inputMode="decimal" className={INPUT} placeholder="–" aria-label={`In for ${nameOf(r.item)}`} />
                 <input value={cell(r, "o")} onChange={(e) => setCell(r, "o", e.target.value)}
                   inputMode="decimal" className={INPUT} placeholder="–" aria-label={`Out for ${nameOf(r.item)}`} />
                 <input value={cell(r, "t")} onChange={(e) => setCell(r, "t", e.target.value)}
                   inputMode="decimal" className={INPUT} placeholder="–" aria-label={`${location.thirdLabel} for ${nameOf(r.item)}`} />
-                <span className={cn("text-right text-[12.5px] tabular font-medium",
+                {/* ⚠️ READ-ONLY, AND THAT IS THE POINT. A delivery belongs to
+                    the purchase that recorded it; retyping it here would be a
+                    second, unattributed movement of the same stock. */}
+                <span className={cn("text-right text-sm tabular", r.other === 0 ? "text-fg-subtle" : "text-accent")}
+                  title={r.other === 0 ? "Nothing moved on a document today" : "Recorded on a purchase or a transfer, not on this sheet"}>
+                  {r.other === 0 ? "–" : qty(r.other)}
+                </span>
+                <span className={cn("text-right text-sm tabular font-medium",
                   closing < 0 ? "text-danger" : closing !== r.opening ? "text-fg" : "text-fg-muted")}>
                   {qty(closing)}
                 </span>
@@ -231,7 +257,7 @@ export function CocozuriStockDay({
             );
           })}
           {shown.length === 0 && (
-            <p className="px-3 py-8 text-center text-[12.5px] text-fg-subtle">
+            <p className="px-3 py-8 text-center text-sm text-fg-subtle">
               {items.length === 0
                 ? "No items on this location's list yet."
                 : "Nothing matches that."}
@@ -239,7 +265,7 @@ export function CocozuriStockDay({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border bg-bg-subtle px-3 py-1.5 text-[11.5px] text-fg-subtle">
+        <div className="flex items-center justify-between border-t border-border bg-bg-subtle px-3 py-1.5 text-xs text-fg-subtle">
           <span>{shown.length} of {items.length} items</span>
           <span>
             {rows.filter((r) => !r.untouched).length} written down for this day

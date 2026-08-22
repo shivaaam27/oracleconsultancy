@@ -79,7 +79,7 @@ export function TaskNudgeBanner({
   // A single line sits centred with the icon; two lines get their own padded rows
   // with a hairline between so they don't crowd (esp. on a phone).
   const rowCls = cn(
-    "group flex w-full items-start gap-2 text-left text-[13.5px] leading-relaxed text-fg",
+    "group flex w-full items-start gap-2 text-left text-base leading-relaxed text-fg",
     multi && "py-2.5",
   );
 

@@ -230,7 +230,7 @@ export function CalendarView({
         onPointerCancel={clearPress}
         onClick={(e) => { e.stopPropagation(); if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
         className={cn(
-          "block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-md border-l-2 select-none",
+          "block w-full truncate text-left text-xs leading-tight px-1.5 py-0.5 rounded-md border-l-2 select-none",
           "transition-colors hover:bg-bg-muted/70 cursor-grab active:cursor-grabbing",
           dragCode === r.code && "opacity-40"
         )}
@@ -250,7 +250,7 @@ export function CalendarView({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1.5 max-w-[300px] text-[11px] px-2 py-1 rounded-md border-l-2",
+          "inline-flex items-center gap-1.5 max-w-[300px] text-xs px-2 py-1 rounded-md border-l-2",
           "bg-bg-subtle/80 transition-colors",
           dragCode === r.code && "opacity-40"
         )}
@@ -360,7 +360,7 @@ export function CalendarView({
         <div className="elevated rounded-2xl overflow-hidden ring-1 ring-border/50">
           <div className="grid grid-cols-7 border-b border-border/70">
             {weekdayLabels.map((w) => (
-              <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
+              <div key={w} className="px-2 py-1.5 text-xs uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">
@@ -388,7 +388,7 @@ export function CalendarView({
                   )}
                 >
                   <div className={cn(
-                    "text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
+                    "text-xs tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
                     isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle"
                   )}>
                     {cell.date.getDate()}
@@ -411,7 +411,7 @@ export function CalendarView({
                   <div className="hidden space-y-1 sm:block">
                     {items.slice(0, span === "week" ? 8 : 3).map((r) => <Pill key={r.id} r={r} />)}
                     {items.length > (span === "week" ? 8 : 3) && (
-                      <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
+                      <div className="text-xs text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
                     )}
                   </div>
                 </div>
@@ -525,7 +525,7 @@ function RailButton({
             style={{ transformOrigin: "top left" }}
             className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu elevated rounded-2xl p-2"
           >
-            <div className="text-[11px] text-fg-subtle px-1 pb-1.5">{hint}</div>
+            <div className="text-xs text-fg-subtle px-1 pb-1.5">{hint}</div>
             <div className="flex flex-col gap-1.5">{children}</div>
           </motion.div>
         )}

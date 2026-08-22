@@ -184,7 +184,7 @@ export function SiteToolsTable({
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content align="end" sideOffset={6}
                         className="z-[60] min-w-[190px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
-                        <DropdownMenu.Label className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Condition</DropdownMenu.Label>
+                        <DropdownMenu.Label className="px-2.5 pt-1.5 pb-1 text-xs uppercase tracking-[0.08em] text-fg-subtle">Condition</DropdownMenu.Label>
                         {(Object.keys(TOOL_CONDITION_LABELS) as ToolCondition[]).map((c) => (
                           <MenuItem key={c} icon={<span className={cn("h-2 w-2 rounded-full", c === "good" ? "bg-success" : c === "needs_repair" ? "bg-warn" : "bg-danger")} />}
                             onSelect={() => { if (c !== t.condition) run(t.id, () => setSiteToolConditionAction(t.id, c), "Condition updated."); }}>
@@ -385,7 +385,7 @@ function HistoryDialog({ target, onOpenChange }: { target: SiteToolRow | "all" |
               <div className="min-w-0 flex-1">
                 {!single && <span className="font-medium">{m.toolName} · </span>}
                 <span>{movementText(m)}</span>
-                <div className="text-[11px] text-fg-subtle">{fmtWhen(m.createdAt)}</div>
+                <div className="text-xs text-fg-subtle">{fmtWhen(m.createdAt)}</div>
               </div>
             </div>
           ))}

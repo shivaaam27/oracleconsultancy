@@ -84,12 +84,12 @@ export function PersonAssets({
                 <span className="h-2 w-2 rounded-full bg-info shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{a.name}</div>
-                  {meta && <div className="text-[11px] text-fg-subtle truncate">{meta}</div>}
+                  {meta && <div className="text-xs text-fg-subtle truncate">{meta}</div>}
                 </div>
                 <button
                   type="button" disabled={busy}
                   onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Return
                 </button>
@@ -104,7 +104,7 @@ export function PersonAssets({
       {/* Shared kit this person is custodian of */}
       {custodian.length > 0 && (
         <div className="border-t border-border/50">
-          <div className="px-3.5 pt-2 pb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+          <div className="px-3.5 pt-2 pb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
             <Users size={12} /> Custodian of (shared)
           </div>
           <div className="divide-y divide-border/50">
@@ -115,7 +115,7 @@ export function PersonAssets({
                   <span className="h-2 w-2 rounded-full bg-warn shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium truncate">{a.name}</div>
-                    {meta && <div className="text-[11px] text-fg-subtle truncate">{meta}</div>}
+                    {meta && <div className="text-xs text-fg-subtle truncate">{meta}</div>}
                   </div>
                 </div>
               );
@@ -136,7 +136,7 @@ export function PersonAssets({
               if (!Number.isNaN(v)) run(v, () => assignAssetAction(v, personId), "Equipment assigned.");
               e.currentTarget.value = "";
             }}
-            className="text-[11px] text-fg-muted"
+            className="text-xs text-fg-muted"
           >
             <option value="" disabled>Assign equipment from store…</option>
             {data.available.map((a) => (
@@ -144,7 +144,7 @@ export function PersonAssets({
             ))}
           </Select>
         ) : (
-          <Link href="/hrms/assets" onClick={onNavigate} className="text-[11px] text-accent hover:underline">
+          <Link href="/hrms/assets" onClick={onNavigate} className="text-xs text-accent hover:underline">
             No equipment in store — add some in the Asset Register
           </Link>
         )}

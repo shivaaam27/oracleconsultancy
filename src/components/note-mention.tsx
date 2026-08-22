@@ -153,7 +153,7 @@ const MentionList = forwardRef<MenuHandle, { items: PickItem[]; command: (item: 
 
     if (items.length === 0) {
       return (
-        <div className="w-[19rem] rounded-lg border border-border bg-bg-elev p-3 text-[12px] text-fg-muted shadow-lg">
+        <div className="w-[19rem] rounded-lg border border-border bg-bg-elev p-3 text-sm text-fg-muted shadow-lg">
           {scope === "note" ? "No other note matches." : "Nothing matches. Keep typing, or press Escape."}
         </div>
       );
@@ -172,7 +172,7 @@ const MentionList = forwardRef<MenuHandle, { items: PickItem[]; command: (item: 
         {groups.map((g) => (
           <div key={g.type}>
             {scope === "all" && (
-              <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">
+              <p className="px-2 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">
                 {GROUP_LABELS[g.type]}
               </p>
             )}
@@ -195,10 +195,10 @@ const MentionList = forwardRef<MenuHandle, { items: PickItem[]; command: (item: 
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      {item.code && <span className="shrink-0 font-mono text-[10.5px] text-fg-subtle">{item.code}</span>}
-                      <span className="truncate text-[12.5px] font-medium text-fg">{item.label}</span>
+                      {item.code && <span className="shrink-0 font-mono text-xs text-fg-subtle">{item.code}</span>}
+                      <span className="truncate text-sm font-medium text-fg">{item.label}</span>
                     </span>
-                    {item.sublabel && <span className="block truncate text-[11px] text-fg-muted">{item.sublabel}</span>}
+                    {item.sublabel && <span className="block truncate text-xs text-fg-muted">{item.sublabel}</span>}
                   </span>
                 </button>
               );

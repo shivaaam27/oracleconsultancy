@@ -77,7 +77,7 @@ export function DepartmentsAdmin({ departments }: { departments: DepartmentAdmin
                             title; on a phone there is no hover, so three numbers
                             sat there meaning nothing. The words appear below `sm`
                             only — the desk keeps its dense icon row. */}
-                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-fg-subtle mt-0.5">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-fg-subtle mt-0.5">
                           <span className="inline-flex items-center gap-1"><Users size={11} /> {d.peopleCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.peopleCount === 1 ? "person" : "people"}</span></span>
                           <span className="inline-flex items-center gap-1"><Building2 size={11} /> {d.companyCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.companyCount === 1 ? "company" : "companies"}</span></span>
                           <span className="inline-flex items-center gap-1"><ListTodo size={11} /> {d.taskCount}<span className="hidden whitespace-nowrap max-sm:inline">{d.taskCount === 1 ? "task" : "tasks"}</span></span>

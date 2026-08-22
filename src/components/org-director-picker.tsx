@@ -61,7 +61,7 @@ export function OrgDirectorPicker({
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
           <div className="absolute z-50 mt-1 right-0 w-60 rounded-xl glass glass-menu elevated p-2.5 space-y-2 text-left">
             <div>
-              <label className="block text-[10px] uppercase tracking-wide text-fg-subtle mb-1">Reports to (Director)</label>
+              <label className="block text-xs uppercase tracking-wide text-fg-subtle mb-1">Reports to (Director)</label>
               <Select wrapperClassName="w-full"
                 defaultValue={currentManagerId ?? ""}
                 onChange={(e) => run(() => setPersonDirector(personId, e.target.value ? Number(e.target.value) : null))}
@@ -72,7 +72,7 @@ export function OrgDirectorPicker({
               </Select>
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-wide text-fg-subtle mb-1">Also reports to</label>
+              <label className="block text-xs uppercase tracking-wide text-fg-subtle mb-1">Also reports to</label>
               <Select wrapperClassName="w-full"
                 value=""
                 onChange={(e) => { if (e.target.value) run(() => addPersonManager(personId, Number(e.target.value))); }}

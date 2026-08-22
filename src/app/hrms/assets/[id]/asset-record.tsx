@@ -94,26 +94,26 @@ export function AssetRecord({
       <RecordSidebarBlock title="Held by">
         {holder ? (
           <>
-            <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{holder.label}</p>
+            <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{holder.label}</p>
             {holder.id ? (
-              <Link href={`/people/${holder.id}`} className="text-[13px] text-accent hover:underline">
+              <Link href={`/people/${holder.id}`} className="text-base text-accent hover:underline">
                 {holder.name}
               </Link>
             ) : (
-              <p className="text-[13px]">{holder.name}</p>
+              <p className="text-base">{holder.name}</p>
             )}
-            {asset.assignedAt && <p className="text-[11px] text-fg-subtle">Since {fmt(asset.assignedAt)}</p>}
+            {asset.assignedAt && <p className="text-xs text-fg-subtle">Since {fmt(asset.assignedAt)}</p>}
           </>
         ) : (
-          <p className="text-[12px] text-fg-muted">In store — not assigned to anyone.</p>
+          <p className="text-sm text-fg-muted">In store — not assigned to anyone.</p>
         )}
       </RecordSidebarBlock>
 
       <RecordSidebarBlock title="Manage">
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           Assigning, sharing and returning happen on the register, where you can act on several at once.
         </p>
-        <Link href="/hrms/assets?view=assets" className="text-[12px] text-accent hover:underline">
+        <Link href="/hrms/assets?view=assets" className="text-sm text-accent hover:underline">
           Open the register
         </Link>
       </RecordSidebarBlock>
@@ -138,7 +138,7 @@ export function AssetRecord({
       {tab === "history" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {history.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-fg-muted">
+            <p className="px-3 py-8 text-center text-base text-fg-muted">
               This asset has never been handed out.
             </p>
           ) : (
@@ -146,7 +146,7 @@ export function AssetRecord({
               {history.map((h) => (
                 <li key={h.id} data-list-row className="flex items-center gap-2 border-b border-border px-3 last:border-0">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px]">
+                    <span className="block truncate text-base">
                       {h.personId ? (
                         <Link href={`/people/${h.personId}`} className="hover:text-accent">
                           {h.personName ?? "Someone"}
@@ -155,9 +155,9 @@ export function AssetRecord({
                         (h.personName ?? "Someone")
                       )}
                     </span>
-                    {h.notes && <span className="block truncate text-[11px] text-fg-subtle">{h.notes}</span>}
+                    {h.notes && <span className="block truncate text-xs text-fg-subtle">{h.notes}</span>}
                   </span>
-                  <span className="shrink-0 text-[11px] tabular text-fg-muted">
+                  <span className="shrink-0 text-xs tabular text-fg-muted">
                     {fmt(h.assignedAt)} → {h.returnedAt ? fmt(h.returnedAt) : "still has it"}
                   </span>
                 </li>

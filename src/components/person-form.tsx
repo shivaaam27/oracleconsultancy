@@ -26,7 +26,7 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{title}</span>
       </div>
       <div className="grid grid-cols-2 gap-2.5 px-3 py-3">{children}</div>
     </section>
@@ -260,7 +260,7 @@ export function PersonForm({
       <details className="rounded-xl border border-border bg-bg-subtle/40 p-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
           <Sparkles size={14} className="text-accent" /> Auto-fill from a message
-          <span className="ml-auto text-[11px] font-normal text-fg-subtle">paste &amp; read</span>
+          <span className="ml-auto text-xs font-normal text-fg-subtle">paste &amp; read</span>
         </summary>
         <div className="mt-2.5 space-y-2">
           <textarea value={scanText} onChange={(e) => setScanText(e.target.value)} rows={3}
@@ -272,7 +272,7 @@ export function PersonForm({
               {scanning ? "Reading…" : "Read & fill empty fields"}
             </button>
           </div>
-          <p className="text-[11px] text-fg-subtle">Fills empty profile fields only — it never overwrites what is already there.</p>
+          <p className="text-xs text-fg-subtle">Fills empty profile fields only — it never overwrites what is already there.</p>
           {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
         </div>
       </details>
@@ -322,7 +322,7 @@ export function PersonForm({
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </Select>
-            <p className="mt-1 text-[11px] text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
+            <p className="mt-1 text-xs text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
           </div>
         </FormSection>
 
@@ -343,7 +343,7 @@ export function PersonForm({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>
-            <p className="text-[11px] text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others under Links.</p>
+            <p className="text-xs text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others under Links.</p>
           </div>
 
           <div>

@@ -279,7 +279,7 @@ function QueueRow({ item, index }: { item: QueueItem; index: number }) {
           <span className="mt-0.5 block truncate text-xs text-fg-muted">{item.meta}</span>
         </span>
         {item.due && (
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1", toneClass[item.tone].bg, toneClass[item.tone].text, toneClass[item.tone].ring)}>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular ring-1", toneClass[item.tone].bg, toneClass[item.tone].text, toneClass[item.tone].ring)}>
             {item.due}
           </span>
         )}
@@ -458,10 +458,10 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
   return (
     <div className="mt-3 border-t border-border/60 pt-3">
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+        <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
           <Sparkles size={12} className="text-accent" /> Ready to action
         </div>
-        {pending > 0 && <span className="text-[11px] text-fg-muted">{pending} to review</span>}
+        {pending > 0 && <span className="text-xs text-fg-muted">{pending} to review</span>}
       </div>
       <ul className="space-y-1.5">
         <AnimatePresence initial={false}>
@@ -480,7 +480,7 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
         <button
           type="button"
           onClick={() => setShowAllRuns((v) => !v)}
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
         >
           {showAllRuns ? "Show fewer" : `Show all ${visible.length}`}
           <ChevronRight size={13} className={cn("transition-transform", showAllRuns ? "-rotate-90" : "rotate-90")} />
@@ -623,7 +623,7 @@ export function HomeMissionControl({
             icon={<LayoutGrid size={13} />}
             action={
               healthDelta !== null && healthDelta !== 0 ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted">
+                <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
                   <TrendChip delta={healthDelta} suffix="%" /> vs last
                 </span>
               ) : undefined
@@ -669,7 +669,7 @@ export function HomeMissionControl({
               </InsightPopover>
 
               <div className="-mt-1 flex justify-center">
-                <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1", toneClass[healthTone].bg, toneClass[healthTone].text, toneClass[healthTone].ring)}>
+                <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1", toneClass[healthTone].bg, toneClass[healthTone].text, toneClass[healthTone].ring)}>
                   <span className={cn("h-1.5 w-1.5 rounded-full", toneClass[healthTone].bar)} />
                   {health >= 80 ? "Healthy" : health >= 55 ? "Watch" : "At risk"}
                 </span>
@@ -679,7 +679,7 @@ export function HomeMissionControl({
               {healthSeries.length >= 2 && (
                 <div className="mt-2.5 flex flex-col items-center">
                   <Sparkline data={healthSeries} color={toneClass[healthTone].stroke} />
-                  <span className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Last {healthSeries.length} readings</span>
+                  <span className="mt-0.5 text-xs uppercase tracking-[0.08em] text-fg-subtle">Last {healthSeries.length} readings</span>
                 </div>
               )}
 
@@ -692,7 +692,7 @@ export function HomeMissionControl({
                 ]).map((s) => (
                   <div key={s.label} className="flex-1 px-1 py-2 text-center">
                     <div className={cn("text-lg font-semibold tabular leading-none", s.value ? toneClass[s.tone].text : "text-fg-subtle")}>{s.value}</div>
-                    <div className="mt-1 flex items-center justify-center gap-1 text-[10px] leading-tight text-fg-muted">
+                    <div className="mt-1 flex items-center justify-center gap-1 text-xs leading-tight text-fg-muted">
                       <span className={cn("h-1 w-1 rounded-full", s.value ? toneClass[s.tone].bar : "bg-fg-subtle/40")} />
                       {s.label}
                     </div>
@@ -763,7 +763,7 @@ export function HomeMissionControl({
                 <button
                   type="button"
                   onClick={() => setShowAllCos((v) => !v)}
-                  className="mt-1.5 w-full rounded-lg py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
+                  className="mt-1.5 w-full rounded-lg py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
                 >
                   {showAllCos ? "Show fewer" : `Show all ${rankedGauges.length} companies`}
                 </button>
@@ -792,14 +792,14 @@ export function HomeMissionControl({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium leading-snug">{t.title}</span>
                       {(t.context || t.dueAt) && (
-                        <span className="mt-0.5 block truncate text-[11px] text-fg-muted">
+                        <span className="mt-0.5 block truncate text-xs text-fg-muted">
                           {t.context}
                           {t.context && t.dueAt ? " · " : ""}
                           {t.dueAt ? `due ${new Date(t.dueAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
                         </span>
                       )}
                     </span>
-                    {t.important && <span className="shrink-0 rounded-full bg-danger-soft/60 px-1.5 py-0.5 text-[10px] font-semibold text-danger">!</span>}
+                    {t.important && <span className="shrink-0 rounded-full bg-danger-soft/60 px-1.5 py-0.5 text-xs font-semibold text-danger">!</span>}
                   </div>
                 </li>
               ))}
@@ -814,7 +814,7 @@ export function HomeMissionControl({
             icon={<Target size={13} />}
             action={
               clearedToday > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-soft/60 px-2 py-0.5 text-[11px] font-semibold text-success ring-1 ring-success/20">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-soft/60 px-2 py-0.5 text-xs font-semibold text-success ring-1 ring-success/20">
                   <CheckCircle2 size={11} /> {clearedToday} cleared today
                 </span>
               ) : undefined
@@ -859,7 +859,7 @@ export function HomeMissionControl({
           {/* Up next — the following priorities, as quick links */}
           {rest.length > 0 && (
             <div className="mt-3 border-t border-border/60 pt-3">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">Up next</div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">Up next</div>
               <div className="grid gap-1.5 sm:grid-cols-2">
                 {rest.map((item) => (
                   <Link
@@ -876,7 +876,7 @@ export function HomeMissionControl({
                       <span className="block truncate text-xs font-medium group-hover:text-accent">{item.title}</span>
                     </span>
                     {typeof item.count === "number" && (
-                      <span className={cn("shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular", toneClass[item.tone].bg, toneClass[item.tone].text)}>{item.count}</span>
+                      <span className={cn("shrink-0 rounded-full px-1.5 text-xs font-semibold tabular", toneClass[item.tone].bg, toneClass[item.tone].text)}>{item.count}</span>
                     )}
                     <ChevronRight size={14} className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100" />
                   </Link>
@@ -931,7 +931,7 @@ export function HomeMissionControl({
                   {s.label}
                   <span
                     className={cn(
-                      "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular",
+                      "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-xs font-semibold tabular",
                       active ? "bg-white/25" : "bg-bg-elev/80 ring-1 ring-border/50"
                     )}
                   >
@@ -961,7 +961,7 @@ export function HomeMissionControl({
                 const GIcon = groupMeta[g].icon;
                 return (
                   <div key={g} className="mb-1 last:mb-0">
-                    <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-subtle">
+                    <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.1em] text-fg-subtle">
                       <GIcon size={11} /> {groupMeta[g].label}
                       <span className="text-fg-subtle/70">· {items.length}</span>
                     </div>

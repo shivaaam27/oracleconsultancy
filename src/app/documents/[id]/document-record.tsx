@@ -73,7 +73,7 @@ export function DocumentRecord({
               {doc.expiryDate ? (
                 <span className={cn(status === "Expired" && "font-medium text-danger", status === "Expiring" && "text-warn")}>
                   {fmt(doc.expiryDate)}
-                  {expiry && <span className="ml-1 text-[11px] text-fg-subtle">({expiry})</span>}
+                  {expiry && <span className="ml-1 text-xs text-fg-subtle">({expiry})</span>}
                 </span>
               ) : null}
             </V>
@@ -140,19 +140,19 @@ export function DocumentRecord({
       <RecordSidebarBlock title="Renewal">
         {doc.expiryDate ? (
           <>
-            <p className={cn("text-[13px]", status === "Expired" ? "text-danger" : status === "Expiring" ? "text-warn" : "")}>
+            <p className={cn("text-base", status === "Expired" ? "text-danger" : status === "Expiring" ? "text-warn" : "")}>
               {expiry ?? status}
             </p>
-            <p className="text-[11px] text-fg-subtle">Reminds {doc.reminderLeadDays} days before.</p>
+            <p className="text-xs text-fg-subtle">Reminds {doc.reminderLeadDays} days before.</p>
           </>
         ) : (
-          <p className="text-[12px] text-fg-muted">No expiry date — nothing to chase.</p>
+          <p className="text-sm text-fg-muted">No expiry date — nothing to chase.</p>
         )}
       </RecordSidebarBlock>
 
       <RecordSidebarBlock title="Manage">
-        <p className="text-[12px] text-fg-muted">Editing, archiving and replacing the file happen in the library.</p>
-        <Link href={`/documents?doc=${doc.id}`} className="text-[12px] text-accent hover:underline">
+        <p className="text-sm text-fg-muted">Editing, archiving and replacing the file happen in the library.</p>
+        <Link href={`/documents?doc=${doc.id}`} className="text-sm text-accent hover:underline">
           Open the editor
         </Link>
       </RecordSidebarBlock>
@@ -197,15 +197,15 @@ export function DocumentRecord({
       {tab === "tasks" && (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           {tasks.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-fg-muted">No tasks raised against this document.</p>
+            <p className="px-3 py-8 text-center text-base text-fg-muted">No tasks raised against this document.</p>
           ) : (
             <ul>
               {tasks.map((t) => (
                 <li key={t.code} className="border-b border-border last:border-0">
                   <Link href={taskHref(t.code)} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle">
-                    <span className="shrink-0 text-[11px] tabular text-fg-subtle">{t.code}</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] group-hover:text-accent">{t.title}</span>
-                    <span className="shrink-0 text-[11px] text-fg-muted">{t.status}</span>
+                    <span className="shrink-0 text-xs tabular text-fg-subtle">{t.code}</span>
+                    <span className="min-w-0 flex-1 truncate text-base group-hover:text-accent">{t.title}</span>
+                    <span className="shrink-0 text-xs text-fg-muted">{t.status}</span>
                   </Link>
                 </li>
               ))}

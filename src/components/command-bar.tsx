@@ -17,7 +17,7 @@ export function CommandBar() {
       <Sparkles size={18} className="shrink-0 text-accent" />
       <span className="min-w-0 flex-1 truncate text-sm text-fg-subtle">Ask ORI, find anything, or say what you need…</span>
       <Mic size={17} className="shrink-0 text-fg-muted" />
-      <span className="shrink-0 border-l border-border/60 pl-2.5 text-[11px] font-medium text-fg-subtle">⌘K</span>
+      <span className="shrink-0 border-l border-border/60 pl-2.5 text-xs font-medium text-fg-subtle">⌘K</span>
     </button>
   );
 }

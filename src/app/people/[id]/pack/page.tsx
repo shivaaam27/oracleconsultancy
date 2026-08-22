@@ -111,7 +111,7 @@ function actionCount(pack: Awaited<ReturnType<typeof getPersonPack>> extends inf
 function Section({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="person-pack-section">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted print:text-slate-600">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted print:text-slate-600">
         {icon}
         {title}
       </div>
@@ -207,7 +207,7 @@ export default async function PersonPackPage({
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent print:text-slate-500">
+          <div className="mb-0.5 text-xs font-medium uppercase tracking-[0.16em] text-accent print:text-slate-500">
             Person Pack
           </div>
           <h1 className="text-xl font-semibold tracking-tight print:text-2xl">{person.name}</h1>

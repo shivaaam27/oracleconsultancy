@@ -38,7 +38,7 @@ export default async function CocozuriStockMonthPage({
     return (
       <div className="space-y-4">
         <PageHeader title="Stock month" sub={company.name} />
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-[12.5px] text-fg-subtle">
+        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
           No stock locations yet.
         </p>
       </div>
@@ -67,7 +67,7 @@ export default async function CocozuriStockMonthPage({
     <div className="space-y-4">
       <PageHeader title="Stock month" sub={`${book.location.name} · ${from} to ${to} · ${company.name}`} />
       <Link href={`/cocozuri/stock?loc=${book.location.id}`}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] text-fg-muted hover:text-fg">
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
         <ArrowLeft size={13} /> The day book
       </Link>
       <CocozuriStockMonth
@@ -76,6 +76,7 @@ export default async function CocozuriStockMonthPage({
         items={book.items}
         days={book.days}
         counts={book.counts}
+        moves={book.moves}
         prices={prices}
         from={from}
         to={to}

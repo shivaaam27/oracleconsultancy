@@ -160,7 +160,7 @@ export function InlineAddTask({
             {assignees.length > 0 && (
               <span className="flex -space-x-1.5">
                 {assignees.slice(0, 3).map((n, i) => (
-                  <span key={i} className="grid h-7 w-7 place-items-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted ring-2 ring-bg-elev">{initials(n)}</span>
+                  <span key={i} className="grid h-7 w-7 place-items-center rounded-full bg-bg-subtle text-xs font-semibold text-fg-muted ring-2 ring-bg-elev">{initials(n)}</span>
                 ))}
               </span>
             )}
@@ -184,7 +184,7 @@ export function InlineAddTask({
         onClick={submit}
         disabled={pending}
         className={cn(
-          "shrink-0 inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-medium transition-all active:scale-95",
+          "shrink-0 inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-base font-medium transition-all active:scale-95",
           action.trim() ? "bg-accent text-accent-fg shadow-sm" : "bg-bg-subtle text-fg-subtle",
         )}
       >
@@ -195,7 +195,7 @@ export function InlineAddTask({
       <button
         type="button"
         onClick={openForm}
-        className="hidden shrink-0 items-center gap-0.5 pl-0.5 pr-1 text-[11px] text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
+        className="hidden shrink-0 items-center gap-0.5 pl-0.5 pr-1 text-xs text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
         title="Open the full task form (Enter)"
       >
         Full form <ArrowRight size={11} />
@@ -329,7 +329,7 @@ function PeoplePicker({
                 on ? "bg-accent/12 text-fg font-medium" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
               )}
             >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted">{initials(name)}</span>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bg-subtle text-xs font-semibold text-fg-muted">{initials(name)}</span>
               <span className="flex-1 truncate">{name}</span>
               {on && <Check size={14} className="text-accent" />}
             </button>

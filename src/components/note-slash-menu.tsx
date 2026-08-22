@@ -111,7 +111,7 @@ const SlashList = forwardRef<MenuHandle, { items: SlashItem[]; command: (item: S
 
     if (items.length === 0) {
       return (
-        <div className="w-[17rem] rounded-lg border border-border bg-bg-elev p-3 text-[12px] text-fg-muted shadow-lg">
+        <div className="w-[17rem] rounded-lg border border-border bg-bg-elev p-3 text-sm text-fg-muted shadow-lg">
           Nothing matches. Keep typing, or press Escape to write a plain <span className="font-mono">/</span>.
         </div>
       );
@@ -128,7 +128,7 @@ const SlashList = forwardRef<MenuHandle, { items: SlashItem[]; command: (item: S
       <div className="max-h-[19rem] w-[17rem] overflow-y-auto rounded-lg border border-border bg-bg-elev p-1 shadow-lg">
         {groups.map((g) => (
           <div key={g.label}>
-            <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
+            <p className="px-2 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
             {g.items.map((item) => {
               const i = items.indexOf(item);
               const Icon = item.icon;
@@ -147,8 +147,8 @@ const SlashList = forwardRef<MenuHandle, { items: SlashItem[]; command: (item: S
                     <Icon size={13} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-[12.5px] font-medium text-fg">{item.title}</span>
-                    <span className="block truncate text-[11px] text-fg-muted">{item.hint}</span>
+                    <span className="block truncate text-sm font-medium text-fg">{item.title}</span>
+                    <span className="block truncate text-xs text-fg-muted">{item.hint}</span>
                   </span>
                 </button>
               );

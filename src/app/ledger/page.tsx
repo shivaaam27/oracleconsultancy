@@ -11,6 +11,7 @@ import { listEntries, booksBalance } from "@/lib/ledger-post";
 import { accountBalances } from "@/lib/ledger-shared";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Chart of accounts — Ledger" };
 
 export default async function LedgerChartPage({
   searchParams,
@@ -24,7 +25,7 @@ export default async function LedgerChartPage({
     return (
       <div className="space-y-3">
         <PageHeader title="Ledger" sub="No companies yet" />
-        <p className="text-[13px] text-fg-muted">Add a company first, on the Companies screen.</p>
+        <p className="text-base text-fg-muted">Add a company first, on the Companies screen.</p>
       </div>
     );
   }

@@ -45,7 +45,7 @@ function WriteAboutButton({ about }: { about: NoteAbout }) {
       type="button"
       disabled={pending}
       onClick={() => start(async () => { await createNoteAbout(about); })}
-      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-[11.5px] font-medium text-fg-muted transition-colors hover:text-fg disabled:opacity-60"
+      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg disabled:opacity-60"
     >
       {pending ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />}
       Write a note about this
@@ -58,8 +58,8 @@ export function LinkedNotesList({ notes, emptyHint, about }: { notes: LinkedNote
     return (
       <div className="flex flex-col items-center gap-1.5 py-8 text-center">
         <StickyNote size={20} className="text-fg-subtle" />
-        <p className="text-[12.5px] font-medium text-fg-muted">No notes mention this yet.</p>
-        <p className="max-w-[26rem] text-[11.5px] text-fg-subtle">
+        <p className="text-sm font-medium text-fg-muted">No notes mention this yet.</p>
+        <p className="max-w-[26rem] text-xs text-fg-subtle">
           {emptyHint ?? "Write @ in any note and pick this record — it will appear here."}
         </p>
         {about && <div className="mt-1"><WriteAboutButton about={about} /></div>}
@@ -77,14 +77,14 @@ export function LinkedNotesList({ notes, emptyHint, about }: { notes: LinkedNote
             <StickyNote size={13} className="mt-0.5 shrink-0 text-fg-subtle" />
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
-                <span className={cn("truncate text-[12.5px] font-medium", n.archived ? "text-fg-muted" : "text-fg")}>{n.title}</span>
+                <span className={cn("truncate text-sm font-medium", n.archived ? "text-fg-muted" : "text-fg")}>{n.title}</span>
                 {n.archived && (
                   <span className="shrink-0 rounded bg-bg-subtle px-1 py-px text-[9.5px] font-medium text-fg-subtle">Archived</span>
                 )}
               </span>
-              {n.snippet && <span className="mt-px block truncate text-[11.5px] text-fg-muted">{n.snippet}</span>}
+              {n.snippet && <span className="mt-px block truncate text-xs text-fg-muted">{n.snippet}</span>}
             </span>
-            <span className="shrink-0 pt-0.5 text-[11px] text-fg-subtle">
+            <span className="shrink-0 pt-0.5 text-xs text-fg-subtle">
               {new Date(n.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
             </span>
           </Link>
@@ -113,7 +113,7 @@ export function LinkedNotesTab({ type, id, emptyHint, about }: { type: LinkType;
 
   if (notes === null) {
     return (
-      <p className="flex items-center justify-center gap-2 py-8 text-[12px] text-fg-muted">
+      <p className="flex items-center justify-center gap-2 py-8 text-sm text-fg-muted">
         <Loader2 size={13} className="animate-spin" /> Loading notes…
       </p>
     );

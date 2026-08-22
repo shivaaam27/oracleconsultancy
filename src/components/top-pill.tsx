@@ -68,7 +68,7 @@ function NavTab({
         )
       )}
       <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:scale-125" />
-      {active && <span className="relative text-[13px] font-medium whitespace-nowrap">{label}</span>}
+      {active && <span className="relative text-base font-medium whitespace-nowrap">{label}</span>}
       {badge != null && badge > 0 && (
         <span className="absolute right-1 top-1 z-10 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold tabular text-white ring-2 ring-bg">
           {badge > 99 ? "99+" : badge}
@@ -91,7 +91,7 @@ function NavTip({ tip, containerRef }: { tip: NavTipData | null; containerRef: R
   return (
     <div
       style={{ position: "absolute", left, bottom: "calc(100% + 10px)", transform: "translateX(-50%)" }}
-      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-[11px] font-semibold text-fg shadow-pill"
+      className="pointer-events-none z-[60] whitespace-nowrap rounded-lg glass px-2.5 py-1 text-xs font-semibold text-fg shadow-pill"
     >
       {tip.label}
     </div>
@@ -132,7 +132,7 @@ function LauncherSection({
     <div>
       <div className="flex items-center gap-1.5 px-0.5 pb-1.5">
         {Head && <Head size={11} className="text-fg-subtle" />}
-        <span className="text-[10px] font-medium uppercase tracking-wider text-fg-muted">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted">{label}</span>
         <span className="ml-1 h-px flex-1 bg-border/70" aria-hidden />
       </div>
       <div className="grid grid-cols-2 gap-1.5">
@@ -159,7 +159,7 @@ function LauncherSection({
               <Icon size={16} className={cn("shrink-0", !isActive && "text-fg-muted")} />
               {/* Labels wrap rather than truncate — "Assets, Tools & Vendors"
                   must stay readable in a half-width tile. */}
-              <span className="text-[13px] font-medium leading-tight">{r.label}</span>
+              <span className="text-base font-medium leading-tight">{r.label}</span>
             </button>
           );
         })}
@@ -248,7 +248,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
         )}
         <LayoutGrid size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
         {(active || open) && (
-          <span className="relative text-[13px] font-medium whitespace-nowrap">Go to</span>
+          <span className="relative text-base font-medium whitespace-nowrap">Go to</span>
         )}
       </button>
 
@@ -267,7 +267,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
         maxWidth="max-w-md"
         footer={
           <div className="flex items-center gap-1">
-            <span className="px-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
+            <span className="px-1 text-xs font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
             <div className="ml-auto flex items-center gap-0.5">
               <ThemeToggle />
               <FocusToggle withLabel />
@@ -334,7 +334,7 @@ function NavActionButton() {
             <>
               <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
               <div className="absolute z-[56] bottom-full mb-3 right-0 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
-                <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-muted">Actions</div>
+                <div className="px-2.5 py-1 text-xs uppercase tracking-wider text-fg-muted">Actions</div>
                 {actions.map((a) => {
                   const row = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left text-fg hover:bg-bg-muted/60 transition-colors";
                   const inner = (

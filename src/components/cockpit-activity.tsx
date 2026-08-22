@@ -45,12 +45,12 @@ export function CockpitActivity({ items }: { items: ActivityItem[] }) {
                     <span className="font-medium">{it.author}</span>
                     <span className="text-fg-muted"> · {it.body || it.actionItem || "posted an update"}</span>
                   </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
+                  <span className="mt-0.5 block truncate text-xs text-fg-subtle">
                     {it.code}
                     {it.companyName ? ` · ${it.companyName}` : ""}
                   </span>
                 </span>
-                <span className="shrink-0 text-[11px] tabular text-fg-subtle">{ago(it.createdAt)}</span>
+                <span className="shrink-0 text-xs tabular text-fg-subtle">{ago(it.createdAt)}</span>
                 <ChevronRight
                   size={15}
                   className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100"

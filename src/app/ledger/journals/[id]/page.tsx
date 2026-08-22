@@ -14,6 +14,7 @@ import { getJournalEntry, reversalOf, JOURNAL_VOUCHER_TYPE } from "@/lib/ledger-
 import { entriesForVoucher } from "@/lib/ledger-post";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Journal — Ledger" };
 
 export default async function JournalEntryPage({
   params,

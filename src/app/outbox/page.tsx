@@ -121,7 +121,7 @@ export default async function OutboxPage({
             {heroMetrics.map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
                 <span className={`text-2xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
-                <span className="text-[11px] text-fg-muted">{m.label}</span>
+                <span className="text-xs text-fg-muted">{m.label}</span>
               </div>
             ))}
             {totalToday > 0 && (
@@ -129,7 +129,7 @@ export default async function OutboxPage({
                 <div className="flex-1 bg-bg-muted/70 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-accent h-full rounded-full transition-all" style={{ width: `${progressPct}%` }} />
                 </div>
-                <span className="text-[11px] text-fg-subtle tabular">{progressPct}%</span>
+                <span className="text-xs text-fg-subtle tabular">{progressPct}%</span>
               </div>
             )}
           </div>
@@ -138,7 +138,7 @@ export default async function OutboxPage({
 
       {scopeName && (
         <div
-          className="flex items-center gap-2 px-1 text-[11px] text-fg-muted"
+          className="flex items-center gap-2 px-1 text-xs text-fg-muted"
           title={`You're scoped to ${scopeName}, but the Outbox is intentionally global: reminders are grouped per person across all their tasks, so nobody gets pinged twice on the same day or quietly missed. Each card shows the company breakdown so you can still triage by company.`}
         >
           <Globe2 size={12} className="text-warn shrink-0" />
@@ -172,7 +172,7 @@ export default async function OutboxPage({
             <summary className="cursor-pointer list-none flex items-center gap-1.5 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted hover:text-fg transition-colors">
               <BellOff size={12} />
               Snoozed today
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-warn-soft/70 text-warn text-[11px] font-semibold tabular normal-case">
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-warn-soft/70 text-warn text-xs font-semibold tabular normal-case">
                 {snoozed.length}
               </span>
               <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />

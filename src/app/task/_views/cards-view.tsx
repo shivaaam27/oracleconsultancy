@@ -144,21 +144,21 @@ function ExpandPanel({ r, onChanged }: { r: TaskRow; onChanged: () => void }) {
     <div className="border-t border-dashed border-border/70 bg-bg-subtle/40 px-4 py-3">
       {r.comments?.trim() && (
         <>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Description</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-fg whitespace-pre-wrap break-words">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Description</p>
+          <p className="mt-1 text-base leading-relaxed text-fg whitespace-pre-wrap break-words">
             <CodeLinkedText text={r.comments} />
           </p>
         </>
       )}
-      <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Latest updates</p>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Latest updates</p>
       {updates.length === 0 ? (
         <p className="py-1.5 text-xs text-fg-subtle">No updates yet.</p>
       ) : (
         <ul className="mt-1.5 space-y-1.5">
           {updates.map((u) => (
             <li key={u.id} className="rounded-xl border border-border/60 bg-bg-elev px-3 py-2">
-              <p className="text-[10.5px] text-fg-subtle">{u.created_by ?? "—"} · {ago(u.created_at)}</p>
-              <p className="mt-0.5 text-[12.5px] leading-relaxed text-fg whitespace-pre-wrap break-words"><CodeLinkedText text={u.body} /></p>
+              <p className="text-xs text-fg-subtle">{u.created_by ?? "—"} · {ago(u.created_at)}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-fg whitespace-pre-wrap break-words"><CodeLinkedText text={u.body} /></p>
             </li>
           ))}
         </ul>
@@ -230,7 +230,7 @@ function TaskCard({
   const statusCell = (
     <TaskInlineStatus
       task={r}
-      buttonClassName="w-[150px] justify-between rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-[11px] font-medium hover:border-accent/40"
+      buttonClassName="w-[150px] justify-between rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium hover:border-accent/40"
     />
   );
   const dueCell = (
@@ -244,7 +244,7 @@ function TaskCard({
   const activityCell = act ? (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ring-1",
+        "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ring-1",
         act.tone === "warn" ? "bg-warn-soft/50 text-warn ring-warn/25" : "bg-success-soft/50 text-success ring-success/20",
       )}
     >
@@ -259,7 +259,7 @@ function TaskCard({
   const whoCell = r.assignees.length > 0 ? (
     <AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} size={compact ? 20 : 24} />
   ) : (
-    <span className="text-[11px] text-fg-subtle">—</span>
+    <span className="text-xs text-fg-subtle">—</span>
   );
   const remindBtn = (
     <button
@@ -323,7 +323,7 @@ function TaskCard({
         <button
           type="button"
           onClick={remind}
-          className="flex w-full flex-col items-center justify-center gap-1 rounded-xl bg-warn-soft/70 text-[11px] font-semibold text-warn"
+          className="flex w-full flex-col items-center justify-center gap-1 rounded-xl bg-warn-soft/70 text-xs font-semibold text-warn"
         >
           <Bell size={15} /> Remind
         </button>
@@ -353,7 +353,7 @@ function TaskCard({
               <span className={cn("h-2 w-2 shrink-0 rounded-full", PRIORITY_DOT[r.priority] ?? "bg-border")} title={`${r.priority} priority`} />
             </span>
             {/* col 2 — code */}
-            <span className="truncate rounded-md bg-bg-subtle px-1.5 py-0.5 text-center text-[10px] font-semibold tabular text-fg-muted ring-1 ring-border/60">
+            <span className="truncate rounded-md bg-bg-subtle px-1.5 py-0.5 text-center text-xs font-semibold tabular text-fg-muted ring-1 ring-border/60">
               {r.code}
             </span>
             {/* col 3 — title (+ meta line in comfortable) */}
@@ -363,7 +363,7 @@ function TaskCard({
                 {r.unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" title="New activity" />}
               </div>
               {!compact && (
-                <span className="mt-0.5 truncate text-[11px] text-fg-subtle">
+                <span className="mt-0.5 truncate text-xs text-fg-subtle">
                   {[hideCompany ? null : r.companyName].filter(Boolean).join("")}
                   {act?.tone === "ok" && r.latestUpdate && <span className="text-success">{hideCompany ? "" : " · "}“{r.latestUpdate}”</span>}
                 </span>
@@ -443,9 +443,9 @@ function GroupHousing({
               {getInitials(label)}
             </span>
           ) : null}
-          <span className="truncate text-[12.5px] font-semibold text-fg">{label}</span>
+          <span className="truncate text-sm font-semibold text-fg">{label}</span>
         </button>
-        <span className="flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-muted">
+        <span className="flex shrink-0 items-center gap-2.5 text-xs text-fg-muted">
           {overdue > 0 ? (
             <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="font-bold text-danger tabular">{overdue}</b> overdue</span>
           ) : (
@@ -460,7 +460,7 @@ function GroupHousing({
           <button
             type="button"
             onClick={remindAll}
-            className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-accent-soft/70 px-2.5 py-1 text-[10px] font-semibold text-accent ring-1 ring-accent/20 transition-all hover:-translate-y-0.5"
+            className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-accent-soft/70 px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-accent/20 transition-all hover:-translate-y-0.5"
           >
             <Bell size={11} /> Remind all
           </button>
@@ -616,7 +616,7 @@ export function CardsView({
               type="button"
               onClick={() => setDensityPersist(key)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                 density === key ? "bg-bg-elev text-accent shadow-sm ring-1 ring-border" : "text-fg-muted hover:text-fg",
               )}
             >
@@ -628,7 +628,7 @@ export function CardsView({
           type="button"
           onClick={() => setSelectMode((s) => !s)}
           className={cn(
-            "ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors",
+            "ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
             selectMode ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-border/60 hover:text-fg",
           )}
         >
@@ -679,7 +679,7 @@ export function CardsView({
           ))}
         </ul>
       )}
-      <p className="mt-3 text-center text-[10px] text-fg-subtle">worst first · tap a title to open · swipe left to remind</p>
+      <p className="mt-3 text-center text-xs text-fg-subtle">worst first · tap a title to open · swipe left to remind</p>
     </div>
   );
 }
@@ -783,23 +783,23 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">Focus queue · ranked</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Focus queue · ranked</p>
         {clearedToday > 0 && (
-          <span className="rounded-full bg-success-soft/60 px-2 py-0.5 text-[10px] font-semibold text-success ring-1 ring-success/20">
+          <span className="rounded-full bg-success-soft/60 px-2 py-0.5 text-xs font-semibold text-success ring-1 ring-success/20">
             cleared: {clearedToday}
           </span>
         )}
         <button
           type="button"
           onClick={() => setShowWhy((s) => !s)}
-          className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-2.5 py-1 text-[10px] font-semibold text-accent ring-1 ring-accent/20"
+          className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-accent/20"
         >
           <HelpCircle size={11} /> Why this order?
         </button>
       </div>
 
       {showWhy && (
-        <div className="rounded-2xl bg-bg-elev/60 p-3 text-[11px] leading-relaxed text-fg-muted ring-1 ring-border/70">
+        <div className="rounded-2xl bg-bg-elev/60 p-3 text-xs leading-relaxed text-fg-muted ring-1 ring-border/70">
           <b className="text-fg">score = days late × 2 + quiet days × 3 (capped 30) + priority (Critical 30 · High 15 · Medium 5).</b>{" "}
           {top && (
             <>
@@ -813,7 +813,7 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
       {top ? (
         <div className="rounded-3xl bg-gradient-to-br from-bg-elev to-danger-soft/20 p-4 ring-1 ring-danger/20 sm:p-5">
           <div className="flex items-center gap-2.5">
-            <span className="shrink-0 rounded-md bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold tabular text-fg-muted ring-1 ring-border/60">
+            <span className="shrink-0 rounded-md bg-bg-subtle px-2 py-0.5 text-xs font-semibold tabular text-fg-muted ring-1 ring-border/60">
               {top.r.code}
             </span>
             <Link
@@ -883,7 +883,7 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
 
       {active.length > 1 && (
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
             Up next · {active.length - 1} more to clear
           </p>
           <ul className="space-y-1.5">
@@ -894,9 +894,9 @@ export function FocusQueue({ rows }: { rows: TaskRow[] }) {
                   className="flex items-center gap-2.5 rounded-xl bg-bg-elev/50 px-3 py-2 ring-1 ring-border/60 transition-all hover:ring-accent/30"
                 >
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", e.late !== null ? "bg-danger" : "bg-warn")} />
-                  <span className="shrink-0 text-[10px] font-semibold tabular text-fg-muted">{e.r.code}</span>
+                  <span className="shrink-0 text-xs font-semibold tabular text-fg-muted">{e.r.code}</span>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg">{e.r.actionItem}</span>
-                  <span className="shrink-0 text-[10px] text-fg-subtle">
+                  <span className="shrink-0 text-xs text-fg-subtle">
                     {e.late !== null ? `${e.late}d late` : e.dueIn !== null && e.dueIn <= 3 ? (e.dueIn === 0 ? "due today" : `in ${e.dueIn}d`) : ""}
                     {e.quiet !== null && e.quiet >= 7 ? ` · quiet ${e.quiet}d` : ""}
                   </span>

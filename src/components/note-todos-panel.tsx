@@ -41,12 +41,12 @@ export function NoteTodosPanel({
     <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
       <header className="flex items-center gap-1.5 border-b border-border bg-bg-subtle/60 px-2.5 py-1.5">
         <ListChecks size={12} className="text-fg-subtle" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">To-dos</h2>
-        {open.length > 0 && <span className="ml-auto text-[11px] tabular text-fg-subtle">{open.length}</span>}
+        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-fg-muted">To-dos</h2>
+        {open.length > 0 && <span className="ml-auto text-xs tabular text-fg-subtle">{open.length}</span>}
       </header>
 
       {todos.length === 0 && !adding && (
-        <p className="px-2.5 py-2.5 text-[11.5px] leading-relaxed text-fg-subtle">
+        <p className="px-2.5 py-2.5 text-xs leading-relaxed text-fg-subtle">
           Nothing yet. Tick-box a line in the note and press <strong className="font-medium text-fg-muted">Make a to-do</strong>,
           or set a reminder for the whole note below.
         </p>
@@ -71,11 +71,11 @@ export function NoteTodosPanel({
                 className="mt-[3px] h-[13px] w-[13px] shrink-0 cursor-pointer accent-[hsl(var(--accent))]"
               />
               <span className="min-w-0 flex-1">
-                <span className={cn("block text-[12px] leading-snug", t.done ? "text-fg-subtle line-through" : "text-fg")}>
+                <span className={cn("block text-sm leading-snug", t.done ? "text-fg-subtle line-through" : "text-fg")}>
                   {t.title}
                 </span>
                 {t.remindAt && !t.done && (
-                  <span className={cn("mt-px flex items-center gap-1 text-[10.5px]", isOverdue(t) ? "text-danger" : "text-fg-subtle")}>
+                  <span className={cn("mt-px flex items-center gap-1 text-xs", isOverdue(t) ? "text-danger" : "text-fg-subtle")}>
                     <Bell size={9} /> {whenLabel(t.remindAt)}
                   </span>
                 )}
@@ -114,7 +114,7 @@ export function NoteTodosPanel({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[11.5px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
           >
             <Plus size={12} /> Remind me about this note
           </button>
@@ -165,7 +165,7 @@ function ReminderForm({
     return d.toISOString();
   };
 
-  const chip = "rounded-md border border-border px-1.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40";
+  const chip = "rounded-md border border-border px-1.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40";
 
   return (
     <div className="space-y-1.5 p-0.5">
@@ -182,17 +182,17 @@ function ReminderForm({
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
           aria-label="Remind me at"
-          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-1.5 text-[11px] text-fg"
+          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-1.5 text-xs text-fg"
         />
         <button
           type="button"
           disabled={busy || !custom}
           onClick={() => void submit(new Date(custom).toISOString())}
-          className="h-7 shrink-0 rounded-md bg-accent px-2 text-[11px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="h-7 shrink-0 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           Set
         </button>
-        <button type="button" onClick={onCancel} className="h-7 shrink-0 rounded-md px-1.5 text-[11px] text-fg-muted hover:text-fg">
+        <button type="button" onClick={onCancel} className="h-7 shrink-0 rounded-md px-1.5 text-xs text-fg-muted hover:text-fg">
           Cancel
         </button>
       </div>

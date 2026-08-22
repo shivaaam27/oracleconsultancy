@@ -660,7 +660,7 @@ export function CommandPaletteProvider({
     if (!r) return (
       <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-fg-subtle">
         <Sparkles size={18} className="opacity-50" />
-        <p className="text-[11px] leading-relaxed">Use <kbd className="font-mono">↑↓</kbd> to preview a result here, <kbd className="font-mono">↵</kbd> to open it.</p>
+        <p className="text-xs leading-relaxed">Use <kbd className="font-mono">↑↓</kbd> to preview a result here, <kbd className="font-mono">↵</kbd> to open it.</p>
       </div>
     );
     // Fallback for any type not in the palette meta map (e.g. a task surfaced by
@@ -675,13 +675,13 @@ export function CommandPaletteProvider({
           <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-bg-muted", pIcon.tint)}><PIcon size={17} /></span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">{meta.label}</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{meta.label}</span>
               <WhyTag kind={r.matchKind} />
             </div>
             <div className="mt-0.5 text-sm font-semibold leading-snug break-words">{r.title}</div>
           </div>
         </div>
-        {r.badge && <div className="font-mono text-[11px] text-fg-muted">{r.badge}</div>}
+        {r.badge && <div className="font-mono text-xs text-fg-muted">{r.badge}</div>}
         {/* Live glance — §13 KPI pills (bold tabular number + muted label). */}
         {glanceKey === `${r.type}:${r.id}` && glanceLoading && !glance && (
           <div className="flex flex-wrap gap-x-5 gap-y-1.5">
@@ -698,7 +698,7 @@ export function CommandPaletteProvider({
             {glance.stats.map((s, i) => (
               <span key={i} className="flex flex-col leading-tight">
                 <b className="tabular text-sm font-semibold text-fg">{s.value}</b>
-                <span className="text-[10.5px] text-fg-subtle">{s.label}</span>
+                <span className="text-xs text-fg-subtle">{s.label}</span>
               </span>
             ))}
           </div>
@@ -822,7 +822,7 @@ export function CommandPaletteProvider({
                       aria-checked={includeHistory}
                       title="Also search archived / closed records"
                       className={cn(
-                        "shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors",
+                        "shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
                         includeHistory ? "bg-accent text-accent-fg ring-accent" : "ring-border/60 text-fg-muted hover:text-fg",
                       )}
                     >
@@ -830,7 +830,7 @@ export function CommandPaletteProvider({
                       <span className="hidden sm:inline">History</span>
                       <Switch on={includeHistory} size="sm" />
                     </button>
-                    <kbd className="shrink-0 text-[10px] font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
+                    <kbd className="shrink-0 text-xs font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
                       ESC
                     </kbd>
                   </div>
@@ -859,7 +859,7 @@ export function CommandPaletteProvider({
                               <span className="rounded bg-[#2dd4bf]/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[#2dd4bf]">{heroResult.type}</span>
                               <WhyTag kind={heroResult.matchKind} />
                             </span>
-                            <span className="mt-0.5 block truncate text-[11.5px] text-fg-subtle">{heroResult.subtitle}</span>
+                            <span className="mt-0.5 block truncate text-xs text-fg-subtle">{heroResult.subtitle}</span>
                             {/* Live glance pills for the hero (cache-backed by the preview fetch). */}
                             {(() => {
                               const hk = `${heroResult.type}:${heroResult.id}`;
@@ -869,8 +869,8 @@ export function CommandPaletteProvider({
                                 <span className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
                                   {stats.slice(0, 4).map((s, i) => (
                                     <span key={i} className="flex items-baseline gap-1 leading-none">
-                                      <b className="tabular text-[13px] font-semibold text-fg">{s.value}</b>
-                                      <span className="text-[10px] text-fg-subtle">{s.label}</span>
+                                      <b className="tabular text-base font-semibold text-fg">{s.value}</b>
+                                      <span className="text-xs text-fg-subtle">{s.label}</span>
                                     </span>
                                   ))}
                                 </span>
@@ -880,7 +880,7 @@ export function CommandPaletteProvider({
                           <span className="hidden shrink-0 items-center gap-1.5 sm:flex" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                             {scopedLinks(heroResult).slice(1).map((l) => (
                               <button key={l.href} type="button" onClick={() => go(l.href)}
-                                className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg">
+                                className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2 py-1 text-xs font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg">
                                 <l.icon size={12} /> {l.label.replace(/^(Its|Their) /, "")}
                               </button>
                             ))}
@@ -896,13 +896,13 @@ export function CommandPaletteProvider({
                     {smartAnswer && trimmed.length >= 2 && (
                       <Command.Group
                         heading="Answer"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <div className="mx-1 mb-1 rounded-xl bg-accent/[0.06] ring-1 ring-accent/15 overflow-hidden">
                           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                             <span className="text-sm font-semibold text-fg">{smartAnswer.title}</span>
                             {smartAnswer.count > 0 && (
-                              <span className="text-[11px] font-semibold tabular rounded-lg bg-accent/15 text-accent px-2 py-0.5">{smartAnswer.count}</span>
+                              <span className="text-xs font-semibold tabular rounded-lg bg-accent/15 text-accent px-2 py-0.5">{smartAnswer.count}</span>
                             )}
                           </div>
                           {smartAnswer.note && <div className="px-3 pb-2 text-xs text-fg-muted">{smartAnswer.note}</div>}
@@ -917,11 +917,11 @@ export function CommandPaletteProvider({
                                 >
                                   <span className="flex-1 min-w-0">
                                     <span className="block truncate text-fg">{row.label}</span>
-                                    {row.sub && <span className="block truncate text-[11px] text-fg-subtle">{row.sub}</span>}
+                                    {row.sub && <span className="block truncate text-xs text-fg-subtle">{row.sub}</span>}
                                   </span>
                                   {row.badge && (
                                     <span className={cn(
-                                      "shrink-0 text-[10px] font-medium rounded-lg px-1.5 py-0.5",
+                                      "shrink-0 text-xs font-medium rounded-lg px-1.5 py-0.5",
                                       row.tone === "danger" ? "bg-danger/10 text-danger"
                                         : row.tone === "warn" ? "bg-warn/10 text-warn"
                                         : row.tone === "success" ? "bg-success/10 text-success"
@@ -937,7 +937,7 @@ export function CommandPaletteProvider({
                             <Command.Item
                               value={`__smart_all__ ${smartAnswer.title}`}
                               onSelect={() => go(smartAnswer.href!)}
-                              className="px-3 py-2 text-[11px] font-medium text-accent cursor-pointer aria-selected:bg-accent/10 border-t border-border/40"
+                              className="px-3 py-2 text-xs font-medium text-accent cursor-pointer aria-selected:bg-accent/10 border-t border-border/40"
                             >
                               See all {smartAnswer.count} →
                             </Command.Item>
@@ -951,7 +951,7 @@ export function CommandPaletteProvider({
                     {directAnswer && trimmed.length >= 2 && (
                       <Command.Group
                         heading="Answer"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
                           value={`__answer__ ${directAnswer.entity} ${directAnswer.label}`}
@@ -962,7 +962,7 @@ export function CommandPaletteProvider({
                             <Sparkles size={16} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[10px] uppercase tracking-wider text-fg-subtle truncate">
+                            <div className="text-xs uppercase tracking-wider text-fg-subtle truncate">
                               {directAnswer.label} · {directAnswer.entity}
                             </div>
                             <div className={`font-semibold truncate ${directAnswer.value ? "text-fg" : "text-fg-subtle italic"}`}>
@@ -978,7 +978,7 @@ export function CommandPaletteProvider({
                     {trimmed.length >= 2 && (
                       <Command.Group
                         heading="ORI"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
                           value={`__ai__ ${trimmed}`}
@@ -990,7 +990,7 @@ export function CommandPaletteProvider({
                           <span className="flex-1 truncate">
                             {routeToAction ? "Run command" : "Ask ORI"}: <span className="text-fg-muted italic">"{trimmed}"</span>
                           </span>
-                          <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
+                          <kbd className="text-xs font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
                       </Command.Group>
                     )}
@@ -999,7 +999,7 @@ export function CommandPaletteProvider({
                     {!trimmed && (
                       <Command.Group
                         heading="Quick actions"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
                           value="__qa ask ori oracle intelligence assistant"
@@ -1008,7 +1008,7 @@ export function CommandPaletteProvider({
                         >
                           <Sparkles size={14} className="text-accent" />
                           <span className="flex-1">Ask ORI</span>
-                          <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
+                          <kbd className="text-xs font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
                         <Command.Item
                           value="__qa new task create"
@@ -1034,7 +1034,7 @@ export function CommandPaletteProvider({
                     {!trimmed && pulse.length > 0 && (
                       <Command.Group
                         heading="Today"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <div className="max-h-64 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,#000_10px,#000_calc(100%-10px),transparent)]">
                           {pulse.map((p, i) => (
@@ -1049,9 +1049,9 @@ export function CommandPaletteProvider({
                               </span>
                               <span className="flex-1 min-w-0">
                                 <span className="block truncate text-fg">{p.label}</span>
-                                {p.detail && <span className="block truncate text-[12px] text-fg-subtle">{p.detail}</span>}
+                                {p.detail && <span className="block truncate text-sm text-fg-subtle">{p.detail}</span>}
                               </span>
-                              {p.when && <span className="text-[11px] text-fg-subtle shrink-0 tabular-nums">{p.when}</span>}
+                              {p.when && <span className="text-xs text-fg-subtle shrink-0 tabular-nums">{p.when}</span>}
                             </Command.Item>
                           ))}
                         </div>
@@ -1071,7 +1071,7 @@ export function CommandPaletteProvider({
                             <Gauge size={13} />
                           </span>
                           <span className="flex-1 min-w-0">
-                            <span className="block text-[12px] uppercase tracking-wider text-fg-subtle">AI today</span>
+                            <span className="block text-sm uppercase tracking-wider text-fg-subtle">AI today</span>
                             <span className="block truncate text-fg tabular-nums">
                               {aiUsage.cap != null && aiUsage.pct != null
                                 ? `${aiUsage.pct}% of cap`
@@ -1095,7 +1095,7 @@ export function CommandPaletteProvider({
                     {!trimmed && !onPortal && (
                       <Command.Group
                         heading="Your briefing"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         {!briefingOpen ? (
                           <Command.Item
@@ -1108,7 +1108,7 @@ export function CommandPaletteProvider({
                             </span>
                             <span className="flex-1 min-w-0">
                               <span className="block truncate text-fg">Your briefing</span>
-                              <span className="block truncate text-[12px] text-fg-subtle">Radar highlights and what to do next</span>
+                              <span className="block truncate text-sm text-fg-subtle">Radar highlights and what to do next</span>
                             </span>
                             <ChevronRight size={14} className="text-fg-subtle shrink-0" />
                           </Command.Item>
@@ -1134,7 +1134,7 @@ export function CommandPaletteProvider({
                                     </span>
                                     <span className="flex-1 min-w-0">
                                       <span className="block truncate text-fg">{h.label}</span>
-                                      {h.detail && <span className="block truncate text-[12px] text-fg-subtle">{h.detail}</span>}
+                                      {h.detail && <span className="block truncate text-sm text-fg-subtle">{h.detail}</span>}
                                     </span>
                                   </div>
                                 ))}
@@ -1153,7 +1153,7 @@ export function CommandPaletteProvider({
                                     </span>
                                     <span className="flex-1 min-w-0">
                                       <span className="block truncate text-fg">{s.label}</span>
-                                      {s.detail && <span className="block truncate text-[12px] text-fg-subtle">{s.detail}</span>}
+                                      {s.detail && <span className="block truncate text-sm text-fg-subtle">{s.detail}</span>}
                                     </span>
                                     {s.href && <ArrowRight size={13} className="text-fg-subtle shrink-0" />}
                                   </Command.Item>
@@ -1169,7 +1169,7 @@ export function CommandPaletteProvider({
                     {!trimmed && recentSearches.length > 0 && (
                       <Command.Group
                         heading="Recent searches"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         {recentSearches.map((s) => (
                           <Command.Item
@@ -1189,7 +1189,7 @@ export function CommandPaletteProvider({
                     {!trimmed && (
                       <Command.Group
                         heading="Try asking"
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         {[
                           { icon: <Sparkles size={14} className="text-accent" />, label: "Plan my day", q: "Plan my day" },
@@ -1213,7 +1213,7 @@ export function CommandPaletteProvider({
                     {items.length > 0 && (
                       <Command.Group
                         heading={trimmed ? "Tasks" : "Recent tasks"}
-                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         {items.map((it) => (
                           <SearchTaskRow
@@ -1244,7 +1244,7 @@ export function CommandPaletteProvider({
                         <Command.Group
                           key={type}
                           heading={heading}
-                          className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:bg-bg-subtle/60 [&_[cmdk-group-heading]]:rounded-lg [&_[cmdk-group-heading]]:mb-0.5"
+                          className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:bg-bg-subtle/60 [&_[cmdk-group-heading]]:rounded-lg [&_[cmdk-group-heading]]:mb-0.5"
                         >
                           {group.map((r) => {
                             // Per-document file-type icon (PDF/photo/Excel/slide);
@@ -1274,7 +1274,7 @@ export function CommandPaletteProvider({
                                 {r.snippet && <HighlightSnippet text={r.snippet} />}
                               </span>
                               {r.badge && (
-                                <span className="text-[10px] rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 self-start mt-0.5 hidden sm:inline">{r.badge}</span>
+                                <span className="text-xs rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 self-start mt-0.5 hidden sm:inline">{r.badge}</span>
                               )}
                               {!r.snippet && (
                                 <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
@@ -1315,7 +1315,7 @@ export function CommandPaletteProvider({
                         Both read `creatables()`; neither holds its own array. */}
                     <Command.Group
                       heading="Create"
-                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                     >
                       {creatables().map((c) => (
                         <Command.Item
@@ -1359,7 +1359,7 @@ export function CommandPaletteProvider({
                           key={m.id}
                           value={`module ${m.label} ${m.blurb}`}
                           onSelect={() => go(m.home)}
-                          className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] data-[selected=true]:bg-accent-soft"
+                          className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-base data-[selected=true]:bg-accent-soft"
                         >
                           <m.icon size={14} className="shrink-0 text-fg-subtle" />
                           <span className="flex-1 truncate">{m.label}</span>
@@ -1368,7 +1368,7 @@ export function CommandPaletteProvider({
                       <Command.Item
                         value="modules all launcher apps"
                         onSelect={() => go("/apps")}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] data-[selected=true]:bg-accent-soft"
+                        className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-base data-[selected=true]:bg-accent-soft"
                       >
                         <LayoutGrid size={14} className="shrink-0 text-fg-subtle" />
                         <span className="flex-1 truncate">All modules</span>
@@ -1382,7 +1382,7 @@ export function CommandPaletteProvider({
                     </div>
                   )}
                   </div>
-                  <div className="border-t border-border px-3 py-2 text-[10px] text-fg-subtle flex items-center gap-3">
+                  <div className="border-t border-border px-3 py-2 text-xs text-fg-subtle flex items-center gap-3">
                     <span><kbd className="font-mono">↑↓</kbd> navigate</span>
                     <span><kbd className="font-mono">↵</kbd> open / ask</span>
                     <span><kbd className="font-mono">⌘1–9</kbd> jump</span>
@@ -1449,7 +1449,7 @@ function SearchTaskRow({
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
         <span className="font-mono text-xs text-fg-muted w-[68px] shrink-0">{item.code}</span>
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="text-[10px] rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{item.status}</span>
+        <span className="text-xs rounded-lg bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{item.status}</span>
         <span className="text-xs text-fg-subtle shrink-0 max-w-[110px] truncate hidden md:inline">{item.sub}</span>
         {/* Actions — revealed on hover / keyboard highlight */}
         <span className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/row:opacity-100 group-data-[selected=true]/row:opacity-100 transition-opacity">
@@ -1544,7 +1544,7 @@ function RouteGroup({
   return (
     <Command.Group
       heading={heading}
-      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:gap-1.5"
+      className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:gap-1.5"
     >
       {routes.map((r) => {
         const Icon = r.icon;

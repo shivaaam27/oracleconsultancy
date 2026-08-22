@@ -85,7 +85,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
             Copy this now — it is not shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto rounded-lg bg-bg px-2 py-1.5 text-[11px] font-mono">{fresh}</code>
+            <code className="flex-1 overflow-x-auto rounded-lg bg-bg px-2 py-1.5 text-xs font-mono">{fresh}</code>
             <Button
               type="button"
               variant="ghost"
@@ -94,7 +94,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </Button>
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-fg-muted">
+          <p className="mt-2 text-xs leading-snug text-fg-muted">
             Only a fingerprint of the key is saved, so nobody — including this system — can read it
             back. Lose it and you create a new one.
           </p>
@@ -113,7 +113,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
                   {k.label}
                   {k.personName && <span className="ml-1.5 text-xs text-fg-muted">· {k.personName}</span>}
                 </p>
-                <p className="text-[11px] text-fg-muted">
+                <p className="text-xs text-fg-muted">
                   Created {fmt(k.createdAt)} · last used {fmt(k.lastUsedAt)}
                 </p>
               </div>
@@ -147,7 +147,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
                       {c.label}
                       <span className="ml-1.5 text-xs text-fg-muted">· {c.personName ?? "you"}</span>
                     </p>
-                    <p className="text-[11px] text-fg-muted">
+                    <p className="text-xs text-fg-muted">
                       Connected {fmt(c.createdAt)} · last used {fmt(c.lastUsedAt)}
                     </p>
                   </div>

@@ -123,7 +123,7 @@ export function DirectorBoardClient(p: Props) {
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Send size={15} /></span>
         <span className="min-w-0 flex-1 font-medium">Outbox</span>
-        <span className="hidden text-[11px] text-fg-subtle sm:inline">Open work, per person</span>
+        <span className="hidden text-xs text-fg-subtle sm:inline">Open work, per person</span>
         <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
       </Link>
 
@@ -165,7 +165,7 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
     <section data-page-header style={PORTAL_HEADER_CARD}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
             {label}
             <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
               <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
@@ -185,7 +185,7 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
             </span>
           </div>
         </div>
-        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-[11px] font-semibold text-accent sm:grid">{initials}</span>
+        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-xs font-semibold text-accent sm:grid">{initials}</span>
       </div>
     </section>
   );
@@ -206,7 +206,7 @@ function HealthPanel({
       <SectionLabel
         icon={<ShieldCheck size={13} />}
         action={
-          <span className="text-[11px] normal-case tracking-normal text-fg-muted">
+          <span className="text-xs normal-case tracking-normal text-fg-muted">
             <b className="font-semibold text-fg tabular">{shown}</b> healthy
             {riskCount > 0 && <> · <span className="font-medium text-danger">{riskCount} at risk</span></>}
             {onLeave > 0 && <> · <span className="text-fg-subtle">{onLeave} on leave</span></>}
@@ -257,8 +257,8 @@ function HealthTile({ c }: { c: CompanyHealth }) {
           <Check size={16} className="text-success" strokeWidth={2.5} />
         )}
       </div>
-      <p className="mt-2 truncate text-[12.5px] font-semibold">{c.name}</p>
-      <p className={`mt-0.5 truncate text-[10.5px] ${attention ? TONE[tone].text : "text-fg-subtle"}`}>
+      <p className="mt-2 truncate text-sm font-semibold">{c.name}</p>
+      <p className={`mt-0.5 truncate text-xs ${attention ? TONE[tone].text : "text-fg-subtle"}`}>
         {attention
           ? `${c.overdue} overdue · ${c.open} open`
           : c.open === 0
@@ -275,7 +275,7 @@ function WeekAhead({ events }: { events: BoardEvent[] }) {
     <div className="flex flex-col gap-2.5">
       <SectionLabel
         icon={<CalendarClock size={13} />}
-        action={<Link href="/portal/meetings" className="text-[11px] text-accent hover:underline">View all</Link>}
+        action={<Link href="/portal/meetings" className="text-xs text-accent hover:underline">View all</Link>}
       >
         Next meeting
       </SectionLabel>
@@ -295,14 +295,14 @@ function WeekAhead({ events }: { events: BoardEvent[] }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{e.title}</p>
-                <p className="truncate text-[11px] text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
+                <p className="truncate text-xs text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
               </div>
               {join && (
                 <a
                   href={join}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
                 >
                   <Video size={13} /> Join
                 </a>
@@ -365,7 +365,7 @@ function AttentionStack({ watch }: { watch: WatchItem[] }) {
             showFooter={false}
             rowActions={(w) => <RemindAction w={w} />}
             subRow={(w) => (
-              <span className="block truncate text-[11px] text-fg-subtle">
+              <span className="block truncate text-xs text-fg-subtle">
                 {w.companyName} · {w.accountableName ?? "Unassigned"}
               </span>
             )}
@@ -376,8 +376,8 @@ function AttentionStack({ watch }: { watch: WatchItem[] }) {
                 width: "minmax(0,1fr)",
                 render: (w) => (
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold tabular text-fg-muted">{w.code}</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{w.actionItem}</span>
+                    <span className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-xs font-semibold tabular text-fg-muted">{w.code}</span>
+                    <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{w.actionItem}</span>
                   </span>
                 ),
               },
@@ -409,7 +409,7 @@ function RemindAction({ w }: { w: WatchItem }) {
 
   if (link) {
     return (
-      <a href={link} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-accent hover:underline">
+      <a href={link} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:underline">
         <ExternalLink size={12} /> Send
       </a>
     );
@@ -424,7 +424,7 @@ function RemindAction({ w }: { w: WatchItem }) {
         setLink(res.link);
         toast(`Reminder ready for ${getGivenName(res.name)} — tap Send on WhatsApp.`, { tone: "success" });
       })}
-      className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-success disabled:opacity-50"
+      className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted transition-colors hover:text-success disabled:opacity-50"
     >
       {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Remind
     </button>
@@ -435,7 +435,7 @@ function Label({ hint }: { hint?: boolean }) {
     <SectionLabel
       icon={<Target size={13} />}
       action={hint ? (
-        <span className="text-[10px] normal-case tracking-normal text-fg-subtle">tap any task to open it</span>
+        <span className="text-xs normal-case tracking-normal text-fg-subtle">tap any task to open it</span>
       ) : undefined}
     >
       Needs you
@@ -505,15 +505,15 @@ export function AttentionCard({ w }: { w: WatchItem }) {
       >
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold tabular text-fg-muted">{w.code}</span>
+            <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-xs font-semibold tabular text-fg-muted">{w.code}</span>
             {w.statusLabel && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-2 py-0.5 text-xs font-medium text-fg-muted">
                 <span className={`h-1.5 w-1.5 rounded-full ${statusDot(w.statusLabel)}`} />{w.statusLabel}
               </span>
             )}
           </span>
-          <span className="mt-1 block truncate text-[13px] font-semibold">{w.actionItem}</span>
-          <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">{w.companyName} · {w.accountableName ?? "Unassigned"}</span>
+          <span className="mt-1 block truncate text-base font-semibold">{w.actionItem}</span>
+          <span className="mt-0.5 block truncate text-xs text-fg-subtle">{w.companyName} · {w.accountableName ?? "Unassigned"}</span>
         </span>
         {hasFigure ? (
           <span className="flex shrink-0 flex-col items-end leading-none">
@@ -521,7 +521,7 @@ export function AttentionCard({ w }: { w: WatchItem }) {
             <s className="mt-0.5 text-[9px] uppercase tracking-[0.06em] text-fg-subtle no-underline">{w.overdue ? "overdue" : isToday ? "due" : "to go"}</s>
           </span>
         ) : (
-          <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${w.overdue ? "bg-danger-soft/60 text-danger" : "bg-warn-soft/60 text-warn"}`}>{w.priority}</span>
+          <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${w.overdue ? "bg-danger-soft/60 text-danger" : "bg-warn-soft/60 text-warn"}`}>{w.priority}</span>
         )}
       </button>
 

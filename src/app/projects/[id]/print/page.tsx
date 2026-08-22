@@ -25,6 +25,7 @@ import { fmtMoney } from "@/lib/money-format";
 import { ProjectPrintButton } from "@/components/project-print-button";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Print — Projects" };
 
 export default async function ProjectPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -77,13 +78,13 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-4">
       <div className="print-hidden flex items-center justify-between">
-        <Link href={`/projects/${n}`} className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg">
+        <Link href={`/projects/${n}`} className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg">
           <ArrowLeft size={13} /> Back to the project
         </Link>
         <ProjectPrintButton />
       </div>
 
-      <article className="space-y-5 rounded-[8px] border border-border p-6 text-[12px]">
+      <article className="space-y-5 rounded-[8px] border border-border p-6 text-sm">
         <header className="space-y-1 border-b border-border pb-3">
           <h1 className="text-[20px] font-medium">{project.name}</h1>
           <p className="text-fg-muted">
@@ -129,8 +130,8 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
 
         {gauge.length > 0 && (
           <section className="space-y-1.5">
-            <h2 className="text-[13px] font-medium">Budget against actual</h2>
-            <table className="w-full text-[11px]">
+            <h2 className="text-base font-medium">Budget against actual</h2>
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-left text-fg-muted">
                   <th className="py-1 font-normal">Category</th>
@@ -159,8 +160,8 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
 
         {views.length > 0 && (
           <section className="space-y-1.5">
-            <h2 className="text-[13px] font-medium">Payment plan</h2>
-            <table className="w-full text-[11px]">
+            <h2 className="text-base font-medium">Payment plan</h2>
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-left text-fg-muted">
                   <th className="py-1 font-normal">Stage</th>
@@ -201,7 +202,7 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
           </section>
         )}
 
-        <footer className="border-t border-border pt-2 text-[10px] text-fg-subtle">
+        <footer className="border-t border-border pt-2 text-xs text-fg-subtle">
           Printed {fmtDate(printedOn)} from COS · {count(lines.length, "budget line", "budget lines")} ·{" "}
           {count(expenditures.length, "spending entry", "spending entries")} ·{" "}
           {count(payments.length, "payment in", "payments in")}.
@@ -215,7 +216,7 @@ export default async function ProjectPrintPage({ params }: { params: Promise<{ i
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5">
-      <h2 className="text-[13px] font-medium">{title}</h2>
+      <h2 className="text-base font-medium">{title}</h2>
       <dl className="grid grid-cols-2 gap-x-8 gap-y-1 sm:grid-cols-3">{children}</dl>
     </section>
   );

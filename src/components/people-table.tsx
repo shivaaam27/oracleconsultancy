@@ -70,8 +70,8 @@ function PeopleFilterSheet({
                 className="flex w-full items-center gap-2.5 py-3 text-left"
               >
                 <span className={cn("shrink-0", g.isDefault ? "text-fg-subtle" : "text-accent")}>{g.icon}</span>
-                <span className="shrink-0 text-[13px] font-medium text-fg">{g.label}</span>
-                <span className={cn("ml-auto min-w-0 truncate text-[12px]", g.isDefault ? "text-fg-muted" : "font-medium text-accent")}>
+                <span className="shrink-0 text-base font-medium text-fg">{g.label}</span>
+                <span className={cn("ml-auto min-w-0 truncate text-sm", g.isDefault ? "text-fg-muted" : "font-medium text-accent")}>
                   {current?.label ?? g.value}
                 </span>
                 <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", isOpen && "rotate-180")} />
@@ -507,7 +507,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
       <>
         <button type="button" onClick={toggleSelectAll}
           className={compact
-            ? "inline-flex h-[30px] shrink-0 items-center rounded-lg bg-accent-soft px-2 text-[11px] font-medium text-accent ring-1 ring-accent/30"
+            ? "inline-flex h-[30px] shrink-0 items-center rounded-lg bg-accent-soft px-2 text-xs font-medium text-accent ring-1 ring-accent/30"
             : "shrink-0 text-xs font-medium text-accent hover:underline"}>
           {allFilteredSelected ? "Clear" : "All"}
         </button>
@@ -548,11 +548,11 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
             a line of its own above the heading. Wrapping instead puts the tile
             beside the title where it belongs and drops the switch underneath. */}
         <div className="relative flex flex-wrap items-center gap-2.5">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-[13px] font-semibold text-white" style={{ background: "linear-gradient(135deg, hsl(var(--accent)), #a78bfa)" }}>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-base font-semibold text-white" style={{ background: "linear-gradient(135deg, hsl(var(--accent)), #a78bfa)" }}>
             <Users size={20} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">
               Directory
               <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
                 <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
@@ -845,9 +845,9 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                         {getInitials(g.label)}
                       </span>
                     ) : null}
-                    <span className="truncate text-[12.5px] font-semibold text-fg">{g.label}</span>
+                    <span className="truncate text-sm font-semibold text-fg">{g.label}</span>
                   </button>
-                  <span className="flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-muted">
+                  <span className="flex shrink-0 items-center gap-2.5 text-xs text-fg-muted">
                     {overdue > 0 ? (
                       <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /><b className="font-bold text-danger tabular">{overdue}</b> overdue</span>
                     ) : (
@@ -878,7 +878,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
           {bulkEditing && (
             <div className="w-[min(90vw,26rem)] rounded-2xl bg-bg-elev ring-1 ring-border shadow-pill p-2 grid grid-cols-2 gap-1.5">
               {(() => {
-                const selCls = "h-8 min-w-0 w-full rounded-lg bg-bg-subtle text-[11px] text-fg ring-1 ring-border px-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40";
+                const selCls = "h-8 min-w-0 w-full rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40";
                 const { labels: mgrLabels, labelToId } = managerPicker;
                 return (
                   <>
@@ -930,10 +930,10 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
         subtitle={peek ? [peek.companyName, peek.role].filter(Boolean).join(" · ") || undefined : undefined}
         pills={peek ? (
           <>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/25 text-info tabular">{peek.workload.open} open</span>
-            {peek.workload.overdue > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger tabular">{peek.workload.overdue} overdue</span>}
-            {peek.workload.dueSoon > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn tabular">{peek.workload.dueSoon} due soon</span>}
-            {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-info-soft/60 ring-1 ring-info/25 text-info tabular">{peek.workload.open} open</span>
+            {peek.workload.overdue > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger tabular">{peek.workload.overdue} overdue</span>}
+            {peek.workload.dueSoon > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn tabular">{peek.workload.dueSoon} due soon</span>}
+            {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
           </>
         ) : undefined}
         body={peek && (displayNote(peek.notes) || peek.topTasks.length > 0) ? (
@@ -946,8 +946,8 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                 {peek.topTasks.map((t) => (
                   <div key={t.code} className="flex items-center gap-2 px-2.5 py-1.5">
                     <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", t.flag === "overdue" || t.flag === "escalate-now" ? "bg-danger" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle/40")} />
-                    <span className="min-w-0 flex-1 truncate text-[13px]">{t.actionItem}</span>
-                    <span className="font-mono text-[10px] text-fg-subtle shrink-0">{t.code}</span>
+                    <span className="min-w-0 flex-1 truncate text-base">{t.actionItem}</span>
+                    <span className="font-mono text-xs text-fg-subtle shrink-0">{t.code}</span>
                   </div>
                 ))}
               </div>
@@ -970,7 +970,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
 /** Reason pill for the Attention card. */
 function ReasonPill({ r }: { r: AttnReason }) {
   return (
-    <span className={cn("inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-medium",
+    <span className={cn("inline-flex items-center rounded-lg px-2 py-1 text-xs font-medium",
       r.tone === "red" ? "bg-danger-soft/70 text-danger" : "bg-warn-soft/70 text-warn")}>
       {r.text}
     </span>
@@ -993,7 +993,7 @@ function AttentionCard({ p, reasons, onOpen, onMessage, onSnooze, onSkip }: {
   return (
     <div className="rounded-2xl bg-bg-elev ring-1 ring-border/70 elevated p-3.5">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent ring-1 ring-accent/25">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-base font-semibold text-accent ring-1 ring-accent/25">
           {getInitials(p.name)}
         </span>
         <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
@@ -1073,7 +1073,7 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
         </span>
       )}
       <span className="relative shrink-0">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted ring-1 ring-border">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-bg-subtle text-xs font-semibold text-fg-muted ring-1 ring-border">
           {getInitials(p.name)}
         </span>
         {onLeave && <span title="On approved leave today" className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-warn ring-2 ring-bg-elev" />}
@@ -1081,10 +1081,10 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-[13px] font-medium leading-tight group-hover:text-accent transition-colors">{p.name}</span>
+          <span className="truncate text-base font-medium leading-tight group-hover:text-accent transition-colors">{p.name}</span>
           {!p.hasContact && <PhoneOff size={11} className="text-danger shrink-0" />}
         </div>
-        <div className="truncate text-[11px] text-fg-subtle">{[p.role, p.companyName].filter(Boolean).join(" · ") || "—"}</div>
+        <div className="truncate text-xs text-fg-subtle">{[p.role, p.companyName].filter(Boolean).join(" · ") || "—"}</div>
       </div>
 
       {/* Inline manager cell (sm+): pick from active people; commits on select. */}
@@ -1093,7 +1093,7 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
           options={managerPicker.labels}
           defaultValue={p.managerId != null ? managerPicker.labelById.get(p.managerId) ?? "" : ""}
           placeholder="Set manager…"
-          className="h-7 w-full rounded-lg bg-bg-subtle/70 text-[11px] text-fg ring-1 ring-border px-2 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          className="h-7 w-full rounded-lg bg-bg-subtle/70 text-xs text-fg ring-1 ring-border px-2 focus:outline-none focus:ring-2 focus:ring-accent/40"
           onCommit={(v) => { const id = managerPicker.labelToId.get(v.trim()); if (id != null) onSetManager(id); }}
         />
       </div>
@@ -1104,7 +1104,7 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
         onClick={(e) => { e.stopPropagation(); if (p.portalEnabled) cycleRole(); }}
         disabled={!p.portalEnabled}
         title={p.portalEnabled ? "Tap to change portal role" : "No portal access"}
-        className={cn("hidden sm:inline-flex w-[86px] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-medium ring-1 transition-colors",
+        className={cn("hidden sm:inline-flex w-[86px] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1 transition-colors",
           !p.portalEnabled ? "text-fg-subtle ring-border cursor-default" :
           role === "director" || role === "hr" ? "bg-accent-soft text-accent ring-accent/25 hover:bg-accent-soft/80" :
           role === "manager" ? "bg-info-soft text-info ring-info/25 hover:bg-info-soft/80" :
@@ -1113,7 +1113,7 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
         <ShieldCheck size={11} /> {p.portalEnabled ? role : "none"}
       </button>
 
-      <span className={cn("w-[54px] shrink-0 text-right text-[11px] font-semibold tabular", wlTone)}>
+      <span className={cn("w-[54px] shrink-0 text-right text-xs font-semibold tabular", wlTone)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
       </span>
     </div>

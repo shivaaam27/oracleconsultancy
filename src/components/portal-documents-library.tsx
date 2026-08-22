@@ -130,18 +130,18 @@ export function PortalDocumentsLibrary({ docs }: { docs: PortalDocRow[] }) {
     sortHrefs,
     sortedBy: { key: dsort, dir: ddir === "desc" ? "desc" : "asc" },
     overrides: {
-      title: (d) => <span className="block truncate text-[13px] font-medium text-fg">{d.title}</span>,
+      title: (d) => <span className="block truncate text-base font-medium text-fg">{d.title}</span>,
       expiryDate: (d) => {
         const label = fmtDate(d.expiry);
-        if (!label) return <span className="text-[12px] text-fg-subtle">—</span>;
+        if (!label) return <span className="text-sm text-fg-subtle">—</span>;
         return (
-          <span className={cn("text-[12px]", d.status === "Expired" ? "font-medium text-danger" : d.status === "Expiring" ? "text-warn" : "text-fg-muted")}>
+          <span className={cn("text-sm", d.status === "Expired" ? "font-medium text-danger" : d.status === "Expiring" ? "text-warn" : "text-fg-muted")}>
             {label}
           </span>
         );
       },
       status: (d) => (
-        <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium", docStatusColor[d.status])}>
+        <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium", docStatusColor[d.status])}>
           {d.status}
         </span>
       ),
@@ -162,7 +162,7 @@ export function PortalDocumentsLibrary({ docs }: { docs: PortalDocRow[] }) {
        * broken list rather than a sorted one — so it goes flat instead. */
       groupOf={dsort === "category" ? (d) => d.category : undefined}
       subRow={(d) => (
-        <span className="flex min-w-0 items-center gap-x-2 text-[11px] text-fg-muted">
+        <span className="flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
           {d.docType && <span className="shrink-0">{d.docType}</span>}
           {(d.personName ?? d.companyName) && (
             <span className="inline-flex min-w-0 items-center gap-1 truncate">
@@ -178,12 +178,12 @@ export function PortalDocumentsLibrary({ docs }: { docs: PortalDocRow[] }) {
             href={`/api/portal/document?documentId=${d.id}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-accent hover:underline"
+            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:underline"
           >
             Open <ExternalLink size={12} />
           </a>
         ) : (
-          <span className="px-2 text-[11px] italic text-fg-subtle">No file</span>
+          <span className="px-2 text-xs italic text-fg-subtle">No file</span>
         )
       }
       toolbar={
@@ -195,12 +195,12 @@ export function PortalDocumentsLibrary({ docs }: { docs: PortalDocRow[] }) {
             onChange={(e) => set({ dq: e.target.value })}
             placeholder="Search documents, people…"
             aria-label="Search documents, companies, people"
-            className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+            className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
           />
         </label>
       }
       empty={
-        <span className="flex items-center justify-center gap-2 text-[12px] text-fg-muted">
+        <span className="flex items-center justify-center gap-2 text-sm text-fg-muted">
           <FolderOpen size={14} className="text-fg-subtle" />
           {docs.length === 0 ? "No documents in your companies yet." : "No documents match. Try a different search or category."}
         </span>

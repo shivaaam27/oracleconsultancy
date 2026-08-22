@@ -126,7 +126,7 @@ export default async function CommandCentrePage({
           {metrics.map((m) => (
             <div key={m.label} className="min-w-[92px] flex-1 shrink-0 rounded-2xl bg-bg-elev/70 px-3 py-2.5 ring-1 ring-border/60 backdrop-blur-sm">
               <div className={`text-xl font-semibold tabular leading-none ${TONE[m.tone].text}`}>{m.value}</div>
-              <span className="mt-1 block truncate text-[11px] leading-tight text-fg-muted">{m.label}</span>
+              <span className="mt-1 block truncate text-xs leading-tight text-fg-muted">{m.label}</span>
             </div>
           ))}
         </div>

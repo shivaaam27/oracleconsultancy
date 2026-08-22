@@ -7,7 +7,7 @@ export function StaffIdChip({ id, className }: { id: string | null | undefined; 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-[10px] font-medium tabular text-fg-muted tracking-wide",
+        "inline-flex items-center rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-xs font-medium tabular text-fg-muted tracking-wide",
         className
       )}
     >

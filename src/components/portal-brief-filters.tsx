@@ -50,7 +50,7 @@ export function PortalBriefFilters({
 
   return (
     <div className="rounded-2xl bg-bg-subtle/50 p-3 ring-1 ring-border/60">
-      <div className="mb-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+      <div className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
         Director Brief
       </div>
 

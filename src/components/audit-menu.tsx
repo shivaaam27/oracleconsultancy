@@ -174,7 +174,7 @@ export function AuditMenu({ entryId, currentReason, deleted = false }: Props) {
               "focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40"
             )}
           />
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-xs">
             <span className="text-fg-subtle">⌘+Enter to save · empty to clear · Esc to cancel</span>
             <div className="flex items-center gap-1.5">
               <button

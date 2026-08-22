@@ -74,10 +74,10 @@ export function BuiltInSignals({ settings, lastFired }: { settings: SignalSettin
     <section className="rounded-2xl ring-1 ring-border/60 overflow-hidden">
       <div className="flex items-center justify-between gap-3 bg-accent/[0.06] px-4 py-2.5">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">Built-in signals</h2>
-          <span className="text-[11px] tabular text-fg-subtle">3</span>
+          <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Built-in signals</h2>
+          <span className="text-xs tabular text-fg-subtle">3</span>
         </div>
-        <span className="text-[11px] text-fg-subtle">Always-on checks — switch off or retune any</span>
+        <span className="text-xs text-fg-subtle">Always-on checks — switch off or retune any</span>
       </div>
       <ul className="divide-y divide-border/50">
         <SignalRow
@@ -142,13 +142,13 @@ function SignalRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium leading-snug text-fg">{title}</div>
-        <p className="mt-0.5 text-[11px] leading-snug text-fg-muted">{desc}</p>
+        <p className="mt-0.5 text-xs leading-snug text-fg-muted">{desc}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             Last fired <span className="text-fg-muted">{relTime(lastFired)}</span>
           </span>
           {typeof days === "number" && onDays && daysLabel && (
-            <label className={`inline-flex items-center gap-1.5 text-[11px] ${enabled ? "text-fg-muted" : "text-fg-subtle opacity-60"}`}>
+            <label className={`inline-flex items-center gap-1.5 text-xs ${enabled ? "text-fg-muted" : "text-fg-subtle opacity-60"}`}>
               {daysLabel}
               <input
                 type="number"

@@ -116,7 +116,7 @@ export function PortalMeetingsPage({
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
             <div key={g.heading} className="flex flex-col gap-1.5">
-              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{g.heading}</p>
+              <p className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{g.heading}</p>
               <Panel className="divide-y divide-border/60 overflow-hidden p-0">
                 {g.items.map((m) => {
                   const join = m.meetLink || (m.location && /^https?:\/\//i.test(m.location) ? m.location : null);
@@ -130,7 +130,7 @@ export function PortalMeetingsPage({
                       <span className="w-14 shrink-0 text-sm font-semibold tabular text-accent">{fmtTime(m)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{m.title}</p>
-                        <p className="truncate text-[11px] text-fg-subtle">
+                        <p className="truncate text-xs text-fg-subtle">
                           {[m.companyName, m.categoryName].filter(Boolean).join(" · ") || "Meeting"}
                         </p>
                       </div>
@@ -140,7 +140,7 @@ export function PortalMeetingsPage({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(ev) => ev.stopPropagation()}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
                         >
                           <Video size={13} /> Join
                         </a>

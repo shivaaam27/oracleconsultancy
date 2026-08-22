@@ -143,7 +143,7 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
                     >
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${od ? "bg-danger" : "bg-accent/70"}`} />
                       <span className="min-w-0 flex-1 truncate text-sm group-hover:text-accent">{t.actionItem}</span>
-                      <span className="shrink-0 text-[11px] text-fg-subtle">{t.companyName}</span>
+                      <span className="shrink-0 text-xs text-fg-subtle">{t.companyName}</span>
                     </Link>
                   </li>
                 );

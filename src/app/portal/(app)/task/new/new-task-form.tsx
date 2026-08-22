@@ -21,7 +21,7 @@ type Company = { id: number; name: string };
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_OPTIONS: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p }));
 const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
-const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 const selectBtn = "bare-field flex w-full items-center justify-between rounded-xl ring-1 ring-border px-3.5 py-3 text-sm";
 
 /** Companies a person belongs to — primary plus any extra links. */
@@ -306,7 +306,7 @@ function BulkTaskPanel({
 
         {result.failures.length > 0 && (
           <div className="flex flex-col gap-1.5 rounded-xl bg-danger-soft/40 p-3 ring-1 ring-danger/20">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-danger">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
               <AlertTriangle size={13} /> Not added
             </p>
             <ul className="flex flex-col gap-1">
@@ -350,7 +350,7 @@ function BulkTaskPanel({
           placeholder={"Renew the business licence\nChase Gofiber about the printer\nPrepare the board pack"}
           className={inputCls}
         />
-        <p className="mt-1.5 text-[11px] text-fg-muted">
+        <p className="mt-1.5 text-xs text-fg-muted">
           One task per line. {lines.length > 0 && `${lines.length} task${lines.length === 1 ? "" : "s"} ready.`}
         </p>
       </div>
@@ -363,7 +363,7 @@ function BulkTaskPanel({
           <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
         )}
         {companyIds.length > 1 && lines.length > 0 && (
-          <p className="mt-1.5 text-[11px] text-accent">Creates {companyIds.length * lines.length} tasks — one per company, per line</p>
+          <p className="mt-1.5 text-xs text-accent">Creates {companyIds.length * lines.length} tasks — one per company, per line</p>
         )}
       </div>
 
@@ -395,7 +395,7 @@ function BulkTaskPanel({
                       : "bg-bg-subtle text-fg-muted ring-border hover:ring-accent/40"
                   }`}
                 >
-                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-medium ${lead ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted"}`}>
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-medium ${lead ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted"}`}>
                     {initials(p.name)}
                   </span>
                   {firstName(p.name)}
@@ -404,7 +404,7 @@ function BulkTaskPanel({
               );
             })}
           </div>
-          <p className="mt-1.5 text-[11px] text-fg-muted">Tap a star to set the lead. At least one is required. They apply to every line.</p>
+          <p className="mt-1.5 text-xs text-fg-muted">Tap a star to set the lead. At least one is required. They apply to every line.</p>
         </div>
       )}
 

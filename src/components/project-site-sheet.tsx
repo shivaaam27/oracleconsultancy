@@ -137,7 +137,7 @@ export function ProjectSiteSheet({
       <SetupNeeded projectId={projectId} missing={designations.length ? [] : ["Designations"]} />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -145,7 +145,7 @@ export function ProjectSiteSheet({
       <div className="flex flex-wrap items-center gap-2">
         {([["meals", "Meals", Utensils], ["labour", "Labour", HardHat]] as const).map(([k, label, Icon]) => (
           <button key={k} type="button" onClick={() => setMode(k)}
-            className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px]",
+            className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm",
               mode === k ? "border-accent/40 bg-accent-soft font-medium text-accent" : "border-border bg-bg-elev text-fg-muted")}>
             <Icon size={13} /> {label}
           </button>
@@ -153,7 +153,7 @@ export function ProjectSiteSheet({
         <div className="ml-auto flex items-center gap-1">
           <button type="button" onClick={() => shift(-DAYS_SHOWN)} title="Earlier"
             className="rounded border border-border p-1.5 text-fg-muted hover:text-fg"><ChevronLeft size={14} /></button>
-          <span className="tabular px-1 text-[11px] text-fg-muted">
+          <span className="tabular px-1 text-xs text-fg-muted">
             {window[0]} → {window[window.length - 1]}
           </span>
           <button type="button" onClick={() => shift(DAYS_SHOWN)} title="Later"
@@ -173,17 +173,17 @@ export function ProjectSiteSheet({
 
       {active.length === 0 ? (
         <div className="rounded-lg border border-border bg-bg-elev p-6 text-center">
-          <p className="text-[13px] font-medium">Nobody on site yet</p>
-          <p className="mt-1 text-[12px] text-fg-subtle">Add the foreman and the casuals, then tick their days.</p>
+          <p className="text-base font-medium">Nobody on site yet</p>
+          <p className="mt-1 text-sm text-fg-subtle">Add the foreman and the casuals, then tick their days.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full border-collapse bg-bg-elev text-[12px]">
+          <table className="w-full border-collapse bg-bg-elev text-sm">
             <thead>
               <tr className="border-b border-border bg-bg-subtle">
                 <th className="sticky left-0 z-10 bg-bg-subtle px-2 py-1.5 text-left font-medium">Name</th>
                 {window.map((d) => (
-                  <th key={d} className={cn("w-9 px-0 py-1.5 text-center text-[10px] font-normal",
+                  <th key={d} className={cn("w-9 px-0 py-1.5 text-center text-xs font-normal",
                     isSunday(d) ? "bg-bg-muted text-fg-subtle" : "text-fg-muted")}
                     title={d}>
                     {d.slice(8)}
@@ -199,7 +199,7 @@ export function ProjectSiteSheet({
                   <tr key={p.id} className="border-b border-border/60">
                     <td className="sticky left-0 z-10 min-w-[150px] bg-bg-elev px-2 py-1">
                       <span className="block truncate">{p.name}</span>
-                      <span className="block truncate text-[10px] text-fg-subtle">
+                      <span className="block truncate text-xs text-fg-subtle">
                         {[p.designation, p.kind === "PERMANENT" ? "permanent" : "casual",
                           p.dailyRate ? money(num(p.dailyRate)) + "/day" : null].filter(Boolean).join(" · ")}
                       </span>
@@ -213,7 +213,7 @@ export function ProjectSiteSheet({
                               disabled={!p.mealsEligible}
                               onClick={() => paint(p, d, { meal: !cell?.meal })}
                               title={p.mealsEligible ? `${p.name} — ${d}` : `${p.name} is not fed on site`}
-                              className={cn("h-7 w-full text-[11px] disabled:opacity-30",
+                              className={cn("h-7 w-full text-xs disabled:opacity-30",
                                 cell?.meal ? "bg-success-soft text-success" : "text-fg-subtle hover:bg-bg-muted")}>
                               {cell?.meal ? "✓" : ""}
                             </button>
@@ -238,7 +238,7 @@ export function ProjectSiteSheet({
                   {mode === "meals" ? "Fed that day" : "Paid that day"}
                 </td>
                 {window.map((d) => (
-                  <td key={d} className="px-0 py-1.5 text-center tabular text-[10px]">
+                  <td key={d} className="px-0 py-1.5 text-center tabular text-xs">
                     {mode === "meals"
                       ? (fedOnDay(days, d) || "")
                       : (paidOnDay(days, d) ? Math.round(paidOnDay(days, d) / 1000) + "k" : "")}
@@ -253,7 +253,7 @@ export function ProjectSiteSheet({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 text-[11px] text-fg-subtle">
+      <div className="flex flex-wrap gap-3 text-xs text-fg-subtle">
         <span>Sundays are shaded — they are not working days on this site.</span>
         {mode === "labour" && <span>Leave a cell blank for a day not worked; the daily rate fills in on click.</span>}
         {people.some((p) => !p.active) && (
@@ -263,14 +263,14 @@ export function ProjectSiteSheet({
 
       {active.length > 0 && (
         <details className="rounded-lg border border-border bg-bg-elev">
-          <summary className="cursor-pointer px-3 py-2 text-[12px] font-medium">Roster ({active.length})</summary>
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Roster ({active.length})</summary>
           <div className="divide-y divide-border border-t border-border">
             {active.map((p) => (
-              <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-[12px]">
+              <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                <span className="text-[11px] text-fg-subtle">{p.kind}</span>
-                <span className="tabular w-24 text-right text-[11px]">{money(num(p.dailyRate)) ?? "—"}</span>
-                <span className="w-16 text-right text-[11px] text-fg-subtle">{p.mealsEligible ? "fed" : "not fed"}</span>
+                <span className="text-xs text-fg-subtle">{p.kind}</span>
+                <span className="tabular w-24 text-right text-xs">{money(num(p.dailyRate)) ?? "—"}</span>
+                <span className="w-16 text-right text-xs text-fg-subtle">{p.mealsEligible ? "fed" : "not fed"}</span>
                 <button type="button" title="Take off the roster"
                   onClick={() => {
                     if (!confirm(`Take ${p.name} off the roster? Their recorded days are kept.`)) return;
@@ -343,7 +343,7 @@ function LabourCell({
       onBlur={() => commit(local)}
       onKeyDown={(e) => { if (e.key === "Enter") { commit(local); (e.target as HTMLInputElement).blur(); } }}
       title={has ? money(Number(local)) ?? "" : "not worked"}
-      className={cn("h-7 w-full bg-transparent text-center text-[11px] tabular outline-none focus:bg-accent-soft",
+      className={cn("h-7 w-full bg-transparent text-center text-xs tabular outline-none focus:bg-accent-soft",
         has ? "text-fg" : "text-fg-subtle")}
     />
   );
@@ -379,7 +379,7 @@ function AddPerson({
           <div className="flex gap-1">
             {SITE_PERSON_KINDS.map((k) => (
               <button key={k} type="button" onClick={() => setKind(k)}
-                className={cn("h-8 flex-1 rounded-md border px-1 text-[10px]",
+                className={cn("h-8 flex-1 rounded-md border px-1 text-xs",
                   kind === k ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {k === "PERMANENT" ? "Perm" : "Casual"}
               </button>
@@ -406,7 +406,7 @@ function AddPerson({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add to roster
         </button>
-        <label className="flex items-center gap-1.5 text-[11px] text-fg-muted">
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted">
           <input type="checkbox" checked={mealsEligible} onChange={(e) => setMealsEligible(e.target.checked)} />
           Fed on site
         </label>
@@ -415,12 +415,12 @@ function AddPerson({
   );
 }
 
-const inp = "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+const inp = "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 function L({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <label className={cn("block min-w-0", className)}>
-      <span className="mb-1 block h-4 text-[10px] uppercase tracking-[0.04em] text-fg-subtle">{label}</span>
+      <span className="mb-1 block h-4 text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</span>
       {children}
     </label>
   );
@@ -429,9 +429,9 @@ function L({ label, className, children }: { label: string; className?: string; 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className="tabular mt-0.5 text-[15px]">{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }

@@ -94,19 +94,19 @@ export function ActivityLogView({ rows }: { rows: Row[] }) {
         />
         <div className="flex items-center gap-3">
           {hydrated && clearedShownCount > 0 && (
-            <button type="button" onClick={() => setShowCleared((v) => !v)} className="text-[11px] text-accent hover:underline">
+            <button type="button" onClick={() => setShowCleared((v) => !v)} className="text-xs text-accent hover:underline">
               {showCleared ? "Hide cleared" : `Show cleared (${clearedShownCount})`}
             </button>
           )}
           {hydrated && showCleared && cleared.size > 0 && (
-            <button type="button" onClick={restoreAll} className="text-[11px] text-accent hover:underline">Restore all</button>
+            <button type="button" onClick={restoreAll} className="text-xs text-accent hover:underline">Restore all</button>
           )}
           {visible.length > 0 && !showCleared && (
-            <button type="button" onClick={clearAll} className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-danger transition-colors">
+            <button type="button" onClick={clearAll} className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-danger transition-colors">
               <Eraser size={12} /> Clear all
             </button>
           )}
-          <span className="text-[11px] text-fg-subtle">{visible.length} action{visible.length === 1 ? "" : "s"}</span>
+          <span className="text-xs text-fg-subtle">{visible.length} action{visible.length === 1 ? "" : "s"}</span>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export function ActivityLogView({ rows }: { rows: Row[] }) {
             return (
               <section key={g.day} className="space-y-1.5">
                 <div className="group flex items-center gap-2 px-1">
-                  <button type="button" onClick={() => toggleDay(g.day)} className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-muted hover:text-fg transition-colors">
+                  <button type="button" onClick={() => toggleDay(g.day)} className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:text-fg transition-colors">
                     <ChevronDown size={13} className={`transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
                     {g.day}
                     <span className="text-fg-subtle normal-case tracking-normal">· {g.items.length}</span>
@@ -132,7 +132,7 @@ export function ActivityLogView({ rows }: { rows: Row[] }) {
                       type="button"
                       onClick={() => clearKeys(g.items.map((r) => r.key))}
                       title={`Clear ${g.day}`}
-                      className="inline-flex items-center gap-1 text-[10px] text-fg-subtle opacity-0 group-hover:opacity-100 hover:text-danger transition-all"
+                      className="inline-flex items-center gap-1 text-xs text-fg-subtle opacity-0 group-hover:opacity-100 hover:text-danger transition-all"
                     >
                       <X size={11} /> Clear
                     </button>
@@ -148,13 +148,13 @@ export function ActivityLogView({ rows }: { rows: Row[] }) {
                             <meta.Icon size={13} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[13px] leading-snug">
+                            <p className="text-base leading-snug">
                               <span className="font-medium">{r.actorLabel}</span>{" "}
                               <span className="text-fg">{r.summary}</span>
                             </p>
-                            {r.detail && <p className="text-[11px] text-fg-muted leading-snug truncate">{r.detail}</p>}
+                            {r.detail && <p className="text-xs text-fg-muted leading-snug truncate">{r.detail}</p>}
                           </div>
-                          <span className="shrink-0 text-[11px] text-fg-subtle tabular-nums mt-0.5">{r.timeLabel}</span>
+                          <span className="shrink-0 text-xs text-fg-subtle tabular-nums mt-0.5">{r.timeLabel}</span>
                         </div>
                       );
                       return (

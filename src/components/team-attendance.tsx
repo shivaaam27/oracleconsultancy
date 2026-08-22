@@ -38,7 +38,7 @@ export function TeamAttendance({ today, todayStr }: { today: TeamAttendanceRow[]
       <Panel className="p-4 sm:p-5">
         <div className="flex items-center justify-between gap-2 mb-3">
           <SectionLabel icon={<CalendarCheck size={13} />}>Team attendance today</SectionLabel>
-          <span className="text-[11px] text-fg-muted">{today.length} people</span>
+          <span className="text-xs text-fg-muted">{today.length} people</span>
         </div>
         <ul className="divide-y divide-border/60">
           {today.map((r) => (
@@ -90,7 +90,7 @@ function Row({ row, todayStr }: { row: TeamAttendanceRow; todayStr: string }) {
         // Derived state (on leave / a holiday) — never hand-editable.
         <span className="flex items-center gap-1.5">
           {shown ? <Badge tone={toneFor(shown)}>{shown}</Badge> : null}
-          <span className="text-[10px] text-fg-subtle">auto</span>
+          <span className="text-xs text-fg-subtle">auto</span>
         </span>
       )}
     </li>
@@ -120,7 +120,7 @@ function StatusPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-5 ring-1 ring-border/60 transition-colors hover:ring-accent/40 disabled:opacity-50",
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium leading-5 ring-1 ring-border/60 transition-colors hover:ring-accent/40 disabled:opacity-50",
           shown ? "" : "text-fg-muted",
         )}
       >

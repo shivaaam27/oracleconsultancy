@@ -70,13 +70,13 @@ export function LedgerJournals({
   return (
     <>
       {error && (
-        <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+        <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">
           {error}
         </div>
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           A journal is how anything is corrected, and how anything without a document of its own — depreciation,
           an accrual, capital introduced — gets into the books.
         </p>
@@ -97,7 +97,7 @@ export function LedgerJournals({
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-[13px]">
+            <table className="w-full min-w-[720px] text-base">
               <thead>
                 <tr data-list-head className="border-b border-border text-left">
                   <Th className="w-24">Number</Th>
@@ -121,7 +121,7 @@ export function LedgerJournals({
                       <Td className="tabular text-fg-muted">{e.postingDate?.slice(0, 10) ?? "—"}</Td>
                       <Td>
                         <span className="block truncate">{e.title || e.narration || <span className="text-fg-subtle">Untitled</span>}</span>
-                        {e.kind !== "Manual" && <span className="text-[11px] text-fg-subtle">{e.kind}</span>}
+                        {e.kind !== "Manual" && <span className="text-xs text-fg-subtle">{e.kind}</span>}
                       </Td>
                       <Td>
                         <span className="flex items-center gap-1.5 text-fg-muted">
@@ -133,7 +133,7 @@ export function LedgerJournals({
                       <Td className="tabular text-right">
                         {ledgerAmount(t.debit) || "—"}
                         {t.lines > 0 && !t.balanced && (
-                          <span className="ml-1.5 text-[11px] text-warn">out of balance</span>
+                          <span className="ml-1.5 text-xs text-warn">out of balance</span>
                         )}
                       </Td>
                     </tr>
@@ -142,7 +142,7 @@ export function LedgerJournals({
               </tbody>
             </table>
           </div>
-          <div className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+          <div className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
             {entries.length} shown · a posted entry can never be changed, only reversed
           </div>
         </div>
@@ -153,7 +153,7 @@ export function LedgerJournals({
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );

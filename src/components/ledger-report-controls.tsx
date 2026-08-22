@@ -54,7 +54,7 @@ export function LedgerReportControls({
             aria-current={active === r.key ? "page" : undefined}
             title={r.hint}
             className={cn(
-              "rounded-md border px-2.5 py-1 text-[12px] transition-colors",
+              "rounded-md border px-2.5 py-1 text-sm transition-colors",
               active === r.key
                 ? "border-accent bg-accent-soft font-medium text-fg"
                 : "border-border text-fg-muted hover:text-fg",
@@ -69,12 +69,12 @@ export function LedgerReportControls({
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-bg-elev p-2.5">
         {!asAtOnly && (
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">From</span>
+            <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">From</span>
             <Input type="date" value={values.from} onChange={(e) => set({ from: e.target.value })} className="h-8" />
           </label>
         )}
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-fg-subtle">
+          <span className="text-xs uppercase tracking-[0.06em] text-fg-subtle">
             {asAtOnly ? "As at" : "To"}
           </span>
           <Input type="date" value={values.to} onChange={(e) => set({ to: e.target.value })} className="h-8" />
@@ -87,7 +87,7 @@ export function LedgerReportControls({
                 key={q.label}
                 type="button"
                 onClick={() => set({ from: q.from, to: q.to })}
-                className="rounded-md border border-border px-2 py-1 text-[12px] text-fg-muted hover:text-fg"
+                className="rounded-md border border-border px-2 py-1 text-sm text-fg-muted hover:text-fg"
               >
                 {q.label}
               </button>
@@ -95,7 +95,7 @@ export function LedgerReportControls({
           </span>
         )}
 
-        <label className="mb-1 flex cursor-pointer items-center gap-1.5 text-[12px] text-fg-muted">
+        <label className="mb-1 flex cursor-pointer items-center gap-1.5 text-sm text-fg-muted">
           <input
             type="checkbox"
             checked={values.empty === "1"}
@@ -108,7 +108,7 @@ export function LedgerReportControls({
         {/* ⚠️ The group view is what the owner cannot get anywhere today: all
             thirteen companies added up. It is the reason the charts are seeded
             from one template. */}
-        <label className="mb-1 flex cursor-pointer items-center gap-1.5 text-[12px] text-fg-muted">
+        <label className="mb-1 flex cursor-pointer items-center gap-1.5 text-sm text-fg-muted">
           <input
             type="checkbox"
             checked={values.group === "1"}
@@ -128,7 +128,7 @@ export function LedgerReportControls({
       </div>
 
       {group && (
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           Showing <b className="text-fg">every active company added together</b>, matched on account number.
           ⚠️ Balances between the companies are <b>not</b> cancelled out — if one owes another, it appears in
           this total as both a debtor and a creditor. Doing that properly needs the companies named as
@@ -136,7 +136,7 @@ export function LedgerReportControls({
         </p>
       )}
       {!group && (
-        <p className="text-[12px] text-fg-subtle">
+        <p className="text-sm text-fg-subtle">
           {companyName} · every figure worked out from the entries as this page loaded, never stored.
         </p>
       )}

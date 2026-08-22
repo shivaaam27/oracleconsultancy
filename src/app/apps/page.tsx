@@ -53,18 +53,18 @@ export default async function ModulesPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="truncate text-[14px] font-semibold text-fg">{m.label}</h2>
                     {m.soon && (
-                      <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-[10px] font-medium text-fg-subtle">
+                      <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-px text-xs font-medium text-fg-subtle">
                         Being built
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-[12px] leading-snug text-fg-muted">{m.blurb}</p>
+                  <p className="mt-0.5 text-sm leading-snug text-fg-muted">{m.blurb}</p>
                 </div>
               </div>
               {/* One number, and it is the number you would have opened the module
                   to find out. A tile that says nothing is just a big button. */}
               {count && (
-                <p className="mt-3 border-t border-border pt-2.5 text-[12px] text-fg-muted">
+                <p className="mt-3 border-t border-border pt-2.5 text-sm text-fg-muted">
                   <span className="tabular text-[15px] font-semibold text-fg">{count.value}</span>{" "}
                   {count.label}
                 </p>

@@ -81,7 +81,7 @@ export function LedgerTaxRates({
       {/* ⚠️ The plan says in as many words: do not guess the rules. This is that
           warning, on the screen, naming exactly what is unsettled. */}
       {unconfirmed.length > 0 && (
-        <div className="rounded-xl border border-warn/40 bg-warn-soft px-3 py-2 text-[13px] text-warn">
+        <div className="rounded-xl border border-warn/40 bg-warn-soft px-3 py-2 text-base text-warn">
           <strong className="flex items-center gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5" />
             {unconfirmed.length} rate{unconfirmed.length === 1 ? "" : "s"} still to confirm
@@ -96,7 +96,7 @@ export function LedgerTaxRates({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-fg-muted">
+        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-fg-muted">
           <input
             type="checkbox"
             checked={showArchived}
@@ -117,7 +117,7 @@ export function LedgerTaxRates({
 
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[13px]">
+          <table className="w-full min-w-[720px] text-base">
             <thead>
               <tr data-list-head className="border-b border-border text-left">
                 <Th className="w-[36%]">Rate</Th>
@@ -147,7 +147,7 @@ export function LedgerTaxRates({
                         {r.isDefault && <Badge tone="accent">default</Badge>}
                         {/* Small dot and a word, never a coloured block. */}
                         {!r.confirmed && !r.archived && (
-                          <span className="flex items-center gap-1 text-[11px] text-warn">
+                          <span className="flex items-center gap-1 text-xs text-warn">
                             <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-hidden />
                             to confirm
                           </span>
@@ -170,7 +170,7 @@ export function LedgerTaxRates({
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border px-3 py-1.5 text-[12px] text-fg-subtle">
+        <div className="border-t border-border px-3 py-1.5 text-sm text-fg-subtle">
           {visible.length} of {rates.length} shown · a document freezes the percent it was raised with, so
           correcting a rate here never changes a figure already recorded
         </div>
@@ -269,7 +269,7 @@ function RateSheet({
             placeholder="18"
             className="tabular"
           />
-          <p className="mt-1 text-[11px] text-fg-subtle">A percentage — type 18, not 0.18.</p>
+          <p className="mt-1 text-xs text-fg-subtle">A percentage — type 18, not 0.18.</p>
         </div>
 
         <div>
@@ -291,7 +291,7 @@ function RateSheet({
             onSelect={(v) => set("treatment", v)}
           />
           {/* ⚠️ The distinction that most often goes wrong. */}
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             Zero-rated is <b>taxable</b> at 0% and counts in your turnover. Exempt sits outside VAT and does
             not. They are not the same thing.
           </p>
@@ -306,7 +306,7 @@ function RateSheet({
             onSelect={(v) => set("accountId", v === "" ? null : Number(v))}
             placeholder="— not set —"
           />
-          <p className="mt-1 text-[11px] text-fg-subtle">
+          <p className="mt-1 text-xs text-fg-subtle">
             Where this tax will land in the books once the documents start posting themselves. It can be left
             blank — the rate still works out figures either way.
           </p>
@@ -319,9 +319,9 @@ function RateSheet({
             onChange={(e) => set("isDefault", e.target.checked)}
             className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
           />
-          <span className="text-[13px]">
+          <span className="text-base">
             Offer this one first
-            <span className="block text-[11px] text-fg-subtle">
+            <span className="block text-xs text-fg-subtle">
               On a new document of that kind. Only one rate can be the default for each tax and side.
             </span>
           </span>
@@ -339,9 +339,9 @@ function RateSheet({
             onChange={(e) => set("confirmed", e.target.checked)}
             className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
           />
-          <span className="text-[13px]">
+          <span className="text-base">
             Confirmed against the law
-            <span className="block text-[11px] text-fg-subtle">
+            <span className="block text-xs text-fg-subtle">
               Tick this only once whoever files the returns has agreed the rate and what it applies to. Until
               then the VAT return shows it as unconfirmed — which is the honest state, not a nag.
             </span>
@@ -363,7 +363,7 @@ function RateSheet({
             <Button variant="ghost" size="sm" onClick={() => onArchive(!rate.archived)} loading={busy}>
               {rate.archived ? "Bring back into use" : "Archive"}
             </Button>
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               Archiving stops it being offered. Documents already raised with it keep their own frozen
               percent and are unaffected.
             </span>
@@ -381,7 +381,7 @@ function RateSheet({
 
 function Problem({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+    <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-base text-danger">
       {children}
     </div>
   );
@@ -389,7 +389,7 @@ function Problem({ children }: { children: React.ReactNode }) {
 
 function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
+    <th className={cn("px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle", className)}>
       {children}
     </th>
   );

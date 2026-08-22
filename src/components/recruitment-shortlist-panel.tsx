@@ -114,7 +114,7 @@ export function ShortlistPanel({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           {rows.length === 0 ? "Nobody on the shortlist yet." :
             `${rows.filter((r) => isLiveOnShortlist(r.stage)).length} still in the running of ${rows.length}.`}
         </p>
@@ -138,7 +138,7 @@ export function ShortlistPanel({
       )}
 
       {ranked.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-[12px] text-fg-subtle">
+        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-fg-subtle">
           Search the pool and put names forward. Every one of them needs a line of reasoning —
           that is what the client is promised.
         </p>
@@ -196,10 +196,10 @@ function ShortlistCard({
     <div className={cn("rounded-lg border border-border bg-bg-elev", !live && "opacity-70")}>
       <div className="flex flex-wrap items-start gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
-          <Link href={`/recruitment/candidates/${row.candidateId}`} className="text-[13px] font-medium hover:text-accent">
+          <Link href={`/recruitment/candidates/${row.candidateId}`} className="text-base font-medium hover:text-accent">
             {row.candidateName}
           </Link>
-          <p className="truncate text-[11px] text-fg-muted">
+          <p className="truncate text-xs text-fg-muted">
             {[row.candidateTitle, row.candidateSector, seniorityLabel(row.candidateSeniority)]
               .filter((x) => x && x !== "—").join(" · ") || "—"}
             {row.candidateSalaryUsd ? ` · asks ${usd(Number(row.candidateSalaryUsd))}` : ""}
@@ -207,7 +207,7 @@ function ShortlistCard({
         </div>
 
         <span
-          className={cn("inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium tabular", TONE_CHIP[tone])}
+          className={cn("inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-xs font-medium tabular", TONE_CHIP[tone])}
           title="Seniority 35 · sector 25 · title 25 · salary 15. Worked out fresh every time this is read."
         >
           {score}% fit
@@ -227,7 +227,7 @@ function ShortlistCard({
       <div className="space-y-2 px-3 py-2.5">
         {/* THE REASONING. Not optional, and not hidden. */}
         <label className="block">
-          <span className="mb-1 block text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+          <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">
             Why they are on the list
           </span>
           <textarea
@@ -235,12 +235,12 @@ function ShortlistCard({
             value={note}
             onChange={(e) => { setNote(e.target.value); setNoteDirty(true); }}
             placeholder="Ten years on rotary kilns at a comparable plant; ran a 40-person shift team…"
-            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[12px] outline-none placeholder:text-fg-subtle focus:border-accent"
+            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none placeholder:text-fg-subtle focus:border-accent"
           />
           {/* Only nagged while they are still in the running: a candidate who has
               been declined is past the point where the reasoning was owed. */}
           {!row.matchNote && !noteDirty && live && (
-            <span className="mt-0.5 flex items-center gap-1 text-[11px] text-warn">
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-warn">
               <AlertTriangle size={10} /> Nothing written yet — the client is promised your reasoning.
             </span>
           )}
@@ -251,14 +251,14 @@ function ShortlistCard({
             type="button"
             disabled={pending}
             onClick={() => run(async () => { const r = await updateShortlistAction(row.id, { matchNote: note }, orderRef); if (r.ok) setNoteDirty(false); return r; })}
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-accent-fg disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg disabled:opacity-60"
           >
             {pending && <Loader2 size={11} className="animate-spin" />} Save the reasoning
           </button>
         )}
 
         {row.declineReason && (
-          <p className="text-[11px] text-fg-muted">
+          <p className="text-xs text-fg-muted">
             Declined — <span className="font-medium">{row.declineReason}</span>
           </p>
         )}
@@ -267,15 +267,15 @@ function ShortlistCard({
             "With the client" could never say how long anyone had been waiting —
             which is the one thing that screen is for. */}
         <label className={cn("flex flex-wrap items-center gap-2", !live && "hidden")}>
-          <span className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">Sent to the client</span>
+          <span className="text-xs uppercase tracking-[0.04em] text-fg-subtle">Sent to the client</span>
           <input
             type="date"
             value={row.sentToClientOn ? row.sentToClientOn.slice(0, 10) : ""}
             onChange={(e) => run(() => updateShortlistAction(row.id, { sentToClientOn: e.target.value || null }, orderRef))}
-            className="h-7 rounded-md border border-border bg-bg px-2 text-[12px] outline-none focus:border-accent"
+            className="h-7 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
           />
           {!row.sentToClientOn && (
-            <span className="text-[11px] text-fg-subtle">The wait is counted from this date.</span>
+            <span className="text-xs text-fg-subtle">The wait is counted from this date.</span>
           )}
         </label>
 
@@ -293,7 +293,7 @@ function ShortlistCard({
             <button
               type="button"
               onClick={() => setBooking((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-fg-muted hover:bg-bg-muted"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-fg-muted hover:bg-bg-muted"
             >
               <CalendarPlus size={12} /> Book an interview
             </button>
@@ -301,7 +301,7 @@ function ShortlistCard({
               <button
                 type="button"
                 onClick={() => setOffering((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success hover:opacity-90"
+                className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:opacity-90"
               >
                 <CheckCircle2 size={12} /> They accepted the offer
               </button>
@@ -310,7 +310,7 @@ function ShortlistCard({
               <button
                 type="button"
                 onClick={() => run(() => removeFromShortlistAction(row.id, orderRef))}
-                className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-subtle hover:bg-bg-muted hover:text-danger"
+                className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-danger"
                 title="Only while nobody outside Oracle has seen them"
               >
                 <X size={11} /> Remove
@@ -344,7 +344,7 @@ function ShortlistCard({
         )}
 
         {error && (
-          <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2 py-1 text-[11px] text-danger">
+          <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2 py-1 text-xs text-danger">
             {error}
           </p>
         )}
@@ -372,7 +372,7 @@ function InterviewLine({ interview: i, orderRef, onRun }: {
   const [note, setNote] = useState(i.note ?? "");
 
   return (
-    <li className="rounded-md bg-bg-subtle px-2 py-1.5 text-[11px]">
+    <li className="rounded-md bg-bg-subtle px-2 py-1.5 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{i.kind}</span>
         <span className="text-fg-muted">{fmtDate(i.scheduledFor)} · {bothClocks(i.scheduledFor)}</span>
@@ -402,7 +402,7 @@ function InterviewLine({ interview: i, orderRef, onRun }: {
               type="datetime-local"
               value={when}
               onChange={(e) => setWhen(e.target.value)}
-              className="h-7 rounded-md border border-border bg-bg px-2 text-[12px] outline-none focus:border-accent"
+              className="h-7 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
             />
           </div>
           <textarea
@@ -410,7 +410,7 @@ function InterviewLine({ interview: i, orderRef, onRun }: {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="What came out of it, or anything the client asked for."
-            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[12px] outline-none placeholder:text-fg-subtle focus:border-accent"
+            className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none placeholder:text-fg-subtle focus:border-accent"
           />
           {when && <p className="text-fg-muted">{bothClocks(new Date(when).toISOString())}</p>}
           <div className="flex flex-wrap items-center gap-2">
@@ -455,7 +455,7 @@ function DeclineBox({ onCancel, onDecline, pending }: {
   const [reason, setReason] = useState("");
   return (
     <div className="rounded-md border border-border bg-bg-subtle p-2.5">
-      <p className="mb-1.5 text-[11px] text-fg-muted">
+      <p className="mb-1.5 text-xs text-fg-muted">
         Why? The wording matters — these are the fault buckets the Terms of Business use.
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -470,11 +470,11 @@ function DeclineBox({ onCancel, onDecline, pending }: {
           type="button"
           disabled={!reason || pending}
           onClick={() => onDecline(reason)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-danger px-2.5 py-1 text-[11px] font-medium text-white disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md bg-danger px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
         >
           {pending && <Loader2 size={11} className="animate-spin" />} Decline
         </button>
-        <button type="button" onClick={onCancel} className="text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-xs text-fg-subtle hover:text-fg">Cancel</button>
       </div>
     </div>
   );
@@ -486,7 +486,7 @@ function AcceptBox({ onCancel, onAccept, pending }: {
   const [when, setWhen] = useState(new Date().toISOString().slice(0, 10));
   return (
     <div className="rounded-md border border-success/40 bg-success-soft/40 p-2.5">
-      <p className="mb-1.5 flex items-start gap-1.5 text-[11px] text-fg">
+      <p className="mb-1.5 flex items-start gap-1.5 text-xs text-fg">
         <Info size={12} className="mt-0.5 shrink-0 text-success" />
         <span>
           <strong>The fee is earned on this date.</strong> Everyone else still on the shortlist is
@@ -498,17 +498,17 @@ function AcceptBox({ onCancel, onAccept, pending }: {
           type="date"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          className="h-7 rounded-md border border-border bg-bg px-2 text-[12px] outline-none focus:border-accent"
+          className="h-7 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="button"
           disabled={pending}
           onClick={() => onAccept(when)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-success px-2.5 py-1 text-[11px] font-medium text-white disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-md bg-success px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
         >
           {pending && <Loader2 size={11} className="animate-spin" />} Record the acceptance
         </button>
-        <button type="button" onClick={onCancel} className="text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-xs text-fg-subtle hover:text-fg">Cancel</button>
       </div>
     </div>
   );
@@ -536,7 +536,7 @@ function BookInterview({ shortlistId, orderRef, onDone }: {
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          className="h-7 rounded-md border border-border bg-bg px-2 text-[12px] outline-none focus:border-accent"
+          className="h-7 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="button"
@@ -549,18 +549,18 @@ function BookInterview({ shortlistId, orderRef, onDone }: {
               else { onDone(); router.refresh(); }
             });
           }}
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-accent-fg disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg disabled:opacity-60"
         >
           {pending && <Loader2 size={11} className="animate-spin" />} Book it
         </button>
-        <button type="button" onClick={onDone} className="text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+        <button type="button" onClick={onDone} className="text-xs text-fg-subtle hover:text-fg">Cancel</button>
       </div>
       {when && (
-        <p className="mt-1.5 text-[11px] text-fg-muted">
+        <p className="mt-1.5 text-xs text-fg-muted">
           {bothClocks(new Date(when).toISOString())} — check it suits both ends before you send it.
         </p>
       )}
-      {error && <p role="alert" className="mt-1.5 text-[11px] text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-1.5 text-xs text-danger">{error}</p>}
     </div>
   );
 }
@@ -600,12 +600,12 @@ function AddCandidate({ orderRef, jobOrderId, order, pool, onDone }: {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search the pool…"
-            className="h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+            className="h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
           />
-          <p className="mt-1.5 text-[11px] text-fg-subtle">Best fit for this role first.</p>
+          <p className="mt-1.5 text-xs text-fg-subtle">Best fit for this role first.</p>
           <ul className="mt-2 space-y-1">
             {suggestions.length === 0 && (
-              <li className="py-3 text-center text-[12px] text-fg-subtle">
+              <li className="py-3 text-center text-sm text-fg-subtle">
                 {pool.length === 0 ? "Everyone in the pool is already on this shortlist." : "Nobody matches that."}
               </li>
             )}
@@ -617,25 +617,25 @@ function AddCandidate({ orderRef, jobOrderId, order, pool, onDone }: {
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-muted"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-medium">{c.name}</span>
-                    <span className="block truncate text-[11px] text-fg-muted">
+                    <span className="block truncate text-sm font-medium">{c.name}</span>
+                    <span className="block truncate text-xs text-fg-muted">
                       {[c.title, c.sector, seniorityLabel(c.seniority)].filter((x) => x && x !== "—").join(" · ") || "—"}
                     </span>
                   </span>
-                  <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-medium tabular", TONE_CHIP[matchTone(score)])}>
+                  <span className={cn("shrink-0 rounded-sm px-1.5 py-0.5 text-xs font-medium tabular", TONE_CHIP[matchTone(score)])}>
                     {score}%
                   </span>
                 </button>
               </li>
             ))}
           </ul>
-          <button type="button" onClick={onDone} className="mt-2 text-[11px] text-fg-subtle hover:text-fg">Cancel</button>
+          <button type="button" onClick={onDone} className="mt-2 text-xs text-fg-subtle hover:text-fg">Cancel</button>
         </>
       ) : (
         <>
-          <p className="text-[13px] font-medium">{picked.name}</p>
+          <p className="text-base font-medium">{picked.name}</p>
           <label className="mt-2 block">
-            <span className="mb-1 block text-[11px] uppercase tracking-[0.04em] text-fg-subtle">
+            <span className="mb-1 block text-xs uppercase tracking-[0.04em] text-fg-subtle">
               Why they are on the list
             </span>
             <textarea
@@ -644,7 +644,7 @@ function AddCandidate({ orderRef, jobOrderId, order, pool, onDone }: {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="What makes them right for this role, in your words. This is what goes to the client."
-              className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-[12px] outline-none placeholder:text-fg-subtle focus:border-accent"
+              className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm outline-none placeholder:text-fg-subtle focus:border-accent"
             />
           </label>
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -663,11 +663,11 @@ function AddCandidate({ orderRef, jobOrderId, order, pool, onDone }: {
             >
               {pending && <Loader2 size={12} className="animate-spin" />} Add to the shortlist
             </button>
-            <button type="button" onClick={() => setPicked(null)} className="text-[11px] text-fg-subtle hover:text-fg">
+            <button type="button" onClick={() => setPicked(null)} className="text-xs text-fg-subtle hover:text-fg">
               Pick somebody else
             </button>
           </div>
-          {error && <p role="alert" className="mt-1.5 text-[11px] text-danger">{error}</p>}
+          {error && <p role="alert" className="mt-1.5 text-xs text-danger">{error}</p>}
         </>
       )}
     </div>

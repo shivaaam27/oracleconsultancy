@@ -202,20 +202,20 @@ export function OrgFlow({
     <div className={cn("space-y-3 org-root", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5")}>
       {/* Print-only masthead — identical typography to the per-company tree. */}
       <div className="org-print-title print-only mb-3">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
+        <div className="text-xs font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
         <h1 className="text-xl font-semibold tracking-tight text-fg">Portfolio</h1>
-        <p className="text-[11px] text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {people.length} people · {primaryLines} reporting lines</p>
+        <p className="text-xs text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {people.length} people · {primaryLines} reporting lines</p>
       </div>
 
       <div className="flex items-center justify-between gap-2 flex-wrap print-hidden">
-        <div className="flex items-center gap-3 text-[11px] text-fg-subtle flex-wrap">
+        <div className="flex items-center gap-3 text-xs text-fg-subtle flex-wrap">
           <span>{people.length} people · {primaryLines} reporting line{primaryLines === 1 ? "" : "s"}{secondaryLines > 0 && <> · {secondaryLines} also-reports-to</>}</span>
           <span className="inline-flex items-center gap-1"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="hsl(var(--fg-muted))" strokeWidth="1.7" /></svg> primary</span>
           <span className="inline-flex items-center gap-1"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="hsl(var(--info))" strokeWidth="1.4" strokeDasharray="5 4" /></svg> also reports to</span>
         </div>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => zoom(-0.1)} title="Zoom out" className={ctrlBtn}><ZoomOut size={14} /></button>
-          <button type="button" onClick={() => { setScale(1); setPan({ x: 24, y: 24 }); }} title="Reset" className={cn(ctrlBtn, "w-auto px-2 text-[11px] tabular")}>{Math.round(scale * 100)}%</button>
+          <button type="button" onClick={() => { setScale(1); setPan({ x: 24, y: 24 }); }} title="Reset" className={cn(ctrlBtn, "w-auto px-2 text-xs tabular")}>{Math.round(scale * 100)}%</button>
           <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
           <button type="button" onClick={fit} title="Fit to screen" className={ctrlBtn}><Scaling size={14} /></button>
           <button type="button" onClick={() => setIsFs((v) => !v)} title={isFs ? "Exit fullscreen" : "Fullscreen"} className={cn(ctrlBtn, isFs && "bg-accent text-accent-fg ring-accent")}>{isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
@@ -225,7 +225,7 @@ export function OrgFlow({
 
       {/* Company colour legend — "company = colour" is the locked design. */}
       {legendCompanies.length > 0 && (
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-fg-subtle print-hidden">
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-fg-subtle print-hidden">
           <span className="inline-flex items-center gap-1 text-fg-muted"><Network size={12} /> Companies</span>
           {legendCompanies.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-1.5">
@@ -259,7 +259,7 @@ export function OrgFlow({
                 <>
                   {/* tier band labels down the left edge */}
                   {layout.tierBands.map((b) => (
-                    <div key={b.tier} className="absolute -left-1 hidden sm:block text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
+                    <div key={b.tier} className="absolute -left-1 hidden sm:block text-xs font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
                       {TIER_LABELS[b.tier]}
                     </div>
                   ))}
@@ -301,17 +301,17 @@ function FlowCard({ p, x, isHead }: { p: FlowPerson; x?: OrgPersonExtras; isHead
     <div className="relative h-full w-full flex items-center gap-2 rounded-xl glass elevated pl-1 pr-2 py-1.5 ring-1 ring-border/60 hover:ring-accent/40 hover:shadow-lg transition-all">
       {isHead && <span className="absolute -top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shadow-sm">Head</span>}
       <span className="self-stretch w-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
-      <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[12px] font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.outsider)}>{initials(p.name)}</span>
+      <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-sm font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.outsider)}>{initials(p.name)}</span>
       <div className="min-w-0 flex-1">
-        <PersonDrawerLink id={p.id} name={p.name} className="block text-[13px] font-semibold text-fg hover:text-accent truncate leading-tight" />
-        <div className="text-[10.5px] text-fg-muted truncate leading-tight">{p.role || PERSON_TYPE_LABELS[p.personType as keyof typeof PERSON_TYPE_LABELS] || ""}</div>
-        {p.companyName && <div className="text-[10px] font-medium truncate leading-tight" style={{ color: accent }}>{p.companyName}</div>}
+        <PersonDrawerLink id={p.id} name={p.name} className="block text-base font-semibold text-fg hover:text-accent truncate leading-tight" />
+        <div className="text-xs text-fg-muted truncate leading-tight">{p.role || PERSON_TYPE_LABELS[p.personType as keyof typeof PERSON_TYPE_LABELS] || ""}</div>
+        {p.companyName && <div className="text-xs font-medium truncate leading-tight" style={{ color: accent }}>{p.companyName}</div>}
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         {x?.overdue ? (
-          <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-[10px] font-bold tabular">{x.overdue}</span>
+          <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-xs font-bold tabular">{x.overdue}</span>
         ) : x?.open ? (
-          <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-[10px] font-bold tabular">{x.open}</span>
+          <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-xs font-bold tabular">{x.open}</span>
         ) : null}
         <div className="flex items-center gap-1">
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}

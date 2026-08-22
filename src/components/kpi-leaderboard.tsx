@@ -40,7 +40,7 @@ export function KpiLeaderboard({ board }: { board: KpiBoardPerson[] }) {
       </div>
 
       <div className="space-y-0.5">
-        <div className="grid grid-cols-[1.5rem_1fr_auto] gap-2 px-2 pb-1.5 text-[10px] uppercase tracking-wider text-fg-subtle">
+        <div className="grid grid-cols-[1.5rem_1fr_auto] gap-2 px-2 pb-1.5 text-xs uppercase tracking-wider text-fg-subtle">
           <span>#</span><span>Person</span><span className="text-right w-16">Completed</span>
         </div>
         {ranked.map((p, i) => (
@@ -48,14 +48,14 @@ export function KpiLeaderboard({ board }: { board: KpiBoardPerson[] }) {
             <span className={cn("text-xs tabular font-medium", i === 0 ? "text-accent" : "text-fg-subtle")}>{i + 1}</span>
             <span className="min-w-0 truncate text-sm">
               <PersonDrawerLink id={p.personId} name={p.name} className="hover:text-accent transition-colors">{p.name}</PersonDrawerLink>
-              {p.k.openInvolved > 0 && <span className="ml-1.5 text-[10px] text-fg-subtle">{p.k.openInvolved} open</span>}
+              {p.k.openInvolved > 0 && <span className="ml-1.5 text-xs text-fg-subtle">{p.k.openInvolved} open</span>}
             </span>
             <span className={cn("text-right w-16 text-base tabular font-semibold", p.k.completed > 0 ? "text-success" : "text-fg-muted")}>{p.k.completed}</span>
           </div>
         ))}
         {ranked.length === 0 && <p className="px-2 py-4 text-sm text-fg-subtle">No staff activity this month.</p>}
       </div>
-      <p className="mt-2 px-2 text-[11px] text-fg-subtle">Score = completed tasks you were part of (creator or assignee), counted once each. Directors are excluded.</p>
+      <p className="mt-2 px-2 text-xs text-fg-subtle">Score = completed tasks you were part of (creator or assignee), counted once each. Directors are excluded.</p>
     </div>
   );
 }

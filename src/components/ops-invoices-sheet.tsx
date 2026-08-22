@@ -174,7 +174,7 @@ export function OpsInvoicesSheet({
       />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -212,8 +212,8 @@ export function OpsInvoicesSheet({
         ]}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">Nothing has gone out yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">Nothing has gone out yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add a delivery note when goods leave, then put its order lines on it. The invoice
               number goes on the same record when you bill for it.
             </p>
@@ -226,17 +226,17 @@ export function OpsInvoicesSheet({
             sortHref: sortHref("delivered"), sorted: sortedAs("delivered"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">
+                <span className="block truncate text-sm">
                   <span className="font-mono">{v.invoice.deliveryNoteNo ?? v.invoice.invoiceNo}</span>
                   {v.lineCount > 0 ? (
-                    <span className="ml-1.5 text-[11px] text-fg-subtle">
+                    <span className="ml-1.5 text-xs text-fg-subtle">
                       {v.lineCount} line{v.lineCount === 1 ? "" : "s"}
                     </span>
                   ) : (
-                    <span className="ml-1.5 text-[11px] text-warn">no lines on it yet</span>
+                    <span className="ml-1.5 text-xs text-warn">no lines on it yet</span>
                   )}
                 </span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-xs text-fg-muted">
                   {[fmtDate(v.invoice.deliveredDate) ?? "not gone out", v.invoice.client]
                     .filter(Boolean).join(" · ")}
                 </span>
@@ -249,10 +249,10 @@ export function OpsInvoicesSheet({
             sortHref: sortHref("invoice"), sorted: sortedAs("invoice"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">
+                <span className="block truncate text-sm">
                   {v.invoice.invoiceNo ?? <span className="text-fg-subtle">not billed</span>}
                 </span>
-                <span className={cn("block truncate text-[11px]",
+                <span className={cn("block truncate text-xs",
                   v.billed ? "text-fg-subtle" : "text-warn")}>
                   {v.billed
                     ? fmtDate(v.invoice.invoiceDate) ?? "no date"
@@ -269,17 +269,17 @@ export function OpsInvoicesSheet({
             sortHref: sortHref("value"), sorted: sortedAs("value"),
             render: (v) => (
               <span className="min-w-0">
-                <span className="tabular block truncate text-[12px]">
+                <span className="tabular block truncate text-sm">
                   {/* Unknown stays a dash — an unvalued document is not a free one. */}
                   {v.billedTzs === null ? "—" : money(v.billedTzs)}
                 </span>
                 {v.difference !== null ? (
-                  <span className="block truncate text-[11px] text-danger"
+                  <span className="block truncate text-xs text-danger"
                     title={`Typed ${money(v.billedTzs)}, but the lines on it come to ${money(v.linesValueTzs)}.`}>
                     {v.difference > 0 ? "+" : ""}{money(v.difference)} vs its lines
                   </span>
                 ) : (
-                  <span className="block truncate text-[11px] text-fg-subtle">
+                  <span className="block truncate text-xs text-fg-subtle">
                     {v.billedIsTyped ? "as typed" : v.lineCount > 0 ? "from its lines" : "—"}
                     {v.unpricedLines > 0 && ` · ${v.unpricedLines} unpriced`}
                   </span>
@@ -297,7 +297,7 @@ export function OpsInvoicesSheet({
             csv: (v) => v.unbilledDays ?? v.daysToBill,
             sortHref: sortHref("waiting"), sorted: sortedAs("waiting"),
             render: (v) => (
-              <span className="tabular text-[12px] text-fg-muted">
+              <span className="tabular text-sm text-fg-muted">
                 {v.unbilledDays === null
                   ? v.daysToBill === null ? "—" : `${v.daysToBill}d`
                   : <span className="text-warn">{v.unbilledDays}d</span>}
@@ -360,16 +360,16 @@ function Tile({ label, value, sub, tone }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
       <p className={cn("tabular mt-0.5 text-[15px]",
         tone === "warn" && "text-warn", tone === "danger" && "text-danger")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 
 /* ────────────────────────────────────────────────────── goods leave ──────── */
@@ -421,7 +421,7 @@ function AddInvoice({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
         <Truck size={13} className="text-fg-subtle" /> Something has gone out
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-12"
@@ -451,7 +451,7 @@ function AddInvoice({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Record it
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           The date and client carry to the next one. The invoice can wait — put its order lines
           on it from the Orders tab, and what it is worth follows from them.
         </span>
@@ -529,14 +529,14 @@ function EditInvoice({
       onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
 
       {view.waitingOn && (
-        <p className="text-[11px] text-warn">
+        <p className="text-xs text-warn">
           {view.waitingOn}
           {view.unbilledDays !== null && ` — ${view.unbilledDays} days since it went out`}.
         </p>
       )}
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium text-fg-muted">What went out</p>
+        <p className="mb-1.5 text-xs font-medium text-fg-muted">What went out</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
           <FieldCell className="sm:col-span-3" label="Delivery note">
             <input value={f.deliveryNoteNo} onChange={(e) => set("deliveryNoteNo", e.target.value)} className={inputCls} />
@@ -558,7 +558,7 @@ function EditInvoice({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium text-fg-muted">
+        <p className="mb-1.5 text-xs font-medium text-fg-muted">
           What was billed — a separate date, because it usually is
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
@@ -576,7 +576,7 @@ function EditInvoice({
               {["TZS", "USD"].map((c) => (
                 <button key={c} type="button"
                   onClick={() => set("invoiceCurrency", f.invoiceCurrency === c ? "" : c)}
-                  className={cn("h-8 flex-1 rounded-md border text-[11px]",
+                  className={cn("h-8 flex-1 rounded-md border text-xs",
                     f.invoiceCurrency === c ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                   {c}
                 </button>
@@ -590,7 +590,7 @@ function EditInvoice({
               {needsRate && defaultExRate > 0 && (
                 <button type="button" onClick={() => set("exRate", String(defaultExRate))}
                   title="Use the rate set up on the Setup tab"
-                  className="h-8 shrink-0 rounded-md border border-border px-2 text-[11px] text-fg-muted hover:text-fg">
+                  className="h-8 shrink-0 rounded-md border border-border px-2 text-xs text-fg-muted hover:text-fg">
                   {defaultExRate.toLocaleString("en-GB")}
                 </button>
               )}
@@ -623,7 +623,7 @@ function EditInvoice({
 
         {/* ⚠️ The gap between what was typed and what the lines come to is SHOWN.
             It is either a discount or a mistake, and both want a second look. */}
-        <p className={cn("mt-1 text-[11px]", view.difference !== null ? "text-danger" : "text-fg-subtle")}>
+        <p className={cn("mt-1 text-xs", view.difference !== null ? "text-danger" : "text-fg-subtle")}>
           {view.lineCount === 0
             ? "No order lines on this yet — put them on it from the Orders tab, and it can value itself."
             : view.difference !== null
@@ -653,7 +653,7 @@ function EditInvoice({
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg">
           <X size={13} /> Cancel
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Every change is recorded — what it was, what it became, and who changed it.
         </span>
       </div>

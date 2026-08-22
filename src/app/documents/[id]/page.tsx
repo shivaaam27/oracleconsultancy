@@ -57,7 +57,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     <div className="space-y-3">
       <Link
         href="/documents"
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition-colors hover:text-accent"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
       >
         <ArrowLeft size={13} /> Documents
       </Link>

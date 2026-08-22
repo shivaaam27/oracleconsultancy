@@ -70,10 +70,10 @@ export function PeopleRecordList({
           </span>
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
-              <span className="truncate text-[13px] font-medium leading-tight">{x.name}</span>
+              <span className="truncate text-base font-medium leading-tight">{x.name}</span>
               {!x.hasContact && <PhoneOff size={11} className="shrink-0 text-danger" />}
             </span>
-            <span className="block truncate text-[11px] text-fg-subtle">
+            <span className="block truncate text-xs text-fg-subtle">
               {[x.role, x.companyName].filter(Boolean).join(" · ") || "—"}
             </span>
           </span>
@@ -86,7 +86,7 @@ export function PeopleRecordList({
             options={managerPicker.labels}
             defaultValue={x.managerId != null ? managerPicker.labelById.get(x.managerId) ?? "" : ""}
             placeholder="Set manager…"
-            className="h-6 w-full rounded-md bg-bg-subtle px-2 text-[11px] text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+            className="h-6 w-full rounded-md bg-bg-subtle px-2 text-xs text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
             onCommit={(v) => {
               const id = managerPicker.labelToId.get(v.trim());
               if (id != null) onSetManager(x.id, id);
@@ -105,7 +105,7 @@ export function PeopleRecordList({
             disabled={!x.portalEnabled}
             title={x.portalEnabled ? "Tap to change portal role" : "No portal access"}
             className={cn(
-              "inline-flex w-full items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium ring-1 transition-colors",
+              "inline-flex w-full items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 transition-colors",
               !x.portalEnabled ? "cursor-default text-fg-subtle ring-border"
                 : role === "director" || role === "hr" ? "bg-accent-soft text-accent ring-accent/25"
                 : role === "manager" ? "bg-info-soft text-info ring-info/25"
@@ -119,7 +119,7 @@ export function PeopleRecordList({
 
       workload: (x) => (
         <span className={cn(
-          "tabular text-[11px] font-semibold",
+          "tabular text-xs font-semibold",
           x.workload.overdue > 0 ? "text-danger"
             : x.workload.open >= 5 ? "text-warn"
             : x.workload.open === 0 ? "text-fg-subtle"

@@ -127,14 +127,14 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
                   </span>
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-[13px] font-medium">{v.name}</span>
+                      <span className="truncate text-base font-medium">{v.name}</span>
                       {v.docCount > 0 && <Badge tone="default">{v.docCount} doc{v.docCount === 1 ? "" : "s"}</Badge>}
                       {(assetCounts[v.id] ?? 0) > 0 && <Badge tone="info">{assetCounts[v.id]} asset{assetCounts[v.id] === 1 ? "" : "s"}</Badge>}
                       {v.expiredCount > 0 && <Badge tone="danger">{v.expiredCount} expired</Badge>}
                       {v.expiringCount > 0 && <Badge tone="warn">{v.expiringCount} expiring</Badge>}
                     </span>
                     {v.location && (
-                      <span className="block truncate text-[11px] text-fg-muted">
+                      <span className="block truncate text-xs text-fg-muted">
                         <MapPin size={10} className="mr-1 inline" />{v.location}
                       </span>
                     )}
@@ -145,7 +145,7 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
                 const contact = [v.contactName, v.email, v.phone].filter(Boolean).join(" · ");
                 if (!contact) return <span className="text-fg-subtle">—</span>;
                 return (
-                  <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-fg-muted">
+                  <span className="inline-flex min-w-0 items-center gap-1 text-xs text-fg-muted">
                     {v.email ? <Mail size={11} className="shrink-0" /> : <Phone size={11} className="shrink-0" />}
                     <span className="truncate">{contact}</span>
                   </span>
@@ -159,7 +159,7 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
               <span className="flex items-center gap-1.5">
                 <Link
                   href={`/documents?newdoc=1&vendor=${v.id}&category=Contract`}
-                  className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-[11px] font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex"
+                  className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-xs font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex"
                 >
                   <FilePlus size={12} /> Add contract
                 </Link>

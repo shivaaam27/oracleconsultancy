@@ -142,7 +142,7 @@ export function RecruitmentOrdersList({
           value={f.q}
           onChange={(e) => set({ q: e.target.value })}
           placeholder="Search roles, references, clients…"
-          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         <button
           type="button"
@@ -192,8 +192,8 @@ export function RecruitmentOrdersList({
         empty={
           <div className="py-6 text-center">
             <Briefcase size={20} className="mx-auto mb-2 text-fg-subtle" />
-            <p className="text-[13px] font-medium">No job orders yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">No job orders yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Raise one when a brief is agreed. Leave the client blank for Oracle&rsquo;s own hiring.
             </p>
           </div>
@@ -204,8 +204,8 @@ export function RecruitmentOrdersList({
           overrides: {
             title: (o) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{o.title}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{o.title}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   <span className="font-mono">{o.ref}</span>
                   {" · "}
                   {o.clientName ?? "Oracle's own hiring"}
@@ -215,21 +215,21 @@ export function RecruitmentOrdersList({
             stage: (o) => (
               <span className="inline-flex items-center gap-1.5">
                 <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STAGE_DOT[o.stage] ?? "bg-fg-subtle")} />
-                <span className="truncate text-[12px]">{o.stage}</span>
+                <span className="truncate text-sm">{o.stage}</span>
               </span>
             ),
             /* Derived, every time. An internal vacancy carries no fee at all —
                Oracle does not invoice itself. */
             feeTZS: (o) => {
               if (o.clientId == null) {
-                return <span className="text-[11px] text-fg-subtle" title="Oracle's own hiring — no fee">—</span>;
+                return <span className="text-xs text-fg-subtle" title="Oracle's own hiring — no fee">—</span>;
               }
               const fee = orderFee(o.monthlyGrossUsd);
               if (!fee) {
-                return <span className="text-[11px] text-fg-subtle" title="No salary agreed yet">not agreed</span>;
+                return <span className="text-xs text-fg-subtle" title="No salary agreed yet">not agreed</span>;
               }
               return (
-                <span className="tabular text-[12px]" title={`VAT ${tzs(fee.vatTZS)} · invoice ${tzs(fee.totalTZS)}`}>
+                <span className="tabular text-sm" title={`VAT ${tzs(fee.vatTZS)} · invoice ${tzs(fee.totalTZS)}`}>
                   {tzs(fee.netTZS)}
                 </span>
               );

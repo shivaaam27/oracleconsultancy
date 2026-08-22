@@ -174,7 +174,7 @@ export function InsightBody({
 }) {
   return (
     <div className="space-y-2">
-      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">{title}</div>
+      <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{title}</div>
       {value !== undefined && <div className="text-2xl font-semibold tabular leading-none">{value}</div>}
       {caption && <div className="text-xs text-fg-muted leading-snug">{caption}</div>}
       {rows && rows.length > 0 && (

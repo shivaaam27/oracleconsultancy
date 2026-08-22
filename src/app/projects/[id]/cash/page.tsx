@@ -12,6 +12,7 @@ import { ProjectTabs } from "@/components/project-tabs";
 import { ProjectCashSheet } from "@/components/project-cash-sheet";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Cash — Projects" };
 
 export default async function ProjectCashPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,12 +27,12 @@ export default async function ProjectCashPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-3">
-      <Link href="/projects" className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg">
+      <Link href="/projects" className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg">
         <ArrowLeft size={13} /> Projects
       </Link>
       <div>
         <h1 className="text-[19px] font-medium">{project.name}</h1>
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           {[project.variant, project.client, project.companyName].filter(Boolean).join(" · ")}
         </p>
       </div>

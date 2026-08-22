@@ -99,10 +99,10 @@ export function CocozuriOwed({
       key: "customerName", label: "Customer", width: "minmax(0,1fr)",
       render: (r) => (
         <span className="flex min-w-0 flex-col">
-          <Link href={`/cocozuri/statements/${r.customerId}`} className="truncate text-[13px] font-medium text-fg hover:text-accent">
+          <Link href={`/cocozuri/statements/${r.customerId}`} className="truncate text-base font-medium text-fg hover:text-accent">
             {r.customerName}
           </Link>
-          <span className="truncate text-[11px] text-fg-subtle">
+          <span className="truncate text-xs text-fg-subtle">
             {r.openInvoices ? `${r.openInvoices} unpaid` : "nothing outstanding"}
           </span>
         </span>
@@ -112,7 +112,7 @@ export function CocozuriOwed({
     {
       key: "oldestDays", label: "Oldest", width: "76px", align: "right",
       render: (r) => (
-        <span className={cn("tabular text-[12.5px]",
+        <span className={cn("tabular text-sm",
           r.oldestDays > 90 ? "text-danger" : r.oldestDays > 60 ? "text-warn" : r.oldestDays > 0 ? "text-fg-muted" : "text-fg-subtle")}>
           {r.oldestDays > 0 ? `${r.oldestDays}d` : "—"}
         </span>
@@ -131,7 +131,7 @@ export function CocozuriOwed({
          late, how much. The tiles above still carry the totals. */
       hideBelow: "lg",
       render: (r) => (
-        <span className={cn("tabular text-[12px]",
+        <span className={cn("tabular text-sm",
           Math.round(r.bands[b.key]) === 0 ? "text-fg-subtle"
             : b.key === "over90" ? "text-danger" : b.key === "d61_90" ? "text-warn" : "text-fg-muted")}>
           {Math.round(r.bands[b.key]) === 0 ? "—" : money(r.bands[b.key])}
@@ -146,13 +146,13 @@ export function CocozuriOwed({
     {
       key: "balance", label: "Owed", width: "112px", align: "right",
       render: (r) => (
-        <span className="tabular text-[12.5px] font-medium text-fg">
+        <span className="tabular text-sm font-medium text-fg">
           {money(r.balance)}
           {/* ⚠️ Shown apart, never netted into a band: a credit note attached to
               no invoice cannot be aged, and folding it in would put a figure in
               a column that means something else. */}
           {Math.round(r.unappliedCredit) !== 0 && (
-            <span className="ml-1 text-[11px] text-accent" title="Credit on account, not applied to any invoice">
+            <span className="ml-1 text-xs text-accent" title="Credit on account, not applied to any invoice">
               (−{money(r.unappliedCredit)} credit)
             </span>
           )}
@@ -194,10 +194,10 @@ export function CocozuriOwed({
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customers…"
-              wrapperClassName="w-[15rem]" className="h-8 text-[12.5px]" />
+              wrapperClassName="w-[15rem]" className="h-8 text-sm" />
             <span className="grow" />
             <button type="button" onClick={() => setRecording(null)}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90">
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a payment
             </button>
           </div>
@@ -205,8 +205,8 @@ export function CocozuriOwed({
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
             <CheckCircle2 size={20} className="text-success" />
-            <p className="text-[13px] font-medium text-fg-muted">Nothing is outstanding.</p>
-            <p className="max-w-[26rem] text-[12px] text-fg-subtle">
+            <p className="text-base font-medium text-fg-muted">Nothing is outstanding.</p>
+            <p className="max-w-[26rem] text-sm text-fg-subtle">
               Only issued invoices count here — a draft has not been sent to anybody, so nobody owes it.
             </p>
           </div>
@@ -217,18 +217,18 @@ export function CocozuriOwed({
       {outstanding.length > 0 && (
         <div className="rounded-lg border border-border bg-bg-elev">
           <div className="flex items-center justify-between border-b border-border px-3.5 py-2">
-            <h2 className="text-[13px] font-semibold text-fg">The oldest first</h2>
-            <span className="text-[11.5px] text-fg-subtle">{outstanding.length} invoice{outstanding.length === 1 ? "" : "s"} unpaid</span>
+            <h2 className="text-base font-semibold text-fg">The oldest first</h2>
+            <span className="text-xs text-fg-subtle">{outstanding.length} invoice{outstanding.length === 1 ? "" : "s"} unpaid</span>
           </div>
           <ul>
             {outstanding.slice(0, 12).map((o) => (
-              <li key={o.invoice.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-border px-3.5 py-1.5 text-[12.5px] last:border-0">
+              <li key={o.invoice.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-border px-3.5 py-1.5 text-sm last:border-0">
                 <Link href={`/cocozuri/invoices/${encodeURIComponent(o.invoice.number)}`} className="truncate text-fg hover:text-accent">
                   {o.invoice.number}
                   <span className="text-fg-subtle"> · {o.invoice.customerName}</span>
                   {o.invoice.branchName && <span className="text-fg-subtle"> · {o.invoice.branchName}</span>}
                 </Link>
-                <span className={cn("tabular text-[12px]",
+                <span className={cn("tabular text-sm",
                   o.days > 90 ? "text-danger" : o.days > 60 ? "text-warn" : o.days > 0 ? "text-fg-muted" : "text-fg-subtle")}>
                   {o.days > 0 ? `${o.days} days late` : `due in ${-o.days} days`}
                 </span>
@@ -237,7 +237,7 @@ export function CocozuriOwed({
             ))}
           </ul>
           {outstanding.length > 12 && (
-            <p className="px-3.5 py-1.5 text-[11.5px] text-fg-subtle">
+            <p className="px-3.5 py-1.5 text-xs text-fg-subtle">
               {outstanding.length - 12} more — open a customer&rsquo;s statement for their full list.
             </p>
           )}
@@ -281,7 +281,7 @@ function BandTile({
           : tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "text-fg")}>
         {money(value)}
       </span>
-      <span className="text-[11.5px] text-fg-muted">{label}</span>
+      <span className="text-xs text-fg-muted">{label}</span>
     </button>
   );
 }

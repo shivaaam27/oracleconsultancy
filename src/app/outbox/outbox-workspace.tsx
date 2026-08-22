@@ -248,7 +248,7 @@ export function OutboxWorkspace({
               )}
             >
               {s.label}
-              <span className={cn("tabular text-[11px]", seg === s.id ? "text-accent" : "text-fg-subtle")}>{s.count}</span>
+              <span className={cn("tabular text-xs", seg === s.id ? "text-accent" : "text-fg-subtle")}>{s.count}</span>
             </button>
           ))}
         </div>
@@ -321,10 +321,10 @@ export function OutboxWorkspace({
                     <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", urgDot[it.urg])} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
-                        <span className="font-medium text-[13px] truncate">{it.name}</span>
+                        <span className="font-medium text-base truncate">{it.name}</span>
                         {it.kind === "draft" && it.auto && <Bot size={12} className="text-accent shrink-0" />}
                       </span>
-                      <span className="block text-[11px] text-fg-subtle truncate mt-0.5">
+                      <span className="block text-xs text-fg-subtle truncate mt-0.5">
                         {it.sub}
                         {it.kind === "reminder" && it.chased && (
                           <span className="text-fg-subtle/70"> · chased {chasedAgo(it.chased.sentAt)}</span>
@@ -369,7 +369,7 @@ function TypeChip({ kind }: { kind: Item["kind"] }) {
     sent: { label: "Sent", cls: "bg-success-soft/70 text-success" },
   } as const;
   const m = map[kind];
-  return <span className={cn("shrink-0 text-[10px] px-2 py-0.5 rounded-full", m.cls)}>{m.label}</span>;
+  return <span className={cn("shrink-0 text-xs px-2 py-0.5 rounded-full", m.cls)}>{m.label}</span>;
 }
 
 function DetailPane({
@@ -395,7 +395,7 @@ function DetailPane({
       {item.kind === "reminder" && (
         <>
           {item.chased && (
-            <div className="mb-2.5 flex items-center gap-1.5 text-[11px] text-fg-muted">
+            <div className="mb-2.5 flex items-center gap-1.5 text-xs text-fg-muted">
               <Clock size={11} className="shrink-0" />
               Last chased {chasedAgo(item.chased.sentAt)} · {channelLabel(item.chased.channel)}
             </div>
@@ -421,12 +421,12 @@ function SentDetail({ entry }: { entry: SentEntry }) {
         </span>
         <div className="min-w-0">
           <div className="font-medium text-sm truncate">{entry.recipientName || "Unknown"}</div>
-          <div className="text-[11px] text-fg-muted flex items-center gap-1.5">
+          <div className="text-xs text-fg-muted flex items-center gap-1.5">
             <Icon size={12} /> {channelLabel(entry.channel?.toUpperCase())}
             {entry.recipientContact && <span className="truncate">· {entry.recipientContact}</span>}
           </div>
         </div>
-        <span className="ml-auto text-[11px] text-fg-subtle tabular inline-flex items-center gap-1">
+        <span className="ml-auto text-xs text-fg-subtle tabular inline-flex items-center gap-1">
           <Clock size={11} /> {timeOf(entry.sentAt)}
         </span>
       </div>

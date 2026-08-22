@@ -58,10 +58,10 @@ export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code
   return (
     <div className="inline-flex flex-col gap-1 bg-bg-subtle border border-border rounded-lg p-1.5">
       <div className="flex items-center gap-1">
-        <span className="font-mono text-[10px] text-fg-muted px-1">{code}</span>
+        <span className="font-mono text-xs text-fg-muted px-1">{code}</span>
         <button
           onClick={() => router.push(`/task/${code}`)}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
           title="Open task"
         >
           <ExternalLink size={10} /> Open
@@ -69,7 +69,7 @@ export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code
         <button
           onClick={() => act("complete")}
           disabled={!!running}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-success transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-success transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
           title="Mark complete"
         >
           {running === "complete" ? <Loader2 size={10} className="animate-spin" />
@@ -78,7 +78,7 @@ export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code
         </button>
         <button
           onClick={() => setShowUpdate(s => !s)}
-          className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
           title="Add update"
         >
           <MessageSquarePlus size={10} /> Update
@@ -92,7 +92,7 @@ export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code
             onKeyDown={e => { if (e.key === "Enter") postUpdate(); if (e.key === "Escape") setShowUpdate(false); }}
             placeholder="Type update…"
             autoFocus
-            className="flex-1 bg-bg border border-border rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-accent/50 min-w-[180px]"
+            className="flex-1 bg-bg border border-border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent/50 min-w-[180px]"
           />
           <button
             onClick={postUpdate}

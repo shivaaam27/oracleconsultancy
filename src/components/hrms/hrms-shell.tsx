@@ -75,7 +75,7 @@ export function HrmsShell({
       </div>
 
       {/* The one rule everything rests on — a quiet nod, not a spreadsheet. */}
-      <div className="text-[11px] text-fg-subtle tabular">
+      <div className="text-xs text-fg-subtle tabular">
         current stock = opening + purchased − issued
       </div>
 

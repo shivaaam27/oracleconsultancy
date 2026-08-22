@@ -10,6 +10,7 @@ import { PlacementsList, type PlacementListRow } from "@/components/recruitment-
 import { NoAgencyCompany } from "@/components/recruitment-empty";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Placements — Recruitment" };
 
 export default async function PlacementsPage() {
   const companyId = await agencyCompanyId();

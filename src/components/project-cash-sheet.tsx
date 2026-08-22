@@ -86,7 +86,7 @@ export function ProjectCashSheet({
       <SetupNeeded projectId={projectId} missing={holders.length ? [] : ["Whose float"]} />
 
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-[12px] text-danger">
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-2.5 py-1.5 text-sm text-danger">
           {error}
         </p>
       )}
@@ -94,10 +94,10 @@ export function ProjectCashSheet({
       <div className="flex gap-1.5">
         {([["spend", "Money spent", Receipt], ["released", "Money released", Wallet]] as const).map(([k, label, Icon]) => (
           <button key={k} type="button" onClick={() => setTab(k)}
-            className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px]",
+            className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm",
               tab === k ? "border-accent/40 bg-accent-soft font-medium text-accent" : "border-border bg-bg-elev text-fg-muted")}>
             <Icon size={13} /> {label}
-            <span className="tabular text-[11px] opacity-70">
+            <span className="tabular text-xs opacity-70">
               {k === "spend" ? expenditures.length : payments.length}
             </span>
           </button>
@@ -125,16 +125,16 @@ export function ProjectCashSheet({
                   .some((v) => (v ?? "").toLowerCase().includes(q)),
             }}
             total={expenditures.length}
-            empty={<p className="py-6 text-center text-[12px] text-fg-subtle">Nothing spent yet.</p>}
+            empty={<p className="py-6 text-center text-sm text-fg-subtle">Nothing spent yet.</p>}
             columns={[
               {
                 key: "what", label: "What", width: "minmax(0,1fr)",
                 render: (r) => (
                   <span className="min-w-0">
-                    <span className="block truncate text-[12px]">
+                    <span className="block truncate text-sm">
                       {r.expenditure.description || r.expenditure.itemCode || "—"}
                     </span>
-                    <span className="block truncate text-[11px] text-fg-muted">
+                    <span className="block truncate text-xs text-fg-muted">
                       {[fmtDate(r.expenditure.spentDate), r.expenditure.itemCode, r.expenditure.payer,
                         r.expenditure.notes].filter(Boolean).join(" · ")}
                     </span>
@@ -143,7 +143,7 @@ export function ProjectCashSheet({
               },
               {
                 key: "amount", label: "Spent", width: "110px", align: "right",
-                render: (r) => <span className="tabular text-[12px]">{money(num(r.expenditure.amount))}</span>,
+                render: (r) => <span className="tabular text-sm">{money(num(r.expenditure.amount))}</span>,
                 total: (rows) => (
                   <span className="tabular">{money(rows.reduce((s, r) => s + (num(r.expenditure.amount) ?? 0), 0))}</span>
                 ),
@@ -151,7 +151,7 @@ export function ProjectCashSheet({
               {
                 key: "balance", label: "Float left", width: "120px", align: "right", hideBelow: "md",
                 render: (r) => (
-                  <span className={cn("tabular text-[12px]", r.payerBalance < 0 && "text-danger")}>
+                  <span className={cn("tabular text-sm", r.payerBalance < 0 && "text-danger")}>
                     {money(r.payerBalance)}
                   </span>
                 ),
@@ -191,16 +191,16 @@ export function ProjectCashSheet({
                   .some((x) => (x ?? "").toLowerCase().includes(q)),
             }}
             total={views.length}
-            empty={<p className="py-6 text-center text-[12px] text-fg-subtle">No payments recorded yet.</p>}
+            empty={<p className="py-6 text-center text-sm text-fg-subtle">No payments recorded yet.</p>}
             columns={[
               {
                 key: "route", label: "Paid to", width: "minmax(0,1fr)",
                 render: (v) => (
                   <span className="min-w-0">
-                    <span className="block truncate text-[12px]">
+                    <span className="block truncate text-sm">
                       {PAYMENT_ROUTE_LABEL[v.payment.route as keyof typeof PAYMENT_ROUTE_LABEL] ?? v.payment.route}
                     </span>
-                    <span className="block truncate text-[11px] text-fg-muted">
+                    <span className="block truncate text-xs text-fg-muted">
                       {[fmtDate(v.payment.paidDate), v.payment.supplier, v.payment.referenceNo, v.payment.batchNo]
                         .filter(Boolean).join(" · ") || "—"}
                     </span>
@@ -210,7 +210,7 @@ export function ProjectCashSheet({
               {
                 key: "payable", label: "Invoice total", width: "120px", align: "right", hideBelow: "md",
                 render: (v) => (
-                  <span className="tabular text-[12px] text-fg-muted"
+                  <span className="tabular text-sm text-fg-muted"
                     title={v.payableFrom === "approved" ? "Worked out from the requisitions head office approved against this reference" : undefined}>
                     {/* Unknown stays unknown — a blank invoice total must never read as nil owed. */}
                     {v.payable === null ? "—" : money(v.payable)}
@@ -220,7 +220,7 @@ export function ProjectCashSheet({
               },
               {
                 key: "amount", label: "Released", width: "120px", align: "right",
-                render: (v) => <span className="tabular text-[12px]">{money(num(v.payment.amountPaid))}</span>,
+                render: (v) => <span className="tabular text-sm">{money(num(v.payment.amountPaid))}</span>,
                 total: (rows) => (
                   <span className="tabular">{money(rows.reduce((s, v) => s + (num(v.payment.amountPaid) ?? 0), 0))}</span>
                 ),
@@ -228,13 +228,13 @@ export function ProjectCashSheet({
               {
                 key: "balance", label: "Still owed", width: "130px", align: "right",
                 render: (v) => {
-                  if (v.balance === null) return <span className="text-[12px] text-fg-subtle">not known</span>;
+                  if (v.balance === null) return <span className="text-sm text-fg-subtle">not known</span>;
                   const owedNow = v.balance > 0.005;
                   return (
-                    <span className={cn("inline-flex items-center justify-end gap-1.5 text-[12px]",
+                    <span className={cn("inline-flex items-center justify-end gap-1.5 text-sm",
                       owedNow ? "text-warn" : v.balance < -0.005 ? "text-danger" : "text-fg-muted")}>
                       <span className="tabular">{money(Math.abs(v.balance))}</span>
-                      <span className="text-[10px] uppercase tracking-[0.04em] opacity-80">
+                      <span className="text-xs uppercase tracking-[0.04em] opacity-80">
                         {v.balance < -0.005 ? "over" : v.status === "PAID" ? "paid" : v.status === "PARTIALLY PAID" ? "part" : "unpaid"}
                       </span>
                     </span>
@@ -275,7 +275,7 @@ function OwedSummaryLine({ owed }: { owed: ReturnType<typeof owedSummary> }) {
   if (owed.owed === 0 && owed.overpaid === 0 && owed.unknown === 0) return null;
   const top = owed.bySupplier.slice(0, 3);
   return (
-    <div className="rounded-lg border border-border bg-bg-elev px-3 py-2 text-[12px]">
+    <div className="rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {owed.owed > 0 && (
           <span className="font-medium text-warn">
@@ -295,7 +295,7 @@ function OwedSummaryLine({ owed }: { owed: ReturnType<typeof owedSummary> }) {
         )}
       </div>
       {top.length > 0 && (
-        <p className="mt-1 truncate text-[11px] text-fg-muted">
+        <p className="mt-1 truncate text-xs text-fg-muted">
           {top.map((s) => `${s.supplier} ${money(s.owed)}`).join(" · ")}
           {owed.bySupplier.length > top.length && ` · +${owed.bySupplier.length - top.length} more`}
         </p>
@@ -324,7 +324,7 @@ function FloatSummary({ state }: { state: ReturnType<typeof walkFloat> }) {
           sub={state.overdrawn.length ? `${state.overdrawn.join(", ")} overdrawn` : undefined} />
       </div>
       {gap > 0 && (
-        <p className="flex items-start gap-1.5 rounded-md bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+        <p className="flex items-start gap-1.5 rounded-md bg-warn-soft px-2.5 py-1.5 text-xs text-warn">
           <AlertTriangle size={12} className="mt-px shrink-0" />
           <span>
             <strong>{money(gap)}</strong> has left head office but has not been written up line by line.
@@ -342,10 +342,10 @@ function Tile({ label, value, sub, tone, small }: {
 }) {
   return (
     <div className="bg-bg-elev px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
-      <p className={cn("tabular mt-0.5", small ? "text-[12px]" : "text-[15px]",
+      <p className="text-xs uppercase tracking-[0.04em] text-fg-subtle">{label}</p>
+      <p className={cn("tabular mt-0.5", small ? "text-sm" : "text-[15px]",
         tone === "danger" && "text-danger", tone === "warn" && "text-warn")}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle">{sub}</p>}
     </div>
   );
 }
@@ -353,7 +353,7 @@ function Tile({ label, value, sub, tone, small }: {
 /* ────────────────────────────────────────────────────────────── the forms ── */
 
 const inputCls =
-  "h-8 w-full rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent";
+  "h-8 w-full rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent";
 
 function Field({ label, hint, className, children }: {
   label: string; hint?: string; className?: string; children: React.ReactNode;
@@ -361,7 +361,7 @@ function Field({ label, hint, className, children }: {
   return (
     <label className={cn("block min-w-0", className)}>
       <span title={hint ? `${label} — ${hint}` : label}
-        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.04em] text-fg-subtle">
+        className="mb-1 flex h-4 items-center gap-1 overflow-hidden text-xs uppercase tracking-[0.04em] text-fg-subtle">
         <span className="shrink-0">{label}</span>
         {hint && <span className="truncate normal-case tracking-normal opacity-60">{hint}</span>}
       </span>
@@ -408,7 +408,7 @@ function AddExpenditure({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 text-[12px] font-medium">Record spending</h3>
+      <h3 className="mb-2 text-sm font-medium">Record spending</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
         <Field className="sm:col-span-2" label="Date">
@@ -446,7 +446,7 @@ function AddExpenditure({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Leave the budget item blank for spending that belongs to no line — it is still counted.
         </span>
       </div>
@@ -491,14 +491,14 @@ function AddPayment({
 
   return (
     <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <h3 className="mb-2 text-[12px] font-medium">Record money released</h3>
+      <h3 className="mb-2 text-sm font-medium">Record money released</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-12"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}>
         <Field className="sm:col-span-4" label="Which ledger">
           <div className="flex gap-1">
             {PAYMENT_ROUTES.map((r) => (
               <button key={r} type="button" onClick={() => setRoute(r)} title={PAYMENT_ROUTE_LABEL[r]}
-                className={cn("h-8 flex-1 rounded-md border px-1 text-[11px]",
+                className={cn("h-8 flex-1 rounded-md border px-1 text-xs",
                   route === r ? "border-accent bg-accent-soft text-accent" : "border-border bg-bg text-fg-muted")}>
                 {r}
               </button>
@@ -537,7 +537,7 @@ function AddPayment({
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg disabled:opacity-60">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
         </button>
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-xs text-fg-subtle">
           Money leaving head office. Fill the invoice total in to see a part payment as one;
           left blank, the approved money behind this reference is used instead.
         </span>

@@ -33,8 +33,8 @@ function Swatch({ name, varName, fg }: { name: string; varName: string; fg?: boo
     <div className="rounded-lg border border-border overflow-hidden">
       <div className="h-12" style={{ background: `hsl(var(${varName}))` }} />
       <div className="px-2 py-1.5">
-        <div className="text-[11px] font-medium">{name}</div>
-        <div className="text-[10px] text-fg-subtle font-mono truncate">{varName}</div>
+        <div className="text-xs font-medium">{name}</div>
+        <div className="text-xs text-fg-subtle font-mono truncate">{varName}</div>
       </div>
       {fg && <div className="sr-only">fg</div>}
     </div>
@@ -86,7 +86,7 @@ export default function DesignPage() {
             ]).map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
                 <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
-                <span className="text-[11px] text-fg-muted">{m.label}</span>
+                <span className="text-xs text-fg-muted">{m.label}</span>
                 <TrendChip delta={m.delta} goodWhenDown={m.label === "Overdue"} />
               </div>
             ))}
@@ -94,7 +94,7 @@ export default function DesignPage() {
         </Hero>
 
         <div className="space-y-2">
-          <SectionLabel icon={<Sparkles size={13} className="text-accent" />} action={<span className="text-[11px] text-accent">Action →</span>}>
+          <SectionLabel icon={<Sparkles size={13} className="text-accent" />} action={<span className="text-xs text-accent">Action →</span>}>
             Section label
           </SectionLabel>
           <Panel className="p-4">
@@ -107,7 +107,7 @@ export default function DesignPage() {
 
         <div className="flex flex-wrap gap-2">
           {(Object.keys(TONE) as Tone[]).map((t) => (
-            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${TONE[t].bg} ${TONE[t].text} ${TONE[t].ring}`}>
+            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${TONE[t].bg} ${TONE[t].text} ${TONE[t].ring}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${TONE[t].bar}`} />
               {t}
             </span>
@@ -154,7 +154,7 @@ export default function DesignPage() {
           ].map(([name, cls]) => (
             <div key={name} className="text-center">
               <div className={`w-16 h-16 bg-bg-muted border border-border ${cls}`} />
-              <div className="text-[10px] text-fg-subtle mt-1 font-mono">{cls}</div>
+              <div className="text-xs text-fg-subtle mt-1 font-mono">{cls}</div>
             </div>
           ))}
         </div>

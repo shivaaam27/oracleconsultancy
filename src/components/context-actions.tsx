@@ -109,7 +109,7 @@ export function ActionControl({ action, variant }: { action: ContextAction; vari
   const { label, icon, href, onClick, tone = "default", primary, compact } = action;
 
   const base = "group/act inline-flex items-center gap-1.5 rounded-full transition-colors active:scale-[0.97] whitespace-nowrap shrink-0";
-  const size = "px-3 py-1.5 text-[13px]";
+  const size = "px-3 py-1.5 text-base";
   // Ghost items inside a single glass pill — matches the main floating nav bar.
   // The accent-tinted icon (below) is what marks the primary action.
   const skin = primary

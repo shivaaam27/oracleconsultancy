@@ -45,12 +45,12 @@ function PersonCard({ p }: { p: OutboxPerson }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-bg-subtle/40"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
           {getInitials(p.name)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-fg">{p.name}</span>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             {p.total} open task{p.total === 1 ? "" : "s"}
             {p.overdue > 0 && <span className="text-danger"> · {p.overdue} overdue</span>}
             {p.companies.length > 0 && <> · {p.companies.slice(0, 2).join(", ")}{p.companies.length > 2 ? "…" : ""}</>}
@@ -70,8 +70,8 @@ function PersonCard({ p }: { p: OutboxPerson }) {
                 >
                   <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dot(t))} />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-medium leading-tight text-fg group-hover:text-accent transition-colors">{t.title}</span>
-                    <span className="text-[11px] text-fg-subtle">
+                    <span className="block text-base font-medium leading-tight text-fg group-hover:text-accent transition-colors">{t.title}</span>
+                    <span className="text-xs text-fg-subtle">
                       {[t.company, t.status, t.due ? `due ${t.due}` : null].filter(Boolean).join(" · ")}
                       {t.accountable.length > 1 && ` · ${t.accountable.join(", ")}`}
                     </span>
@@ -120,7 +120,7 @@ export function PortalOutboxLive({ people }: { people: OutboxPerson[] }) {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Find a person…"
-              className="w-full rounded-full border border-border bg-bg-subtle/60 py-1 pl-7 pr-6 text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="w-full rounded-full border border-border bg-bg-subtle/60 py-1 pl-7 pr-6 text-xs focus:outline-none focus:ring-2 focus:ring-accent/40"
             />
             {q && (
               <button type="button" onClick={() => setQ("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear">

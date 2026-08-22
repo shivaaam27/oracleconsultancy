@@ -40,7 +40,7 @@ export default async function CocozuriStockPage({
     return (
       <div className="space-y-4">
         <PageHeader title="Stock book" sub={company.name} />
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-[12.5px] text-fg-subtle">
+        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
           No stock locations yet. The shop, the kitchen and raw materials come in with
           <code className="mx-1 rounded bg-bg-subtle px-1">npm run seed:cz-stock</code>.
         </p>
@@ -79,6 +79,7 @@ export default async function CocozuriStockPage({
         items={book.items}
         days={book.days}
         counts={book.counts}
+        moves={book.moves}
         onDate={onDate}
         productNames={productNames}
       />

@@ -77,7 +77,7 @@ function HoverDetail({
       className="org-pop fixed z-[80] w-64 -translate-x-1/2 rounded-2xl p-3 text-left print-hidden"
     >
       <div className="text-sm font-semibold text-fg leading-snug">{node.name}</div>
-      <div className="text-[11px] text-fg-muted">
+      <div className="text-xs text-fg-muted">
         {node.role || PERSON_TYPE_LABELS[node.personType]}
         {node.departmentName ? ` · ${node.departmentName}` : ""}
         {companyName ? ` · ${companyName}` : ""}
@@ -90,7 +90,7 @@ function HoverDetail({
             {x.overdue > 0 && <Badge tone="danger">{x.overdue} overdue</Badge>}
             {x.notStarted > 0 && <Badge tone="default">{x.notStarted} not started</Badge>}
             {x.closed > 0 && <Badge tone="success">{x.closed} closed</Badge>}
-            {x.open === 0 && x.closed === 0 && x.notStarted === 0 && <span className="text-[11px] text-fg-subtle italic">No tasks</span>}
+            {x.open === 0 && x.closed === 0 && x.notStarted === 0 && <span className="text-xs text-fg-subtle italic">No tasks</span>}
           </div>
 
           {(x.assetsHeld > 0 || x.onLeaveToday || x.onboarding) && (
@@ -102,7 +102,7 @@ function HoverDetail({
           )}
 
           {x.topTask && (
-            <div className="mt-2 flex items-start gap-1.5 text-[11px] text-fg-muted">
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-fg-muted">
               <AlertTriangle size={12} className="mt-0.5 shrink-0 text-warn" />
               <span className="leading-snug"><span className="font-medium text-fg">{x.topTask.code}</span> · {x.topTask.title}</span>
             </div>
@@ -111,7 +111,7 @@ function HoverDetail({
       )}
 
       <div className="mt-2.5 flex items-center gap-1.5 border-t border-border/50 pt-2">
-        <PersonDrawerLink id={node.id} name={node.name} title="Open profile" className="flex-1 h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-[11px] font-medium hover:bg-accent-hover transition-colors">
+        <PersonDrawerLink id={node.id} name={node.name} title="Open profile" className="flex-1 h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:bg-accent-hover transition-colors">
           <UserRound size={12} /> Profile
         </PersonDrawerLink>
         {wa && (
@@ -161,27 +161,27 @@ function NodeCard({
         {/* company accent rail */}
         <span className="self-stretch w-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
 
-        <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[12px] font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>
+        <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-sm font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>
           {initials(node.name)}
         </span>
 
         <div className="min-w-0 flex-1">
-          <PersonDrawerLink id={node.id} name={node.name} className="block text-[13px] font-semibold text-fg hover:text-accent truncate leading-tight" />
-          <div className="flex items-center gap-1 text-[10.5px] text-fg-muted truncate leading-tight">
+          <PersonDrawerLink id={node.id} name={node.name} className="block text-base font-semibold text-fg hover:text-accent truncate leading-tight" />
+          <div className="flex items-center gap-1 text-xs text-fg-muted truncate leading-tight">
             {dept && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: `hsl(${deptHue(dept)} 65% 55%)` }} />}
             <span className="truncate">{node.role || PERSON_TYPE_LABELS[node.personType]}</span>
           </div>
           {showCompany && node.companyName && (
-            <div className="text-[10px] font-medium truncate leading-tight" style={{ color: accent }}>{node.companyName}</div>
+            <div className="text-xs font-medium truncate leading-tight" style={{ color: accent }}>{node.companyName}</div>
           )}
           {node.reportsOutOfCompany && node.managerName && (
-            <div className="flex items-center gap-1 text-[10px] text-fg-subtle truncate leading-tight" title={`Reports to ${node.managerName}${node.managerCompanyName ? ` at ${node.managerCompanyName}` : ""}`}>
+            <div className="flex items-center gap-1 text-xs text-fg-subtle truncate leading-tight" title={`Reports to ${node.managerName}${node.managerCompanyName ? ` at ${node.managerCompanyName}` : ""}`}>
               <CornerLeftUp size={10} className="shrink-0" />
               <span className="truncate">{node.managerName}{node.managerCompanyName ? ` · ${node.managerCompanyName}` : ""}</span>
             </div>
           )}
           {node.secondaryManagers.length > 0 && (
-            <div className="flex items-center gap-1 text-[10px] text-info/80 truncate leading-tight" title={`Also reports to ${node.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}`}>
+            <div className="flex items-center gap-1 text-xs text-info/80 truncate leading-tight" title={`Also reports to ${node.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}`}>
               <Link2 size={10} className="shrink-0" />
               <span className="truncate">also: {node.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}</span>
             </div>
@@ -191,9 +191,9 @@ function NodeCard({
         {/* compact signal cluster */}
         <div className="org-signals flex items-center gap-1 shrink-0">
           {x?.overdue ? (
-            <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-[10px] font-bold tabular">{x.overdue}</span>
+            <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-xs font-bold tabular">{x.overdue}</span>
           ) : x?.open ? (
-            <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-[10px] font-bold tabular">{x.open}</span>
+            <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-xs font-bold tabular">{x.open}</span>
           ) : null}
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
         </div>
@@ -221,7 +221,7 @@ function NodeCard({
         )}
 
         {hasChildren && collapsed && (
-          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-fg-subtle bg-bg-elev rounded-full px-1.5 ring-1 ring-border tabular print-hidden">
+          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-xs text-fg-subtle bg-bg-elev rounded-full px-1.5 ring-1 ring-border tabular print-hidden">
             {countNodes(node.children)}
           </span>
         )}
@@ -290,13 +290,13 @@ function OutlineRow({
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
           </button>
         ) : <span className="w-5 shrink-0 inline-flex items-center justify-center"><span className="w-1 h-1 rounded-full bg-border" /></span>}
-        <span className={cn("h-6 w-6 rounded-full ring-1 flex items-center justify-center text-[10px] font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>{initials(node.name)}</span>
-        <PersonDrawerLink id={node.id} name={node.name} className="text-[13px] font-medium text-fg hover:text-accent truncate" />
+        <span className={cn("h-6 w-6 rounded-full ring-1 flex items-center justify-center text-xs font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>{initials(node.name)}</span>
+        <PersonDrawerLink id={node.id} name={node.name} className="text-base font-medium text-fg hover:text-accent truncate" />
         {headIds?.has(node.id) && <span className="text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shrink-0">Head</span>}
-        <span className="text-[11px] text-fg-subtle truncate hidden sm:inline">{node.role || PERSON_TYPE_LABELS[node.personType]}{showCompany && node.companyName ? ` · ${node.companyName}` : ""}</span>
+        <span className="text-xs text-fg-subtle truncate hidden sm:inline">{node.role || PERSON_TYPE_LABELS[node.personType]}{showCompany && node.companyName ? ` · ${node.companyName}` : ""}</span>
         <span className="ml-auto flex items-center gap-1.5 shrink-0">
-          {x?.overdue ? <span className="text-[10px] font-bold text-danger tabular">{x.overdue}!</span> : x?.open ? <span className="text-[10px] font-bold text-info tabular">{x.open}</span> : null}
-          {hasChildren && <span className="text-[10px] text-fg-subtle tabular" title={`${countNodes(node.children)} in team`}>{countNodes(node.children)}</span>}
+          {x?.overdue ? <span className="text-xs font-bold text-danger tabular">{x.overdue}!</span> : x?.open ? <span className="text-xs font-bold text-info tabular">{x.open}</span> : null}
+          {hasChildren && <span className="text-xs text-fg-subtle tabular" title={`${countNodes(node.children)} in team`}>{countNodes(node.children)}</span>}
           {hasChildren && <button type="button" onClick={() => onFocus(node.id)} title="Focus on this team" className="text-fg-subtle hover:text-accent print-hidden"><Focus size={12} /></button>}
           {pickerPeople && <OrgDirectorPicker personId={node.id} currentManagerId={node.managerId} people={pickerPeople} compact missing={node.managerId == null} />}
         </span>
@@ -496,12 +496,12 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
     <div ref={rootRef} className={cn("space-y-3 org-root", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5 overflow-auto")}>
       {/* Print-only masthead — identical typography to the Director Brief PDF. */}
       <div className="org-print-title print-only mb-3">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
+        <div className="text-xs font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
         <h1 className="text-xl font-semibold tracking-tight text-fg">{companyName ?? "Portfolio"}</h1>
-        <p className="text-[11px] text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</p>
+        <p className="text-xs text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
-        <div className="text-[11px] text-fg-subtle tabular">
+        <div className="text-xs text-fg-subtle tabular">
           {tree.total} active · {tree.linesInTree} in tree
           {tree.reportingOut > 0 && <> · {tree.reportingOut} report out</>}
           {tree.total - tree.withManager > 0 && <> · {tree.total - tree.withManager} no director</>}
@@ -525,7 +525,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                 <>
                   <span className="w-px h-5 bg-border mx-0.5" />
                   <button type="button" onClick={() => zoom(-0.1)} title="Zoom out" className={ctrlBtn}><ZoomOut size={14} /></button>
-                  <button type="button" onClick={resetView} title="Reset view" className={cn(ctrlBtn, "w-auto px-2 text-[11px] tabular")}>{Math.round(scale * 100)}%</button>
+                  <button type="button" onClick={resetView} title="Reset view" className={cn(ctrlBtn, "w-auto px-2 text-xs tabular")}>{Math.round(scale * 100)}%</button>
                   <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
                   <button type="button" onClick={fit} title="Fit to screen" className={ctrlBtn}><Scaling size={14} /></button>
                   <button type="button" onClick={toggleFullscreen} title={isFs ? "Exit fullscreen" : "Fullscreen"} className={cn(ctrlBtn, isFs && "bg-accent text-accent-fg ring-accent")}>{isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
@@ -553,9 +553,9 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                   <span className="font-semibold text-sm">{dept}</span>
                   <span className="text-fg-subtle text-xs tabular">· {members.length}</span>
                   {companyId != null && deptId != null && (
-                    <span className="inline-flex items-center gap-1 ml-auto text-[11px] text-fg-muted print-hidden">
+                    <span className="inline-flex items-center gap-1 ml-auto text-xs text-fg-muted print-hidden">
                       Head
-                      <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="text-[11px]">
+                      <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="text-xs">
                         <option value="">— none —</option>
                         {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                       </Select>
@@ -565,10 +565,10 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                 <div className="space-y-0.5">
                   {sorted.map((n) => (
                     <div key={n.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-bg-muted/40 transition-colors">
-                      <span className={cn("h-7 w-7 rounded-full ring-1 flex items-center justify-center text-[10px] font-semibold shrink-0", TYPE_TINT[n.personType] ?? TYPE_TINT.outsider)}>{initials(n.name)}</span>
+                      <span className={cn("h-7 w-7 rounded-full ring-1 flex items-center justify-center text-xs font-semibold shrink-0", TYPE_TINT[n.personType] ?? TYPE_TINT.outsider)}>{initials(n.name)}</span>
                       <div className="min-w-0 flex-1">
-                        <PersonDrawerLink id={n.id} name={n.name} className="block text-[13px] font-medium text-fg hover:text-accent truncate leading-tight" />
-                        <div className="text-[10.5px] text-fg-subtle truncate leading-tight">{n.role || PERSON_TYPE_LABELS[n.personType]}{portfolio && n.companyName ? ` · ${n.companyName}` : ""}</div>
+                        <PersonDrawerLink id={n.id} name={n.name} className="block text-base font-medium text-fg hover:text-accent truncate leading-tight" />
+                        <div className="text-xs text-fg-subtle truncate leading-tight">{n.role || PERSON_TYPE_LABELS[n.personType]}{portfolio && n.companyName ? ` · ${n.companyName}` : ""}</div>
                       </div>
                       {n.id === headId && <span className="text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shrink-0">Head</span>}
                       {pickerPeople && <OrgDirectorPicker personId={n.id} currentManagerId={n.managerId} people={pickerPeople} compact missing={n.managerId == null} />}
@@ -623,7 +623,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
       )}
 
       {mode !== "depts" && !hasStructure && (
-        <div className="rounded-xl bg-bg-subtle/40 ring-1 ring-border/60 p-3 text-[11px] text-fg-muted leading-snug">
+        <div className="rounded-xl bg-bg-subtle/40 ring-1 ring-border/60 p-3 text-xs text-fg-muted leading-snug">
           No in-company reporting lines yet — everyone is shown below. Set a person&apos;s{" "}
           <span className="font-medium text-fg">Director</span> to someone in this company to nest them into a tree.
           {tree.reportingOut > 0 && <> {tree.reportingOut} {tree.reportingOut === 1 ? "person reports" : "people report"} to a director in another company (shown on their card).</>}
@@ -632,7 +632,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
 
       {mode !== "depts" && !focusNode && tree.unassigned.length > 0 && (
         <div className="pt-1 space-y-3">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
+          <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
             <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
           </div>
           {deptGroups.some(([d]) => d !== "No department") ? (
@@ -642,7 +642,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
               const sorted = headId ? [...members].sort((a, b) => (a.id === headId ? -1 : b.id === headId ? 1 : 0)) : members;
               return (
                 <div key={dept}>
-                  <div className="flex items-center gap-1.5 text-[11px] text-fg-muted mb-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-1.5 flex-wrap">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)` }} />
                     <span className="font-medium">{dept}</span>
                     <span className="text-fg-subtle tabular">· {members.length}</span>
@@ -650,7 +650,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                       <span className="inline-flex items-center gap-1 ml-1 print-hidden">
                         <span className="text-fg-subtle">· Head</span>
                         <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)}
-                          className="text-[11px] text-fg">
+                          className="text-xs text-fg">
                           <option value="">— none —</option>
                           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </Select>
@@ -686,18 +686,18 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
 
       {mode !== "depts" && !focusNode && associated.length > 0 && (
         <div className="pt-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
             <Link2 size={12} /> External &amp; associated ({associated.length})
           </div>
           <div className="flex flex-wrap gap-2">
             {associated.map((a) => (
               <div key={a.id} className="inline-flex items-center gap-2 rounded-xl glass elevated pl-1 pr-3 py-1.5">
-                <span className={cn("h-8 w-8 rounded-full ring-1 flex items-center justify-center text-[11px] font-semibold shrink-0", TYPE_TINT[a.personType] ?? TYPE_TINT.outsider)}>
+                <span className={cn("h-8 w-8 rounded-full ring-1 flex items-center justify-center text-xs font-semibold shrink-0", TYPE_TINT[a.personType] ?? TYPE_TINT.outsider)}>
                   {initials(a.name)}
                 </span>
                 <div className="min-w-0">
-                  <PersonDrawerLink id={a.id} name={a.name} className="block text-[13px] font-medium text-fg hover:text-accent truncate leading-tight" />
-                  <div className="text-[10.5px] text-fg-subtle truncate leading-tight">{a.relationship || a.role || "Associated"}</div>
+                  <PersonDrawerLink id={a.id} name={a.name} className="block text-base font-medium text-fg hover:text-accent truncate leading-tight" />
+                  <div className="text-xs text-fg-subtle truncate leading-tight">{a.relationship || a.role || "Associated"}</div>
                 </div>
               </div>
             ))}
@@ -732,7 +732,7 @@ function OrgSwitcher({
   everyoneOn: boolean;
   portfolioOn: boolean;
 }) {
-  const chip = "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-all active:scale-95";
+  const chip = "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-base font-medium ring-1 transition-all active:scale-95";
   return (
     <div className="-mx-1 px-1 overflow-x-auto no-scrollbar print-hidden">
       <div className="flex items-center gap-1.5 w-max snap-x snap-mandatory">

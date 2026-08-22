@@ -28,7 +28,7 @@ export async function AnnouncementAdminBanner() {
       <div className="mb-2 flex items-center gap-2">
         <Megaphone size={14} className="text-accent" />
         <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Live announcements</span>
-        <Link href="/announcements" className="ml-auto inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline">
+        <Link href="/announcements" className="ml-auto inline-flex items-center gap-0.5 text-xs text-accent hover:underline">
           Manage <ChevronRight size={12} />
         </Link>
       </div>

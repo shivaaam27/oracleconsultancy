@@ -61,7 +61,7 @@ export default async function CompaniesPage({
           ]).map((m) => (
             <div key={m.label} className="flex items-baseline gap-1.5">
               <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
-              <span className="text-[11px] text-fg-muted">{m.label}</span>
+              <span className="text-xs text-fg-muted">{m.label}</span>
             </div>
           ))}
         </div>
@@ -95,7 +95,7 @@ export default async function CompaniesPage({
                   <CompanyAvatar name={c.name} accent={accent} logoUrl={logoMap.get(c.id)} size={34} rounded="rounded-lg" iconSize={15} />
                   <div className="min-w-0">
                     <div className="truncate font-semibold tracking-tight">{c.name}</div>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-muted">
+                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-muted">
                       <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${risk.dot}`} />
                       <span className={risk.text}>{risk.label} {c.riskScore}</span>
                       <span aria-hidden>·</span>
@@ -106,7 +106,7 @@ export default async function CompaniesPage({
 
                 <div className="relative hidden items-start justify-between gap-2 sm:flex">
                   <CompanyAvatar name={c.name} accent={accent} logoUrl={logoMap.get(c.id)} size={40} rounded="rounded-xl" iconSize={17} />
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md ${risk.cls}`}>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium backdrop-blur-md ${risk.cls}`}>
                     {risk.label}
                     <span className="tabular opacity-70">{c.riskScore}</span>
                   </span>
@@ -124,19 +124,19 @@ export default async function CompaniesPage({
                 <div className="relative grid grid-cols-4 gap-2 mt-2.5 pt-2.5 sm:mt-3.5 sm:pt-3.5 border-t border-border/60 text-xs">
                   <div className="flex items-baseline gap-1.5 sm:flex-col sm:items-stretch sm:gap-1">
                     <span className="text-fg-subtle inline-flex items-center gap-1"><Users size={11} /> Staff</span>
-                    <span className="font-semibold tabular text-[13px] sm:text-sm">{staffByCompany.get(c.id) ?? 0}</span>
+                    <span className="font-semibold tabular text-base sm:text-sm">{staffByCompany.get(c.id) ?? 0}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5 sm:flex-col sm:items-stretch sm:gap-1">
                     <span className="text-fg-subtle inline-flex items-center gap-1"><Clock size={11} /> Open</span>
-                    <span className="font-semibold tabular text-[13px] sm:text-sm">{c.open}</span>
+                    <span className="font-semibold tabular text-base sm:text-sm">{c.open}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5 sm:flex-col sm:items-stretch sm:gap-1">
                     <span className="text-fg-subtle inline-flex items-center gap-1"><AlertOctagon size={11} /> Overdue</span>
-                    <span className={`font-semibold tabular text-[13px] sm:text-sm ${c.overdue ? "text-danger" : ""}`}>{c.overdue}</span>
+                    <span className={`font-semibold tabular text-base sm:text-sm ${c.overdue ? "text-danger" : ""}`}>{c.overdue}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5 sm:flex-col sm:items-stretch sm:gap-1">
                     <span className="text-fg-subtle inline-flex items-center gap-1"><CheckCircle2 size={11} /> Done</span>
-                    <span className="font-semibold tabular text-[13px] sm:text-sm">{c.completed}</span>
+                    <span className="font-semibold tabular text-base sm:text-sm">{c.completed}</span>
                   </div>
                 </div>
               </div>

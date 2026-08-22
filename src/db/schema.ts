@@ -4173,9 +4173,37 @@ export const czBatches = pgTable("cz_batches", {
   expiresOn: date("expires_on"),
   /** planned | running | closed | cancelled */
   status: text("status").notNull().default("planned"),
-  /** What the plan said. The actual is derived from the `produce` moves — there
-   *  is no produced-quantity column, and there must not be one. */
+  /** What the plan said. */
   plannedQty: numeric("planned_qty", { precision: 14, scale: 3 }),
+  /* ────────────────────────────── Stage 4: production ────────────────────── */
+  /** Which recipe it was made to. ⚠️ NULLABLE ON PURPOSE — somebody making
+   *  something for the first time, or off-recipe, must still be able to open a
+   *  batch. Demanding a recipe up front is exactly the friction plan §5a warns
+   *  about, and this is the stage that lives or dies on friction. */
+  recipeId: integer("recipe_id").references(() => czRecipes.id, { onDelete: "set null" }),
+  /** Where it is made — a batch consumes and produces in one place. */
+  locationId: integer("location_id").references(() => czStockLocations.id, { onDelete: "restrict" }),
+  /** How many batches of the recipe this run is. 2 = twice the recipe. */
+  recipeMultiple: numeric("recipe_multiple", { precision: 14, scale: 3 }).notNull().default("1"),
+  /**
+   * ⚠️ WHAT ACTUALLY CAME OUT — the other half of the owner's "inter check
+   * against plan" (note #37). `plannedQty` is what was expected; this is what
+   * was found. The VARIANCE is never stored: it is the subtraction, worked out
+   * on read, like every other figure in this module.
+   */
+  producedQty: numeric("produced_qty", { precision: 14, scale: 3 }),
+  /**
+   * ⚠️ WHERE THE DIFFERENCE WENT — note #12, "abnormal loss: production | raw
+   * materials". A shortfall nobody has explained is a number nobody can act on,
+   * which is exactly the state the workbook's VARIANCE column is in.
+   *
+   * none | production | raw_material | both
+   */
+  lossKind: text("loss_kind").notNull().default("none"),
+  lossNote: text("loss_note"),
+  openedBy: text("opened_by"),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: text("closed_by"),
   notes: text("notes"),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4183,6 +4211,10 @@ export const czBatches = pgTable("cz_batches", {
 }, (t) => [
   uniqueIndex("cz_batches_no_idx").on(t.companyId, t.batchNo),
   index("cz_batches_list_idx").on(t.companyId, t.status, t.madeOn),
+  /** ⚠️ A recipe something has been MADE from cannot be deleted out from under
+   *  it — the batch is the record of a real morning's work. */
+  index("cz_batches_recipe_idx").on(t.recipeId),
+  index("cz_batches_location_idx").on(t.locationId, t.status),
 ]);
 
 /**
@@ -4245,4 +4277,304 @@ export const czStockMoves = pgTable("cz_stock_moves", {
   index("cz_stock_moves_day_idx").on(t.companyId, t.onDate),
   index("cz_stock_moves_voucher_idx").on(t.voucherType, t.voucherId),
   index("cz_stock_moves_batch_idx").on(t.batchId),
+]);
+
+/* ================================================================== *
+ * CocoZuri — the manufacturing half, Stage 2: buying.
+ *
+ * Two ideas, because the owner named two (plan §5a): a BUDGET somebody sets
+ * and somebody approves, and a PURCHASE checked against it.
+ *
+ * ⚠️ APPROVAL IS A NAMED STEP WITH A PERSON AND A MOMENT, NOT A BOOLEAN.
+ * "Approved" with nobody's name on it answers no question worth asking, and a
+ * budget nobody has approved is not a budget.
+ * ================================================================== */
+
+/**
+ * Money somebody has said may be spent, over a period, in a place.
+ *
+ * ⚠️ NO `spent` COLUMN, AND THERE MUST NEVER BE ONE. What has gone is the
+ * approved purchases inside the window, added up on read — the same rule as
+ * every balance in the general ledger and every figure in CocoZuri.
+ */
+export const czBudgets = pgTable("cz_budgets", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  /** Null = every place. A budget for the raw-materials store is the common
+   *  case, and a location is real data rather than a taxonomy invented here. */
+  locationId: integer("location_id").references(() => czStockLocations.id, { onDelete: "set null" }),
+  startsOn: date("starts_on").notNull(),
+  endsOn: date("ends_on").notNull(),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  /** draft | submitted | approved | rejected | closed */
+  status: text("status").notNull().default("draft"),
+  submittedBy: text("submitted_by"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  /** ⚠️ SET NULL, and the NAME is kept beside it. A person leaving must never
+   *  take the record of their decision with them — the approval happened
+   *  whether or not they are still on the payroll. */
+  decidedByPersonId: integer("decided_by_person_id").references(() => people.id, { onDelete: "set null" }),
+  decidedBy: text("decided_by"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionNote: text("decision_note"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_budgets_list_idx").on(t.companyId, t.status, t.startsOn),
+]);
+
+/**
+ * Something that was bought.
+ *
+ * ⚠️ `vendorId` IS NULLABLE AND MUST STAY NULLABLE (the owner, 22 Aug 2026).
+ * Raw materials come from suppliers, but also "at random or self-bought".
+ * Somebody buying a kilo of flour from the market with their own money is a
+ * real and normal event at this size of business, and a form demanding a
+ * supplier, an invoice number and a tax record for it simply will not be filled
+ * in — the purchase then never reaches the books at all, which is worse than a
+ * purchase with a blank supplier.
+ *
+ * ⚠️ APPROVAL IS WHAT MAKES IT COUNT. A draft moves no stock and reaches no
+ * books; approving it writes the `receipt` movements through `postStockMove()`.
+ * Cancelling an approved purchase REVERSES those movements — it never erases
+ * them, because a document that has been acted on is history.
+ */
+export const czPurchases = pgTable("cz_purchases", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** PUR-0001 — allocated against the unique index below, like an invoice. */
+  reference: text("reference").notNull(),
+  purchasedOn: date("purchased_on").notNull(),
+  /** Where the goods landed. Every stock movement needs a place. */
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  vendorId: integer("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+  /** The market stall, the shop down the road, the person who was passing. */
+  supplierName: text("supplier_name"),
+  supplierRef: text("supplier_ref"),
+  budgetId: integer("budget_id").references(() => czBudgets.id, { onDelete: "set null" }),
+  /**
+   * credit | cash | bank | own_money.
+   *
+   * ⚠️ `own_money` IS THE SELF-BOUGHT CASE AND IT MEANS SOMEBODY IS OWED THE
+   * MONEY BACK. It credits creditors with that person as the party, never the
+   * bank — the business has not paid for it yet.
+   */
+  paidFrom: text("paid_from").notNull().default("credit"),
+  paidByPersonId: integer("paid_by_person_id").references(() => people.id, { onDelete: "set null" }),
+  paidBy: text("paid_by"),
+  currency: text("currency").notNull().default("TZS"),
+  exRate: numeric("ex_rate", { precision: 14, scale: 6 }),
+  vatRate: numeric("vat_rate", { precision: 6, scale: 3 }).notNull().default("0"),
+  /** ⚠️ THREE-STATE: true / false / null = nobody has said. The same trap the
+   *  ops invoice carries. A rated purchase with this unset is reported UNKNOWN
+   *  and refused at the books, never quietly treated as one or the other. */
+  taxInclusive: boolean("tax_inclusive"),
+  /** The transit cost — note #21. Spread over the lines BY VALUE on read, so a
+   *  bag of almonds carries its own freight. ⚠️ No per-line landed-cost column. */
+  freightAmount: numeric("freight_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  freightNote: text("freight_note"),
+  /** draft | approved | cancelled */
+  status: text("status").notNull().default("draft"),
+  approvedByPersonId: integer("approved_by_person_id").references(() => people.id, { onDelete: "set null" }),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvalNote: text("approval_note"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancelReason: text("cancel_reason"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_purchases_reference_idx").on(t.companyId, t.reference),
+  index("cz_purchases_list_idx").on(t.companyId, t.status, t.purchasedOn),
+  index("cz_purchases_budget_idx").on(t.budgetId),
+]);
+
+/**
+ * One thing on a purchase.
+ *
+ * ⚠️ NO TOTAL COLUMN, HERE OR ON THE PURCHASE. Goods, VAT, the freight share,
+ * the landed unit cost and what is payable are all worked out on read by
+ * `purchaseTotals()` and `landedLines()` in `cocozuri-buy-shared.ts`.
+ */
+export const czPurchaseLines = pgTable("cz_purchase_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  purchaseId: integer("purchase_id").notNull().references(() => czPurchases.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** Frozen wording, like an invoice line — a purchase prints what was true the
+   *  day it was made, whatever the item is renamed to afterwards. */
+  description: text("description").notNull(),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  /** ⚠️ "flour 1kg" — the unit is part of the price (note #46). */
+  uom: text("uom").notNull().default("PCS"),
+  unitPrice: numeric("unit_price", { precision: 14, scale: 4 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_purchase_lines_purchase_idx").on(t.purchaseId, t.lineNo),
+  index("cz_purchase_lines_item_idx").on(t.itemId),
+]);
+
+/* ================================================================== *
+ * CocoZuri — the manufacturing half, Stage 3: recipes.
+ *
+ * The reference system calls this a BOM and costs it as
+ * `raw_material_cost + operating_cost − scrap_material_cost`, with a
+ * `process_loss_percentage`. The owner's own words (note #31) are
+ * "Costing = raw material + finish + packaging materials", so the LINE CARRIES
+ * HIS THREE HEADINGS rather than one lump — the same reasoning that made the
+ * stock sheet's third column data instead of a guess.
+ * ================================================================== */
+
+/**
+ * How something is made.
+ *
+ * ⚠️ NO COST COLUMN, HERE OR ON THE LINE. What a recipe costs is worked out on
+ * read from what the materials ACTUALLY cost — which is a real figure only
+ * because Stage 2 puts a landed unit cost on every `receipt` movement. An
+ * ingredient nobody has ever bought has NO cost and is reported as unknown,
+ * never as nil.
+ */
+export const czRecipes = pgTable("cz_recipes", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** ⚠️ A STOCK ITEM, not a product: a recipe produces a thing you COUNT, and
+   *  `cz_stock_items.product_id` is what says whether that thing is also
+   *  something you sell. Stage 4's batches produce into the same table. */
+  outputItemId: integer("output_item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** ⚠️ HOW MANY UNITS ONE BATCH MAKES, and the line quantities are PER BATCH to
+   *  match. That is how a kitchen actually works — "two kilos of cocoa makes a
+   *  hundred and twenty bars" — and per-unit quantities would be unreadable
+   *  fractions of a gram. */
+  yieldQty: numeric("yield_qty", { precision: 14, scale: 3 }).notNull(),
+  yieldUom: text("yield_uom").notNull().default("PCS"),
+  /** The loss you EXPECT, so the actual can be measured against it at Stage 4 —
+   *  the owner's "inter check against plan" (note #37). Artisanal chocolate
+   *  should run above 95% yield. */
+  expectedLossPercent: numeric("expected_loss_percent", { precision: 6, scale: 3 }).notNull().default("0"),
+  /** Anything that is not a stock item: gas, an hour of somebody's time.
+   *  ⚠️ It must carry a note, or it is a number nobody can check. */
+  otherCost: numeric("other_cost", { precision: 14, scale: 2 }).notNull().default("0"),
+  otherCostNote: text("other_cost_note"),
+  /** draft | active | archived */
+  status: text("status").notNull().default("draft"),
+  /** ⚠️ Several ACTIVE recipes for one item is normal and correct — a large
+   *  batch and a small batch are genuinely different recipes. The default is the
+   *  one the order form and Stage 4 reach for first. */
+  isDefault: boolean("is_default").notNull().default(false),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_recipes_name_idx").on(t.companyId, t.name),
+  index("cz_recipes_output_idx").on(t.outputItemId, t.status),
+]);
+
+/**
+ * One thing that goes into a recipe.
+ *
+ * ⚠️ `kind` IS THE OWNER'S THREE HEADINGS, recorded under his own words:
+ * ingredient · packaging · finishing. "Finish" is his term and nobody has said
+ * whether it means finishing MATERIALS (lustre, ribbon, a sleeve) or finishing
+ * WORK — so it is stored as written rather than translated into a guess.
+ */
+export const czRecipeLines = pgTable("cz_recipe_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  recipeId: integer("recipe_id").notNull().references(() => czRecipes.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** ingredient | packaging | finishing */
+  kind: text("kind").notNull().default("ingredient"),
+  /** ⚠️ PER BATCH, not per unit. See `yieldQty`. */
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  uom: text("uom").notNull().default("PCS"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_recipe_lines_recipe_idx").on(t.recipeId, t.lineNo),
+  /** ⚠️ The reverse look-up is the point of "common ingredients" (note #33):
+   *  given one bag of almond powder, which recipes use it. */
+  index("cz_recipe_lines_item_idx").on(t.itemId),
+]);
+
+/* ================================================================== *
+ * CocoZuri — the manufacturing half, Stage 5: kitchen → shop.
+ *
+ * ⚠️ THE OWNER SETTLED THE QUESTION THAT BLOCKED THIS (22 Aug 2026): the shop's
+ * AMBER RABDI and the kitchen's ARE THE SAME CHOCOLATE. So a transfer moves
+ * between two ITEM ROWS — `cz_stock_items` belongs to exactly one location, and
+ * the two rows are joined by `product_id`, NEVER by name. That is fault #4
+ * again, and 64 products already exist in more than one place, all linked by id.
+ * ================================================================== */
+
+/**
+ * Chocolate going from one place to another.
+ *
+ * ⚠️ IT HAS **TWO MOMENTS**, and that is the whole point of the document. The
+ * kitchen sends 20; the shop counts 18. Recording one figure is what makes the
+ * shop's opening stock a mystery today. Sending takes it off the kitchen's
+ * shelf, receiving puts what ACTUALLY ARRIVED on the shop's, and the difference
+ * is a real loss that happened in transit and has to be explained.
+ *
+ * ⚠️ THERE IS NO DRAFT. Stock leaves the moment somebody says it did, because
+ * by then it HAS left — a transfer sitting unsent while the chocolate is
+ * already in a crate is exactly the gap this replaces.
+ */
+export const czTransfers = pgTable("cz_transfers", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** TRF-2608-01 — allocated, like a batch number. */
+  reference: text("reference").notNull(),
+  onDate: date("on_date").notNull(),
+  fromLocationId: integer("from_location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  toLocationId: integer("to_location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  /** sent | received | cancelled */
+  status: text("status").notNull().default("sent"),
+  sentBy: text("sent_by"),
+  receivedBy: text("received_by"),
+  receivedOn: date("received_on"),
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_transfers_reference_idx").on(t.companyId, t.reference),
+  index("cz_transfers_list_idx").on(t.companyId, t.status, t.onDate),
+]);
+
+/**
+ * One chocolate on a transfer.
+ *
+ * ⚠️ TWO ITEM ROWS — the row on the sending sheet and the row on the receiving
+ * one — because an item belongs to one place. Resolved through `product_id`.
+ */
+export const czTransferLines = pgTable("cz_transfer_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  transferId: integer("transfer_id").notNull().references(() => czTransfers.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  fromItemId: integer("from_item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  toItemId: integer("to_item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** ⚠️ THE BATCH TRAVELS WITH THE CHOCOLATE. Without it, a bar reaching the
+   *  shop loses the thread back to the morning it was made — which is the one
+   *  thing the whole manufacturing programme exists to keep. */
+  batchId: integer("batch_id").references(() => czBatches.id, { onDelete: "set null" }),
+  sentQty: numeric("sent_qty", { precision: 14, scale: 3 }).notNull(),
+  /** Null until somebody at the other end counts it. */
+  receivedQty: numeric("received_qty", { precision: 14, scale: 3 }),
+  /** ⚠️ Required when less arrived than was sent. */
+  shortNote: text("short_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_transfer_lines_transfer_idx").on(t.transferId, t.lineNo),
+  index("cz_transfer_lines_item_idx").on(t.fromItemId, t.toItemId),
 ]);

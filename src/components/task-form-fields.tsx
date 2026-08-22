@@ -96,7 +96,7 @@ export function DeadlineQuickPick({ name = "deadline", defaultValue = "" }: { na
         </button>
       )}
       {value && (
-        <button type="button" onClick={() => { setValue(""); setShowPicker(false); }} className="text-[11px] text-fg-subtle hover:text-fg">
+        <button type="button" onClick={() => { setValue(""); setShowPicker(false); }} className="text-xs text-fg-subtle hover:text-fg">
           Clear
         </button>
       )}
@@ -139,7 +139,7 @@ export function RepeatSection() {
           <Repeat size={14} className="text-fg-muted" /> Repeat
         </span>
         <span className="flex items-center gap-2">
-          {on && <span className="text-[11px] text-accent">On</span>}
+          {on && <span className="text-xs text-accent">On</span>}
           <ChevronDown size={14} className={cn("text-fg-subtle transition-transform", open && "rotate-180")} />
         </span>
       </button>
@@ -190,7 +190,7 @@ export function RepeatSection() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-fg-muted">Day of month</span>
+                  <span className="text-xs text-fg-muted">Day of month</span>
                   <input
                     type="number" min={1} max={31} value={dayOfMonth}
                     onChange={(e) => setDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}

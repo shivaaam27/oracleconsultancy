@@ -168,7 +168,7 @@ export function InstallApp({ compact = false }: { compact?: boolean }) {
           <Download size={14} /> {busy ? "Installing…" : "Install the app"}
         </Button>
         {!compact && (
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-xs text-fg-subtle">
             Adds it to your Start menu and taskbar, in its own window with no address bar. Nothing is
             downloaded and it keeps updating itself.
           </p>
@@ -181,7 +181,7 @@ export function InstallApp({ compact = false }: { compact?: boolean }) {
     return (
       <div className="text-sm text-fg-muted">
         <p className="mb-1.5">To add it to your home screen:</p>
-        <ol className="ml-1 space-y-1 text-[13px]">
+        <ol className="ml-1 space-y-1 text-base">
           <li className="flex items-center gap-2">
             <Share size={13} className="shrink-0 text-accent" /> 1. Tap Share at the bottom of Safari
           </li>
@@ -196,7 +196,7 @@ export function InstallApp({ compact = false }: { compact?: boolean }) {
 
   // Firefox, or an in-app browser. Nothing to automate — say where the menu is.
   return (
-    <p className="text-[13px] text-fg-muted">
+    <p className="text-base text-fg-muted">
       Open this page in <span className="font-medium text-fg">Microsoft Edge</span> or Chrome, then
       use the menu (⋯) → <span className="font-medium text-fg">Apps</span> →{" "}
       <span className="font-medium text-fg">Install this site as an app</span>.

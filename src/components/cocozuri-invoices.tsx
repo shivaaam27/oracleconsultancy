@@ -56,7 +56,7 @@ export function CocozuriInvoices({
       render: (r: Row) => (
         <span className="inline-flex items-center gap-1.5">
           {r.docType === "credit_note" && <Undo2 size={11} className="shrink-0 text-warn" aria-label="Credit note" />}
-          <span className="truncate text-[13px] font-medium text-fg">{r.number}</span>
+          <span className="truncate text-base font-medium text-fg">{r.number}</span>
         </span>
       ),
     },
@@ -68,7 +68,7 @@ export function CocozuriInvoices({
     {
       key: "status", label: "Status", width: "100px",
       render: (r: Row) => (
-        <span className={cn("text-[12px]",
+        <span className={cn("text-sm",
           r.status === "issued" ? "text-success" : r.status === "cancelled" ? "text-fg-subtle line-through" : "text-warn")}>
           {r.status === "draft" ? "Draft" : r.status === "issued" ? "Issued" : "Cancelled"}
         </span>
@@ -77,7 +77,7 @@ export function CocozuriInvoices({
     {
       key: "total", label: "Amount", width: "130px",
       render: (r: Row) => (
-        <span className={cn("tabular text-[12.5px]", r.docType === "credit_note" ? "text-warn" : "text-fg")}>
+        <span className={cn("tabular text-sm", r.docType === "credit_note" ? "text-warn" : "text-fg")}>
           {r.docType === "credit_note" ? "−" : ""}{money(r.total, r.currency)}
         </span>
       ),
@@ -98,14 +98,14 @@ export function CocozuriInvoices({
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search invoices…"
-              wrapperClassName="w-[15rem]" className="h-8 text-[12.5px]" />
+              wrapperClassName="w-[15rem]" className="h-8 text-sm" />
             <span className="grow" />
             <button type="button" onClick={() => setRaising("credit_note")}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] font-medium text-fg-muted hover:text-fg">
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-fg-muted hover:text-fg">
               <Undo2 size={13} /> Credit note
             </button>
             <button type="button" onClick={() => setRaising("invoice")}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-fg hover:opacity-90">
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> New invoice
             </button>
           </div>
@@ -113,8 +113,8 @@ export function CocozuriInvoices({
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
             <FileText size={20} className="text-fg-subtle" />
-            <p className="text-[13px] font-medium text-fg-muted">No invoices yet.</p>
-            <p className="max-w-[26rem] text-[12px] text-fg-subtle">
+            <p className="text-base font-medium text-fg-muted">No invoices yet.</p>
+            <p className="max-w-[26rem] text-sm text-fg-subtle">
               Raise one and the prices fill themselves in from the customer&rsquo;s own list.
             </p>
           </div>

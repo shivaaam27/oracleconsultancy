@@ -25,7 +25,7 @@ export function CompaniesHubTabs({ companiesSlot, departments, sites, roles }: {
   // and Roles sat off the edge as a bare icon — the same failure the Tasks filter
   // row and the People chips had. The icons stand down below `sm` to buy the room.
   const tabCls = (active: boolean) =>
-    cn("inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 text-[12px] sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap",
+    cn("inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 text-sm sm:text-sm font-medium rounded-full transition-colors whitespace-nowrap",
       active ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60");
 
   return (

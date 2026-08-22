@@ -21,7 +21,7 @@ export function SetupNeeded({
     ? missing[0]
     : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
   return (
-    <p className="flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+    <p className="flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn-soft px-2.5 py-1.5 text-xs text-warn">
       <Settings2 size={12} className="mt-px shrink-0" />
       <span>
         <strong>{list}</strong> {missing.length === 1 ? "is" : "are"} empty, so those dropdowns

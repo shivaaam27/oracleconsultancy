@@ -122,7 +122,7 @@ export function SettingsSections({
         </div>
 
         {searching ? (
-          <p className="px-1 text-[11px] text-fg-muted lg:px-0">
+          <p className="px-1 text-xs text-fg-muted lg:px-0">
             {hits === 0 ? "No matching settings." : `${hits} setting${hits === 1 ? "" : "s"} found`}
           </p>
         ) : (
@@ -157,7 +157,7 @@ export function SettingsSections({
                     type="button"
                     onClick={() => pick(g.id)}
                     className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
+                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-base transition-colors",
                       active === g.id ? "bg-accent-soft font-medium text-accent" : "text-fg-muted hover:bg-bg-muted/50 hover:text-fg",
                     )}
                   >

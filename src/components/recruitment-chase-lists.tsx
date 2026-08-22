@@ -87,7 +87,7 @@ export function ShortlistChaseList({ rows }: { rows: ChaseRow[] }) {
         value={f.q}
         onChange={(e) => set({ q: e.target.value })}
         placeholder="Search candidates, roles, clients…"
-        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
       />
       <RecordList
         rows={ranked}
@@ -99,8 +99,8 @@ export function ShortlistChaseList({ rows }: { rows: ChaseRow[] }) {
         shown={ranked.length}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">Nothing is sitting with a client</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">Nothing is sitting with a client</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Shortlists appear here the moment a candidate reaches &ldquo;Shortlisted&rdquo;.
             </p>
           </div>
@@ -110,8 +110,8 @@ export function ShortlistChaseList({ rows }: { rows: ChaseRow[] }) {
             key: "candidate", label: "Candidate", width: "minmax(0,1fr)",
             render: (r) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{r.candidateName}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{r.candidateName}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   <span className="font-mono">{r.orderRef}</span> · {r.orderTitle}
                   {r.clientName ? ` · ${r.clientName}` : ""}
                 </span>
@@ -121,19 +121,19 @@ export function ShortlistChaseList({ rows }: { rows: ChaseRow[] }) {
           },
           {
             key: "stage", label: "Stage", width: "130px", hideBelow: "sm",
-            render: (r) => <span className="truncate text-[12px]">{r.stage}</span>,
+            render: (r) => <span className="truncate text-sm">{r.stage}</span>,
             csv: (r) => r.stage,
           },
           {
             key: "waiting", label: "Waiting", width: "110px", align: "right",
             render: (r) => {
               if (!r.sentToClientOn) {
-                return <span className="text-[11px] text-fg-subtle" title="Not marked as sent to the client yet">—</span>;
+                return <span className="text-xs text-fg-subtle" title="Not marked as sent to the client yet">—</span>;
               }
               const days = daysBetween(new Date(r.sentToClientOn), new Date());
               return (
                 <span
-                  className={cn("tabular text-[12px]", days >= 14 ? "font-medium text-warn" : "")}
+                  className={cn("tabular text-sm", days >= 14 ? "font-medium text-warn" : "")}
                   title={`Sent ${fmtDate(r.sentToClientOn)}`}
                 >
                   {days} day{days === 1 ? "" : "s"}
@@ -145,8 +145,8 @@ export function ShortlistChaseList({ rows }: { rows: ChaseRow[] }) {
           {
             key: "reasoning", label: "Reasoning", width: "96px", align: "right", hideBelow: "md",
             render: (r) => (r.matchNote
-              ? <span className="text-[11px] text-success">Written</span>
-              : <span className="text-[11px] font-medium text-warn">Missing</span>),
+              ? <span className="text-xs text-success">Written</span>
+              : <span className="text-xs font-medium text-warn">Missing</span>),
             csv: (r) => (r.matchNote ? "written" : "missing"),
           },
         ]}
@@ -213,7 +213,7 @@ export function InterviewsList({ rows }: { rows: InterviewListRow[] }) {
         value={f.q}
         onChange={(e) => set({ q: e.target.value })}
         placeholder="Search candidates, roles, clients…"
-        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
       />
       <RecordList
         rows={shown}
@@ -225,8 +225,8 @@ export function InterviewsList({ rows }: { rows: InterviewListRow[] }) {
         shown={shown.length}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">Nothing in the diary</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">Book interviews from a job order&rsquo;s shortlist.</p>
+            <p className="text-base font-medium">Nothing in the diary</p>
+            <p className="mt-1 text-sm text-fg-subtle">Book interviews from a job order&rsquo;s shortlist.</p>
           </div>
         }
         columns={[
@@ -234,8 +234,8 @@ export function InterviewsList({ rows }: { rows: InterviewListRow[] }) {
             key: "who", label: "Interview", width: "minmax(0,1fr)",
             render: (r) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{r.candidateName}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{r.candidateName}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   {r.kind} · <span className="font-mono">{r.orderRef}</span> · {r.orderTitle}
                 </span>
               </span>
@@ -246,9 +246,9 @@ export function InterviewsList({ rows }: { rows: InterviewListRow[] }) {
             key: "when", label: "When", width: "200px",
             render: (r) => (
               <span className="min-w-0">
-                <span className="block truncate text-[12px]">{fmtDate(r.scheduledFor)}</span>
+                <span className="block truncate text-sm">{fmtDate(r.scheduledFor)}</span>
                 {/* Both clocks: coordinating across the time difference IS the job. */}
-                <span className="block truncate text-[11px] text-fg-muted">{bothClocks(r.scheduledFor)}</span>
+                <span className="block truncate text-xs text-fg-muted">{bothClocks(r.scheduledFor)}</span>
               </span>
             ),
             csv: (r) => r.scheduledFor,
@@ -258,7 +258,7 @@ export function InterviewsList({ rows }: { rows: InterviewListRow[] }) {
             render: (r) => {
               const late = r.outcome === "Pending" && new Date(r.scheduledFor) < new Date();
               return (
-                <span className={cn("text-[12px]", late && "font-medium text-warn")}>
+                <span className={cn("text-sm", late && "font-medium text-warn")}>
                   {late ? "No outcome" : r.outcome}
                 </span>
               );
@@ -341,7 +341,7 @@ export function PlacementsList({ rows }: { rows: PlacementListRow[] }) {
         value={f.q}
         onChange={(e) => set({ q: e.target.value })}
         placeholder="Search placements…"
-        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+        className="h-8 w-full rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
       />
       <RecordList
         rows={ranked}
@@ -353,8 +353,8 @@ export function PlacementsList({ rows }: { rows: PlacementListRow[] }) {
         shown={ranked.length}
         empty={
           <div className="py-6 text-center">
-            <p className="text-[13px] font-medium">Nobody placed yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">Nobody placed yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               A placement appears here the moment an offer is accepted on a job order.
             </p>
           </div>
@@ -364,8 +364,8 @@ export function PlacementsList({ rows }: { rows: PlacementListRow[] }) {
             key: "who", label: "Placement", width: "minmax(0,1fr)",
             render: (r) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{r.candidateName}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{r.candidateName}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   <span className="font-mono">{r.orderRef}</span> · {r.orderTitle}
                   {r.clientName ? ` · ${r.clientName}` : ""}
                 </span>
@@ -376,21 +376,21 @@ export function PlacementsList({ rows }: { rows: PlacementListRow[] }) {
           {
             key: "state", label: "Guarantee", width: "150px", hideBelow: "sm",
             render: (r) => {
-              if (r.state === "failed") return <span className="text-[12px] font-medium text-danger">Ended early</span>;
-              if (r.state === "notStarted") return <span className="text-[12px] text-fg-muted">Not started</span>;
-              if (r.state === "lapsed") return <span className="text-[12px] text-success">Ran clean</span>;
+              if (r.state === "failed") return <span className="text-sm font-medium text-danger">Ended early</span>;
+              if (r.state === "notStarted") return <span className="text-sm text-fg-muted">Not started</span>;
+              if (r.state === "lapsed") return <span className="text-sm text-success">Ran clean</span>;
               const left = guaranteeDaysLeft(r.startedOn);
-              return <span className="text-[12px] text-warn">{left} day{left === 1 ? "" : "s"} left</span>;
+              return <span className="text-sm text-warn">{left} day{left === 1 ? "" : "s"} left</span>;
             },
             csv: (r) => r.state,
           },
           {
             key: "checkins", label: "Check-ins", width: "110px", align: "right",
             render: (r) => {
-              if (!r.startedOn) return <span className="text-[11px] text-fg-subtle">—</span>;
+              if (!r.startedOn) return <span className="text-xs text-fg-subtle">—</span>;
               return (
                 <span
-                  className={cn("tabular text-[12px]", r.tally.overdue > 0 && "font-medium text-warn")}
+                  className={cn("tabular text-sm", r.tally.overdue > 0 && "font-medium text-warn")}
                   title={r.tally.overdue > 0 ? `${r.tally.overdue} overdue` : "Nothing overdue"}
                 >
                   {r.tally.done}/6
@@ -403,7 +403,7 @@ export function PlacementsList({ rows }: { rows: PlacementListRow[] }) {
             key: "fee", label: "Fee (TZS)", width: "116px", align: "right", hideBelow: "md",
             render: (r) => {
               const fee = feeFor(r.monthlyGrossUsd);
-              return <span className="tabular text-[12px]">{fee ? tzs(fee.netTZS) : "—"}</span>;
+              return <span className="tabular text-sm">{fee ? tzs(fee.netTZS) : "—"}</span>;
             },
             csv: (r) => feeFor(r.monthlyGrossUsd)?.netTZS ?? "",
           },

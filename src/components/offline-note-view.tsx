@@ -83,7 +83,7 @@ export function OfflineNoteView({
     await onChanged();
   }
 
-  const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium transition-colors";
+  const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors";
   const held = cn(act, "cursor-not-allowed text-fg-subtle");
 
   return (
@@ -97,7 +97,7 @@ export function OfflineNoteView({
             <ArrowLeft size={13} /> All notes
           </button>
           <span className="mx-1 h-4 w-px bg-border" />
-          <span className="px-1 text-[11.5px] text-fg-subtle">{note.folderName ?? "No folder"}</span>
+          <span className="px-1 text-xs text-fg-subtle">{note.folderName ?? "No folder"}</span>
           <span className={held} title="Needs a connection">
             <Pin size={13} /> Pin
           </span>
@@ -108,7 +108,7 @@ export function OfflineNoteView({
             <LayoutTemplate size={13} /> Make a template
           </span>
           <span className="grow" />
-          <span className="px-1 text-[11.5px] text-fg-subtle">
+          <span className="px-1 text-xs text-fg-subtle">
             Updated {new Date(note.updatedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
@@ -120,7 +120,7 @@ export function OfflineNoteView({
           {/* Where the toolbar sits on the real page. Offline it carries the one
               thing worth saying and the two things you can still do. */}
           <div className="slim-scroll flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-bg-subtle/80 px-2 py-1.5">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-warn/10 px-2 py-0.5 text-[11.5px] font-medium text-warn">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-warn/10 px-2 py-0.5 text-xs font-medium text-warn">
               <CloudOff size={12} /> {online ? "Offline copy" : "No connection"}
             </span>
             {mode === "read" ? (
@@ -159,13 +159,13 @@ export function OfflineNoteView({
                 <button type="button" onClick={() => setMode("read")} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}>
                   Cancel
                 </button>
-                <span className="text-[11.5px] text-fg-subtle">
+                <span className="text-xs text-fg-subtle">
                   {mode === "append" ? "Goes on the end. Nothing above it is touched." : "Replaces the whole note."}
                 </span>
               </>
             )}
             <span className="grow" />
-            {said && <span className="px-1 text-[11.5px] text-success">{said}</span>}
+            {said && <span className="px-1 text-xs text-success">{said}</span>}
           </div>
 
           {/* The paper. Same padding, same 68-character measure. */}
@@ -188,7 +188,7 @@ export function OfflineNoteView({
                   {pending.filter((e) => e.mode === "append").map((e) => (
                     <div key={e.editKey} className="group relative mt-3 border-l-2 border-warn/50 pl-3">
                       <div className="whitespace-pre-wrap text-sm leading-relaxed text-fg">{e.text}</div>
-                      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-warn">
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-warn">
                         <CloudOff size={11} /> not in COS yet
                         <button
                           type="button"
@@ -215,7 +215,7 @@ export function OfflineNoteView({
               )}
 
               {pending.some((e) => e.mode === "replace") && (
-                <p className="mt-4 rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-[12px] text-warn">
+                <p className="mt-4 rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-warn">
                   A rewrite of this note is waiting to be sent. What you see above is the copy on this device.
                 </p>
               )}
@@ -267,10 +267,10 @@ function NotePaperInput({
 function RailCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-bg-elev">
-      <div className="border-b border-border px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+      <div className="border-b border-border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
         {title}
       </div>
-      <p className="px-3 py-2.5 text-[12px] leading-relaxed text-fg-subtle">{children}</p>
+      <p className="px-3 py-2.5 text-sm leading-relaxed text-fg-subtle">{children}</p>
     </div>
   );
 }

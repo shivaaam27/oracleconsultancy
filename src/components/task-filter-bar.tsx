@@ -187,7 +187,7 @@ function OptionList({
             )}
           >
             <span className="min-w-0 flex-1 truncate">{o.label}</span>
-            {o.count != null && <span className="shrink-0 text-[11px] tabular text-fg-subtle">{o.count}</span>}
+            {o.count != null && <span className="shrink-0 text-xs tabular text-fg-subtle">{o.count}</span>}
             {o.active && <Check size={14} className="shrink-0 text-accent" />}
           </button>
         ))}
@@ -243,8 +243,8 @@ function FilterSheet({
                 className="flex w-full items-center gap-2.5 py-3 text-left"
               >
                 <span className={cn("shrink-0", g.active > 0 ? "text-accent" : "text-fg-subtle")}>{g.icon}</span>
-                <span className="shrink-0 text-[13px] font-medium text-fg">{g.label}</span>
-                <span className={cn("ml-auto min-w-0 truncate text-[12px]", g.active > 0 ? "font-medium text-accent" : "text-fg-muted")}>
+                <span className="shrink-0 text-base font-medium text-fg">{g.label}</span>
+                <span className={cn("ml-auto min-w-0 truncate text-sm", g.active > 0 ? "font-medium text-accent" : "text-fg-muted")}>
                   {g.value}
                 </span>
                 <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", isOpen && "rotate-180")} />
@@ -423,7 +423,7 @@ export function TaskFilterBar({
               </button>
             )}
             {text.trim() !== q && (
-              <button type="button" onClick={submitSearch} className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-fg">
+              <button type="button" onClick={submitSearch} className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-fg">
                 Search
               </button>
             )}
@@ -549,13 +549,13 @@ export function TaskFilterBar({
             {strip.kind === "company" ? (
               <CompanyAvatar name={strip.title} accent={strip.accent} logoUrl={strip.logoUrl ?? null} size={30} rounded="rounded-lg" iconSize={14} />
             ) : (
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent ring-1 ring-accent/25">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent ring-1 ring-accent/25">
                 {getInitials(strip.title)}
               </span>
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-fg">{strip.title}</p>
-              <p className="truncate text-[11px] text-fg-muted">{strip.sub}</p>
+              <p className="truncate text-xs text-fg-muted">{strip.sub}</p>
             </div>
             {strip.segments && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
@@ -565,7 +565,7 @@ export function TaskFilterBar({
                     href={s.href}
                     scroll={false}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                       s.active ? "bg-bg-elev text-accent shadow-sm ring-1 ring-border" : "text-fg-muted hover:text-fg",
                     )}
                   >
@@ -579,7 +579,7 @@ export function TaskFilterBar({
                 type="button"
                 onClick={remindAll}
                 disabled={reminding}
-                className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft/60 px-3 py-1.5 text-[11px] font-semibold text-warn ring-1 ring-warn/25 transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft/60 px-3 py-1.5 text-xs font-semibold text-warn ring-1 ring-warn/25 transition-all hover:-translate-y-0.5 disabled:opacity-50"
               >
                 <BellRing size={12} /> Remind all {strip.lateCount} late
               </button>

@@ -69,14 +69,14 @@ export function DeletePersonDialog({ personId, personName }: { personId: number;
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-subtle transition-colors hover:text-danger"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-subtle transition-colors hover:text-danger"
       >
         <Trash2 size={12} /> Delete permanently
       </button>
 
       <HrmsDialog open={open} onOpenChange={setOpen} width={520} title={`Delete ${personName}?`}>
         <div className="space-y-3.5">
-          <p className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft/40 px-3 py-2.5 text-[13px] text-danger">
+          <p className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft/40 px-3 py-2.5 text-base text-danger">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
             <span>
               <b className="font-semibold">This cannot be undone.</b> If you only want them out of the way,
@@ -85,26 +85,26 @@ export function DeletePersonDialog({ personId, personName }: { personId: number;
           </p>
 
           {!impact ? (
-            <p className="text-[13px] text-fg-muted">Checking what they&apos;re attached to…</p>
+            <p className="text-base text-fg-muted">Checking what they&apos;re attached to…</p>
           ) : (
             <>
               {survives.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Kept, but detached</p>
-                  <ul className="mt-1 space-y-0.5 text-[13px] text-fg-muted">
+                  <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Kept, but detached</p>
+                  <ul className="mt-1 space-y-0.5 text-base text-fg-muted">
                     {survives.map((s) => <li key={String(s)}>· {s}</li>)}
                   </ul>
                 </div>
               )}
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Destroyed</p>
-                <ul className="mt-1 space-y-0.5 text-[13px] text-fg-muted">
+                <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Destroyed</p>
+                <ul className="mt-1 space-y-0.5 text-base text-fg-muted">
                   {destroyed.map((s) => <li key={String(s)}>· {s}</li>)}
                 </ul>
               </div>
 
               <div>
-                <label className="text-[13px] text-fg">
+                <label className="text-base text-fg">
                   Type <b className="font-semibold">{personName}</b> to confirm
                 </label>
                 <input

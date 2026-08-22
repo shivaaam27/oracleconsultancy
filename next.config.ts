@@ -78,7 +78,11 @@ const csp = [
   // PDF preview (signed Supabase URL) and the srcdoc email preview.
   `frame-src 'self' blob: data:${supabaseOrigin ? " " + supabaseOrigin : ""}`,
   `connect-src ${connectSrc.join(" ")}`,
-  "upgrade-insecure-requests",
+  // ⚠️ `upgrade-insecure-requests` IS ONLY ADDED WHEN THE POLICY IS ENFORCED.
+  // The browser ignores it in a report-only policy AND logs an error saying so
+  // — on every page load, in every console, which is noise that hides the
+  // violations this report-only policy exists to collect.
+  ...(process.env.CSP_ENFORCE === "1" ? ["upgrade-insecure-requests"] : []),
   "report-uri /api/csp-report",
 ].join("; ");
 

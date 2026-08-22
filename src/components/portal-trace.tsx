@@ -114,7 +114,7 @@ export function PortalTrace(): React.JSX.Element | null {
       title={
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate">{heading}</span>
-          <span className="shrink-0 rounded-full bg-bg-subtle/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">
+          <span className="shrink-0 rounded-full bg-bg-subtle/70 px-2 py-0.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
             History
           </span>
         </span>
@@ -153,7 +153,7 @@ export function PortalTrace(): React.JSX.Element | null {
         <div className="space-y-5 py-1">
           {groups.map((g) => (
             <div key={g.day}>
-              <h3 className="-mx-1 mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              <h3 className="-mx-1 mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
                 {g.day}
               </h3>
               <ol className="relative space-y-3 pl-4">
@@ -182,8 +182,8 @@ export function PortalTrace(): React.JSX.Element | null {
                         <Badge tone={kindTone(ev.kind)} className="shrink-0">
                           {ev.kind}
                         </Badge>
-                        <span className="text-[11px] tabular-nums text-fg-subtle">{timeOf(ev.at)}</span>
-                        {ev.by && <span className="ml-auto truncate text-[11px] text-fg-muted">by {ev.by}</span>}
+                        <span className="text-xs tabular-nums text-fg-subtle">{timeOf(ev.at)}</span>
+                        {ev.by && <span className="ml-auto truncate text-xs text-fg-muted">by {ev.by}</span>}
                       </div>
                       <p className="text-sm leading-snug text-fg">{ev.title}</p>
                       {ev.detail && <p className="text-xs leading-snug text-fg-muted">{ev.detail}</p>}

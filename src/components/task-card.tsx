@@ -79,7 +79,7 @@ export function TaskCard({
           <SelectCheckbox code={row.code} />
         </span>
         {row.unread && <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-fg-muted pl-1.5 pr-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
+        <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-fg-muted pl-1.5 pr-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
           <span className={`h-1.5 w-1.5 rounded-full ${flagDot(row.flag)}`} />
           {row.code}
         </span>
@@ -99,7 +99,7 @@ export function TaskCard({
 
       {/* Description — the standing context (main message), shown directly. */}
       {row.comments && row.comments.trim() && (
-        <p className="text-[13px] text-fg-muted leading-snug mt-1 line-clamp-2">{row.comments}</p>
+        <p className="text-base text-fg-muted leading-snug mt-1 line-clamp-2">{row.comments}</p>
       )}
 
       {/* Meta: status (editable glass) + priority dot — status as a control, not
@@ -110,8 +110,8 @@ export function TaskCard({
           a list of forty. They fit here, in the space the status row was
           wasting, and the card loses a whole empty row. */}
       <div className="flex items-center gap-2 mt-2.5">
-        <TaskInlineStatus task={row} buttonClassName="text-[11px]" />
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-fg-muted">
+        <TaskInlineStatus task={row} buttonClassName="text-xs" />
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-fg-muted">
           <span className={`h-2 w-2 rounded-full ${priorityDot(row.priority)}`} />
           {row.priority}
         </span>
@@ -121,7 +121,7 @@ export function TaskCard({
               <AssigneeAvatars names={row.assignees} ids={row.assigneeIds} max={3} size={24} />
             </span>
           ) : (
-            <span className="text-[11px] italic text-fg-subtle">No owner</span>
+            <span className="text-xs italic text-fg-subtle">No owner</span>
           )}
           <TaskRowActions task={row} compact onDone={() => router.refresh()} />
         </span>

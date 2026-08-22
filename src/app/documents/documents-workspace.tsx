@@ -107,7 +107,7 @@ export function DocumentsWorkspace({
         />
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.14em] text-fg-muted">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-fg-muted">
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_8px_hsl(var(--success))]" />
               Documents · live
             </div>

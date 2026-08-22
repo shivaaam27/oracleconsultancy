@@ -30,7 +30,7 @@ export function TaskContext({
       )}
       {hasUpd && (
         <div className="rounded-lg bg-bg-muted/50 px-2.5 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-0.5">Latest update</div>
+          <div className="text-xs uppercase tracking-wider text-fg-subtle mb-0.5">Latest update</div>
           <p className="text-sm leading-relaxed">
             <CodeLinkedText text={latestUpdate!} />
           </p>

@@ -114,7 +114,7 @@ export function SmartCaptureBar({
         <>
           <button type="button" aria-label="Cancel" onClick={() => setChoosing(false)} className="fixed inset-0 z-40 cursor-default" />
           <div className="absolute inset-x-2.5 top-full z-50 mt-2 rounded-2xl bg-bg-elev p-2 ring-1 ring-border shadow-lg">
-            <p className="px-1.5 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">What is this about?</p>
+            <p className="px-1.5 pb-1.5 pt-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">What is this about?</p>
             <div className="grid gap-1.5 sm:grid-cols-3">
               {allowed.map((c) => {
                 const Icon = c.icon;
@@ -129,8 +129,8 @@ export function SmartCaptureBar({
                   >
                     <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${hot ? "bg-accent text-accent-fg" : "bg-bg-elev text-accent ring-1 ring-border"}`}><Icon size={15} /></span>
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-medium leading-tight">{c.label}</span>
-                      <span className="block truncate text-[11px] text-fg-subtle">{hot ? "Looks like this" : c.hint}</span>
+                      <span className="block text-base font-medium leading-tight">{c.label}</span>
+                      <span className="block truncate text-xs text-fg-subtle">{hot ? "Looks like this" : c.hint}</span>
                     </span>
                   </button>
                 );

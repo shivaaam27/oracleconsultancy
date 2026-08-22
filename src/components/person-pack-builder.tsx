@@ -42,7 +42,7 @@ export function PersonPackPanel({
       )}
 
       <div>
-        <div className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">What is this pack for?</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-fg-muted">What is this pack for?</div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {PERSON_PACK_PURPOSES.map((p) => (
             <button

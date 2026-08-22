@@ -53,7 +53,7 @@ export default async function CocozuriStatementsPage() {
       <PageHeader title="Statements" sub={`${customers.length} customers · ${company.name}`} />
 
       {customers.length === 0 ? (
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-[12.5px] text-fg-subtle">
+        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
           No customers yet.
         </p>
       ) : (
@@ -69,13 +69,13 @@ export default async function CocozuriStatementsPage() {
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <FileSpreadsheet size={13} className="shrink-0 text-fg-subtle" />
-                    <span className="truncate text-[13px] text-fg">{c.name}</span>
+                    <span className="truncate text-base text-fg">{c.name}</span>
                   </span>
-                  <span className="text-[11.5px] text-fg-subtle">
+                  <span className="text-xs text-fg-subtle">
                     {a?.openInvoices ? `${a.openInvoices} unpaid` : "nothing outstanding"}
                     {a && a.oldestDays > 0 && <span className="text-warn"> · {a.oldestDays}d</span>}
                   </span>
-                  <span className={owes ? "tabular text-[12.5px] font-medium text-fg" : "tabular text-[12.5px] text-fg-subtle"}>
+                  <span className={owes ? "tabular text-sm font-medium text-fg" : "tabular text-sm text-fg-subtle"}>
                     {money(a?.balance ?? 0, c.currency)}
                   </span>
                 </Link>

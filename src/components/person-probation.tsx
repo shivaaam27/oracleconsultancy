@@ -41,7 +41,7 @@ export function PersonProbation({
 
   return (
     <div>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5 inline-flex items-center gap-1.5">
+      <div className="text-xs font-medium uppercase tracking-wider text-fg-subtle mb-1.5 inline-flex items-center gap-1.5">
         <ShieldCheck size={12} /> Probation
       </div>
       <p className="text-xs text-fg-muted mb-2">

@@ -128,11 +128,11 @@ export function PersonCard({
           <StaffIdChip id={p.staffId} className="shrink-0" />
           {p.portalEnabled ? (
             <span title={`Portal access · ${portalRoleBadge(role, p.portalDesignation)}`}
-              className={cn("inline-flex items-center gap-1 rounded-full pl-1.5 pr-2 py-px text-[10px] font-medium shrink-0", PORTAL_ROLE_PILL[role] ?? PORTAL_ROLE_PILL.staff)}>
+              className={cn("inline-flex items-center gap-1 rounded-full pl-1.5 pr-2 py-px text-xs font-medium shrink-0", PORTAL_ROLE_PILL[role] ?? PORTAL_ROLE_PILL.staff)}>
               <ShieldCheck size={11} /> {portalRoleBadge(role, p.portalDesignation)}
             </span>
           ) : (
-            <span title="No portal access" className="inline-flex items-center rounded-full px-2 py-px text-[10px] font-medium text-fg-subtle border border-dashed border-border shrink-0">
+            <span title="No portal access" className="inline-flex items-center rounded-full px-2 py-px text-xs font-medium text-fg-subtle border border-dashed border-border shrink-0">
               No portal
             </span>
           )}
@@ -145,15 +145,15 @@ export function PersonCard({
         </div>
 
         {onLeave ? (
-          <div className="flex items-center gap-1 text-[11px] text-warn mt-0.5"><Plane size={11} /> On leave today</div>
+          <div className="flex items-center gap-1 text-xs text-warn mt-0.5"><Plane size={11} /> On leave today</div>
         ) : (p.managerName || directReports > 0 || p.secondaryManagers.length > 0) ? (
-          <div className="flex items-center gap-2.5 text-[11px] text-fg-subtle truncate mt-0.5">
+          <div className="flex items-center gap-2.5 text-xs text-fg-subtle truncate mt-0.5">
             {p.managerName && <span className="inline-flex items-center gap-0.5 truncate"><ArrowUpRight size={11} /> {p.managerName}</span>}
             {p.secondaryManagers.length > 0 && <span className="text-info/80 shrink-0">+{p.secondaryManagers.length}</span>}
             {directReports > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Users size={11} /> {directReports}</span>}
           </div>
         ) : displayNote(p.notes) ? (
-          <div className="text-[11px] text-fg-subtle truncate mt-0.5">{displayNote(p.notes)}</div>
+          <div className="text-xs text-fg-subtle truncate mt-0.5">{displayNote(p.notes)}</div>
         ) : null}
       </div>
 
@@ -167,13 +167,13 @@ export function PersonCard({
       </div>
 
       {hint && hint.absent > 0 && !onLeave && (
-        <span title={`${hint.absent} absence(s) recorded this month`} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium tabular shrink-0 ring-1 bg-danger-soft/60 ring-danger/25 text-danger">
+        <span title={`${hint.absent} absence(s) recorded this month`} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular shrink-0 ring-1 bg-danger-soft/60 ring-danger/25 text-danger">
           {hint.absent} abs
         </span>
       )}
 
 
-      <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium tabular shrink-0", workloadTint)}>
+      <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium tabular shrink-0", workloadTint)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
       </span>
     </EntityCard>

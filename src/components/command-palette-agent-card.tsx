@@ -81,14 +81,14 @@ function EntityPicker({ kind, onPick }: { kind: PickerKind; onPick: (value: stri
                 className={cn("block w-full px-3 py-1.5 text-left transition-colors", i === highlight ? "bg-accent-soft" : "hover:bg-bg-muted/60")}
               >
                 <span className="block truncate text-sm text-fg">{it.label}</span>
-                {it.sublabel && <span className="block truncate text-[11px] text-fg-subtle">{it.sublabel}</span>}
+                {it.sublabel && <span className="block truncate text-xs text-fg-subtle">{it.sublabel}</span>}
               </button>
             </li>
           ))}
         </ul>
       )}
       {!loading && items.length === 0 && q && (
-        <div className="border-t border-border/60 px-3 py-2 text-[12px] text-fg-subtle">No matches — or type it below.</div>
+        <div className="border-t border-border/60 px-3 py-2 text-sm text-fg-subtle">No matches — or type it below.</div>
       )}
     </div>
   );
@@ -214,8 +214,8 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
             <div className="rounded-xl border border-border bg-bg-elev/60 divide-y divide-border/60">
               {phase.plan.map((s, i) => (
                 <div key={i} className="flex items-start gap-2 px-3 py-2">
-                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-[10px] font-semibold text-accent">{i + 1}</span>
-                  <span className="text-[13px] text-fg">{s.summary}</span>
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/10 text-xs font-semibold text-accent">{i + 1}</span>
+                  <span className="text-base text-fg">{s.summary}</span>
                 </div>
               ))}
             </div>
@@ -240,7 +240,7 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("cos:ori-ask-instead", { detail: { text: command } }))}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-accent transition-colors"
             >
               <Sparkles size={11} /> Ask ORI instead
             </button>
@@ -251,25 +251,25 @@ export function AgentCard({ command, onNavigate }: { command: string; onNavigate
           <div className="space-y-1.5">
             <div className="font-medium text-fg">{phase.reply}</div>
             {phase.results.map((r, i) => (
-              <div key={i} className="flex items-start gap-2 text-[13px]">
+              <div key={i} className="flex items-start gap-2 text-base">
                 {r.ok ? <Check size={14} className="mt-0.5 shrink-0 text-success" /> : <XIcon size={14} className="mt-0.5 shrink-0 text-danger" />}
                 <span className={cn("flex-1", r.ok ? "text-fg" : "text-danger")}>
                   {undone[i] === "done" ? <span className="text-fg-muted line-through">{r.message}</span> : r.message}
                 </span>
                 {r.ok && r.redirect && undone[i] !== "done" && (
-                  <button type="button" onClick={() => onNavigate(r.redirect!)} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline">
+                  <button type="button" onClick={() => onNavigate(r.redirect!)} className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
                     <ExternalLink size={11} /> Open
                   </button>
                 )}
                 {r.ok && r.undoToken && (
                   undone[i] === "done" ? (
-                    <span className="shrink-0 text-[11px] text-fg-subtle">Undone</span>
+                    <span className="shrink-0 text-xs text-fg-subtle">Undone</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => undoStep(i, r.undoToken!)}
                       disabled={undone[i] === "pending"}
-                      className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent disabled:opacity-50 transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-accent disabled:opacity-50 transition-colors"
                     >
                       <RotateCw size={11} className={undone[i] === "pending" ? "animate-spin" : ""} />
                       {undone[i] === "error" ? "Retry undo" : "Undo"}

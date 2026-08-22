@@ -136,7 +136,7 @@ export function RecruitmentCandidatesList({
           value={f.q}
           onChange={(e) => set({ q: e.target.value })}
           placeholder="Search candidates, roles, sectors…"
-          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 min-w-[200px] flex-1 rounded-md border border-border bg-bg-elev px-2.5 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         <button
           type="button"
@@ -185,8 +185,8 @@ export function RecruitmentCandidatesList({
         empty={
           <div className="py-6 text-center">
             <Users size={20} className="mx-auto mb-2 text-fg-subtle" />
-            <p className="text-[13px] font-medium">Nobody in the pool yet</p>
-            <p className="mt-1 text-[12px] text-fg-subtle">
+            <p className="text-base font-medium">Nobody in the pool yet</p>
+            <p className="mt-1 text-sm text-fg-subtle">
               Add a candidate once their registration and consent are signed.
             </p>
           </div>
@@ -197,17 +197,17 @@ export function RecruitmentCandidatesList({
           overrides: {
             name: (c) => (
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium">{c.name}</span>
-                <span className="block truncate text-[11px] text-fg-muted">
+                <span className="block truncate text-base font-medium">{c.name}</span>
+                <span className="block truncate text-xs text-fg-muted">
                   {[c.title, c.sector].filter(Boolean).join(" · ") || "—"}
                 </span>
               </span>
             ),
             seniorityLabel: (c) => (
-              <span className="text-[12px]">{c.seniority ? seniorityLabel(c.seniority) : "—"}</span>
+              <span className="text-sm">{c.seniority ? seniorityLabel(c.seniority) : "—"}</span>
             ),
             expectedSalaryUsd: (c) => (
-              <span className="tabular text-[12px]">
+              <span className="tabular text-sm">
                 {c.expectedSalaryUsd ? usd(Number(c.expectedSalaryUsd)).replace("USD ", "") : "—"}
               </span>
             ),
@@ -219,7 +219,7 @@ export function RecruitmentCandidatesList({
               const text = st === "none" ? "—" : st === "expired" ? "Expired" : st === "tooSoon" ? "Under 6 mths" : "OK";
               return (
                 <span
-                  className={cn("inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-medium", TONE_CHIP[tone])}
+                  className={cn("inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs font-medium", TONE_CHIP[tone])}
                   title={c.passportExpiry ? `Expires ${String(c.passportExpiry).slice(0, 10)}` : "No passport recorded"}
                 >
                   {(st === "expired" || st === "tooSoon") && <AlertTriangle size={10} />}

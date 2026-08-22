@@ -246,13 +246,13 @@ export default async function CompanyPage({
                   <li key={doc.id} className="flex items-center gap-3 py-2">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{doc.title}</span>
-                      <span className="block truncate text-[11px] text-fg-subtle">
+                      <span className="block truncate text-xs text-fg-subtle">
                         {doc.category ?? "Uncategorised"}
                         {expiryLabel(doc) ? ` · ${expiryLabel(doc)}` : ""}
                       </span>
                     </span>
                     <span
-                      className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                      className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         status === "Expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
                       }`}
                     >
@@ -269,7 +269,7 @@ export default async function CompanyPage({
             <div className="flex items-center justify-between pt-1">
               <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
                 Open tasks
-                <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
                   {openRows.length}
                 </span>
               </h2>
@@ -288,10 +288,10 @@ export default async function CompanyPage({
                 {openRows.slice(0, 5).map((r) => (
                   <li key={r.code}>
                     <Link href={`/task/${r.code}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/50 transition-colors">
-                      <span className="text-[11px] font-semibold tabular text-fg-subtle shrink-0">{r.code}</span>
+                      <span className="text-xs font-semibold tabular text-fg-subtle shrink-0">{r.code}</span>
                       <span className="min-w-0 flex-1 truncate text-sm">{r.actionItem}</span>
                       {r.deadline && (
-                        <span className="shrink-0 text-[11px] text-fg-subtle tabular">
+                        <span className="shrink-0 text-xs text-fg-subtle tabular">
                           {r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                         </span>
                       )}
@@ -311,15 +311,15 @@ export default async function CompanyPage({
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                     <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
                       <Package size={14} className="text-accent" /> Equipment
-                      <span className="text-[11px] font-normal text-fg-subtle tabular">{overviewExtras.assets.length}</span>
+                      <span className="text-xs font-normal text-fg-subtle tabular">{overviewExtras.assets.length}</span>
                     </h2>
-                    <Link href="/hrms/assets" className="text-[11px] text-fg-muted hover:text-accent transition-colors">All</Link>
+                    <Link href="/hrms/assets" className="text-xs text-fg-muted hover:text-accent transition-colors">All</Link>
                   </div>
                   <ul className="divide-y divide-border/50">
                     {overviewExtras.assets.slice(0, 5).map((a) => (
                       <li key={a.id} className="px-4 py-2">
                         <span className="block truncate text-sm font-medium">{a.name}</span>
-                        <span className="block truncate text-[11px] text-fg-subtle">
+                        <span className="block truncate text-xs text-fg-subtle">
                           {[a.custodianName ?? a.assignedToName, a.location, a.tag].filter(Boolean).join(" · ") || "Unassigned"}
                         </span>
                       </li>
@@ -332,21 +332,21 @@ export default async function CompanyPage({
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                     <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
                       <Truck size={14} className="text-accent" /> Suppliers
-                      <span className="text-[11px] font-normal text-fg-subtle tabular">{overviewExtras.vendors.length}</span>
+                      <span className="text-xs font-normal text-fg-subtle tabular">{overviewExtras.vendors.length}</span>
                     </h2>
-                    <Link href="/hrms/assets?tab=vendors" className="text-[11px] text-fg-muted hover:text-accent transition-colors">All</Link>
+                    <Link href="/hrms/assets?tab=vendors" className="text-xs text-fg-muted hover:text-accent transition-colors">All</Link>
                   </div>
                   <ul className="divide-y divide-border/50">
                     {overviewExtras.vendors.slice(0, 5).map((v) => (
                       <li key={v.id} className="flex items-center gap-2 px-4 py-2">
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{v.name}</span>
-                          <span className="block truncate text-[11px] text-fg-subtle">
+                          <span className="block truncate text-xs text-fg-subtle">
                             {[v.category, v.docCount ? `${v.docCount} doc${v.docCount === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ") || "Supplier"}
                           </span>
                         </span>
                         {(v.expiredCount > 0 || v.expiringCount > 0) && (
-                          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${v.expiredCount > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>
+                          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v.expiredCount > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>
                             {v.expiredCount > 0 ? "Expired" : "Expiring"}
                           </span>
                         )}
@@ -422,7 +422,7 @@ export default async function CompanyPage({
           <div className="flex items-center justify-between pt-1">
             <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
               Open tasks
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
                 {openRows.length}
               </span>
             </h2>
@@ -528,7 +528,7 @@ function StatTile({
       href={href}
       className="glass elevated rounded-2xl p-3 flex flex-col gap-1.5 transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
         <Icon size={12} className={TONE_CLS[tone]} /> {label}
       </span>
       <span className={`text-xl font-semibold tabular ${TONE_CLS[tone]}`}>{value}</span>

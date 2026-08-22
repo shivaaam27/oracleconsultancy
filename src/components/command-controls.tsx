@@ -72,7 +72,7 @@ function Lever({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium leading-tight">{label}</span>
-        <span className={cn("mt-0.5 block truncate text-[11px] font-medium", on ? "text-success" : "text-warn")}>
+        <span className={cn("mt-0.5 block truncate text-xs font-medium", on ? "text-success" : "text-warn")}>
           {on ? onText : offText}
         </span>
       </span>
@@ -126,7 +126,7 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
         <>
           Controls
           {anyHeld && (
-            <span className="ml-1.5 inline-flex items-center rounded-full bg-warn-soft/60 px-1.5 py-0.5 text-[10px] font-semibold text-warn ring-1 ring-warn/20">
+            <span className="ml-1.5 inline-flex items-center rounded-full bg-warn-soft/60 px-1.5 py-0.5 text-xs font-semibold text-warn ring-1 ring-warn/20">
               held
             </span>
           )}
@@ -135,7 +135,7 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
       action={
         <Link
           href="/settings#email-automation"
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent"
+          className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted transition-colors hover:text-accent"
         >
           Manage <ArrowUpRight size={12} />
         </Link>
@@ -198,7 +198,7 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium leading-tight">Email</span>
-            <span className={cn("mt-0.5 block truncate text-[11px] font-medium", state.emailConnected ? "text-fg-muted" : "text-warn")}>
+            <span className={cn("mt-0.5 block truncate text-xs font-medium", state.emailConnected ? "text-fg-muted" : "text-warn")}>
               {state.emailConnected ? (state.emailTestMode ? "Connected · test mode" : "Connected") : "Not set up — tap to wire"}
             </span>
           </span>

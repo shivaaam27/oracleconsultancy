@@ -15,6 +15,7 @@ import { getProject } from "@/lib/projects";
 import { ProjectRecord } from "@/components/project-record";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Project" };
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

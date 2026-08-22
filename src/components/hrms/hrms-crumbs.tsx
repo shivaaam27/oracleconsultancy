@@ -19,7 +19,7 @@ export function HrmsCrumbs({ from }: { from?: string | string[] }) {
   const crumb = "inline-flex items-center gap-0.5 text-accent hover:underline";
 
   return (
-    <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] mb-1">
+    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] mb-1">
       <Link href="/" className={crumb}>
         <ChevronLeft size={12} /> Home
       </Link>

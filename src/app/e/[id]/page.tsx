@@ -110,7 +110,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ id
           <ShareActions googleUrl={googleUrl} icsPath={icsPath} meetLink={ev.meetLink} />
         </div>
 
-        <p className="text-[11px] text-fg-subtle text-center pt-1">Times shown in Dar es Salaam (UTC+3).</p>
+        <p className="text-xs text-fg-subtle text-center pt-1">Times shown in Dar es Salaam (UTC+3).</p>
       </div>
     </main>
   );

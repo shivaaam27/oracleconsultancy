@@ -73,12 +73,12 @@ export function OpsLists({
     <div className="space-y-3">
       {/* ⚠️ No company picker here — it moved into the tabs, where it covers
           both screens. Two pickers on one page is two places to disagree. */}
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         Each company keeps its own lists. Orders raised under it pick from these.
       </p>
 
       {(note || error) && (
-        <p role="alert" className={cn("rounded-md px-2.5 py-1.5 text-[12px]",
+        <p role="alert" className={cn("rounded-md px-2.5 py-1.5 text-sm",
           error ? "bg-danger-soft text-danger" : "bg-bg-subtle text-fg-muted")}>
           {error ?? note}
         </p>
@@ -91,17 +91,17 @@ export function OpsLists({
             const n = (byKind.get(k.kind) ?? []).filter((r) => r.active).length;
             return (
               <button key={k.kind} type="button" onClick={() => setKind(k.kind)}
-                className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors",
+                className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors",
                   kind === k.kind ? "bg-bg-elev font-medium text-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
                 {k.plural}
-                <span className={cn("tabular text-[10px]", n ? "text-fg-subtle" : "text-fg-subtle/50")}>{n}</span>
+                <span className={cn("tabular text-xs", n ? "text-fg-subtle" : "text-fg-subtle/50")}>{n}</span>
               </button>
             );
           })}
         </div>
 
         <div className="px-3 py-2.5">
-          <p className="mb-2 text-[11px] text-fg-subtle">{meta.blurb}</p>
+          <p className="mb-2 text-xs text-fg-subtle">{meta.blurb}</p>
 
           <AddRow
             placeholder={meta.placeholder}
@@ -111,7 +111,7 @@ export function OpsLists({
           />
 
           {items.length === 0 ? (
-            <p className="py-4 text-center text-[12px] text-fg-subtle">
+            <p className="py-4 text-center text-sm text-fg-subtle">
               No {meta.plural.toLowerCase()} yet.
             </p>
           ) : (
@@ -126,25 +126,25 @@ export function OpsLists({
 
       {/* ── everything else, folded away behind one quiet line ── */}
       <button type="button" onClick={() => setShowMore((v) => !v)}
-        className="inline-flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg">
+        className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg">
         <ChevronDown size={13} className={cn("transition-transform", showMore && "rotate-180")} />
         {showMore ? "Hide" : "More"} — exchange rate, standard lists, copy from another company
       </button>
 
       {showMore && (
-        <div className="space-y-3 text-[12px]">
+        <div className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-fg-muted">Exchange rate offered on a new line</span>
             <input
               value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal"
               placeholder="2,500"
-              className="tabular h-8 w-28 rounded-md border border-border bg-bg px-2 text-right text-[13px] outline-none focus:border-accent"
+              className="tabular h-8 w-28 rounded-md border border-border bg-bg px-2 text-right text-base outline-none focus:border-accent"
             />
             <button type="button" disabled={pending} onClick={() => run(() => setOpsExRateAction(rate))}
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs disabled:opacity-40">
               <Check size={13} /> Save
             </button>
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               A starting figure. Every line keeps its own, frozen when entered and editable after.
             </span>
           </div>
@@ -156,7 +156,7 @@ export function OpsLists({
               {pending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
               Add the standard statuses, modes and ageing bands
             </button>
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               Those three only — clients, suppliers, agents and origins are yours to type.
             </span>
           </div>
@@ -173,7 +173,7 @@ export function OpsLists({
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs disabled:opacity-40">
                 <Copy size={13} /> Copy
               </button>
-              <span className="text-[11px] text-fg-subtle">Adds what is missing. Nothing is overwritten.</span>
+              <span className="text-xs text-fg-subtle">Adds what is missing. Nothing is overwritten.</span>
             </div>
           )}
         </div>
@@ -212,15 +212,15 @@ function AddRow({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
           placeholder={placeholder}
-          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
         <button type="button" onClick={submit} disabled={pending || !name.trim()}
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-xs font-medium text-accent-fg disabled:opacity-40">
           {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
         </button>
       </div>
-      {err && <p className="mt-1 text-[11px] text-danger">{err}</p>}
-      <p className="mt-1 text-[10px] text-fg-subtle">
+      {err && <p className="mt-1 text-xs text-danger">{err}</p>}
+      <p className="mt-1 text-xs text-fg-subtle">
         You can also add a {noun} straight from the dropdown while entering an order — you do
         not have to come here.
       </p>
@@ -249,7 +249,7 @@ function RefRow({
             if (e.key === "Enter") { onRun(() => renameOpsRefAction(item.id, draft)); setEditing(false); }
             if (e.key === "Escape") { setEditing(false); setDraft(item.name); }
           }}
-          className="h-7 min-w-0 flex-1 rounded-md border border-accent bg-bg px-2 text-[13px] outline-none" />
+          className="h-7 min-w-0 flex-1 rounded-md border border-accent bg-bg px-2 text-base outline-none" />
         <button type="button" onClick={() => { onRun(() => renameOpsRefAction(item.id, draft)); setEditing(false); }}
           className="rounded bg-accent p-1 text-accent-fg"><Check size={12} /></button>
         <button type="button" onClick={() => { setEditing(false); setDraft(item.name); }}
@@ -261,14 +261,14 @@ function RefRow({
   if (merging) {
     const others = siblings.filter((s) => s.id !== item.id);
     return (
-      <li className="flex flex-wrap items-center gap-1.5 py-1 text-[12px]">
+      <li className="flex flex-wrap items-center gap-1.5 py-1 text-sm">
         <span className="text-fg-muted">Move everything on <strong>{item.name}</strong> to</span>
         <FluidSelect value={into} placeholder="choose…" buttonClassName="h-7"
           options={others.map((o) => ({ value: String(o.id), label: o.name }))}
           onSelect={setInto} />
         <button type="button" disabled={!into}
           onClick={() => { onRun(() => mergeOpsRefsAction(item.id, Number(into))); setMerging(false); }}
-          className="rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-accent-fg disabled:opacity-40">
+          className="rounded-md bg-accent px-2 py-1 text-xs font-medium text-accent-fg disabled:opacity-40">
           Merge
         </button>
         <button type="button" onClick={() => setMerging(false)} className="p-1 text-fg-subtle hover:text-fg">
@@ -280,10 +280,10 @@ function RefRow({
 
   return (
     <li className="group flex items-center gap-2 py-1">
-      <span className={cn("min-w-0 flex-1 truncate text-[13px]", !item.active && "text-fg-subtle line-through")}>
+      <span className={cn("min-w-0 flex-1 truncate text-base", !item.active && "text-fg-subtle line-through")}>
         {item.name}
       </span>
-      {!item.active && <span className="shrink-0 text-[10px] text-fg-subtle">retired</span>}
+      {!item.active && <span className="shrink-0 text-xs text-fg-subtle">retired</span>}
       <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         {item.active ? (
           <>

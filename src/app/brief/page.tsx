@@ -83,7 +83,7 @@ export default async function DirectorBriefPage({
             ]).map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
                 <CountUp value={m.value} className={`text-xl font-semibold tabular ${TONE[m.tone].text}`} />
-                <span className="text-[11px] text-fg-muted">{m.label}</span>
+                <span className="text-xs text-fg-muted">{m.label}</span>
               </div>
             ))}
           </div>
@@ -121,7 +121,7 @@ export default async function DirectorBriefPage({
 
       {/* Per-company strip */}
       <div>
-        <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2">By company</div>
+        <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2">By company</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {b.companies.map((k) => (
             <Card key={k.id} className="p-3.5">
@@ -150,7 +150,7 @@ export default async function DirectorBriefPage({
 
       {/* Delivered in selected period */}
       <div>
-        <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+        <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
           <CheckCircle2 size={13} className="text-success" /> Delivered in {b.monthLabel} · {b.deliveredCount}
         </div>
         {b.deliveredCount === 0 ? (
@@ -166,7 +166,7 @@ export default async function DirectorBriefPage({
                       <CircleCheck size={14} className="text-success shrink-0 mt-0.5" />
                       <span className="flex-1 min-w-0">
                         <span className="truncate">{t.actionItem}</span>
-                        <span className="text-[11px] text-fg-subtle"> · {t.status} {fmtDay(t.closedDate)}</span>
+                        <span className="text-xs text-fg-subtle"> · {t.status} {fmtDay(t.closedDate)}</span>
                       </span>
                     </div>
                   ))}
@@ -179,7 +179,7 @@ export default async function DirectorBriefPage({
 
       {b.directorActions.length > 0 && (
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <Target size={13} className="text-accent" /> Recommended director actions · {b.directorActions.length}
           </div>
           <Card className="divide-y divide-border/70">
@@ -187,7 +187,7 @@ export default async function DirectorBriefPage({
               <a key={`${a.type}-${a.link}-${a.headline}`} href={a.link} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/40 transition-colors">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{a.headline}</div>
-                  <div className="text-[11px] text-fg-subtle">{a.companyName} · {a.detail}</div>
+                  <div className="text-xs text-fg-subtle">{a.companyName} · {a.detail}</div>
                 </div>
                 <Badge tone={a.urgency === "High" ? "danger" : "warn"}>{a.urgency}</Badge>
               </a>
@@ -199,19 +199,19 @@ export default async function DirectorBriefPage({
       {/* Week ahead — next 7 days of calendar events */}
       {b.weekAhead.length > 0 && (
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <CalendarClock size={13} className="text-accent" /> Week ahead · {b.weekAhead.length}
           </div>
           <Card className="divide-y divide-border/70">
             {b.weekAhead.map((e) => (
               <a key={e.id} href="/calendar" className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/40 transition-colors">
-                <div className="shrink-0 w-24 text-[11px] text-fg-muted tabular">
+                <div className="shrink-0 w-24 text-xs text-fg-muted tabular">
                   {new Date(e.startAt).toLocaleDateString("en-GB", { timeZone: "Africa/Nairobi", weekday: "short", day: "numeric", month: "short" })}
                   {!e.allDay && ` · ${new Date(e.startAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit" })}`}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{e.title}</div>
-                  {e.companyName && <div className="text-[11px] text-fg-subtle">{e.companyName}</div>}
+                  {e.companyName && <div className="text-xs text-fg-subtle">{e.companyName}</div>}
                 </div>
               </a>
             ))}
@@ -222,7 +222,7 @@ export default async function DirectorBriefPage({
       {/* Watch-list */}
       {b.watch.length > 0 && (
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <AlertTriangle size={13} className="text-warn" /> Needs attention · {Math.min(b.watch.length, 8)}
           </div>
           <Card className="divide-y divide-border/70">
@@ -230,7 +230,7 @@ export default async function DirectorBriefPage({
               <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{t.actionItem}</div>
-                  <div className="text-[11px] text-fg-subtle">
+                  <div className="text-xs text-fg-subtle">
                     {t.companyName} · {t.overdue ? <span className="text-danger">overdue</span> : t.deadline ? `due ${fmtDay(t.deadline)}` : "no deadline"}
                   </div>
                 </div>
@@ -244,7 +244,7 @@ export default async function DirectorBriefPage({
       {/* Statutory deadlines — portfolio-wide tax/filing cadence coming up. */}
       {b.statutory.length > 0 && (
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <CalendarClock size={13} className="text-accent" /> Statutory deadlines · {b.statutory.length}
           </div>
           <Card className="divide-y divide-border/70">
@@ -252,7 +252,7 @@ export default async function DirectorBriefPage({
               <div key={i} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{s.label}</div>
-                  <div className="text-[11px] text-fg-subtle">
+                  <div className="text-xs text-fg-subtle">
                     {s.dueDate ? fmtDay(s.dueDate) : "—"} · {s.doneCount}/{s.applicableCount} companies done
                   </div>
                 </div>
@@ -268,7 +268,7 @@ export default async function DirectorBriefPage({
       {/* People & HR — overview card (kept in the PDF); detailed tables below. */}
       {b.hr.headcount > 0 && (
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <Users size={13} className="text-accent" /> People · {b.hr.headcount} active
           </div>
           <Card className="p-3.5 space-y-3">
@@ -279,12 +279,12 @@ export default async function DirectorBriefPage({
               {b.hr.expiringDocs.length ? <span className="tabular"><b className="text-danger">{b.hr.expiringDocs.length}</b> <span className="text-fg-subtle text-xs">docs expiring</span></span> : null}
             </div>
             {b.hr.probationEnding.length > 0 && (
-              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+              <div className="text-xs text-fg-muted border-t border-border/60 pt-2">
                 Probation ending: {b.hr.probationEnding.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.endDate)})`).join(" · ")}
               </div>
             )}
             {b.hr.birthdays.length > 0 && (
-              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+              <div className="text-xs text-fg-muted border-t border-border/60 pt-2">
                 🎂 Birthdays: {b.hr.birthdays.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.date)})`).join(" · ")}
               </div>
             )}

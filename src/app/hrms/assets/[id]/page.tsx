@@ -35,7 +35,7 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
     <div className="space-y-3">
       <Link
         href="/hrms/assets"
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition-colors hover:text-accent"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
       >
         <ArrowLeft size={13} /> Assets
       </Link>

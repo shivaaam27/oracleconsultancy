@@ -21,7 +21,7 @@ export function TaskMetaLine({ task, className }: { task: TaskRow; className?: s
   const about = task.comments?.trim();
   if (!about) return null;
   return (
-    <div className={cn("flex items-center gap-1.5 text-[11px] text-fg-muted min-w-0 max-w-full", className)}>
+    <div className={cn("flex items-center gap-1.5 text-xs text-fg-muted min-w-0 max-w-full", className)}>
       <FileText size={11} className="shrink-0 opacity-60" />
       <span className="truncate">{about}</span>
     </div>
@@ -62,7 +62,7 @@ export function WaitingOnChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap",
         "bg-warn-soft/60 text-warn",
         className,
       )}

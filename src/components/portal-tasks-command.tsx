@@ -445,7 +445,7 @@ export function PortalTasksCommand({
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search tasks, people…"
           aria-label="Search tasks, people, companies"
-          className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-[13px] outline-none placeholder:text-fg-subtle focus:border-accent"
+          className="h-8 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-base outline-none placeholder:text-fg-subtle focus:border-accent"
         />
       </label>
       {/* The full 8-status set, incl. Under Review / Waiting External / Blocked /
@@ -455,7 +455,7 @@ export function PortalTasksCommand({
         options={statusFilterOptions}
         onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
         align="right"
-        buttonClassName="h-8 shrink-0 rounded-md text-[13px] bg-bg px-2.5"
+        buttonClassName="h-8 shrink-0 rounded-md text-base bg-bg px-2.5"
       />
       {companies.length > 1 && (
         <FluidSelect
@@ -463,7 +463,7 @@ export function PortalTasksCommand({
           options={companyFilterOptions}
           onSelect={setCompanyFilter}
           align="right"
-          buttonClassName="h-8 shrink-0 rounded-md text-[13px] bg-bg px-2.5"
+          buttonClassName="h-8 shrink-0 rounded-md text-base bg-bg px-2.5"
         />
       )}
       {(companies.length > 1 || isManagement) && (
@@ -551,7 +551,7 @@ export function PortalTasksCommand({
                 onCancel={() => setComposeFor(null)}
               />
             ) : (
-              <span className="flex min-w-0 items-center gap-x-2 text-[11px] text-fg-muted">
+              <span className="flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
                 {t.companyName && (
                   <span className="inline-flex shrink-0 items-center gap-1">
                     <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "transparent" }} />
@@ -577,7 +577,7 @@ export function PortalTasksCommand({
                 onClick={() => setComposeFor(t.taskId)}
                 title="Add an update"
                 aria-label={`Add an update on ${t.code}`}
-                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-fg-muted transition-colors hover:text-accent"
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted transition-colors hover:text-accent"
               >
                 <MessageSquarePlus size={13} /> Update
               </button>
@@ -589,23 +589,23 @@ export function PortalTasksCommand({
             overrides: {
               actionItem: (t) => (
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 rounded-sm bg-bg-subtle px-1 py-0.5 font-mono text-[10.5px] text-fg-subtle">{t.code}</span>
+                  <span className="shrink-0 rounded-sm bg-bg-subtle px-1 py-0.5 font-mono text-xs text-fg-subtle">{t.code}</span>
                   {/* Title only — ONE line, so the deadline beside it lines up
                       down the whole list. The company used to sit under it AND
                       on the context line below: the same word twice, and a row
                       that was two lines tall in the title cell but one in the
                       cell next to it. */}
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{t.actionItem}</span>
+                  <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{t.actionItem}</span>
                 </span>
               ),
               status: (t) => (
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted">
+                <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot(t.status))} />
                   <span className="truncate">{t.status}</span>
                 </span>
               ),
               deadline: (t) => (
-                <span className={cn("text-[12px]", t.overdue ? "font-medium text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted")}>
+                <span className={cn("text-sm", t.overdue ? "font-medium text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted")}>
                   {t.dueLabel || "No date"}
                 </span>
               ),
@@ -613,7 +613,7 @@ export function PortalTasksCommand({
             },
           })}
           empty={
-            <span className="flex items-center justify-center gap-2 text-[12px] text-fg-muted">
+            <span className="flex items-center justify-center gap-2 text-sm text-fg-muted">
               <ListTodo size={14} className="text-fg-subtle" />
               {q.trim()
                 ? "No tasks match your search."
@@ -650,7 +650,7 @@ function ToolbarToggle({ on, onClick, icon, label }: { on: boolean; onClick: () 
       title={label}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[13px] transition-colors",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-base transition-colors",
         on ? "border-accent bg-accent text-accent-fg" : "border-border bg-bg text-fg-muted hover:text-fg",
       )}
     >
@@ -720,7 +720,7 @@ function BulkBar({ taskIds, onClear }: { taskIds: number[]; onClear: () => void 
   return (
     <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
       <div className="flex items-center gap-2 rounded-2xl bg-bg-elev/95 px-3 py-2 shadow-lg ring-1 ring-border backdrop-blur">
-        <span className="pl-1 pr-1 text-[13px] font-semibold text-fg">{taskIds.length} selected</span>
+        <span className="pl-1 pr-1 text-base font-semibold text-fg">{taskIds.length} selected</span>
         {postponeOpen ? (
           <>
             <Button size="xs" variant="secondary" disabled={busy} onClick={() => run({ kind: "postpone", days: 7 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a week.`)}>+1 week</Button>
@@ -729,7 +729,7 @@ function BulkBar({ taskIds, onClear }: { taskIds: number[]; onClear: () => void 
           </>
         ) : confirmDelete ? (
           <>
-            <span className="text-[12px] text-fg-muted">Delete?</span>
+            <span className="text-sm text-fg-muted">Delete?</span>
             <Button size="xs" variant="danger" loading={busy} onClick={() => run({ kind: "delete" }, (n) => `${n} task${n === 1 ? "" : "s"} deleted.`)}>
               {!busy && <Trash2 size={12} />} Confirm
             </Button>
@@ -755,7 +755,7 @@ function BulkBar({ taskIds, onClear }: { taskIds: number[]; onClear: () => void 
  *  slightly (a tidy stack, not spread out); initials are grid-centred (leading-none)
  *  so they sit dead-centre, and the lead's ring is softened so it doesn't shout. */
 function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) {
-  if (!people.length) return <span className="text-[11px] italic text-fg-subtle">—</span>;
+  if (!people.length) return <span className="text-xs italic text-fg-subtle">—</span>;
   // Keep at most three rendered items: show 3 plain, else 2 + a "+N" badge.
   const shown = people.slice(0, people.length > 3 ? 2 : 3);
   const extra = people.length - shown.length;
@@ -945,7 +945,7 @@ function TaskRow({
         {/* Company + owner — kept off the collapsed card (clean glance), shown here
             on expand. Hidden in the company-grouped view where the header has it. */}
         {!groupByCompany && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
             <span className="font-medium text-fg">{t.companyName}</span>
             {/* All the LEAD names — stays in step as you promote/demote below. */}
@@ -974,16 +974,16 @@ function TaskRow({
                   create a copy there (fan-out). Group director / HR only (shown
                   when more than one company is in reach). */}
               {companies.length > 1 && (
-                <label className="flex flex-col gap-1 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+                <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
                   Companies
                   <TaskCopyToCompanies taskId={t.taskId} currentCompanyId={t.companyId} currentCompanyName={t.companyName} companies={companies} />
                 </label>
               )}
               <div className="flex items-center gap-2">
-                <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
+                <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-base font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
                   {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
                 </button>
-                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-base text-fg-muted transition-colors hover:text-fg">
                   Cancel
                 </button>
               </div>
@@ -992,14 +992,14 @@ function TaskRow({
             <div className="space-y-3">
               {t.description && (
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
-                  <p className="mt-1 text-[13.5px] leading-relaxed text-fg">{t.description}</p>
+                  <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
+                  <p className="mt-1 text-base leading-relaxed text-fg">{t.description}</p>
                 </div>
               )}
               {t.note && (
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
-                  <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                  <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
+                  <p className="mt-1 text-base leading-relaxed text-fg-muted">
                     {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
                     {t.note}
                     {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
@@ -1008,7 +1008,7 @@ function TaskRow({
               )}
             </div>
           ) : (
-            <p className="text-[12.5px] italic text-fg-subtle">No description yet.</p>
+            <p className="text-sm italic text-fg-subtle">No description yet.</p>
           )}
         </div>
 
@@ -1044,22 +1044,22 @@ function TaskRow({
             bottom so the text above stays clean. Roomy rectangular pills: 2×2 on a
             phone, inline on the web. */}
         <div className="grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:flex sm:flex-wrap">
-          <Link href={`/portal/task/${t.code}`} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12.5px] text-fg-muted transition-colors hover:text-fg sm:w-auto">
+          <Link href={`/portal/task/${t.code}`} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm text-fg-muted transition-colors hover:text-fg sm:w-auto">
             Open <ExternalLink size={13} />
           </Link>
           {canEdit ? (
-            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-sm`} />
           ) : (
-            <span className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] sm:w-[136px]")}><Flag size={13} className="shrink-0" style={{ color: PRIORITY_HEX[t.priority] }} /> <span className="text-fg">{t.priority}</span></span>
+            <span className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-sm sm:w-[136px]")}><Flag size={13} className="shrink-0" style={{ color: PRIORITY_HEX[t.priority] }} /> <span className="text-fg">{t.priority}</span></span>
           )}
           {withStatus && (
-            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-sm`} />
           )}
           {withStatus && (
             <span className="w-full sm:w-[136px]">
               {canEdit
                 ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} block />
-                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] ${dueTone}`)}><CalendarClock size={13} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
+                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1.5 px-3 py-2 text-sm ${dueTone}`)}><CalendarClock size={13} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
             </span>
           )}
           {busy && <span className="inline-flex items-center px-1"><Loader2 size={14} className="animate-spin text-fg-subtle" /></span>}
@@ -1086,7 +1086,7 @@ function TaskRow({
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${t.priority} priority`} />
-              <span className="shrink-0 rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border/50">{t.code}</span>
+              <span className="shrink-0 rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted ring-1 ring-border/50">{t.code}</span>
               <span className="min-w-0 truncate text-[15px] font-medium leading-snug group-hover:text-accent">{t.actionItem}</span>
             </div>
             <AnimatePresence initial={false}>
@@ -1100,7 +1100,7 @@ function TaskRow({
                   className="min-w-0 space-y-0.5 overflow-hidden"
                 >
                   {(!groupByCompany || t.description) && (
-                    <div className="flex items-center gap-1.5 text-[13px] text-fg-muted">
+                    <div className="flex items-center gap-1.5 text-base text-fg-muted">
                       {!groupByCompany && (
                         <>
                           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
@@ -1111,7 +1111,7 @@ function TaskRow({
                     </div>
                   )}
                   {t.note && (
-                    <p className="line-clamp-2 text-[12.5px] leading-snug">
+                    <p className="line-clamp-2 text-sm leading-snug">
                       {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
                       <span className="text-fg-muted">{t.note}</span>
                       {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
@@ -1134,12 +1134,12 @@ function TaskRow({
               )}
             </span>
             <span className="w-[126px]">
-              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full" buttonClassName={`${fieldShell} w-full text-[11px] px-2.5 py-1.5`} />
+              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full" buttonClassName={`${fieldShell} w-full text-xs px-2.5 py-1.5`} />
             </span>
             <span className="w-[118px]">
               {canEdit
                 ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact block />
-                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1 px-2.5 py-1.5 text-[11px] ${dueTone}`)}><CalendarClock size={12} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
+                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1 px-2.5 py-1.5 text-xs ${dueTone}`)}><CalendarClock size={12} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
             </span>
           </div>
 
@@ -1173,18 +1173,18 @@ function TaskRow({
     <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
       {/* Revealed on swipe-left */}
       <div className="absolute inset-y-0 right-0 flex">
-        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
+        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-xs font-medium text-accent">
           <MessageSquarePlus size={17} /> Update
         </button>
         {canMessageAll && (
-          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
+          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-xs font-medium text-success">
             <MessagesSquare size={17} /> Message
           </button>
         )}
       </div>
       {/* Revealed on swipe-right — only when this viewer may complete the task. */}
       {canComplete && (
-        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
+        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft text-xs font-medium text-success">
           <Check size={18} /> Complete
         </button>
       )}
@@ -1199,13 +1199,13 @@ function TaskRow({
           {selectable && onToggleSelect && <span className="flex shrink-0 items-center pl-2"><SelectBox checked={selected} onToggle={onToggleSelect} /></span>}
           <span className="min-w-0 flex-1 py-3.5">
             <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
-              <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
-              {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
+              <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-xs text-fg-muted ring-1 ring-border/50">{t.code}</span>
+              <span className="inline-flex items-center gap-1 text-xs text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
+              {t.dueLabel && <span className={`text-xs ${dueTone}`}>· {t.dueLabel}</span>}
               {/* Company on the collapsed card (unless the list is already grouped by
                   company) so you can place a task at a glance without expanding. */}
               {!groupByCompany && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
+                <span className="inline-flex items-center gap-1 text-xs text-fg-subtle">
                   <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
                   {t.companyName}
                 </span>
@@ -1219,7 +1219,7 @@ function TaskRow({
                 </span>
               )}
             </span>
-            {!open && collapsedPreview && <span className="mt-1.5 block line-clamp-2 text-[12.5px] leading-relaxed text-fg-muted">{collapsedPreview}</span>}
+            {!open && collapsedPreview && <span className="mt-1.5 block line-clamp-2 text-sm leading-relaxed text-fg-muted">{collapsedPreview}</span>}
           </span>
           <span className="flex shrink-0 flex-col items-end justify-center gap-2 pl-1 pr-3.5">
             <LeadAvatars people={rowPeople} />
@@ -1367,7 +1367,7 @@ export function TaskPeoplePanel({
   return (
     <Panel className="overflow-hidden p-0">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
           <Users size={12} /> On this task{total > 0 && <span className="text-fg-muted">· {total}</span>}
         </span>
         {total > 1 && canRemind && (
@@ -1375,7 +1375,7 @@ export function TaskPeoplePanel({
             type="button"
             onClick={messageAll}
             disabled={chatBusy}
-            className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
+            className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-sm font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
           >
             {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message all in chat
           </button>
@@ -1391,7 +1391,7 @@ export function TaskPeoplePanel({
                 identifies nobody. 7.5rem is the width that fits the longest real
                 name here beside the buttons, so the row stays ONE line. */}
             <span className="min-w-[7rem] flex-1">
-              <span className="block truncate text-[13px] font-medium leading-tight">{m.name}</span>
+              <span className="block truncate text-base font-medium leading-tight">{m.name}</span>
               {/* Lead toggle: ON = Lead, OFF = Working — assign the lead inline (those
                   who may edit). Everyone else sees a read-only Lead/Working label. */}
               {canEditLeads && m.id != null ? (
@@ -1408,11 +1408,11 @@ export function TaskPeoplePanel({
                       one toggle in the app that drew its own, at a size nothing
                       else used. Same control as the recurring-task pause now. */}
                   <Switch on={m.lead} size="sm" busy={leadBusy} />
-                  <span className={cn("text-[11.5px] font-medium", m.lead ? "text-accent" : "text-fg-subtle")}>{m.lead ? "Lead" : "Working"}</span>
+                  <span className={cn("text-xs font-medium", m.lead ? "text-accent" : "text-fg-subtle")}>{m.lead ? "Lead" : "Working"}</span>
                 </button>
               ) : (
                 <span className={cn(
-                  "mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium",
+                  "mt-0.5 inline-flex items-center gap-1 text-xs font-medium",
                   m.lead ? "text-accent" : "text-fg-subtle",
                 )}>
                   <span className={cn("h-1.5 w-1.5 rounded-full", m.lead ? "bg-accent" : "bg-fg-subtle")} />
@@ -1498,7 +1498,7 @@ function AddPersonPicker({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy || people.length === 0}
-        className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
+        className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-sm font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
         {people.length === 0 ? "Everyone's on it" : "Add someone"}
@@ -1594,7 +1594,7 @@ function LeadMultiSelect({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy}
-        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-3 py-2 text-[12.5px] transition-colors hover:bg-bg-muted disabled:opacity-60")}
+        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-3 py-2 text-sm transition-colors hover:bg-bg-muted disabled:opacity-60")}
       >
         <span className="flex min-w-0 items-center gap-2">
           <User size={14} className="shrink-0 text-fg-muted" />
@@ -1608,7 +1608,7 @@ function LeadMultiSelect({
       {selected.length > 1 && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {selected.map((id) => (
-            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] text-accent ring-1 ring-accent/25">
+            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent ring-1 ring-accent/25">
               {byId.get(id) ?? `#${id}`}
               <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${byId.get(id) ?? "lead"}`} className="hover:opacity-70">
                 <X size={11} />
@@ -1748,12 +1748,12 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       {/* Sentence case, like "Priority & due" and "Companies" beside it. It was
           the only SHOUTING label in the panel. */}
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-fg-muted">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm text-fg-muted">
         <Tag size={12} /> Classify
       </span>
       <span className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-      <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="min-w-[7.5rem] flex-1 sm:w-[136px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-[12.5px]" />
-      <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="min-w-[7.5rem] flex-1 sm:w-[120px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-[12.5px]" />
+      <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="min-w-[7.5rem] flex-1 sm:w-[136px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-sm" />
+      <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="min-w-[7.5rem] flex-1 sm:w-[120px] sm:flex-none" buttonClassName="h-8 w-full rounded-md border border-border bg-bg px-2.5 text-sm" />
       {/* Escalate is meaningless on a finished task — hide it once done. */}
       {!t.isDone && (
         <button
@@ -1764,7 +1764,7 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
           className={cn(
             // h-9, not a padded height: Escalate sits in a row with the Category
             // and Risk dropdowns (CONTROL_SHELL, h-9) and has to match them.
-            "col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
+            "col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
             t.escalated ? "bg-danger-soft text-danger ring-danger/30 hover:bg-danger-soft/70" : "bg-bg-elev text-fg-muted ring-border hover:text-danger",
           )}
         >
@@ -1796,18 +1796,18 @@ export function TaskDeleteFooter({ taskId, code, onDeleted }: { taskId: number; 
   return (
     <div className="rounded-xl border border-danger/25 bg-danger-soft/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[12px] text-fg-muted">
+        <p className="text-sm text-fg-muted">
           <span className="font-semibold text-danger">Delete this task</span> — removes the whole task <span className="font-mono">{code}</span>, its updates and history (recoverable by the admin).
         </p>
         {confirm ? (
           <span className="inline-flex items-center gap-1.5">
-            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger px-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
               {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete the whole task
             </button>
-            <button type="button" onClick={() => setConfirm(false)} className="inline-flex h-7 items-center rounded-md px-2 text-[12px] text-fg-muted hover:text-fg">Keep it</button>
+            <button type="button" onClick={() => setConfirm(false)} className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg-muted hover:text-fg">Keep it</button>
           </span>
         ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-danger-soft px-3 text-[12px] font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
+          <button type="button" onClick={() => setConfirm(true)} className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-danger-soft px-3 text-sm font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
             <Trash2 size={13} /> Delete task
           </button>
         )}

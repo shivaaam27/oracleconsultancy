@@ -346,7 +346,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
     <div className="mb-6 space-y-3">
       {/* Header row: templates label + New automation button */}
       <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
           <Wand2 size={12} /> Quick recipes
         </span>
         <button
@@ -368,7 +368,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             className="rounded-xl bg-bg-subtle/50 px-3 py-2.5 text-left ring-1 ring-border/60 transition-colors hover:bg-bg-subtle hover:ring-border"
           >
             <span className="block text-xs font-medium text-fg">{t.label}</span>
-            <span className="mt-0.5 block text-[11px] text-fg-muted">{t.hint}</span>
+            <span className="mt-0.5 block text-xs text-fg-muted">{t.hint}</span>
           </button>
         ))}
       </div>
@@ -394,10 +394,10 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
         <div className="space-y-5 pb-2">
           {/* Live sentence preview — always visible at the top */}
           <div
-            className="rounded-xl px-3.5 py-3 text-[13px] leading-snug text-fg ring-1 ring-accent/25"
+            className="rounded-xl px-3.5 py-3 text-base leading-snug text-fg ring-1 ring-accent/25"
             style={{ backgroundColor: "color-mix(in srgb, hsl(var(--accent)) 8%, transparent)" }}
           >
-            <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.08em] text-accent">This rule will</span>
+            <span className="mb-1 block text-xs font-medium uppercase tracking-[0.08em] text-accent">This rule will</span>
             {sentence(d)}
           </div>
 
@@ -418,7 +418,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             </div>
             {d.whenMode === "ladder" && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-[11px] text-fg-muted">Check daily at</span>
+                <span className="text-xs text-fg-muted">Check daily at</span>
                 <FluidSelect
                   value={String(d.hour)}
                   options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${pad(h)}:00` }))}
@@ -440,7 +440,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                   aria-label="Minute (0–59)"
                 />
-                <span className="text-[11px] text-fg-muted">fires within ~15 minutes of that time</span>
+                <span className="text-xs text-fg-muted">fires within ~15 minutes of that time</span>
               </div>
             )}
             {d.whenMode === "days_before" && (
@@ -450,7 +450,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   onChange={(e) => set({ days: Math.max(0, Math.min(365, Number(e.target.value) || 0)) })}
                   className="w-20 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                 />
-                <span className="text-[11px] text-fg-muted">days before the deadline</span>
+                <span className="text-xs text-fg-muted">days before the deadline</span>
               </div>
             )}
             {d.whenMode === "hours_before" && (
@@ -460,7 +460,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   onChange={(e) => set({ hoursBefore: Math.max(1, Math.min(720, Number(e.target.value) || 1)) })}
                   className="w-20 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                 />
-                <span className="text-[11px] text-fg-muted">hours before the deadline (re-arms if the deadline moves)</span>
+                <span className="text-xs text-fg-muted">hours before the deadline (re-arms if the deadline moves)</span>
               </div>
             )}
             {d.whenMode === "recurring" && (
@@ -483,7 +483,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-fg-muted">Day of month</span>
+                    <span className="text-xs text-fg-muted">Day of month</span>
                     <input
                       type="number" min={1} max={31} value={d.recurDayOfMonth}
                       onChange={(e) => set({ recurDayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
@@ -491,7 +491,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                     />
                   </div>
                 )}
-                <p className="text-[11px] text-fg-muted">Each occurrence at 09:00 Dar es Salaam time.</p>
+                <p className="text-xs text-fg-muted">Each occurrence at 09:00 Dar es Salaam time.</p>
               </div>
             )}
           </Step>
@@ -523,7 +523,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {d.recurAssigneeNames.map((n) => (
                         <button key={n} type="button" onClick={() => set({ recurAssigneeNames: d.recurAssigneeNames.filter((x) => x !== n) })}
-                          className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[11px] ring-1 ring-border hover:bg-danger/10 hover:text-danger">
+                          className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs ring-1 ring-border hover:bg-danger/10 hover:text-danger">
                           {n} ×
                         </button>
                       ))}
@@ -547,7 +547,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
             <Step label="If">
               <FluidSelect value={d.condition} options={COND_OPTIONS} onSelect={(v) => set({ condition: v as Draft["condition"] })} />
               {d.condition === "due_tomorrow" && (
-                <p className="mt-1.5 text-[11px] text-fg-muted">Everything due tomorrow goes out as one combined list, not one message per task.</p>
+                <p className="mt-1.5 text-xs text-fg-muted">Everything due tomorrow goes out as one combined list, not one message per task.</p>
               )}
               {AGING_CONDS.has(d.condition) && (
                 <div className="mt-2 flex items-center gap-2">
@@ -556,13 +556,13 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                     onChange={(e) => set({ agingDays: Math.max(1, Math.min(90, Number(e.target.value) || 1)) })}
                     className="w-20 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                   />
-                  <span className="text-[11px] text-fg-muted">
+                  <span className="text-xs text-fg-muted">
                     days {d.condition === "under_review_stale" ? "sat Under Review" : "sat Waiting External"} before it fires
                   </span>
                 </div>
               )}
               {d.condition === "no_deadline_or_assignee" && (
-                <p className="mt-1.5 text-[11px] text-fg-muted">Flags open tasks with no deadline set, or nobody assigned — the ones that slip through.</p>
+                <p className="mt-1.5 text-xs text-fg-muted">Flags open tasks with no deadline set, or nobody assigned — the ones that slip through.</p>
               )}
             </Step>
           )}
@@ -608,7 +608,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {d.extraNames.map((n) => (
                       <button key={n} type="button" onClick={() => set({ extraNames: d.extraNames.filter((x) => x !== n) })}
-                        className="rounded-lg bg-bg-subtle px-2 py-0.5 text-[11px] ring-1 ring-border hover:bg-danger/10 hover:text-danger">
+                        className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs ring-1 ring-border hover:bg-danger/10 hover:text-danger">
                         {n} ×
                       </button>
                     ))}
@@ -623,7 +623,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
           {/* LADDER STEPS — only in ladder mode. */}
           {d.whenMode === "ladder" && (
             <Step label="Steps">
-              <p className="mb-2 text-[11px] text-fg-muted">Each rung fires once when a task first crosses that many days overdue, widening who hears it.</p>
+              <p className="mb-2 text-xs text-fg-muted">Each rung fires once when a task first crosses that many days overdue, widening who hears it.</p>
               <div className="space-y-2">
                 {[...d.ladderSteps].sort((a, b) => a.overdueDays - b.overdueDays).map((s, i) => (
                   <LadderRow
@@ -641,7 +641,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                     const maxDay = Math.max(0, ...d.ladderSteps.map((s) => s.overdueDays));
                     set({ ladderSteps: [...d.ladderSteps, { overdueDays: maxDay + 2, notifyOwner: false, notifyManagers: true, notifyDirectors: false, warnPerson: true, autoEscalate: false }] });
                   }}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[11px] font-medium text-fg-muted ring-1 ring-border/60 hover:text-fg"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle px-2.5 py-1.5 text-xs font-medium text-fg-muted ring-1 ring-border/60 hover:text-fg"
                 >
                   <Plus size={12} /> Add a rung
                 </button>
@@ -666,7 +666,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   className="rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                 />
                 {d.pausedUntil && (
-                  <button type="button" onClick={() => set({ pausedUntil: "" })} className="text-[11px] text-fg-subtle hover:text-danger">clear</button>
+                  <button type="button" onClick={() => set({ pausedUntil: "" })} className="text-xs text-fg-subtle hover:text-danger">clear</button>
                 )}
               </div>
             </div>
@@ -700,10 +700,10 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   />
                 </div>
                 {d.repeatUnit === "minutes" && d.repeatEvery < 15 && (
-                  <p className="text-[11px] text-danger">Minimum interval is 15 minutes — it'll be raised to 15.</p>
+                  <p className="text-xs text-danger">Minimum interval is 15 minutes — it'll be raised to 15.</p>
                 )}
                 <div className="space-y-1.5 pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">Stop when…</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">Stop when…</p>
                   <SwitchRow label="They post an update" hint="Recommended — the nudge ends the instant they respond" on={d.stopUntilUpdate} onChange={(v) => set({ stopUntilUpdate: v })} />
                   <SwitchRow label="The deadline passes" on={d.stopUntilDeadline} onChange={(v) => set({ stopUntilDeadline: v })} />
                   <SwitchRow label="A number of reminders is reached" on={d.stopMaxOn} onChange={(v) => set({ stopMaxOn: v })} />
@@ -715,11 +715,11 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                         onChange={(e) => set({ stopMaxCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })}
                         className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                       />
-                      <span className="text-[11px] text-fg-muted">reminders</span>
+                      <span className="text-xs text-fg-muted">reminders</span>
                     </div>
                   )}
                   {!d.stopUntilUpdate && !d.stopUntilDeadline && !d.stopMaxOn && (
-                    <p className="text-[11px] text-danger">Pick at least one stop — a repeating reminder can't run forever.</p>
+                    <p className="text-xs text-danger">Pick at least one stop — a repeating reminder can't run forever.</p>
                   )}
                 </div>
                 <SwitchRow label="Only within active hours" hint="Never ping overnight" on={d.activeHoursOn} onChange={(v) => set({ activeHoursOn: v })} />
@@ -740,7 +740,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
               task (it always just creates the task — no separate act step). */}
           {d.whenMode !== "ladder" && d.whenMode !== "recurring" && (
           <Step label="Do">
-            <p className="mb-2 text-[11px] text-fg-muted">By default this rule only notifies — it never changes anything itself.</p>
+            <p className="mb-2 text-xs text-fg-muted">By default this rule only notifies — it never changes anything itself.</p>
             <SwitchRow
               label="Let ORI act automatically"
               hint="Off = notify-only. On = ORI may also do the things you tick below."
@@ -775,7 +775,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
                   />
                 </div>
                 {d.sendChannel && (
-                  <p className="text-[11px] text-fg-muted">Only goes out if auto-send is switched on in Settings — otherwise it stays in-app.</p>
+                  <p className="text-xs text-fg-muted">Only goes out if auto-send is switched on in Settings — otherwise it stays in-app.</p>
                 )}
               </div>
             )}
@@ -790,7 +790,7 @@ export function RuleBuilder({ people, companies }: { people: NamedRow[]; compani
 function Step({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-muted">{label}</h3>
+      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-fg-muted">{label}</h3>
       {children}
     </section>
   );
@@ -825,16 +825,16 @@ function LadderRow({ step, onChange, onRemove }: {
     <div className="rounded-xl bg-bg-subtle/40 p-2.5 ring-1 ring-border/60">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-fg-muted">Day</span>
+          <span className="text-xs text-fg-muted">Day</span>
           <input
             type="number" min={1} max={365} value={step.overdueDays}
             onChange={(e) => onChange({ overdueDays: Math.max(1, Math.min(365, Number(e.target.value) || 1)) })}
             className="w-16 rounded-lg bg-bg-elev px-2 py-1 text-sm ring-1 ring-border"
           />
-          <span className="text-[11px] text-fg-muted">overdue</span>
+          <span className="text-xs text-fg-muted">overdue</span>
         </div>
         {onRemove && (
-          <button type="button" onClick={onRemove} className="text-[11px] text-fg-subtle hover:text-danger">remove</button>
+          <button type="button" onClick={onRemove} className="text-xs text-fg-subtle hover:text-danger">remove</button>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">

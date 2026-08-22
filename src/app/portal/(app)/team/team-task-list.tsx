@@ -29,7 +29,7 @@ export function TeamTaskList({ items }: { items: TeamTask[] }) {
     <button
       type="button"
       onClick={() => setOpen(false)}
-      className={`inline-flex items-center gap-1 text-[11px] text-accent hover:underline ${className}`}
+      className={`inline-flex items-center gap-1 text-xs text-accent hover:underline ${className}`}
     >
       <ChevronDown size={12} className="rotate-180" /> Show less
     </button>
@@ -50,7 +50,7 @@ export function TeamTaskList({ items }: { items: TeamTask[] }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-2 inline-flex items-center gap-1 text-[11px] text-accent hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-xs text-accent hover:underline"
         >
           <ChevronDown size={12} /> {items.length > 5 ? `Read all ${items.length} tasks` : "Read full detail"}
         </button>
@@ -61,7 +61,7 @@ export function TeamTaskList({ items }: { items: TeamTask[] }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-medium text-fg-muted">All {items.length} tasks</span>
+        <span className="text-xs font-medium text-fg-muted">All {items.length} tasks</span>
         <Collapse />
       </div>
       <ul className="max-h-[17rem] space-y-2 overflow-y-auto overscroll-contain pr-0.5">
@@ -70,20 +70,20 @@ export function TeamTaskList({ items }: { items: TeamTask[] }) {
             <div className="flex items-start justify-between gap-2">
               <span className="text-xs font-medium text-fg">{t.title}</span>
               {t.overdueDays != null ? (
-                <span className="shrink-0 text-[11px] font-medium text-danger">⚠️ {t.overdueDays}d overdue</span>
+                <span className="shrink-0 text-xs font-medium text-danger">⚠️ {t.overdueDays}d overdue</span>
               ) : t.dueLabel ? (
-                <span className="shrink-0 text-[11px] text-fg-subtle">{t.dueLabel}</span>
+                <span className="shrink-0 text-xs text-fg-subtle">{t.dueLabel}</span>
               ) : null}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted">
               <span>{t.company}</span>
               <span>· {t.status}</span>
               <span>· {t.priority}</span>
               {!t.overdueDays && t.dueLabel && <span>· due {t.dueLabel}</span>}
               {t.responsible.length > 1 && <span>· {t.responsible.join(", ")}</span>}
             </div>
-            {t.description && <p className="mt-1 text-[11px] leading-snug text-fg-muted">{t.description}</p>}
-            {t.latest && <p className="mt-0.5 text-[11px] leading-snug text-fg-subtle">Latest: {t.latest}</p>}
+            {t.description && <p className="mt-1 text-xs leading-snug text-fg-muted">{t.description}</p>}
+            {t.latest && <p className="mt-0.5 text-xs leading-snug text-fg-subtle">Latest: {t.latest}</p>}
           </li>
         ))}
       </ul>
