@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   balanceAt, dayEffect, dayRows, monthBounds, monthRows, previousDay,
   qty, salesRows, todayInDar, varianceOf, orderSuggestions,
-  type CzStockCount, type CzStockDay, type CzStockItem,
+  ledgerBalanceAt, daySheetFromMoves, daySheetMoves, transferMoves, movesNet,
+  type CzStockCount, type CzStockDay, type CzStockItem, type CzStockMove, type CzMoveReason,
 } from "./cocozuri-stock-shared";
 
 /* ------------------------------------------------------------------ *
@@ -287,5 +288,134 @@ describe("the order form", () => {
     const rows = orderSuggestions(items, days, counts, opts);
     expect(rows[0]!.item.id).toBe(1);              // 40 days of cover
     expect(rows[rows.length - 1]!.item.id).toBe(3); // cannot be judged
+  });
+});
+
+/* ================================================================== *
+ * Manufacturing Stage 1 — the stock ledger.
+ *
+ * Everything else in the manufacturing programme writes into this, so it gets
+ * tested harder than anything above it.
+ * ================================================================== */
+
+const mv = (
+  id: number, itemId: number, locationId: number, onDate: string, qty: number,
+  reason: CzMoveReason, over: Partial<CzStockMove> = {},
+): CzStockMove => ({
+  id, itemId, locationId, batchId: null, onDate, qty, reason,
+  unitCost: null, voucherType: null, voucherId: null, note: null, ...over,
+});
+
+describe("the stock ledger", () => {
+  const counts = [count(1, 1, "2026-07-31", 14)];
+
+  it("carries the opening count forward through the moves", () => {
+    const moves = [
+      mv(1, 1, 1, "2026-08-01", -1, "day_out"),
+      mv(2, 1, 1, "2026-08-03", 15, "day_in"),
+      mv(3, 1, 1, "2026-08-05", -2, "day_out"),
+      mv(4, 1, 1, "2026-08-05", -1, "day_third"),
+    ];
+    expect(ledgerBalanceAt(1, 1, moves, counts, "2026-08-01").closing).toBe(13);
+    expect(ledgerBalanceAt(1, 1, moves, counts, "2026-08-03").closing).toBe(28);
+    expect(ledgerBalanceAt(1, 1, moves, counts, "2026-08-05").closing).toBe(25);
+  });
+
+  it("⚠️ KEEPS LOCATIONS APART — a ledger holds every place at once", () => {
+    // The day book got away without a location because a sheet WAS a place.
+    // Summing across them here would say the shop holds the kitchen's chocolate.
+    const moves = [
+      mv(1, 1, 1, "2026-08-01", 10, "day_in"),
+      mv(2, 1, 2, "2026-08-01", 999, "day_in"),
+    ];
+    expect(ledgerBalanceAt(1, 1, moves, counts, "2026-08-01").closing).toBe(24);
+    expect(ledgerBalanceAt(1, 2, moves, [], "2026-08-01").closing).toBe(999);
+  });
+
+  it("⚠️ still excludes movements on the count's own date", () => {
+    const moves = [mv(1, 1, 1, "2026-08-03", 15, "day_in")];
+    const withTake = [...counts, count(2, 1, "2026-08-03", 100)];
+    expect(ledgerBalanceAt(1, 1, moves, withTake, "2026-08-03").closing).toBe(100);
+  });
+
+  it("splits the third column out of the ordinary outward total", () => {
+    const moves = [
+      mv(1, 1, 1, "2026-08-02", 5, "day_in"),
+      mv(2, 1, 1, "2026-08-02", -3, "day_out"),
+      mv(3, 1, 1, "2026-08-02", -2, "day_third"),
+    ];
+    const b = ledgerBalanceAt(1, 1, moves, counts, "2026-08-02");
+    expect(b.totalIn).toBe(5);
+    expect(b.totalOut).toBe(3);
+    expect(b.totalThird).toBe(2);
+    expect(b.closing).toBe(14);
+  });
+
+  it("agrees with the day book it replaces, move for move", () => {
+    // ⚠️ The migration is only safe if both readings give the same number.
+    const days = [
+      day(1, "2026-08-01", 0, 1, 0),
+      day(1, "2026-08-03", 15, 0, 0),
+      day(1, "2026-08-05", 0, 2, 1),
+    ];
+    const moves = days.flatMap((d, i) =>
+      daySheetMoves({ itemId: 1, qtyIn: d.qtyIn, qtyOut: d.qtyOut, qtyThird: d.qtyThird })
+        .map((m, j) => mv(i * 10 + j, 1, 1, d.onDate, m.qty, m.reason)));
+    for (const on of ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-05"]) {
+      expect(ledgerBalanceAt(1, 1, moves, counts, on).closing)
+        .toBe(balanceAt(1, days, counts, on).closing);
+    }
+  });
+});
+
+describe("a day sheet as moves", () => {
+  it("⚠️ makes no move for a zero — a nil row is not an assertion", () => {
+    expect(daySheetMoves({ itemId: 1, qtyIn: 0, qtyOut: 0, qtyThird: 0 })).toEqual([]);
+    expect(daySheetMoves({ itemId: 1, qtyIn: 0, qtyOut: 3, qtyThird: 0 })).toHaveLength(1);
+  });
+
+  it("⚠️ fixes the signs: IN adds, OUT and the third column take away", () => {
+    const m = daySheetMoves({ itemId: 1, qtyIn: 15, qtyOut: 4, qtyThird: 1 });
+    expect(m.find((x) => x.reason === "day_in")!.qty).toBe(15);
+    expect(m.find((x) => x.reason === "day_out")!.qty).toBe(-4);
+    expect(m.find((x) => x.reason === "day_third")!.qty).toBe(-1);
+    // The workbook's own formula: opening + IN − OUT − third.
+    expect(movesNet(m)).toBe(10);
+  });
+
+  it("reads back out of the ledger as the same three numbers", () => {
+    const moves = daySheetMoves({ itemId: 1, qtyIn: 15, qtyOut: 4, qtyThird: 1 })
+      .map((m, i) => mv(i, 1, 1, "2026-08-02", m.qty, m.reason));
+    const back = daySheetFromMoves(1, 1, moves, "2026-08-02");
+    expect(back).toEqual({ qtyIn: 15, qtyOut: 4, qtyThird: 1, any: true });
+  });
+
+  it("tells an untouched day from a day of zeros", () => {
+    expect(daySheetFromMoves(1, 1, [], "2026-08-02").any).toBe(false);
+  });
+});
+
+describe("a transfer", () => {
+  it("⚠️ is TWO moves that cancel — that is what makes it provable", () => {
+    const m = transferMoves(1, 1, 2, 20);
+    expect(m).toHaveLength(2);
+    expect(m[0]).toMatchObject({ locationId: 1, qty: -20, reason: "transfer" });
+    expect(m[1]).toMatchObject({ locationId: 2, qty: 20, reason: "transfer" });
+    expect(movesNet(m)).toBe(0);
+  });
+
+  it("refuses to move stock to where it already is, or to move nothing", () => {
+    expect(transferMoves(1, 1, 1, 20)).toEqual([]);
+    expect(transferMoves(1, 1, 2, 0)).toEqual([]);
+  });
+
+  it("takes the quantity as given, whichever sign it arrives with", () => {
+    expect(movesNet(transferMoves(1, 1, 2, -20))).toBe(0);
+    expect(transferMoves(1, 1, 2, -20)[1]!.qty).toBe(20);
+  });
+
+  it("carries the batch to both sides, so a trace survives the move", () => {
+    const m = transferMoves(1, 1, 2, 5, 42);
+    expect(m.every((x) => x.batchId === 42)).toBe(true);
   });
 });

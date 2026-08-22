@@ -1,8 +1,9 @@
 import { sb } from "@/db/supabase";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import {
-  varianceOf,
-  type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
+  varianceOf, daySheetMoves, transferMoves, movesNet, ledgerBalanceAt, todayInDar,
+  type CzMoveReason, type CzStockCount, type CzStockDay, type CzStockItem,
+  type CzStockLocation, type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
 
 /* ------------------------------------------------------------------ *
@@ -285,6 +286,24 @@ export async function saveDay(
       .eq("on_date", input.onDate).in("item_id", empty.map((r) => r.itemId)).select("id");
     cleared = data?.length ?? 0;
   }
+
+  /* ⚠️ THE SHEET IS THE DOCUMENT; THE LEDGER IS THE TRUTH. Saving a day writes
+     BOTH — the row above is what somebody typed, and these are what it did to
+     stock. Same split the reference system makes between a Stock Entry and a
+     Stock Ledger Entry, and the reason nothing had to be dropped to get here.
+
+     The location is looked up from the item, never passed in: a movement filed
+     against the wrong shelf is worse than one not filed at all. */
+  const locOf = await locationOfItems(clean.map((r) => r.itemId));
+  for (const r of clean) {
+    const locationId = locOf.get(r.itemId);
+    if (locationId == null) continue;
+    await replaceDaySheetMoves({
+      itemId: r.itemId, locationId, onDate: input.onDate,
+      qtyIn: r.qtyIn, qtyOut: r.qtyOut, qtyThird: r.qtyThird,
+    }, by);
+  }
+
   return { ok: true, written: filled.length, cleared };
 }
 
@@ -370,4 +389,230 @@ export async function stockBook(locationId: number): Promise<{
   if (ids.length === 0) return { location, items, days: [], counts: [] };
   const [days, counts] = await Promise.all([listDays({ itemIds: ids }), listCounts({ itemIds: ids })]);
   return { location, items, days, counts };
+}
+
+/* ================================================================== *
+ * Manufacturing Stage 1 — the stock ledger, and its one door.
+ *
+ * ⚠️ NOTHING ELSE MAY INSERT INTO `cz_stock_moves`. `postStockMove()` is to
+ * stock what `postVoucher()` is to money: one place where the rules live, so a
+ * second write path cannot become a second set of books.
+ * ================================================================== */
+
+const VOUCHER_DAY_SHEET = "day_sheet";
+
+const MOVE_COLS = "id,item_id,location_id,batch_id,on_date,qty,reason,unit_cost,voucher_type,voucher_id,note";
+
+function toMove(r: Record<string, unknown>): CzStockMove {
+  return {
+    id: r.id as number,
+    itemId: r.item_id as number,
+    locationId: r.location_id as number,
+    batchId: (r.batch_id as number | null) ?? null,
+    onDate: r.on_date as string,
+    qty: num(r.qty),
+    reason: (r.reason as CzMoveReason) ?? "day_out",
+    unitCost: r.unit_cost == null ? null : num(r.unit_cost),
+    voucherType: (r.voucher_type as string | null) ?? null,
+    voucherId: (r.voucher_id as number | null) ?? null,
+    note: (r.note as string | null) ?? null,
+  };
+}
+
+export async function listMoves(opts?: {
+  itemIds?: number[]; locationId?: number; from?: string; to?: string;
+  voucherType?: string; voucherId?: number; batchId?: number;
+}): Promise<CzStockMove[]> {
+  const company = await cocozuriCompany();
+  if (!company) return [];
+  let q = sb.from("cz_stock_moves").select(MOVE_COLS).eq("company_id", company.id);
+  if (opts?.itemIds) q = q.in("item_id", opts.itemIds);
+  if (opts?.locationId) q = q.eq("location_id", opts.locationId);
+  if (opts?.from) q = q.gte("on_date", opts.from);
+  if (opts?.to) q = q.lte("on_date", opts.to);
+  if (opts?.voucherType) q = q.eq("voucher_type", opts.voucherType);
+  if (opts?.voucherId !== undefined) q = q.eq("voucher_id", opts.voucherId);
+  if (opts?.batchId) q = q.eq("batch_id", opts.batchId);
+  const { data, error } = await q.order("on_date").order("id");
+  // ⚠️ Said out loud — an empty ledger and a failed query look identical on a
+  // screen, and only one of them is true.
+  if (error) console.error("[cocozuri] listMoves failed:", error.message);
+  return (data ?? []).map(toMove);
+}
+
+export type StockMoveInput = {
+  itemId: number;
+  locationId: number;
+  onDate: string;
+  /** ⚠️ Signed: positive into the location, negative out of it. */
+  qty: number;
+  reason: CzMoveReason;
+  batchId?: number | null;
+  unitCost?: number | null;
+  note?: string | null;
+};
+
+/**
+ * **Put a movement in the stock ledger.** The one door.
+ *
+ * ⚠️ `mustNet` IS THE STOCK TWIN OF "EVERY VOUCHER BALANCES". A transfer has to
+ * cancel to nothing — out of one place, into another — and passing it as two
+ * unrelated writes is how a system ends up with chocolate in neither. A
+ * purchase does not net, so the caller says which it is rather than the door
+ * guessing.
+ *
+ * ⚠️ ONE INSERT. Every move goes in a single statement, so the ledger can never
+ * hold half a transfer. Same reason `postVoucher` does it, and the same warning:
+ * do not "improve" this into a loop — there is no transaction to fall back on.
+ */
+export async function postStockMove(
+  moves: StockMoveInput[],
+  voucher: { type: string; id?: number | null; mustNet?: boolean },
+  by = "web-ui",
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, written: 0, error: "Cocozuri is not in the company list." };
+
+  const clean = moves.filter((m) => Number.isFinite(Number(m.qty)) && Number(m.qty) !== 0);
+  if (clean.length === 0) return { ok: true, written: 0 };
+
+  for (const m of clean) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(m.onDate)) {
+      return { ok: false, written: 0, error: "Every movement needs a date." };
+    }
+  }
+  if (voucher.mustNet) {
+    const net = movesNet(clean);
+    if (net !== 0) {
+      return {
+        ok: false, written: 0,
+        error: `This ${voucher.type} does not balance — it moves ${net} more in than out. A transfer must leave one place and arrive at another.`,
+      };
+    }
+  }
+
+  const { error } = await sb.from("cz_stock_moves").insert(
+    clean.map((m) => ({
+      company_id: company.id,
+      item_id: m.itemId,
+      location_id: m.locationId,
+      batch_id: m.batchId ?? null,
+      on_date: m.onDate,
+      qty: Number(m.qty),
+      reason: m.reason,
+      unit_cost: m.unitCost ?? null,
+      voucher_type: voucher.type,
+      voucher_id: voucher.id ?? null,
+      note: m.note ?? null,
+      created_by: by,
+    })),
+  );
+  if (error) return { ok: false, written: 0, error: error.message };
+  return { ok: true, written: clean.length };
+}
+
+/**
+ * Rewrite the ledger for one day sheet line.
+ *
+ * ⚠️ THE DAY SHEET IS THE ONE THING THAT MAY BE REWRITTEN, and it has to be.
+ * Somebody miscounts a shelf and fixes it; a stock book that refused would be a
+ * stock book people keep on paper instead. Everything else — a purchase, a
+ * batch, a transfer, a sale — is a document that has been acted on, and is
+ * corrected by an opposite movement, never by erasing.
+ */
+export async function replaceDaySheetMoves(
+  row: { itemId: number; locationId: number; onDate: string; qtyIn: number; qtyOut: number; qtyThird: number },
+  by = "web-ui",
+): Promise<{ ok: boolean; error?: string }> {
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
+
+  await sb.from("cz_stock_moves").delete()
+    .eq("company_id", company.id)
+    .eq("voucher_type", VOUCHER_DAY_SHEET)
+    .eq("item_id", row.itemId)
+    .eq("location_id", row.locationId)
+    .eq("on_date", row.onDate);
+
+  const moves = daySheetMoves(row).map((m) => ({
+    itemId: row.itemId, locationId: row.locationId, onDate: row.onDate,
+    qty: m.qty, reason: m.reason,
+  }));
+  if (moves.length === 0) return { ok: true };
+  const res = await postStockMove(moves, { type: VOUCHER_DAY_SHEET }, by);
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Move stock from one place to another.
+ *
+ * ⚠️ TWO MOVES, ONE VOUCHER, AND IT MUST NET TO NOTHING. That is what makes
+ * "twenty went from the kitchen to the shop" a fact rather than two numbers
+ * that happen to agree.
+ */
+export async function transferStock(
+  input: {
+    itemId: number; fromLocationId: number; toLocationId: number;
+    qty: number; onDate: string; batchId?: number | null; note?: string | null;
+  },
+  by = "web-ui",
+): Promise<{ ok: boolean; error?: string }> {
+  const pair = transferMoves(
+    input.itemId, input.fromLocationId, input.toLocationId, input.qty, input.batchId ?? null,
+  );
+  if (pair.length === 0) {
+    return { ok: false, error: "A transfer needs a quantity, and two different places." };
+  }
+  const res = await postStockMove(
+    pair.map((m) => ({ ...m, onDate: input.onDate, note: input.note ?? null })),
+    { type: "transfer", mustNet: true },
+    by,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Take a document's movements back out — by writing the opposite, never by
+ * erasing. The stock twin of `unpostVoucher`.
+ */
+export async function reverseStockVoucher(
+  voucherType: string, voucherId: number, onDate: string, by = "web-ui",
+): Promise<{ ok: boolean; error?: string }> {
+  if (voucherType === VOUCHER_DAY_SHEET) {
+    return { ok: false, error: "A day sheet is corrected by retyping it, not reversed." };
+  }
+  const existing = await listMoves({ voucherType, voucherId });
+  if (existing.length === 0) return { ok: false, error: "That document has nothing in the stock ledger." };
+  const res = await postStockMove(
+    existing.map((m) => ({
+      itemId: m.itemId, locationId: m.locationId, onDate,
+      qty: -m.qty, reason: m.reason, batchId: m.batchId,
+      note: `Reversal of ${voucherType} #${voucherId}`,
+    })),
+    { type: `${voucherType}:reversal`, id: voucherId },
+    by,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/** What is on the shelf now, per item, at one location — read from the ledger. */
+export async function stockOnHand(locationId: number, on?: string): Promise<Map<number, number>> {
+  const asOf = on ?? todayInDar();
+  const items = await listItems({ locationId });
+  const ids = items.map((i) => i.id);
+  if (ids.length === 0) return new Map();
+  const [moves, counts] = await Promise.all([
+    listMoves({ itemIds: ids, locationId, to: asOf }),
+    listCounts({ itemIds: ids, to: asOf }),
+  ]);
+  return new Map(items.map((i) => [i.id, ledgerBalanceAt(i.id, locationId, moves, counts, asOf).closing]));
+}
+
+
+/** Which shelf each item sits on. ⚠️ Looked up, never passed in — a movement
+ *  filed against the wrong location is worse than one not filed at all. */
+async function locationOfItems(itemIds: number[]): Promise<Map<number, number>> {
+  if (itemIds.length === 0) return new Map();
+  const { data } = await sb.from("cz_stock_items").select("id,location_id").in("id", itemIds);
+  return new Map((data ?? []).map((r) => [r.id as number, r.location_id as number]));
 }

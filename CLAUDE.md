@@ -784,6 +784,19 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   every kitchen figure. Fewer than two days of history gets no figure at all.
 - Still **no MCP tool and no `EntityDef`**, on purpose. **A ledger WRITE tool must
   never exist.**
+- ⚠️ **THE MANUFACTURING HALF IS PLANNED, NOT BUILT — read
+  `memory/cocozuri_manufacturing_plan.md` before touching stock.** Nine stages
+  from the owner's own notes (22 Aug 2026): purchasing, recipes, production
+  batches, transfers, POS, returns, batch costing, the rest of the accounts, and
+  food traceability. It carries a line-by-line audit of those notes so nothing is
+  lost.
+- ⚠️ **`cz_stock_days` IS A DAY BOOK AND CANNOT TRACE A BATCH.** It records how
+  much moved, never why, from where, on whose document, or from which batch.
+  Stage 1 of that plan replaces it as the source of truth with
+  **`cz_stock_moves` + `postStockMove()`** — the twin of `gl_entries` +
+  `postVoucher()` — and the day sheet becomes one of the doors that writes to it.
+  **Do not build purchasing, production or transfers on the day book**; it would
+  have to be done twice.
 - Client/server split as everywhere, and it is now TWO PAIRS:
   **`cocozuri-shared.ts` and `cocozuri-stock-shared.ts` are what client components
   import**; `cocozuri.ts` and `cocozuri-stock.ts` are server-only and are the ONE

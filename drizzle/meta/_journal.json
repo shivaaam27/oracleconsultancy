@@ -1051,6 +1051,13 @@
       "when": 1787345927123,
       "tag": "0148_cocozuri_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1787403210780,
+      "tag": "0149_cocozuri_stock_ledger",
+      "breakpoints": true
     }
   ]
 }

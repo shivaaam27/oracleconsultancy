@@ -4127,3 +4127,122 @@ export const czStockCounts = pgTable("cz_stock_counts", {
   uniqueIndex("cz_stock_counts_item_day_idx").on(t.itemId, t.countedOn),
   index("cz_stock_counts_day_idx").on(t.companyId, t.countedOn),
 ]);
+
+/* ================================================================== *
+ * CocoZuri — the manufacturing half, Stage 1: the stock ledger.
+ *
+ * ⚠️ `cz_stock_days` RECORDS HOW MUCH MOVED. IT CANNOT TRACE A BATCH. It never
+ * says why, from where, on whose document, or out of which batch — so it can
+ * answer "twelve went out" but not "were they sold, sent to the shop, or
+ * dropped on the floor", and never "which customer got batch 42".
+ *
+ * So stock gets the same shape money already has: ONE ledger, MANY doors.
+ *   `gl_entries`      ← `postVoucher()`      ← invoices, receipts, journals
+ *   `cz_stock_moves`  ← `postStockMove()`    ← day sheets, purchases, batches…
+ *
+ * ⚠️ THE DAY SHEET DOES NOT GO AWAY. `cz_stock_days` stays as the DOCUMENT —
+ * the sheet as somebody typed it — and `cz_stock_moves` is what that sheet did
+ * to stock. That is exactly how the reference system splits a Stock Entry from
+ * a Stock Ledger Entry, and it means nothing has to be dropped or migrated
+ * destructively.
+ * ================================================================== */
+
+/**
+ * A production batch.
+ *
+ * ⚠️ A BATCH NUMBER IS NOT DECORATION — it is the only thing that can answer
+ * "one bag of almond powder was bad; which bars used it and who bought them",
+ * forwards and backwards. That is the whole reason food is traced by lot.
+ *
+ * Created empty at Stage 1 so the ledger can reference it from the start;
+ * Stage 4 gives it a screen and a life cycle.
+ */
+export const czBatches = pgTable("cz_batches", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** What was made. Null while a batch is only planned. */
+  itemId: integer("item_id").references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** BATCH-2608-01 — allocated against a unique index, like an invoice number. */
+  batchNo: text("batch_no").notNull(),
+  madeOn: date("made_on"),
+  /**
+   * ⚠️ The earlier of "made on + shelf life" and the earliest-expiring
+   * ingredient that went into it. People get that rule wrong by hand, which is
+   * why it belongs in the software (Stage 9).
+   */
+  expiresOn: date("expires_on"),
+  /** planned | running | closed | cancelled */
+  status: text("status").notNull().default("planned"),
+  /** What the plan said. The actual is derived from the `produce` moves — there
+   *  is no produced-quantity column, and there must not be one. */
+  plannedQty: numeric("planned_qty", { precision: 14, scale: 3 }),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_batches_no_idx").on(t.companyId, t.batchNo),
+  index("cz_batches_list_idx").on(t.companyId, t.status, t.madeOn),
+]);
+
+/**
+ * Every movement of stock, ever. The twin of `gl_entries`.
+ *
+ * ⚠️ `qty` IS SIGNED — positive into the location, negative out of it. A
+ * transfer is TWO rows sharing one voucher, exactly as a journal is two lines:
+ * that is what makes "kitchen → shop" provable rather than two unrelated
+ * numbers that happen to match.
+ *
+ * ⚠️ NO BALANCE COLUMN, AND THERE MUST NEVER BE ONE. What is on the shelf is
+ * the latest count plus the moves since — worked out on read, the same rule the
+ * general ledger and every CocoZuri figure already follow.
+ *
+ * ⚠️ TWO CLASSES OF ROW, AND THE DIFFERENCE MATTERS.
+ *   · `voucher_type = 'day_sheet'` — the shop's daily count. REPLACEABLE:
+ *     somebody miscounts and fixes it, and a stock book that would not let them
+ *     is a stock book people keep on paper instead.
+ *   · everything else — a purchase, a batch, a transfer, a sale. NOT
+ *     replaceable; it is reversed with an opposite move, because a document
+ *     that has been acted on is history.
+ */
+export const czStockMoves = pgTable("cz_stock_moves", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  /** Null until Stage 4 gives production a batch. */
+  batchId: integer("batch_id").references(() => czBatches.id, { onDelete: "set null" }),
+  /** ⚠️ `date`, not `timestamptz` — a stock day is a calendar day. The same
+   *  deliberate exception to migration 0014 that `cz_stock_days` takes. */
+  onDate: date("on_date").notNull(),
+  /** Signed. Positive in, negative out. */
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  /**
+   * Why it moved.
+   *
+   * ⚠️ `day_in` / `day_out` / `day_third` MEAN ONLY "WRITTEN IN THAT COLUMN OF
+   * THE DAY SHEET", and that is deliberate. On the shop's sheet IN is stock
+   * arriving from the kitchen; on raw materials it is a delivery from a
+   * supplier. Nobody has said which, so the reason records what is KNOWN — the
+   * column it was written in — and claims nothing more. The precise reasons
+   * below arrive with the documents that earn them.
+   *
+   * day_in | day_out | day_third | receipt | issue | transfer | consume |
+   * produce | sale | return | damage | count
+   */
+  reason: text("reason").notNull(),
+  /** What a unit was worth on the way in. Null until Stage 2 costs a purchase. */
+  unitCost: numeric("unit_cost", { precision: 14, scale: 4 }),
+  /** Which document caused it — 'day_sheet', 'purchase', 'batch', 'transfer'… */
+  voucherType: text("voucher_type"),
+  voucherId: integer("voucher_id"),
+  note: text("note"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // The read every balance depends on: this item, this place, in date order.
+  index("cz_stock_moves_ledger_idx").on(t.itemId, t.locationId, t.onDate),
+  index("cz_stock_moves_day_idx").on(t.companyId, t.onDate),
+  index("cz_stock_moves_voucher_idx").on(t.voucherType, t.voucherId),
+  index("cz_stock_moves_batch_idx").on(t.batchId),
+]);

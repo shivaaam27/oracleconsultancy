@@ -475,3 +475,163 @@ export function orderSuggestions(
         || (b.suggested ?? 0) - (a.suggested ?? 0);
     });
 }
+
+/* ================================================================== *
+ * Manufacturing Stage 1 — the stock ledger.
+ *
+ * ⚠️ `cz_stock_days` RECORDS HOW MUCH MOVED; IT CANNOT TRACE A BATCH. It never
+ * says why, from where, on whose document, or out of which batch — so it can
+ * answer "twelve went out" but not "were they sold, sent to the shop, or
+ * dropped on the floor". Stock therefore gets the shape money already has:
+ * ONE ledger, MANY doors, nothing else writing to it.
+ * ================================================================== */
+
+/**
+ * Why a move happened.
+ *
+ * ⚠️ `day_in` / `day_out` / `day_third` MEAN ONLY "WRITTEN IN THAT COLUMN OF THE
+ * DAY SHEET". On the shop's sheet IN is stock arriving from the kitchen; on raw
+ * materials it is a delivery from a supplier. Nobody has said which, so the
+ * reason records what is KNOWN and claims nothing more. The precise reasons
+ * arrive with the documents that earn them.
+ */
+export type CzMoveReason =
+  | "day_in" | "day_out" | "day_third"
+  | "receipt" | "issue" | "transfer" | "consume" | "produce"
+  | "sale" | "return" | "damage" | "count";
+
+/** Whether a reason describes stock arriving. Used for wording, never for the
+ *  arithmetic — `qty` carries its own sign. */
+export const INWARD_REASONS: CzMoveReason[] = ["day_in", "receipt", "produce", "return"];
+
+export type CzStockMove = {
+  id: number;
+  itemId: number;
+  locationId: number;
+  batchId: number | null;
+  onDate: string;
+  /** ⚠️ SIGNED: positive into the location, negative out of it. */
+  qty: number;
+  reason: CzMoveReason;
+  unitCost: number | null;
+  voucherType: string | null;
+  voucherId: number | null;
+  note: string | null;
+};
+
+export type CzBatch = {
+  id: number;
+  itemId: number | null;
+  batchNo: string;
+  madeOn: string | null;
+  expiresOn: string | null;
+  status: "planned" | "running" | "closed" | "cancelled";
+  plannedQty: number | null;
+  notes: string | null;
+};
+
+/**
+ * What is on the shelf at the end of `on` — from the LEDGER.
+ *
+ * The rule is unchanged from the day book: start at the most recent count on or
+ * before that date, then apply every movement dated AFTER it and up to `on`.
+ *
+ * ⚠️ MOVEMENTS ON THE COUNT'S OWN DATE ARE STILL EXCLUDED, because a count is
+ * the position at the end of its date and already contains them. Out by a day
+ * here and every figure after a stock-take is wrong by that day's trade.
+ *
+ * ⚠️ A LOCATION MUST BE NAMED. The day book could get away without one because
+ * a sheet belonged to a place; a ledger holds every place at once, and summing
+ * across them would say the shop is holding the kitchen's chocolate.
+ */
+export function ledgerBalanceAt(
+  itemId: number,
+  locationId: number,
+  moves: CzStockMove[],
+  counts: CzStockCount[],
+  on: string,
+): CzBalance {
+  const anchor = counts
+    .filter((c) => c.itemId === itemId && c.countedOn <= on)
+    .reduce<CzStockCount | null>(
+      (best, c) =>
+        !best || c.countedOn > best.countedOn || (c.countedOn === best.countedOn && c.id > best.id) ? c : best,
+      null,
+    );
+  const from = anchor?.countedOn ?? "";
+  const since = moves.filter(
+    (m) => m.itemId === itemId && m.locationId === locationId && m.onDate > from && m.onDate <= on,
+  );
+  const sum = (f: (m: CzStockMove) => boolean) =>
+    since.filter(f).reduce((t, m) => t + (Number.isFinite(m.qty) ? Math.abs(m.qty) : 0), 0);
+  return {
+    anchor,
+    totalIn: sum((m) => m.qty > 0),
+    totalOut: sum((m) => m.qty < 0 && m.reason !== "day_third"),
+    totalThird: sum((m) => m.reason === "day_third"),
+    closing: (anchor?.qty ?? 0) + since.reduce((t, m) => t + (Number.isFinite(m.qty) ? m.qty : 0), 0),
+  };
+}
+
+/**
+ * The three numbers a day sheet shows for one item on one day, read back OUT of
+ * the ledger.
+ *
+ * ⚠️ This is what lets the day sheet keep working unchanged while the truth
+ * moves underneath it. The screen is the same; what it reads is not.
+ */
+export function daySheetFromMoves(
+  itemId: number, locationId: number, moves: CzStockMove[], on: string,
+): { qtyIn: number; qtyOut: number; qtyThird: number; any: boolean } {
+  const mine = moves.filter((m) => m.itemId === itemId && m.locationId === locationId && m.onDate === on);
+  const of = (r: CzMoveReason) =>
+    mine.filter((m) => m.reason === r).reduce((t, m) => t + Math.abs(m.qty), 0);
+  return { qtyIn: of("day_in"), qtyOut: of("day_out"), qtyThird: of("day_third"), any: mine.length > 0 };
+}
+
+/**
+ * Turn one line of a day sheet into the moves it makes.
+ *
+ * ⚠️ A ZERO MAKES NO MOVE. "Nothing moved" and "nobody wrote anything down" stay
+ * different claims, exactly as they are in `saveDay` — a ledger full of nil rows
+ * would turn every blank line into a positive assertion.
+ *
+ * ⚠️ THE SIGNS ARE FIXED HERE AND NOWHERE ELSE. IN adds; OUT and the third
+ * column both take away — which is the workbook's own formula,
+ * `closing = opening + IN − OUT − third`, and the one thing in those sheets that
+ * was never in doubt.
+ */
+export function daySheetMoves(
+  row: { itemId: number; qtyIn: number; qtyOut: number; qtyThird: number },
+): { itemId: number; qty: number; reason: CzMoveReason }[] {
+  const out: { itemId: number; qty: number; reason: CzMoveReason }[] = [];
+  const n = (v: number) => (Number.isFinite(v) ? v : 0);
+  if (n(row.qtyIn) !== 0) out.push({ itemId: row.itemId, qty: n(row.qtyIn), reason: "day_in" });
+  if (n(row.qtyOut) !== 0) out.push({ itemId: row.itemId, qty: -n(row.qtyOut), reason: "day_out" });
+  if (n(row.qtyThird) !== 0) out.push({ itemId: row.itemId, qty: -n(row.qtyThird), reason: "day_third" });
+  return out;
+}
+
+/**
+ * A transfer is TWO moves sharing one voucher — out of one place, into another.
+ *
+ * ⚠️ THAT IS WHAT MAKES "KITCHEN → SHOP" PROVABLE. Two unrelated numbers that
+ * happen to match are not a transfer; they are a coincidence somebody has to
+ * audit. Same reasoning as a journal having two sides.
+ */
+export function transferMoves(
+  itemId: number, fromLocation: number, toLocation: number, qty: number, batchId: number | null = null,
+): { itemId: number; locationId: number; qty: number; reason: CzMoveReason; batchId: number | null }[] {
+  const q = Math.abs(Number(qty) || 0);
+  if (q === 0 || fromLocation === toLocation) return [];
+  return [
+    { itemId, locationId: fromLocation, qty: -q, reason: "transfer", batchId },
+    { itemId, locationId: toLocation, qty: q, reason: "transfer", batchId },
+  ];
+}
+
+/** Do a set of moves cancel out? A transfer must; a purchase must not. The
+ *  stock twin of the ledger's "every voucher balances". */
+export function movesNet(moves: { qty: number }[]): number {
+  return Math.round(moves.reduce((t, m) => t + (Number.isFinite(m.qty) ? m.qty : 0), 0) * 1000) / 1000;
+}
