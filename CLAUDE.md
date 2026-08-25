@@ -199,6 +199,22 @@ The system replaces an Excel workbook with:
      installer (`build-installer.cmd` → MSI wrapped in a bootstrapper .exe, WiX 5
      — **not WiX 7, which demands a paid licence**). It holds no keys and no data.
      **Read `desktop-win/README.md` before touching it.**
+     - ⚠️ **A DOWNLOAD IS REPORTED AS A FAILED NAVIGATION, AND THAT IS NOT AN
+       ERROR.** WebView2 turns a navigation to a `Content-Disposition:
+       attachment` response into a download, then raises `NavigationCompleted`
+       with `IsSuccess = false` — correctly, since no page loaded. Reading that
+       literally put the app's **offline screen** over a working connection and
+       a file that had just saved, and **this window has no back button**, so
+       the only way out was restarting the app. `OnNavigationCompleted` now
+       ignores a failure that follows `DownloadStarting`, and the offline screen
+       carries a **"Go to the home page instead"** escape so no dead end ever
+       needs a restart. **Any new dead-end screen needs the same escape.**
+     - The web side guards it too, so the fix does not wait on a reinstall:
+       `BriefPdfButton` detects the shell via **`window.chrome.webview`** (present
+       only in WebView2 — not in a browser, not in the PWA) and fetches the bytes
+       instead of navigating. ⚠️ **Browsers and the phone keep the same-tab
+       navigation** — the blob + `<a download>` route is silently ignored by iOS
+       Safari, and that button is used on a phone.
      - **⚠️ NEVER BUILD IT AS A SINGLE FILE.** Windows **Smart App Control is
        ON and enforced** on the owner's machine and blocks a
        `PublishSingleFile` build outright (CodeIntegrity 3077) — a compressed
@@ -399,7 +415,32 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/task/new`
 - `/task/[code]` - **the task record, as a real page** (Aug 2026). A record is a page with its own URL, as in ERPNext. Everything links here via `taskHref()` in `src/lib/task-href.ts` — never `?task=`. The old drawer still opens for legacy `?task=CODE` links.
 - `/registry` - redirects to hub Tasks table
-- `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
+- `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + a **server-rendered PDF** (`src/lib/brief-pdf.tsx`, @react-pdf/renderer; two routes, ONE renderer — `/brief/pdf` and `/api/portal/brief-pdf`). See `memory/outbox_and_reminders.md`.
+  - **The PDF wears the ERP skin** (Aug 2026, owner's ask): number cards first,
+    then dense panels — ERPNext's ORGANISATION — kept modern, **not** flat grey
+    (see the memory note; he rejected flattening once already). Letterhead is a
+    soft banded block, the four counts sit on tone-tinted cards, each company
+    gets a rounded tinted panel head with its risk as a pill, status is a pill
+    rather than a dot and a word, and a company with no logo gets `initialsOf()`
+    on the accent. **Content did not change** — same sections, same order, same
+    six columns.
+  - ⚠️ **@react-pdf/renderer PRINTS NEITHER A SHADOW NOR A GRADIENT, AND FAILS
+    SILENTLY.** All depth is a flat fill plus a hairline. `TONE_BG`/`TONE_LINE`
+    map a tone to its wash and border; reach for anything else and it renders as
+    nothing at all.
+  - ⚠️ **A `wrap={false}` BLOCK TALLER THAN THE PAGE IS CLIPPED, NOT MOVED.**
+    Rows are unbreakable so they never split mid-cell — which silently cut the
+    end off a long "Latest update". `textHeightPt()` estimates the height and
+    `rowMustBreak()` lets a page-tall row split instead; the generic `Table`
+    rows carry the same guard. **Never clamp prose to a character count to dodge
+    this** — that is what printed "…and forwarded" at a director.
+  - ⚠️ **A COMPANY'S TABLE FLOWS UNDER ITS PANEL HEAD, NOT INSIDE A BOX.** A
+    bordered box that breaks across a page has its border redrawn on both
+    fragments, and a company's table is exactly the thing that breaks.
+  - The download name is `briefPdfFilename()` — `Director Brief` + person, else
+    company, else brand + the period's own label. **No day stamp**, so two
+    briefs run a fortnight apart share a name (the owner was asked and said to
+    leave it).
 - `/hrms` - redirects to `/hrms/command-centre`. **`/hrms/command-centre` is labelled "Tax & Legal"** in the UI (launcher + page header; route path unchanged) — recurring tax/statutory/legal obligations. See `memory/hrms.md`.
 - `/hrms/supplies` - **Supplies** — office consumables (items, purchases, issues). Renamed Aug 2026 from `/hrms/oecr` "OECR" (it never held equipment — that is Assets); the old path redirects.
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle

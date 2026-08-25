@@ -16,7 +16,7 @@
  * ------------------------------------------------------------------ */
 
 /** The newest published version of the desktop window. */
-export const DESKTOP_VERSION: string = "1.0.0";
+export const DESKTOP_VERSION: string = "1.0.1";
 
 /**
  * The installer's name inside the private `desktop` storage bucket.
@@ -33,7 +33,7 @@ export const DESKTOP_VERSION: string = "1.0.0";
  * Typed as string, not left to infer "" — an inferred literal type narrows to
  * `never` the moment anything checks it, which broke the test that does.
  */
-export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.0.exe";
+export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.1.exe";
 
 /** The bucket holding it. Private; see above. */
 export const DESKTOP_BUCKET = "desktop";
@@ -49,7 +49,7 @@ export const DESKTOP_BUCKET = "desktop";
  *
  * Produced by `npm run desktop:hash` after building the installer.
  */
-export const DESKTOP_SHA256: string = "71283cb45ebc3bcf41d54da91e997363f30b0ee2979bfed6cba87850c3bfa72a";
+export const DESKTOP_SHA256: string = "11c2eb44e67dbf111395a2c8af8fd2e4fecf14a7d4a3355734cf5f89544d9aad";
 
 /** One short line shown in the bar. Say what changed, in plain words. */
-export const DESKTOP_RELEASE_NOTE: string = "";
+export const DESKTOP_RELEASE_NOTE: string = "The window now matches dark mode, and downloading a file no longer looks like a lost connection.";

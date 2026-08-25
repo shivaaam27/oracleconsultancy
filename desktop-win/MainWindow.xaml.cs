@@ -5,6 +5,10 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using Microsoft.Web.WebView2.Core;
 
 // ⚠️ WinForms is referenced for the tray icon (see the .csproj), and it brings
@@ -13,6 +17,7 @@ using Microsoft.Web.WebView2.Core;
 using Forms = System.Windows.Forms;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = System.Windows.MessageBox;
+using Color = System.Windows.Media.Color;
 
 namespace OracleConsultancy;
 
@@ -40,10 +45,93 @@ public partial class MainWindow : Window
     /// </summary>
     private DateTime _downloadStartedUtc = DateTime.MinValue;
 
+    /* ------------------------------------------------------------------ *
+     * The title bar.
+     *
+     * ⚠️ THE ONE PART OF THE WINDOW THE WEBSITE CANNOT PAINT. In dark mode the
+     * app ran a black page under a white Windows caption, which is what the
+     * owner photographed. Windows will colour it for us, but only if asked:
+     * these attributes are Windows 11 build 22000+, and DwmSetWindowAttribute
+     * simply returns a failure code on anything older, so a machine that does
+     * not support them keeps the ordinary bar rather than breaking.
+     *
+     * ⚠️ A COLORREF IS 0x00BBGGRR — blue first. Written as RGB the title bar
+     * comes out a completely different colour and nothing warns you.
+     * ------------------------------------------------------------------ */
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_BORDER_COLOR = 34;
+    private const int DWMWA_CAPTION_COLOR = 35;
+    private const int DWMWA_TEXT_COLOR = 36;
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>0x00BBGGRR from an ordinary #rrggbb.</summary>
+    private static int ColorRef(byte r, byte g, byte b) => r | (g << 8) | (b << 16);
+
+    private bool? _shellDark;
+
+    /// <summary>
+    /// Paint the window to match the page. Called before the first navigation
+    /// with the guess below, then again the moment the page says what it is
+    /// actually wearing — so a cold start does not flash the wrong colour.
+    /// </summary>
+    private void ApplyShellTheme(bool dark)
+    {
+        // The WPF background too — it is what shows for the instant before the
+        // first paint, and a white flash into a dark app is the same fault in
+        // miniature.
+        Background = new SolidColorBrush(dark
+            ? Color.FromRgb(0x12, 0x12, 0x12)   // --bg dark, globals.css
+            : Color.FromRgb(0xf4, 0xf5, 0xf6)); // --bg light
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        // ⚠️ Do NOT record the theme when there is no handle to paint — the window
+        // is not shown yet, SourceInitialized calls again, and remembering it here
+        // would make that second call a no-op and leave the bar white.
+        if (hwnd == IntPtr.Zero) return;
+        if (_shellDark == dark) return;
+        _shellDark = dark;
+
+        int on = dark ? 1 : 0;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref on, sizeof(int));
+
+        // Match the caption to the page rather than leaving Windows' own grey,
+        // so the bar reads as part of the app instead of a strip sitting on top
+        // of it. Text and border are set with it — a dark caption with the
+        // default near-black text is unreadable.
+        int caption = dark ? ColorRef(0x12, 0x12, 0x12) : ColorRef(0xf4, 0xf5, 0xf6);
+        int text    = dark ? ColorRef(0xe8, 0xe8, 0xe8) : ColorRef(0x1c, 0x1c, 0x1c);
+        int border  = dark ? ColorRef(0x2a, 0x2a, 0x2a) : ColorRef(0xe4, 0xe8, 0xef);
+        DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref caption, sizeof(int));
+        DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ref text, sizeof(int));
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref border, sizeof(int));
+    }
+
+    /// <summary>
+    /// What Windows itself is wearing. Only a first guess, for the moment
+    /// before the page loads and can say what IT is wearing — COS keeps its own
+    /// theme and the two need not agree.
+    /// </summary>
+    private static bool WindowsPrefersDark()
+    {
+        try
+        {
+            var v = Registry.GetValue(
+                @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                "AppsUseLightTheme", 1);
+            return v is int i && i == 0;
+        }
+        catch { return false; }
+    }
+
     public MainWindow()
     {
         InitializeComponent();
         RestoreWindowState();
+        // The handle exists from here on, which is the earliest the caption can
+        // be painted. COS's own theme arrives a moment later from the page.
+        SourceInitialized += (_, _) => ApplyShellTheme(WindowsPrefersDark());
         Loaded += async (_, _) =>
         {
             await StartWebViewAsync();
@@ -536,6 +624,11 @@ public partial class MainWindow : Window
         // The second way out. Retry returns to the page that failed; if that page
         // is itself the problem, this window has no back button and the only
         // remaining move is closing the app. Home always exists.
+        // What the PAGE is wearing, from ShellThemeScript in the site's <head>.
+        // COS keeps its own theme and need not agree with Windows, so the page
+        // is the authority once it has loaded.
+        else if (message == "theme:dark") ApplyShellTheme(true);
+        else if (message == "theme:light") ApplyShellTheme(false);
         else if (message == "home" && _showingOffline)
         {
             _showingOffline = false;
