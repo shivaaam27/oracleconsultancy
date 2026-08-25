@@ -25,6 +25,11 @@ import {
   BarChart3,
   FileWarning,
   Megaphone,
+  LayoutGrid,
+  Camera,
+  Images,
+  CalendarRange,
+  AtSign,
   ListChecks,
   Activity,
   Zap,
@@ -108,6 +113,15 @@ export const NAV_ROUTES: NavRoute[] = [
   // Oracle Consultancy's recruitment agency — India to Tanzania sourcing.
   // See memory/recruitment_module_plan.md.
   { id: "recruitment", href: "/recruitment",         label: "Recruitment",         icon: UserSearch },
+  { id: "marketing",           href: "/marketing",           label: "Overview",         icon: LayoutGrid },
+  { id: "mkt-posts",           href: "/marketing/posts",     label: "Posts",            icon: Send },
+  { id: "mkt-calendar",        href: "/marketing/calendar",  label: "Calendar",         icon: CalendarRange },
+  { id: "mkt-accounts",        href: "/marketing/accounts",  label: "Accounts",         icon: AtSign },
+  { id: "mkt-clients",         href: "/marketing/clients",   label: "Clients",          icon: Handshake },
+  { id: "mkt-campaigns",       href: "/marketing/campaigns", label: "Campaigns",        icon: Megaphone },
+  { id: "mkt-shoots",          href: "/marketing/shoots",    label: "Shoots",           icon: Camera },
+  { id: "mkt-library",         href: "/marketing/library",   label: "Pictures",         icon: Images },
+  { id: "mkt-results",         href: "/marketing/results",   label: "Results",          icon: BarChart3 },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
@@ -267,6 +281,25 @@ export const MODULES: NavModule[] = [
       // own. A route filed in two modules fails `nav.test.ts`, which is the
       // guard that exists for exactly this.
       { label: "Operations", ids: ["tax-legal", "commitments", "pipeline", "leave", "supplies", "cleaning"] },
+    ],
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    blurb: "Social media and photography — what went out, for whom, and what it did.",
+    home: "/marketing",
+    match: ["/marketing"],
+    // ⚠️ Grouped by the order the work happens, not by what sort of screen each
+    // one is — the same rule the CocoZuri rail follows. Adding a page? Put it
+    // where it happens in the day.
+    groups: [
+      { label: "Start", ids: ["marketing"] },
+      { label: "1 Plan", ids: ["mkt-campaigns", "mkt-calendar"] },
+      { label: "2 Shoot", ids: ["mkt-shoots", "mkt-library"] },
+      { label: "3 Post", ids: ["mkt-posts"] },
+      { label: "4 Measure", ids: ["mkt-results"] },
+      { label: "5 Set up", ids: ["mkt-accounts", "mkt-clients"] },
     ],
   },
   {

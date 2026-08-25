@@ -4863,3 +4863,319 @@ export const czCounterSaleLines = pgTable("cz_counter_sale_lines", {
   index("cz_counter_sale_lines_sale_idx").on(t.saleId, t.lineNo),
   index("cz_counter_sale_lines_item_idx").on(t.itemId),
 ]);
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * MARKETING — social media and photography (Phase 1: the record + the calendar)
+ *
+ * Plan: memory/marketing_module_plan.md.
+ *
+ * ⚠️ NO PLATFORM CONNECTION AT ALL YET, AND THAT IS THE POINT. Instagram,
+ * TikTok and LinkedIn each make you apply, the applications take WEEKS and can
+ * be refused. Everything here is typed by a person and works on day one;
+ * reading the numbers automatically is a later phase that changes where a
+ * figure came from, never what the records are.
+ *
+ * ⚠️ ONE PERSON POSTS TODAY, so there is no approval gate — `createdBy` records
+ * who, and that is all. The day somebody else posts for a client it becomes a
+ * real gate without any of these tables changing.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A business Pamoja Plus advertises for. Not one of ours — ours are `companies`. */
+export const mktClients = pgTable("mkt_clients", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email"),
+  /** Months of free advertising promised. Design and posting are free; the
+   *  advert money is OURS, which is what Phase 3's spend record will carry. */
+  freeMonths: integer("free_months").notNull().default(3),
+  /** ⚠️ NORMALLY NULL, AND DERIVED. The free period starts the day the first
+   *  post for this client actually goes out — so nobody has to remember a date,
+   *  and it cannot start before anything was published. Fill this in ONLY when
+   *  somebody states a different start; a stated fact beats a derived one. */
+  freeStartsOn: date("free_starts_on"),
+  /** Optional ceiling on monthly advert spend. ⚠️ NULL = nobody has said, shown
+   *  as "no limit agreed" — never as zero. */
+  adCapMonthly: numeric("ad_cap_monthly", { precision: 14, scale: 2 }),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_clients_name_idx").on(t.name),
+]);
+
+/** One social account we post to. */
+export const mktAccounts = pgTable("mkt_accounts", {
+  id: serial("id").primaryKey(),
+  /** instagram | facebook | linkedin | tiktok | youtube | x | other */
+  platform: text("platform").notNull(),
+  /** As people write it — "@cocozuri". */
+  handle: text("handle").notNull(),
+  displayName: text("display_name"),
+  /** ⚠️ EXACTLY ONE OWNER: one of ours, or a client's. Enforced below, because
+   *  an account belonging to both or to neither cannot be reported on. */
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "restrict" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "restrict" }),
+  profileUrl: text("profile_url"),
+  /** ⚠️ THREE-STATE: true | false | null = nobody has said. A personal account
+   *  can never hand its numbers to an outside system however the app is built,
+   *  so this decides whether reading results is possible at all. Never assume. */
+  professional: boolean("professional"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("mkt_accounts_handle_idx").on(t.platform, t.handle),
+  index("mkt_accounts_company_idx").on(t.companyId),
+  index("mkt_accounts_client_idx").on(t.clientId),
+  check(
+    "mkt_accounts_one_owner",
+    sql`(${t.companyId} is not null and ${t.clientId} is null) or (${t.companyId} is null and ${t.clientId} is not null)`,
+  ),
+]);
+
+/** A run of work with a purpose. Optional — a one-off post belongs to none. */
+export const mktCampaigns = pgTable("mkt_campaigns", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  purpose: text("purpose"),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "set null" }),
+  startsOn: date("starts_on"),
+  endsOn: date("ends_on"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_campaigns_name_idx").on(t.name),
+]);
+
+/**
+ * The piece of content — one caption and one idea.
+ *
+ * ⚠️ A POST IS NOT A PUBLICATION. The same design usually goes to Instagram,
+ * Facebook and LinkedIn at once: that is ONE post and THREE publications, each
+ * with its own time, link and result, and any one of them can fail while the
+ * others go out. Same shape as an invoice and its lines.
+ */
+export const mktPosts = pgTable("mkt_posts", {
+  id: serial("id").primaryKey(),
+  /** A short name for finding it again — not what gets published. */
+  title: text("title").notNull(),
+  /** What actually gets posted. */
+  caption: text("caption"),
+  /** photo | video | carousel | story | reel | text */
+  kind: text("kind").notNull().default("photo"),
+  campaignId: integer("campaign_id").references(() => mktCampaigns.id, { onDelete: "set null" }),
+  /** Who it is FOR — one of ours or a client's. Both null is allowed here (a
+   *  scrap of an idea), unlike an account, which must belong to somebody. */
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_posts_campaign_idx").on(t.campaignId),
+  index("mkt_posts_company_idx").on(t.companyId),
+  index("mkt_posts_client_idx").on(t.clientId),
+]);
+
+/**
+ * One post going to one account.
+ *
+ * ⚠️ NEVER DELETED. A post taken down from Instagram still happened, and last
+ * quarter's report must not change because somebody tidied a feed — so it is
+ * marked `removed` with a reason instead.
+ */
+export const mktPublications = pgTable("mkt_publications", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull().references(() => mktPosts.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => mktAccounts.id, { onDelete: "restrict" }),
+  /** planned | published | failed | removed */
+  status: text("status").notNull().default("planned"),
+  plannedFor: timestamp("planned_for", { withTimezone: true }),
+  /** ⚠️ The moment it actually went out, which is what every count uses. It is
+   *  also what starts a client's free three months, so it is never guessed. */
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** The live link, for going and looking at it. */
+  url: text("url"),
+  /** Required when the status is `failed` or `removed` — see the write door. */
+  reason: text("reason"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("mkt_publications_once_idx").on(t.postId, t.accountId),
+  index("mkt_publications_when_idx").on(t.publishedAt),
+  index("mkt_publications_planned_idx").on(t.status, t.plannedFor),
+]);
+
+/* ── Marketing, Phase 2: photography and the library ─────────────────────────
+ *
+ * ⚠️ THE FILES DO NOT TRAVEL THROUGH THE SERVER. The browser uploads straight to
+ * storage on a short-lived signed URL and the server only ever sees the PATH —
+ * the same route `documents` takes, and for the same reason: a serverless
+ * request body caps at 4.5 MB and a phone photo is bigger than that.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A photography session. */
+export const mktShoots = pgTable("mkt_shoots", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  /** ⚠️ A calendar day, like a stock day — not a timestamp. */
+  onDate: date("on_date"),
+  place: text("place"),
+  photographerId: integer("photographer_id").references(() => people.id, { onDelete: "set null" }),
+  /** Who it was for. Both null is fine — a general shoot belongs to nobody yet. */
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "set null" }),
+  /**
+   * ⚠️ DID THE PEOPLE IN IT AGREE TO BE PHOTOGRAPHED? THREE-STATE — yes, no,
+   * and nobody has said. A photograph of an identifiable person is their
+   * personal information under Tanzania's data protection rules, and the
+   * recruitment side already carries a registration obligation. One tick box
+   * now answers a hard question later; a default of "yes" would answer it
+   * wrongly and silently.
+   */
+  consent: boolean("consent"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_shoots_date_idx").on(t.onDate),
+]);
+
+/** One photo or video. */
+export const mktAssets = pgTable("mkt_assets", {
+  id: serial("id").primaryKey(),
+  /** ⚠️ THE PATH, NEVER A URL. A signed URL expires; an asset is looked at for
+   *  years. Every screen mints a fresh link from this on read. */
+  storagePath: text("storage_path").notNull(),
+  fileName: text("file_name").notNull(),
+  mime: text("mime"),
+  bytes: integer("bytes"),
+  /** photo | video | other */
+  kind: text("kind").notNull().default("photo"),
+  shootId: integer("shoot_id").references(() => mktShoots.id, { onDelete: "set null" }),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "set null" }),
+  caption: text("caption"),
+  /** Free text — product, person, place. Searched, not a taxonomy: a
+   *  one-person operation should not have to maintain a tag list. */
+  tags: text("tags"),
+  takenOn: date("taken_on"),
+  archived: boolean("archived").notNull().default(false),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("mkt_assets_path_idx").on(t.storagePath),
+  index("mkt_assets_shoot_idx").on(t.shootId),
+  index("mkt_assets_company_idx").on(t.companyId),
+]);
+
+/**
+ * Which pictures a post used.
+ *
+ * ⚠️ THIS TABLE IS WHAT MAKES "NEVER USED" ANSWERABLE — the excess-images pile.
+ * An asset with no row here has never been published, and that pile is where
+ * next month's posts come from. It is also why an asset is archived rather than
+ * deleted once it has been used: deleting one would quietly rewrite what a post
+ * was made of.
+ */
+export const mktPostAssets = pgTable("mkt_post_assets", {
+  postId: integer("post_id").notNull().references(() => mktPosts.id, { onDelete: "cascade" }),
+  assetId: integer("asset_id").notNull().references(() => mktAssets.id, { onDelete: "restrict" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.postId, t.assetId] }),
+  index("mkt_post_assets_asset_idx").on(t.assetId),
+]);
+
+/* ── Marketing, Phase 3: results and money ───────────────────────────────────
+ *
+ * ⚠️ A RESULT IS A READING ON A DATE, NEVER A COLUMN ON THE PUBLICATION. A
+ * post's reach on day one and its reach a month later are DIFFERENT FACTS and
+ * both are true. Overwriting yesterday's figure with today's throws away the
+ * only thing that shows whether something kept working — the same rule as a
+ * CocoZuri price being a dated row rather than a box you type over.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** What a publication had done by a given moment. */
+export const mktResults = pgTable("mkt_results", {
+  id: serial("id").primaryKey(),
+  publicationId: integer("publication_id").notNull()
+    .references(() => mktPublications.id, { onDelete: "cascade" }),
+  /** ⚠️ The moment the numbers were TRUE, not when they were typed. */
+  readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * ⚠️ WHERE THE FIGURES CAME FROM: `typed` or `platform`. Our numbers and the
+   * platform's will disagree — they count differently and revise for days — and
+   * the module must never reconcile them into one blessed figure. It shows both
+   * and says which is which.
+   */
+  source: text("source").notNull().default("typed"),
+  /** All nullable: nobody has every figure, and a missing one is not a zero. */
+  reach: integer("reach"),
+  impressions: integer("impressions"),
+  likes: integer("likes"),
+  comments: integer("comments"),
+  shares: integer("shares"),
+  saves: integer("saves"),
+  clicks: integer("clicks"),
+  /** Followers the ACCOUNT had at this moment — growth is read across rows. */
+  followers: integer("followers"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_results_pub_idx").on(t.publicationId, t.readAt),
+  // One reading per publication per source per moment — a double-tap on Save
+  // must not become two readings that then average to nonsense.
+  uniqueIndex("mkt_results_once_idx").on(t.publicationId, t.source, t.readAt),
+]);
+
+/**
+ * Money put behind advertising.
+ *
+ * ⚠️ `borne_by` IS THE WHOLE POINT. Design and posting are free for a client and
+ * the ADVERT MONEY IS OURS — so every amount records who actually paid, and the
+ * report can answer the only question that matters: what has this offer cost us?
+ */
+export const mktSpend = pgTable("mkt_spend", {
+  id: serial("id").primaryKey(),
+  /** A date, not a timestamp — spend belongs to a day, like a stock day. */
+  onDate: date("on_date").notNull(),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("TZS"),
+  /** us | client — who the money actually came from. */
+  borneBy: text("borne_by").notNull().default("us"),
+  /** What it was behind. All optional: a boosted account with no single post
+   *  is a real case, and refusing it would mean it never got recorded. */
+  publicationId: integer("publication_id").references(() => mktPublications.id, { onDelete: "set null" }),
+  accountId: integer("account_id").references(() => mktAccounts.id, { onDelete: "set null" }),
+  campaignId: integer("campaign_id").references(() => mktCampaigns.id, { onDelete: "set null" }),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  clientId: integer("client_id").references(() => mktClients.id, { onDelete: "set null" }),
+  reference: text("reference"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mkt_spend_date_idx").on(t.onDate),
+  index("mkt_spend_client_idx").on(t.clientId),
+  index("mkt_spend_campaign_idx").on(t.campaignId),
+]);
