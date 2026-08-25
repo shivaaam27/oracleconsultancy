@@ -12,7 +12,14 @@ supplier → depreciate → reconcile → trace → reverse. Read
 `memory/cocozuri_manufacturing_plan.md` §6a–§6j, and **§5b for the owner's
 answers of 22 Aug evening** — they settle four of the six open questions.
 
-**⚠️ START HERE: `memory/handover_aug23_2026.md`** — the session that finished
+**⚠️ START HERE: `memory/handover_aug25_2026.md`** — the most recent session:
+the Director Brief PDF's cut-off update fixed and the whole thing restyled in
+the ERP skin, the Windows app taught to update itself (1.0.1 and 1.0.2 shipped)
+and its title bar taught about dark mode, the CocoZuri guide written out as a
+17-page PDF, and **a new MARKETING module built through Phase 3** (see
+`memory/marketing_module_plan.md`). All committed, pushed and deployed.
+
+Before it: `memory/handover_aug23_2026.md` — the session that finished
 the programme (Stages 6, 7, 8, 9 and the counter; migrations 0154–0157; four
 bugs, two of them pre-existing; the sidebar reordered). **And
 `memory/cocozuri_how_it_works.md` is the plain-English walkthrough** written for
@@ -332,7 +339,11 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0157** (`cz_counter_sales` · `cz_counter_sale_lines` — the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0160** (`mkt_results` · `mkt_spend` — marketing results and
+ad spend). Before it, **0159** (`mkt_shoots` · `mkt_assets` · `mkt_post_assets`
+— photography and the picture library). Before it, **0158** (`mkt_clients` ·
+`mkt_accounts` · `mkt_campaigns` · `mkt_posts` · `mkt_publications` — the
+marketing record). Before them, **0157** (`cz_counter_sales` · `cz_counter_sale_lines` — the
 counter, Stage 5b).
 Before it, **0156** (shelf life, purchase-line expiry, and lots — Stage 9).
 Before it, **0155** (`cz_payments` · `fixed_assets` · `bank_recs` ·
@@ -496,6 +507,44 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   (Stage 6) · **profit** (Stage 7) · **money out** (Stage 8) · **trace** (Stage 9)
   · **the counter** (Stage 5b — ⚠️ a record, not a till).
   See the CocoZuri section above.
+- `/marketing` - **Marketing** — social media and photography for our own
+  companies and for the clients **Pamoja Plus** advertises for. Overview ·
+  Campaigns · Calendar · Shoots · Pictures · Posts · Results · Accounts ·
+  Clients. Migrations **0158–0160**, ten tables. **Read
+  `memory/marketing_module_plan.md` before touching any of it.**
+  - ⚠️ **NOTHING TALKS TO A PLATFORM, AND THAT IS THE DESIGN.** Instagram,
+    TikTok and LinkedIn each need an application taking **weeks** that can be
+    refused (LinkedIn wants partner status small agencies often do not get). So
+    every figure is typed, and each reading already carries `source` — the later
+    phase that reads Instagram adds rows saying "platform" and changes nothing
+    else. ⚠️ **Instagram tokens last 60 days and do not renew**, so when that
+    lands the module must SAY a connection has gone stale.
+  - ⚠️ **A RESULT IS A READING ON A DATE, NEVER A COLUMN.** Reach on day one and
+    reach a month later are different facts and both are true — the gap between
+    them is the only thing showing whether a post kept working. Same rule as a
+    CocoZuri price. **Typed and platform figures are never blended.**
+  - ⚠️ **A MISSING FIGURE IS NOT A ZERO** — sums return null, and follower
+    growth SKIPS readings with no follower count.
+  - ⚠️ **THE FREE THREE MONTHS STARTS ON THE FIRST POST**, not the handshake —
+    the owner had no start date because posting had not begun, so it is derived.
+    ⚠️ **No cap agreed is not a cap of zero.**
+  - ⚠️ **CONSENT ON A SHOOT AND `professional` ON AN ACCOUNT ARE THREE-STATE.**
+    A photograph of an identifiable person is personal information under
+    Tanzania's rules; a personal account can never hand over its numbers however
+    this is built. "Nobody has said" is not "no".
+  - ⚠️ **THE BYTES NEVER PASS THROUGH THE SERVER.** The browser uploads straight
+    to the private `marketing` bucket on a one-shot signed URL — a serverless
+    body caps at 4.5 MB and a phone photo is bigger. **The PATH is stored, never
+    a URL**; links are minted on read.
+  - ⚠️ **A PUBLICATION IS NEVER DELETED** (a post taken down still happened) and
+    **a picture a post was made from cannot be deleted** — the database refuses.
+  - **ONE PERSON POSTS, so there is no approval gate.** `created_by` records
+    who. The day somebody else posts it becomes a real gate with no table change.
+  - Client/server split as everywhere: **`marketing-shared.ts` and
+    `marketing-results-shared.ts` are what client components import**;
+    `marketing.ts`, `marketing-assets.ts`, `marketing-results.ts` are
+    server-only and are the ONE DOOR for writes.
+  - **No `EntityDef` and no MCP tool yet**, on purpose.
 - `/recruitment` - **the recruitment desk**: job orders, candidates and clients for
   Oracle Consultancy's agency, plus `/shortlists` (what is with a client, longest
   wait first), `/interviews` (the diary, in both Dar and India time) and
@@ -654,6 +703,25 @@ folds columns away on small screens and this breaks on the first large one.
   `grid-cols-[minmax(0,1fr)_…]` collapsed its ITEM column to 0px on a phone. A
   spreadsheet-shaped grid belongs in its own `overflow-x-auto` housing with a
   `min-w-[…]` floor, the way both `/cocozuri/stock` pages now are.
+
+⚠️ **`FluidSelect`'S OUTER SPAN IS `inline-block`**, so the button's own
+`w-full` resolves against a shrink-wrapped parent and the control comes out the
+width of its longest option — ragged beside full-width text fields.
+**`src/components/select-field.tsx`** is the reusable fix, and is also how you
+get a FluidSelect into a server-action form: COS uses no native `<select>`, and
+a FluidSelect on its own submits nothing.
+
+⚠️ **`gridFor()` FLATTENS AN fr MULTIPLIER.** A column written `minmax(0,1.6fr)`
+competes with a `0.9fr` one as an EQUAL, so the first column — the record's
+identity — can resolve to its 7.5rem floor and truncate every row. Measured on
+`/marketing/posts`: the card is **590px at `lg`** (the sidebar appears AND every
+`hideBelow` column un-hides at the same breakpoint), and the title got 120px.
+Fix by removing a competing column, not by raising the multiplier.
+
+⚠️ **`Input` in `ui.tsx` IS STILL THE OLD `h-9 rounded-lg` SHAPE** while every
+dropdown is `h-8 rounded-md`. Use **`FIELD`**, as that constant's own comment
+instructs — a form with two control heights in one column is what it exists to
+prevent.
 
 ⚠️ **A column marked `sortable` in `ENTITY_VIEWS` must be given a sort href**, or
 the header looks clickable and does nothing. `src/lib/use-list-sort.ts` does it
