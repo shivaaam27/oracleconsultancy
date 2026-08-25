@@ -32,6 +32,14 @@ public partial class MainWindow : Window
 
     private bool _showingOffline;
 
+    /// <summary>
+    /// When a download last started. A navigation that turns into a DOWNLOAD is
+    /// reported by WebView2 as a FAILED navigation — which is how pressing
+    /// "Download PDF" put the offline screen over a perfectly good connection,
+    /// with no way back but restarting the app. See OnNavigationCompleted.
+    /// </summary>
+    private DateTime _downloadStartedUtc = DateTime.MinValue;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -100,6 +108,7 @@ public partial class MainWindow : Window
         core.NavigationStarting += OnNavigationStarting;
         core.NavigationCompleted += OnNavigationCompleted;
         core.NewWindowRequested += OnNewWindowRequested;
+        core.DownloadStarting += OnDownloadStarting;
         core.PermissionRequested += OnPermissionRequested;
         core.WebMessageReceived += OnWebMessageReceived;
         core.NotificationReceived += OnNotificationReceived;
@@ -414,6 +423,15 @@ public partial class MainWindow : Window
      * Offline handling
      * ------------------------------------------------------------------ */
 
+    /// <summary>
+    /// A file is being saved. Nothing to configure — the default WebView2 dialog
+    /// is the right one — but the MOMENT matters: see OnNavigationCompleted.
+    /// </summary>
+    private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
+    {
+        _downloadStartedUtc = DateTime.UtcNow;
+    }
+
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         if (e.IsSuccess)
@@ -427,6 +445,23 @@ public partial class MainWindow : Window
         // A cancelled navigation is not a failure — it is what happens every time
         // we send an off-site link to the browser above.
         if (e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled) return;
+
+        // ⚠️ NEITHER IS A DOWNLOAD, AND THIS IS THE ONE THAT BIT.
+        //
+        // "Download PDF" navigates to a URL the server answers with
+        // Content-Disposition: attachment. WebView2 turns that navigation into a
+        // download and then reports the NAVIGATION as failed — quite correctly,
+        // since no page was loaded. Read literally, that says "the site could not
+        // be reached", so the offline screen went up over a working connection
+        // and a file that had just saved perfectly well. There is no back button
+        // in this window, so the only way out was to close the app and start it
+        // again.
+        //
+        // The download is what tells us this was not a connection problem. The
+        // window is deliberately generous — DownloadStarting fires just before
+        // this — and we only ever skip SHOWING AN ERROR, so being wrong here
+        // costs nothing worse than an error message not appearing.
+        if (DateTime.UtcNow - _downloadStartedUtc < TimeSpan.FromSeconds(5)) return;
 
         ShowOffline();
     }
@@ -497,6 +532,15 @@ public partial class MainWindow : Window
         {
             _showingOffline = false;
             Web.CoreWebView2.Navigate(string.IsNullOrEmpty(_lastGoodUrl) ? AppUrl : _lastGoodUrl);
+        }
+        // The second way out. Retry returns to the page that failed; if that page
+        // is itself the problem, this window has no back button and the only
+        // remaining move is closing the app. Home always exists.
+        else if (message == "home" && _showingOffline)
+        {
+            _showingOffline = false;
+            _lastGoodUrl = AppUrl;
+            Web.CoreWebView2.Navigate(AppUrl);
         }
     }
 

@@ -52,6 +52,19 @@
         background: #d64b4b; display: inline-block; margin-right: 7px;
         vertical-align: baseline;
       }
+      .link {
+        margin-top: 4px;
+        background: none;
+        border: 0;
+        color: #8b95a3;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 6px;
+      }
+      .link:hover { color: #d6dbe2; }
+      .link:focus-visible { outline: 2px solid #2490ef; outline-offset: 2px; }
     </style>
   </head>
   <body>
@@ -60,6 +73,10 @@
       <p>Oracle Consultancy could not be reached. Check your internet, then try again.</p>
       <button id="retry" type="button">Try again</button>
       <p class="hint">Your work is saved on the server — nothing has been lost.</p>
+      <!-- The second way out. This window has no back button, so a screen you
+           cannot leave means closing the app; "Try again" returns to the page
+           you were on, and if THAT is what is broken, Home always exists. -->
+      <button id="home" type="button" class="link">Go to the home page instead</button>
     </div>
     <script>
       const btn = document.getElementById("retry");
@@ -74,6 +91,10 @@
           btn.textContent = "Try again";
         }, 4000);
       });
+      document.getElementById("home").addEventListener("click", () => {
+        if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage("home");
+      });
+
       // Come back on our own the moment the machine sees a network again.
       window.addEventListener("online", () => {
         if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage("retry");
