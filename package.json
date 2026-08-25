@@ -21,7 +21,9 @@
     "db:studio": "drizzle-kit studio",
     "mcp:key": "tsx scripts/mcp-issue-key.ts",
     "desktop:hash": "tsx scripts/desktop-hash.ts",
-    "desktop:upload": "tsx scripts/desktop-upload.ts"
+    "desktop:upload": "tsx scripts/desktop-upload.ts",
+    "guide:cocozuri": "tsx scripts/cocozuri-guide-pdf.tsx",
+    "mkt:bucket": "tsx scripts/marketing-bucket.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
