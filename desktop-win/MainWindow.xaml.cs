@@ -35,6 +35,12 @@ public partial class MainWindow : Window
     /// <summary>The last COS page that actually loaded, so Retry goes back to it.</summary>
     private string _lastGoodUrl = AppUrl;
 
+    /// <summary>Where to open. The page you were last on, or Home.</summary>
+    private string _startUrl = AppUrl;
+
+    /// <summary>The zoom you last set, so Ctrl+- does not have to be re-done daily.</summary>
+    private double _startZoom = 1.0;
+
     private bool _showingOffline;
 
     /// <summary>
@@ -100,6 +106,13 @@ public partial class MainWindow : Window
         // so the bar reads as part of the app instead of a strip sitting on top
         // of it. Text and border are set with it — a dark caption with the
         // default near-black text is unreadable.
+        // The update bar was hard-coded amber and glared against a dark app —
+        // the same fault as the caption, one layer in.
+        UpdateBar.Background  = new SolidColorBrush(dark ? Color.FromRgb(0x2f, 0x27, 0x16) : Color.FromRgb(0xff, 0xf4, 0xd6));
+        UpdateBar.BorderBrush = new SolidColorBrush(dark ? Color.FromRgb(0x4a, 0x3c, 0x1e) : Color.FromRgb(0xe8, 0xd9, 0xa8));
+        UpdateText.Foreground = new SolidColorBrush(dark ? Color.FromRgb(0xe4, 0xca, 0x8a) : Color.FromRgb(0x5b, 0x4a, 0x1a));
+        UpdateDismiss.Foreground = UpdateText.Foreground;
+
         int caption = dark ? ColorRef(0x12, 0x12, 0x12) : ColorRef(0xf4, 0xf5, 0xf6);
         int text    = dark ? ColorRef(0xe8, 0xe8, 0xe8) : ColorRef(0x1c, 0x1c, 0x1c);
         int border  = dark ? ColorRef(0x2a, 0x2a, 0x2a) : ColorRef(0xe4, 0xe8, 0xef);
@@ -134,6 +147,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => ApplyShellTheme(WindowsPrefersDark());
         Loaded += async (_, _) =>
         {
+            EnsureTray();
             await StartWebViewAsync();
             // After the window is up, never before: a slow or missing answer
             // must not hold up the app appearing.
@@ -203,7 +217,10 @@ public partial class MainWindow : Window
         core.DocumentTitleChanged += (_, _) =>
             Title = string.IsNullOrWhiteSpace(core.DocumentTitle) ? "Oracle Consultancy" : core.DocumentTitle;
 
-        core.Navigate(AppUrl);
+        // Restored before the first navigation so the page never renders at the
+        // wrong size and then jump.
+        try { Web.ZoomFactor = _startZoom; } catch { }
+        core.Navigate(_startUrl);
     }
 
     /* ------------------------------------------------------------------ *
@@ -295,15 +312,52 @@ public partial class MainWindow : Window
         public string? downloadUrl { get; set; }
         public string? sha256 { get; set; }
         public string? note { get; set; }
+        public string? releasedOn { get; set; }
+        public string[]? notes { get; set; }
     }
+
+    /// <summary>How the last check went, for the version panel to report.</summary>
+    internal enum CheckOutcome { Never, UpToDate, NewerAvailable, CouldNotAsk }
+
+    internal CheckOutcome LastCheck { get; private set; } = CheckOutcome.Never;
+    internal DateTime? LastCheckedAt { get; private set; }
+    internal string? PublishedVersion { get; private set; }
+    internal string? PublishedOn { get; private set; }
+    internal string[] PublishedNotes { get; private set; } = Array.Empty<string>();
+
+    /// <summary>This app's own version, as three numbers.</summary>
+    internal static Version MyVersion
+    {
+        get
+        {
+            var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            return v is null ? new Version(0, 0, 0)
+                             : new Version(v.Major, v.Minor, v.Build < 0 ? 0 : v.Build);
+        }
+    }
+
+    /// <summary>Where this app points, for the diagnostics paste.</summary>
+    internal static string SiteUrl => AppUrl;
+
+    /// <summary>
+    /// Which WebView2 runtime is actually installed. Worth having in a
+    /// diagnostics paste — the app is a window around Chromium, so "which
+    /// Chromium" is the first question when a page misbehaves here and nowhere
+    /// else.
+    /// </summary>
+    internal static string WebViewRuntimeVersion()
+    {
+        try { return CoreWebView2Environment.GetAvailableBrowserVersionString() ?? "unknown"; }
+        catch { return "not installed"; }
+    }
+
+    /// <summary>Ask now, from the version panel's button.</summary>
+    internal Task CheckNowAsync() => CheckForNewerVersionAsync();
 
     private async Task CheckForNewerVersionAsync()
     {
         try
         {
-            var mine = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            if (mine is null) return;
-
             var json = await Http.GetStringAsync(new Uri(AppUri, "/api/desktop/version"));
             var answer = JsonSerializer.Deserialize<VersionAnswer>(json);
             if (answer?.version is null) return;
@@ -312,8 +366,18 @@ public partial class MainWindow : Window
             // Compare on major.minor.build only. The assembly version carries a
             // fourth number (revision) that the .csproj never sets, so a
             // straight comparison would call 1.0.0.0 older than 1.0.0.
-            var here = new Version(mine.Major, mine.Minor, mine.Build < 0 ? 0 : mine.Build);
+            var here = MyVersion;
             var there = new Version(published.Major, published.Minor, published.Build < 0 ? 0 : published.Build);
+
+            // Recorded whatever the verdict, so the version panel can say when
+            // it last asked and what it heard — the question that was
+            // impossible to answer when an app turned out to be a year old.
+            LastCheckedAt = DateTime.Now;
+            PublishedVersion = there.ToString();
+            PublishedOn = answer.releasedOn;
+            PublishedNotes = answer.notes ?? Array.Empty<string>();
+            LastCheck = there <= here ? CheckOutcome.UpToDate : CheckOutcome.NewerAvailable;
+
             if (there <= here) return;
 
             // ⚠️ A URL is only accepted WITH a checksum. The app runs what it
@@ -342,7 +406,11 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // Silent on purpose — see the note above.
+            // Silent to the USER on purpose — see the note above — but the
+            // version panel still gets to say "could not ask", which is a very
+            // different thing from "you are up to date".
+            LastCheck = CheckOutcome.CouldNotAsk;
+            LastCheckedAt = DateTime.Now;
         }
     }
 
@@ -381,9 +449,43 @@ public partial class MainWindow : Window
             using (var response = await Http.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 response.EnsureSuccessStatusCode();
+                // Copied by hand rather than with CopyToAsync so there is
+                // something to report. A download with no sign of movement
+                // reads as a hung app, and the only cure is a number.
+                var total = response.Content.Headers.ContentLength;
                 await using var incoming = await response.Content.ReadAsStreamAsync();
                 await using var onDisk = File.Create(file);
-                await incoming.CopyToAsync(onDisk);
+
+                var buffer = new byte[81920];
+                long done = 0;
+                int lastShown = -1;
+                int read;
+                while ((read = await incoming.ReadAsync(buffer)) > 0)
+                {
+                    await onDisk.WriteAsync(buffer.AsMemory(0, read));
+                    done += read;
+
+                    // A server need not send a length. Fall back to megabytes,
+                    // which still moves, rather than inventing a percentage.
+                    if (total is > 0)
+                    {
+                        int pct = (int)(done * 100 / total.Value);
+                        if (pct != lastShown)
+                        {
+                            lastShown = pct;
+                            UpdateText.Text = $"Downloading version {_newVersion}… {pct}%";
+                        }
+                    }
+                    else
+                    {
+                        int mb = (int)(done / 1048576);
+                        if (mb != lastShown)
+                        {
+                            lastShown = mb;
+                            UpdateText.Text = $"Downloading version {_newVersion}… {mb} MB";
+                        }
+                    }
+                }
             }
 
             UpdateText.Text = "Checking the download…";
@@ -495,7 +597,44 @@ public partial class MainWindow : Window
         };
         icon.BalloonTipClicked += (_, _) => BringToFront();
         icon.DoubleClick += (_, _) => BringToFront();
+
+        // Right-click. This is the only chrome the app has — the window is a
+        // web page and cannot carry an About box of its own.
+        var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("Open Oracle Consultancy", null, (_, _) => BringToFront());
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("About and updates…", null, (_, _) => ShowAbout());
+        icon.ContextMenuStrip = menu;
         return icon;
+    }
+
+    /// <summary>
+    /// ⚠️ THE TRAY ICON IS CREATED AT START-UP NOW, not on the first
+    /// notification. It carries the only menu the app has, and a menu that
+    /// appears only after COS happens to send a reminder is not a menu anybody
+    /// can rely on finding.
+    /// </summary>
+    private void EnsureTray()
+    {
+        try { _tray ??= CreateTrayIcon(); }
+        catch { /* no tray is a shame, never a reason to fail to start */ }
+    }
+
+    private AboutWindow? _about;
+
+    private void ShowAbout()
+    {
+        try
+        {
+            if (_about is not null) { _about.Fill(); _about.Activate(); return; }
+            _about = new AboutWindow(this, _shellDark ?? false);
+            _about.Closed += (_, _) => _about = null;
+            _about.Show();
+        }
+        catch
+        {
+            // A panel that cannot open must not take the app with it.
+        }
     }
 
     private void BringToFront()
@@ -648,6 +787,13 @@ public partial class MainWindow : Window
             Web.CoreWebView2?.Reload();
             e.Handled = true;
         }
+        else if ((e.Key == Key.D0 || e.Key == Key.NumPad0) && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            // Ctrl +/- are WebView2's own. Ctrl+0 is not, and without it a zoom
+            // that now persists between launches would be a trap.
+            try { Web.ZoomFactor = 1.0; } catch { }
+            e.Handled = true;
+        }
         else if (e.Key == Key.F11)
         {
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
@@ -665,7 +811,13 @@ public partial class MainWindow : Window
      * Window size and position, remembered between launches.
      * ------------------------------------------------------------------ */
 
-    private record WindowState_(double Left, double Top, double Width, double Height, bool Maximized);
+    // ⚠️ NEW FIELDS ARE NULLABLE WITH DEFAULTS. This is deserialised from a file
+    // written by an OLDER version of the app, which knows nothing of them; a
+    // required member would throw and the window would silently lose its size
+    // and position on the first launch after every update.
+    private record WindowState_(
+        double Left, double Top, double Width, double Height, bool Maximized,
+        string? LastUrl = null, double Zoom = 1.0);
 
     private static string StatePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -697,6 +849,13 @@ public partial class MainWindow : Window
                 Top = s.Top;
             }
             if (s.Maximized) WindowState = System.Windows.WindowState.Maximized;
+
+            // Where we were. Only OUR pages — a stale link to anywhere else is
+            // not something to reopen unattended.
+            if (!string.IsNullOrWhiteSpace(s.LastUrl) && IsOurs(s.LastUrl!)) _startUrl = s.LastUrl!;
+            // Clamped: a zoom saved from a mis-key should not open the app at
+            // 25% and leave somebody unable to find the menu to fix it.
+            if (s.Zoom >= 0.5 && s.Zoom <= 3.0) _startZoom = s.Zoom;
         }
         catch
         {
@@ -711,8 +870,11 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(Path.GetDirectoryName(StatePath)!);
             var maximized = WindowState == System.Windows.WindowState.Maximized;
             var r = maximized ? RestoreBounds : new Rect(Left, Top, Width, Height);
+            double zoom = 1.0;
+            try { zoom = Web.CoreWebView2 is null ? _startZoom : Web.ZoomFactor; } catch { }
             File.WriteAllText(StatePath,
-                JsonSerializer.Serialize(new WindowState_(r.Left, r.Top, r.Width, r.Height, maximized)));
+                JsonSerializer.Serialize(new WindowState_(
+                    r.Left, r.Top, r.Width, r.Height, maximized, _lastGoodUrl, zoom)));
         }
         catch
         {

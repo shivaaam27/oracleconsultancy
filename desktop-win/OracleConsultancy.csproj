@@ -35,7 +35,7 @@
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Company>Oracle Consultancy Ltd</Company>
     <Product>Oracle Consultancy</Product>
     <Copyright>© Oracle Consultancy Ltd</Copyright>

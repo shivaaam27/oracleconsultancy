@@ -6,6 +6,8 @@ import {
   DESKTOP_BUCKET,
   DESKTOP_RELEASE_NOTE,
   DESKTOP_SHA256,
+  DESKTOP_RELEASED_ON,
+  DESKTOP_NOTES,
 } from "@/lib/desktop-release";
 
 /* ------------------------------------------------------------------ *
@@ -67,7 +69,13 @@ export async function GET() {
       version: DESKTOP_VERSION,
       downloadUrl,
       sha256: downloadUrl ? DESKTOP_SHA256 : null,
+      // ⚠️ `note` STAYS. Version 1.0.1 reads this field and nothing else; the
+      // fields below were added for the version panel in 1.0.2. Removing it
+      // would silently blank the message on every older app — which are the
+      // ones that most need to be told what they are missing.
       note: DESKTOP_RELEASE_NOTE || null,
+      releasedOn: DESKTOP_RELEASED_ON || null,
+      notes: DESKTOP_NOTES.length ? DESKTOP_NOTES : null,
     },
     {
       // ⚠️ NOT cacheable: the link is signed and short-lived, so a cached copy

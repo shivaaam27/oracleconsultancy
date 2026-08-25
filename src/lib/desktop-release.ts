@@ -16,7 +16,7 @@
  * ------------------------------------------------------------------ */
 
 /** The newest published version of the desktop window. */
-export const DESKTOP_VERSION: string = "1.0.1";
+export const DESKTOP_VERSION: string = "1.0.2";
 
 /**
  * The installer's name inside the private `desktop` storage bucket.
@@ -33,7 +33,7 @@ export const DESKTOP_VERSION: string = "1.0.1";
  * Typed as string, not left to infer "" — an inferred literal type narrows to
  * `never` the moment anything checks it, which broke the test that does.
  */
-export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.1.exe";
+export const DESKTOP_STORAGE_PATH: string = "Oracle-Consultancy-Setup-1.0.2.exe";
 
 /** The bucket holding it. Private; see above. */
 export const DESKTOP_BUCKET = "desktop";
@@ -49,7 +49,29 @@ export const DESKTOP_BUCKET = "desktop";
  *
  * Produced by `npm run desktop:hash` after building the installer.
  */
-export const DESKTOP_SHA256: string = "11c2eb44e67dbf111395a2c8af8fd2e4fecf14a7d4a3355734cf5f89544d9aad";
+export const DESKTOP_SHA256: string = "2a2738949cbf3d160d6edf6335715cd17c6757796613ed98ba0b3caa6b2b2a34";
 
-/** One short line shown in the bar. Say what changed, in plain words. */
-export const DESKTOP_RELEASE_NOTE: string = "The window now matches dark mode, and downloading a file no longer looks like a lost connection.";
+/**
+ * One short line shown in the update BAR, where there is room for a sentence.
+ *
+ * ⚠️ KEEP THIS. Version 1.0.1 reads `note` and knows nothing of `notes` below;
+ * dropping it would leave every 1.0.1 app with a bar that says only "a newer
+ * version is available" and nothing about what changed. Old apps are exactly
+ * the ones that most need telling.
+ */
+export const DESKTOP_RELEASE_NOTE: string = "A version panel on the tray icon, a dark-mode update bar, download progress, and the app reopens where you left off.";
+
+/** The day this version was published, ISO. Shown in the version panel. */
+export const DESKTOP_RELEASED_ON: string = "2026-08-25";
+
+/**
+ * What actually changed, one line each, for the version panel (1.0.2+).
+ * Plain words — this is read by whoever is deciding whether to press the button.
+ */
+export const DESKTOP_NOTES: string[] = [
+  "Right-click the tray icon for a version panel, with a Check for updates button.",
+  "The update bar follows dark mode instead of glaring amber.",
+  "Downloading an update shows how far along it is.",
+  "The app reopens on the page you were last on.",
+  "Zoom (Ctrl +/-) is remembered between launches; Ctrl+0 resets it.",
+];
