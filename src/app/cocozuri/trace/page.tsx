@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, Radar } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriTracePicker } from "@/components/cocozuri-trace";
 import { cocozuriCompany } from "@/lib/cocozuri";
+import { czDate } from "@/lib/cocozuri-shared";
 import { qty as qtyText } from "@/lib/cocozuri-stock-shared";
 import { allLots, batchesUsing, expiringStock, traceBatch } from "@/lib/cocozuri-trace";
 import { EXPIRY_LABEL, STEP_LABEL, expiryState } from "@/lib/cocozuri-trace-shared";
@@ -58,10 +59,10 @@ export default async function CocozuriTracePage({
           <div className="grid gap-3 sm:grid-cols-4">
             <Tile label={chosen.source === "purchase" ? "Bought in" : "Made"} value={qtyText(chosen.madeQty)} />
             <Tile label="Still on a shelf" value={qtyText(chosen.onHand)} />
-            <Tile label={chosen.source === "purchase" ? "Delivered" : "Made on"} value={chosen.madeOn ?? "—"} />
+            <Tile label={chosen.source === "purchase" ? "Delivered" : "Made on"} value={czDate(chosen.madeOn)} />
             <Tile
               label={EXPIRY_LABEL[expiryState(chosen.expiresOn, expiring.today)]}
-              value={chosen.expiresOn ?? "nobody has said"}
+              value={chosen.expiresOn ? czDate(chosen.expiresOn) : "nobody has said"}
               tone={chosen.expiresOn == null ? "warn"
                 : expiryState(chosen.expiresOn, expiring.today) === "expired" ? "danger" : undefined} />
           </div>
@@ -100,7 +101,7 @@ export default async function CocozuriTracePage({
                   <Link href={`/cocozuri/trace?batch=${encodeURIComponent(b.batchNo)}`}
                     className="truncate text-sm text-accent hover:underline">{b.batchNo}</Link>
                   <span className="min-w-0 truncate text-sm text-fg">{b.itemName ?? "—"}</span>
-                  <span className="text-right text-sm tabular text-fg-subtle">{b.madeOn ?? "—"}</span>
+                  <span className="text-right text-sm tabular text-fg-subtle">{czDate(b.madeOn)}</span>
                   <span className="text-right text-sm tabular text-fg-muted">{qtyText(b.qtyUsed)} used</span>
                 </div>
               ))}
@@ -128,6 +129,18 @@ export default async function CocozuriTracePage({
             ? `${qtyText(expiring.undated)} of it carries no date at all — which is the finding that matters most in a food business.`
             : "Everything on a shelf that belongs to a lot."
         }>
+        {/* ⚠️ THIS TABLE HAD NO HEADER ROW. Five columns — lot, chocolate, shelf,
+            how many, when it goes off — and nothing at the top saying which was
+            which. The reader was left to infer it from the values. */}
+        {expiring.rows.length > 0 && (
+          <div className="grid grid-cols-[130px_minmax(0,1fr)_110px_100px_110px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
+            <span>Lot</span>
+            <span>What</span>
+            <span>Where</span>
+            <span className="text-right">On hand</span>
+            <span className="text-right">Goes off</span>
+          </div>
+        )}
         {expiring.rows.length === 0
           ? (
             <p className="px-3 py-4 text-sm text-fg-subtle">
@@ -146,7 +159,7 @@ export default async function CocozuriTracePage({
                 r.state === "expired" ? "text-danger"
                   : r.state === "critical" ? "text-warn"
                   : r.state === "unknown" ? "text-fg-subtle" : "text-fg-muted"}`}>
-                {r.lot.expiresOn ?? "no date"}
+                {r.lot.expiresOn ? czDate(r.lot.expiresOn) : "no date"}
                 {r.daysLeft != null && r.daysLeft >= 0 && r.daysLeft <= 60 && ` · ${r.daysLeft}d`}
               </span>
             </div>
@@ -181,7 +194,12 @@ function Section({
 
 function Step({ step }: { step: { kind: keyof typeof STEP_LABEL; onDate: string; itemName: string; locationName: string | null; qty: number; note: string | null } }) {
   return (
-    <div className="grid grid-cols-[130px_minmax(0,1fr)_110px_100px] items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
+    /* ⚠️ THE DATE WAS CARRIED AND NEVER SHOWN. Every step here already knew when
+       it happened — the row simply did not print it — and on the one screen that
+       exists for the morning somebody rings up about a bad chocolate, "when" is
+       the column you follow. */
+    <div className="grid grid-cols-[100px_120px_minmax(0,1fr)_110px_100px] items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
+      <span className="truncate text-sm tabular text-fg-muted">{czDate(step.onDate)}</span>
       <span className="truncate text-sm text-fg-muted">{STEP_LABEL[step.kind]}</span>
       <span className="min-w-0 truncate text-sm text-fg" title={step.note ?? step.itemName}>
         {step.itemName}

@@ -3,7 +3,7 @@ import { AlertTriangle, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriCostOfSales } from "@/components/cocozuri-cost-of-sales";
 import { cocozuriCompany } from "@/lib/cocozuri";
-import { money } from "@/lib/cocozuri-shared";
+import { czDate, czMonth, money } from "@/lib/cocozuri-shared";
 import { qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
 import { batchProfits, costOfSalesFor, profitBy, profitMonths, stocktakeValueFor } from "@/lib/cocozuri-profit";
 import { costOfSalesState, postingOverview, stocktakeState } from "@/lib/cocozuri-ledger";
@@ -78,7 +78,7 @@ export default async function CocozuriProfitPage({
     <div className="space-y-4">
       <PageHeader
         title="Profit"
-        sub={`${month === "all" ? "Everything so far" : month} · ${company.name}`}
+        sub={`${month === "all" ? "Everything so far" : czMonth(month)} · ${company.name}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -100,7 +100,7 @@ export default async function CocozuriProfitPage({
             <Link key={m} href={href(view, m)}
               className={`inline-flex h-8 items-center rounded-md px-2.5 text-sm ${
                 month === m ? "bg-bg-subtle text-fg" : "border border-border text-fg-muted hover:text-fg"}`}>
-              {m}
+              {czMonth(m)}
             </Link>
           ))}
         </div>
@@ -136,7 +136,7 @@ export default async function CocozuriProfitPage({
 
       {month !== "all" && cos && (
         <CocozuriCostOfSales
-          year={year!} month={mon!} label={month}
+          year={year!} month={mon!} label={czMonth(month)}
           value={cos.value} complete={cos.complete} unknown={cos.unknown}
           countAdjustment={cos.countAdjustment}
           lineCount={cos.lines.length}
@@ -166,16 +166,20 @@ function BatchView({ batches, month }: { batches: Awaited<ReturnType<typeof batc
   if (batches.length === 0) {
     return (
       <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
-        No batch was finished {month === "all" ? "yet" : `in ${month}`}. A batch has to be closed
+        No batch was finished {month === "all" ? "yet" : `in ${czMonth(month)}`}. A batch has to be closed
         before anybody can say what it cost — that is when the materials are recorded.
       </p>
     );
   }
   return (
     <>
-      {/* ⚠️ The line that keeps this page honest. */}
-      <p className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-sm text-warn">
-        <AlertTriangle size={14} className="mt-px shrink-0" />
+      {/* ⚠️ The line that keeps this page honest — but it is an EXPLANATION, not
+          a warning, and it sat in amber directly beneath a real amber warning.
+          Two alarm-coloured panels touching read as one long alarm, and the
+          second one stops being read. Neutral, so the warning above it keeps
+          its colour to itself. */}
+      <p className="flex items-start gap-2 rounded-lg border border-border bg-bg-elev px-3.5 py-2.5 text-sm text-fg-muted">
+        <Info size={14} className="mt-px shrink-0" />
         <span>
           This is what each batch <strong>cost</strong>, and what its bars are <strong>worth</strong> at
           the price they sell for — not what the batch earned. An invoice names a chocolate, not a
@@ -202,7 +206,7 @@ function BatchView({ batches, month }: { batches: Awaited<ReturnType<typeof batc
                   className="min-w-0 truncate text-sm text-accent hover:underline">{b.batchNo}</Link>
                 <span className="min-w-0 truncate text-sm text-fg" title={b.itemName ?? ""}>
                   {b.itemName ?? "—"}
-                  {b.madeOn && <span className="ml-1.5 text-xs text-fg-subtle">{b.madeOn}</span>}
+                  {b.madeOn && <span className="ml-1.5 text-xs text-fg-subtle">{czDate(b.madeOn)}</span>}
                 </span>
                 <span className="text-right text-sm tabular text-fg-muted">{qtyText(b.costing.goodUnits)}</span>
                 {/* ⚠️ "≥" the moment one material has never been costed. A total

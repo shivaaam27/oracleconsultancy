@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  batchCheck, batchPlan, closeBlockers, daysOpen, isOpen, nextBatchNo, openBlockers,
+  batchCheck, batchPlan, closeBlockers, daysOpen, isOpen, multipleForTarget, nextBatchNo, openBlockers, overusedMaterials, committedToOpenBatches, freeAfterCommitments,
   type CzBatch,
 } from "./cocozuri-batch-shared";
 import type { CzRecipe, CzRecipeLine } from "./cocozuri-recipe-shared";
@@ -211,5 +211,166 @@ describe("what is still running", () => {
     expect(daysOpen(batch({ madeOn: "2026-08-22" }), "2026-08-22")).toBe(0);
     expect(daysOpen(batch({ madeOn: "2026-08-15" }), "2026-08-22")).toBe(7);
     expect(daysOpen(batch({ status: "closed" }), "2026-08-22")).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * "I need two hundred bars" — turning a wanted quantity into batches.
+ * ------------------------------------------------------------------ */
+
+describe("multipleForTarget", () => {
+  it("measures the target against GOOD units, not the raw yield", () => {
+    // 120 a batch with 10% expected loss is 108 usable, so 200 needs 1.852
+    // batches. Dividing by 120 would give 1.667 and land 16 bars short.
+    const p = multipleForTarget(recipe(), 200)!;
+    expect(p.perBatch).toBe(108);
+    expect(p.multiple).toBe(1.852);
+    expect(p.expectedQty).toBeCloseTo(200, 0);
+    // and the naive answer, which this exists to avoid
+    expect(200 / 120).toBeCloseTo(1.667, 3);
+  });
+
+  it("rounds whole batches UP, never down", () => {
+    // ⚠️ Making fewer than were asked for is a shortfall nobody sees until the
+    // order is short. Making more is stock.
+    const p = multipleForTarget(recipe(), 200)!;
+    expect(p.wholeMultiple).toBe(2);
+    expect(p.wholeExpectedQty).toBe(216);
+  });
+
+  it("does not round a target that already lands exactly up to the next batch", () => {
+    const p = multipleForTarget(recipe(), 216)!;
+    expect(p.multiple).toBe(2);
+    expect(p.wholeMultiple).toBe(2);
+  });
+
+  it("never returns less than one whole batch", () => {
+    const p = multipleForTarget(recipe(), 5)!;
+    expect(p.multiple).toBeLessThan(1);
+    expect(p.wholeMultiple).toBe(1);
+  });
+
+  it("agrees with batchPlan, which is what actually scales the materials", () => {
+    const r = recipe();
+    const p = multipleForTarget(r, 200)!;
+    expect(batchPlan(r, p.multiple).expectedQty).toBeCloseTo(200, 0);
+    expect(batchPlan(r, p.wholeMultiple).expectedQty).toBe(p.wholeExpectedQty);
+  });
+
+  it("handles a recipe that expects no loss at all", () => {
+    const p = multipleForTarget(recipe({ expectedLossPercent: 0 }), 240)!;
+    expect(p.perBatch).toBe(120);
+    expect(p.multiple).toBe(2);
+  });
+
+  it("says nothing rather than inventing an answer", () => {
+    expect(multipleForTarget(recipe(), 0)).toBeNull();
+    expect(multipleForTarget(recipe(), -5)).toBeNull();
+    expect(multipleForTarget(recipe(), Number.NaN)).toBeNull();
+    // a recipe that yields nothing, or loses the lot
+    expect(multipleForTarget(recipe({ yieldQty: 0 }), 100)).toBeNull();
+    expect(multipleForTarget(recipe({ expectedLossPercent: 100 }), 100)).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * More went in than the recipe asks for.
+ *
+ * ⚠️ The output shortfall always had a rule; the input overrun had none, so a
+ * batch could quietly eat an extra kilo of cocoa and close without a word.
+ * ------------------------------------------------------------------ */
+
+describe("a material that runs over the recipe", () => {
+  const r = recipe();                     // 120 yield, 10% loss, 2 KG of COCOA
+  const plan = batchPlan(r, 1);
+  const closed = (usedQty: number, note = "") => {
+    const used = [{ itemId: 1, itemName: "COCOA", uom: "KG", qty: usedQty }];
+    const check = batchCheck(
+      { producedQty: 108, plannedQty: 108, recipeMultiple: 1, lossKind: "none", lossNote: note },
+      plan, used,
+    );
+    return { check, blockers: closeBlockers({ producedQty: 108, check, used }) };
+  };
+
+  it("lets a scoop either way through without a word", () => {
+    // ⚠️ A rule that fires on every batch is one people learn to click past.
+    const { check, blockers } = closed(2.05);
+    expect(check.overused).toHaveLength(0);
+    expect(blockers).toEqual([]);
+  });
+
+  it("asks why when a line goes materially over", () => {
+    const { check, blockers } = closed(2.5);
+    expect(check.overused.map((m) => m.itemName)).toEqual(["COCOA"]);
+    expect(blockers.join(" ")).toMatch(/More COCOA went in/);
+  });
+
+  it("names the three answers worth telling apart", () => {
+    // spilled · mismeasured · the recipe is wrong — the last is the only signal
+    // a recipe ever gets that it needs changing.
+    expect(closed(2.5).blockers.join(" ")).toMatch(/spilled.*mismeasured.*recipe is wrong/);
+  });
+
+  it("is satisfied once somebody says why", () => {
+    const { check, blockers } = closed(2.5, "Bag split on the bench.");
+    expect(check.needsExplaining).toBe(false);
+    expect(blockers).toEqual([]);
+  });
+
+  it("keeps the shortfall complaint separate from the overrun one", () => {
+    // ⚠️ Two different findings. One message covering both sends somebody to
+    // the wrong end of the batch.
+    const used = [{ itemId: 1, itemName: "COCOA", uom: "KG", qty: 2 }];
+    const check = batchCheck(
+      { producedQty: 50, plannedQty: 108, recipeMultiple: 1, lossKind: "none", lossNote: "" },
+      plan, used,
+    );
+    expect(closeBlockers({ producedQty: 50, check, used }).join(" ")).toMatch(/Less came out/);
+  });
+
+  it("says nothing about a material the recipe never asked for", () => {
+    // It has no `planned`, so there is nothing to be over.
+    const used = [{ itemId: 99, itemName: "SALT", uom: "GM", qty: 5 }];
+    const check = batchCheck(
+      { producedQty: 108, plannedQty: 108, recipeMultiple: 1, lossKind: "none", lossNote: "" },
+      plan, used,
+    );
+    expect(check.overused).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * What open batches have already promised.
+ * ------------------------------------------------------------------ */
+
+describe("committedToOpenBatches", () => {
+  const r = recipe();                    // one batch takes 2 KG of COCOA (item 1)
+  const find = (id: number) => (id === r.id ? r : null);
+
+  it("adds up what every open batch will take", () => {
+    const got = committedToOpenBatches([
+      { batchNo: "B-1", recipeId: r.id, recipeMultiple: 1 },
+      { batchNo: "B-2", recipeId: r.id, recipeMultiple: 2 },
+    ], find);
+    expect(got.get(1)).toMatchObject({ committed: 6, batches: ["B-1", "B-2"] });
+  });
+
+  it("names the batches, so the number can be chased", () => {
+    const got = committedToOpenBatches([{ batchNo: "B-9", recipeId: r.id, recipeMultiple: 1 }], find);
+    expect(got.get(1)!.batches).toEqual(["B-9"]);
+  });
+
+  it("skips a batch with no recipe rather than guessing at one", () => {
+    expect(committedToOpenBatches([{ batchNo: "B-3", recipeId: null, recipeMultiple: 1 }], find).size).toBe(0);
+  });
+
+  it("skips a recipe that has since been deleted", () => {
+    expect(committedToOpenBatches([{ batchNo: "B-4", recipeId: 999, recipeMultiple: 1 }], find).size).toBe(0);
+  });
+
+  it("leaves what is free NEGATIVE when more is promised than exists", () => {
+    // ⚠️ Clamping at zero hides the one case worth seeing.
+    expect(freeAfterCommitments(3, 6)).toBe(-3);
+    expect(freeAfterCommitments(10, 6)).toBe(4);
   });
 });

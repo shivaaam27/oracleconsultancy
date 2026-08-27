@@ -1423,3 +1423,431 @@ the ledger and batches exist.
 The order matters more than the speed. **Stage 1 first, always** — every other
 stage writes into it, and building any of them on the day book would mean doing
 it twice.
+
+---
+
+# §7. The chef's costing workbook — audited, 26 Aug 2026
+
+**`Documents/Cocozuri/Item Costing Calculation (1).xlsx`.** Six sheets:
+**REGULAR** (A1:Z913) · **Sheet1** (A1:W92) · **TRIALS** (A1:N1066) ·
+**Sheet3** (A1:I6) · **Sheet2** (A1:P79) · **revised items** (A1:H9).
+
+Every figure below was **recomputed from the cells**, not read off the sheet.
+
+## What it is
+
+**174 recipe blocks**, found by locating every cell reading `ITEM NO`. Each is:
+
+```
+<name>            ITEM NO   USED   GM   PRICE PER PACKING        PRICE
+                  <material> <qty> <unit> <pack size> <unit> <price/pack>  = price × qty ÷ pack
+                  TOTAL COST                                    = SUM(lines)
+                  COST PER PCS                                  = TOTAL ÷ yield
+```
+
+⚠️ **The column layout is DIFFERENT on every sheet** — REGULAR puts the material
+in **C**, TRIALS in **B**, Sheet2/Sheet3 in **B** — so anything reading this file
+must DETECT the header row, never assume a column.
+
+**164 blocks carry at least one costed line; 1,127 costed lines in all.**
+
+## ⚠️ THE ARITHMETIC IS SOUND. THE STRUCTURE IS NOT.
+
+**All 1,467 formulas recompute exactly — zero mismatches.** Excel is doing what
+it is told. Every fault below is what it was *told to do*.
+
+1. **⚠️ MATCHA COOKIES ADDS UP 5 OF ITS 11 INGREDIENTS.** `TOTAL=SUM(J847:J851)`
+   starts six rows too low, so butter, both sugars, milk, vanilla and maida are
+   left out: **2,354 instead of 8,225**, cost/piece **157 when it is 548 —
+   understated 71.4%**. The same broken block appears twice (REGULAR R852 and
+   Sheet1 R43).
+2. **⚠️ SAFFRON & CARAMEL COUNTS ITS OWN PER-PIECE FIGURE AS AN INGREDIENT.**
+   `J12 = SUM(J4:J11)/32` sits in the middle of the material list and
+   `J15 = SUM(J4:J12)` sweeps it in. Cost/piece **1,892.65 against a true
+   1,835.30 — overstated 3.13%** (exactly 1/32 too much, every time).
+3. **⚠️ MINI DATES (TRIALS R181) LOST ITS DATES LINE.** `H184` should be
+   `G184*C184/E184` = 52 × 8 = **416**; it holds `SUM(H182:H183)` = **277**, and
+   the total then adds that sum a second time. **554 against a true 693.**
+4. **8 recipes have NO total at all** (Lego bite, both 220g pistachio kunafa bars,
+   short and long kunafa sticks, 80% plain bar, 50% sea-salt cashew bar, milk
+   chocolate hazelnut bar) — ingredients written, never priced. **12 more have a
+   total but an empty COST PER PCS.**
+
+## ⚠️ THE REAL PROBLEM: ONE INGREDIENT, MANY PRICES
+
+Every line carries its own typed price, so **228 distinct ingredient names are
+priced at 50 different rates between them**:
+
+| Ingredient | lines | rates | spread |
+|---|---|---|---|
+| Butter | 83 | 2 | 28 vs **82.34** — the white-chocolate price pasted into one butter line (REGULAR C26), inflating Strawberry & Basil by 2,717 on 43,479 |
+| Cooking cream | 69 | 3 | 6.30 / 12.50 / 13.00 per ml (**2.1x**) |
+| Milk chocolate | 70 | 4 | 78 / 84.40 / 85.10 / 98.50 per g |
+| White chocolate | 58 | 5 | 75.82 → 98.50 |
+| Pistachio paste | 19 | 3 | **30 vs 80.84** (2.7x) — the 30 is on a 700 g line |
+| Glucose syrup | 7 | 2 | **16x** · Orange zest **83x** · Ginger **5.5x** · Pilipili **5x** |
+
+**This is the thing COS fixes for nothing.** `cz_recipes` has **no cost column**;
+a recipe costs itself on read from `cz_stock_moves.unit_cost` — the **landed**
+price Stage 2 wrote, weighted-averaged over the receipts. One price per material,
+from what was actually paid, and every recipe moves when it moves.
+
+## ⚠️ THE SAME RECIPE IN MORE THAN ONE PLACE, DISAGREEING
+
+25 ingredient lists appear more than once (50 blocks); 13 are exact copies. The
+rest disagree:
+
+- **Cream brulle: 9,724 (REGULAR R807) vs 9,784 (Sheet1 R1)** — REGULAR's copy is
+  missing the *Custard powder 5 gm* line.
+- **Red velvet cheesecake: 6,721 vs 6,784** (TRIALS R787, R847).
+- **Lemon & chilli exists three times** at **304, 529 and 454** per piece.
+- **One recipe, two names**: *Coconut jaggry modak bon bons* (TRIALS R395) and
+  *Coconut creme* (Sheet2 R65), both 15,499.
+- *revised items* holds ONE recipe, **SAFFRON DATE TRUFFLE BON BON at 48 pieces /
+  559 each**, against TRIALS R683's 10 pieces / 3,598 — a revision, not a copy.
+
+## ⚠️ IT DOES NOT LINE UP WITH COS, AND THAT IS THE WORK
+
+- **144 distinct product names. Six match a `cz_products` row exactly**, nine more
+  after stripping the yield off the name. **~129 have no counterpart.**
+- **236 ingredient names. 58 match a raw material exactly**, 15 more after
+  stripping the quantity out of the name, **163 match nothing** — nearly all
+  wording, not substance: `Vanilla bean` vs `Vanilla Bean (Paste)`, `Kunafa` vs
+  `Kunafa packets`, `feulittine` / `Feuilletine` / `Fueillentin/Royaltine`.
+- ⚠️ **The names must be settled by a person, one at a time.** Matching stock by
+  name is fault #4 and a cleverer matcher is not the answer.
+
+## What the chef asked for is ALREADY BUILT — bar one word
+
+*"He clicks the end product and the quantity and everything else gets adjusted."*
+`/cocozuri/batches` → **Start a batch** does exactly this: pick what is coming
+out, pick a recipe, and `batchPlan(recipe, multiple)` scales every material line
+and the expected output, printing **"It will ask for …"** before anything is
+committed. Materials come off the shelf at CLOSE, not at start, so an abandoned
+batch costs nothing.
+
+**The one real gap: the box says "How many batches", not how many pieces.** The
+chef thinks in *"I need 200 bars"*; the form wants *"1.85 batches"*. Converting
+one to the other is small and self-contained.
+
+⚠️ **AND THE CUPBOARD IS BARE:** `cz_recipes` holds **1** row, `cz_recipe_lines`
+**2**, `cz_batches` **1**, and only **2** stock movements carry a unit cost. Until
+the recipes are loaded and materials have been bought through COS, the costing
+has nothing to read.
+
+## §7a. Both halves built — 26 Aug 2026
+
+### 1. The chef asks in chocolates, not in batches
+
+`/cocozuri/batches` → Start a batch now has **two boxes that mirror each other**:
+*How many PCS do you want* and *Or how many batches*. Whichever was typed last
+drives; the other shows what that comes to. `multipleForTarget()` in
+`cocozuri-batch-shared.ts` is the pure, tested half.
+
+- ⚠️ **THE TARGET IS GOOD UNITS, MEASURED AFTER THE EXPECTED LOSS.** A recipe
+  yielding 120 at 10% loss gives **108** usable, so an order for 200 needs
+  **1.852** batches — not 1.667. Dividing by the raw yield is **16 bars short on
+  every single run**, silently. Tested against both figures.
+- ⚠️ **WHOLE BATCHES ROUND UP, NEVER DOWN**, and it is offered rather than
+  imposed — you cannot pour 0.85 of a mould, but a slab poured by weight really
+  does scale continuously, so the screen says what 2 whole batches would give
+  and the kitchen chooses.
+- ⚠️ **BOTH BOXES ALWAYS AGREE.** Leaving the first reading 200 while two whole
+  batches make 216 is the kind of quiet disagreement that sends an order short.
+  Proved live: 200 → 1.852 → round up → 216/2 → type 3 → 324/3, materials 3×.
+
+### 2. Reading the costing workbook — `/cocozuri/recipes/import`
+
+**`cocozuri-recipe-import.ts` is CLIENT-SAFE and pure**; the write goes through
+the existing `createRecipeAction` → `createRecipe`, which is still the one door.
+No migration, no new table, no new server code.
+
+Paste a sheet; it splits into blocks, puts them up one at a time with the obvious
+answers filled in, and saves each as a **draft**.
+
+- ⚠️ **THE COLUMN LAYOUT IS FOUND, NEVER ASSUMED** — the material sits in **C**
+  on REGULAR, **B** on TRIALS and Sheet2. The `ITEM NO` header row is located and
+  its columns read off it.
+- ⚠️ **NO PRICE COMES ACROSS, EVER.** That is the whole point: the sheet prices
+  one butter at 28 a gram and another at 82.34, and one cooking cream at 6.30,
+  12.50 and 13.00. A recipe here has no cost column and costs itself from what
+  was actually paid.
+- ⚠️ **NOTHING IS CREATED AND NOTHING IS MATCHED FUZZILY.** Exact on case and
+  spacing is a match; anything else is a **suggestion that says it is one**
+  ("Guessed from the name — check it"). A material not on the shelf is refused
+  with the reason.
+- ⚠️ **A DECISION IS REMEMBERED, AND THAT IS WHAT MAKES 174 RECIPES POSSIBLE.**
+  Say once that the chef's `Kunafa` is the shelf's `Kunafa packets` and every
+  later recipe knows. Kept in `localStorage` under
+  `cocozuri.recipeImport.materials` — a person's decision, replayed, not a guess.
+
+### ⚠️ Four real bugs, all found by RUNNING it, and every one is now a test
+
+1. **`50%` lost its number.** Stripping bare numbers out of a material name
+   turned `50% dark chocolate` into `% dark chocolate`, collapsing the 50%, the
+   70.5% and the 80% into one. Caught by the test suite, not by reading.
+2. **The page crashed outright on the first real paste.** `lineChoices[i]!` — an
+   effect fills the answers AFTER the first render, so for one frame the block on
+   screen had no answers and the assertion read off the end of an empty array.
+   The form is now **stamped with the block it belongs to and derived during
+   render**, so the two can never be out of step. **Never `lineChoices[i]!`.**
+3. **The second recipe was named after the FIRST one's kunafa line.** REGULAR
+   keeps the product name in column B *on* the header row and the chef's
+   description of each material in that same column *below* it. Reading top to
+   bottom named block 2 `KITAIFI - 96GMS(BAKED)`. Now **above the header beats
+   below it**, and the search starts at the **previous block's TOTAL**, never a
+   fixed number of rows back.
+4. **The save landed but the screen sat still.** `router.refresh()` after each
+   save re-ran the page and remounted the component, throwing away which recipe
+   we were on and the count of what was done — the recipe was in the database and
+   the screen looked as though nothing had happened. Names saved in the sitting
+   are now tracked locally; it is also 174 fewer round trips.
+
+### Proved live, end to end
+
+Two real blocks pasted from the workbook → both read → `Kunafa` matched by hand
+once → second recipe placed all three materials by itself, **`Kunafa` remembered**
+→ both saved as drafts with the right output items, quantities and units → one
+activated → picked on the batch form → **100 pieces asked for → 3.125 batches,
+Pistachio paste 400 GM, Kunafa packets 312.5 GM, Milk chocolate 700 GM.**
+
+⚠️ **A DRAFT DOES NOT REACH THE KITCHEN.** `makeableRecipes()` offers only ACTIVE
+recipes, so an imported recipe must be put into use deliberately. That is Stage
+3's rule and it is right — but it is the step somebody will forget.
+
+**The test recipes were removed afterwards; `cz_recipes` is back as it was.**
+
+---
+
+# §8. Running it end to end — what is missing, 26 Aug 2026
+
+The owner asked the right question: *"how does one end flow to the next?"* and
+gave the case that exposes it — a batch part-made when more cocoa is needed
+because somebody spilled some. Walked the module end to end. Findings, each
+checked against the code and the running app rather than guessed.
+
+## ⚠️ NOTHING HANDS OVER TO THE NEXT STAGE. EVERY SCREEN STARTS BLANK.
+
+Grepped every cross-screen link in the module: there is **not one deep link that
+carries data forward**. `?new=1` opens an EMPTY form on the same screen and
+nothing else.
+
+| From | To | Today |
+|---|---|---|
+| **Order form** | Purchase | ⚠️ **`window.print()` is its ONLY action.** You work out what to buy, print it, and retype every line by hand. |
+| Recipe | Batch | No "make this now" — go to Production and find the recipe again |
+| Batch | Transfer | No "send this to the shop" — go to Transfers and retype |
+| Counter sale | Invoice | Nothing |
+| Purchase | Payment | Payments finds what is owed, which is the one half that works |
+
+**The order form is the worst of it and the owner found it himself** — *"I see
+the list but how to create a new one?"* He expected a document. It is a
+worksheet that prints. Either it says so plainly, or — better — its lines hand
+over to a purchase. Nothing between the two is honest.
+
+## ⚠️ THE MID-BATCH PROBLEM IS REAL, AND IT IS NARROWER THAN IT LOOKS
+
+**What already works, verified on a live batch:** the close sheet has an
+**"Actually used"** box per material, `closeBatch` takes it, and `batchCheck`
+reports the difference against the recipe. BATCH-2608-01 shows Africafe Coffee
+**recipe 40 GM · used 44 GM · +4** today. So spillage, a wrong measure and a
+top-up are all recordable — **at the end**.
+
+**What does not work:**
+
+1. ⚠️ **A MATERIAL THE RECIPE DOES NOT LIST CANNOT BE ADDED.** The close sheet
+   renders exactly the recipe's lines. Substitute something, or add anything
+   unplanned, and there is no row to type it in. **`batchCheck` already handles
+   it** (`planned: null` for a material with no recipe line) — the model is
+   ready and only the UI is missing.
+2. ⚠️ **NOTHING CAN BE RECORDED WHILE THE BATCH IS OPEN.** Materials are
+   consumed at CLOSE, which is deliberate and right for a batch made in a
+   morning — an abandoned batch then costs nothing. For a batch that runs days
+   it means the raw-material shelf reads high for the whole run, and a
+   stock-take taken mid-batch finds a shortfall nobody can explain.
+3. ⚠️ **WHY MORE WAS NEEDED IS NEVER ASKED.** `closeBlockers` demands a reason
+   when the OUTPUT is short. It says nothing when a MATERIAL runs over — so the
+   +4 GM above carries no explanation, and the difference between "spilled",
+   "the scales were out" and "the recipe is wrong" is lost. That last one
+   matters: it is the signal that a recipe needs changing.
+
+## ⚠️ TWO OPEN BATCHES BOTH SEE THE WHOLE SHELF
+
+`openBlockers` does not refuse a second batch, which is correct — a kitchen runs
+several at once. But **`batchesPossible` reads the raw on-hand and subtracts
+nothing for batches already open**, so two batches each planning 2 kg of cocoa
+will both open against 3 kg, and the second drives stock negative at close
+(recorded as a `short` line with no lot, never refused).
+
+**Nothing anywhere shows what is already committed to open work.**
+
+## Editable? Mostly — with two holes
+
+The action layer is thorough: create / update / delete or cancel / reopen for
+almost everything. But two actions **exist and are wired to nothing**:
+
+- ⚠️ **`updateBatchAction` is used by NO component.** A batch's date, its maker
+  and its multiple cannot be corrected after it is opened. Reopen-and-close is
+  the only route, and that does not touch those fields at all.
+- ⚠️ **`updateReceiptAction` is used by NO component.** A payment received can
+  only be **deleted and re-entered** — and `deleteReceipt` refuses once posted,
+  so a posted receipt with a typo has to be unposted, deleted and rebuilt.
+
+## Fixed in this pass
+
+- The batch record's movements list said **"Took −44"** and named neither the
+  material nor the day, and fell through to the raw ledger code for anything
+  else — a lower-case `transfer` between two capitalised words. It is a proper
+  table now: day, what happened, which item, quantity.
+- ⚠️ **`CZ_MOVE_REASON_LABEL` / `_SHORT` are new in `cocozuri-stock-shared.ts`.**
+  A ledger reason is a database value and must never reach a screen unlabelled.
+  **Use them anywhere a `reason` is shown.**
+- The batch header printed the raw `2026-08-22`; the note box had no heading;
+  `{m.note ? "" : ""}` was dead code rendering nothing either way.
+
+## What to build next, in the order it hurts
+
+1. **The order form hands its lines to a purchase.** Biggest gap, and the one he
+   found unaided.
+2. **An off-recipe material row on the close sheet.** The model is already there.
+3. **A reason when a material runs over** — the twin of the output-shortfall rule.
+4. **"What is committed to open batches"**, so two runs cannot promise the same
+   cocoa.
+5. **Edit a batch; edit a receipt.** Both actions exist and are unreachable.
+6. **Handoffs**: recipe → make it · batch → send it · counter sale → invoice it.
+
+---
+
+# §9. All six built, then run end to end — 27 Aug 2026
+
+## What was built
+
+1. **The order form raises a purchase.** `purchaseFromOrderForm` in
+   `cocozuri-buy.ts`. ⚠️ **It lands as a DRAFT**, so carrying a suggestion across
+   commits nothing — the prices still have to be filled in and somebody still
+   has to approve it. ⚠️ **The price is the last one actually paid** (the
+   weighted-average landed cost), and a material nobody has ever bought comes in
+   at **zero and is REPORTED in the toast**, never quietly invented.
+   ⚠️ The button counts `allOrdering`, not the rows on screen — it counted the
+   visible ones at first, so ticking "only what needs ordering" made the button
+   promise three lines and raise nine.
+2. **A material the recipe does not list can be added at close.** The model
+   always handled it (`planned: null`); only the form was missing.
+3. **A reason is demanded when a material runs OVER.** `overusedMaterials` +
+   `MATERIAL_OVERRUN_FRACTION = 0.05`. ⚠️ **Not zero** — a kitchen scoops, and a
+   rule that fires on every batch is one people learn to click past. ⚠️ The two
+   complaints are worded APART: "less came out" and "more went in" send somebody
+   to different ends of the batch. The three answers it names — spilled,
+   mismeasured, the recipe is wrong — matter because the third is the only
+   signal a recipe ever gets that it needs changing.
+4. **What open batches have already promised.** `committedToOpenBatches` /
+   `freeAfterCommitments`. ⚠️ **A WARNING, NOT A LOCK** — more may be arriving
+   this afternoon, and a system that refuses to let somebody record what they
+   are really doing is one they stop recording in. ⚠️ Free is left NEGATIVE.
+5. **Edit a batch; correct a receipt.** Both actions existed and NOTHING could
+   reach them. ⚠️ The receipt sheet deliberately omits the AMOUNT — a different
+   figure is a different payment — and is not offered at all once posted.
+6. **Three handoffs**: recipe → *Make this now*, batch → *Send some to the shop*,
+   order form → purchase.
+   ⚠️ **COUNTER SALE → INVOICE WAS ON MY OWN LIST AND I DID NOT BUILD IT.** A
+   counter sale is already Dr cash · Cr sales with no debtor; raising an invoice
+   on top would book the same revenue twice and invent a debtor for money
+   already in the drawer. Listing it was my error.
+
+## ⚠️ THE DEMO FOUND A REAL BUG, AND IT WAS SERIOUS
+
+Ran it end to end with real materials: order form → draft purchase → *Make this
+now* → two concurrent batches → close one with a spillage overrun and an
+off-recipe material → send to the shop → trace.
+
+**The batch record could not see what it had consumed.** `batchDetail` and the
+record page read `listMoves({ batchId: batch.id })` — but **Stage 9 gave
+`batch_id` a different job on a consume movement: it holds the MATERIAL'S lot,
+not the batch being made.** So:
+
+- every batch closed since Stage 9 showed **"nothing taken yet"** over a ledger
+  that had the consumes in it, and compared the recipe against itself;
+- where a material's lot id happened to equal a batch id it would have shown
+  **another batch's movements**.
+
+It looked fine only because the one existing batch predated Stage 9 and had its
+own id on its consumes. **Fixed: read by the VOUCHER** (`voucher_type: "batch"`,
+`voucher_id`), which has always been the right key and works for old rows too.
+
+## ⚠️ STILL MISSING, FOUND BY RUNNING IT: A TRANSFER CARRIES NO LOT
+
+`sendTransfer` writes its movements with **`batch_id = null`**. Verified live:
+the transfer made before Stage 9 carries `batch_id = 3`; the one made today
+carries null. Consequences:
+
+- **The recall thread breaks the moment chocolate leaves the kitchen.** "Where
+  did BATCH-2608-02 go" answers *Made*, and nothing else — the 60 bars sent to
+  the shop are invisible to it. That is the exact question Stage 9 exists for.
+- **`Still on a shelf` on the trace reads 108 when 60 have gone.**
+
+The fix is the one `closeBatch` already uses — allocate FEFO across the lots and
+stamp `batch_id` on both sides — and it needs no new decision, because finished
+goods are picked the same way materials are. **Not built; it is the next thing.**
+
+## Also improved while walking it
+
+- The batch → transfer handoff carries **what was made**, not only which shelf.
+  Without it the chef landed on a list of 75 chocolates to find the bar they
+  finished thirty seconds ago; now the list is filtered to one.
+
+## Two things checked and found NOT to be bugs
+
+- The recipe record 404ing was a **stale dev build**, not a routing fault — the
+  page and `getRecipe` were fine, proved by instrumenting the request.
+- Overwriting `madeOn`/`onDate` with a formatted date **breaks no sorting**:
+  those lists sort in SQL and their headers are plain spans, verified by
+  inspecting the rendered header rather than assuming.
+
+**tsc clean · 1,229 tests pass.** Demo data left in place: PUR-0002 (draft),
+BATCH-2608-02, TRF-2608-02 (sent, not received), CZ-237 and one receipt.
+
+---
+
+# §10. The transfer now carries its lot — 27 Aug 2026
+
+## Built
+
+**Sending** allocates each line across the shelf's lots **first-expired-first-out**
+— the same allocator `closeBatch` uses — and writes **one movement per lot**,
+naming it in the note (`TRF-2608-03 · BATCH-2608-01`). A line the lots cannot
+cover still moves, with **no lot against it**: refusing would stop somebody
+recording a real transfer of chocolate that predates lot tracking, and leaving it
+out would say less went than really did.
+
+**Receiving** reads the OUT movements of *that very transfer* and mirrors them.
+⚠️ **IT DOES NOT RE-PICK AT THE FAR END.** Running FEFO against the SHOP's shelf
+would attribute the arriving bars to whatever the shop already had — which is how
+a recall ends up naming the wrong batch.
+
+⚠️ **WHEN FEWER ARRIVE, WHICH LOT IS SHORT IS GENUINELY UNKNOWN** — nobody counts
+by lot at the receiving end. `spreadAcrossLots` (client-safe, 7 tests) fills the
+lots in the order they went out and **gives the missing units no movement at
+all**, because they belong to neither shelf. That is the in-transit gap the
+two-moment design exists to show.
+
+## ⚠️ AND THE HALF THAT WOULD HAVE MADE IT WORSE
+
+Stamping the lot was not enough on its own. **The same chocolate is TWO item
+rows, joined by `product_id`** — a lot is made against the KITCHEN's row, and the
+arriving movements carry the SHOP's. `lotsFrom` and `traceBatch` counted only the
+row the lot was made against, so the screen contradicted itself: **"still on a
+shelf: 58" printed directly above a list saying twenty-eight had gone to the
+shop.** Both now count every item row sharing the product; an item with no
+product link stands alone, which is correct rather than a fallback. The shelf
+list names every place a lot has spread to — **"Kitchen + Shop"**.
+
+## Proved live
+
+TRF-2608-03: sent 30, received 28.
+- Kitchen **−30 · BATCH-2608-01**, Shop **+28 · BATCH-2608-01** — same lot, both sides.
+- The 2 missing carry **no movement at all**.
+- Trace: *Where BATCH-2608-01 went* now lists Made, then both transfers, both
+  shelves. **Still on a shelf: 104** (108 − 20 + 18 − 30 + 28), matching the
+  shelf table for the first time.
+
+**tsc clean · 1,236 tests pass.**

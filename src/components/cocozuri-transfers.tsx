@@ -16,6 +16,7 @@ import {
   CZ_TRANSFER_STATUS_LABEL, daysInTransit, sendBlockers, transferCheck,
   type CzTransfer, type CzTransferPair, type CzTransferStatus,
 } from "@/lib/cocozuri-transfer-shared";
+import { czDate } from "@/lib/cocozuri-shared";
 import { sendTransferAction } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
@@ -38,11 +39,16 @@ type Row = CzTransfer & {
 };
 
 export function CocozuriTransfers({
-  transfers, locations, openNew,
+  transfers, locations, openNew, fromLocationId, find,
 }: {
   transfers: CzTransfer[];
   locations: CzStockLocation[];
   openNew?: boolean;
+  /** Handed over from a closed batch — which shelf the stock is on. */
+  fromLocationId?: number | null;
+  /** ⚠️ And WHAT was made. Without it the chef lands on a list of 75 chocolates
+   *  and has to find the bar they finished thirty seconds ago. */
+  find?: string | null;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -65,6 +71,8 @@ export function CocozuriTransfers({
           ...t,
           route: `${t.fromLocationName ?? "?"} → ${t.toLocationName ?? "?"}`,
           statusLabel: CZ_TRANSFER_STATUS_LABEL[t.status],
+          // ⚠️ One date format for the whole module — see `czDate`.
+          onDate: czDate(t.onDate),
           sentLabel: qtyText(c.sent),
           receivedLabel: c.received == null ? "—" : qtyText(c.received),
           // ⚠️ Nothing until somebody counts. A blank is not a zero.
@@ -169,6 +177,8 @@ export function CocozuriTransfers({
       {sending && (
         <SendSheet
           locations={locations}
+          fromLocationId={fromLocationId}
+          find={find}
           onClose={() => setSending(false)}
           onSent={(ref) => router.push(`/cocozuri/transfers/${encodeURIComponent(ref)}`)}
         />
@@ -178,22 +188,29 @@ export function CocozuriTransfers({
 }
 
 function SendSheet({
-  locations, onClose, onSent,
+  locations, fromLocationId, find, onClose, onSent,
 }: {
   locations: CzStockLocation[];
+  fromLocationId?: number | null;
+  find?: string | null;
   onClose: () => void;
   onSent: (reference: string) => void;
 }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [from, setFrom] = useState<number>(locations.find((l) => /kitchen/i.test(l.name))?.id ?? locations[0]?.id ?? 0);
+  /* ⚠️ The shelf handed over from a closed batch wins, when it is a real one.
+     Otherwise the kitchen, which is where nearly every transfer starts. */
+  const [from, setFrom] = useState<number>(
+    (fromLocationId != null && locations.some((l) => l.id === fromLocationId) ? fromLocationId : undefined)
+    ?? locations.find((l) => /kitchen/i.test(l.name))?.id ?? locations[0]?.id ?? 0,
+  );
   const [to, setTo] = useState<number>(locations.find((l) => /shop/i.test(l.name))?.id ?? locations[1]?.id ?? 0);
   const [onDate, setOnDate] = useState(todayInDar());
   const [sentBy, setSentBy] = useState("");
   const [pairs, setPairs] = useState<CzTransferPair[]>([]);
   const [amounts, setAmounts] = useState<Record<number, string>>({});
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(find ?? "");
 
   // The two shelves, paired by product. ⚠️ Fetched rather than guessed — the
   // pairing is a fact about the data, not something a form can work out.

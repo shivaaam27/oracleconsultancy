@@ -14,10 +14,13 @@ import { useToast } from "@/components/toast";
 import { qty as qtyText, todayInDar, type CzStockItem, type CzStockLocation } from "@/lib/cocozuri-stock-shared";
 import type { CzRecipe } from "@/lib/cocozuri-recipe-shared";
 import {
-  CZ_BATCH_STATUS_LABEL, batchPlan, daysOpen, isOpen,
+  CZ_BATCH_STATUS_LABEL, batchPlan, committedToOpenBatches, daysOpen, freeAfterCommitments,
+  isOpen, multipleForTarget, type CzCommitment,
   type CzBatch, type CzBatchStatus,
 } from "@/lib/cocozuri-batch-shared";
 import { openBatchAction } from "@/app/cocozuri/actions";
+import { czDate } from "@/lib/cocozuri-shared";
+import { cn } from "@/lib/cn";
 import { typedNumberOr } from "@/lib/typed-number";
 
 /* ------------------------------------------------------------------ *
@@ -41,18 +44,34 @@ type Row = CzBatch & {
 };
 
 export function CocozuriBatches({
-  batches, recipes, items, locations, openNew,
+  batches, recipes, items, locations, onHand, openNew, startRecipeId,
 }: {
   batches: CzBatch[];
   recipes: CzRecipe[];
   items: CzStockItem[];
   locations: CzStockLocation[];
+  /** What is physically on each shelf. Worked out on the server from the ledger. */
+  onHand: Record<number, number>;
   openNew?: boolean;
+  /** Handed over from a recipe record — which recipe to open the sheet on. */
+  startRecipeId?: number | null;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<CzBatchStatus | null>(null);
   const [starting, setStarting] = useState(!!openNew);
+
+  /* ⚠️ WHAT OPEN BATCHES HAVE ALREADY PROMISED. Recomputed here rather than
+     fetched, because it depends on nothing but the batches and recipes already
+     on this page — and because it must move the instant one is closed. */
+  const onHandMap = useMemo(() => new Map(Object.entries(onHand).map(([k, v]) => [Number(k), v] as const)), [onHand]);
+  const committed = useMemo(
+    () => committedToOpenBatches(
+      batches.filter(isOpen).map((b) => ({ batchNo: b.batchNo, recipeId: b.recipeId, recipeMultiple: b.recipeMultiple })),
+      (id) => recipes.find((r) => r.id === id) ?? null,
+    ),
+    [batches, recipes],
+  );
 
   // ⚠️ The flag is consumed, or Back re-opens the sheet — the same trap that had
   // the payments page recording a payment twice.
@@ -74,6 +93,8 @@ export function CocozuriBatches({
         return {
           ...b,
           statusLabel: CZ_BATCH_STATUS_LABEL[b.status],
+          // ⚠️ One date format for the whole module — see `czDate`.
+          madeOn: czDate(b.madeOn),
           plannedLabel: b.plannedQty == null ? "—" : qtyText(b.plannedQty),
           producedLabel: b.producedQty == null ? "—" : qtyText(b.producedQty),
           // ⚠️ A batch nobody has closed has NO variance — that is not the same
@@ -181,6 +202,9 @@ export function CocozuriBatches({
           recipes={recipes}
           items={items}
           locations={locations}
+          onHand={onHandMap}
+          committed={committed}
+          startRecipeId={startRecipeId}
           onClose={() => setStarting(false)}
           onStarted={(batchNo) => router.push(`/cocozuri/batches/${encodeURIComponent(batchNo)}`)}
         />
@@ -195,18 +219,34 @@ export function CocozuriBatches({
  * being made and start. Read plan §5a before adding a field to it.
  */
 function StartSheet({
-  recipes, items, locations, onClose, onStarted,
+  recipes, items, locations, onHand, committed, startRecipeId, onClose, onStarted,
 }: {
   recipes: CzRecipe[];
   items: CzStockItem[];
   locations: CzStockLocation[];
+  /** What is physically on the shelf, by item. */
+  onHand: Map<number, number>;
+  /** What OPEN batches have already promised of each material. */
+  committed: Map<number, CzCommitment>;
+  startRecipeId?: number | null;
   onClose: () => void;
   onStarted: (batchNo: string) => void;
 }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [recipeId, setRecipeId] = useState<number | null>(recipes[0]?.id ?? null);
+  /* ⚠️ The recipe handed over from its own record wins, if it is still one
+     that can be made. Otherwise the first in the list, as before. */
+  const [recipeId, setRecipeId] = useState<number | null>(
+    (startRecipeId != null && recipes.some((r) => r.id === startRecipeId) ? startRecipeId : recipes[0]?.id) ?? null,
+  );
   const [multiple, setMultiple] = useState("1");
+  /* ⚠️ THE KITCHEN THINKS IN CHOCOLATES, NOT IN BATCHES. "How many batches" is
+     what the recipe scales by, but nobody standing at a bench at seven in the
+     morning thinks that way — they think "there is an order for two hundred".
+     Both boxes are here and each keeps the other honest; whichever was typed
+     last is the one that counts. */
+  const [want, setWant] = useState("");
+  const [lastTyped, setLastTyped] = useState<"want" | "multiple">("multiple");
   const [madeOn, setMadeOn] = useState(todayInDar());
   const [openedBy, setOpenedBy] = useState("");
 
@@ -223,7 +263,12 @@ function StartSheet({
   const recipe = recipes.find((r) => r.id === recipeId) ?? null;
   // The recipe decides what is made and where, unless there is no recipe.
   const item = recipe ? items.find((i) => i.id === recipe.outputItemId) ?? null : byLabel.get(itemLabel) ?? null;
-  const plan = recipe ? batchPlan(recipe, typedNumberOr(multiple, 1)) : null;
+  /* ⚠️ MEASURED AGAINST GOOD UNITS, AFTER THE EXPECTED LOSS. A recipe yielding
+     120 with 10% loss gives 108 usable, so an order for 200 needs 1.852 batches
+     — not 1.667. Dividing by the raw yield is 16 bars short on every run. */
+  const target = recipe && lastTyped === "want" ? multipleForTarget(recipe, typedNumberOr(want, 0)) : null;
+  const effectiveMultiple = target ? target.multiple : typedNumberOr(multiple, 1);
+  const plan = recipe ? batchPlan(recipe, effectiveMultiple) : null;
 
   async function start() {
     if (!item) { toast("Say what is being made.", { tone: "danger" }); return; }
@@ -233,7 +278,7 @@ function StartSheet({
       locationId: item.locationId,
       madeOn,
       recipeId: recipe?.id ?? null,
-      recipeMultiple: typedNumberOr(multiple, 1),
+      recipeMultiple: effectiveMultiple,
       openedBy: openedBy || null,
     });
     setBusy(false);
@@ -276,11 +321,23 @@ function StartSheet({
           </Field>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {recipe && (
-            <Field label="How many batches">
-              <input value={multiple} onChange={(e) => setMultiple(e.target.value)} inputMode="decimal"
-                className={`${FIELD} text-right tabular`} placeholder="1" />
+            <Field label={`How many ${recipe.yieldUom.toLowerCase()} do you want`}>
+              {/* ⚠️ THE TWO BOXES MIRROR EACH OTHER BOTH WAYS. Whichever was
+                  typed last drives; the other shows what that comes to. Leaving
+                  this box reading 200 while two whole batches make 216 is the
+                  kind of quiet disagreement that gets an order sent short. */}
+              <input value={lastTyped === "multiple" && plan ? String(plan.expectedQty) : want}
+                onChange={(e) => { setWant(e.target.value); setLastTyped("want"); }}
+                inputMode="decimal" className={`${FIELD} text-right tabular`} placeholder="e.g. 200" />
+            </Field>
+          )}
+          {recipe && (
+            <Field label="Or how many batches">
+              <input value={lastTyped === "want" && target ? String(target.multiple) : multiple}
+                onChange={(e) => { setMultiple(e.target.value); setLastTyped("multiple"); }}
+                inputMode="decimal" className={`${FIELD} text-right tabular`} placeholder="1" />
             </Field>
           )}
           <Field label="Date">
@@ -291,17 +348,75 @@ function StartSheet({
           </Field>
         </div>
 
+        {/* ⚠️ A FRACTION OF A BATCH MAY NOT BE A THING YOU CAN MAKE. You cannot
+            pour 0.85 of a mould — but a slab poured by weight really does scale
+            continuously, so this SAYS what whole batches would give and leaves
+            the choice to the kitchen rather than rounding behind its back. */}
+        {recipe && target && (
+          <div className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
+            <p className="text-fg">
+              One batch is expected to give <strong className="tabular">{qtyText(target.perBatch)}</strong>{" "}
+              {recipe.yieldUom.toLowerCase()}
+              {Number(recipe.expectedLossPercent) > 0 && <> once the {recipe.expectedLossPercent}% expected loss is taken off</>},
+              so {qtyText(typedNumberOr(want, 0))} needs <strong className="tabular">{target.multiple}</strong> batches.
+            </p>
+            {target.wholeMultiple !== target.multiple && (
+              <button type="button"
+                onClick={() => { setMultiple(String(target.wholeMultiple)); setLastTyped("multiple"); }}
+                className="mt-1 text-xs text-accent underline-offset-2 hover:underline">
+                Round up to {target.wholeMultiple} whole batch{target.wholeMultiple === 1 ? "" : "es"} — {qtyText(target.wholeExpectedQty)} {recipe.yieldUom.toLowerCase()}
+              </button>
+            )}
+          </div>
+        )}
+
+        {recipe && lastTyped === "want" && want.trim() !== "" && !target && (
+          <p className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
+            That cannot be worked out — check the number, and that the recipe says what one batch yields.
+          </p>
+        )}
+
         {plan && (
           <div className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
             <p className="font-medium text-fg">It will ask for</p>
+            {/* ⚠️ ON THE SHELF, LESS WHAT OTHER OPEN BATCHES HAVE ALREADY
+                PROMISED. Materials come off at CLOSE, so the shelf reads high
+                for the whole of a run — and two batches each needing two kilos
+                of cocoa would both open happily against three, with the second
+                finding out only when the chocolate was already made. */}
             <ul className="mt-1 space-y-0.5 text-fg-muted">
-              {plan.materials.map((m) => (
-                <li key={m.itemId} className="flex items-center justify-between">
-                  <span className="truncate">{m.itemName}</span>
-                  <span className="tabular">{qtyText(m.qty)} {m.uom}</span>
-                </li>
-              ))}
+              {plan.materials.map((m) => {
+                const c = committed.get(m.itemId);
+                const free = freeAfterCommitments(onHand.get(m.itemId) ?? 0, c?.committed ?? 0);
+                const tight = free < m.qty;
+                return (
+                  <li key={m.itemId} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {m.itemName}
+                      {c && (
+                        <span className="ml-1.5 text-xs text-fg-subtle" title={`Promised to ${c.batches.join(", ")}`}>
+                          {qtyText(c.committed)} {m.uom} promised to {c.batches.length} open batch{c.batches.length === 1 ? "" : "es"}
+                        </span>
+                      )}
+                    </span>
+                    <span className={cn("shrink-0 tabular", tight ? "text-warn" : "")}>
+                      {qtyText(m.qty)} {m.uom}
+                      <span className="ml-1.5 text-xs text-fg-subtle">of {qtyText(free)} free</span>
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
+            {plan.materials.some((m) => freeAfterCommitments(onHand.get(m.itemId) ?? 0, committed.get(m.itemId)?.committed ?? 0) < m.qty) && (
+              /* ⚠️ A WARNING, NOT A LOCK. More may well be arriving this
+                 afternoon, and a system that refuses to let somebody record
+                 what they are actually doing is one they stop recording in. */
+              <p className="mt-1.5 flex items-start gap-1.5 text-xs text-warn">
+                <AlertTriangle size={12} className="mt-px shrink-0" />
+                There is less free than this asks for. You can still start it — nothing leaves the
+                shelf until you close it — but somebody has to find the rest.
+              </p>
+            )}
             {/* ⚠️ Said plainly, because it is the thing most likely to surprise
                 somebody: the shelf does not move when you press Start. */}
             <p className="mt-2 flex items-start gap-1.5 text-xs text-fg-subtle">

@@ -276,7 +276,7 @@ function BandTile({
         active ? "border-accent bg-accent-soft" : "border-border bg-bg-elev hover:border-accent/40 hover:bg-bg-subtle",
       )}
     >
-      <span className={cn("tabular text-[16px] font-semibold leading-none",
+      <span className={cn("tabular text-lg font-semibold leading-none",
         Math.round(value) === 0 ? "text-fg-subtle"
           : tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "text-fg")}>
         {money(value)}

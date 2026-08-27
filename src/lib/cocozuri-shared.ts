@@ -153,6 +153,55 @@ export function money(n: number, currency = "TZS"): string {
   return currency === "TZS" ? v : `${currency} ${v}`;
 }
 
+/**
+ * A date, the way every CocoZuri screen shows one: `22 Aug 26`.
+ *
+ * ⚠️ ONE FORMAT, BECAUSE THERE WERE FOUR. The invoices, receipts and purchases
+ * lists each built their own `toLocaleDateString` call; the batches, transfers,
+ * counter and payments lists printed the raw `2026-08-22`; and the budgets sheet
+ * dropped the year altogether. Four shapes of the same fact, side by side in one
+ * module, is exactly the sort of thing that makes a system feel unfinished.
+ *
+ * ⚠️ IT TAKES THE DATE AT NOON, NOT MIDNIGHT. `new Date("2026-08-22")` is
+ * parsed as UTC midnight, which in Dar es Salaam is still the 22nd — but the
+ * same code west of Greenwich prints the 21st. Noon cannot slip either way.
+ *
+ * ⚠️ A PRINTED DOCUMENT KEEPS ITS OWN, FORMAL STYLE (`22 AUG 2026`) — see the
+ * invoice and the statement. That is a deliberate difference between a screen
+ * and a piece of paper somebody files, not an inconsistency.
+ */
+export function czDate(iso: string | null | undefined): string {
+  const s = String(iso ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "—";
+  const d = new Date(`${s}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
+
+/**
+ * A month, the way the profit and cost-of-sales screens should show one:
+ * `Aug 2026`. ⚠️ They printed the raw `2026-08` at the reader — in the page
+ * title, in the period picker and in the middle of a sentence — which is the
+ * same fault as an ISO date and reads like a database field.
+ */
+export function czMonth(ym: string | null | undefined): string {
+  const s = String(ym ?? "").slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(s)) return String(ym ?? "—");
+  const d = new Date(`${s}-01T12:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
+/** The same date without the year — for a run of dates inside one month, where
+ *  repeating "26" on every row is noise. */
+export function czDayMonth(iso: string | null | undefined): string {
+  const s = String(iso ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "—";
+  const d = new Date(`${s}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 /** The categories the spreadsheets already use, in the order they appear there.
  *  ⚠️ A SUGGESTION, NOT A RULE — the field is free text and a thirteenth category
  *  needs no code change. This only drives the order things are grouped in. */

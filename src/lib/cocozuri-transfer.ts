@@ -2,9 +2,11 @@ import { sb } from "@/db/supabase";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem } from "@/lib/cocozuri-stock-shared";
+import { pickFefo } from "@/lib/cocozuri-trace";
 import {
   nextTransferRef, pairItems, receiveBlockers, sendBlockers,
   type CzTransfer, type CzTransferLine, type CzTransferPair, type CzTransferStatus,
+  spreadAcrossLots,
 } from "@/lib/cocozuri-transfer-shared";
 
 /* ------------------------------------------------------------------ *
@@ -264,19 +266,48 @@ export async function sendTransfer(input: SendTransferInput, by = "web-ui"): Pro
     /* ⚠️ THE MOVEMENTS GO LAST AND ARE CHECKED — if they fail, the document is
        removed rather than left claiming stock moved when it did not. There is
        no transaction here to fall back on. */
-    const res = await postStockMove(
-      clean.map((l) => ({
-        itemId: l.fromItemId,
-        locationId: input.fromLocationId,
-        onDate,
-        qty: -num(l.qty),
-        reason: "transfer" as const,
-        batchId: l.batchId ?? null,
-        note: reference,
-      })),
-      { type: TRANSFER_VOUCHER, id },
-      by,
-    );
+    /* ⚠️ THE LOT TRAVELS WITH THE CHOCOLATE. A transfer used to write ONE
+       movement per line with `batch_id = null`, so the recall thread broke the
+       moment anything left the kitchen: "where did this batch go" answered
+       "Made" and nothing else, and the trace still counted the bars as being on
+       the kitchen shelf. Now each line is allocated across its lots the same
+       way `closeBatch` allocates materials — FIRST EXPIRED, FIRST OUT, not
+       first in — and writes one movement per lot.
+
+       ⚠️ A LINE THE LOTS CANNOT COVER STILL MOVES, with no lot against it.
+       Refusing would stop somebody recording a real transfer of chocolate that
+       predates lot tracking; leaving it out would say less went than really
+       did. It is recorded and unattributed, which is the truth. */
+    const outMoves: {
+      itemId: number; locationId: number; onDate: string; qty: number;
+      reason: "transfer"; batchId: number | null; note: string;
+    }[] = [];
+    for (const l of clean) {
+      // A lot named on the line itself wins — somebody chose it deliberately.
+      if (l.batchId != null) {
+        outMoves.push({
+          itemId: l.fromItemId, locationId: input.fromLocationId!, onDate,
+          qty: -num(l.qty), reason: "transfer", batchId: l.batchId, note: reference,
+        });
+        continue;
+      }
+      const picked = await pickFefo(l.fromItemId, num(l.qty), input.fromLocationId!);
+      for (const p of picked.picks) {
+        outMoves.push({
+          itemId: l.fromItemId, locationId: input.fromLocationId!, onDate,
+          qty: -p.qty, reason: "transfer", batchId: p.lot.batchId,
+          note: `${reference} · ${p.lot.batchNo}`,
+        });
+      }
+      if (picked.short > 0.0005) {
+        outMoves.push({
+          itemId: l.fromItemId, locationId: input.fromLocationId!, onDate,
+          qty: -picked.short, reason: "transfer", batchId: null, note: reference,
+        });
+      }
+    }
+
+    const res = await postStockMove(outMoves, { type: TRANSFER_VOUCHER, id }, by);
     if (!res.ok) {
       await sb.from("cz_transfers").delete().eq("id", id);
       return { ok: false, error: res.error };
@@ -340,17 +371,42 @@ export async function receiveTransfer(
 
   /* The IN side — only what actually arrived, and nothing for a line where
      nothing did. */
+  /* ⚠️ THE LOTS THAT ARRIVED ARE THE LOTS THAT LEFT. Read the OUT movements of
+     this very transfer rather than re-picking at the far end: re-running FEFO
+     against the SHOP's shelf would attribute the arriving bars to whatever the
+     shop already had, which is how a recall ends up naming the wrong batch.
+
+     ⚠️ And when fewer arrived than were sent, WHICH lot is short is genuinely
+     unknown — nobody counts by lot at the receiving end. `spreadAcrossLots`
+     fills them in the order they went out and gives the missing units no
+     movement at all, because they belong to neither shelf. */
+  const sentMoves = await listMoves({ voucherType: TRANSFER_VOUCHER, voucherId: id });
+  const sentByItem = new Map<number, { batchId: number | null; qty: number }[]>();
+  for (const m of sentMoves) {
+    if (m.qty >= 0) continue;                       // the OUT side only
+    const at = sentByItem.get(m.itemId) ?? [];
+    at.push({ batchId: m.batchId ?? null, qty: Math.abs(m.qty) });
+    sentByItem.set(m.itemId, at);
+  }
+
   const moves = check
     .filter((c) => c.receivedQty != null && c.receivedQty > 0)
-    .map((c) => ({
-      itemId: c.row.to_item_id as number,
-      locationId: head.to_location_id as number,
-      onDate: receivedOn,
-      qty: c.receivedQty!,
-      reason: "transfer" as const,
-      batchId: (c.row.batch_id as number | null) ?? null,
-      note: head.reference as string,
-    }));
+    .flatMap((c) => {
+      const fromItemId = c.row.from_item_id as number;
+      const named = (c.row.batch_id as number | null) ?? null;
+      const sent = named != null
+        ? [{ batchId: named, qty: c.receivedQty! }]
+        : sentByItem.get(fromItemId) ?? [{ batchId: null, qty: c.receivedQty! }];
+      return spreadAcrossLots(sent, c.receivedQty!).map((p) => ({
+        itemId: c.row.to_item_id as number,
+        locationId: head.to_location_id as number,
+        onDate: receivedOn,
+        qty: p.qty,
+        reason: "transfer" as const,
+        batchId: p.batchId,
+        note: head.reference as string,
+      }));
+    });
 
   if (moves.length) {
     // ⚠️ NOT `mustNet` — see the file header. A transfer nets only when

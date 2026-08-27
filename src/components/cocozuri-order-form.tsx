@@ -2,13 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Printer } from "lucide-react";
+import { Loader2, Printer, ShoppingCart } from "lucide-react";
+import { useToast } from "@/components/toast";
+import { purchaseFromOrderFormAction } from "@/app/cocozuri/actions";
 import { SearchInput } from "@/components/ui";
 import {
   orderSuggestions, qty,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
   type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
+import { czDate } from "@/lib/cocozuri-shared";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -50,6 +53,8 @@ export function CocozuriOrderForm({
   const [only, setOnly] = useState(true);
   /** itemId → the quantity as edited. The suggestion is only ever a start. */
   const [edited, setEdited] = useState<Record<number, string>>({});
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   const nameOf = (it: CzStockItem) =>
     (it.productId != null ? productNames[it.productId] : null) ?? it.name;
@@ -70,6 +75,32 @@ export function CocozuriOrderForm({
     edited[id] ?? (suggested == null ? "" : String(suggested));
 
   const ordering = shown.filter((r) => Number(valueOf(r.item.id, r.suggested)) > 0);
+
+  /* ⚠️ EVERY LINE WITH A QUANTITY, NOT ONLY THE ONES ON SCREEN. Filtering to
+     "only what needs ordering" or typing in the search box must not silently
+     drop a quantity somebody has already typed against a hidden row. */
+  const allOrdering = rows.filter((r) => Number(valueOf(r.item.id, r.suggested)) > 0);
+
+  async function raise() {
+    setBusy(true);
+    const res = await purchaseFromOrderFormAction({
+      locationId: location.id,
+      lines: allOrdering.map((r) => ({ itemId: r.item.id, qty: Number(valueOf(r.item.id, r.suggested)) })),
+      note: `Raised from the order form for ${location.name}, covering ${coverDays} days.`,
+    });
+    setBusy(false);
+    if (!res.ok) { toast(res.error ?? "Could not raise it.", { tone: "danger" }); return; }
+    /* ⚠️ Said, not hidden. A material nobody has ever bought comes across at a
+       price of zero, and somebody has to fill it in before this can be
+       approved — which is exactly the moment to mention it. */
+    toast(
+      res.unpriced && res.unpriced.length
+        ? `${res.reference} raised as a draft. ${res.unpriced.length} line${res.unpriced.length === 1 ? " has" : "s have"} no price yet — fill them in before approving.`
+        : `${res.reference} raised as a draft — check the prices, then approve it.`,
+      { tone: "success" },
+    );
+    router.push(`/cocozuri/purchases`);
+  }
   const totalUnits = ordering.reduce((t, r) => t + Number(valueOf(r.item.id, r.suggested) || 0), 0);
 
   const go = (next: { loc?: number; cover?: number }) =>
@@ -107,19 +138,36 @@ export function CocozuriOrderForm({
           Only what needs ordering
         </label>
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[13rem]" className="h-7 text-sm" />
+          wrapperClassName="w-[13rem]" className="h-8 text-sm" />
         <span className="grow" />
         <button type="button" onClick={() => window.print()}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg print:hidden">
           <Printer size={13} /> Print
+        </button>
+        {/* ⚠️ THIS SCREEN USED TO END AT "Print". It worked out what to buy and
+            then every line had to be typed again by hand into a purchase. It
+            raises a DRAFT now — nothing moves and nothing is posted until
+            somebody approves it, so carrying the suggestion across commits
+            nothing. */}
+        <button type="button" onClick={() => void raise()}
+          disabled={busy || allOrdering.length === 0}
+          title={allOrdering.length === 0 ? "Nothing has a quantity against it." : undefined}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50 print:hidden">
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />}
+          Raise a purchase{allOrdering.length > 0 ? ` · ${allOrdering.length} line${allOrdering.length === 1 ? "" : "s"}` : ""}
         </button>
       </div>
 
+      {/* ⚠️ The dates here were the raw `2026-07-29`, the one place in the module
+          still printing an ISO date at a reader. Same format as every other
+          screen now. The sentence is kept because it is not a description of the
+          software — it says WHERE the figures came from, which is the only
+          reason to trust or override them. */}
       <p className="text-xs leading-relaxed text-fg-subtle print:text-fg-muted">
-        Worked out from what actually went out between <strong className="text-fg-muted">{from}</strong> and{" "}
-        <strong className="text-fg-muted">{to}</strong>, over the days that were counted — <strong className="text-fg-muted">{location.name}</strong> is
-        not counted every day and dividing by the calendar would under-order everything. Every figure
-        below is a suggestion; change any of them before printing.
+        From what actually went out between <strong className="text-fg-muted">{czDate(from)}</strong> and{" "}
+        <strong className="text-fg-muted">{czDate(to)}</strong>, over the days that were counted —{" "}
+        <strong className="text-fg-muted">{location.name}</strong> is not counted every day, and dividing
+        by the calendar would under-order everything. Every figure below is a suggestion.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev">

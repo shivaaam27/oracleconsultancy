@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChefHat, Loader2, Plus, Star } from "lucide-react";
+import Link from "next/link";
+import { ChefHat, ClipboardPaste, Loader2, Plus, Star } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -195,6 +196,12 @@ export function CocozuriRecipes({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Recipe, product, material…"
               wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
+            {/* The chef's costing workbook holds 174 of these. Typing them in
+                one at a time is not a plan; reading the sheet is. */}
+            <Link href="/cocozuri/recipes/import"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
+              <ClipboardPaste size={13} /> Read the costing workbook
+            </Link>
             <button type="button" onClick={() => setAdding(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Write a recipe

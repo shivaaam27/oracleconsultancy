@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/ui";
+import { czDate } from "@/lib/cocozuri-shared";
 import { CocozuriTransferReceive } from "@/components/cocozuri-transfer-receive";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { getTransferByRef } from "@/lib/cocozuri-transfer";
@@ -40,7 +41,7 @@ export default async function CocozuriTransferPage({
     <div className="space-y-4">
       <PageHeader
         title={transfer.reference}
-        sub={`${transfer.fromLocationName ?? "?"} → ${transfer.toLocationName ?? "?"} · ${transfer.onDate}${company ? ` · ${company.name}` : ""}`}
+        sub={`${transfer.fromLocationName ?? "?"} → ${transfer.toLocationName ?? "?"} · ${czDate(transfer.onDate)}${company ? ` · ${company.name}` : ""}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">

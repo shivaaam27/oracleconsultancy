@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Loader2, Undo2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Pencil, Undo2, X } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD } from "@/components/ui";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
-import { qty as qtyText } from "@/lib/cocozuri-stock-shared";
+import { Combobox } from "@/components/combobox";
+import { qty as qtyText, type CzStockItem, type CzStockLocation } from "@/lib/cocozuri-stock-shared";
 import {
   CZ_LOSS_KINDS, batchCheck, closeBlockers,
   type CzBatch, type CzLossKind,
 } from "@/lib/cocozuri-batch-shared";
 import type { CzBatchPlan } from "@/lib/cocozuri-batch-shared";
-import { cancelBatchAction, closeBatchAction, reopenBatchAction } from "@/app/cocozuri/actions";
+import { cancelBatchAction, closeBatchAction, reopenBatchAction, updateBatchAction } from "@/app/cocozuri/actions";
 import { typedNumber, typedNumberOr, hasPositive } from "@/lib/typed-number";
 
 /* ------------------------------------------------------------------ *
@@ -31,17 +32,25 @@ import { typedNumber, typedNumberOr, hasPositive } from "@/lib/typed-number";
  * ------------------------------------------------------------------ */
 
 export function CocozuriBatchClose({
-  batch, plan, used,
+  batch, plan, used, items, locations,
 }: {
   batch: CzBatch;
   /** What the recipe asked for. Null when the batch has no recipe. */
   plan: CzBatchPlan | null;
   used: { itemId: number; itemName: string; uom: string; qty: number }[];
+  /** ⚠️ Everything on every shelf, so something the recipe never mentioned can
+   *  still be recorded. See `extras` below. */
+  items: CzStockItem[];
+  locations: CzStockLocation[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [madeOn, setMadeOn] = useState(batch.madeOn ?? "");
+  const [openedBy, setOpenedBy] = useState(batch.openedBy ?? "");
+  const [notes, setNotes] = useState(batch.notes ?? "");
 
   const [produced, setProduced] = useState(
     plan ? String(plan.expectedQty) : batch.plannedQty != null ? String(batch.plannedQty) : "",
@@ -54,9 +63,34 @@ export function CocozuriBatchClose({
     Object.fromEntries(used.map((u) => [u.itemId, String(u.qty)])),
   );
 
+  /* ⚠️ A MATERIAL THE RECIPE NEVER MENTIONED. The sheet used to render exactly
+     the recipe's lines and nothing else, so a substitution, an extra bag opened
+     because the first was short, or anything simply not written down had
+     nowhere to go — and the batch closed claiming only what the recipe said.
+     `batchCheck` has always handled it (`planned: null` for a material with no
+     recipe line); only the form was missing. */
+  const [extras, setExtras] = useState<{ itemId: number; itemName: string; uom: string }[]>([]);
+
+  const labelOf = useMemo(
+    () => (i: CzStockItem) => `${i.name} · ${locations.find((l) => l.id === i.locationId)?.name ?? "?"}`,
+    [locations],
+  );
+  const alreadyThere = useMemo(
+    () => new Set([...used.map((u) => u.itemId), ...extras.map((e) => e.itemId)]),
+    [used, extras],
+  );
+  const addable = useMemo(
+    () => items.filter((i) => !i.archived && !alreadyThere.has(i.id)).map(labelOf).sort(),
+    [items, alreadyThere, labelOf],
+  );
+  const byLabel = useMemo(() => new Map(items.map((i) => [labelOf(i), i] as const)), [items, labelOf]);
+
   const usedNow = useMemo(
-    () => used.map((u) => ({ ...u, qty: typedNumberOr(amounts[u.itemId] ?? u.qty) })),
-    [used, amounts],
+    () => [
+      ...used.map((u) => ({ ...u, qty: typedNumberOr(amounts[u.itemId] ?? u.qty) })),
+      ...extras.map((e) => ({ ...e, qty: typedNumberOr(amounts[e.itemId] ?? "0") })),
+    ],
+    [used, amounts, extras],
   );
   // ⚠️ `typedNumber`, so "1,200" is a quantity rather than NaN.
   const producedQty = typedNumber(produced);
@@ -115,6 +149,14 @@ export function CocozuriBatchClose({
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
           <CheckCircle2 size={13} /> Say what came out
         </button>
+        {/* ⚠️ `updateBatchAction` EXISTED AND NOTHING COULD REACH IT. The day, the
+            maker and the note could not be corrected once a batch was open —
+            the only route was to abandon it and start again, which loses the
+            batch number a kitchen may already have written on a tray. */}
+        <button type="button" onClick={() => setEditing(true)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:border-accent hover:text-accent">
+          <Pencil size={13} /> Edit
+        </button>
         {/* ⚠️ Abandoning costs nothing — materials are not taken until close, so
             nobody has a reason to avoid starting a batch "just in case". */}
         <button type="button"
@@ -127,6 +169,45 @@ export function CocozuriBatchClose({
           <X size={13} /> Abandon it
         </button>
       </div>
+
+      {editing && (
+        <BottomSheet open onClose={() => setEditing(false)} title={`Edit ${batch.batchNo}`} maxWidth="max-w-md">
+          <div className="flex flex-col gap-3 px-1 pb-2">
+            {/* ⚠️ WHAT IS MADE AND WHERE ARE NOT HERE, ON PURPOSE. Changing those
+                on an open batch changes which shelf the chocolate lands on and
+                which materials come off it — that is a different batch, and
+                abandoning this one costs nothing because nothing has moved. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Day">
+                <input type="date" value={madeOn} onChange={(e) => setMadeOn(e.target.value)} className={FIELD} />
+              </Field>
+              <Field label="Who is making it">
+                <input value={openedBy} onChange={(e) => setOpenedBy(e.target.value)} className={FIELD}
+                  placeholder="A name" />
+              </Field>
+            </div>
+            <Field label="Note">
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} className={FIELD}
+                placeholder="Anything worth remembering about this run" />
+            </Field>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={busy || !madeOn}
+                onClick={() => {
+                  void (async () => {
+                    const ok = await run("Saved.", () =>
+                      updateBatchAction(batch.id, { madeOn, openedBy: openedBy || null, notes: notes || null }));
+                    if (ok) setEditing(false);
+                  })();
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Save
+              </button>
+              <button type="button" onClick={() => setEditing(false)}
+                className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
+            </div>
+          </div>
+        </BottomSheet>
+      )}
 
       {closing && (
         <BottomSheet open onClose={() => setClosing(false)} title={`Finish ${batch.batchNo}`} maxWidth="max-w-3xl">
@@ -174,6 +255,28 @@ export function CocozuriBatchClose({
                     </div>
                   ))}
                 </div>
+
+                {/* ⚠️ ANYTHING THE RECIPE DID NOT ASK FOR GOES ON HERE. Nothing
+                    is created — only what is already on a shelf can be picked —
+                    and it is labelled with its place, because AMBER RABDI is a
+                    different row in the kitchen and the shop. */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-border px-2.5 py-1.5">
+                  <span className="text-xs text-fg-subtle">Something the recipe does not list?</span>
+                  <div className="min-w-[14rem] grow">
+                    <Combobox
+                      key={`extra-${extras.length}`}
+                      options={addable}
+                      placeholder="Add a material…"
+                      clearOnCommit
+                      onCommit={(v) => {
+                        const it = byLabel.get(v);
+                        if (!it) return;
+                        setExtras((e) => [...e, { itemId: it.id, itemName: it.name, uom: it.uom }]);
+                        setAmounts((a) => ({ ...a, [it.id]: a[it.id] ?? "" }));
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -201,6 +304,31 @@ export function CocozuriBatchClose({
             {/* ⚠️ NOTE #12: a shortfall has to say WHERE it went — in the making,
                 or the materials. A number nobody can act on is what the
                 workbook's VARIANCE column already is. */}
+            {/* ⚠️ MORE WENT IN THAN THE RECIPE ASKS. The other end of the same
+                question, and it had no rule at all until now — a batch could eat
+                an extra kilo of cocoa and close in silence. The three answers
+                are worth telling apart, and the third is the only signal a
+                recipe ever gets that it needs changing. */}
+            {!short && check.overused.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2.5">
+                <p className="text-sm text-warn">
+                  More went in than the recipe asks for:{" "}
+                  {check.overused.map((m) => `${m.itemName} +${qtyText(m.variance ?? 0)} ${m.uom}`).join(" · ")}
+                </p>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
+                    Why <span className="text-warn">— required</span>
+                  </span>
+                  <input value={lossNote} onChange={(e) => setLossNote(e.target.value)} className={FIELD}
+                    placeholder="Spilled · the scales are out · the recipe is wrong" />
+                  <span className="text-xs leading-relaxed text-fg-subtle">
+                    &ldquo;Spilled&rdquo; and &ldquo;the recipe is wrong&rdquo; look identical as a number
+                    and mean completely different things.
+                  </span>
+                </label>
+              </div>
+            )}
+
             {short && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Where did it go">
@@ -242,7 +370,10 @@ export function CocozuriBatchClose({
                         producedQty: producedQty ?? 0,
                         used: usedNow.map((u) => ({ itemId: u.itemId, qty: u.qty })),
                         lossKind: short ? lossKind : "none",
-                        lossNote: short ? lossNote : null,
+                        // ⚠️ Kept whenever somebody was asked for it — a reason
+                        // typed for an overrun and then dropped is worse than
+                        // never asking.
+                        lossNote: short || check.overused.length > 0 ? lossNote : null,
                         closedBy: closedBy || null,
                       }));
                     if (ok) setClosing(false);

@@ -110,9 +110,9 @@ export default async function CocozuriPage() {
       {/* The money first — it is what gets looked at every morning. Every
           number is a door. */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Tile href="/cocozuri/owed" icon={<AlarmClock size={16} />} value={money(owed)} label="outstanding" tone={owed > 0 ? "warn" : undefined} />
-        <Tile href="/cocozuri/owed" icon={<AlertTriangle size={16} />} value={money(late)} label="of it overdue" tone={late > 0 ? "danger" : undefined} />
-        <Tile href="/cocozuri/receipts" icon={<Banknote size={16} />} value={money(receipts.reduce((t, r) => t + r.amount, 0))} label="received" />
+        <Tile href="/cocozuri/owed" icon={<AlarmClock size={16} />} value={money(owed)} currency="TZS" label="outstanding" tone={owed > 0 ? "warn" : undefined} />
+        <Tile href="/cocozuri/owed" icon={<AlertTriangle size={16} />} value={money(late)} currency="TZS" label="of it overdue" tone={late > 0 ? "danger" : undefined} />
+        <Tile href="/cocozuri/receipts" icon={<Banknote size={16} />} value={money(receipts.reduce((t, r) => t + r.amount, 0))} currency="TZS" label="received" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -122,12 +122,12 @@ export default async function CocozuriPage() {
         {/* The stock book was reachable only from the rail — every other part of
             the module has a door on the desk, and this one is used daily. */}
         <Tile href="/cocozuri/stock" icon={<Boxes size={16} />} n={stockItems.length} label={`items counted, in ${locations.length} place${locations.length === 1 ? "" : "s"}`} />
-        <Tile href="/cocozuri/stock/month" icon={<ClipboardCheck size={16} />} value="Stock-take" label="the month, and the count" />
         <Tile href="/cocozuri/products" icon={<Tag size={16} />} n={prices.length} label="prices on record" />
         {/* Manufacturing Stage 2 — buying. ⚠️ A draft purchase is a job nobody
             has done yet: nothing is on the shelf until it is approved. */}
         <Tile href="/cocozuri/purchases" icon={<ShoppingCart size={16} />}
           value={money(bought)}
+          currency="TZS"
           label={waitingApproval > 0 ? `bought · ${waitingApproval} waiting to be approved` : "bought and on the shelf"}
           tone={waitingApproval > 0 ? "warn" : undefined} />
         <Tile href="/cocozuri/budgets" icon={<Wallet size={16} />}
@@ -168,7 +168,7 @@ export default async function CocozuriPage() {
           {CZ_AGEING_BANDS.map((b) => (
             <Link key={b.key} href="/cocozuri/owed"
               className="rounded-lg border border-border bg-bg-elev px-3 py-2 transition-colors hover:border-accent/40 hover:bg-bg-subtle">
-              <span className={`block tabular text-[15px] font-semibold leading-none ${
+              <span className={`block tabular text-lg font-semibold leading-none ${
                 Math.round(bands[b.key]) === 0 ? "text-fg-subtle"
                   : b.key === "over90" ? "text-danger" : b.key === "d61_90" ? "text-warn" : "text-fg"}`}>
                 {money(bands[b.key])}
@@ -225,33 +225,40 @@ export default async function CocozuriPage() {
         </p>
       )}
 
-      <div className="rounded-lg border border-border bg-bg-elev px-4 py-3.5">
-        <h2 className="text-base font-semibold text-fg">What is built so far</h2>
-        <p className="mt-1 text-sm leading-relaxed text-fg-muted">
-          The catalogue, the customers with their branches and terms, and prices — per customer,
-          each with the date it starts. Invoices and credit notes, raised and printed here. The
-          money: what has been received, what is still owed and how late, and a statement of account
-          for any customer. And the daily stock book — the shop, the kitchen and raw materials —
-          with the month-end count and the variance it has to explain.
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-fg-subtle">
-          VAT currently defaults to <strong className="text-fg-muted">{vat}%</strong>, which is what the
-          spreadsheets use. Tanzania&rsquo;s standard rate is 18% and nobody has confirmed which is
-          right — so it is a setting, per customer, and changing it will not touch anything already
-          invoiced.
-        </p>
-      </div>
+      {/* ⚠️ WHAT WAS HERE WAS A TOUR, NOT A DESK. Two paragraphs listing every
+          feature of the module sat under the figures — useful once, on the first
+          morning, and in the way every morning after. The rail is the list of
+          what exists; this page is for what needs doing today.
+
+          The VAT line stays, in one sentence, because it is not a description of
+          the software: it is an unconfirmed setting that changes every invoice,
+          and it is the one thing on this page somebody still has to settle. */}
+      <p className="text-xs leading-relaxed text-fg-subtle">
+        VAT defaults to <strong className="text-fg-muted">{vat}%</strong> — the rate the spreadsheets
+        use. Tanzania&rsquo;s standard rate is 18% and nobody has confirmed which is right. It is a
+        setting, per customer, and changing it will not touch anything already invoiced.
+      </p>
     </div>
   );
 }
 
-function Tile({ href, icon, n, value, label, tone }: {
+/**
+ * One figure, one label, one door.
+ *
+ * ⚠️ MONEY SAYS IT IS MONEY. `money()` prints TZS as bare digits, which is right
+ * inside a column headed "Total" — but on this grid a shilling figure sits
+ * beside a count of products in identical type, and `540,000` read exactly like
+ * `127`. The currency mark is the only thing separating them.
+ */
+function Tile({ href, icon, n, value, label, tone, currency }: {
   href: string;
   icon: React.ReactNode;
   n?: number;
   value?: string;
   label: string;
   tone?: "warn" | "danger";
+  /** Set on a tile whose figure is an amount of money. */
+  currency?: string;
 }) {
   return (
     <Link
@@ -262,8 +269,9 @@ function Tile({ href, icon, n, value, label, tone }: {
         {icon}
       </span>
       <span className="min-w-0">
-        <span className={`block truncate text-[18px] font-semibold leading-none tabular ${
+        <span className={`block truncate text-xl font-semibold leading-none tabular ${
           tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "text-fg"}`}>
+          {currency && <span className="mr-1 text-xs font-medium text-fg-subtle">{currency}</span>}
           {value ?? n}
         </span>
         <span className="mt-1 block text-sm text-fg-muted">{label}</span>

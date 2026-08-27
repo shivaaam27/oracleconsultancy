@@ -179,9 +179,39 @@ export type CzBatchCheck = {
    *  chocolate. A daily number, not a year-end one. */
   belowBenchmark: boolean;
   materials: CzMaterialCheck[];
-  /** ⚠️ A shortfall with nothing said about where it went. */
+  /** ⚠️ A shortfall with nothing said about where it went, OR a material that
+   *  ran materially over the recipe with nothing said about why. */
   needsExplaining: boolean;
+  /**
+   * Materials that took more than the recipe asked for, by enough to matter.
+   *
+   * ⚠️ THE OUTPUT SHORTFALL HAD A RULE AND THE INPUT OVERRUN HAD NONE. Closing
+   * refused a batch that made less than planned without a reason, but let one
+   * that ate an extra kilo of cocoa through in silence. Those are the same
+   * question asked from the two ends, and the answers are different findings
+   * worth telling apart: "it was spilled", "the scales are out" and "the recipe
+   * is wrong" all look like +4 GM until somebody says which. The last of the
+   * three is the only signal a recipe ever gets that it needs changing.
+   */
+  overused: CzMaterialCheck[];
 };
+
+/**
+ * How far over the recipe a material has to go before somebody is asked why.
+ *
+ * ⚠️ NOT ZERO, AND THAT IS DELIBERATE. A kitchen scoops; a gram either way on a
+ * two-kilo line is noise, and a rule that fires on every batch is a rule people
+ * learn to click past. It asks when a line is over by more than a twentieth AND
+ * by something you could actually see.
+ */
+export const MATERIAL_OVERRUN_FRACTION = 0.05;
+
+export function overusedMaterials(materials: CzMaterialCheck[]): CzMaterialCheck[] {
+  return materials.filter((m) =>
+    m.planned != null && m.planned > 0 &&
+    m.variance != null && m.variance > 0.0005 &&
+    m.variance / m.planned > MATERIAL_OVERRUN_FRACTION);
+}
 
 /**
  * The owner's "inter check": what was planned against what came out (note #37),
@@ -240,8 +270,74 @@ export function batchCheck(
     // (note #12). The same discipline as `recordCount` refusing an unexplained
     // stock-take variance.
     needsExplaining:
-      variance != null && variance < -0.0005 && (batch.lossKind === "none" || !batch.lossNote?.trim()),
+      (variance != null && variance < -0.0005 && (batch.lossKind === "none" || !batch.lossNote?.trim()))
+      || (overusedMaterials(materials).length > 0 && !batch.lossNote?.trim()),
+    overused: overusedMaterials(materials),
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * What is already spoken for
+ * ------------------------------------------------------------------ */
+
+export type CzCommitment = {
+  itemId: number;
+  itemName: string;
+  uom: string;
+  /** How much of it open batches are expected to take. */
+  committed: number;
+  /** Which batches, so the number is answerable rather than merely alarming. */
+  batches: string[];
+};
+
+/**
+ * What open batches have already promised of each material.
+ *
+ * ⚠️ TWO OPEN BATCHES BOTH SAW THE WHOLE SHELF. `batchesPossible` reads the raw
+ * on-hand and subtracts nothing for work already under way, so two runs each
+ * needing two kilos of cocoa would both open against three — and the second
+ * discovers it at CLOSE, when the chocolate is already made and the only thing
+ * left to do is drive the stock negative.
+ *
+ * ⚠️ IT IS A WARNING, NOT A LOCK. A kitchen runs several batches at once and
+ * that is normal; more cocoa may well be arriving this afternoon. The job here
+ * is to make what is spoken for VISIBLE, not to refuse the second batch — a
+ * system that will not let somebody record what they are actually doing is one
+ * they stop recording in.
+ *
+ * ⚠️ Materials are consumed at CLOSE, so nothing has left the shelf yet. That is
+ * exactly why this exists: the shelf reads high for the whole run.
+ */
+export function committedToOpenBatches(
+  openBatches: { batchNo: string; recipeId: number | null; recipeMultiple: number }[],
+  recipeById: (id: number) => CzRecipe | null,
+): Map<number, CzCommitment> {
+  const out = new Map<number, CzCommitment>();
+  for (const b of openBatches) {
+    if (b.recipeId == null) continue;          // nothing to work it out from
+    const recipe = recipeById(b.recipeId);
+    if (!recipe) continue;
+    for (const m of batchPlan(recipe, b.recipeMultiple).materials) {
+      const at = out.get(m.itemId);
+      if (at) {
+        at.committed = round3(at.committed + m.qty);
+        if (!at.batches.includes(b.batchNo)) at.batches.push(b.batchNo);
+      } else {
+        out.set(m.itemId, { itemId: m.itemId, itemName: m.itemName, uom: m.uom, committed: round3(m.qty), batches: [b.batchNo] });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * What is really available: on the shelf, less what open batches will take.
+ *
+ * ⚠️ IT CAN GO NEGATIVE, AND IT IS LEFT NEGATIVE. Clamping it at zero would
+ * hide the exact case worth seeing — more promised than exists.
+ */
+export function freeAfterCommitments(onHand: number, committed: number): number {
+  return round3(num(onHand) - num(committed));
 }
 
 /* ------------------------------------------------------------------ *
@@ -277,10 +373,17 @@ export function closeBlockers(input: {
     out.push("A batch cannot produce a negative quantity.");
   }
   if (input.used.some((u) => num(u.qty) < 0)) out.push("A material cannot be used a negative amount.");
+  /* ⚠️ TWO DIFFERENT COMPLAINTS, SAID APART. "Less came out" and "more went in"
+     are not the same finding, and a single message covering both sends somebody
+     looking at the wrong end of the batch. */
   if (input.check.needsExplaining) {
-    out.push(
-      `Less came out than the recipe expects. Say where it went — in the making, or the materials — and why.`,
-    );
+    const short = input.check.variance != null && input.check.variance < -0.0005;
+    if (short) {
+      out.push("Less came out than the recipe expects. Say where it went — in the making, or the materials — and why.");
+    } else {
+      const names = input.check.overused.map((m) => m.itemName).slice(0, 3).join(", ");
+      out.push(`More ${names} went in than the recipe asks for. Say why — spilled, mismeasured, or the recipe is wrong.`);
+    }
   }
   return out;
 }
@@ -315,4 +418,59 @@ export function daysOpen(b: Pick<CzBatch, "madeOn" | "status">, today: string): 
   const z = Date.parse(`${today}T00:00:00Z`);
   if (!Number.isFinite(a) || !Number.isFinite(z)) return null;
   return Math.max(0, Math.round((z - a) / 86_400_000));
+}
+
+/* ------------------------------------------------------------------ *
+ * "I need two hundred bars"
+ *
+ * A recipe is written PER BATCH — "two kilos of cocoa makes a hundred and
+ * twenty bars" — which is how a kitchen works and how `batchPlan` scales. But
+ * nobody standing in a kitchen thinks in batches; they think in the number of
+ * chocolates somebody has ordered. This turns one into the other.
+ * ------------------------------------------------------------------ */
+
+export type CzTargetPlan = {
+  /** The fractional number of batches that gives exactly the target. */
+  multiple: number;
+  /** What that many batches is expected to give — the target, bar rounding. */
+  expectedQty: number;
+  /** The same rounded UP to whole batches, and what those give. */
+  wholeMultiple: number;
+  wholeExpectedQty: number;
+  /** Good units one single batch is expected to give, after the expected loss. */
+  perBatch: number;
+};
+
+/**
+ * How many batches to run for a wanted number of pieces.
+ *
+ * ⚠️ THE TARGET IS GOOD UNITS, NOT RAW YIELD, and that is the whole subtlety.
+ * A recipe yielding 120 with 10% expected loss gives **108** usable pieces, so
+ * an order for 200 needs 1.852 batches — not 1.667. Dividing by the raw yield
+ * would send the kitchen 16 bars short on every single run, quietly.
+ *
+ * ⚠️ IT ROUNDS UP TO WHOLE BATCHES, NEVER DOWN. Making fewer than were asked for
+ * is a shortfall nobody sees until the order is short; making more is stock.
+ * Both figures are handed back — some recipes (a slab poured by weight) really
+ * do scale continuously, and that is the kitchen's call, not this function's.
+ *
+ * Returns null when the answer cannot be worked out rather than inventing one:
+ * no target, a target of nothing, or a recipe whose expected output is zero.
+ */
+export function multipleForTarget(recipe: CzRecipe, targetQty: number): CzTargetPlan | null {
+  const target = num(targetQty);
+  if (!Number.isFinite(target) || target <= 0) return null;
+  const loss = Math.min(100, Math.max(0, num(recipe.expectedLossPercent)));
+  const perBatch = round3(num(recipe.yieldQty) * (1 - loss / 100));
+  if (!Number.isFinite(perBatch) || perBatch <= 0) return null;
+  const multiple = round3(target / perBatch);
+  if (!Number.isFinite(multiple) || multiple <= 0) return null;
+  const wholeMultiple = Math.max(1, Math.ceil(multiple - 1e-9));
+  return {
+    multiple,
+    expectedQty: round3(perBatch * multiple),
+    wholeMultiple,
+    wholeExpectedQty: round3(perBatch * wholeMultiple),
+    perBatch,
+  };
 }

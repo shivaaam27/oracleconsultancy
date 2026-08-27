@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/ui";
+import { czDate } from "@/lib/cocozuri-shared";
 import { CocozuriReturnActions } from "@/components/cocozuri-return-actions";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { getReturnByRef, returnScrapValue } from "@/lib/cocozuri-return";
@@ -48,7 +49,7 @@ export default async function CocozuriReturnPage({
     <div className="space-y-4">
       <PageHeader
         title={r.reference}
-        sub={`${CZ_RETURN_KIND_LABEL[r.kind]} · ${r.locationName ?? "?"} · ${r.onDate}${company ? ` · ${company.name}` : ""}`}
+        sub={`${CZ_RETURN_KIND_LABEL[r.kind]} · ${r.locationName ?? "?"} · ${czDate(r.onDate)}${company ? ` · ${company.name}` : ""}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">

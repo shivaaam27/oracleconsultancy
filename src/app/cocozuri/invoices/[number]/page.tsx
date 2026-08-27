@@ -131,7 +131,7 @@ export default async function CocozuriInvoicePage({
         </p>
 
         {isCredit && (
-          <h1 className="mt-3 text-center text-[15px] font-semibold tracking-wide text-fg">CREDIT NOTE</h1>
+          <h1 className="mt-3 text-center text-lg font-semibold tracking-wide text-fg">CREDIT NOTE</h1>
         )}
 
         <div className="mt-5 flex flex-wrap justify-between gap-4">
@@ -200,7 +200,7 @@ export default async function CocozuriInvoicePage({
           <div className="w-[16rem] space-y-1">
             <Row label="Before VAT" value={money(t.net, invoice.currency)} />
             <Row label={`VAT at ${invoice.vatRate}%`} value={money(t.vat, invoice.currency)} />
-            <div className="flex items-center justify-between border-t border-border pt-1.5 text-[14px] font-semibold text-fg">
+            <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold text-fg">
               <span>Net final amount</span>
               <span className="tabular">{money(t.gross, invoice.currency)}</span>
             </div>

@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriCounter } from "@/components/cocozuri-counter";
 import { cocozuriCompany, listCustomers } from "@/lib/cocozuri";
@@ -68,16 +67,12 @@ export default async function CocozuriCounterPage({
         }
       />
 
-      {/* ⚠️ Said once, at the top, so nobody expects a till. */}
-      <p className="flex items-start gap-2 rounded-lg border border-border bg-bg-elev px-3.5 py-2.5 text-sm text-fg-muted">
-        <Info size={14} className="mt-px shrink-0" />
-        <span>
-          This does not take payment and does not talk to a card machine or to mobile money — the
-          money has already changed hands. It is the WhatsApp message and the paper sheet, written
-          down once: what was sold, off which counter, and how the money came in. The chocolate
-          comes off the shelf and the takings can be totted up at the end of the day.
-        </span>
-      </p>
+      {/* ⚠️ THIS WAS SAID TWICE ON ONE SCREEN. A permanent banner explained that
+          the counter takes no payment, and the empty state explained it again
+          directly underneath. The empty state is the right place: it appears
+          exactly when somebody has not used the screen yet and disappears the
+          moment they have. A banner that never goes away is noise on a page
+          somebody opens every day. */}
 
       <CocozuriCounter
         sales={sales}

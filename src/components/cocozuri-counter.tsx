@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BookOpen, Ban, Loader2, Plus, Store } from "lucide-react";
-import { RecordList } from "@/components/record-list";
+import { RecordList, type RecordFilter } from "@/components/record-list";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
-import { money } from "@/lib/cocozuri-shared";
+import { czDate, money } from "@/lib/cocozuri-shared";
 import { qty as qtyText, todayInDar, type CzStockLocation } from "@/lib/cocozuri-stock-shared";
 import { typedNumberOr } from "@/lib/typed-number";
 import {
@@ -60,6 +60,16 @@ export function CocozuriCounter({
   const { toast } = useToast();
   const [q, setQ] = useState("");
   const [selling, setSelling] = useState(!!openNew);
+  /* ⚠️ EVERY OTHER LIST IN THE MODULE HAS A RAIL, AND THIS ONE HAD NONE — so
+     the counter's content started hard against the left edge while Invoices,
+     Purchases and Products all indented past theirs. Same shape, same place. */
+  const [status, setStatus] = useState<"recorded" | "cancelled" | null>(null);
+  const rail: RecordFilter[] = [
+    { key: "all", label: "All sales", count: sales.length, href: "#", active: status == null, onSelect: () => setStatus(null) },
+    { key: "recorded", label: "Recorded", count: sales.filter((s) => s.status === "recorded").length, href: "#", active: status === "recorded", onSelect: () => setStatus("recorded"), group: "Status" },
+    { key: "cancelled", label: "Cancelled", count: sales.filter((s) => s.status === "cancelled").length, href: "#", active: status === "cancelled", onSelect: () => setStatus("cancelled"), group: "Archive" },
+  ];
+
   const [busy, setBusy] = useState(false);
 
   // ⚠️ The flag is consumed, or Back re-opens the sheet.
@@ -94,13 +104,14 @@ export function CocozuriCounter({
           booksLabel: state === "posted" ? "In the books" : state === "reversed" ? "Reversed" : "Not posted",
         };
       })
+      .filter((s) => (status == null ? true : s.status === status))
       .filter((s) =>
         !term ||
         s.reference.toLowerCase().includes(term) ||
         s.what.toLowerCase().includes(term) ||
         (s.customerName ?? "").toLowerCase().includes(term) ||
         (s.soldBy ?? "").toLowerCase().includes(term));
-  }, [sales, q, booksState]);
+  }, [sales, q, booksState, status]);
 
   const days = useMemo(() => takings(sales), [sales]);
   const total = rows.filter((r) => r.status === "recorded").reduce((s, r) => s + r.gross, 0);
@@ -122,7 +133,7 @@ export function CocozuriCounter({
             </div>
             {days.slice(0, 10).map((d) => (
               <div key={`${d.onDate}#${d.locationId}`} className="grid grid-cols-[110px_minmax(0,1fr)_110px_110px_110px] items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
-                <span className="text-sm text-fg-muted">{d.onDate}</span>
+                <span className="text-sm text-fg-muted">{czDate(d.onDate)}</span>
                 <span className="min-w-0 truncate text-sm text-fg">
                   {d.locationName ?? "?"}
                   <span className="ml-1.5 text-xs text-fg-subtle">
@@ -145,7 +156,7 @@ export function CocozuriCounter({
             <span className="truncate text-sm text-fg">{r.reference}</span>
           ) },
           { key: "onDate", label: "Day", width: "95px", render: (r) => (
-            <span className="text-sm text-fg-muted">{r.onDate}</span>
+            <span className="text-sm text-fg-muted">{czDate(r.onDate)}</span>
           ) },
           { key: "what", label: "What was sold", width: "minmax(0,1fr)", render: (r) => (
             <span className="min-w-0 truncate text-sm text-fg">
@@ -158,13 +169,13 @@ export function CocozuriCounter({
               {r.status === "cancelled" && <span className="ml-1.5 text-xs text-fg-subtle">cancelled</span>}
             </span>
           ) },
-          { key: "paidLabel", label: "Paid", width: "85px", hideBelow: "md", render: (r) => (
+          { key: "paidLabel", label: "How", width: "85px", hideBelow: "md", render: (r) => (
             <span className="text-sm text-fg-subtle">{r.paidLabel}</span>
           ) },
           { key: "booksLabel", label: "Books", width: "100px", hideBelow: "lg", render: (r) => (
             <span className={`text-sm ${r.booksState === "posted" ? "text-success" : "text-fg-muted"}`}>{r.booksLabel}</span>
           ) },
-          { key: "grossLabel", label: "Took", width: "110px", align: "right", render: (r) => (
+          { key: "grossLabel", label: "Amount", width: "110px", align: "right", render: (r) => (
             <span className={`text-sm tabular ${r.status === "cancelled" ? "text-fg-subtle line-through" : "text-fg"}`}>
               {r.grossLabel}
             </span>
@@ -204,6 +215,7 @@ export function CocozuriCounter({
         ]}
         rowKey={(r) => r.id}
         listKey="cz_counter"
+        filters={rail}
         total={sales.length}
         shown={rows.length}
         exportName="cocozuri-counter-sales"

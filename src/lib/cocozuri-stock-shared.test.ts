@@ -3,6 +3,7 @@ import {
   balanceAt, dayEffect, dayRows, monthBounds, monthRows, previousDay,
   qty, salesRows, todayInDar, varianceOf, orderSuggestions,
   ledgerBalanceAt, daySheetFromMoves, daySheetMoves, transferMoves, movesNet,
+  parseCountNumber, parseCountPaste, matchCountRows,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockMove, type CzMoveReason,
 } from "./cocozuri-stock-shared";
 
@@ -521,5 +522,137 @@ describe("a delivery the sheet never saw", () => {
     const rows = salesRows(items, 1, withTransfer, "2026-08-01", "2026-08-31", () => 1000);
     expect(rows[0]!.units).toBe(1);
     expect(ledgerBalanceAt(1, 1, withTransfer, counts, "2026-08-03").closing).toBe(53);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Counting the whole shelf at once.
+ *
+ * The stock-take arrives as a spreadsheet, so the sheet is pasted in whole. The
+ * cases below are all taken from a real one — CocoZuri's `Details.xlsx`, whose
+ * CL STOCK column carries accounting dashes, thousands separators, category
+ * headings with no figure at all, and seven NEGATIVE closing balances.
+ * ------------------------------------------------------------------ */
+
+describe("reading a figure the way a spreadsheet writes one", () => {
+  it("reads a plain number, and one with thousands separators", () => {
+    expect(parseCountNumber("111")).toBe(111);
+    expect(parseCountNumber(" 2,740 ")).toBe(2740);
+    expect(parseCountNumber(" 12,100 ")).toBe(12100);
+  });
+
+  it("reads an accounting dash as a real zero", () => {
+    // ⚠️ " -   " is how Excel prints nil. It is a counted nil, not a blank.
+    expect(parseCountNumber(" -   ")).toBe(0);
+    expect(parseCountNumber("–")).toBe(0);
+  });
+
+  it("keeps a blank cell as nobody having counted, NOT as zero", () => {
+    expect(parseCountNumber("")).toBeNull();
+    expect(parseCountNumber("   ")).toBeNull();
+  });
+
+  it("reads a negative, however it is written", () => {
+    expect(parseCountNumber("-11 ")).toBe(-11);
+    expect(parseCountNumber("(18)")).toBe(-18);
+  });
+
+  it("refuses anything that is not a figure", () => {
+    expect(parseCountNumber("CL STOCK")).toBeNull();
+    expect(parseCountNumber("12 pcs")).toBeNull();
+  });
+});
+
+describe("splitting a pasted stock sheet", () => {
+  it("splits Excel's tab-separated paste, names with spaces and all", () => {
+    const rows = parseCountPaste("AMBER RABDI\t 111 \nDARK CHOCOLATE ROCKS\t 25 ");
+    expect(rows.map((r) => [r.name, r.qty])).toEqual([
+      ["AMBER RABDI", 111],
+      ["DARK CHOCOLATE ROCKS", 25],
+    ]);
+  });
+
+  it("splits a hand-typed block on a run of spaces, never on a single one", () => {
+    const rows = parseCountPaste("FRESH MINT    51");
+    expect(rows).toEqual([{ lineNo: 1, name: "FRESH MINT", qty: 51, raw: "FRESH MINT    51" }]);
+  });
+
+  it("keeps a heading row rather than dropping it, so it can be reported", () => {
+    // ⚠️ BONBONS is a category, not an item. Silently dropping it is how
+    // somebody never learns their headings were pasted in too.
+    const rows = parseCountPaste("BONBONS\nAMBER RABDI\t111");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ name: "BONBONS", qty: null });
+  });
+
+  it("numbers the lines from one, so a complaint can name the line", () => {
+    const rows = parseCountPaste("\nAMBER RABDI\t111");
+    expect(rows[0]!.lineNo).toBe(2);
+  });
+});
+
+describe("placing pasted lines against a shelf", () => {
+  const shelf = [
+    item(1, { locationId: 2, name: "AMBER RABDI" }),
+    item(2, { locationId: 2, name: "FRESH MINT" }),
+    // ⚠️ The SAME name on another shelf. Matching is always within one location.
+    item(3, { locationId: 1, name: "AMBER RABDI" }),
+  ];
+
+  it("matches on case and spacing only", () => {
+    const { matched } = matchCountRows(parseCountPaste("amber   rabdi\t111"), shelf, 2);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]!.item.id).toBe(1);
+    expect(matched[0]!.qty).toBe(111);
+  });
+
+  it("never reaches on to another shelf for a name", () => {
+    // The kitchen's AMBER RABDI is id 1; the shop's is id 3. Fault #4.
+    const { matched } = matchCountRows(parseCountPaste("AMBER RABDI\t111"), shelf, 1);
+    expect(matched[0]!.item.id).toBe(3);
+  });
+
+  it("reports a name it cannot place instead of inventing an item", () => {
+    const { matched, problems } = matchCountRows(parseCountPaste("HAZEFA TABLETS\t1"), shelf, 2);
+    expect(matched).toHaveLength(0);
+    expect(problems).toEqual([expect.objectContaining({ kind: "unknown" })]);
+  });
+
+  it("refuses a negative count and says which line", () => {
+    // ⚠️ −11 is the book being wrong, not a shelf holding minus eleven bars.
+    const { matched, problems } = matchCountRows(parseCountPaste("FRESH MINT\t-11"), shelf, 2);
+    expect(matched).toHaveLength(0);
+    expect(problems[0]).toMatchObject({ kind: "negative", line: { lineNo: 1 } });
+  });
+
+  it("takes a printed zero as a real count of nothing", () => {
+    const { matched } = matchCountRows(parseCountPaste("FRESH MINT\t -   "), shelf, 2);
+    expect(matched[0]!.qty).toBe(0);
+  });
+
+  it("says a blank line was not counted before it says the name is unknown", () => {
+    // ⚠️ A line with no figure is not a count whatever its name. Calling it
+    // unknown sends somebody hunting for a spelling mistake in a blank row.
+    const { problems } = matchCountRows(parseCountPaste("NOT A REAL ITEM"), shelf, 2);
+    expect(problems[0]!.kind).toBe("no-figure");
+  });
+
+  it("reports a heading as carrying no figure", () => {
+    const { problems } = matchCountRows(parseCountPaste("AMBER RABDI"), shelf, 2);
+    expect(problems[0]!.kind).toBe("no-figure");
+  });
+
+  it("reports the second of two lines for the same item rather than choosing", () => {
+    const { matched, problems } = matchCountRows(parseCountPaste("FRESH MINT\t51\nFRESH MINT\t60"), shelf, 2);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]!.qty).toBe(51);
+    expect(problems[0]).toMatchObject({ kind: "repeated", line: { lineNo: 2 } });
+  });
+
+  it("refuses to choose between two items of the same name on one shelf", () => {
+    const twice = [...shelf, item(4, { locationId: 2, name: "FRESH MINT" })];
+    const { matched, problems } = matchCountRows(parseCountPaste("FRESH MINT\t51"), twice, 2);
+    expect(matched).toHaveLength(0);
+    expect(problems[0]!.kind).toBe("ambiguous");
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   daysInTransit, nextTransferRef, pairItems, receiveBlockers, sendBlockers, transferCheck,
-  type CzTransfer, type CzTransferLine,
+  type CzTransfer, type CzTransferLine, spreadAcrossLots,
 } from "./cocozuri-transfer-shared";
 import type { CzStockItem } from "./cocozuri-stock-shared";
 
@@ -175,5 +175,53 @@ describe("how long it has been on its way", () => {
     expect(daysInTransit(transfer({ onDate: "2026-08-22" }), "2026-08-22")).toBe(0);
     expect(daysInTransit(transfer({ onDate: "2026-08-19" }), "2026-08-22")).toBe(3);
     expect(daysInTransit(transfer({ status: "received" }), "2026-08-22")).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Which lot arrived.
+ *
+ * ⚠️ The transfer used to carry NO lot at all, so the recall thread broke the
+ * moment chocolate left the kitchen — "where did this batch go" answered
+ * "Made" and nothing else. See `memory/cocozuri_manufacturing_plan.md` §9.
+ * ------------------------------------------------------------------ */
+
+describe("spreadAcrossLots", () => {
+  const sent = [{ batchId: 1, qty: 12 }, { batchId: 2, qty: 8 }];
+
+  it("gives every lot its own share when the whole lot arrives", () => {
+    expect(spreadAcrossLots(sent, 20)).toEqual([{ batchId: 1, qty: 12 }, { batchId: 2, qty: 8 }]);
+  });
+
+  it("fills the lots in the order they went out when some is missing", () => {
+    // ⚠️ Nobody counts by lot at the far end, so the only defensible reading is
+    // that what was loaded first is what arrived.
+    expect(spreadAcrossLots(sent, 15)).toEqual([{ batchId: 1, qty: 12 }, { batchId: 2, qty: 3 }]);
+  });
+
+  it("gives the missing units no movement at all", () => {
+    // They belong to neither shelf — that is the in-transit gap.
+    const got = spreadAcrossLots(sent, 15);
+    expect(got.reduce((t, p) => t + p.qty, 0)).toBe(15);
+  });
+
+  it("drops a lot entirely when nothing of it arrived", () => {
+    expect(spreadAcrossLots(sent, 5)).toEqual([{ batchId: 1, qty: 5 }]);
+  });
+
+  it("returns nothing when nothing arrived", () => {
+    expect(spreadAcrossLots(sent, 0)).toEqual([]);
+  });
+
+  it("carries an untracked send straight through", () => {
+    // A chocolate with no lot at all is still a real transfer.
+    expect(spreadAcrossLots([{ batchId: null, qty: 10 }], 7)).toEqual([{ batchId: null, qty: 7 }]);
+  });
+
+  it("never attributes a surplus to a lot that did not carry it", () => {
+    // `receiveBlockers` refuses this earlier; if it ever got here it must not lie.
+    expect(spreadAcrossLots(sent, 25)).toEqual([
+      { batchId: 1, qty: 12 }, { batchId: 2, qty: 8 }, { batchId: null, qty: 5 },
+    ]);
   });
 });

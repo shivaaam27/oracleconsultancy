@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Save } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ChevronLeft, ChevronRight, ClipboardCheck, Loader2, Save } from "lucide-react";
 import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import {
@@ -156,22 +157,29 @@ export function CocozuriStockDay({
 
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => go(previousDay(onDate))} title="The day before"
-            className="grid h-7 w-7 place-items-center rounded-md border border-border text-fg-muted hover:text-fg">
+            className="grid h-8 w-8 place-items-center rounded-md border border-border text-fg-muted hover:text-fg">
             <ChevronLeft size={14} />
           </button>
           <input type="date" value={onDate} onChange={(e) => e.target.value && go(e.target.value)}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
+            className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none focus:border-accent" />
           <button type="button" onClick={() => { const d = new Date(`${onDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); go(d.toISOString().slice(0, 10)); }}
             title="The day after"
-            className="grid h-7 w-7 place-items-center rounded-md border border-border text-fg-muted hover:text-fg">
+            className="grid h-8 w-8 place-items-center rounded-md border border-border text-fg-muted hover:text-fg">
             <ChevronRight size={14} />
           </button>
         </div>
 
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[14rem]" className="h-7 text-sm" />
+          wrapperClassName="w-[14rem]" className="h-8 text-sm" />
 
         <span className="grow" />
+
+        {/* The month-end screen carries a link back here; this is the other half
+            of that pair. Without it the only way across was the rail. */}
+        <Link href={`/cocozuri/stock/month?loc=${location.id}`}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
+          <ClipboardCheck size={13} /> The month, and the count
+        </Link>
 
         <button type="button" onClick={() => void save()} disabled={busy || dirty === 0}
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">

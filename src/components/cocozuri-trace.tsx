@@ -34,8 +34,12 @@ export function CocozuriTracePicker({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* ⚠️ This ran the whole width of the page while every other search in the
+          module is a toolbar-sized control. A full-bleed input reads as the
+          page's subject rather than as a filter over the list below it. */}
       <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
-        placeholder="A batch number, a lot number, or the name of a chocolate…" className="text-sm" />
+        placeholder="A batch, a lot, or a chocolate…"
+        wrapperClassName="w-full sm:w-[22rem]" className="text-sm" />
 
       {lots.length === 0 ? (
         <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-4 text-sm text-fg-subtle">

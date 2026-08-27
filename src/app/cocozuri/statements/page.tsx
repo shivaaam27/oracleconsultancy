@@ -69,14 +69,20 @@ export default async function CocozuriStatementsPage() {
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <FileSpreadsheet size={13} className="shrink-0 text-fg-subtle" />
-                    <span className="truncate text-base text-fg">{c.name}</span>
+                    <span className="truncate text-sm text-fg">{c.name}</span>
                   </span>
+                  {/* ⚠️ "nothing outstanding" WAS PRINTED AGAINST EVERY NAME.
+                      With fourteen customers all square that is the same three
+                      words fourteen times down the page, and the one customer
+                      who DOES owe something has to be found in the middle of
+                      it. Silence is the right way to say nothing is owed; the
+                      figure beside it already says zero. */}
                   <span className="text-xs text-fg-subtle">
-                    {a?.openInvoices ? `${a.openInvoices} unpaid` : "nothing outstanding"}
+                    {a?.openInvoices ? `${a.openInvoices} unpaid` : ""}
                     {a && a.oldestDays > 0 && <span className="text-warn"> · {a.oldestDays}d</span>}
                   </span>
                   <span className={owes ? "tabular text-sm font-medium text-fg" : "tabular text-sm text-fg-subtle"}>
-                    {money(a?.balance ?? 0, c.currency)}
+                    {owes ? money(a?.balance ?? 0, c.currency) : "—"}
                   </span>
                 </Link>
               </li>

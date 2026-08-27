@@ -1,9 +1,10 @@
 import { PageHeader } from "@/components/ui";
 import { CocozuriBatches } from "@/components/cocozuri-batches";
 import { cocozuriCompany } from "@/lib/cocozuri";
-import { listItems, listLocations } from "@/lib/cocozuri-stock";
+import { listCounts, listItems, listLocations, listMoves } from "@/lib/cocozuri-stock";
 import { listBatches, makeableRecipes } from "@/lib/cocozuri-batch";
 import { isOpen } from "@/lib/cocozuri-batch-shared";
+import { ledgerBalanceAt, todayInDar } from "@/lib/cocozuri-stock-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Production — CocoZuri" };
@@ -20,7 +21,7 @@ export const metadata = { title: "Production — CocoZuri" };
 export default async function CocozuriBatchesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; recipe?: string }>;
 }) {
   const company = await cocozuriCompany();
   if (!company) {
@@ -42,6 +43,23 @@ export default async function CocozuriBatchesPage({
     listLocations({ includeInactive: true }),
   ]);
 
+  /* ⚠️ WHAT IS ACTUALLY ON EACH SHELF, so the start form can say how much of a
+     material is FREE once other open batches have had their share. Read from
+     the ledger like every other balance in this module — there is no stored
+     figure to go stale. Only the materials the makeable recipes ask for. */
+  const materialIds = [...new Set(recipes.flatMap((r) => r.lines.map((l) => l.itemId)))];
+  const [moves, counts] = await Promise.all([
+    materialIds.length ? listMoves({ itemIds: materialIds }) : Promise.resolve([]),
+    materialIds.length ? listCounts({ itemIds: materialIds }) : Promise.resolve([]),
+  ]);
+  const today = todayInDar();
+  const itemById = new Map(items.map((i) => [i.id, i] as const));
+  const onHand: Record<number, number> = {};
+  for (const id of materialIds) {
+    const item = itemById.get(id);
+    onHand[id] = item ? ledgerBalanceAt(id, item.locationId, moves, counts, today).closing : 0;
+  }
+
   const running = batches.filter(isOpen).length;
 
   return (
@@ -56,10 +74,14 @@ export default async function CocozuriBatchesPage({
       />
       <CocozuriBatches
         batches={batches}
+        onHand={onHand}
         recipes={recipes}
         items={items}
         locations={locations}
         openNew={sp.new === "1"}
+        // ⚠️ The recipe record hands over here rather than making somebody find
+        // the same recipe again in a dropdown.
+        startRecipeId={Number(sp.recipe) || null}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { sb } from "@/db/supabase";
 import { cocozuriCompany, seriesFloor } from "@/lib/cocozuri";
 import { nextInSeries } from "@/lib/cocozuri-shared";
 import { listItems, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
+import { materialCosts } from "@/lib/cocozuri-recipe";
 import { todayInDar } from "@/lib/cocozuri-stock-shared";
 import {
   budgetUsage, landedLines, purchaseBlockers, purchaseTotals,
@@ -798,4 +799,69 @@ export async function deletePurchase(id: number): Promise<{ ok: boolean; error?:
   }
   const { error } = await sb.from("cz_purchases").delete().eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * From the order form to a purchase
+ * ------------------------------------------------------------------ */
+
+/**
+ * Turn what the order form worked out into a purchase somebody can act on.
+ *
+ * ⚠️ THE ORDER FORM WAS A DEAD END. Its only action was `window.print()`: it
+ * worked out what to buy from what actually went out, printed a sheet, and then
+ * every line had to be typed again into a purchase by hand. The owner found it
+ * himself — *"I see the list but how to create a new one?"* — because a screen
+ * that computes an order and cannot raise one is not a stage in a flow, it is a
+ * calculator somebody has to transcribe.
+ *
+ * ⚠️ IT LANDS AS A DRAFT, WHICH IS THE WHOLE POINT. A draft moves no stock and
+ * reaches no books, so carrying a suggestion into one commits nothing: the
+ * prices still have to be filled in and somebody still has to approve it. The
+ * order form suggests; approval is what makes it true.
+ *
+ * ⚠️ THE PRICE IS THE LAST ONE ACTUALLY PAID, NOT A GUESS. Every line is
+ * prefilled with the weighted-average landed cost from the stock ledger — the
+ * same figure a recipe costs itself at — because that is a real number this
+ * business has really paid. A material nobody has ever bought comes in at ZERO
+ * and is REPORTED, never quietly invented: `approvePurchase` will not let a
+ * nonsense price through, and neither should this.
+ */
+export async function purchaseFromOrderForm(
+  input: { locationId: number; lines: { itemId: number; qty: number }[]; note?: string | null },
+  by = "web-ui",
+): Promise<{ ok: boolean; id?: number; reference?: string; unpriced?: string[]; error?: string }> {
+  const clean = (input.lines ?? []).filter((l) => Number.isFinite(Number(l.qty)) && Number(l.qty) > 0);
+  if (clean.length === 0) {
+    return { ok: false, error: "Nothing is being ordered — type a quantity against at least one line." };
+  }
+
+  const [items, costs] = await Promise.all([
+    listItems(),
+    materialCosts(clean.map((l) => l.itemId)),
+  ]);
+  const byId = new Map(items.map((i) => [i.id, i] as const));
+
+  const unpriced: string[] = [];
+  const lines: PurchaseLineInput[] = clean.map((l) => {
+    const item = byId.get(l.itemId);
+    const unitCost = costs.get(l.itemId)?.unitCost ?? null;
+    if (unitCost == null) unpriced.push(item?.name ?? `Item #${l.itemId}`);
+    return {
+      itemId: l.itemId,
+      description: item?.name ?? null,
+      qty: Number(l.qty),
+      uom: item?.uom ?? null,
+      unitPrice: unitCost ?? 0,
+    };
+  });
+
+  const made = await createPurchase({
+    purchasedOn: todayInDar(),
+    locationId: input.locationId,
+    notes: input.note?.trim() || "Raised from the order form.",
+    lines,
+  }, by);
+  if (!made.ok) return { ok: false, error: made.error, unpriced };
+  return { ok: true, id: made.id, reference: made.reference, unpriced };
 }

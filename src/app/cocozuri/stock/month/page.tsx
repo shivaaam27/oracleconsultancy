@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import { CocozuriStockMonth } from "@/components/cocozuri-stock-month";
 import { cocozuriCompany, listPrices, listProducts } from "@/lib/cocozuri";
 import { listLocations, stockBook } from "@/lib/cocozuri-stock";
+import { czDate } from "@/lib/cocozuri-shared";
 import { monthBounds, todayInDar } from "@/lib/cocozuri-stock-shared";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function CocozuriStockMonthPage({
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Stock month" sub={`${book.location.name} · ${from} to ${to} · ${company.name}`} />
+      <PageHeader title="Stock month" sub={`${book.location.name} · ${czDate(from)} to ${czDate(to)} · ${company.name}`} />
       <Link href={`/cocozuri/stock?loc=${book.location.id}`}
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
         <ArrowLeft size={13} /> The day book

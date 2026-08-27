@@ -9,7 +9,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
-import { money } from "@/lib/cocozuri-shared";
+import { czDate, money } from "@/lib/cocozuri-shared";
 import { todayInDar } from "@/lib/cocozuri-stock-shared";
 import { typedNumberOr } from "@/lib/typed-number";
 import { paymentBlockers, type CzOwing, type CzPayment } from "@/lib/cocozuri-pay-shared";
@@ -127,7 +127,7 @@ export function CocozuriPayments({
       <RecordList
         rows={rows}
         columns={[
-          { key: "paidOn", label: "Paid", width: "100px", render: (r) => <span className="text-sm text-fg-muted">{r.paidOn.slice(0, 10)}</span> },
+          { key: "paidOn", label: "Paid", width: "100px", render: (r) => <span className="text-sm text-fg-muted">{czDate(r.paidOn)}</span> },
           { key: "paidTo", label: "To", width: "minmax(0,1fr)", render: (r) => (
             <span className="min-w-0 truncate text-sm text-fg">
               {r.paidTo ?? "nobody named"}

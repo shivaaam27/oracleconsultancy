@@ -9,7 +9,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { FluidSelect } from "@/components/fluid-select";
 import { FIELD, SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { money } from "@/lib/cocozuri-shared";
+import { czDate, czDayMonth, money } from "@/lib/cocozuri-shared";
 import type { CzStockLocation } from "@/lib/cocozuri-stock-shared";
 import {
   budgetMonth, budgetUsage,
@@ -89,7 +89,7 @@ export function CocozuriBudgets({
         const use = budgetUsage(b, purchases);
         return {
           ...b,
-          periodLabel: `${short(b.startsOn)} – ${short(b.endsOn)}`,
+          periodLabel: `${czDayMonth(b.startsOn)} – ${czDate(b.endsOn)}`,
           locationLabel: b.locationName ?? "Anywhere",
           statusLabel: STATUS_LABEL[b.status],
           amountLabel: money(b.amount),
@@ -405,6 +405,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function short(iso: string): string {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
+

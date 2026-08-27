@@ -287,7 +287,7 @@ function SharedMaterials({
 function Tile({ label, value, tone }: { label: string; value: string; tone?: "warn" | "danger" }) {
   return (
     <div className="rounded-lg border border-border bg-bg-elev px-3.5 py-3">
-      <span className={`block truncate text-[18px] font-semibold leading-none tabular ${
+      <span className={`block truncate text-xl font-semibold leading-none tabular ${
         tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "text-fg"}`}>
         {value}
       </span>

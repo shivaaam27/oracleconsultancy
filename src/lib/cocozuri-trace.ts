@@ -107,10 +107,24 @@ export async function lotsOf(itemId: number, locationId?: number): Promise<CzLot
 
 function lotsFrom(ctx: Ctx, itemId: number, locationId?: number): CzLot[] {
   const relevant = ctx.batches.filter((b) => b.itemId === itemId && b.status !== "cancelled");
+
+  /* ⚠️ THE SAME CHOCOLATE IS TWO ITEM ROWS, JOINED BY `product_id`. A lot is
+     made against the KITCHEN's row; once it is transferred, the arriving
+     movements carry the SHOP's row. Counting only the row the lot was made
+     against left a screen contradicting itself — "still on a shelf: 58" printed
+     directly above a movement list saying twenty-eight of them went to the
+     shop. Every row for the same product counts. Where an item has no product
+     link there is nothing to join on, so it stands alone — which is correct,
+     not a fallback. */
+  const self = ctx.itemById.get(itemId);
+  const kin = self?.productId != null
+    ? new Set(ctx.items.filter((i) => i.productId === self.productId).map((i) => i.id))
+    : new Set([itemId]);
+
   return relevant
     .map((b) => {
       const onHand = ctx.moves
-        .filter((m) => m.batchId === b.id && m.itemId === itemId)
+        .filter((m) => m.batchId === b.id && kin.has(m.itemId))
         .filter((m) => locationId == null || m.locationId === locationId)
         .reduce((t, m) => t + m.qty, 0);
       return {
@@ -165,11 +179,23 @@ export async function expiringStock(): Promise<{ rows: ExpiringRow[]; undated: n
          put every finished chocolate on the wrong shelf. */
       const where = ctx.moves.find((m) => m.batchId === lot.batchId && m.itemId === item.id)?.locationId
         ?? item.locationId;
+      /* ⚠️ A LOT CAN SIT ON MORE THAN ONE SHELF NOW THAT TRANSFERS CARRY IT.
+         `lot.onHand` counts every shelf, so naming only the one it was made on
+         would put 104 bars under "Kitchen" when 46 of them are in the shop.
+         Where it has spread, the places are listed. */
+      const shelves = [...new Set(
+        ctx.moves
+          .filter((m) => m.batchId === lot.batchId && m.qty > 0)
+          .map((m) => m.locationId),
+      )];
+      const spread = shelves.length > 1
+        ? shelves.map((l) => ctx.locationName.get(l) ?? "?").join(" + ")
+        : null;
       if (!lot.expiresOn) undated += lot.onHand;
       rows.push({
         lot,
         itemName: ctx.nameOf(item),
-        locationName: ctx.locationName.get(where) ?? null,
+        locationName: spread ?? ctx.locationName.get(where) ?? null,
         state: expiryState(lot.expiresOn, today),
         daysLeft: lot.expiresOn ? Math.round((Date.parse(`${lot.expiresOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : null,
       });
@@ -226,8 +252,15 @@ export async function traceBatch(batchNo: string): Promise<BatchTrace | null> {
   const made = mine
     .filter((m) => (m.reason === "produce" || m.reason === "receipt") && m.qty > 0)
     .reduce((t, m) => t + m.qty, 0);
+  /* ⚠️ ACROSS EVERY ITEM ROW OF THE SAME PRODUCT — see `lotsFrom`. Counting
+     only the row the lot was made against printed "still on a shelf: 58" above
+     a movement list saying twenty-eight of them had gone to the shop. */
+  const self = batch.itemId == null ? null : ctx.itemById.get(batch.itemId) ?? null;
+  const kin = self?.productId != null
+    ? new Set(ctx.items.filter((i) => i.productId === self.productId).map((i) => i.id))
+    : new Set(batch.itemId == null ? [] : [batch.itemId]);
   const onHand = mine
-    .filter((m) => m.itemId === batch.itemId)
+    .filter((m) => kin.has(m.itemId))
     .reduce((t, m) => t + m.qty, 0);
 
   return {

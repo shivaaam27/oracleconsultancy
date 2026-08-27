@@ -571,6 +571,38 @@ export type CzMoveReason =
   | "receipt" | "issue" | "transfer" | "consume" | "produce"
   | "sale" | "return" | "damage" | "count";
 
+/**
+ * What each reason is CALLED on screen.
+ *
+ * ⚠️ THE RAW CODE WAS LEAKING TO THE READER. The batch record printed "Took" and
+ * "Made" for two of these and then fell through to the bare column value for
+ * every other one — so a batch that had been moved showed a lower-case
+ * `transfer` sitting between two capitalised words. A ledger reason is a
+ * database value; it should never reach a screen unlabelled.
+ */
+export const CZ_MOVE_REASON_LABEL: Record<CzMoveReason, string> = {
+  day_in: "In, off the day sheet",
+  day_out: "Out, off the day sheet",
+  day_third: "Third column, off the day sheet",
+  receipt: "Delivered",
+  issue: "Issued",
+  transfer: "Moved",
+  consume: "Used in the making",
+  produce: "Made",
+  sale: "Sold",
+  return: "Came back",
+  damage: "Thrown away",
+  count: "Counted",
+};
+
+/** The same, short enough for a narrow column. */
+export const CZ_MOVE_REASON_SHORT: Record<CzMoveReason, string> = {
+  day_in: "In", day_out: "Out", day_third: "Third",
+  receipt: "Delivered", issue: "Issued", transfer: "Moved",
+  consume: "Used", produce: "Made", sale: "Sold",
+  return: "Came back", damage: "Thrown", count: "Counted",
+};
+
 /** Whether a reason describes stock arriving. Used for wording, never for the
  *  arithmetic — `qty` carries its own sign. */
 export const INWARD_REASONS: CzMoveReason[] = ["day_in", "receipt", "produce", "return"];
@@ -725,4 +757,157 @@ export function transferMoves(
  *  stock twin of the ledger's "every voucher balances". */
 export function movesNet(moves: { qty: number }[]): number {
   return Math.round(moves.reduce((t, m) => t + (Number.isFinite(m.qty) ? m.qty : 0), 0) * 1000) / 1000;
+}
+
+/* ------------------------------------------------------------------ *
+ * Counting the whole shelf at once
+ *
+ * The stock-take arrives as a spreadsheet — a column of names and a column
+ * headed CL STOCK — because that is how the kitchen has always counted. Typing
+ * 246 figures one bottom-sheet at a time is how a stock-take stops happening,
+ * so the sheet is pasted in whole.
+ *
+ * ⚠️ NAMES ARE MATCHED EXACTLY, ON CASE AND SPACING ONLY, AND NEVER FUZZILY.
+ * That is fault #4 — the workbook's sales sheet matches stock BY NAME and has
+ * the shop losing 200 units a month — and the answer to it is not a cleverer
+ * fuzzy match. A line nobody can place is REPORTED, never guessed at and never
+ * quietly turned into a new item.
+ *
+ * ⚠️ AND A NAME BELONGS TO A LOCATION. `AMBER RABDI` is a different row on the
+ * kitchen's sheet and the shop's, so matching is always within one location.
+ * ------------------------------------------------------------------ */
+
+/** One line as it was pasted, before anything has been matched to it. */
+export type CzPastedCount = {
+  /** 1-based, so a complaint can name the line the person is looking at. */
+  lineNo: number;
+  name: string;
+  /** Null when the line carried no readable figure — which is NOT a zero. */
+  qty: number | null;
+  raw: string;
+};
+
+/**
+ * Read a figure the way a spreadsheet writes one.
+ *
+ * ⚠️ A DASH IS A ZERO AND AN EMPTY CELL IS NOT. Excel prints a zero in the
+ * accounting format as `" -   "`, which is a real counted nil; a blank cell is
+ * nobody having counted. Collapsing the two would invent a count of zero for
+ * every item the kitchen skipped, and a count of zero is not a small claim —
+ * it says the shelf is empty.
+ */
+export function parseCountNumber(raw: string): number | null {
+  const s = String(raw ?? "").trim();
+  if (s === "") return null;
+  // An accounting dash: -, – or — on its own is a printed zero.
+  if (/^[-–—]$/.test(s)) return 0;
+  // Parentheses are how a spreadsheet writes a negative.
+  const neg = /^\(.*\)$/.test(s);
+  const body = s.replace(/^\(|\)$/g, "").replace(/[,\s]/g, "").replace(/[–—]/g, "-");
+  if (body === "" || body === "-") return null;
+  if (!/^-?\d*\.?\d+$/.test(body)) return null;
+  const n = Number(body);
+  if (!Number.isFinite(n)) return null;
+  return neg ? -n : n;
+}
+
+/**
+ * Split a pasted block into name/figure pairs.
+ *
+ * Excel copies as tab-separated, which is the case that matters. A block typed
+ * by hand is split on the last run of two or more spaces instead — one space is
+ * left alone, because item names here are full of them (`DARK CHOCOLATE ROCKS`).
+ *
+ * ⚠️ A LINE WITH NO FIGURE IS KEPT, NOT DROPPED. A category heading pasted along
+ * with the rows (`BONBONS`, `BARS`) has no figure and no item, and saying so is
+ * how somebody sees their heading rows were ignored rather than counted.
+ */
+export function parseCountPaste(text: string): CzPastedCount[] {
+  const out: CzPastedCount[] = [];
+  const lines = String(text ?? "").split(/\r?\n/);
+  lines.forEach((raw, i) => {
+    const line = raw.replace(/\s+$/, "");
+    if (line.trim() === "") return;
+    let name = line.trim();
+    let qtyRaw = "";
+    if (line.includes("\t")) {
+      const parts = line.split("\t");
+      // The figure is the last cell that carries anything at all.
+      let k = parts.length - 1;
+      while (k > 0 && parts[k]!.trim() === "") k -= 1;
+      if (k > 0) { qtyRaw = parts[k]!; name = parts.slice(0, k).join(" ").trim(); }
+    } else {
+      const m = line.match(/^(.*\S)\s{2,}(\S.*)$/);
+      if (m) { name = m[1]!.trim(); qtyRaw = m[2]!; }
+    }
+    name = name.replace(/\s+/g, " ").trim();
+    if (name === "") return;
+    out.push({ lineNo: i + 1, name, qty: parseCountNumber(qtyRaw), raw: line });
+  });
+  return out;
+}
+
+/** The one normalisation used on both sides of a match: case and spacing. */
+export function normaliseItemName(s: string): string {
+  return String(s ?? "").toUpperCase().replace(/\s+/g, " ").trim();
+}
+
+export type CzCountMatch = {
+  line: CzPastedCount;
+  item: CzStockItem;
+  qty: number;
+};
+
+export type CzCountMatchProblem = {
+  line: CzPastedCount;
+  /**
+   * `unknown` — no item of that name on this shelf.
+   * `ambiguous` — the shelf has the same name twice; a person must choose.
+   * `no-figure` — a heading, or a cell nobody filled in.
+   * `repeated` — the same name appears twice in the paste with figures.
+   * `negative` — a shelf cannot hold minus eleven bars.
+   */
+  kind: "unknown" | "ambiguous" | "no-figure" | "repeated" | "negative";
+};
+
+/**
+ * Place every pasted line against one location's items.
+ *
+ * ⚠️ A NEGATIVE COUNT IS REFUSED, AND THE REASON MATTERS. A closing figure of
+ * −11 is not a shelf holding minus eleven bars; it is the book being wrong,
+ * which is exactly what a stock-take is for. Saving it as a count would enshrine
+ * the arithmetic error as the new truth and carry it forward for ever.
+ */
+export function matchCountRows(
+  lines: CzPastedCount[],
+  items: CzStockItem[],
+  locationId: number,
+): { matched: CzCountMatch[]; problems: CzCountMatchProblem[] } {
+  const pool = items.filter((i) => i.locationId === locationId);
+  const byName = new Map<string, CzStockItem[]>();
+  for (const it of pool) {
+    const k = normaliseItemName(it.name);
+    const list = byName.get(k);
+    if (list) list.push(it); else byName.set(k, [it]);
+  }
+
+  const matched: CzCountMatch[] = [];
+  const problems: CzCountMatchProblem[] = [];
+  const seen = new Set<number>();
+
+  for (const line of lines) {
+    /* ⚠️ "Nobody wrote a figure" is reported BEFORE "no such item". A line with
+       no figure is not a count whatever its name, and saying it is unknown
+       would send somebody looking for a spelling mistake in a blank row. */
+    if (line.qty == null) { problems.push({ line, kind: "no-figure" }); continue; }
+    const hits = byName.get(normaliseItemName(line.name)) ?? [];
+    if (hits.length === 0) { problems.push({ line, kind: "unknown" }); continue; }
+    if (hits.length > 1) { problems.push({ line, kind: "ambiguous" }); continue; }
+    if (line.qty < 0) { problems.push({ line, kind: "negative" }); continue; }
+    const item = hits[0]!;
+    if (seen.has(item.id)) { problems.push({ line, kind: "repeated" }); continue; }
+    seen.add(item.id);
+    matched.push({ line, item, qty: line.qty });
+  }
+  return { matched, problems };
 }

@@ -9,7 +9,7 @@ import {
   type CustomerInput, type ProductInput, type ReceiptInput,
 } from "@/lib/cocozuri";
 import {
-  archiveItem, createItem, createLocation, deleteCount, recordCount, saveDay,
+  archiveItem, createItem, createLocation, deleteCount, recordCount, recordCounts, saveDay,
   updateItem, updateLocation, type StockItemInput,
 } from "@/lib/cocozuri-stock";
 import {
@@ -26,7 +26,7 @@ import {
 } from "@/lib/cocozuri-counter";
 import {
   approvePurchase, cancelPurchase, closeBudget, createBudget, createPurchase,
-  decideBudget, deleteBudget, deletePurchase, reopenBudget, updateBudget, updatePurchase,
+  decideBudget, deleteBudget, deletePurchase, purchaseFromOrderForm, reopenBudget, updateBudget, updatePurchase,
   type BudgetInput, type PurchaseInput,
 } from "@/lib/cocozuri-buy";
 import {
@@ -244,6 +244,20 @@ export async function recordStockCountAction(input: Parameters<typeof recordCoun
   return res;
 }
 
+/**
+ * A whole shelf counted at once.
+ *
+ * ⚠️ ALL OR NOTHING, and it refuses the lot if any line differs from the book
+ * with no reason given — see `recordCounts`. A half-saved stock-take leaves some
+ * items carrying forward from the count and the rest from the old book, with
+ * nothing on screen saying which is which.
+ */
+export async function recordStockCountsAction(input: Parameters<typeof recordCounts>[0]) {
+  const res = await recordCounts(input);
+  if (res.ok) refresh();
+  return res;
+}
+
 export async function deleteStockCountAction(id: number) {
   const res = await deleteCount(id);
   if (res.ok) refresh();
@@ -389,6 +403,18 @@ export async function updatePurchaseAction(id: number, input: Partial<PurchaseIn
  * movements with their landed unit cost. It refuses to overrun an approved
  * budget unless told to; the caller passes `acknowledgeOverBudget` after asking.
  */
+/**
+ * The order form's lines, as a draft purchase.
+ *
+ * ⚠️ A DRAFT, DELIBERATELY. Nothing moves and nothing is posted until somebody
+ * approves it — so carrying a suggestion across commits nothing at all.
+ */
+export async function purchaseFromOrderFormAction(input: Parameters<typeof purchaseFromOrderForm>[0]) {
+  const res = await purchaseFromOrderForm(input);
+  if (res.ok) refresh();
+  return res;
+}
+
 export async function approvePurchaseAction(
   id: number,
   who: { personId?: number | null; name?: string | null },

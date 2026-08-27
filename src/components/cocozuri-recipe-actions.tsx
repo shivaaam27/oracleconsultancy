@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Check, Loader2, Pencil, Star, Trash2, Undo2 } from "lucide-react";
+import Link from "next/link";
+import { Archive, Check, Factory, Loader2, Pencil, Star, Trash2, Undo2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { CocozuriRecipeSheet } from "@/components/cocozuri-recipe-sheet";
 import type { CzStockItem, CzStockLocation } from "@/lib/cocozuri-stock-shared";
@@ -52,6 +53,18 @@ export function CocozuriRecipeActions({
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
           <Pencil size={13} /> Edit
         </button>
+
+        {/* ⚠️ THE HANDOFF THAT WAS MISSING. Reading a recipe and deciding to make
+            it meant going to Production and finding the same recipe again in a
+            dropdown. Only offered on an ACTIVE recipe, because a draft is not
+            what the kitchen should be reaching for — `makeableRecipes()` would
+            not list it anyway. */}
+        {recipe.status === "active" && (
+          <Link href={`/cocozuri/batches?new=1&recipe=${recipe.id}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
+            <Factory size={13} /> Make this now
+          </Link>
+        )}
 
         {recipe.status !== "active" && (
           <button type="button"

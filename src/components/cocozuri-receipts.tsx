@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Banknote, BookOpen, Loader2, Plus, Trash2, Undo2 } from "lucide-react";
+import { Banknote, BookOpen, Loader2, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
-import { SearchInput } from "@/components/ui";
+import { FIELD, SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { BottomSheet } from "@/components/bottom-sheet";
 import { CocozuriReceiptSheet } from "@/components/cocozuri-receipt-sheet";
 import {
   money,
   type CzCustomer, type CzInvoice, type CzReceipt,
+  czDate,
 } from "@/lib/cocozuri-shared";
-import { deleteReceiptAction, postReceiptAction, unpostReceiptAction } from "@/app/cocozuri/actions";
+import { deleteReceiptAction, postReceiptAction, unpostReceiptAction, updateReceiptAction } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
  * Money in.
@@ -49,6 +51,7 @@ export function CocozuriReceipts({
   const [into, setInto] = useState<number | null | "own">(null);
   const [recording, setRecording] = useState(!!openNew);
   const [busy, setBusy] = useState<number | null>(null);
+  const [editing, setEditing] = useState<Row | null>(null);
 
   /**
    * ⚠️ THE `?new=1` FLAG IS TAKEN OUT OF THE ADDRESS AS SOON AS IT HAS BEEN
@@ -80,7 +83,7 @@ export function CocozuriReceipts({
       .map((r) => ({
         ...r,
         customerName: nameOf.get(r.customerId) ?? "—",
-        receivedLabel: new Date(r.receivedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" }),
+        receivedLabel: czDate(r.receivedOn),
         amountLabel: money(r.amount, r.currency),
       }))
       .filter((r) =>
@@ -194,6 +197,17 @@ export function CocozuriReceipts({
                 <Undo2 size={13} />
               </button>
             )}
+            {/* ⚠️ `updateReceiptAction` EXISTED AND NOTHING COULD REACH IT.
+                A payment with a typo in its reference or its date could only be
+                DELETED and re-entered — and once posted, `deleteReceipt` refuses,
+                so it had to be unposted, deleted and rebuilt from nothing. The
+                amount is deliberately left out: changing what a customer paid is
+                not a correction, it is a different payment. */}
+            {books[r.id] !== "posted" && (
+              <button type="button" onClick={() => setEditing(r)} className="text-fg-subtle hover:text-accent" title="Correct the date, how it came in, or the reference">
+                <Pencil size={13} />
+              </button>
+            )}
             <button type="button" onClick={() => void remove(r)} className="text-fg-subtle hover:text-danger" title="Remove this payment">
               <Trash2 size={13} />
             </button>
@@ -236,6 +250,15 @@ export function CocozuriReceipts({
         }
       />
 
+      {editing && (
+        <EditReceipt
+          receipt={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); start(() => {}); }}
+          toast={toast}
+        />
+      )}
+
       {recording && (
         <CocozuriReceiptSheet
           customers={customers}
@@ -246,5 +269,83 @@ export function CocozuriReceipts({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Correcting a payment that was written down wrong.
+ *
+ * ⚠️ THE AMOUNT IS NOT HERE, AND THAT IS THE POINT. A wrong date or a mistyped
+ * cheque number is a correction; a different figure is a different payment, and
+ * changing it silently would move a customer's balance with nothing in the
+ * record saying so. Delete it and record what actually came in.
+ *
+ * ⚠️ A POSTED RECEIPT CANNOT BE EDITED AT ALL — the row does not offer the
+ * button. Take it back out of the books first; the ledger's second rule.
+ */
+function EditReceipt({
+  receipt, onClose, onSaved, toast,
+}: {
+  receipt: CzReceipt;
+  onClose: () => void;
+  onSaved: () => void;
+  toast: (m: string, o?: { tone?: "success" | "danger" }) => void;
+}) {
+  const [receivedOn, setReceivedOn] = useState(receipt.receivedOn.slice(0, 10));
+  const [method, setMethod] = useState(receipt.method ?? "");
+  const [reference, setReference] = useState(receipt.reference ?? "");
+  const [notes, setNotes] = useState(receipt.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const res = await updateReceiptAction(receipt.id, {
+      receivedOn, method: method || null, reference: reference || null, notes: notes || null,
+    });
+    setSaving(false);
+    if (!res.ok) { toast(res.error ?? "Could not save it.", { tone: "danger" }); return; }
+    toast("Corrected.", { tone: "success" });
+    onSaved();
+  }
+
+  return (
+    <BottomSheet open onClose={onClose} title="Correct this payment" maxWidth="max-w-md">
+      <div className="flex flex-col gap-3 px-1 pb-2">
+        <div className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
+          <span className="text-fg-muted">The amount stays at </span>
+          <strong className="tabular text-fg">{money(receipt.amount)}</strong>
+          <p className="mt-0.5 text-xs text-fg-subtle">
+            A different figure is a different payment — delete this one and record what came in.
+          </p>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Received on</span>
+          <input type="date" value={receivedOn} onChange={(e) => setReceivedOn(e.target.value)} className={FIELD} />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">How it came in</span>
+            <input value={method} onChange={(e) => setMethod(e.target.value)} className={FIELD}
+              placeholder="Cash, transfer, cheque…" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Reference</span>
+            <input value={reference} onChange={(e) => setReference(e.target.value)} className={FIELD}
+              placeholder="A cheque number, a transfer ref" />
+          </label>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Note</span>
+          <input value={notes} onChange={(e) => setNotes(e.target.value)} className={FIELD} />
+        </label>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void save()} disabled={saving || !receivedOn}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+            {saving ? <Loader2 size={13} className="animate-spin" /> : null} Save
+          </button>
+          <button type="button" onClick={onClose} className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
+        </div>
+      </div>
+    </BottomSheet>
   );
 }

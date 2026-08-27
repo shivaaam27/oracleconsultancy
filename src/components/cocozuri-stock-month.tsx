@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ClipboardCheck, Loader2 } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, ClipboardList, Loader2 } from "lucide-react";
 import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -11,8 +11,9 @@ import {
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
   type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
-import { money, priceInForce, type CzPrice } from "@/lib/cocozuri-shared";
+import { czDate, money, priceInForce, type CzPrice } from "@/lib/cocozuri-shared";
 import { recordStockCountAction } from "@/app/cocozuri/actions";
+import { CocozuriCountSheet } from "@/components/cocozuri-count-sheet";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -51,6 +52,7 @@ export function CocozuriStockMonth({
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "moved" | "variance" | "uncounted">("all");
   const [taking, setTaking] = useState<{ item: CzStockItem; expected: number } | null>(null);
+  const [takingAll, setTakingAll] = useState(false);
 
   const nameOf = (it: CzStockItem) =>
     (it.productId != null ? productNames[it.productId] : null) ?? it.name;
@@ -117,15 +119,23 @@ export function CocozuriStockMonth({
         <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           From
           <input type="date" value={from} onChange={(e) => e.target.value && go({ from: e.target.value })}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
+            className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none focus:border-accent" />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
           To
           <input type="date" value={to} onChange={(e) => e.target.value && go({ to: e.target.value })}
-            className="h-7 rounded-md border border-border bg-bg px-1.5 text-sm text-fg outline-none focus:border-accent" />
+            className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none focus:border-accent" />
         </label>
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
-          wrapperClassName="w-[13rem]" className="h-7 text-sm" />
+          wrapperClassName="w-[13rem]" className="h-8 text-sm" />
+        {/* ⚠️ THE WHOLE SHELF AT ONCE. The kitchen counts 75 lines and raw
+            materials 171; one bottom sheet at a time is how a stock-take stops
+            happening. Nothing is created and nothing is guessed — see
+            `CocozuriCountSheet`. */}
+        <button type="button" onClick={() => setTakingAll(true)}
+          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
+          <ClipboardList size={13} /> Count everything
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
@@ -136,7 +146,7 @@ export function CocozuriStockMonth({
           ["uncounted", `Not counted ${rows.filter((r) => r.count == null).length}`],
         ] as const).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setOnly(k)}
-            className={cn("h-7 rounded-md border px-2.5 text-sm transition-colors",
+            className={cn("h-8 rounded-md border px-2.5 text-sm transition-colors",
               only === k ? "border-accent bg-accent-soft text-accent" : "border-border text-fg-muted hover:text-fg",
               k === "variance" && withVariance.length > 0 && only !== k && "text-warn")}>
             {label}
@@ -188,7 +198,7 @@ export function CocozuriStockMonth({
                 <span className={cn("text-right text-sm tabular", r.computed < 0 ? "text-danger" : "text-fg")}>{qty(r.computed)}</span>
                 <button type="button" onClick={() => setTaking({ item: r.item, expected: ledgerBalanceAt(r.item.id, location.id, moves, counts, to).closing })}
                   className="text-right text-sm tabular text-fg-muted hover:text-accent"
-                  title={r.count ? `Counted on ${r.count.countedOn}` : "Record a count"}>
+                  title={r.count ? `Counted on ${czDate(r.count.countedOn)}` : "Record a count"}>
                   {r.count ? qty(r.count.qty) : "–"}
                 </button>
                 {/* ⚠️ "Nobody counted" is a dash, never a zero. A variance of
@@ -240,6 +250,21 @@ export function CocozuriStockMonth({
             </>
           )}
         </p>
+      )}
+
+      {takingAll && (
+        <CocozuriCountSheet
+          location={location}
+          items={items}
+          counts={counts}
+          moves={moves}
+          countedOn={to}
+          nameOf={nameOf}
+          onClose={() => setTakingAll(false)}
+          onSaved={() => { setTakingAll(false); router.refresh(); }}
+          onAdded={() => router.refresh()}
+          toast={toast}
+        />
       )}
 
       {taking && (

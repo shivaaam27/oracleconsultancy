@@ -472,7 +472,17 @@ export async function batchDetail(batch: CzBatch): Promise<{
 }> {
   const recipe = batch.recipeId ? await getRecipe(batch.recipeId) : null;
   const plan = recipe ? batchPlan(recipe, batch.recipeMultiple) : null;
-  const [moves, names] = await Promise.all([listMoves({ batchId: batch.id }), nameMaps()]);
+  /* ⚠️ BY THE VOUCHER, NOT BY `batch_id`. Stage 9 gave `batch_id` a different
+     job on a consume movement: it holds the MATERIAL'S lot, not the batch being
+     made. So asking for `{ batchId: batch.id }` returns nothing at all for any
+     batch closed since — every one of them showed "nothing taken yet" over a
+     ledger that had the consumes in it — and where a material's lot id happened
+     to collide with a batch id it would return another batch's movements.
+     Which batch a movement belongs to has always been on the voucher. */
+  const [moves, names] = await Promise.all([
+    listMoves({ voucherType: "batch", voucherId: batch.id }),
+    nameMaps(),
+  ]);
   const itemById = new Map(names.itemRows.map((i) => [i.id, i]));
 
   const byItem = new Map<number, number>();

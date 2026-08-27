@@ -4,7 +4,7 @@ import {
   invoiceTotals, lineAmount, invoiceDueDate, nextInSeries,
   invoiceBalance, daysOverdue, ageingBandOf, ageingSummary, outstandingOf,
   customerAccounts, statementRows, CZ_AGEING_BANDS,
-  invoiceVoucherLines, receiptVoucherLines, linesBalance,
+  invoiceVoucherLines, receiptVoucherLines, linesBalance, czDate, czDayMonth, czMonth,
   type CzPrice, type CzInvoice, type CzReceipt,
 } from "./cocozuri-shared";
 
@@ -614,5 +614,50 @@ describe("what a payment does to the books", () => {
       { amount: 33_333.33, reference: null, method: null, invoiceNumber: null }, acc, "X",
     );
     expect(linesBalance(lines)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * One date format for the whole module.
+ * ------------------------------------------------------------------ */
+
+describe("czDate", () => {
+  it("prints the shape every screen uses", () => {
+    expect(czDate("2026-08-22")).toBe("22 Aug 26");
+    expect(czDate("2026-01-01")).toBe("1 Jan 26");
+  });
+
+  it("takes a timestamp as well as a plain date", () => {
+    expect(czDate("2026-08-22T09:30:00.000Z")).toBe("22 Aug 26");
+  });
+
+  it("does not slip a day", () => {
+    // ⚠️ Parsed at noon, never midnight. `new Date("2026-08-22")` is UTC
+    // midnight, which prints as the 21st anywhere west of Greenwich.
+    expect(czDate("2026-08-22")).toContain("22");
+    expect(czDate("2026-03-01")).toContain("1 Mar");
+  });
+
+  it("says nothing rather than inventing a date", () => {
+    expect(czDate(null)).toBe("—");
+    expect(czDate("")).toBe("—");
+    expect(czDate("not a date")).toBe("—");
+  });
+
+  it("drops the year only where it was asked to", () => {
+    expect(czDayMonth("2026-08-22")).toBe("22 Aug");
+    expect(czDayMonth(null)).toBe("—");
+  });
+});
+
+describe("czMonth", () => {
+  it("prints a month the way a person writes one", () => {
+    expect(czMonth("2026-08")).toBe("Aug 2026");
+    expect(czMonth("2026-08-22")).toBe("Aug 2026");
+  });
+
+  it("hands back anything it cannot read, rather than a dash", () => {
+    // "all" is a real period on the profit screen and must survive untouched.
+    expect(czMonth("all")).toBe("all");
   });
 });

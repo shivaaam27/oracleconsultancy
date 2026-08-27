@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriBatchClose } from "@/components/cocozuri-batch-close";
 import { cocozuriCompany } from "@/lib/cocozuri";
-import { listMoves } from "@/lib/cocozuri-stock";
-import { qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
+import { listItems, listLocations, listMoves } from "@/lib/cocozuri-stock";
+import { CZ_MOVE_REASON_LABEL, qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
+import { czDate } from "@/lib/cocozuri-shared";
 import { batchDetail, getBatchByNo } from "@/lib/cocozuri-batch";
 import {
   CZ_BATCH_STATUS_LABEL, batchPlan, daysOpen, lossLabel,
@@ -38,11 +39,16 @@ export default async function CocozuriBatchPage({
   const batch = await getBatchByNo(decodeURIComponent(batchNo));
   if (!batch) notFound();
 
-  const [company, detail, moves] = await Promise.all([
+  const [company, detail, moves, allItems, locations] = await Promise.all([
     cocozuriCompany(),
     batchDetail(batch),
-    listMoves({ batchId: batch.id }),
+    // ⚠️ By the voucher — see `batchDetail`. `batch_id` is the material's lot.
+    listMoves({ voucherType: "batch", voucherId: batch.id }),
+    listItems(),
+    listLocations({ includeInactive: true }),
   ]);
+  // ⚠️ The movements table names its item; a ledger row carries only the id.
+  const itemNames = new Map(allItems.map((i) => [i.id, i.name] as const));
   const { recipe, check, used } = detail;
   const plan = recipe ? batchPlan(recipe, batch.recipeMultiple) : null;
   const consumed = moves.some((m) => m.reason === "consume");
@@ -52,7 +58,7 @@ export default async function CocozuriBatchPage({
     <div className="space-y-4">
       <PageHeader
         title={batch.batchNo}
-        sub={`${batch.itemName ?? "—"}${batch.locationName ? ` · ${batch.locationName}` : ""}${batch.madeOn ? ` · ${batch.madeOn}` : ""}${company ? ` · ${company.name}` : ""}`}
+        sub={`${batch.itemName ?? "—"}${batch.locationName ? ` · ${batch.locationName}` : ""}${batch.madeOn ? ` · ${czDate(batch.madeOn)}` : ""}${company ? ` · ${company.name}` : ""}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +81,19 @@ export default async function CocozuriBatchPage({
         )}
       </div>
 
-      <CocozuriBatchClose batch={batch} plan={plan} used={used} />
+      <div className="flex flex-wrap items-center gap-2">
+        <CocozuriBatchClose batch={batch} plan={plan} used={used} items={allItems} locations={locations} />
+        {/* ⚠️ THE OTHER HANDOFF THAT WAS MISSING. A closed batch put chocolate on
+            the kitchen's shelf and the only way to move it next door was to go
+            to Transfers and start from nothing. Only offered once the batch is
+            CLOSED, because until then nothing has been made to send. */}
+        {batch.status === "closed" && batch.locationId != null && (
+          <Link href={`/cocozuri/transfers?new=1&from=${batch.locationId}${batch.itemName ? `&find=${encodeURIComponent(batch.itemName)}` : ""}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
+            <Truck size={13} /> Send some to the shop
+          </Link>
+        )}
+      </div>
 
       {/* The inter check — expected against actual. */}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -159,26 +177,43 @@ export default async function CocozuriBatchPage({
             Every one of these carries the batch number. That is what lets you go from a bad bag of
             anything to every bar made from it, and back again.
           </p>
-          <ul className="mt-2 space-y-1 text-sm">
-            {moves.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-fg-muted">
-                <span className="truncate">
-                  {m.reason === "consume" ? "Took" : m.reason === "produce" ? "Made" : m.reason}
-                  {m.note ? "" : ""}
-                </span>
-                <span className={`tabular ${m.qty < 0 ? "text-danger" : "text-success"}`}>
-                  {m.qty > 0 ? "+" : ""}{qtyText(m.qty)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {/* ⚠️ THIS LIST SAID "Took −44" AND NOTHING ELSE. It named neither the
+              material nor the day, so a reader had to infer both from the table
+              above; anything that was not a consume or a produce fell through to
+              the raw ledger code, which is why a lower-case `transfer` sat
+              between two capitalised words. Item, day and reason, all named. */}
+          <div className="mt-2 overflow-x-auto">
+            <div className="min-w-[30rem]">
+              <div className="grid grid-cols-[90px_150px_minmax(0,1fr)_90px] items-center gap-2 border-b border-border py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
+                <span>Day</span>
+                <span>What happened</span>
+                <span>Which item</span>
+                <span className="text-right">Quantity</span>
+              </div>
+              {moves.map((m) => (
+                <div key={m.id} className="grid grid-cols-[90px_150px_minmax(0,1fr)_90px] items-center gap-2 border-b border-border py-1.5 text-sm last:border-0">
+                  <span className="tabular text-fg-subtle">{czDate(m.onDate)}</span>
+                  <span className="truncate text-fg-muted">{CZ_MOVE_REASON_LABEL[m.reason]}</span>
+                  <span className="min-w-0 truncate text-fg" title={m.note ?? undefined}>
+                    {itemNames.get(m.itemId) ?? `Item #${m.itemId}`}
+                  </span>
+                  <span className={`text-right tabular ${m.qty < 0 ? "text-danger" : "text-success"}`}>
+                    {m.qty > 0 ? "+" : ""}{qtyText(m.qty)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {batch.notes && (
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-2.5 text-sm text-fg-muted">
-          {batch.notes}
-        </p>
+        <div className="rounded-lg border border-border bg-bg-elev px-3.5 py-2.5">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Note</p>
+          <p className="mt-0.5 text-sm text-fg-muted">
+            {batch.notes}
+          </p>
+        </div>
       )}
     </div>
   );

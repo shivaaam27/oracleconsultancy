@@ -232,7 +232,7 @@ export function CocozuriInvoiceSheet({
         <div className="flex flex-col gap-0.5 rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">
           <Row label={`Before VAT`} value={money(totals.net)} />
           <Row label={`VAT at ${vatRate}%`} value={money(totals.vat)} />
-          <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-[14px] font-semibold text-fg">
+          <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold text-fg">
             {/* ⚠️ Counted off the lines that actually have something on them.
                 The blank starter line carries qty 1, so an untouched form used
                 to announce "Total · 1 pcs" over a total of nothing. */}

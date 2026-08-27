@@ -71,7 +71,7 @@ export default async function CocozuriStatementPage({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 print:hidden">
           {CZ_AGEING_BANDS.map((b) => (
             <div key={b.key} className="rounded-lg border border-border bg-bg-elev px-3 py-2">
-              <p className={`tabular text-[15px] font-semibold leading-none ${
+              <p className={`tabular text-lg font-semibold leading-none ${
                 Math.round(bands[b.key]) === 0 ? "text-fg-subtle"
                   : b.key === "over90" ? "text-danger" : b.key === "d61_90" ? "text-warn" : "text-fg"}`}>
                 {money(bands[b.key])}
@@ -87,7 +87,7 @@ export default async function CocozuriStatementPage({
         <p className="text-center text-xs leading-relaxed text-fg-muted">
           P.O.BOX 20865, DAR-ES-SALAAM, TANZANIA · TIN NO: 104 679 218 · VAT NO: 400117481
         </p>
-        <h1 className="mt-3 text-center text-[15px] font-semibold tracking-wide text-fg">STATEMENT OF ACCOUNT</h1>
+        <h1 className="mt-3 text-center text-lg font-semibold tracking-wide text-fg">STATEMENT OF ACCOUNT</h1>
 
         <div className="mt-5 flex flex-wrap justify-between gap-4">
           <div className="min-w-[16rem]">

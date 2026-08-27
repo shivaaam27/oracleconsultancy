@@ -16,6 +16,7 @@ import {
   CZ_RETURN_KIND_LABEL, CZ_RETURN_STATUS_LABEL, bookInBlockers, daysWaiting, returnCheck,
   type CzReturn, type CzReturnKind, type CzReturnStatus,
 } from "@/lib/cocozuri-return-shared";
+import { czDate } from "@/lib/cocozuri-shared";
 import { bookReturnAction } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
@@ -91,6 +92,8 @@ export function CocozuriReturns({
               ? `from ${r.customerName ?? "somebody not named"}${r.invoiceNumber ? ` · ${r.invoiceNumber}` : ""}`
               : `found at ${r.locationName ?? "a shelf"}`,
           statusLabel: CZ_RETURN_STATUS_LABEL[r.status],
+          // ⚠️ One date format for the whole module — see `czDate`.
+          onDate: czDate(r.onDate),
           cameBackLabel: qtyText(c.cameBack),
           goodLabel: c.good > 0 ? qtyText(c.good) : "—",
           scrappedLabel: c.scrapped > 0 ? qtyText(c.scrapped) : "—",
@@ -350,7 +353,7 @@ function BookSheet({
                   placeholder={customerId == null ? "Name the customer first" : "Not said"}
                   options={[
                     { value: "", label: "Not said" },
-                    ...forCustomer.map((i) => ({ value: String(i.id), label: `${i.number} · ${i.issueDate}` })),
+                    ...forCustomer.map((i) => ({ value: String(i.id), label: `${i.number} · ${czDate(i.issueDate)}` })),
                   ]} />
               </Field>
             </>

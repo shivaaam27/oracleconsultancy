@@ -371,6 +371,124 @@ export async function recordCount(
   return { ok: true, variance };
 }
 
+/**
+ * Record a whole shelf's count in one go.
+ *
+ * The stock-take arrives as a spreadsheet — CocoZuri's kitchen counts 75 lines
+ * and raw materials 171 — and typing that one bottom-sheet at a time is how a
+ * stock-take stops happening. So the sheet is pasted in whole and lands here.
+ *
+ * ⚠️ IT KEEPS EVERY RULE `recordCount` KEEPS, because they are the point:
+ *
+ *   - a count is the position at the END of its date;
+ *   - it is measured against the LEDGER, not the day sheet, so a delivery
+ *     nobody wrote in the IN column is not reported as a surplus;
+ *   - **a variance must be explained**;
+ *   - a negative count is refused — minus eleven bars is the book being wrong,
+ *     which is what the stock-take is for, not a shelf holding minus eleven.
+ *
+ * ⚠️ THE REASON MAY COVER THE WHOLE TAKE, AND THAT IS NOT A LOOPHOLE. When the
+ * book has not been written up for a week, every one of 246 lines varies, and
+ * demanding 246 separately typed sentences does not produce 246 explanations —
+ * it produces no stock-take at all. "Month-end count; the day sheets stop on the
+ * 18th" is the true reason and it is the same reason for every line. A line may
+ * still carry its own, and that wins.
+ *
+ * ⚠️ ALL OR NOTHING. A half-saved stock-take is worse than none: the items that
+ * went in become the new truth and the ones that did not carry on from the old
+ * book, and nothing on screen says which is which. Every row is checked first,
+ * then all of them are written in a single upsert.
+ */
+export type CzCountRow = { itemId: number; qty: number; note?: string | null };
+
+export type CzBulkCountResult = {
+  ok: boolean;
+  error?: string;
+  /** How many were written. Zero unless the whole take went in. */
+  saved: number;
+  /** Agreed with the book to the gram. */
+  agreed: number;
+  /** Differed, and carried a reason. */
+  explained: number;
+  /** Differed and carried NO reason — nothing was saved because of these. */
+  needReason: { itemId: number; qty: number; book: number; variance: number }[];
+};
+
+export async function recordCounts(
+  input: { countedOn: string; rows: CzCountRow[]; reason?: string | null },
+  by = "web-ui",
+): Promise<CzBulkCountResult> {
+  const empty = { saved: 0, agreed: 0, explained: 0, needReason: [] as CzBulkCountResult["needReason"] };
+  const company = await cocozuriCompany();
+  if (!company) return { ok: false, error: "Cocozuri is not in the company list.", ...empty };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.countedOn)) return { ok: false, error: "A count needs a date.", ...empty };
+  const rows = input.rows ?? [];
+  if (rows.length === 0) return { ok: false, error: "There is nothing to count.", ...empty };
+
+  const blanket = input.reason?.trim() || null;
+
+  for (const r of rows) {
+    const q = Number(r.qty);
+    if (!Number.isFinite(q) || q < 0) {
+      return { ok: false, error: `Item ${r.itemId}: a count needs a quantity, and it cannot be negative.`, ...empty };
+    }
+  }
+
+  /* One read for the whole take. Asking per item would be 246 round trips for
+     a figure that comes out of the same two tables every time. */
+  const itemIds = rows.map((r) => r.itemId);
+  const locOf = await locationOfItems(itemIds);
+  const missing = itemIds.filter((id) => !locOf.has(id));
+  if (missing.length > 0) {
+    return { ok: false, error: `${missing.length} of these are not on any location's list.`, ...empty };
+  }
+  const [moves, counts] = await Promise.all([
+    listMoves({ itemIds, to: input.countedOn }),
+    listCounts({ itemIds, to: input.countedOn }),
+  ]);
+
+  const needReason: CzBulkCountResult["needReason"] = [];
+  let agreed = 0;
+  let explained = 0;
+  const payload: Record<string, unknown>[] = [];
+
+  for (const r of rows) {
+    const q = Number(r.qty);
+    const locationId = locOf.get(r.itemId)!;
+    const candidate: CzStockCount = { id: -1, itemId: r.itemId, countedOn: input.countedOn, qty: q, note: null };
+    const variance = varianceOf(r.itemId, locationId, moves, counts, candidate);
+    const note = r.note?.trim() || blanket;
+    if (Math.abs(variance) > 0.0005) {
+      if (!note) { needReason.push({ itemId: r.itemId, qty: q, book: q - variance, variance }); continue; }
+      explained += 1;
+    } else {
+      agreed += 1;
+    }
+    payload.push({
+      company_id: company.id,
+      item_id: r.itemId,
+      counted_on: input.countedOn,
+      qty: q,
+      note,
+      created_by: by,
+      updated_at: NOW(),
+    });
+  }
+
+  if (needReason.length > 0) {
+    return {
+      ok: false,
+      error: `${needReason.length} item${needReason.length === 1 ? "" : "s"} differ${needReason.length === 1 ? "s" : ""} from the book with no reason given. Say why before saving.`,
+      ...empty,
+      needReason,
+    };
+  }
+
+  const { error } = await sb.from("cz_stock_counts").upsert(payload, { onConflict: "item_id,counted_on" });
+  if (error) return { ok: false, error: error.message, ...empty };
+  return { ok: true, saved: payload.length, agreed, explained, needReason: [] };
+}
+
 export async function deleteCount(id: number): Promise<{ ok: boolean; error?: string }> {
   const { error } = await sb.from("cz_stock_counts").delete().eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };

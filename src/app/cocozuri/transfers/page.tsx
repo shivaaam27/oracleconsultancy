@@ -23,7 +23,7 @@ export const metadata = { title: "Transfers — CocoZuri" };
 export default async function CocozuriTransfersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; from?: string; find?: string }>;
 }) {
   const company = await cocozuriCompany();
   if (!company) {
@@ -58,7 +58,7 @@ export default async function CocozuriTransfersPage({
               } · ${company.name}`
         }
       />
-      <CocozuriTransfers transfers={transfers} locations={locations} openNew={sp.new === "1"} />
+      <CocozuriTransfers transfers={transfers} locations={locations} openNew={sp.new === "1"} fromLocationId={Number(sp.from) || null} find={sp.find ?? null} />
     </div>
   );
 }

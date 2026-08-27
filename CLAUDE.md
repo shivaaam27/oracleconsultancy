@@ -12,7 +12,19 @@ supplier → depreciate → reconcile → trace → reverse. Read
 `memory/cocozuri_manufacturing_plan.md` §6a–§6j, and **§5b for the owner's
 answers of 22 Aug evening** — they settle four of the six open questions.
 
-**⚠️ START HERE: `memory/handover_aug25_2026.md`** — the most recent session:
+**⚠️ START HERE: `memory/handover_aug27_2026.md`** — the most recent session,
+and it is **CocoZuri only**: the chef's costing workbook audited cell by cell and
+a **recipe importer** built for it, the whole module swept for UI consistency
+(**four date formats collapsed onto one — `czDate`**), **six flow gaps built**
+(the order form raises a purchase; an off-recipe material can be added at close;
+a material running over must say why; what open batches have promised is shown;
+a batch and a receipt can be corrected; recipe → make it, batch → send it), and
+**the transfer lot fix that finally closes the recall thread**.
+⚠️ **NOTHING FROM IT IS COMMITTED**, and **no migration was written** — it is all
+in the working tree. Its §5 is the list of what is left to build, and its §6 the
+demo data left in the live database.
+
+Before it: `memory/handover_aug25_2026.md` — the session before:
 the Director Brief PDF's cut-off update fixed and the whole thing restyled in
 the ERP skin, the Windows app taught to update itself (1.0.1 and 1.0.2 shipped)
 and its title bar taught about dark mode, the CocoZuri guide written out as a

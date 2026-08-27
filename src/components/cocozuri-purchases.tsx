@@ -8,7 +8,7 @@ import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SearchInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { CocozuriPurchaseSheet } from "@/components/cocozuri-purchase-sheet";
-import { money } from "@/lib/cocozuri-shared";
+import { czDate, money } from "@/lib/cocozuri-shared";
 import type { CzStockItem, CzStockLocation } from "@/lib/cocozuri-stock-shared";
 import {
   paidFromLabel, purchaseTotals, supplierLabel,
@@ -94,9 +94,7 @@ export function CocozuriPurchases({
         return {
           ...p,
           supplier: supplierLabel(p),
-          purchasedLabel: new Date(`${p.purchasedOn}T12:00:00`).toLocaleDateString("en-GB", {
-            day: "numeric", month: "short", year: "2-digit",
-          }),
+          purchasedLabel: czDate(p.purchasedOn),
           paidLabel: paidFromLabel(p.paidFrom),
           statusLabel: p.status === "draft" ? "Draft" : p.status === "approved" ? "Approved" : "Cancelled",
           total: t.payable,

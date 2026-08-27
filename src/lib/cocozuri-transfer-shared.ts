@@ -244,3 +244,44 @@ export function daysInTransit(t: Pick<CzTransfer, "onDate" | "status">, today: s
   if (!Number.isFinite(a) || !Number.isFinite(z)) return null;
   return Math.max(0, Math.round((z - a) / 86_400_000));
 }
+
+/* ------------------------------------------------------------------ *
+ * Which lot arrived
+ * ------------------------------------------------------------------ */
+
+export type CzLotPick = { batchId: number | null; qty: number };
+
+/**
+ * Spread what actually arrived across the lots that were sent.
+ *
+ * ⚠️ NOBODY COUNTS BY LOT AT THE RECEIVING END. The shop counts eighteen bars,
+ * not "sixteen of BATCH-01 and two of BATCH-02" — so when fewer arrive than
+ * left, WHICH lot is short is genuinely unknown. Guessing evenly across them
+ * would be inventing a fact; this fills the lots in the order they went out
+ * (soonest-expiring first, the same order `allocateFefo` chose), which is the
+ * only defensible reading: the ones loaded first are the ones that arrived.
+ *
+ * ⚠️ WHAT DID NOT ARRIVE GETS NO PICK AT ALL. It belongs to neither shelf —
+ * that is the "in transit" gap the whole two-moment design exists to show — so
+ * it must not appear as a movement anywhere.
+ *
+ * ⚠️ MORE ARRIVING THAN LEFT IS NOT SPREAD, IT IS REPORTED. `receiveBlockers`
+ * refuses it outright; if one ever got this far the surplus is returned with no
+ * lot rather than attributed to a lot that never carried it.
+ */
+export function spreadAcrossLots(sent: CzLotPick[], received: number): CzLotPick[] {
+  const want = Number.isFinite(received) ? Math.max(0, received) : 0;
+  const out: CzLotPick[] = [];
+  let left = want;
+  for (const s of sent) {
+    if (left <= 0.0005) break;
+    const take = Math.min(left, Math.max(0, Number(s.qty) || 0));
+    if (take > 0.0005) {
+      out.push({ batchId: s.batchId, qty: Math.round(take * 1000) / 1000 });
+      left = Math.round((left - take) * 1000) / 1000;
+    }
+  }
+  // ⚠️ Only reachable if more arrived than was sent, which is refused earlier.
+  if (left > 0.0005) out.push({ batchId: null, qty: left });
+  return out;
+}

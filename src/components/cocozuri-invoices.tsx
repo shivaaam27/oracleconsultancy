@@ -8,6 +8,7 @@ import { CocozuriInvoiceSheet } from "@/components/cocozuri-invoice-sheet";
 import {
   invoiceDueDate, invoiceTotals, money,
   type CzCustomer, type CzInvoice, type CzPrice, type CzProduct,
+  czDate,
 } from "@/lib/cocozuri-shared";
 import { cn } from "@/lib/cn";
 
@@ -63,7 +64,7 @@ export function CocozuriInvoices({
     { key: "customerName", label: "Customer", width: "minmax(0,1fr)", render: (r: Row) => <span className="truncate">{r.customerName}</span> },
     {
       key: "issueDate", label: "Date", width: "110px", hideBelow: "md",
-      render: (r: Row) => <span className="text-fg-muted">{new Date(r.issueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}</span>,
+      render: (r: Row) => <span className="text-fg-muted">{czDate(r.issueDate)}</span>,
     },
     {
       key: "status", label: "Status", width: "100px",

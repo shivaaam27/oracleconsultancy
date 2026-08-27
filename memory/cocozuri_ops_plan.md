@@ -787,3 +787,158 @@ checks. On the real August data: **43 lines, 2,508 units**, worst first.
 Search (`EntityDef`) and ONE read-only MCP tool were listed for this phase and
 are **still not built, on purpose** — the same answer as Phases 1–4. **A ledger
 WRITE tool must never exist.**
+
+---
+
+# Counting the whole shelf at once — `Details.xlsx`, 26 Aug 2026
+
+The owner put **`Documents/Cocozuri/Details.xlsx`** in front of COS: two sheets,
+one figure column each, headed **CL STOCK**.
+
+- **Finished Product In kitchen** — 88 rows: 12 category headings (BONBONS,
+  FRAMES, HANDROLLED TRUFFLES, ROCHERS, CHOCOLATE STICKS, BARS, CHOCOLATE
+  SLABS(100GM), DESSERTS, COOKIES, OTHER ITEMS, EXTRA ITEMS, SAMPLES) and
+  **76 items**.
+- **Raw Materials** — 171 items.
+
+**Measured against the live database: it is not new data, it is a stock-take.**
+171 of 171 raw materials match `Raw materials` exactly; 75 of 76 finished goods
+match `Kitchen` exactly — the whole shelf, in both cases. **One item is genuinely
+new: `80% DARK CHOCOLATE ROASTED ALMOND SLAB` (2,377).** The kitchen has the 50%
+cashew, 50% roasted almond and white pistachio slabs, and no 80% one.
+
+## ⚠️ SEVEN CLOSING FIGURES ARE NEGATIVE, AND THAT DECIDES WHAT THIS FILE IS
+
+`MILK CHOCOLATE −11` · `HAZEFA ROCHERS −18` · `HAZELNUT DRAGEES −5` ·
+`80% DARK CHOCOLATE DATE & COCOA NIBS (50GM) −2` · `Cornflakes −22` ·
+`Honey −9` · `Vanilla local essence −3`.
+
+**A shelf cannot hold minus eleven bars.** So these are not counted figures —
+they are the spreadsheet's own arithmetic, and the negatives are the proof the
+book is wrong. That matters because **a count becomes the new truth**: saving −11
+as a count would make the arithmetic error permanent and carry it forward for
+ever. `matchCountRows` refuses a negative and names the line.
+
+## ⚠️ TWO QUESTIONS THE FILE CANNOT ANSWER, AND MUST NOT BE GUESSED
+
+1. **What date is CL STOCK the closing stock OF?** Nothing in the file says. A
+   count is the position at the **END** of its date; put it on the wrong day and
+   every balance after it is wrong by that day's trade. Existing counts are
+   31 Jul (77) and 5 Aug (236); the day sheets run 1–18 Aug.
+2. **Is it a physical count, or the spreadsheet's computed balance?** The
+   negatives say the latter. A computed balance fed in as a count enshrines the
+   error; a physical count is exactly what COS wants.
+
+## What was built — `CocozuriCountSheet`, "Count everything"
+
+`/cocozuri/stock/month` → **Count everything**. Paste both columns straight out
+of Excel; every line is placed against **that location's** items and the variance
+is worked out live against the ledger.
+
+- **`parseCountPaste` / `parseCountNumber` / `matchCountRows`** are pure and
+  tested (`cocozuri-stock-shared.test.ts`, 68 cases). ⚠️ **An accounting dash
+  `" -   "` is a real counted zero and a blank cell is not** — collapsing the two
+  would claim every skipped shelf is empty.
+- ⚠️ **Names match on case and spacing ONLY, never fuzzily, and always within one
+  location.** Fault #4 again. `AMBER RABDI` is a different row in the kitchen and
+  the shop.
+- ⚠️ **Nothing is auto-created.** An unplaced name is reported; a person may put
+  it on the shelf with a button, one at a time, and is told it arrives unlinked
+  to a product so what goes out of it cannot be valued yet. This is how
+  `80% DARK CHOCOLATE ROASTED ALMOND SLAB` gets in.
+- ⚠️ **"No figure" is reported before "no such item"** — a blank line is not a
+  count whatever its name, and calling it unknown sends somebody hunting for a
+  spelling mistake in an empty row.
+- **`recordCounts` in `cocozuri-stock.ts` is the one door**, keeping every rule
+  `recordCount` keeps. ⚠️ **All or nothing**, in a single upsert: a half-saved
+  stock-take leaves some items carrying forward from the count and the rest from
+  the old book with nothing on screen saying which.
+- ⚠️ **One reason may cover the whole take, and that is not a loophole.** When
+  the book has not been written up for a week every one of 246 lines varies, and
+  demanding 246 typed sentences produces no stock-take at all. A line may carry
+  its own reason, and that wins.
+
+**Nothing from `Details.xlsx` has been loaded** — it waits on question 1.
+
+---
+
+# The CocoZuri UI sweep — 26 Aug 2026
+
+The owner: *"I see a lot of inconsistency and issues."* He was right. Screen by
+screen, in rail order. Everything below was found by LOOKING at the running app,
+not by reading the source.
+
+## ⚠️ FOUR DATE FORMATS IN ONE MODULE — the worst of it
+
+| Where | What it printed |
+|---|---|
+| Invoices · Receipts · Purchases | `22 Aug 26` — three separate `toLocaleDateString` calls |
+| Batches · Transfers · Returns · Counter · Payments | `2026-08-22` — the raw ISO string |
+| Budgets | `1 Aug – 28 Aug` — **no year at either end** |
+| Profit · Cost of sales | `2026-08` — a raw ISO month, in the page title |
+
+**`czDate()` and `czMonth()` in `cocozuri-shared.ts` are now the only two**, with
+tests. ⚠️ **They parse at NOON, never midnight** — `new Date("2026-08-22")` is
+UTC midnight, which prints as the 21st anywhere west of Greenwich.
+
+⚠️ **THE PRINTED INVOICE AND STATEMENT KEEP THEIR OWN FORMAL `22 AUG 2026`.**
+That is a deliberate difference between a screen and a piece of paper somebody
+files, and the three remaining `toLocaleDateString` calls are exactly those.
+
+## What else was wrong, and what it now is
+
+- **The desk had a word where every other tile had a figure** — a "Stock-take"
+  tile reading `Stock-take` in the number slot. Gone; the stock book now carries
+  a proper link to the month-end screen, which is what that tile was really for.
+  ⚠️ The month-end page already linked BACK to the day book; only the outward
+  half was missing.
+- **Money and counts were indistinguishable.** `540,000` (shillings) sat beside
+  `127` (products) in identical type. Money tiles now carry a **TZS** mark.
+  ⚠️ Tables were left alone on purpose: a column headed "Total", right-aligned
+  and lining, is the ERP convention and adding a currency to every row is noise.
+- **The desk explained itself in two paragraphs** — a feature tour under the
+  figures, useful once and in the way every morning after. Gone; the one line
+  that stayed is the **unconfirmed 7% VAT**, because that is a decision somebody
+  still owes, not a description of the software.
+- **The counter said the same thing twice** — a permanent banner explaining it
+  takes no payment, and an empty state saying it again underneath. The banner is
+  gone: an empty state appears exactly when it is needed and leaves when it is not.
+- **The counter had no filter rail** while every sibling list had one, so its
+  content started hard against the left edge. It has All / Recorded / Cancelled now.
+- **The counter's columns disagreed with the module.** `Paid` (a method) sat
+  beside `Took` (an amount). The receipts list already set the convention:
+  **How** and **Amount**.
+- **Trace: a five-column table with no header row** — lot, chocolate, shelf,
+  quantity, expiry, and nothing saying which was which. Headers added.
+- **⚠️ Trace: every step carried a date and none of them printed it.** On the one
+  screen that exists for the morning somebody rings up about a bad chocolate,
+  "when" is the column you follow. It is the first column now.
+- **Trace's search box ran the full page width** while every other search in the
+  module is a toolbar control — a full-bleed input reads as the page's subject
+  rather than as a filter.
+- **Profit stacked two amber panels touching.** The upper one is a real warning
+  (a month that cannot be costed in full); the lower one merely explained the
+  columns. Two alarm-coloured blocks in a row read as one long alarm and the
+  second stops being read. The explanation is neutral now.
+- **Statements printed "nothing outstanding" against all fourteen customers** —
+  the same three words down the whole page, with the one customer who owes
+  something to be found in the middle of it. Silence, and a dash.
+- **Nine hard-coded `text-[14px]` / `[15px]` / `[16px]` / `[18px]`** — all off
+  the density scale, which is exactly what `DESIGN_SYSTEM.md` forbids. Mapped
+  onto `text-base` / `text-lg` / `text-xl`.
+- **The stock book, month-end and order form ran their toolbars at `h-7`** while
+  every other screen ran `h-8`, so the two screens used daily were visibly
+  tighter than the rest. ⚠️ The `h-7` inside a segmented shell and inside a grid
+  row are CORRECT (`CONTROL_BOX_SM`) and were left alone.
+- **The order form printed `2026-07-29` at the reader** in the sentence saying
+  where its figures came from.
+
+## Checked and found already right — not changed
+
+- `money()` is used everywhere; nothing formats an amount by hand.
+- No native `<select>`, no `<datalist>`, no `rounded-full` anywhere in the module.
+- The ageing bands come from one constant, so the tiles and the rail cannot drift.
+- Products, Invoices, Purchases, Transfers and Budgets all use `RecordList` and
+  were already consistent.
+
+**tsc clean · 1,218 tests pass.**
