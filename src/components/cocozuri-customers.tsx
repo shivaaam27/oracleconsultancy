@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Plus, Loader2, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Loader2, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -11,7 +11,8 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { CzCustomer } from "@/lib/cocozuri-shared";
 import {
-  archiveCustomerAction, createCustomerAction, setBranchesAction, updateCustomerAction,
+  archiveCustomerAction, createCustomerAction, deleteCustomerAction,
+  setBranchesAction, updateCustomerAction,
 } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
@@ -257,6 +258,22 @@ function CustomerSheet({
               >
                 {customer.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                 {customer.archived ? "Restore" : "Archive"}
+              </button>
+              {/* ⚠️ A REAL DELETE. Refused while an invoice, a payment or a
+                  counter sale points at them — a document somebody was sent
+                  cannot lose the customer it names. Their agreed prices and
+                  branches belong to them and go with them. */}
+              <button
+                type="button"
+                onClick={() => start(async () => {
+                  if (!confirm(`Delete ${customer.name}? It will be refused if any invoice, payment or counter sale names them.`)) return;
+                  const res = await deleteCustomerAction(customer.id);
+                  if (!res.ok) { toast(res.error ?? "Could not delete them.", { tone: "danger" }); return; }
+                  onSaved(`${customer.name} deleted.`);
+                })}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-danger hover:text-danger"
+              >
+                <Trash2 size={13} /> Delete
               </button>
             </>
           )}

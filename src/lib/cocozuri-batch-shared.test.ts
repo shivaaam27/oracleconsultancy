@@ -34,6 +34,7 @@ const batch = (over: Partial<CzBatch> = {}): CzBatch => ({
   madeOn: "2026-08-22", expiresOn: null, status: "running",
   recipeMultiple: 1, plannedQty: 108, producedQty: null,
   lossKind: "none", lossNote: null, openedBy: "Chef", closedAt: null, closedBy: null, notes: null,
+  recipeSnapshot: null,
   ...over,
 });
 

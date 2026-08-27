@@ -1135,6 +1135,41 @@
       "when": 1787683526798,
       "tag": "0160_marketing_results",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1787819628084,
+      "tag": "0161_cocozuri_invoice_lots",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1787828264906,
+      "tag": "0162_cocozuri_kinds_and_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1787831311042,
+      "tag": "0163_cocozuri_production_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1787833379914,
+      "tag": "0164_cocozuri_recipe_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1787834807013,
+      "tag": "0165_cocozuri_events",
+      "breakpoints": true
     }
   ]
 }

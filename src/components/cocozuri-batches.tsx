@@ -323,7 +323,7 @@ function StartSheet({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {recipe && (
-            <Field label={`How many ${recipe.yieldUom.toLowerCase()} do you want`}>
+            <Field label={`${recipe.yieldUom} wanted`}>
               {/* ⚠️ THE TWO BOXES MIRROR EACH OTHER BOTH WAYS. Whichever was
                   typed last drives; the other shows what that comes to. Leaving
                   this box reading 200 while two whole batches make 216 is the
@@ -334,7 +334,7 @@ function StartSheet({
             </Field>
           )}
           {recipe && (
-            <Field label="Or how many batches">
+            <Field label="Or batches">
               <input value={lastTyped === "want" && target ? String(target.multiple) : multiple}
                 onChange={(e) => { setMultiple(e.target.value); setLastTyped("multiple"); }}
                 inputMode="decimal" className={`${FIELD} text-right tabular`} placeholder="1" />
@@ -440,8 +440,13 @@ function StartSheet({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  /* ⚠️ `justify-end`, AND IT IS NOT COSMETIC. A grid cell stretches to the
+     tallest row, so a label that wraps onto two lines pushed ITS control down
+     while a one-line label left its control at the top — the boxes in one row
+     sat at two different heights. Pushing label and control to the BOTTOM of
+     the cell lines every control up whatever the labels do. */
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex h-full flex-col justify-end gap-1">
       <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>

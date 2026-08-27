@@ -3947,6 +3947,36 @@ export const czInvoiceLines = pgTable("cz_invoice_lines", {
   index("cz_invoice_lines_invoice_idx").on(t.invoiceId, t.lineNo),
 ]);
 
+/**
+ * Which lots an invoice despatched.
+ *
+ * ⚠️ AN INVOICE MOVES NO STOCK, AND THIS DOES NOT CHANGE THAT. The day sheet's
+ * `day_out` is what takes finished goods off the shelf; writing movements here
+ * too would take the same chocolate off twice. This is a DESPATCH RECORD — what
+ * went to which customer — and it is the only place that question is
+ * answerable, because an invoice line names a PRODUCT and not a lot.
+ *
+ * ⚠️ A ROW PER LOT, NOT A COLUMN ON THE LINE. A supermarket order spanning two
+ * lots is exactly the case a recall cares about, and a single `batch_id` would
+ * have to go null in it — losing the answer in the only case that matters.
+ */
+export const czInvoiceLineLots = pgTable("cz_invoice_line_lots", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  invoiceId: integer("invoice_id").notNull().references(() => czInvoices.id, { onDelete: "cascade" }),
+  lineId: integer("line_id").notNull().references(() => czInvoiceLines.id, { onDelete: "cascade" }),
+  /** ⚠️ RESTRICT — deleting a lot must never quietly empty the record of
+   *  where it went. */
+  batchId: integer("batch_id").notNull().references(() => czBatches.id, { onDelete: "restrict" }),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_invoice_line_lots_invoice_idx").on(t.invoiceId),
+  index("cz_invoice_line_lots_line_idx").on(t.lineId),
+  /** The recall query: which invoices carried this lot. */
+  index("cz_invoice_line_lots_batch_idx").on(t.batchId),
+]);
+
 /* ================================================================== *
  * CocoZuri — Phase 3: the money that comes back in.
  *
@@ -4058,6 +4088,34 @@ export const czStockItems = pgTable("cz_stock_items", {
   name: text("name").notNull(),
   uom: text("uom").notNull().default("PCS"),
   category: text("category"),
+  /**
+   * ⚠️ WHAT SORT OF THING THIS IS — `raw_material` | `packaging` | `finished`
+   * | `other`. Stage A, and it is the field the rest of the module was missing:
+   * without it a recipe offered all 323 items for every line, packaging had
+   * nowhere to live, and a purchase could not be split into materials and boxes.
+   *
+   * ⚠️ NULLABLE, AND NULL MEANS NOBODY HAS SAID — the same three-state honesty
+   * as `tax_inclusive` and `shelf_life_days`. Migration 0162 filled in only what
+   * could be worked out with confidence (linked to a product = finished; a shelf
+   * called raw materials = raw material) and left the rest alone, so the screen
+   * can count them and somebody can decide.
+   *
+   * ⚠️ A PICKER MUST NEVER HIDE AN ITEM BECAUSE NOBODY HAS CLASSIFIED IT. It
+   * may sort it last and flag it; hiding it would make the gap invisible and
+   * stop real work on a row whose only fault is that nobody got to it yet.
+   */
+  kind: text("kind"),
+  /**
+   * ⚠️ Stage C — how low this may go before it is worth buying. NULL means
+   * nobody has said, and is NOT a level of nought: an item with no level is
+   * never reported low, because nobody has said what low means for it.
+   *
+   * It earns its place beside the order form's consumption rate because it needs
+   * NO HISTORY. The rate wants a week of days written down before it will quote
+   * one at all, so a material bought rarely never gets a suggestion; "never go
+   * below 5 kg" works from the day somebody types it.
+   */
+  reorderLevel: numeric("reorder_level", { precision: 14, scale: 3 }),
   /** ⚠️ Stage 9 — how long it lasts, in days. On the STOCK ITEM rather than the
    *  product because raw materials go off too, and 171 of them are never sold.
    *  A batch made today expires today plus this. */
@@ -4068,7 +4126,34 @@ export const czStockItems = pgTable("cz_stock_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("cz_stock_items_list_idx").on(t.locationId, t.archived, t.sortOrder),
+  index("cz_stock_items_kind_idx").on(t.companyId, t.kind),
   uniqueIndex("cz_stock_items_name_idx").on(t.locationId, t.name),
+]);
+
+/**
+ * The lists you pick from — category, brand, count unit, pack unit.
+ *
+ * ⚠️ ONE TABLE KEYED BY WHAT SORT OF LIST IT IS, rather than four tables.
+ *
+ * ⚠️ AND THE VALUE STAYS AS TEXT ON THE PRODUCT AND THE ITEM — this is the
+ * list you PICK from, not a foreign key. That is deliberate: an invoice has
+ * frozen its wording onto itself and must never be re-pointed, and every
+ * existing row already holds text. Renaming therefore has to rewrite the text on
+ * everything using it, which is exactly what makes MERGE worth having: `GRM` and
+ * `GM` are one unit typed two ways, and only a person can say so.
+ */
+export const czLists = pgTable("cz_lists", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  /** category | brand | uom | pack_unit */
+  kind: text("kind").notNull(),
+  value: text("value").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_lists_kind_idx").on(t.companyId, t.kind, t.sortOrder),
 ]);
 
 /**
@@ -4862,6 +4947,59 @@ export const czCounterSaleLines = pgTable("cz_counter_sale_lines", {
 }, (t) => [
   index("cz_counter_sale_lines_sale_idx").on(t.saleId, t.lineNo),
   index("cz_counter_sale_lines_item_idx").on(t.itemId),
+]);
+
+/**
+ * What to MAKE today — the morning document (Stage C).
+ *
+ * ⚠️ THE OWNER SETTLED WHAT THE ORDER FORM IS (27 Aug 2026): "order form is for
+ * what to make today". Not a purchase order.
+ *
+ * ⚠️ A PLAN MOVES NO STOCK AND CREATES NOTHING until somebody starts a batch
+ * from a line. Same property that makes opening a batch free, and for the same
+ * reason: a document that costs something to raise is one people keep on paper.
+ */
+export const czProductionPlans = pgTable("cz_production_plans", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  reference: text("reference").notNull(),
+  /** ⚠️ A `date`, not a timestamp — a plan is for a calendar day. */
+  onDate: date("on_date").notNull(),
+  locationId: integer("location_id").notNull().references(() => czStockLocations.id, { onDelete: "restrict" }),
+  /** draft | issued | cancelled. ⚠️ "Done" is DERIVED from the lines' batches. */
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cz_production_plans_ref_idx").on(t.companyId, t.reference),
+  index("cz_production_plans_day_idx").on(t.companyId, t.onDate),
+]);
+
+export const czProductionPlanLines = pgTable("cz_production_plan_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  planId: integer("plan_id").notNull().references(() => czProductionPlans.id, { onDelete: "cascade" }),
+  lineNo: integer("line_no").notNull().default(1),
+  /** What is to be made. */
+  itemId: integer("item_id").notNull().references(() => czStockItems.id, { onDelete: "restrict" }),
+  /** Optional — a batch may be opened without a recipe (plan §5a). */
+  recipeId: integer("recipe_id").references(() => czRecipes.id, { onDelete: "set null" }),
+  qty: numeric("qty", { precision: 14, scale: 3 }).notNull(),
+  /**
+   * ⚠️ Which batch this line became. NULL = not started.
+   *
+   * ⚠️ ON DELETE **SET NULL**, not cascade: abandoning a batch must leave the
+   * plan line standing. The day's plan still says the chocolate was meant to be
+   * made, and that is a fact whatever happened to the batch.
+   */
+  batchId: integer("batch_id").references(() => czBatches.id, { onDelete: "set null" }),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("cz_production_plan_lines_plan_idx").on(t.planId, t.lineNo),
+  index("cz_production_plan_lines_batch_idx").on(t.batchId),
 ]);
 
 /* ────────────────────────────────────────────────────────────────────────────

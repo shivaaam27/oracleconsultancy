@@ -14,7 +14,7 @@ import type { CzStockItem } from "./cocozuri-stock-shared";
  * ------------------------------------------------------------------ */
 
 const item = (id: number, locationId: number, name: string, productId: number | null): CzStockItem => ({
-  id, locationId, productId, name, uom: "PCS", category: null, shelfLifeDays: null, sortOrder: id, archived: false,
+  id, locationId, productId, name, uom: "PCS", category: null, kind: null, reorderLevel: null, shelfLifeDays: null, sortOrder: id, archived: false,
 });
 
 const line = (over: Partial<CzTransferLine> = {}): CzTransferLine => ({

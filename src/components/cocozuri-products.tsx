@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Plus, Loader2, Archive, ArchiveRestore, Merge, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, Archive, ArchiveRestore, Merge, AlertTriangle, Trash2 } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -11,7 +11,7 @@ import { Combobox } from "@/components/combobox";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import { categoryRank, money, packLabel, type CzProduct } from "@/lib/cocozuri-shared";
-import { archiveProductAction, createProductAction, updateProductAction, setPriceAction, mergeProductsAction } from "@/app/cocozuri/actions";
+import { archiveProductAction, createProductAction, deleteProductAction, updateProductAction, setPriceAction, mergeProductsAction } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
  * The product list.
@@ -34,6 +34,7 @@ export function CocozuriProducts({
   archivedCount,
   showArchived,
   openNew,
+  lists,
 }: {
   products: CzProduct[];
   /** productId → the standard list price in force, already worked out server-side. */
@@ -41,6 +42,14 @@ export function CocozuriProducts({
   archivedCount: number;
   showArchived: boolean;
   openNew?: boolean;
+  /**
+   * ⚠️ THE MANAGED LISTS, and they are what the form offers now. The
+   * dropdowns used to be built from the products already in the catalogue,
+   * which meant a category added on the Lists screen was not offered until
+   * somebody had already typed it somewhere — the list could not be used to
+   * set up a NEW category, only to tidy old ones.
+   */
+  lists: { categories: string[]; brands: string[]; units: string[]; packUnits: string[] };
 }) {
   const { toast } = useToast();
   const [q, setQ] = useState("");
@@ -163,12 +172,16 @@ export function CocozuriProducts({
       )}
       {merging && merging.length < 2 && (() => { toast("Tick at least two products to merge.", { tone: "danger" }); setMerging(null); return null; })()}
 
+      {/* ⚠️ The managed list first, then anything already in use that is not on
+          it yet — so nothing in the catalogue becomes unpickable just because
+          nobody has added it to the list. */}
       {editing && (
         <ProductSheet
           product={editing === "new" ? null : editing}
-          categories={categories.map(([c]) => c)}
-          brands={[...new Set(products.map((p) => p.brand).filter(Boolean) as string[])]}
-          units={[...new Set(products.map((p) => p.uom).filter(Boolean))]}
+          categories={[...new Set([...lists.categories, ...categories.map(([c]) => c)])]}
+          brands={[...new Set([...lists.brands, ...(products.map((p) => p.brand).filter(Boolean) as string[])])]}
+          units={[...new Set([...lists.units, ...products.map((p) => p.uom).filter(Boolean)])]}
+          packUnits={lists.packUnits}
           listPrice={editing === "new" ? null : (listPrices[editing.id] ?? null)}
           onClose={() => setEditing(null)}
           onSaved={(msg) => { toast(msg, { tone: "success" }); setEditing(null); }}
@@ -179,12 +192,13 @@ export function CocozuriProducts({
 }
 
 function ProductSheet({
-  product, categories, brands, units, listPrice, onClose, onSaved,
+  product, categories, brands, units, packUnits, listPrice, onClose, onSaved,
 }: {
   product: CzProduct | null;
   categories: string[];
   brands: string[];
   units: string[];
+  packUnits: string[];
   listPrice: number | null;
   onClose: () => void;
   onSaved: (msg: string) => void;
@@ -255,7 +269,9 @@ function ProductSheet({
             <input value={packSize} onChange={(e) => setPackSize(e.target.value)} inputMode="decimal" className={INPUT} placeholder="100" />
           </Field>
           <Field label="Pack unit">
-            <input value={packUnit} onChange={(e) => setPackUnit(e.target.value)} className={INPUT} placeholder="GM" />
+            {/* ⚠️ Was a bare text box, which is how GM and GRM both got in. */}
+            <Combobox defaultValue={packUnit} options={packUnits} onInput={setPackUnit}
+              onCommit={setPackUnit} placeholder="GM" />
           </Field>
         </div>
 
@@ -288,6 +304,22 @@ function ProductSheet({
               >
                 {product.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                 {product.archived ? "Restore" : "Archive"}
+              </button>
+              {/* ⚠️ A REAL DELETE. The server refuses while an invoice line or a
+                  stock item points at it, and NAMES what — a document that has
+                  left the building cannot lose the thing it describes. Prices
+                  belong to the product and go with it. */}
+              <button
+                type="button"
+                onClick={() => start(async () => {
+                  if (!confirm(`Delete ${product.name}? It will be refused if any invoice or stock item still points at it.`)) return;
+                  const res = await deleteProductAction(product.id);
+                  if (!res.ok) { toast(res.error ?? "Could not delete it.", { tone: "danger" }); return; }
+                  onSaved(`${product.name} deleted.`);
+                })}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-danger hover:text-danger"
+              >
+                <Trash2 size={13} /> Delete
               </button>
             </>
           )}

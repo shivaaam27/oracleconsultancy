@@ -350,13 +350,20 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
 
   cz_batch: {
     listColumns: [
-      { key: "batchNo", label: "Batch", width: "120px", format: "text", sortable: true },
+      /* ⚠️ THE FIXED WIDTHS ADDED UP TO 600px AND THE CARD IS ABOUT 620px AT
+         `lg`, so `gridFor()` shrank every fixed track — and the BATCH NUMBER,
+         which is the record's whole identity, came out as `BATCH-26…` on every
+         row. Two batches were indistinguishable in a list of two. Expected is
+         the least load-bearing of the three figures (it comes off the recipe,
+         and "came out" and "difference" are the point of the page), so it is
+         off by default and still one click away in the Columns chooser. */
+      { key: "batchNo", label: "Batch", width: "132px", format: "text", sortable: true },
       { key: "itemName", label: "What", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "madeOn", label: "Made", width: "100px", format: "muted", sortable: true },
-      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
-      { key: "plannedLabel", label: "Expected", width: "90px", format: "muted", align: "right", hideBelow: "md" },
-      { key: "producedLabel", label: "Came out", width: "90px", format: "muted", align: "right", sortable: true },
-      { key: "varianceLabel", label: "Difference", width: "100px", format: "muted", align: "right" },
+      { key: "madeOn", label: "Made", width: "90px", format: "muted", sortable: true },
+      { key: "statusLabel", label: "Status", width: "85px", format: "status", sortable: true },
+      { key: "plannedLabel", label: "Expected", width: "90px", format: "muted", align: "right", defaultHidden: true },
+      { key: "producedLabel", label: "Came out", width: "85px", format: "muted", align: "right", sortable: true },
+      { key: "varianceLabel", label: "Difference", width: "90px", format: "muted", align: "right" },
     ],
     defaultSort: { key: "madeOn", dir: "desc" },
     create: { label: "Batch", href: "/cocozuri/batches?new=1" },

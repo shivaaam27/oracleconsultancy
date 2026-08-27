@@ -82,6 +82,62 @@ export type CzRecipe = {
   lines: CzRecipeLine[];
 };
 
+/**
+ * The recipe as it stood when a batch was opened.
+ *
+ * ⚠️ A BATCH MUST BE JUDGED AGAINST THE RECIPE IT WAS MADE FROM. A recipe is a
+ * live instruction and is meant to be edited — so correcting one next month was
+ * silently changing the reported difference on every batch ever made from it,
+ * including batches somebody had already read and signed off.
+ *
+ * ⚠️ IT IS EXACTLY WHAT `batchPlan` READS, and nothing more. Keeping it to that
+ * is what lets the snapshot go through the same function as a live recipe, so a
+ * batch opened yesterday and one opened today can never be scaled by two
+ * different rules.
+ */
+export type CzRecipeSnapshot = {
+  recipeId: number;
+  name: string;
+  yieldQty: number;
+  yieldUom: string;
+  expectedLossPercent: number;
+  lines: { itemId: number; itemName: string; kind: CzRecipeKind; qty: number; uom: string }[];
+  /** When it was taken — so a screen can say which recipe it is showing. */
+  takenAt: string;
+};
+
+/** Freeze a recipe as it stands. */
+export function snapshotRecipe(recipe: CzRecipe, takenAt: string): CzRecipeSnapshot {
+  return {
+    recipeId: recipe.id,
+    name: recipe.name,
+    yieldQty: recipe.yieldQty,
+    yieldUom: recipe.yieldUom,
+    expectedLossPercent: recipe.expectedLossPercent,
+    lines: recipe.lines.map((l) => ({
+      itemId: l.itemId, itemName: l.itemName, kind: l.kind, qty: l.qty, uom: l.uom,
+    })),
+    takenAt,
+  };
+}
+
+/**
+ * Whether a snapshot still matches the recipe it came from.
+ *
+ * ⚠️ SAID, NEVER ACTED ON. A running batch whose recipe has moved on is a real
+ * situation with two right answers — the recipe was corrected and should be
+ * pulled in, or it was changed for NEXT time and this batch should be left
+ * alone. Only the chef knows which, so the screen tells him and offers a button.
+ */
+export function snapshotIsStale(snap: CzRecipeSnapshot | null, recipe: CzRecipe | null): boolean {
+  if (!snap || !recipe || snap.recipeId !== recipe.id) return false;
+  if (snap.yieldQty !== recipe.yieldQty) return true;
+  if (snap.expectedLossPercent !== recipe.expectedLossPercent) return true;
+  if (snap.lines.length !== recipe.lines.length) return true;
+  const byItem = new Map(snap.lines.map((l) => [l.itemId, l.qty]));
+  return recipe.lines.some((l) => byItem.get(l.itemId) !== l.qty);
+}
+
 /* ------------------------------------------------------------------ *
  * What a material costs
  * ------------------------------------------------------------------ */

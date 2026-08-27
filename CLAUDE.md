@@ -12,7 +12,20 @@ supplier → depreciate → reconcile → trace → reverse. Read
 `memory/cocozuri_manufacturing_plan.md` §6a–§6j, and **§5b for the owner's
 answers of 22 Aug evening** — they settle four of the six open questions.
 
-**⚠️ START HERE: `memory/handover_aug27_2026.md`** — the most recent session,
+**⚠️ START HERE: `memory/handover_aug27_2026_evening.md`** — the most recent
+session, **CocoZuri only**, and a big one: the recall chain closed at both ends
+(a counter sale carried the WRONG lot, and a sales invoice now records which
+lots it despatched), then **Set up / Buy / Make rebuilt in five stages** — item
+**kinds** and managed **lists**, **real delete** on ERPNext's own rule,
+**suppliers** inside the module, the order form reshaped into a **production
+plan** ("what to make today"), **recipe snapshots** so a batch is judged against
+the recipe it was MADE FROM, and a **timeline with comments** on every record.
+Migrations **0161–0165**, each applied and proved by effect. Its §4 lists the
+bug each stage's audit found — **they are all the same shape: a second way of
+working out something that already had one.** §5 is what is left, and it is all
+the owner's.
+
+Before it: `memory/handover_aug27_2026.md` — the most recent session,
 and it is **CocoZuri only**: the chef's costing workbook audited cell by cell and
 a **recipe importer** built for it, the whole module swept for UI consistency
 (**four date formats collapsed onto one — `czDate`**), **six flow gaps built**
@@ -351,7 +364,19 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0160** (`mkt_results` · `mkt_spend` — marketing results and
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0165** (`cz_events` — what happened, when and who did it;
+⚠️ append-only, and a COMMENT is one of the kinds).
+Before it, **0164** (`cz_batches.recipe_snapshot` — the recipe a batch
+was MADE FROM, frozen at open; a correctness fix, not a feature).
+Before it, **0163** (`cz_production_plans` · `cz_production_plan_lines`
+— what to MAKE today; plus `cz_stock_items.reorder_level`).
+Before it, **0162** (`cz_stock_items.kind` — raw material / packaging /
+finished, ⚠️ nullable because NULL means nobody has said, which is NOT "other";
+plus `cz_lists`, the managed category / brand / count-unit / pack-unit lists).
+Before it, **0161**
+(`cz_invoice_line_lots` — which lots a CocoZuri invoice despatched; ⚠️ a
+despatch RECORD, not a ledger — it moves no stock, because the day sheet does).
+Before it, **0160** (`mkt_results` · `mkt_spend` — marketing results and
 ad spend). Before it, **0159** (`mkt_shoots` · `mkt_assets` · `mkt_post_assets`
 — photography and the picture library). Before it, **0158** (`mkt_clients` ·
 `mkt_accounts` · `mkt_campaigns` · `mkt_posts` · `mkt_publications` — the
@@ -517,7 +542,12 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   ledger · **purchases and budgets** (Stage 2) · **recipes** (Stage 3) ·
   **production** (Stage 4) · **transfers** (Stage 5) · **returns and damage**
   (Stage 6) · **profit** (Stage 7) · **money out** (Stage 8) · **trace** (Stage 9)
-  · **the counter** (Stage 5b — ⚠️ a record, not a till).
+  · **the counter** (Stage 5b — ⚠️ a record, not a till)
+  · **stock items and shelves** (`/cocozuri/items`)
+  · **the lists you pick from** (`/cocozuri/lists`)
+  · **suppliers** (`/cocozuri/suppliers`)
+  · **what to make today** (`/cocozuri/order`) and **what to buy**
+  (`/cocozuri/order/materials`) · **what happened** (`/cocozuri/history`).
   See the CocoZuri section above.
 - `/marketing` - **Marketing** — social media and photography for our own
   companies and for the clients **Pamoja Plus** advertises for. Overview ·
@@ -1143,6 +1173,186 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
 - ⚠️ **FIRST EXPIRED, FIRST OUT — not first in.** `closeBatch` allocates each
   material across its lots soonest-expiring first. An undated lot goes LAST and
   is reported; a shortfall is recorded with no lot rather than invented.
+- ⚠️ **EVERY DOCUMENT THAT TAKES STOCK OFF A SHELF ALLOCATES THROUGH
+  `pickFefoMany()`** — a batch close, a transfer's send and a counter sale. It
+  reads the ledger ONCE for the whole document (`pickFefo` reads all of it per
+  call; the counter was scanning it 75 times to open a form) and **decrements as
+  it goes**, so two lines wanting the same lot can no longer each be told the
+  whole lot is theirs. The sharing-out is the pure, tested `allocateFefoMany` in
+  `cocozuri-trace-shared.ts`. ⚠️ **Key the per-line split by LINE, never by
+  item** — two lines may name the same chocolate, and keying by item makes both
+  post the second line's movements.
+- ⚠️ **A COUNTER SALE CARRIES ITS LOT (27 Aug 2026), AND THE OLD FAULT WAS NOT
+  A MISSING ONE — IT WAS A WRONG ONE.** The form was given a FEFO allocation for
+  **one piece** and sent it back as the lot for the whole line, so thirty bars
+  off a lot with five left were all filed against it: on a recall, a confident
+  wrong answer where a missing one would have made somebody go and look. It is
+  allocated against the quantity actually SOLD now, at the moment of recording,
+  one movement per lot. **The form's lot number is a LABEL, not a choice**, and
+  the LINE names a lot only when the sale lands on exactly one — the movements
+  carry the split.
+- ⚠️ **`cz_events` IS THE MODULE'S MEMORY, AND IT IS APPEND-ONLY** (Stage E,
+  migration **0165**; screen `/cocozuri/history`, timelines on the batch,
+  invoice and plan records). No update path and no delete path, the same rule
+  `gl_entries` follows. ⚠️ **A COMMENT IS ONE OF THE KINDS**, not a second
+  table — two lists would have to be merged and kept in date order on every
+  screen. ⚠️ **THE REFERENCE IS FROZEN ON THE EVENT, NEVER JOINED**, because
+  Stage A gave the module real deletes and "PP-2608-01 was deleted" has to go
+  on reading afterwards. ⚠️ **NO FK ON `subject_id`** — it points at a dozen
+  tables and a cascade would delete the record of a deletion. ⚠️
+  **`recordEvent` NEVER FAILS THE THING IT DESCRIBES** (the `reindexEntity`
+  stance): a door that had to check its own timeline entry landed would
+  eventually refuse real work. ⚠️ **Days are DAR days** — `dayLog` bounds with
+  `+03:00` and its "to" is the END of the day, or asking for today returns
+  nothing that happened today.
+- ⚠️ **NO SCREEN BUILDS ITS OWN BATCH PLAN.** `batchDetail` returns the plan it
+  used. The batch page rebuilt one from the LIVE recipe while the check used
+  the frozen one — the close form and the difference above it would have
+  disagreed the moment a recipe was edited. Same fault in `updateBatch`, which
+  recomputed the expectation from today's recipe when only the quantity moved.
+- ⚠️ **A BATCH IS JUDGED AGAINST THE RECIPE IT WAS MADE FROM** —
+  `cz_batches.recipe_snapshot`, frozen at open (Stage D, migration **0164**).
+  A closed batch used to be compared against whatever the recipe says TODAY, so
+  correcting a recipe next month silently changed the reported difference on
+  every batch ever made from it, including ones already read and signed off.
+  ⚠️ **`batchPlan` TAKES `CzRecipePlannable`, NOT `CzRecipe`**, so a snapshot
+  goes through the SAME function as a live recipe — two batches can never be
+  scaled by two rules. NULL falls back to today's recipe and **the screen says
+  which it is showing**. Changing the recipe on a running batch **re-freezes**
+  the snapshot. ⚠️ **"The recipe has moved on" is SAID, never acted on** — it
+  may have been corrected, or changed for next time, and only the chef knows;
+  `rereadRecipe` is a RUNNING batch only.
+- ⚠️ **A PICKER NARROWS, IT DOES NOT GATEKEEP.** Recipe lines now offer items
+  matching the line's kind (Stage A's payoff), but an UNCLASSIFIED item is still
+  offered, sorted after the likely ones — hiding it would make the gap invisible
+  and block work on a row whose only fault is that nobody got to it yet.
+- ⚠️ **THE BATCH BUTTONS WERE RENAMED** because the chef could not read them:
+  "Fetch materials" → **Take materials from store**, "Some of it is done" →
+  **Record finished pieces**. ⚠️ **Editing a running batch stores the MULTIPLE,
+  not the piece count** — 200 from a 108-yield recipe is 1.852 batches, and
+  sending the count alone leaves the materials scaled to the old figure.
+- ⚠️ **"WHAT CAN I MAKE TODAY" TAKES THE SMALLEST NUMBER OF BATCHES ANY ONE
+  MATERIAL ALLOWS**, and names the one that runs out first. An average, or
+  ignoring the binding material, says a recipe is possible when it is not — a
+  batch abandoned halfway through a morning.
+- ⚠️ **THE ORDER FORM IS A PRODUCTION PLAN — WHAT TO MAKE TODAY** (owner,
+  27 Aug 2026; Stage C, migration **0163**). `/cocozuri/order` is the plans;
+  the BUYING half moved to `/cocozuri/order/materials` ("What to buy").
+  ⚠️ **A PLAN MOVES NO STOCK AND CREATES NOTHING** — nothing in
+  `cocozuri-plan.ts` calls `postStockMove`. Starting a line goes through
+  **`openBatch`**, never a second door. ⚠️ **A FUTURE DATE IS ALLOWED HERE AND
+  ONLY HERE** — a plan records nothing, so writing tomorrow's tonight is normal.
+  ⚠️ **"Done" is DERIVED** from the lines' batches, never a status column, and
+  **a RUNNING batch has made nothing** (that is settled at close).
+- ⚠️ **AN ABANDONED BATCH FREES ITS PLAN LINE**, and `cancelPlan`/`deletePlan`
+  agree: a cancelled batch is not real work any more. Blocking on one would
+  leave a plan that only ever produced abandoned batches stuck for ever. A
+  RUNNING or CLOSED batch still blocks — starting twice puts the same chocolate
+  on the shelf twice.
+- ⚠️ **`planMaterials` SCALES BY THE RECIPE'S GOOD UNITS**, using the same
+  `batchPlan` the batch form uses — so the plan and the batch can never quote
+  different material figures. **A line with no recipe contributes nothing and
+  the screen says the list is short by that much.** Materials come off
+  whichever shelf they sit on, not off the kitchen the plan is for.
+- ⚠️ **`reorder_level` IS NULLABLE AND NULL IS NOT NOUGHT** — an item with no
+  level is never reported low. It sits beside the consumption rate because it
+  needs NO history, and the rate needs a week.
+- ⚠️ **DELETING A SUPPLIER MUST CHECK `documents` AND `assets` TOO** — both are
+  ON DELETE **SET NULL**, so a check that only looked at purchases would have
+  quietly detached their contract and their equipment rather than refusing.
+- ⚠️ **SUPPLIERS ARE THE SHARED `vendors` REGISTER, REACHED FROM INSIDE
+  COCOZURI** (`/cocozuri/suppliers`, Stage B). ⚠️ **The register was found EMPTY
+  across the whole system** while every purchase carried a typed name — so it
+  was never "the register lives elsewhere", it was that nobody had ever used it,
+  and sending them to another module is why. Adding, editing and deleting now
+  happen here, writing to the same table. **One list, two doors** — a second
+  supplier table would drift within a month. **Only APPROVED purchases count**
+  towards spend, and **"still owed" is CREDIT only** (bank and cash were settled
+  that day; own money is owed to a PERSON). A supplier stays **optional** on a
+  purchase, and a typed name is REPORTED, never warned about.
+- ⚠️ **A LIST VALUE TYPED INTO A FORM MUST JOIN ITS LIST** (`ensureListValue`).
+  The item and product forms let a category or unit be typed as well as picked —
+  a unit nobody has added yet must not stop somebody adding an item. But a typed
+  value that never reached the list would put every typo back into the data
+  while staying invisible on the screen built to catch it. **And the form must
+  offer the managed list FIRST**, then anything already in use — building the
+  options from existing products alone meant a new category could not be set up,
+  only old ones tidied.
+- ⚠️ **STAGE A IS BUILT (27 Aug 2026) — `kind`, the LISTS, and REAL DELETE.**
+  A stock item now knows whether it is a `raw_material`, `packaging`, `finished`
+  or `other`; **NULL means nobody has said and is NOT the same as `other`** (one
+  is a job on a list, the other a decision). ⚠️ **A picker must never HIDE an
+  unclassified item** — `byKindRelevance` sorts it into the middle, never out,
+  or the gap becomes invisible and blocks real work. The backfill filled in only
+  what it could be confident of and left 3 of 323 for a person.
+- ⚠️ **`cz_lists` IS THE LIST YOU PICK FROM, NOT A FOREIGN KEY.** The value
+  stays as TEXT on the product and the item because an invoice has frozen its
+  own wording and must never be re-pointed by somebody tidying a list. So a
+  **rename REWRITES the word everywhere it is used** (`rewriteValue`, matching
+  exactly as stored — case-insensitively would silently merge things nobody
+  asked to merge). Duplicates are **suggested, never merged**; a value in use
+  cannot be deleted and the refusal says how many use it. The seed found **five
+  count units where there are three** (`GM`/`GRM`, `PKT`/`PKTS`).
+- ⚠️ **DELETE FOLLOWS ERPNEXT'S OWN RULE:** a draft goes; something acted on is
+  cancelled first; anything still pointed at **NAMES what points at it**
+  (`deleteVerdict`). **Not everything blocks** — a price goes with its product,
+  an invoice line does not. **A stock movement always blocks, and that is why
+  archive still exists.**
+- ⚠️ **`CocozuriHelp` IS WHERE EXPLANATIONS GO NOW.** A working screen says what
+  a field IS; anything explaining WHY goes in the Help panel, one click away.
+  Do not write another paragraph into a form.
+- ⚠️ **THE ORDER FORM IS WHAT TO MAKE TODAY, NOT WHAT TO BUY** (owner, 27 Aug
+  2026). It is currently built as a buying screen; Stage C reshapes it into a
+  dated, numbered production plan. Do not build a purchase order.
+- ⚠️ **A `Field` LABEL THAT WRAPS PUSHES ITS OWN CONTROL DOWN** while a
+  one-line label leaves its control at the top — a row of four boxes at two
+  heights. Every copy is `flex h-full flex-col justify-end`. Keep it.
+- ⚠️ **A SALES INVOICE NOW SAYS WHICH LOTS WENT OUT, AND IT MOVES NO STOCK**
+  (`cz_invoice_line_lots`, migration **0161**). The day sheet's `day_out` is what
+  takes finished goods off the shelf; an invoice writing movements too would take
+  the same chocolate off TWICE. It is a **despatch record** answering the half of
+  a recall the stock ledger cannot — not "where did this lot go" but **WHO GOT
+  IT** — because an invoice line names a PRODUCT. A ROW PER LOT, never a column:
+  a supermarket order spanning two lots is exactly the case a recall cares about.
+  Written at ISSUE, FEFO, **against what other invoices have already claimed of
+  each lot** (a lot's on-hand does not fall when it is invoiced, so without that
+  two invoices are each told the whole lot is theirs). A credit note despatches
+  nothing. **Correctable after issue** — the one place the module bends its own
+  rule, because which lots went in the van is not money.
+- ⚠️ **A BATCH CAN FETCH MATERIALS WHILE IT RUNS AND FINISH IN MORE THAN ONE
+  GO** (`drawMaterials` / `recordOutput`, no table — the movements are the
+  record, under the batch's own voucher). A three-day batch no longer leaves the
+  raw-material shelf reading high; "two hundred bars Monday and the rest
+  Wednesday" is ONE batch with one lot and one date. **Closing NETS against
+  both** — the totals are what the inter check uses, only the remainder moves,
+  and a negative remainder puts material back. The expiry reads the drawn lots
+  too. **Abandoning still costs nothing where nothing was fetched**, and puts
+  back what was.
+- ⚠️ **A REVERSAL IS FILED UNDER ITS OWN VOUCHER TYPE** — `batch:reversal`,
+  never `batch` — so asking the ledger for a document's movements returns the
+  ORIGINALS whether or not they have already been answered. Reversing on the
+  strength of that reverses a SECOND time: reopening a closed batch and then
+  abandoning it put coffee back on a shelf it had never left and took bars off
+  one they had already returned to. **`outstandingOf()` nets the two sides per
+  item, shelf, LOT and reason** — keying by item alone lets one lot's reversal
+  cancel another lot's draw.
+- ⚠️ **A DRAFT INVOICE CAN BE EDITED; AN ISSUED ONE STILL CANNOT.** Cancelling
+  and retyping was never a rule, only a missing screen. The lines are REPLACED,
+  the number never moves, and changing the customer **re-freezes** the VAT rate,
+  terms, currency and details.
+- ⚠️ **`/cocozuri/items` IS WHERE STOCK ITEMS AND SHELVES ARE MANAGED** (1 · Set
+  up). An item's SHELF cannot change once it exists (its movements are filed
+  against it) and a shelf is never deleted, only taken out of use.
+- ⚠️ **THE ORDER FORM NEEDS `MIN_DAYS_MEASURED` (7) BEFORE IT QUOTES A RATE.**
+  It was two, and consumption is LUMPY — a batch takes five kilos in a morning
+  and none for a fortnight — so two days suggested ordering 195,000 g of milk
+  chocolate. A row now says WHY it cannot be judged rather than printing dashes
+  that read as "this never sells".
+- ⚠️ **`revalidatePath` NEEDS `"layout"` FOR ANY LIST WITH A RECORD PAGE.**
+  `/cocozuri/invoices` and `/cocozuri/invoices/CZ-237` are DIFFERENT cache keys,
+  so the invoice list was revalidated and every invoice RECORD left stale — a
+  lot correction saved to the database while the page went on saying "no lot
+  recorded".
 - ⚠️ **EXPIRY = THE EARLIER OF "made on + shelf life" AND THE SOONEST INGREDIENT,
   AND IT IS FROZEN** onto the batch at close. A shelf life changed next year must
   not move the date on chocolate already in a shop. **It returns nothing rather

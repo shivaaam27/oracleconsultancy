@@ -18,7 +18,7 @@
  * below is the subtraction.
  */
 
-import type { CzRecipe, CzRecipeKind } from "@/lib/cocozuri-recipe-shared";
+import type { CzRecipe, CzRecipeKind, CzRecipeSnapshot } from "@/lib/cocozuri-recipe-shared";
 
 /* ------------------------------------------------------------------ *
  * The record
@@ -71,6 +71,16 @@ export type CzBatch = {
   closedAt: string | null;
   closedBy: string | null;
   notes: string | null;
+  /**
+   * ⚠️ THE RECIPE AS IT STOOD WHEN THIS BATCH WAS OPENED. A batch must be judged
+   * against the recipe it was MADE FROM — a recipe is a live instruction and is
+   * meant to be edited, so correcting one next month was silently changing the
+   * reported difference on every batch ever made from it.
+   *
+   * NULL means the batch predates this and falls back to today's recipe, which
+   * is what it has always done.
+   */
+  recipeSnapshot: CzRecipeSnapshot | null;
 };
 
 /* ------------------------------------------------------------------ *
@@ -115,6 +125,14 @@ export type CzPlannedMaterial = {
   qty: number;
 };
 
+/** Everything `batchPlan` reads — satisfied by a live recipe and by a snapshot. */
+export type CzRecipePlannable = {
+  yieldQty: number;
+  yieldUom: string;
+  expectedLossPercent: number;
+  lines: { itemId: number; itemName: string; kind: CzRecipeKind; qty: number; uom: string }[];
+};
+
 export type CzBatchPlan = {
   materials: CzPlannedMaterial[];
   /** What the recipe says should come out, before the expected loss. */
@@ -132,7 +150,12 @@ export type CzBatchPlan = {
  * already-budgeted-for loss as a failure every single time, and a warning that
  * fires on every batch is a warning nobody reads.
  */
-export function batchPlan(recipe: CzRecipe, multiple = 1): CzBatchPlan {
+/**
+ * ⚠️ IT TAKES THE MINIMAL SHAPE, NOT `CzRecipe`, so a FROZEN SNAPSHOT goes
+ * through the very same function as a live recipe. A batch opened yesterday and
+ * one opened today can never be scaled by two different rules.
+ */
+export function batchPlan(recipe: CzRecipePlannable, multiple = 1): CzBatchPlan {
   const m = num(multiple) > 0 ? num(multiple) : 1;
   const loss = Math.min(100, Math.max(0, num(recipe.expectedLossPercent)));
   const yieldQty = round3(num(recipe.yieldQty) * m);

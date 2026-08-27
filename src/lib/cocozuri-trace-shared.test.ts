@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  allocateFefo, despatchWarning, expiryFor, expiryState, stepKind, type CzLot,
+  allocateFefo, allocateFefoMany, despatchWarning, expiryFor, expiryState, stepKind, type CzLot,
 } from "./cocozuri-trace-shared";
 import { recCheck, closeBlockers } from "./ledger-reconcile-shared";
 import {
@@ -89,6 +89,50 @@ describe("first expired, first out", () => {
 
   it("ignores a lot with nothing left", () => {
     expect(allocateFefo([lot(1, "2026-09-01", 0)], 5).picks).toHaveLength(0);
+  });
+
+  describe("a whole document at once", () => {
+    const at = (itemId: number, id: number, expiresOn: string | null, onHand: number): CzLot => ({
+      ...lot(id, expiresOn, onHand), itemId,
+    });
+
+    it("⚠️ eats into the shelf as it goes, so two lines cannot share one lot twice", () => {
+      // Line by line, both lines are told the whole lot is theirs — which is how
+      // a document hands out more of a lot than ever existed.
+      const shelf = new Map([[1, [at(1, 7, "2026-09-01", 10)]]]);
+      const out = allocateFefoMany(shelf, [
+        { itemId: 1, need: 6 },
+        { itemId: 1, need: 6 },
+      ]);
+      expect(out[0]!.picks.map((p) => p.qty)).toEqual([6]);
+      expect(out[1]!.picks.map((p) => p.qty)).toEqual([4]);
+      expect(out[1]!.short).toBe(2);
+    });
+
+    it("splits one line across two lots, soonest first", () => {
+      const shelf = new Map([[1, [at(1, 1, "2027-01-01", 5), at(1, 2, "2026-09-01", 5)]]]);
+      const out = allocateFefoMany(shelf, [{ itemId: 1, need: 8 }]);
+      expect(out[0]!.picks.map((p) => [p.lot.batchId, p.qty])).toEqual([[2, 5], [1, 3]]);
+      expect(out[0]!.short).toBe(0);
+    });
+
+    it("keeps each item to its own lots", () => {
+      const shelf = new Map([
+        [1, [at(1, 1, "2026-09-01", 4)]],
+        [2, [at(2, 2, "2026-09-01", 4)]],
+      ]);
+      const out = allocateFefoMany(shelf, [{ itemId: 1, need: 4 }, { itemId: 2, need: 4 }]);
+      expect(out[0]!.picks[0]!.lot.batchId).toBe(1);
+      expect(out[1]!.picks[0]!.lot.batchId).toBe(2);
+      expect(out.every((o) => o.short === 0)).toBe(true);
+    });
+
+    it("⚠️ an item with no lots at all is a shortfall, not an empty answer", () => {
+      // Chocolate that predates lot tracking still sells; it sells unattributed.
+      const out = allocateFefoMany(new Map(), [{ itemId: 9, need: 3 }]);
+      expect(out[0]!.picks).toHaveLength(0);
+      expect(out[0]!.short).toBe(3);
+    });
   });
 });
 

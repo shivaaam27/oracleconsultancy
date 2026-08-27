@@ -1,27 +1,31 @@
 import { PageHeader } from "@/components/ui";
-import { CocozuriOrderForm } from "@/components/cocozuri-order-form";
-import { cocozuriCompany, listProducts } from "@/lib/cocozuri";
-import { listLocations, stockBook } from "@/lib/cocozuri-stock";
-import { previousDay, todayInDar } from "@/lib/cocozuri-stock-shared";
+import { CocozuriPlans } from "@/components/cocozuri-plans";
+import { cocozuriCompany } from "@/lib/cocozuri";
+import { listLocations } from "@/lib/cocozuri-stock";
+import { listPlans, suggestPlan } from "@/lib/cocozuri-plan";
+import { planIsDone, planProgress } from "@/lib/cocozuri-plan-shared";
+import { qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Order form — CocoZuri" };
 
 /**
- * What to make, and what to send.
+ * **The order form — what to MAKE today.**
  *
- * The workbook's `COCOZURI ORDER FORM` is a list somebody typed — item, price,
- * a material code and a quantity decided from memory. This is the same sheet
- * worked out from the shelf: what went out, what is left, and what is needed to
- * carry the next fortnight.
+ * ⚠️ THE OWNER SETTLED THIS (27 Aug 2026): *"order form is for what to make
+ * today"*. It had been a buying screen that worked everything out afresh every
+ * time it was opened and saved nothing, so there was no record of what was
+ * planned on Tuesday and no way to raise a second one for the special order that
+ * comes in at eleven. The buying half survives at `/cocozuri/order/materials`.
  *
- * ⚠️ The location and the cover live in the address, so an order form can be
- * bookmarked and sent — the same rule the stock book and the statements follow.
+ * ⚠️ A PLAN MOVES NO STOCK AND CREATES NOTHING until somebody starts a batch
+ * from a line. Raising one costs nothing, which is the point — as many a day as
+ * the day needs.
  */
 export default async function CocozuriOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loc?: string; cover?: string; days?: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const company = await cocozuriCompany();
   if (!company) {
@@ -35,58 +39,34 @@ export default async function CocozuriOrderPage({
     );
   }
 
-  const [sp, locations] = await Promise.all([searchParams, listLocations()]);
-  if (locations.length === 0) {
-    return (
-      <div className="space-y-4">
-        <PageHeader title="Order form" sub={company.name} />
-        <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
-          No stock locations yet — the order form is worked out from the stock book.
-        </p>
-      </div>
-    );
-  }
+  const [sp, plans, locations] = await Promise.all([
+    searchParams, listPlans(), listLocations({ includeInactive: true }),
+  ]);
 
-  const locId = Number(sp.loc) || locations[0]!.id;
-  const cover = [7, 14, 21, 28].includes(Number(sp.cover)) ? Number(sp.cover) : 14;
-  // How far back to measure demand. Four weeks by default: long enough to see
-  // a pattern, short enough that last season does not drown this one.
-  const lookback = Number(sp.days) > 0 ? Number(sp.days) : 28;
+  // ⚠️ The kitchen is where chocolate is made — the owner's own word.
+  const kitchen = locations.find((l) => /kitchen/i.test(l.name)) ?? locations[0];
+  const suggestions = kitchen ? await suggestPlan(kitchen.id) : [];
 
-  const to = todayInDar();
-  let from = to;
-  for (let i = 0; i < lookback; i++) from = previousDay(from);
-
-  const [book, products] = await Promise.all([stockBook(locId), listProducts()]);
-  if (!book.location) {
-    return (
-      <div className="space-y-4">
-        <PageHeader title="Order form" sub={company.name} />
-        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-sm text-warn">
-          That location no longer exists.
-        </p>
-      </div>
-    );
-  }
-  const productNames = Object.fromEntries(products.map((p) => [p.id, p.name] as const));
+  const today = plans.filter((p) => p.onDate === todayInDar() && p.status !== "cancelled");
+  const open = plans.filter((p) => p.status !== "cancelled" && !planIsDone(p.lines));
+  const toMake = open.reduce((t, p) => t + planProgress(p.lines).outstanding, 0);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Order form"
-        sub={`${book.location.name} · enough for ${cover} days · ${company.name}`}
+        sub={
+          plans.length === 0
+            ? `What to make today · ${company.name}`
+            : `${today.length ? `${today.length} for today · ` : ""}${open.length} still to make${toMake > 0 ? ` · ${qtyText(toMake)} pieces` : ""} · ${company.name}`
+        }
       />
-      <CocozuriOrderForm
-        location={book.location}
+
+      <CocozuriPlans
+        plans={plans}
         locations={locations}
-        items={book.items}
-        days={book.days}
-        counts={book.counts}
-        moves={book.moves}
-        from={from}
-        to={to}
-        coverDays={cover}
-        productNames={productNames}
+        suggestions={suggestions}
+        openNew={sp.new === "1"}
       />
     </div>
   );

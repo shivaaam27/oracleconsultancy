@@ -157,6 +157,37 @@ export function allocateFefo(lots: CzLot[], need: number): {
   };
 }
 
+/**
+ * FEFO for several lines of ONE document, sharing the shelf between them.
+ *
+ * ⚠️ IT DECREMENTS AS IT GOES, and that is the whole reason it exists.
+ * Allocating line by line asks the shelf the same question each time and gets
+ * the same answer, so two lines wanting the same lot are each told the whole lot
+ * is theirs — a document could hand out more of a lot than ever existed, and the
+ * shortfall that says "this predates lot tracking" never appeared. Requests are
+ * served in the order given.
+ *
+ * `lotsByItem` is what each item has on the shelf; anything not in it has
+ * nothing, which comes back as a shortfall rather than an empty allocation.
+ */
+export function allocateFefoMany(
+  lotsByItem: Map<number, CzLot[]>,
+  requests: { itemId: number; need: number }[],
+): { itemId: number; need: number; picks: { lot: CzLot; qty: number }[]; short: number; undated: number }[] {
+  const left = new Map<number, number>();
+  return requests.map((r) => {
+    const lots = (lotsByItem.get(r.itemId) ?? []).map((l) => ({
+      ...l,
+      onHand: left.has(l.batchId) ? left.get(l.batchId)! : l.onHand,
+    }));
+    const picked = allocateFefo(lots, r.need);
+    for (const p of picked.picks) {
+      left.set(p.lot.batchId, round3((left.get(p.lot.batchId) ?? p.lot.onHand) - p.qty));
+    }
+    return { itemId: r.itemId, need: r.need, ...picked };
+  });
+}
+
 /* ------------------------------------------------------------------ *
  * Minimum shelf life on despatch
  * ------------------------------------------------------------------ */

@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { CocozuriProducts } from "@/components/cocozuri-products";
 import { listProducts, listPrices, cocozuriCompany } from "@/lib/cocozuri";
 import { priceInForce } from "@/lib/cocozuri-shared";
+import { allLists } from "@/lib/cocozuri-lists";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Products — CocoZuri" };
@@ -36,11 +37,14 @@ export default async function CocozuriProductsPage({
     );
   }
 
-  const [products, archived, prices] = await Promise.all([
+  const [products, archived, prices, lists] = await Promise.all([
     listProducts({ archived: showArchived }),
     listProducts({ archived: true }),
     listPrices({ customerId: null }),
+    // ⚠️ The managed lists, so a category can be set up BEFORE anything uses it.
+    allLists(),
   ]);
+  const live = (k: keyof typeof lists) => lists[k].filter((v) => !v.archived).map((v) => v.value);
 
   const listPriceById: Record<number, number> = {};
   for (const p of products) {
@@ -60,6 +64,12 @@ export default async function CocozuriProductsPage({
         listPrices={listPriceById}
         archivedCount={archived.length}
         showArchived={showArchived}
+        lists={{
+          categories: live("category"),
+          brands: live("brand"),
+          units: live("uom"),
+          packUnits: live("pack_unit"),
+        }}
       />
     </div>
   );

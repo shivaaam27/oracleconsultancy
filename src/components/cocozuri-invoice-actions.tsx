@@ -11,8 +11,12 @@ import { cancelInvoiceAction, issueInvoiceAction } from "@/app/cocozuri/actions"
  *
  * ⚠️ ISSUING IS ONE-WAY, and the confirm says so. After it, the document is the
  * customer's — it cannot be edited, only answered with a credit note. That is the
- * business's own habit and the general ledger's rule both at once, and it is the
- * reason there is no Edit button here at all.
+ * business's own habit and the general ledger's rule both at once.
+ *
+ * ⚠️ A DRAFT, HOWEVER, CAN BE EDITED, and the Edit button beside these comes
+ * from `CocozuriInvoiceEdit`. It appears on a draft and never on an issued one —
+ * that was never a rule about drafts, only a screen nobody had built, and the
+ * only route was cancelling and typing the whole thing again.
  */
 export function CocozuriInvoiceActions({
   id, status, number,
@@ -40,7 +44,12 @@ export function CocozuriInvoiceActions({
               const res = await issueInvoiceAction(id);
               setBusy(null);
               if (!res.ok) { toast(res.error ?? "Could not issue it.", { tone: "danger" }); return; }
-              toast(`${number} issued.`, { tone: "success" });
+              /* ⚠️ THE INVOICE ISSUED EITHER WAY — refusing to issue it because a
+                 note about which lots went could not be written would be the
+                 tail wagging the dog. But it must SAY SO, or somebody believes
+                 the recall record is complete when it is empty. */
+              if (res.despatchNote) toast(res.despatchNote, { tone: "warn" });
+              else toast(`${number} issued.`, { tone: "success" });
               router.refresh();
             }}
             className={`${btn} bg-accent text-accent-fg hover:opacity-90 disabled:opacity-60`}

@@ -3,7 +3,7 @@ import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listMoves } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem, type CzStockMove } from "@/lib/cocozuri-stock-shared";
 import {
-  allocateFefo, expiryFor, expiryState, stepKind,
+  allocateFefo, allocateFefoMany, expiryFor, expiryState, stepKind,
   type BatchTrace, type CzExpiryState, type CzLot, type TraceStep,
 } from "@/lib/cocozuri-trace-shared";
 
@@ -346,4 +346,88 @@ export async function expiryOnClose(
   const item = ctx.itemById.get(itemId);
   const lots = ctx.batches.filter((b) => consumedLotIds.includes(b.id));
   return expiryFor(madeOn, item?.shelfLifeDays ?? null, lots.map((l) => l.expiresOn));
+}
+
+/* ------------------------------------------------------------------ *
+ * Allocating a whole document at once
+ * ------------------------------------------------------------------ */
+
+export type FefoRequest = { itemId: number; need: number };
+export type FefoAllocation = {
+  itemId: number;
+  need: number;
+  picks: { lot: CzLot; qty: number }[];
+  short: number;
+  undated: number;
+};
+
+/**
+ * FEFO for every line of one document, in a single read of the ledger.
+ *
+ * ⚠️ `pickFefo` LOADS THE WHOLE LEDGER EVERY TIME IT IS CALLED, so allocating a
+ * document line by line reads it once per line — and the counter's option list
+ * was calling it once per chocolate on the shelf, which is seventy-five full
+ * scans to open a form. One load, all the lines.
+ *
+ * ⚠️ AND IT DECREMENTS AS IT GOES, which the line-by-line version cannot. Two
+ * lines of one document asking for the same lot were each told the whole lot was
+ * available, so a document could hand out more of a lot than ever existed and
+ * the shortfall — the thing that says "this predates lot tracking" — never
+ * appeared. Requests are served in the order given.
+ */
+export async function pickFefoMany(
+  requests: FefoRequest[], locationId?: number,
+): Promise<FefoAllocation[]> {
+  const ctx = await context();
+  if (!ctx) return requests.map((r) => ({ itemId: r.itemId, need: r.need, picks: [], short: r.need, undated: 0 }));
+  const byItem = new Map<number, CzLot[]>();
+  for (const r of requests) {
+    if (byItem.has(r.itemId)) continue;
+    byItem.set(r.itemId, lotsFrom(ctx, r.itemId, locationId));
+  }
+  // ⚠️ The sharing-out itself is pure and tested — `allocateFefoMany`.
+  return allocateFefoMany(byItem, requests);
+}
+
+/**
+ * The lots on one shelf, item by item — for a form that wants to SAY which lot
+ * is next out without asking for an allocation.
+ */
+export async function lotsOnShelf(locationId?: number): Promise<Map<number, CzLot[]>> {
+  const ctx = await context();
+  const byItem = new Map<number, CzLot[]>();
+  if (!ctx) return byItem;
+  for (const item of ctx.items) {
+    if (locationId != null && item.locationId !== locationId) continue;
+    const lots = lotsFrom(ctx, item.id, locationId);
+    if (lots.length) byItem.set(item.id, lots);
+  }
+  return byItem;
+}
+
+/**
+ * The lots of one PRODUCT, whichever item row they sit on.
+ *
+ * ⚠️ AN INVOICE NAMES A PRODUCT, NOT A STOCK ITEM, and the same chocolate is two
+ * item rows joined by `product_id` — so a despatch has to look at the product,
+ * not at one shelf. `lotsFrom` already sums a lot across every kin row, so one
+ * row of the product gives the whole picture; the rest would double it.
+ */
+export async function lotsOfProduct(productId: number): Promise<CzLot[]> {
+  const ctx = await context();
+  if (!ctx) return [];
+  const anyRow = ctx.items.find((i) => i.productId === productId);
+  return anyRow ? lotsFrom(ctx, anyRow.id) : [];
+}
+
+/** The same, for a whole document, in ONE read of the ledger. */
+export async function lotsOfProducts(productIds: number[]): Promise<Map<number, CzLot[]>> {
+  const ctx = await context();
+  const out = new Map<number, CzLot[]>();
+  if (!ctx) return out;
+  for (const productId of new Set(productIds)) {
+    const anyRow = ctx.items.find((i) => i.productId === productId);
+    out.set(productId, anyRow ? lotsFrom(ctx, anyRow.id) : []);
+  }
+  return out;
 }

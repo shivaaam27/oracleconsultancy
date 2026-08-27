@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowDown, ArrowUp, Radar } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Radar, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriTracePicker } from "@/components/cocozuri-trace";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { czDate } from "@/lib/cocozuri-shared";
 import { qty as qtyText } from "@/lib/cocozuri-stock-shared";
 import { allLots, batchesUsing, expiringStock, traceBatch } from "@/lib/cocozuri-trace";
+import { invoicesCarrying } from "@/lib/cocozuri-despatch";
 import { EXPIRY_LABEL, STEP_LABEL, expiryState } from "@/lib/cocozuri-trace-shared";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,10 @@ export default async function CocozuriTracePage({
   const [lots, expiring] = await Promise.all([allLots(), expiringStock()]);
   const chosen = sp.batch ? await traceBatch(sp.batch) : null;
   const usedIn = sp.batch ? await batchesUsing(sp.batch) : [];
+  /* ⚠️ THE OTHER HALF OF A RECALL, AND THE STOCK LEDGER CANNOT ANSWER IT. It
+     knows a lot left the building; only the invoice knows WHO GOT IT, because an
+     invoice line names a product. This is the list somebody rings round. */
+  const wentTo = sp.batch ? await invoicesCarrying(sp.batch) : [];
 
   const expired = expiring.rows.filter((r) => r.state === "expired");
   const critical = expiring.rows.filter((r) => r.state === "critical");
@@ -107,6 +112,37 @@ export default async function CocozuriTracePage({
               ))}
             </Section>
           )}
+
+          {/* ⚠️ WHO GOT IT — the half nothing could answer before. A movement
+              says a lot left the kitchen; only the invoice says it went to
+              Garden Market, because an invoice line names a PRODUCT. */}
+          <Section
+            icon={<Truck size={13} />}
+            title={`Who got ${chosen.batchNo}`}
+            hint="Every invoice that carried this lot, newest first — the list to ring round. Recorded when the invoice was issued, and correctable on it.">
+            {wentTo.length === 0
+              ? (
+                <p className="px-3 py-3 text-sm text-fg-subtle">
+                  No invoice records carrying this lot. Invoices issued before lots were recorded
+                  carry none — which is not the same as nothing having gone out.
+                </p>
+              )
+              : wentTo.map((w, i) => (
+                <div key={`${w.number}#${i}`} className="grid grid-cols-[100px_120px_minmax(0,1fr)_110px_90px] items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
+                  <span className="truncate text-sm tabular text-fg-muted">{czDate(w.issueDate)}</span>
+                  <Link href={`/cocozuri/invoices/${encodeURIComponent(w.number)}`}
+                    className="truncate text-sm text-accent hover:underline">{w.number}</Link>
+                  <span className="min-w-0 truncate text-sm text-fg" title={w.description}>
+                    {w.customerName ?? "—"}
+                    <span className="ml-1.5 text-xs text-fg-subtle">{w.description}</span>
+                  </span>
+                  <span className="truncate text-sm text-fg-subtle">
+                    {w.status === "issued" ? "Issued" : w.status === "cancelled" ? "Cancelled" : w.status}
+                  </span>
+                  <span className="text-right text-sm tabular text-fg-muted">{qtyText(w.qty)}</span>
+                </div>
+              ))}
+          </Section>
         </>
       )}
 

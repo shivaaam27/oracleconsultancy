@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   balanceAt, dayEffect, dayRows, monthBounds, monthRows, previousDay,
-  qty, salesRows, todayInDar, varianceOf, orderSuggestions,
+  qty, salesRows, todayInDar, varianceOf, orderSuggestions, MIN_DAYS_MEASURED, outstandingOf,
   ledgerBalanceAt, daySheetFromMoves, daySheetMoves, transferMoves, movesNet,
   parseCountNumber, parseCountPaste, matchCountRows,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockMove, type CzMoveReason,
@@ -16,7 +16,7 @@ import {
 
 const item = (id: number, over: Partial<CzStockItem> = {}): CzStockItem => ({
   id, locationId: 1, productId: id, name: `ITEM ${id}`, uom: "PCS",
-  category: null, shelfLifeDays: null, sortOrder: id, archived: false, ...over,
+  category: null, kind: null, reorderLevel: null, shelfLifeDays: null, sortOrder: id, archived: false, ...over,
 });
 
 const day = (itemId: number, onDate: string, qtyIn = 0, qtyOut = 0, qtyThird = 0): CzStockDay =>
@@ -307,6 +307,30 @@ describe("the order form", () => {
     expect(three.perDay).toBeNull();
     expect(three.suggested).toBeNull();
     expect(three.daysOfCover).toBeNull();
+  });
+
+  it("⚠️ refuses to quote a rate off a few lumpy days", () => {
+    /* This is the 195,000 g of milk chocolate. Consumption is LUMPY — a batch
+       takes five kilos in one morning and none for a fortnight — so two days of
+       history divided into one big number is a rate of kilos a day, and the
+       cover multiplies it into something silly. Arithmetically right, and the
+       reason a floor exists. */
+    const lumpy = [
+      day(4, "2026-08-01", 0, 5000, 0),
+      day(4, "2026-08-02", 0, 0, 0),
+    ];
+    const [row] = orderSuggestions([item(4)], 1, movesOf(lumpy), lumpy, [], opts);
+    expect(row!.daysMeasured).toBe(2);
+    expect(row!.perDay).toBeNull();
+    expect(row!.suggested).toBeNull();
+  });
+
+  it("quotes one once a full week has been written down", () => {
+    const week = Array.from({ length: MIN_DAYS_MEASURED }, (_, i) =>
+      day(5, `2026-08-${String(i + 1).padStart(2, "0")}`, 0, 7, 0));
+    const [row] = orderSuggestions([item(5)], 1, movesOf(week), week, [], opts);
+    expect(row!.daysMeasured).toBe(MIN_DAYS_MEASURED);
+    expect(row!.perDay).toBe(7);
   });
 
   it("treats something that sells nothing as covered for ever, not as urgent", () => {
@@ -654,5 +678,45 @@ describe("placing pasted lines against a shelf", () => {
     const { matched, problems } = matchCountRows(parseCountPaste("FRESH MINT\t51"), twice, 2);
     expect(matched).toHaveLength(0);
     expect(problems[0]!.kind).toBe("ambiguous");
+  });
+});
+
+describe("what a document still has off the shelf", () => {
+  const m = (itemId: number, qty: number, reason: CzMoveReason = "consume", batchId: number | null = null) =>
+    ({ itemId, locationId: 3, batchId, reason, qty });
+
+  it("⚠️ a document already reversed has NOTHING outstanding", () => {
+    /* The bug this exists for: a reversal is filed under `batch:reversal`, so
+       asking the ledger for a batch's movements returns the originals whether or
+       not they have been answered. Reversing on the strength of that put fifteen
+       grams of coffee back on a shelf it had never left. */
+    const original = [m(1, -15), m(2, 40, "produce")];
+    const reversed = [m(1, 15), m(2, -40, "produce")];
+    expect(outstandingOf(original, reversed)).toEqual([]);
+  });
+
+  it("a document never reversed is outstanding in full", () => {
+    const original = [m(1, -15), m(2, 40, "produce")];
+    expect(outstandingOf(original, [])).toHaveLength(2);
+    expect(outstandingOf(original, [])[0]!.qty).toBe(-15);
+  });
+
+  it("a partly reversed document leaves only the remainder", () => {
+    expect(outstandingOf([m(1, -15)], [m(1, 10)])).toEqual([
+      { itemId: 1, locationId: 3, batchId: null, reason: "consume", qty: -5 },
+    ]);
+  });
+
+  it("⚠️ keeps lots apart — two lots of one material are two positions", () => {
+    // Netting by item alone would let one lot's reversal cancel another's draw.
+    const out = outstandingOf([m(1, -10, "consume", 7), m(1, -6, "consume", 8)], [m(1, 10, "consume", 7)]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.batchId).toBe(8);
+    expect(out[0]!.qty).toBe(-6);
+  });
+
+  it("keeps reasons apart", () => {
+    const out = outstandingOf([m(1, -10), m(1, 10, "produce")], []);
+    expect(out).toHaveLength(2);
   });
 });

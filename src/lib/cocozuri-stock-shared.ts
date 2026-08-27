@@ -71,6 +71,12 @@ export type CzStockItem = {
   name: string;
   uom: string;
   category: string | null;
+  /** ⚠️ Stage A — raw_material | packaging | finished | other.
+   *  NULL means nobody has said, which is NOT the same as "other". */
+  kind: string | null;
+  /** ⚠️ Stage C — how low it may go before buying. NULL means nobody has said,
+   *  which is NOT a level of nought: an item with no level is never called low. */
+  reorderLevel: number | null;
   /** ⚠️ Stage 9 — how long it lasts, in days. On the ITEM rather than the
    *  product because raw materials go off too, and 171 of them are never sold.
    *  Null means nobody has said, which is not the same as "for ever". */
@@ -491,6 +497,51 @@ export type CzOrderRow = {
  * or one nobody has written down yet, cannot be forecast; printing a confident
  * zero beside it is how a product quietly stops being made.
  */
+/**
+ * How many days must have been written down before a rate is worth quoting.
+ *
+ * ⚠️ A DEFAULT NOBODY HAS AGREED, in one place so the argument changes one
+ * line. Seven is the shortest window holding a full trading cycle. It was two,
+ * and two days of a lumpy figure — one batch taking five kilos in a morning —
+ * suggested 195,000 g of milk chocolate.
+ */
+/**
+ * What a document still has off the shelf, once its reversals are counted.
+ *
+ * ⚠️ A REVERSAL IS FILED UNDER ITS OWN VOUCHER TYPE — `batch:reversal`, never
+ * `batch` — so asking the ledger for a document's movements returns the
+ * ORIGINALS whether or not they have already been answered. Reversing on the
+ * strength of that reverses a SECOND time, and the shelf silently gains or loses
+ * the whole document.
+ *
+ * It is not hypothetical. Reopening a closed batch reverses its voucher; if
+ * abandoning the reopened batch then reverses it again, fifteen grams of coffee
+ * go back on a shelf they had never left and forty bars come off one they had
+ * already returned to. Measured against the live database, not imagined.
+ *
+ * The two sides are netted per item, shelf, lot and reason, and only what is
+ * genuinely still outstanding comes back.
+ */
+export function outstandingOf<T extends {
+  itemId: number; locationId: number; batchId: number | null; reason: CzMoveReason; qty: number;
+}>(original: T[], reversed: T[]): {
+  itemId: number; locationId: number; batchId: number | null; reason: CzMoveReason; qty: number;
+}[] {
+  const net = new Map<string, { itemId: number; locationId: number; batchId: number | null; reason: CzMoveReason; qty: number }>();
+  for (const m of [...original, ...reversed]) {
+    const key = `${m.itemId}|${m.locationId}|${m.batchId ?? "-"}|${m.reason}`;
+    const at = net.get(key);
+    if (at) at.qty = Math.round((at.qty + m.qty) * 1000) / 1000;
+    else net.set(key, {
+      itemId: m.itemId, locationId: m.locationId, batchId: m.batchId ?? null,
+      reason: m.reason, qty: Math.round(m.qty * 1000) / 1000,
+    });
+  }
+  return [...net.values()].filter((m) => Math.abs(m.qty) > 0.0005);
+}
+
+export const MIN_DAYS_MEASURED = 7;
+
 export function orderSuggestions(
   items: CzStockItem[],
   locationId: number,
@@ -519,9 +570,17 @@ export function orderSuggestions(
         (d) => d.itemId === item.id && d.onDate >= opts.from && d.onDate <= opts.to).length;
       const onHand = ledgerBalanceAt(item.id, locationId, moves, counts, asOf).closing;
 
-      // ⚠️ One day of history is not a rate. Two rows is the least that can
-      // describe a trend, and below that the honest answer is "not known".
-      const perDay = daysMeasured >= 2 ? soldInWindow / daysMeasured : null;
+      /* ⚠️ A HANDFUL OF DAYS IS NOT A RATE, AND THE OLD FLOOR OF TWO PROVED IT.
+         Consumption is LUMPY — a batch takes five kilos of milk chocolate in one
+         morning and none for a fortnight — so dividing one big day by the two
+         days somebody happened to write down produced a rate of fourteen kilos a
+         day and suggested ordering 195,000 g. Arithmetically right, and silly.
+
+         A week is the shortest window that contains a whole trading cycle: a
+         shop's Saturday and its Tuesday are different days, and a kitchen's
+         production days and its quiet ones are too. Below it the honest answer
+         is "not known", which the form already knows how to say. */
+      const perDay = daysMeasured >= MIN_DAYS_MEASURED ? soldInWindow / daysMeasured : null;
       const daysOfCover =
         perDay == null ? null : perDay === 0 ? Infinity : onHand / perDay;
       const suggested =

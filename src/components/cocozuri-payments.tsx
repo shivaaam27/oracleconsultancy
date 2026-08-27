@@ -356,8 +356,13 @@ function PaySheet({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  /* ⚠️ `justify-end`, AND IT IS NOT COSMETIC. A grid cell stretches to the
+     tallest row, so a label that wraps onto two lines pushed ITS control down
+     while a one-line label left its control at the top — the boxes in one row
+     sat at two different heights. Pushing label and control to the BOTTOM of
+     the cell lines every control up whatever the labels do. */
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex h-full flex-col justify-end gap-1">
       <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>

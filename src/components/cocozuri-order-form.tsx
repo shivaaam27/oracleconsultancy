@@ -7,7 +7,7 @@ import { useToast } from "@/components/toast";
 import { purchaseFromOrderFormAction } from "@/app/cocozuri/actions";
 import { SearchInput } from "@/components/ui";
 import {
-  orderSuggestions, qty,
+  MIN_DAYS_MEASURED, orderSuggestions, qty,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
   type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
@@ -167,7 +167,10 @@ export function CocozuriOrderForm({
         From what actually went out between <strong className="text-fg-muted">{czDate(from)}</strong> and{" "}
         <strong className="text-fg-muted">{czDate(to)}</strong>, over the days that were counted —{" "}
         <strong className="text-fg-muted">{location.name}</strong> is not counted every day, and dividing
-        by the calendar would under-order everything. Every figure below is a suggestion.
+        by the calendar would under-order everything. A rate needs at least{" "}
+        <strong className="text-fg-muted">{MIN_DAYS_MEASURED} days</strong> written down before it is
+        worth quoting — consumption is lumpy, and a batch taking five kilos in one morning is not a
+        daily rate. Every figure below is a suggestion.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-border bg-bg-elev">
@@ -188,6 +191,16 @@ export function CocozuriOrderForm({
                 <span className="min-w-0 truncate text-sm text-fg" title={nameOf(r.item)}>
                   {nameOf(r.item)}
                   <span className="ml-1.5 text-xs text-fg-subtle">{r.item.uom}</span>
+                  {/* ⚠️ SAYS WHY, rather than leaving three dashes to be read as
+                      "nothing moves". "Nobody has written enough down" and "this
+                      never sells" are opposite findings and used to look alike. */}
+                  {r.perDay == null && (
+                    <span className="ml-1.5 text-xs text-fg-subtle">
+                      {r.daysMeasured === 0
+                        ? "never written down"
+                        : `only ${r.daysMeasured} day${r.daysMeasured === 1 ? "" : "s"} written down`}
+                    </span>
+                  )}
                 </span>
                 <span className="text-right text-sm tabular text-fg-muted">{qty(r.onHand)}</span>
                 <span className="text-right text-sm tabular text-fg-subtle">

@@ -4,6 +4,7 @@ import { nextInSeries } from "@/lib/cocozuri-shared";
 import { listItems, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { materialCosts } from "@/lib/cocozuri-recipe";
 import { todayInDar } from "@/lib/cocozuri-stock-shared";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
   budgetUsage, landedLines, purchaseBlockers, purchaseTotals,
   type CzBudget, type CzBudgetStatus, type CzPaidFrom, type CzPurchase, type CzPurchaseLine,
@@ -739,6 +740,11 @@ export async function approvePurchase(
     await reverseStockVoucher(PURCHASE_VOUCHER, purchase.id, purchase.purchasedOn, by);
     return { ok: false, error: error.message };
   }
+  void recordEvent({
+    subjectType: "purchase", subjectId: purchase.id, subjectRef: purchase.reference,
+    kind: "approved",
+    summary: `Approved by ${who.name?.trim() || "somebody"} — the delivery is on the shelf at its landed cost.`,
+  }, by);
   return { ok: true };
 }
 

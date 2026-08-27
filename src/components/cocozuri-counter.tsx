@@ -33,7 +33,7 @@ import {
 
 type Option = {
   itemId: number; name: string; uom: string;
-  price: number | null; batchId: number | null; batchNo: string | null; onHand: number;
+  price: number | null; batchNo: string | null; lots: number; onHand: number;
 };
 
 type Row = CzCounterSale & {
@@ -308,7 +308,6 @@ function SellSheet({
         ? typedNumberOr(prices[o.itemId])
         : (o.price ?? NaN),
       description: o.name,
-      batchId: o.batchId,
     }));
 
   const blockers = counterBlockers({
@@ -390,21 +389,35 @@ function SellSheet({
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a chocolate…" className="text-sm" />
 
         <div className="rounded-md border border-border">
-          <div className="grid grid-cols-[minmax(0,1fr)_90px_110px_100px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
+          {/* ⚠️ THE LOT HAS ITS OWN COLUMN. Tucked after the name it truncated to
+              `BA…` on every row — a lot number nobody can read is worse than none
+              at all, because it looks like an answer. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_115px_75px_95px_85px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
             <span>Chocolate</span>
-            <span className="text-right">On the shelf</span>
+            <span>Lot out next</span>
+            {/* ⚠️ "On the shelf" wrapped onto two lines in the column it has to
+                fit; the shorter wording says the same thing on one. */}
+            <span className="text-right">On shelf</span>
             <span className="text-right">Price each</span>
             <span className="text-right">Sold</span>
           </div>
           <div className="max-h-[20rem] overflow-y-auto">
             {loading && <p className="px-3 py-6 text-center text-sm text-fg-subtle">Reading that counter…</p>}
             {!loading && shown.map((o) => (
-              <div key={o.itemId} className="grid grid-cols-[minmax(0,1fr)_90px_110px_100px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
+              <div key={o.itemId} className="grid grid-cols-[minmax(0,1fr)_115px_75px_95px_85px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
                 <span className="min-w-0 truncate text-sm text-fg" title={o.name}>
                   {o.name}
-                  {/* ⚠️ The lot going out is suggested first-expired-first-out. */}
-                  {o.batchNo && <span className="ml-1.5 text-xs text-fg-subtle">{o.batchNo}</span>}
                   {o.price == null && <span className="ml-1.5 text-xs text-warn">no price set</span>}
+                </span>
+                {/* ⚠️ WHICH LOT GOES NEXT, and it is a LABEL rather than a choice —
+                    the lots are allocated first-expired-first-out against the
+                    quantity actually SOLD at the moment it is written down, so a
+                    sale big enough to span two is split into two movements there
+                    rather than filed against whichever one this row happens to
+                    name. `+1` says a second lot is behind it. */}
+                <span className="min-w-0 truncate text-xs text-fg-subtle"
+                  title={o.batchNo ? `${o.batchNo}${o.lots > 1 ? ` and ${o.lots - 1} more lot${o.lots > 2 ? "s" : ""} behind it` : ""}` : undefined}>
+                  {o.batchNo ? <>{o.batchNo}{o.lots > 1 && <span className="text-fg-muted"> +{o.lots - 1}</span>}</> : "—"}
                 </span>
                 <span className={`text-right text-sm tabular ${o.onHand <= 0 ? "text-warn" : "text-fg-subtle"}`}>
                   {qtyText(o.onHand)}
@@ -453,8 +466,13 @@ function SellSheet({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  /* ⚠️ `justify-end`, AND IT IS NOT COSMETIC. A grid cell stretches to the
+     tallest row, so a label that wraps onto two lines pushed ITS control down
+     while a one-line label left its control at the top — the boxes in one row
+     sat at two different heights. Pushing label and control to the BOTTOM of
+     the cell lines every control up whatever the labels do. */
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex h-full flex-col justify-end gap-1">
       <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>

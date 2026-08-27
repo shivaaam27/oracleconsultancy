@@ -3,13 +3,17 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriBatchClose } from "@/components/cocozuri-batch-close";
+import { CocozuriBatchDraw } from "@/components/cocozuri-batch-draw";
+import { CocozuriRereadRecipe } from "@/components/cocozuri-batch-reread";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves } from "@/lib/cocozuri-stock";
 import { CZ_MOVE_REASON_LABEL, qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
 import { czDate } from "@/lib/cocozuri-shared";
-import { batchDetail, getBatchByNo } from "@/lib/cocozuri-batch";
+import { batchDetail, drawnByItem, getBatchByNo, producedSoFar } from "@/lib/cocozuri-batch";
 import {
-  CZ_BATCH_STATUS_LABEL, batchPlan, daysOpen, lossLabel,
+  CZ_BATCH_STATUS_LABEL, daysOpen, lossLabel,
 } from "@/lib/cocozuri-batch-shared";
 
 export const dynamic = "force-dynamic";
@@ -49,10 +53,42 @@ export default async function CocozuriBatchPage({
   ]);
   // ⚠️ The movements table names its item; a ledger row carries only the id.
   const itemNames = new Map(allItems.map((i) => [i.id, i.name] as const));
-  const { recipe, check, used } = detail;
-  const plan = recipe ? batchPlan(recipe, batch.recipeMultiple) : null;
+  const { recipe, check, used, recipeMoved, judgedAgainst, plan } = detail;
+  /* ⚠️ THE PLAN COMES FROM `batchDetail`, not rebuilt here. Building it again
+     from the LIVE recipe meant the close form's material defaults and its
+     expected quantity came from today's recipe while the difference printed
+     above them came from the frozen one — the very fault the snapshot exists to
+     end, arriving through a second calculation. */
   const consumed = moves.some((m) => m.reason === "consume");
   const open = daysOpen(batch, todayInDar());
+
+  /* ⚠️ WHAT HAS ALREADY BEEN FETCHED TO THE BENCH. A batch that runs for days
+     can take its materials as it goes, so the raw-material shelf reads true
+     while it runs; closing then takes only what is still outstanding. */
+  const drawn = batch.status === "running" ? await drawnByItem(batch.id) : new Map<number, number>();
+  type DrawRow = { itemId: number; itemName: string; uom: string; planned: number | null; drawn: number };
+  const drawMaterials: DrawRow[] = (plan?.materials ?? []).map((m) => ({
+    itemId: m.itemId,
+    itemName: m.itemName,
+    uom: m.uom,
+    planned: m.qty,
+    drawn: drawn.get(m.itemId) ?? 0,
+  }));
+  /* Anything taken that the recipe never named still has to be listed, or the
+     sheet would quietly forget it was ever taken. */
+  for (const [itemId, qty] of drawn) {
+    if (drawMaterials.some((m) => m.itemId === itemId)) continue;
+    const item = allItems.find((i) => i.id === itemId);
+    drawMaterials.push({
+      itemId, itemName: item?.name ?? `Item #${itemId}`, uom: item?.uom ?? "PCS",
+      planned: null, drawn: qty,
+    });
+  }
+  const totalDrawn = [...drawn.values()].reduce((t, q) => t + q, 0);
+  /* ⚠️ What has already reached the shelf — a batch may finish in more than
+     one go, and closing then adds only what is left. */
+  const madeSoFar = batch.status === "running" ? await producedSoFar(batch.id) : 0;
+  const events = await timelineFor("batch", batch.id);
 
   return (
     <div className="space-y-4">
@@ -83,6 +119,13 @@ export default async function CocozuriBatchPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <CocozuriBatchClose batch={batch} plan={plan} used={used} items={allItems} locations={locations} />
+        {/* ⚠️ THE ANSWER TO A BATCH THAT RUNS FOR DAYS. Only offered while it is
+            RUNNING — a closed batch's materials are settled and its yield is
+            measured against them. */}
+        <CocozuriBatchDraw
+          batchId={batch.id} batchNo={batch.batchNo} status={batch.status}
+          materials={drawMaterials} items={allItems} locationId={batch.locationId}
+          producedSoFar={madeSoFar} itemName={batch.itemName} />
         {/* ⚠️ THE OTHER HANDOFF THAT WAS MISSING. A closed batch put chocolate on
             the kitchen's shelf and the only way to move it next door was to go
             to Transfers and start from nothing. Only offered once the batch is
@@ -95,7 +138,43 @@ export default async function CocozuriBatchPage({
         )}
       </div>
 
-      {/* The inter check — expected against actual. */}
+      {/* ⚠️ SAID PLAINLY, because otherwise the shelf and the batch appear to
+          disagree. A running batch that has taken materials has already had them
+          them off the raw-material shelf — which is the whole point — and
+          somebody reading "nothing taken yet" underneath would not believe it. */}
+      {batch.status === "running" && totalDrawn > 0.0005 && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-fg-muted">
+          <strong className="text-fg">
+            {drawMaterials.filter((m) => m.drawn > 0.0005).length} material
+            {drawMaterials.filter((m) => m.drawn > 0.0005).length === 1 ? " has" : "s have"} been taken
+          </strong>{" "}
+          to the bench and {drawMaterials.filter((m) => m.drawn > 0.0005).length === 1 ? "is" : "are"} already
+          off the raw-material shelf. Closing will take only what is still outstanding, and abandoning
+          this batch puts all of it back.
+        </p>
+      )}
+
+      {/* ⚠️ A PART-FINISHED BATCH HAS CHOCOLATE ON A SHELF ALREADY, and the
+          "came out" tile below still reads "not said yet" because nobody has
+          closed it. Both are true and together they look like a contradiction,
+          so the page says which is which. */}
+      {batch.status === "running" && madeSoFar > 0.0005 && (
+        <p className="rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-sm text-fg-muted">
+          <strong className="text-fg">{qtyText(madeSoFar)} of this batch is already on the shelf</strong>,
+          carrying {batch.batchNo} as its lot. It is still running, so nothing has been counted as
+          finished yet — closing it adds only whatever is left.
+        </p>
+      )}
+
+      {/* ⚠️ THE RECIPE HAS MOVED ON, AND ONLY THE CHEF KNOWS WHAT THAT MEANS.
+          It may have been CORRECTED — in which case pull it in — or changed for
+          NEXT time, in which case this batch must be left alone. Said, never
+          acted on. */}
+      {recipeMoved && recipe && (
+        <CocozuriRereadRecipe batchId={batch.id} recipeName={recipe.name} />
+      )}
+
+      {/* The recipe vs actual check. */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Tile label="Expected" value={check.expected == null ? "—" : qtyText(check.expected)} />
         <Tile label="Came out" value={check.actual == null ? "not said yet" : qtyText(check.actual)}
@@ -138,6 +217,9 @@ export default async function CocozuriBatchPage({
                 meaning anything. */}
             <span className="text-xs text-fg-subtle">
               {consumed ? "taken from the shelf" : "what the recipe asks for — nothing taken yet"}
+              {/* ⚠️ WHICH recipe, because a batch opened before the snapshot
+                  existed falls back to today's and that is a different claim. */}
+              {recipe && <> · against {judgedAgainst}</>}
             </span>
           </div>
           <div className="grid grid-cols-[minmax(10rem,1fr)_110px_110px_110px] items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
@@ -215,6 +297,12 @@ export default async function CocozuriBatchPage({
           </p>
         </div>
       )}
+
+      {/* ⚠️ What happened to this batch, and a place to say something about it.
+          Nothing here can be edited or removed afterwards. */}
+      <CocozuriTimeline
+        subjectType="batch" subjectId={batch.id} subjectRef={batch.batchNo}
+        events={events} />
     </div>
   );
 }

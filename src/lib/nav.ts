@@ -31,6 +31,7 @@ import {
   CalendarRange,
   AtSign,
   ListChecks,
+  History as HistoryIcon,
   Activity,
   Zap,
   MessageSquare,
@@ -154,6 +155,13 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-desk",      href: "/cocozuri",            label: "CocoZuri",   icon: Candy },
   { id: "cz-products",  href: "/cocozuri/products",   label: "Products",   icon: Package },
   { id: "cz-customers", href: "/cocozuri/customers",  label: "Customers",  icon: Building2 },
+  /* ⚠️ The things you COUNT, as against the things you SELL. The only way to
+     make one used to be an add-button inside a count sheet, and shelves could
+     not be managed at all. */
+  { id: "cz-items",     href: "/cocozuri/items",      label: "Stock items", icon: Boxes },
+  /* ⚠️ The words you pick from. They were free text, and the catalogue has
+     five count units where it has three. */
+  { id: "cz-lists",     href: "/cocozuri/lists",      label: "Lists",       icon: ListChecks },
   { id: "cz-invoices",  href: "/cocozuri/invoices",   label: "Invoices",   icon: Receipt },
   /* CocoZuri Operations — Phase 3: money in, what is owed, statements. */
   { id: "cz-receipts",   href: "/cocozuri/receipts",   label: "Money in",   icon: Banknote },
@@ -163,10 +171,17 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-stock",       href: "/cocozuri/stock",       label: "Stock book", icon: Boxes },
   { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Month end", icon: ClipboardCheck },
   /* Phase 5 — what to make and send, from the shelf's own history. */
+  /* ⚠️ WHAT TO MAKE TODAY, not what to buy (owner, 27 Aug 2026). The buying
+     half lives at /cocozuri/order/materials and is reached from a plan whose
+     materials fall short. */
   { id: "cz-order",       href: "/cocozuri/order",       label: "Order form", icon: OrderIcon },
+  { id: "cz-buy-list",    href: "/cocozuri/order/materials", label: "What to buy", icon: ShoppingCart },
   /* Manufacturing Stage 2 — what was bought, and the budget it was bought
      against. See memory/cocozuri_manufacturing_plan.md. */
   { id: "cz-purchases",   href: "/cocozuri/purchases",   label: "Purchases",  icon: ShoppingCart },
+  /* ⚠️ The SHARED vendor register, not a second list — it simply lived in
+     another module, so from inside CocoZuri nobody could see it. */
+  { id: "cz-suppliers",   href: "/cocozuri/suppliers",   label: "Suppliers",  icon: Building2 },
   { id: "cz-budgets",     href: "/cocozuri/budgets",     label: "Budgets",    icon: Wallet },
   /* Manufacturing Stage 3 — what a bar costs to make, before one is made. */
   { id: "cz-recipes",     href: "/cocozuri/recipes",     label: "Recipes",    icon: ChefHat },
@@ -183,6 +198,8 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "cz-payments",    href: "/cocozuri/payments",    label: "Money out",  icon: Banknote },
   /* Manufacturing Stage 9 — expiry, shelf life and the batch trace. */
   { id: "cz-trace",       href: "/cocozuri/trace",       label: "Trace",      icon: Radar },
+  /* ⚠️ What happened, and when — nothing in the module could answer it. */
+  { id: "cz-history",     href: "/cocozuri/history",     label: "What happened", icon: HistoryIcon },
   /* Manufacturing Stage 5b — what goes over a counter. ⚠️ A record, not a till. */
   { id: "cz-counter",     href: "/cocozuri/counter",     label: "The counter", icon: Store },
 ];
@@ -366,15 +383,15 @@ export const MODULES: NavModule[] = [
        ⚠️ Adding a page? Put it where it happens in the day, not at the end. */
     groups: [
       { label: "Start", ids: ["cz-desk"] },
-      { label: "1 · Set up", ids: ["cz-products", "cz-customers"] },
-      { label: "2 · Buy", ids: ["cz-budgets", "cz-purchases"] },
+      { label: "1 · Set up", ids: ["cz-products", "cz-items", "cz-lists", "cz-customers"] },
+      { label: "2 · Buy", ids: ["cz-suppliers", "cz-buy-list", "cz-budgets", "cz-purchases"] },
       { label: "3 · Make", ids: ["cz-order", "cz-recipes", "cz-batches"] },
       { label: "4 · Keep", ids: ["cz-stock", "cz-stock-month", "cz-transfers"] },
       { label: "5 · Sell", ids: ["cz-counter", "cz-invoices"] },
       { label: "6 · Get paid", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
       { label: "7 · Pay out", ids: ["cz-payments"] },
       { label: "8 · Put right", ids: ["cz-returns"] },
-      { label: "9 · Know", ids: ["cz-profit", "cz-trace"] },
+      { label: "9 · Know", ids: ["cz-profit", "cz-trace", "cz-history"] },
     ],
   },
 ];

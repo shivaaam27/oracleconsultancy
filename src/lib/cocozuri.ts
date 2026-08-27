@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { todayInDar } from "@/lib/cocozuri-stock-shared";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
   ageingSummary, customerAccounts, nextInSeries, outstandingOf, statementRows,
   type CzAgeingKey, type CzCustomer, type CzCustomerAccount, type CzInvoice,
@@ -703,6 +704,11 @@ export async function createInvoice(input: {
       await sb.from("cz_invoices").delete().eq("id", invoiceId);
       return { ok: false, error: lineErr.message };
     }
+    void recordEvent({
+      subjectType: "invoice", subjectId: invoiceId, subjectRef: data.number as string,
+      kind: "created",
+      summary: `Raised as a draft for ${customer.name}, ${clean.length} line${clean.length === 1 ? "" : "s"}.`,
+    }, by);
     return { ok: true, id: invoiceId, number: data.number as string };
   }
   return { ok: false, error: "Could not find a free invoice number." };
@@ -714,23 +720,163 @@ export async function createInvoice(input: {
  * ⚠️ AN ISSUED INVOICE IS NEVER EDITED. It is corrected with a credit note, which
  * is what the business already does (Garden Market CZ-CN/01). Same rule as the
  * general ledger: a posted entry is reversed, never rewritten.
+ *
+ * ⚠️ ISSUING IS ALSO THE DESPATCH, AND IT RECORDS WHICH LOTS WENT. An invoice
+ * line names a PRODUCT, so until this existed nothing anywhere could answer the
+ * second recall question — not "where did this lot go" (the stock ledger has
+ * always known that) but "WHO GOT IT". `recordDespatch` writes a lot-by-lot
+ * reading of the shelf against each line; it is a suggestion and it is
+ * correctable afterwards.
+ *
+ * ⚠️ AND IT MOVES NO STOCK, WHICH IS WHY IT IS SAFE TO DO HERE. The day sheet
+ * owns the quantity; an invoice writing movements too would take the same
+ * chocolate off the shelf twice.
+ *
+ * ⚠️ THE DESPATCH FAILING DOES NOT UNDO THE ISSUE. The invoice is the document
+ * somebody is sent and it has been issued; refusing to issue it because a note
+ * about lots could not be written would be the tail wagging the dog. It is
+ * reported and the record can be filled in by hand.
  */
-export async function issueInvoice(id: number): Promise<{ ok: boolean; error?: string }> {
+export async function issueInvoice(id: number): Promise<{ ok: boolean; error?: string; despatchNote?: string }> {
   const { data, error } = await sb
     .from("cz_invoices").update({ status: "issued", updated_at: NOW() })
-    .eq("id", id).eq("status", "draft").select("id").maybeSingle();
+    .eq("id", id).eq("status", "draft").select("id,doc_type,number").maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "That invoice is not a draft any more." };
-  return { ok: true };
+
+  /* ⚠️ A CREDIT NOTE DESPATCHES NOTHING — it is chocolate coming back, or an
+     amount being corrected. Reading the shelf and stamping lots on it would
+     record a delivery that never happened. */
+  if ((data.doc_type as string) === "credit_note") return { ok: true };
+
+  const { recordDespatch } = await import("@/lib/cocozuri-despatch");
+  const despatch = await recordDespatch(id);
+  void recordEvent({
+    subjectType: "invoice", subjectId: id, subjectRef: (data.number as string) ?? null,
+    kind: "issued",
+    summary: despatch.ok
+      ? "Issued. It cannot be edited now — only answered with a credit note."
+      : "Issued, but which lots went out could not be recorded.",
+  });
+  return despatch.ok
+    ? { ok: true }
+    : { ok: true, despatchNote: `Issued — but which lots went could not be recorded: ${despatch.error}` };
+}
+
+/**
+ * **Edit a draft.**
+ *
+ * ⚠️ A DRAFT ONLY, AND THE CHECK IS THE POINT. An ISSUED invoice is never
+ * edited — it is answered with a credit note, which is the business's own habit
+ * and the general ledger's second rule at once. A draft has been sent to nobody
+ * and acted on by nothing, so cancelling it and typing the whole thing again was
+ * never a rule, only a missing screen.
+ *
+ * ⚠️ THE LINES ARE REPLACED, NOT MERGED. Merging needs a rule for what an
+ * absent line means, and "I did not mention it" and "take it off" are different
+ * claims nobody could tell apart afterwards. The caller sends the whole invoice
+ * as it should now read.
+ *
+ * ⚠️ THE NUMBER AND THE SERIES NEVER MOVE. A draft already holds a number out
+ * of a series, and re-allocating it on an edit would leave a gap somebody would
+ * later have to explain to an auditor.
+ *
+ * ⚠️ CHANGING THE CUSTOMER RE-FREEZES WHAT IS FROZEN. The details, the VAT
+ * rate, the terms and the currency all come off the customer at the moment an
+ * invoice is raised; moving a draft to a different customer and keeping the old
+ * one's VAT rate would print a figure nothing supports.
+ */
+export async function updateDraftInvoice(id: number, input: {
+  customerId?: number;
+  branchId?: number | null;
+  issueDate?: string;
+  reference?: string | null;
+  notes?: string | null;
+  lines?: Array<{
+    productId?: number | null;
+    description: string;
+    brand?: string | null;
+    packSize?: number | null;
+    packUnit?: string | null;
+    uom?: string | null;
+    qty: number;
+    unitPrice: number;
+  }>;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { data: existing } = await sb
+    .from("cz_invoices").select("id,status,number,customer_id").eq("id", id).maybeSingle();
+  if (!existing) return { ok: false, error: "That invoice does not exist." };
+  if ((existing.status as string) !== "draft") {
+    return {
+      ok: false,
+      error: `${existing.number} has been issued. It cannot be edited — answer it with a credit note.`,
+    };
+  }
+
+  const patch: Record<string, unknown> = { updated_at: NOW() };
+  if (input.reference !== undefined) patch.reference = input.reference?.trim() || null;
+  if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
+  if (input.issueDate) patch.issue_date = input.issueDate;
+  if (input.branchId !== undefined) patch.branch_id = input.branchId ?? null;
+
+  if (input.customerId != null && input.customerId !== (existing.customer_id as number)) {
+    const customer = await getCustomer(input.customerId);
+    if (!customer) return { ok: false, error: "That customer no longer exists." };
+    patch.customer_id = customer.id;
+    patch.vat_rate = customer.vatRate ?? (await defaultVatRate());
+    patch.terms_days = customer.paymentTermsDays;
+    patch.currency = customer.currency;
+    patch.customer_name = customer.name;
+    patch.customer_tin = customer.tin;
+    patch.customer_vat_no = customer.vatNo;
+    patch.customer_po_box = customer.poBox;
+    patch.customer_city = customer.city;
+  }
+
+  if (input.lines) {
+    const clean = input.lines.filter((l) => l.description.trim() && Number(l.qty) > 0);
+    if (clean.length === 0) return { ok: false, error: "An invoice needs at least one line." };
+    // ⚠️ A price of zero is allowed (a sample), a MISSING one is not.
+    if (clean.some((l) => !Number.isFinite(Number(l.unitPrice)))) {
+      return { ok: false, error: "Every line needs a price." };
+    }
+    /* ⚠️ THE LINES GO FIRST AND THE HEADER ONLY IF THEY LANDED. The other
+       order can leave an invoice addressed to a new customer carrying the old
+       one's lines — and there is no transaction here to fall back on. */
+    const { error: delErr } = await sb.from("cz_invoice_lines").delete().eq("invoice_id", id);
+    if (delErr) return { ok: false, error: delErr.message };
+    const { error: lineErr } = await sb.from("cz_invoice_lines").insert(
+      clean.map((l, i) => ({
+        invoice_id: id,
+        product_id: l.productId ?? null,
+        line_no: i + 1,
+        description: l.description.trim(),
+        brand: l.brand?.trim() || null,
+        pack_size: l.packSize ?? null,
+        pack_unit: l.packUnit?.trim() || null,
+        uom: l.uom?.trim() || null,
+        qty: l.qty,
+        unit_price: l.unitPrice,
+      })),
+    );
+    if (lineErr) return { ok: false, error: lineErr.message };
+  }
+
+  const { error } = await sb.from("cz_invoices").update(patch).eq("id", id).eq("status", "draft");
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 /** Cancel a DRAFT. An issued one stays, and is answered with a credit note. */
 export async function cancelInvoice(id: number): Promise<{ ok: boolean; error?: string }> {
   const { data, error } = await sb
     .from("cz_invoices").update({ status: "cancelled", updated_at: NOW() })
-    .eq("id", id).eq("status", "draft").select("id").maybeSingle();
+    .eq("id", id).eq("status", "draft").select("id,number").maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Only a draft can be cancelled — issue a credit note instead." };
+  void recordEvent({
+    subjectType: "invoice", subjectId: id, subjectRef: (data.number as string) ?? null,
+    kind: "cancelled", summary: "Cancelled as a draft — it had been sent to nobody.",
+  });
   return { ok: true };
 }
 

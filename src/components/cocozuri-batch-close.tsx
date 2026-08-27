@@ -51,6 +51,11 @@ export function CocozuriBatchClose({
   const [madeOn, setMadeOn] = useState(batch.madeOn ?? "");
   const [openedBy, setOpenedBy] = useState(batch.openedBy ?? "");
   const [notes, setNotes] = useState(batch.notes ?? "");
+  /* ⚠️ What the batch is FOR — "he needs to add more" is the ordinary case and
+     had no answer. It is stored as a multiple of the recipe, not as a count. */
+  const [want, setWant] = useState(
+    batch.plannedQty != null ? String(batch.plannedQty) : plan ? String(plan.expectedQty) : "",
+  );
 
   const [produced, setProduced] = useState(
     plan ? String(plan.expectedQty) : batch.plannedQty != null ? String(batch.plannedQty) : "",
@@ -186,6 +191,16 @@ export function CocozuriBatchClose({
                   placeholder="A name" />
               </Field>
             </div>
+            {/* ⚠️ HOW MANY — "he needs to add more" is the ordinary case and had no
+                answer. Changing it re-works what the batch is measured against
+                and what its materials will be, which is why it belongs here and
+                not in a note. */}
+            {plan && (
+              <Field label={`How many ${plan.yieldUom.toLowerCase()} — was ${qtyText(batch.plannedQty ?? plan.expectedQty)}`}>
+                <input value={want} onChange={(e) => setWant(e.target.value)} inputMode="decimal"
+                  className={`${FIELD} text-right tabular`} placeholder={String(plan.expectedQty)} />
+              </Field>
+            )}
             <Field label="Note">
               <input value={notes} onChange={(e) => setNotes(e.target.value)} className={FIELD}
                 placeholder="Anything worth remembering about this run" />
@@ -194,8 +209,20 @@ export function CocozuriBatchClose({
               <button type="button" disabled={busy || !madeOn}
                 onClick={() => {
                   void (async () => {
+                    /* ⚠️ The MULTIPLE is what is stored, not the piece count — a
+                       recipe yielding 108 good units asked for 200 is 1.852
+                       batches, and the batch form works it out the same way.
+                       Sending the count alone would leave the materials scaled
+                       to the old figure. */
+                    const wanted = typedNumberOr(want);
+                    const multiple = plan && wanted > 0 && plan.expectedQty > 0
+                      ? wanted / plan.expectedQty
+                      : undefined;
                     const ok = await run("Saved.", () =>
-                      updateBatchAction(batch.id, { madeOn, openedBy: openedBy || null, notes: notes || null }));
+                      updateBatchAction(batch.id, {
+                        madeOn, openedBy: openedBy || null, notes: notes || null,
+                        ...(multiple !== undefined ? { recipeMultiple: multiple } : {}),
+                      }));
                     if (ok) setEditing(false);
                   })();
                 }}
@@ -393,8 +420,13 @@ export function CocozuriBatchClose({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  /* ⚠️ `justify-end`, AND IT IS NOT COSMETIC. A grid cell stretches to the
+     tallest row, so a label that wraps onto two lines pushed ITS control down
+     while a one-line label left its control at the top — the boxes in one row
+     sat at two different heights. Pushing label and control to the BOTTOM of
+     the cell lines every control up whatever the labels do. */
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex h-full flex-col justify-end gap-1">
       <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>

@@ -2,7 +2,7 @@ import { sb } from "@/db/supabase";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem } from "@/lib/cocozuri-stock-shared";
-import { pickFefo } from "@/lib/cocozuri-trace";
+import { pickFefoMany } from "@/lib/cocozuri-trace";
 import {
   nextTransferRef, pairItems, receiveBlockers, sendBlockers,
   type CzTransfer, type CzTransferLine, type CzTransferPair, type CzTransferStatus,
@@ -282,6 +282,17 @@ export async function sendTransfer(input: SendTransferInput, by = "web-ui"): Pro
       itemId: number; locationId: number; onDate: string; qty: number;
       reason: "transfer"; batchId: number | null; note: string;
     }[] = [];
+    /* ⚠️ ALLOCATED IN ONE READ OF THE LEDGER, not once per line — and the
+       sharing-out decrements as it goes, so two lines of one transfer asking for
+       the same lot can no longer each be told the whole lot is theirs. */
+    const toAllocate = clean.filter((l) => l.batchId == null);
+    const allocations = toAllocate.length
+      ? await pickFefoMany(
+          toAllocate.map((l) => ({ itemId: l.fromItemId, need: num(l.qty) })),
+          input.fromLocationId!,
+        )
+      : [];
+    const allocFor = new Map(toAllocate.map((l, i) => [l, allocations[i]!]));
     for (const l of clean) {
       // A lot named on the line itself wins — somebody chose it deliberately.
       if (l.batchId != null) {
@@ -291,7 +302,7 @@ export async function sendTransfer(input: SendTransferInput, by = "web-ui"): Pro
         });
         continue;
       }
-      const picked = await pickFefo(l.fromItemId, num(l.qty), input.fromLocationId!);
+      const picked = allocFor.get(l)!;
       for (const p of picked.picks) {
         outMoves.push({
           itemId: l.fromItemId, locationId: input.fromLocationId!, onDate,

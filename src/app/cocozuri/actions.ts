@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   archiveCustomer, archiveProduct, createCustomer, createProduct,
   cancelInvoice, createInvoice, deletePrice, issueInvoice, mergeProducts, setBranches,
+  updateDraftInvoice,
   setDefaultVatRate, setPrice, updateCustomer, updateProduct,
   applyCreditNote, createReceipt, createReceipts, deleteReceipt, updateReceipt,
   type CustomerInput, type ProductInput, type ReceiptInput,
@@ -63,13 +64,24 @@ function refresh() {
   revalidatePath("/cocozuri");
   revalidatePath("/cocozuri/products");
   revalidatePath("/cocozuri/customers");
-  revalidatePath("/cocozuri/invoices");
+  /* ⚠️ "layout", NOT the bare path. `/cocozuri/invoices` and
+     `/cocozuri/invoices/CZ-237` are DIFFERENT cache keys, so revalidating the
+     list left every invoice RECORD stale — correcting which lots went out saved
+     to the database and the page went on saying "no lot recorded", which on a
+     recall record is the worst possible way to fail. Recipes, batches,
+     transfers, returns, statements and trace all already pass "layout" for
+     exactly this reason; invoices was the one that did not. */
+  revalidatePath("/cocozuri/invoices", "layout");
+  revalidatePath("/cocozuri/items");
+  revalidatePath("/cocozuri/lists");
+  revalidatePath("/cocozuri/suppliers", "layout");
+  revalidatePath("/cocozuri/history");
   revalidatePath("/cocozuri/receipts");
   revalidatePath("/cocozuri/owed");
   revalidatePath("/cocozuri/statements", "layout");
   revalidatePath("/cocozuri/stock");
   revalidatePath("/cocozuri/stock/month");
-  revalidatePath("/cocozuri/order");
+  revalidatePath("/cocozuri/order", "layout");
   revalidatePath("/cocozuri/purchases");
   revalidatePath("/cocozuri/budgets");
   revalidatePath("/cocozuri/recipes", "layout");
@@ -84,15 +96,26 @@ function refresh() {
   revalidatePath("/ledger", "layout");
 }
 
+/** ⚠️ A typed category, brand or unit joins its list — see `ensureListValue`. */
 export async function createProductAction(input: ProductInput) {
   const res = await createProduct(input);
-  if (res.ok) refresh();
+  if (res.ok) { await noteListValues(input); refresh(); }
   return res;
+}
+
+async function noteListValues(input: Partial<ProductInput>) {
+  const { ensureListValue } = await import("@/lib/cocozuri-lists");
+  await Promise.all([
+    ensureListValue("category", input.category),
+    ensureListValue("brand", input.brand),
+    ensureListValue("uom", input.uom),
+    ensureListValue("pack_unit", input.packUnit),
+  ]);
 }
 
 export async function updateProductAction(id: number, input: Partial<ProductInput>) {
   const res = await updateProduct(id, input);
-  if (res.ok) refresh();
+  if (res.ok) { await noteListValues(input); refresh(); }
   return res;
 }
 
@@ -176,6 +199,35 @@ export async function createInvoiceAction(input: Parameters<typeof createInvoice
  *  edited, only answered with a credit note. */
 export async function issueInvoiceAction(id: number) {
   const res = await issueInvoice(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * Say which lots really went out on an invoice line.
+ *
+ * ⚠️ THIS IS ALLOWED ON AN ISSUED INVOICE, and it is the one place the module
+ * bends its own rule. An issued invoice's MONEY is never edited — that is what
+ * a credit note is for. Which lots went in the van is not money, and the person
+ * who loaded it usually knows a day later than whoever pressed Issue.
+ */
+export async function setDespatchLotsAction(
+  lineId: number, lots: { batchId: number; qty: number }[],
+) {
+  const { setDespatchLots } = await import("@/lib/cocozuri-despatch");
+  const res = await setDespatchLots(lineId, lots);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ A DRAFT ONLY. An issued invoice is answered with a credit note, never
+ * edited — `updateDraftInvoice` refuses one and says so by number.
+ */
+export async function updateDraftInvoiceAction(
+  id: number, input: Parameters<typeof updateDraftInvoice>[1],
+) {
+  const res = await updateDraftInvoice(id, input);
   if (res.ok) refresh();
   return res;
 }
@@ -264,9 +316,22 @@ export async function deleteStockCountAction(id: number) {
   return res;
 }
 
+/**
+ * ⚠️ A TYPED CATEGORY OR UNIT JOINS THE LIST. The form lets one be typed as
+ * well as picked — a unit nobody has added yet must not stop somebody adding an
+ * item — but a typed value that never reached the list would put every typo
+ * back into the data while staying invisible on the screen built to catch it.
+ */
 export async function createStockItemAction(input: StockItemInput) {
   const res = await createItem(input);
-  if (res.ok) refresh();
+  if (res.ok) {
+    const { ensureListValue } = await import("@/lib/cocozuri-lists");
+    await Promise.all([
+      ensureListValue("category", input.category),
+      ensureListValue("uom", input.uom),
+    ]);
+    refresh();
+  }
   return res;
 }
 
@@ -274,7 +339,14 @@ export async function createStockItemAction(input: StockItemInput) {
  *  how a wrong match made during the import gets undone. */
 export async function updateStockItemAction(id: number, input: Partial<StockItemInput>) {
   const res = await updateItem(id, input);
-  if (res.ok) refresh();
+  if (res.ok) {
+    const { ensureListValue } = await import("@/lib/cocozuri-lists");
+    await Promise.all([
+      ensureListValue("category", input.category),
+      ensureListValue("uom", input.uom),
+    ]);
+    refresh();
+  }
   return res;
 }
 
@@ -295,6 +367,209 @@ export async function createStockLocationAction(input: Parameters<typeof createL
  *  Return, the kitchen DA/SA/TA and raw materials Damage. */
 export async function updateStockLocationAction(id: number, input: Parameters<typeof updateLocation>[1]) {
   const res = await updateLocation(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* ------------------------------------------------------------------ *
+ * Stage A — the lists you pick from, what kind of thing an item is,
+ * and deleting for real.
+ * ------------------------------------------------------------------ */
+
+export async function addListValueAction(kind: string, value: string) {
+  const { addListValue } = await import("@/lib/cocozuri-lists");
+  const res = await addListValue(kind as never, value);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Rewrites the word on every product and item using it — that is the point. */
+export async function renameListValueAction(id: number, value: string) {
+  const { renameListValue } = await import("@/lib/cocozuri-lists");
+  const res = await renameListValue(id, value);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Only a person can say two spellings are one thing. The screen suggests. */
+export async function mergeListValuesAction(keepId: number, mergeId: number) {
+  const { mergeListValues } = await import("@/lib/cocozuri-lists");
+  const res = await mergeListValues(keepId, mergeId);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function deleteListValueAction(id: number) {
+  const { deleteListValue } = await import("@/lib/cocozuri-lists");
+  const res = await deleteListValue(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function setItemKindAction(id: number, kind: string | null) {
+  const { setItemKind } = await import("@/lib/cocozuri-lists");
+  const res = await setItemKind(id, kind);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** The sweep for the handful nobody has classified. */
+export async function setItemKindsAction(ids: number[], kind: string) {
+  const { setItemKinds } = await import("@/lib/cocozuri-lists");
+  const res = await setItemKinds(ids, kind);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ DELETING FOR REAL, and the rule is ERPNext's own: a draft goes; something
+ * acted on is cancelled first; and anything still pointed at NAMES what points
+ * at it rather than failing with a database error nobody can read.
+ */
+export async function deleteProductAction(id: number) {
+  const { deleteProduct } = await import("@/lib/cocozuri-lists");
+  const res = await deleteProduct(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function deleteCustomerAction(id: number) {
+  const { deleteCustomer } = await import("@/lib/cocozuri-lists");
+  const res = await deleteCustomer(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function deleteStockItemAction(id: number) {
+  const { deleteStockItem } = await import("@/lib/cocozuri-lists");
+  const res = await deleteStockItem(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function deleteStockLocationAction(id: number) {
+  const { deleteStockLocation } = await import("@/lib/cocozuri-lists");
+  const res = await deleteStockLocation(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** What points at a record, so nothing is ever removed blind. */
+export async function usageAction(
+  what: "product" | "customer" | "item" | "location", id: number,
+) {
+  const m = await import("@/lib/cocozuri-lists");
+  switch (what) {
+    case "product": return m.productUsage(id);
+    case "customer": return m.customerUsage(id);
+    case "item": return m.stockItemUsage(id);
+    case "location": return m.locationUsage(id);
+  }
+}
+
+/* -------------- what happened, and notes (Stage E) -------------- */
+
+/**
+ * ⚠️ A NOTE IS AN EVENT, in the same stream as everything else — and like
+ * everything else it cannot be edited or deleted afterwards. Events are
+ * append-only, the same rule the general ledger follows.
+ */
+export async function addCommentAction(
+  subjectType: string, subjectId: number | null, subjectRef: string | null, body: string,
+) {
+  const { addComment } = await import("@/lib/cocozuri-events");
+  const res = await addComment(subjectType as never, subjectId, subjectRef, body);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* ---------------- what to MAKE today (Stage C) ---------------- */
+
+/**
+ * ⚠️ THE ORDER FORM IS A PRODUCTION PLAN, not a purchase order (owner, 27 Aug
+ * 2026). It moves no stock and creates nothing — a line becomes real only when
+ * somebody starts a batch from it.
+ */
+export async function createPlanAction(input: Parameters<typeof import("@/lib/cocozuri-plan").createPlan>[0]) {
+  const { createPlan } = await import("@/lib/cocozuri-plan");
+  const res = await createPlan(input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Lines already started as a batch are kept, whatever the caller sends. */
+export async function updatePlanAction(
+  id: number, input: Parameters<typeof import("@/lib/cocozuri-plan").updatePlan>[1],
+) {
+  const { updatePlan } = await import("@/lib/cocozuri-plan");
+  const res = await updatePlan(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function issuePlanAction(id: number) {
+  const { issuePlan } = await import("@/lib/cocozuri-plan");
+  const res = await issuePlan(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refused once any line has been started — that batch is real work. */
+export async function cancelPlanAction(id: number, reason: string | null) {
+  const { cancelPlan } = await import("@/lib/cocozuri-plan");
+  const res = await cancelPlan(id, reason);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ A draft only, and only while nothing has been started — the Stage A rule. */
+export async function deletePlanAction(id: number) {
+  const { deletePlan } = await import("@/lib/cocozuri-plan");
+  const res = await deletePlan(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ IT GOES THROUGH `openBatch`, the door that already exists. A second way of
+ * opening a batch would be a second set of rules about numbering and about what
+ * a recipe means, and they would drift.
+ */
+export async function startPlanLineAction(lineId: number) {
+  const { startLine } = await import("@/lib/cocozuri-plan");
+  const res = await startLine(lineId);
+  if (res.ok) refresh();
+  return res;
+}
+
+/* ---------------------- who we buy from (Stage B) ---------------------- */
+
+/**
+ * ⚠️ WRITES TO THE SHARED VENDOR REGISTER, not a CocoZuri list. One list, two
+ * doors — and the second door was needed: the register was found EMPTY across
+ * the whole system while every purchase carried a typed name, which is what
+ * telling somebody to go to another module actually costs.
+ */
+export async function saveSupplierAction(
+  id: number | null, input: { name: string; contactName?: string | null; email?: string | null; phone?: string | null; notes?: string | null },
+) {
+  const { saveSupplier } = await import("@/lib/cocozuri-suppliers");
+  const res = await saveSupplier(id, input);
+  if (res.ok) refresh();
+  return res;
+}
+
+/** ⚠️ Refused while a purchase names them — it says how many. */
+export async function deleteSupplierAction(id: number) {
+  const { deleteSupplier } = await import("@/lib/cocozuri-suppliers");
+  const res = await deleteSupplier(id);
+  if (res.ok) refresh();
+  return res;
+}
+
+export async function setSupplierActiveAction(id: number, active: boolean) {
+  const { setSupplierActive } = await import("@/lib/cocozuri-suppliers");
+  const res = await setSupplierActive(id, active);
   if (res.ok) refresh();
   return res;
 }
@@ -519,7 +794,15 @@ export async function openBatchAction(input: OpenBatchInput) {
   return res;
 }
 
-/** ⚠️ Only an OPEN batch — a closed one has already moved stock. */
+/**
+ * Correct a running batch — the date, who is making it, the recipe, the multiple.
+ *
+ * ⚠️ ONLY AN OPEN BATCH. A closed one has already moved stock; reopen it first.
+ *
+ * ⚠️ AND CHANGING THE RECIPE RE-FREEZES THE SNAPSHOT the batch is judged
+ * against — leaving it behind would measure the batch against a recipe it is no
+ * longer being made from, which is the very fault the snapshot exists to end.
+ */
 export async function updateBatchAction(id: number, input: Partial<OpenBatchInput>) {
   const res = await updateBatch(id, input);
   if (res.ok) refresh();
@@ -537,6 +820,50 @@ export async function closeBatchAction(id: number, input: CloseBatchInput) {
   return res;
 }
 
+/**
+ * ⚠️ FETCH MATERIALS WHILE A BATCH IS STILL RUNNING — the answer to a batch
+ * that takes days. Consuming at close is right for a morning's work, but it
+ * leaves the raw-material shelf reading high for the whole of a longer run, and
+ * a stock-take taken in the middle of one finds a shortfall nobody can explain.
+ *
+ * ⚠️ WHAT IS FETCHED IS TAKEN OFF WHAT CLOSING TAKES, so nothing is counted
+ * twice — and abandoning the batch puts it all back.
+ */
+export async function drawMaterialsAction(
+  batchId: number, draws: { itemId: number; qty: number }[], onDate?: string,
+) {
+  const { drawMaterials } = await import("@/lib/cocozuri-batch");
+  const res = await drawMaterials(batchId, draws, onDate);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ PUT PART OF A BATCH ON THE SHELF BEFORE IT IS FINISHED — two hundred bars
+ * on Monday and the rest on Wednesday, which was one batch or two with no way to
+ * say which. It is ONE batch that finished twice: what comes out early goes on
+ * the shelf early carrying the same lot, and closing puts on only the rest.
+ */
+export async function recordOutputAction(batchId: number, producedQty: number, onDate?: string) {
+  const { recordOutput } = await import("@/lib/cocozuri-batch");
+  const res = await recordOutput(batchId, producedQty, onDate);
+  if (res.ok) refresh();
+  return res;
+}
+
+/**
+ * ⚠️ PULL THE RECIPE IN AGAIN, on a RUNNING batch only. A closed one keeps the
+ * recipe it was made from for ever — that is the whole point of freezing it.
+ * And it is a deliberate act: the recipe may have been corrected, or changed
+ * for next time, and only the chef knows which.
+ */
+export async function rereadRecipeAction(id: number) {
+  const { rereadRecipe } = await import("@/lib/cocozuri-batch");
+  const res = await rereadRecipe(id);
+  if (res.ok) refresh();
+  return res;
+}
+
 /** ⚠️ Reverses the movements rather than erasing them. */
 export async function reopenBatchAction(id: number, reason: string | null) {
   const res = await reopenBatch(id, reason);
@@ -544,8 +871,9 @@ export async function reopenBatchAction(id: number, reason: string | null) {
   return res;
 }
 
-/** ⚠️ Costs nothing, deliberately — materials are not consumed until close, so
- *  nobody has a reason to avoid opening a batch "just in case". */
+/** ⚠️ Costs nothing where nothing was fetched — materials are not consumed
+ *  until close, so nobody has a reason to avoid opening a batch "just in case".
+ *  A batch that DID fetch has its materials put back on the shelf. */
 export async function cancelBatchAction(id: number, reason: string | null) {
   const res = await cancelBatch(id, reason);
   if (res.ok) refresh();

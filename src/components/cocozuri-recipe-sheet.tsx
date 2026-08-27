@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { Combobox } from "@/components/combobox";
+import { byKindRelevance, kindsForRecipeLine } from "@/lib/cocozuri-lists-shared";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { money } from "@/lib/cocozuri-shared";
@@ -83,6 +84,24 @@ export function CocozuriRecipeSheet({
     return m;
   }, [items, labelOf]);
   const itemNames = useMemo(() => [...byName.keys()].sort(), [byName]);
+
+  /* ⚠️ THE PICKER FOLLOWS THE LINE'S KIND, which is what Stage A's `kind`
+     field bought. It offered all 323 items for every line, so putting a finished
+     bar into a recipe as an ingredient took one mis-click.
+
+     ⚠️ IT NARROWS, IT DOES NOT GATEKEEP. An item nobody has classified is still
+     offered — sorted after the likely ones, never hidden — because hiding it
+     would make the gap invisible and block real work on a row whose only fault
+     is that nobody has got to it yet. */
+  const namesFor = useMemo(
+    () => (lineKind: CzRecipeKind) => {
+      const wanted = kindsForRecipeLine(lineKind);
+      return [...byName.entries()]
+        .sort(([, a], [, b]) => byKindRelevance<CzStockItem>(wanted)(a, b))
+        .map(([label]) => label);
+    },
+    [byName],
+  );
 
   const [name, setName] = useState(recipe?.name ?? "");
   /* ⚠️ SEEDED FROM THE ID, THROUGH THE SAME LABEL — lazily, so it happens once
@@ -235,11 +254,12 @@ export function CocozuriRecipeSheet({
               return (
                 <div key={r.key} className="grid grid-cols-[minmax(0,1fr)_130px_90px_110px_28px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
                   <Combobox
+                    key={`${r.key}-${r.kind}`}
                     defaultValue={r.itemName}
-                    options={itemNames}
+                    options={namesFor(r.kind)}
                     onCommit={(v) => setRow(r.key, { itemName: v })}
                     onInput={(v) => setRow(r.key, { itemName: v })}
-                    placeholder="What goes in"
+                    placeholder={r.kind === "packaging" ? "Which packaging" : "What goes in"}
                   />
                   {/* ⚠️ The owner's own three headings (note #31). "Finishing" is
                       his word and is recorded as written — nobody has said
@@ -356,8 +376,13 @@ export function CocozuriRecipeSheet({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  /* ⚠️ `justify-end`, AND IT IS NOT COSMETIC. A grid cell stretches to the
+     tallest row, so a label that wraps onto two lines pushed ITS control down
+     while a one-line label left its control at the top — the boxes in one row
+     sat at two different heights. Pushing label and control to the BOTTOM of
+     the cell lines every control up whatever the labels do. */
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex h-full flex-col justify-end gap-1">
       <span className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">{label}</span>
       {children}
     </label>

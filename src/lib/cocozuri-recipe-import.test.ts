@@ -13,7 +13,7 @@ import type { CzStockItem } from "./cocozuri-stock-shared";
  * ------------------------------------------------------------------ */
 
 const item = (id: number, name: string, locationId = 3, over: Partial<CzStockItem> = {}): CzStockItem => ({
-  id, locationId, productId: null, name, uom: "GM", category: null,
+  id, locationId, productId: null, name, uom: "GM", category: null, kind: null, reorderLevel: null,
   shelfLifeDays: null, sortOrder: id, archived: false, ...over,
 });
 

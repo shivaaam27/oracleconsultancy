@@ -3,7 +3,8 @@ import { cocozuriCompany, defaultVatRate, getCustomer, listPrices } from "@/lib/
 import { priceInForce, vatRateFor } from "@/lib/cocozuri-shared";
 import { listItems, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem } from "@/lib/cocozuri-stock-shared";
-import { pickFefo } from "@/lib/cocozuri-trace";
+import { lotsOnShelf, pickFefoMany } from "@/lib/cocozuri-trace";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
   counterBlockers, nextCounterRef,
   type CzCounterLine, type CzCounterSale, type CzPaidBy,
@@ -144,6 +145,18 @@ export async function getCounterSale(id: number): Promise<CzCounterSale | null> 
   );
 }
 
+export type CounterOption = {
+  itemId: number;
+  name: string;
+  uom: string;
+  price: number | null;
+  /** ⚠️ A LABEL, NOT AN ALLOCATION — the lot that would go out first. */
+  batchNo: string | null;
+  /** How many lots are behind it, so a form can say when a sale will span two. */
+  lots: number;
+  onHand: number;
+};
+
 /**
  * What a counter can sell, with the price already worked out.
  *
@@ -157,17 +170,28 @@ export async function getCounterSale(id: number): Promise<CzCounterSale | null> 
  */
 export async function counterOptions(
   locationId: number, customerId?: number | null, onDate?: string,
-): Promise<{ itemId: number; name: string; uom: string; price: number | null; batchNo: string | null; batchId: number | null; onHand: number }[]> {
-  const [ctx, prices, moves] = await Promise.all([context(), listPrices(), listMoves({ locationId })]);
+): Promise<CounterOption[]> {
+  const [ctx, prices, moves, lots] = await Promise.all([
+    context(), listPrices(), listMoves({ locationId }), lotsOnShelf(locationId),
+  ]);
   const day = onDate || todayInDar();
 
-  const out: { itemId: number; name: string; uom: string; price: number | null; batchNo: string | null; batchId: number | null; onHand: number }[] = [];
+  const out: CounterOption[] = [];
   for (const item of ctx.items.filter((i) => i.locationId === locationId)) {
     const onHand = moves.filter((m) => m.itemId === item.id).reduce((t, m) => t + m.qty, 0);
-    // ⚠️ Suggested FIRST-EXPIRED-FIRST-OUT, so the bar closest to its date goes
-    // out of the door first rather than sitting there until it cannot be sold.
-    const fefo = await pickFefo(item.id, 1, locationId);
-    const lot = fefo.picks[0]?.lot ?? null;
+    /* ⚠️ WHICH LOT GOES NEXT, AND IT IS ONLY A LABEL. It used to be an
+       allocation for ONE piece that the form then sent back as the lot for the
+       whole line, so thirty bars off a lot with five left were all stamped with
+       that lot — which is worse than no lot at all, because it names one that
+       could not have supplied them. The real allocation is done at the moment of
+       recording, against the quantity actually sold. */
+    const shelf = lots.get(item.id) ?? [];
+    const next = shelf.slice().sort((a, b) => {
+      if (a.expiresOn && b.expiresOn) return a.expiresOn.localeCompare(b.expiresOn) || a.batchId - b.batchId;
+      if (a.expiresOn) return -1;
+      if (b.expiresOn) return 1;
+      return a.batchId - b.batchId;
+    })[0] ?? null;
     out.push({
       itemId: item.id,
       name: nameOf(item),
@@ -175,8 +199,8 @@ export async function counterOptions(
       price: item.productId == null
         ? null
         : priceInForce(prices, { productId: item.productId, customerId: customerId ?? null, on: day })?.price ?? null,
-      batchId: lot?.batchId ?? null,
-      batchNo: lot?.batchNo ?? null,
+      batchNo: next?.batchNo ?? null,
+      lots: shelf.length,
       onHand: Math.round(onHand * 1000) / 1000,
     });
   }
@@ -218,6 +242,12 @@ export type CounterSaleInput = {
  * ⚠️ AND NOTHING IS TAKEN IN PAYMENT. `paidBy` records how the money arrived so
  * the day's takings can be split between the drawer and the phone; it settles
  * nothing and talks to nothing.
+ *
+ * ⚠️ AND THE LOT GOES WITH THE BAR. Each line is allocated across the lots on
+ * that counter FIRST EXPIRED, FIRST OUT — against the quantity actually sold,
+ * not against the one the form was shown when it opened — so the thread from a
+ * bar back to the bag survives the till. What the lots cannot cover still sells,
+ * unattributed.
  */
 export async function recordCounterSale(
   input: CounterSaleInput, by = "web-ui",
@@ -284,17 +314,58 @@ export async function recordCounterSale(
     }
     const id = data?.id as number;
 
+    /* ⚠️ THE LOT GOES OUT OF THE DOOR WITH THE BAR. This was the last break in
+       the recall chain: a counter sale wrote one movement per line carrying
+       whatever lot the form had been shown when it opened — an allocation for a
+       single piece — so thirty bars sold off a lot with five left were all
+       filed against that lot, and "where did this batch go" answered with a
+       quantity that lot never held. Each line is now allocated across the lots
+       actually on that counter, FIRST EXPIRED FIRST OUT, in ONE read of the
+       ledger, and writes one movement per lot.
+
+       ⚠️ A LINE THE LOTS CANNOT COVER STILL SELLS, with no lot against it.
+       Refusing would stop somebody writing down a real sale of chocolate that
+       predates lot tracking; leaving it out would say less went than really did.
+       Unattributed is the truth, and the same answer transfers give. */
+    /* ⚠️ KEYED BY LINE, NEVER BY ITEM. Two lines of one sale may name the same
+       chocolate, and keeping the split under the item would let the second line
+       overwrite the first — then both lines would post the SECOND line's
+       movements and twice as much chocolate would leave the shelf.
+       `pickFefoMany` is told about both and shares the shelf between them. */
+    type LotPart = { batchId: number | null; batchNo: string | null; qty: number };
+    const wanting = clean.map((l, i) => ({ i, l })).filter((x) => x.l.batchId == null);
+    const allocations = wanting.length
+      ? await pickFefoMany(wanting.map((x) => ({ itemId: x.l.itemId, need: num(x.l.qty) })), input.locationId)
+      : [];
+    // A lot named on the line itself wins — somebody chose it deliberately.
+    const lotsFor: LotPart[][] = clean.map((l) =>
+      l.batchId == null ? [] : [{ batchId: l.batchId, batchNo: null, qty: num(l.qty) }]);
+    wanting.forEach((x, n) => {
+      const a = allocations[n];
+      const parts: LotPart[] = (a?.picks ?? []).map((p) => ({ batchId: p.lot.batchId, batchNo: p.lot.batchNo, qty: p.qty }));
+      if ((a?.short ?? 0) > 0.0005) parts.push({ batchId: null, batchNo: null, qty: a!.short });
+      lotsFor[x.i] = parts.length ? parts : [{ batchId: null, batchNo: null, qty: num(x.l.qty) }];
+    });
+
     const { error: lineErr } = await sb.from("cz_counter_sale_lines").insert(
-      clean.map((l, i) => ({
-        company_id: company.id,
-        sale_id: id,
-        line_no: i + 1,
-        item_id: l.itemId,
-        batch_id: l.batchId ?? null,
-        description: l.description?.trim() || ctx.itemById.get(l.itemId)?.name || "",
-        qty: num(l.qty),
-        unit_price: num(l.unitPrice),
-      })),
+      clean.map((l, i) => {
+        const parts = lotsFor[i]!;
+        /* ⚠️ THE LINE NAMES A LOT ONLY WHEN THERE IS ONE. A sale spanning two
+           lots has no single answer, and picking either would be a claim the
+           movements contradict. The movements carry the split; the line carries
+           the fact only where it is unambiguous. */
+        const only = parts.length === 1 ? parts[0]!.batchId : null;
+        return {
+          company_id: company.id,
+          sale_id: id,
+          line_no: i + 1,
+          item_id: l.itemId,
+          batch_id: only,
+          description: l.description?.trim() || ctx.itemById.get(l.itemId)?.name || "",
+          qty: num(l.qty),
+          unit_price: num(l.unitPrice),
+        };
+      }),
     );
     if (lineErr) {
       await sb.from("cz_counter_sales").delete().eq("id", id);
@@ -305,15 +376,17 @@ export async function recordCounterSale(
        removed rather than left claiming chocolate went out when it did not.
        NOT `mustNet`: a sale leaves and does not arrive anywhere. */
     const res = await postStockMove(
-      clean.map((l) => ({
-        itemId: l.itemId,
-        locationId: input.locationId,
-        onDate,
-        qty: -num(l.qty),
-        reason: "sale" as const,
-        batchId: l.batchId ?? null,
-        note: reference,
-      })),
+      clean.flatMap((l, i) =>
+        lotsFor[i]!.map((p) => ({
+          itemId: l.itemId,
+          locationId: input.locationId,
+          onDate,
+          qty: -p.qty,
+          reason: "sale" as const,
+          batchId: p.batchId,
+          note: p.batchNo ? `${reference} · ${p.batchNo}` : reference,
+        })),
+      ),
       { type: COUNTER_VOUCHER, id },
       by,
     );
@@ -321,6 +394,11 @@ export async function recordCounterSale(
       await sb.from("cz_counter_sales").delete().eq("id", id);
       return { ok: false, error: res.error };
     }
+    void recordEvent({
+      subjectType: "counter_sale", subjectId: id, subjectRef: reference,
+      kind: "created",
+      summary: `${clean.length} line${clean.length === 1 ? "" : "s"} sold over the ${ctx.locationName.get(input.locationId) ?? "counter"}${input.soldBy?.trim() ? `, by ${input.soldBy.trim()}` : ""}.`,
+    }, by);
     return { ok: true, id, reference };
   }
   return { ok: false, error: "Could not allocate a reference for this sale." };
@@ -355,5 +433,11 @@ export async function cancelCounterSale(
     notes: [sale.notes, `Cancelled: ${reason.trim()}`].filter(Boolean).join(" · "),
     updated_at: NOW(),
   }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "counter_sale", subjectId: id, subjectRef: sale.reference,
+    kind: "cancelled",
+    summary: `Cancelled — the chocolate went back on the shelf. ${reason.trim()}`,
+  }, by);
+  return { ok: true };
 }

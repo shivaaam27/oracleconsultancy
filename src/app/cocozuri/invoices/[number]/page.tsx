@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getInvoiceByNumber, listInvoices, listReceipts } from "@/lib/cocozuri";
+import { defaultVatRate, getInvoiceByNumber, listCustomers, listInvoices, listPrices, listProducts, listReceipts } from "@/lib/cocozuri";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { invoiceBooksState, resolveAccounts } from "@/lib/cocozuri-ledger";
 import { CocozuriInvoiceActions } from "@/components/cocozuri-invoice-actions";
 import { CocozuriCreditApply } from "@/components/cocozuri-credit-apply";
 import { CocozuriBooksStrip } from "@/components/cocozuri-books-strip";
+import { CocozuriDespatch } from "@/components/cocozuri-despatch";
+import { CocozuriInvoiceEdit } from "@/components/cocozuri-invoice-edit";
+import { despatchChoices, despatchFor } from "@/lib/cocozuri-despatch";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { amountInWords, invoiceBalance, invoiceDueDate, invoiceTotals, lineAmount, money, packLabel } from "@/lib/cocozuri-shared";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +66,23 @@ export default async function CocozuriInvoicePage({
     ? await Promise.all([invoiceBooksState(invoice), resolveAccounts(company.id)])
     : [null, null];
 
+  /* ⚠️ WHICH LOTS WENT OUT — on an ISSUED invoice only. A draft has despatched
+     nothing, and a credit note is chocolate coming back, so neither has lots to
+     show. ⚠️ It moves no stock: the day sheet owns the quantity. */
+  const showsDespatch = invoice.status === "issued" && !isCredit;
+  const [despatch, lotChoices] = showsDespatch
+    ? await Promise.all([despatchFor(invoice.id), despatchChoices(invoice.id)])
+    : [[], {}];
+
+  /* ⚠️ ONLY A DRAFT CAN BE EDITED, so the catalogue is only loaded for one.
+     An issued invoice offering an Edit button would be inviting exactly the
+     mistake the rule exists to prevent — and the server refuses it by number. */
+  const events = await timelineFor("invoice", invoice.id);
+  const editable = invoice.status === "draft";
+  const [editCustomers, editProducts, editPrices, editVat] = editable
+    ? await Promise.all([listCustomers(), listProducts(), listPrices(), defaultVatRate()])
+    : [[], [], [], 0];
+
   return (
     <div className="mx-auto w-full max-w-[58rem] space-y-3">
       {/* Everything in here is chrome, and none of it prints. */}
@@ -70,6 +92,28 @@ export default async function CocozuriInvoicePage({
           <ArrowLeft size={13} /> All invoices
         </Link>
         <span className="grow" />
+        {editable && (
+          <CocozuriInvoiceEdit
+            invoice={{
+              id: invoice.id,
+              number: invoice.number,
+              docType: invoice.docType,
+              customerName: invoice.customerName,
+              branchName: invoice.branchName,
+              reference: invoice.reference,
+              lines: invoice.lines.map((l) => ({
+                productId: l.productId,
+                description: l.description,
+                brand: l.brand,
+                packSize: l.packSize,
+                packUnit: l.packUnit,
+                uom: l.uom,
+                qty: l.qty,
+                unitPrice: l.unitPrice,
+              })),
+            }}
+            customers={editCustomers} products={editProducts} prices={editPrices} defaultVat={editVat} />
+        )}
         <CocozuriInvoiceActions id={invoice.id} status={invoice.status} number={invoice.number} />
       </div>
 
@@ -111,6 +155,8 @@ export default async function CocozuriInvoicePage({
           </span>
         </div>
       )}
+
+      {showsDespatch && <CocozuriDespatch lines={despatch} choices={lotChoices} />}
 
       {invoice.status === "draft" && (
         <p className="rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2 text-sm text-warn print:hidden">
@@ -218,6 +264,12 @@ export default async function CocozuriInvoicePage({
 
         {invoice.notes && <p className="mt-2 text-xs text-fg-muted">{invoice.notes}</p>}
       </article>
+
+      {/* ⚠️ What happened to this invoice, and a place to say something about it.
+          Print-hidden — working notes, not part of the document somebody is sent. */}
+      <CocozuriTimeline
+        subjectType="invoice" subjectId={invoice.id} subjectRef={invoice.number}
+        events={events} />
     </div>
   );
 }

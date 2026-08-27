@@ -89,34 +89,34 @@ it worse: the same chocolate is **two item rows joined by `product_id`**, so
 counting only the originating row printed *"still on a shelf: 58"* above a list
 saying 28 had gone to the shop.
 
-## 5 · ⚠️ WHAT IS LEFT TO BUILD, in the order it hurts
+## 5 · ⚠️ WHAT IS LEFT — EVERY BUILD IS DONE (27 Aug 2026)
 
-**Traceability — the last break in the chain**
+**Items 1–7 and 12 are BUILT**; see `cocozuri_manufacturing_plan.md` **§11 and
+§12** for each one and its traps. Item 11 was a "do not build" note. **What is
+left needs the OWNER, not code.**
 
-1. **A counter sale carries no lot.** The same fault just fixed for transfers,
-   at the till end: sell a bar and the thread stops. **This is the final break
-   in the recall chain and should be next.**
-2. **A sales invoice carries no lot either** — a line names a product, not a
-   batch. This is what the plan already admits when it says what a batch earned
-   cannot be known.
+1. ✅ **A counter sale carries its lot.** And it was not "no lot" — it was the
+   WRONG lot: the form held an allocation for ONE piece and sent it back for the
+   whole line. Now allocated FEFO against the quantity actually sold. (§11)
+2. ✅ **A sales invoice says which lots went out** — `cz_invoice_line_lots`,
+   migration **0161**. ⚠️ It moves NO stock (the day sheet does); it is the
+   despatch record that answers **who got it**, which the stock ledger cannot.
+   Trace gained "Who got BATCH-…". (§12)
+3. ✅ **Materials can be fetched while a batch runs** (`drawMaterials`), so a
+   three-day batch stops leaving the raw-material shelf reading high. Closing
+   nets against it. Abandoning puts it back.
+4. ✅ **A batch can be part-finished** (`recordOutput`) — two hundred bars Monday
+   and the rest Wednesday, as ONE batch with one lot and one date.
+5. ✅ **A draft invoice's lines can be edited.** An ISSUED one still cannot.
+6. ✅ **Stock items have a screen** — `/cocozuri/items`, under 1 · Set up.
+7. ✅ **Shelves can be managed**, on the same screen.
+12. ✅ **The order form no longer suggests 195,000 g** — the floor is seven days
+   measured, and a row says WHY it cannot be judged.
 
-**The dynamics the owner asked about**
-
-3. **Nothing can be recorded while a batch is open.** Right for a morning's
-   batch; for one running days the raw-material shelf reads high the whole time
-   and a mid-batch stock-take finds an unexplained shortfall. ⚠️ Needs a
-   decision, because a mid-batch draw breaks "abandoning a batch costs nothing".
-4. **A batch cannot be split or part-finished** — 200 bars Monday and the rest
-   Wednesday is one batch or two, and there is no way to say which.
-
-**Editability still missing**
-
-5. **A DRAFT invoice's lines cannot be edited** — cancel and retype is the only
-   route. (An ISSUED one correctly cannot be: credit note.)
-6. **No stock-item admin in CocoZuri.** The only way to create one is the
-   add-button inside the count sheet.
-7. **Locations cannot be managed at all.** `createStockLocation` /
-   `updateStockLocation` exist and nothing in the UI reaches them.
+⚠️ **AND ONE BUG THAT WOULD HAVE CORRUPTED THE SHELF SILENTLY**, found by
+running it: a reversal is filed under `batch:reversal`, so asking the ledger for
+a batch's movements returns the ORIGINALS whether or not they were already
+reversed. Reopening then abandoning reversed twice. See §12.
 
 **Data, not code — these need the OWNER, not a build**
 
@@ -134,11 +134,7 @@ saying 28 had gone to the shop.
 11. **Counter sale → invoice must NOT be built as a plain invoice.** A counter
     sale is already Dr cash · Cr sales with no debtor; an invoice on top books
     the revenue twice and invents a debtor for money already in the drawer. A
-    customer who wants paper needs a different document. ⚠️ I listed this as a
-    build earlier in the session; that was my error and it is corrected here.
-12. **The order form suggests 195,000 g of milk chocolate** because one day's
-    consumption is divided by one day measured. Arithmetically right, practically
-    silly — it needs a floor on days measured before it suggests at all.
+    customer who wants paper needs a different document.
 
 ## 6 · Demo data left in the live database
 

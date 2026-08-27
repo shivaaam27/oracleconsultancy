@@ -1,0 +1,21 @@
+-- CocoZuri Stage D — a batch remembers the recipe it was MADE FROM.
+--
+-- ⚠️ THIS IS A CORRECTNESS FIX, NOT A FEATURE. A closed batch was compared
+-- against whatever the recipe says TODAY. A recipe is a live instruction and is
+-- meant to be edited — so correcting one next month silently changed the
+-- reported difference on every batch ever made from it, including batches
+-- somebody had already read, explained and signed off.
+--
+-- ⚠️ IT IS FROZEN ONTO THE BATCH, the same way an invoice freezes its customer
+-- details and its VAT rate, and the same way `expires_on` is already frozen at
+-- close. The module's habit is to freeze what a document was acted on with.
+--
+-- ⚠️ AND IT IS RE-READABLE WHILE THE BATCH RUNS. If the recipe itself was wrong
+-- and has since been corrected, the chef can pull the corrected one in — that is
+-- a deliberate act with a button, not a silent rewrite. Once the batch is
+-- CLOSED the snapshot never changes again.
+--
+-- NULL means the batch predates this and falls back to today's recipe, which is
+-- what it has always done.
+
+ALTER TABLE "cz_batches" ADD COLUMN IF NOT EXISTS "recipe_snapshot" jsonb;
