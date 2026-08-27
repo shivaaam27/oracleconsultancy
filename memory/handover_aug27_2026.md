@@ -7,11 +7,10 @@ metadata:
 
 # Handover — 26–27 August 2026
 
-⚠️ **NOTHING IN THIS SESSION IS COMMITTED.** It is all in the working tree of the
-worktree `.claude/worktrees/pes-capital-project-excel-27f073`, on branch
-`claude/details-file-site-integration-d9e048`. **No migration was written and no
-schema changed** — every one of these is code, and the data written during the
-live demo is listed at the foot of this file.
+**Committed and pushed to `master` as `d5e3c5c7`**, so it is deployed.
+**No migration was written and no schema changed** — every one of these is code.
+The data written during the live demo is listed at the foot of this file and is
+still in the live database.
 
 **Verified at the end: `tsc` clean · 1,236 tests pass (63 files).**
 

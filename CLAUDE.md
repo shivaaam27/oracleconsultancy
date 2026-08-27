@@ -20,9 +20,9 @@ a **recipe importer** built for it, the whole module swept for UI consistency
 a material running over must say why; what open batches have promised is shown;
 a batch and a receipt can be corrected; recipe → make it, batch → send it), and
 **the transfer lot fix that finally closes the recall thread**.
-⚠️ **NOTHING FROM IT IS COMMITTED**, and **no migration was written** — it is all
-in the working tree. Its §5 is the list of what is left to build, and its §6 the
-demo data left in the live database.
+**Committed and pushed to master (`d5e3c5c7`)**, and **no migration was written**.
+Its §5 is the list of what is left to build, and its §6 the demo data left in the
+live database.
 
 Before it: `memory/handover_aug25_2026.md` — the session before:
 the Director Brief PDF's cut-off update fixed and the whole thing restyled in
