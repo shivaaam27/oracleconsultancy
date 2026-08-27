@@ -6,6 +6,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { Combobox } from "@/components/combobox";
 import { useToast } from "@/components/toast";
@@ -35,6 +36,8 @@ export function CocozuriProducts({
   showArchived,
   openNew,
   lists,
+  onAShelf,
+  unpriced,
 }: {
   products: CzProduct[];
   /** productId → the standard list price in force, already worked out server-side. */
@@ -50,6 +53,13 @@ export function CocozuriProducts({
    * set up a NEW category, only to tidy old ones.
    */
   lists: { categories: string[]; brands: string[]; units: string[]; packUnits: string[] };
+  /** ⚠️ Product ids that a stock item is linked to. A product on no shelf can
+   *  be invoiced and never counted, made or traced — the mirror of the items
+   *  screen's "not linked to a product", which had no twin here. */
+  onAShelf: number[];
+  /** ⚠️ Worked out ONCE, by `unpricedProductIds`, and shared with the desk —
+   *  "can this be invoiced to anybody today", not "does it have a list price". */
+  unpriced: number[];
 }) {
   const { toast } = useToast();
   const [q, setQ] = useState("");
@@ -70,6 +80,12 @@ export function CocozuriProducts({
   }, [openNew]);
 
   const [merging, setMerging] = useState<Row[] | null>(null);
+  /* ⚠️ THE CHECKS THIS RAIL DID NOT HAVE. It listed categories and archived and
+     nothing else, so "which of these has no price" — the thing that stops an
+     invoice being raised — could only be found by reading 159 rows. */
+  const [check, setCheck] = useState<"noprice" | "noshelf" | null>(null);
+  const shelfSet = useMemo(() => new Set(onAShelf), [onAShelf]);
+  const unpricedSet = useMemo(() => new Set(unpriced), [unpriced]);
 
   const categories = useMemo(() => {
     const set = new Map<string, number>();
@@ -81,6 +97,8 @@ export function CocozuriProducts({
     const term = q.trim().toLowerCase();
     return products
       .filter((p) => (category ? p.category === category : true))
+      .filter((p) => (check === "noprice" ? unpricedSet.has(p.id) : true))
+      .filter((p) => (check === "noshelf" ? !shelfSet.has(p.id) : true))
       .filter((p) =>
         !term ||
         p.name.toLowerCase().includes(term) ||
@@ -95,14 +113,28 @@ export function CocozuriProducts({
         listPrice: listPrices[p.id] == null ? "—" : money(listPrices[p.id]!),
         displayName: p.name,
       }));
-  }, [products, q, category, listPrices]);
+  }, [products, q, category, check, shelfSet, unpricedSet, listPrices]);
 
   const rail: RecordFilter[] = [
-    { key: "all", label: "All products", count: products.length, href: "/cocozuri/products", active: !category && !showArchived, onSelect: () => setCategory(null) },
+    { key: "all", label: "All products", count: products.length, href: "/cocozuri/products", active: !category && !showArchived && !check, onSelect: () => { setCategory(null); setCheck(null); } },
     ...categories.map(([c, n]) => ({
-      key: c, label: c, count: n, href: "/cocozuri/products", active: category === c,
-      group: "Categories", onSelect: () => setCategory(c),
+      key: c, label: c, count: n, href: "/cocozuri/products", active: category === c && !check,
+      group: "Categories", onSelect: () => { setCategory(c); setCheck(null); },
     })),
+    /* ⚠️ WITHOUT A PRICE AN INVOICE CANNOT BE RAISED, and the only way to
+       find one was to read every row. ⚠️ A product on no shelf can be sold on
+       paper and never counted, made or traced — the twin of the items screen's
+       "not linked to a product", which had no mirror here. */
+    {
+      key: "noprice", label: "No price", count: products.filter((p) => unpricedSet.has(p.id)).length,
+      href: "/cocozuri/products", active: check === "noprice", group: "Check",
+      onSelect: () => { setCheck("noprice"); setCategory(null); },
+    },
+    {
+      key: "noshelf", label: "Not on a shelf", count: products.filter((p) => !shelfSet.has(p.id)).length,
+      href: "/cocozuri/products", active: check === "noshelf", group: "Check",
+      onSelect: () => { setCheck("noshelf"); setCategory(null); },
+    },
     { key: "archived", label: "Archived", count: archivedCount, href: "/cocozuri/products?archived=1", active: showArchived, group: "Archive" },
   ];
 
@@ -144,6 +176,30 @@ export function CocozuriProducts({
               className="h-8 text-sm"
             />
             <span className="grow" />
+            <CocozuriHelp title="Products">
+              <p>
+                A product is a thing you <strong>sell</strong>. A stock item is a thing you
+                <strong> count</strong>. They are separate lists on purpose &mdash; raw materials are
+                counted and never invoiced, and the same chocolate sits on two shelves as two rows.
+              </p>
+              <p>
+                <strong>A price is a row with a date</strong>, never a column here. The one in force
+                is the newest whose date has arrived, worked out as the page loads &mdash; which is
+                what stops a price rise rewriting what was charged last month. A customer&rsquo;s own
+                agreed price beats the standard list price.
+              </p>
+              <p>
+                <strong>VAT is the tax contained in the price</strong>, not a percentage added on
+                top. The old spreadsheets worked it out the other way and overstated VAT by
+                TZS 532,296 across 129 invoices.
+              </p>
+              <p>
+                <strong>The duplicates were imported deliberately.</strong> One bar is typed five
+                ways across the workbooks, so it arrived as five rows. Which of them are really one
+                product is a decision for a person, not a string comparison &mdash; use
+                <strong> Merge</strong> when you are sure.
+              </p>
+            </CocozuriHelp>
             <button
               type="button"
               onClick={() => setEditing("new")}
@@ -275,7 +331,12 @@ function ProductSheet({
           </Field>
         </div>
 
-        <Field label="List price (TZS)" hint="What it costs a customer with no agreed price of their own. Changing it adds a new price from today — it does not rewrite what was charged before.">
+        {/* ⚠️ A SHORTCUT, NOT THE ONLY DOOR — and it says so. It can only ever
+            add a standard list price dated TODAY, which is exactly why every
+            imported price is stamped the day of the import. Dates, a customer's
+            own agreed price and removing a wrong row all live on Prices, and
+            both screens go through the same `setPrice`. */}
+        <Field label="List price (TZS)" hint="What a customer with no agreed price of their own pays, from today. It never rewrites what was charged before. For a date of your own, a price agreed with one customer, or to take a wrong one off, use Prices.">
           <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" className={INPUT} placeholder="2500" />
         </Field>
 

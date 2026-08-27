@@ -1,5 +1,7 @@
 import {
   ChefHat,
+  Warehouse,
+  Tag,
   Factory,
   Truck,
   Undo2,
@@ -159,6 +161,10 @@ export const NAV_ROUTES: NavRoute[] = [
      make one used to be an add-button inside a count sheet, and shelves could
      not be managed at all. */
   { id: "cz-items",     href: "/cocozuri/items",      label: "Stock items", icon: Boxes },
+  /* ⚠️ SHELVES HAD NO ADDRESS. They were managed in a sheet inside Stock
+     items, which is not somewhere anybody finds a thing — and a shelf is set up
+     BEFORE the items that sit on it, so it belongs in the rail ahead of them. */
+  { id: "cz-shelves",   href: "/cocozuri/shelves",    label: "Shelves",     icon: Warehouse },
   /* ⚠️ The words you pick from. They were free text, and the catalogue has
      five count units where it has three. */
   { id: "cz-lists",     href: "/cocozuri/lists",      label: "Lists",       icon: ListChecks },
@@ -182,6 +188,10 @@ export const NAV_ROUTES: NavRoute[] = [
   /* ⚠️ The SHARED vendor register, not a second list — it simply lived in
      another module, so from inside CocoZuri nobody could see it. */
   { id: "cz-suppliers",   href: "/cocozuri/suppliers",   label: "Suppliers",  icon: Building2 },
+  /* ⚠️ A PRICE IS A ROW WITH A DATE, and until now the only thing any screen
+     could do was add one dated today for everybody. No customer's own price
+     could be set, no date corrected, no wrong one removed. */
+  { id: "cz-prices",      href: "/cocozuri/prices",      label: "Prices",     icon: Tag },
   { id: "cz-budgets",     href: "/cocozuri/budgets",     label: "Budgets",    icon: Wallet },
   /* Manufacturing Stage 3 — what a bar costs to make, before one is made. */
   { id: "cz-recipes",     href: "/cocozuri/recipes",     label: "Recipes",    icon: ChefHat },
@@ -383,8 +393,29 @@ export const MODULES: NavModule[] = [
        ⚠️ Adding a page? Put it where it happens in the day, not at the end. */
     groups: [
       { label: "Start", ids: ["cz-desk"] },
-      { label: "1 · Set up", ids: ["cz-products", "cz-items", "cz-lists", "cz-customers"] },
-      { label: "2 · Buy", ids: ["cz-suppliers", "cz-buy-list", "cz-budgets", "cz-purchases"] },
+      /* ⚠️ SET UP IS IN THE ORDER YOU FILL IT IN, and that order is a chain of
+         real dependencies — nothing here needs anything BELOW it:
+
+           Lists       the words the forms below pick from
+           Products    what you sell
+           Customers   who you sell it to
+           Prices      what you charge — needs a product, and a customer for an
+                       agreed price, so it cannot come before either
+           Shelves     the places you count; a stock item CANNOT be added
+                       without one
+           Stock items what you count, on those shelves, linked to those
+                       products — so both come first
+           Suppliers   who you buy from, which hands over to 2 · Buy
+
+         ⚠️ SUPPLIERS IS SET-UP, NOT BUYING. It was filed under Buy because that
+         is where it was built. Shelves and Prices had no home at all — a shelf
+         was a sheet inside Stock items, and a price was one box on the product
+         form that could only ever add one dated today. */
+      { label: "1 · Set up", ids: [
+        "cz-lists", "cz-products", "cz-customers", "cz-prices",
+        "cz-shelves", "cz-items", "cz-suppliers",
+      ] },
+      { label: "2 · Buy", ids: ["cz-buy-list", "cz-budgets", "cz-purchases"] },
       { label: "3 · Make", ids: ["cz-order", "cz-recipes", "cz-batches"] },
       { label: "4 · Keep", ids: ["cz-stock", "cz-stock-month", "cz-transfers"] },
       { label: "5 · Sell", ids: ["cz-counter", "cz-invoices"] },

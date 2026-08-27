@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { FileText, Plus, Undo2 } from "lucide-react";
 import { RecordList, type RecordColumn, type RecordFilter } from "@/components/record-list";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { CocozuriInvoiceSheet } from "@/components/cocozuri-invoice-sheet";
 import {
   invoiceDueDate, invoiceTotals, money,
@@ -101,6 +102,34 @@ export function CocozuriInvoices({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search invoices…"
               wrapperClassName="w-[15rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Invoices">
+              <p>
+                <strong>Four things are frozen the day an invoice is raised</strong> &mdash; the
+                customer&rsquo;s details, the VAT rate, the payment terms and each line&rsquo;s
+                description. An invoice prints what was true that day, whatever has changed since.
+              </p>
+              <p>
+                <strong>A draft can be edited; an issued one cannot.</strong> An issued invoice is
+                answered with a credit note, which is the same record with its own numbering &mdash;
+                never a negative invoice.
+              </p>
+              <p>
+                <strong>Issuing does not post it to the books.</strong> Somebody presses Post. The
+                desk says how many are waiting.
+              </p>
+              <p>
+                <strong>VAT is never income.</strong> The sales line is the amount net of VAT, and
+                the VAT is what was <em>contained</em> in the price rather than added to it.
+              </p>
+              <p>
+                <strong>Issuing records which lots went out &mdash; and moves no stock.</strong> The
+                day sheet is what takes chocolate off the shelf; an invoice writing movements too
+                would take the same bars off twice. This is a despatch record, and it answers the
+                half of a recall the stock ledger cannot: not where a lot went, but <em>who got
+                it</em>. It can be corrected after issue, because which lots went in the van is not
+                money.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setRaising("credit_note")}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-fg-muted hover:text-fg">
               <Undo2 size={13} /> Credit note

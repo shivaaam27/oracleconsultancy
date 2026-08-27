@@ -3,8 +3,9 @@ import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem } from "@/lib/cocozuri-stock-shared";
 import { pickFefoMany } from "@/lib/cocozuri-trace";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
-  nextTransferRef, pairItems, receiveBlockers, sendBlockers,
+  nextTransferRef, pairItems, receiveBlockers, sendBlockers, transferCheck,
   type CzTransfer, type CzTransferLine, type CzTransferPair, type CzTransferStatus,
   spreadAcrossLots,
 } from "@/lib/cocozuri-transfer-shared";
@@ -323,6 +324,13 @@ export async function sendTransfer(input: SendTransferInput, by = "web-ui"): Pro
       await sb.from("cz_transfers").delete().eq("id", id);
       return { ok: false, error: res.error };
     }
+    /* ⚠️ "On its way" is the fact, not "moved". A transfer has two moments,
+       and between them the chocolate is on neither shelf. */
+    void recordEvent({
+      subjectType: "transfer", subjectId: id, subjectRef: reference,
+      kind: "created",
+      summary: `Sent — ${outMoves.length} movement${outMoves.length === 1 ? "" : "s"} off the sending shelf. It is on its way, and on neither shelf until it is received.`,
+    }, by);
     return { ok: true, id, reference };
   }
   return { ok: false, error: "Could not allocate a reference for this transfer." };
@@ -459,6 +467,30 @@ export async function receiveTransfer(
     }
     return { ok: false, error: error.message };
   }
+  /* ⚠️ THE SHORTFALL IS NAMED, because it is the whole reason the two moments
+     are recorded separately. Units that never arrived belong to neither shelf
+     and have no movement of their own — this line is where they are answered
+     for.
+
+     ⚠️ AND IT IS `transferCheck` THAT WORKS IT OUT, re-read from the document
+     rather than totted up again here. Summing `check` looks identical and is
+     not: an uncounted line is null there, and adding it in as a zero would file
+     a line nobody got to as chocolate LOST. Two ways of measuring one transfer
+     is how the timeline and the record page come to disagree. */
+  const saved = await getTransferByRef(head.reference as string);
+  const totals = saved ? transferCheck(saved) : null;
+  void recordEvent({
+    subjectType: "transfer", subjectId: id, subjectRef: head.reference as string,
+    kind: "closed",
+    summary: totals == null
+      ? "Received."
+      : totals.received == null
+        ? `Received. ${totals.sent} was sent; nothing has been counted in.`
+        : totals.received < totals.sent
+          ? `Received. ${totals.received} of ${totals.sent} arrived — ${-totals.variance!} did not, and belongs to neither shelf.`
+          : `Received. All ${totals.sent} arrived.`,
+    detail: totals ? { sent: totals.sent, received: totals.received } : null,
+  }, by);
   return { ok: true };
 }
 
@@ -490,7 +522,13 @@ export async function cancelTransfer(id: number, reason: string | null, by = "we
     notes: [head.notes as string | null, `Cancelled: ${reason.trim()}`].filter(Boolean).join(" · "),
     updated_at: NOW(),
   }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "transfer", subjectId: id, subjectRef: head.reference as string,
+    kind: "cancelled",
+    summary: `Cancelled: ${reason.trim()}${existing.length > 0 ? " The stock went back on the sending shelf, by an opposite movement." : ""}`,
+  }, by);
+  return { ok: true };
 }
 
 /** What is on its way right now — the number the desk shows. */

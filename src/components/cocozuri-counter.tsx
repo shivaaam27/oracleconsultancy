@@ -6,6 +6,7 @@ import { AlertTriangle, BookOpen, Ban, Loader2, Plus, Store } from "lucide-react
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { czDate, money } from "@/lib/cocozuri-shared";
@@ -225,6 +226,34 @@ export function CocozuriCounter({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Reference, chocolate, who served…"
               wrapperClassName="w-[16rem]" className="text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="The counter">
+              <p>
+                <strong>This is a record of a sale, not a till.</strong> Nothing here takes payment
+                and nothing settles anything &mdash; cash goes in the drawer, and this is where it
+                gets written down. Which is why the sale can be typed up hours later by somebody who
+                was not the person who served.
+              </p>
+              <p>
+                <strong>The kitchen is the main counter, not the shop.</strong> The kitchen takes the
+                bulk and custom orders; the shop takes the rare walk-in. Whichever you pick is also
+                the shelf the chocolate comes off.
+              </p>
+              <p>
+                <strong>Recording it late is normal. A future date is refused.</strong> A sale dated
+                tomorrow would sit outside today&rsquo;s takings and leave the shelf unchanged until
+                that day arrived.
+              </p>
+              <p>
+                The price is filled in the way an invoice fills it, and then you can change it
+                &mdash; bulk and custom orders are agreed on the spot. Nil is allowed; nothing is
+                not. <strong>A negative is refused: something coming back is a return.</strong>
+              </p>
+              <p>
+                <strong>The lot is worked out from what is actually being sold</strong>, at the
+                moment you record it, soonest-expiring first. If a sale spans two lots the movements
+                carry the split even though the line can only name one.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setSelling(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Write down a sale

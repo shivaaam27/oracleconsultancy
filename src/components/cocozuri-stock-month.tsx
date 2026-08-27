@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ClipboardCheck, ClipboardList, Loader2 } from "lucide-react";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import { BottomSheet } from "@/components/bottom-sheet";
 import {
@@ -132,8 +133,33 @@ export function CocozuriStockMonth({
             materials 171; one bottom sheet at a time is how a stock-take stops
             happening. Nothing is created and nothing is guessed — see
             `CocozuriCountSheet`. */}
+        <span className="ml-auto" />
+        <CocozuriHelp title="The month, and the count">
+          <p>
+            <strong>A count is the position at the END of its date.</strong> Movements on the
+            count&rsquo;s own day are already inside it and are never added again. Get that a day
+            out and every figure after a stock-take is wrong by that day&rsquo;s trade.
+          </p>
+          <p>
+            An <strong>opening</strong> stock is therefore a count dated the day <em>before</em> the
+            book starts.
+          </p>
+          <p>
+            <strong>A count becomes the new truth.</strong> Everything after it carries forward from
+            what was counted, not from what the book had said.
+          </p>
+          <p>
+            <strong>A variance must be explained</strong> &mdash; a count that disagrees with the
+            book and says nothing about why is a number nobody can act on. A count that agrees needs
+            no reason.
+          </p>
+          <p>
+            Counting the whole shelf at once is here because the kitchen has 75 lines and raw
+            materials 171. One item at a time is how a stock-take stops happening.
+          </p>
+        </CocozuriHelp>
         <button type="button" onClick={() => setTakingAll(true)}
-          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
           <ClipboardList size={13} /> Count everything
         </button>
       </div>

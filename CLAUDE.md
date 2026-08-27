@@ -543,7 +543,8 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   **production** (Stage 4) · **transfers** (Stage 5) · **returns and damage**
   (Stage 6) · **profit** (Stage 7) · **money out** (Stage 8) · **trace** (Stage 9)
   · **the counter** (Stage 5b — ⚠️ a record, not a till)
-  · **stock items and shelves** (`/cocozuri/items`)
+  · **stock items** (`/cocozuri/items`) · **shelves** (`/cocozuri/shelves`)
+  · **prices** (`/cocozuri/prices`)
   · **the lists you pick from** (`/cocozuri/lists`)
   · **suppliers** (`/cocozuri/suppliers`)
   · **what to make today** (`/cocozuri/order`) and **what to buy**
@@ -1193,7 +1194,18 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   carry the split.
 - ⚠️ **`cz_events` IS THE MODULE'S MEMORY, AND IT IS APPEND-ONLY** (Stage E,
   migration **0165**; screen `/cocozuri/history`, timelines on the batch,
-  invoice and plan records). No update path and no delete path, the same rule
+  invoice, plan, **recipe, supplier, transfer and return** records — Stage F,
+  27 Aug 2026, no migration).
+  ⚠️ **A TIMELINE ON A RECORD WHOSE DOORS WRITE NOTHING IS NOT A TIMELINE.**
+  Stage E named sixteen subject types and only five had a door recording
+  anything; the rest read as "nothing has happened here" rather than "nothing is
+  being written down". Stage F added the doors for **recipe · supplier ·
+  transfer · return · purchase** (create/update/cancel/delete, and each
+  document's own moments) before putting the widget on any screen. **Adding a
+  subject means adding its doors, not its widget.**
+  ⚠️ **Purchases and counter sales still have NO record page**, so they carry
+  no timeline; their events are read on `/cocozuri/history`. Payments and money
+  in record no events at all yet. No update path and no delete path, the same rule
   `gl_entries` follows. ⚠️ **A COMMENT IS ONE OF THE KINDS**, not a second
   table — two lists would have to be merged and kept in date order on every
   screen. ⚠️ **THE REFERENCE IS FROZEN ON THE EVENT, NEVER JOINED**, because
@@ -1300,7 +1312,10 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   archive still exists.**
 - ⚠️ **`CocozuriHelp` IS WHERE EXPLANATIONS GO NOW.** A working screen says what
   a field IS; anything explaining WHY goes in the Help panel, one click away.
-  Do not write another paragraph into a form.
+  Do not write another paragraph into a form. **Every screen in the CocoZuri rail
+  carries one except the desk** (Stage F — nineteen added 27 Aug 2026), and a
+  **record page gets its OWN panel**, covering what that record's buttons do,
+  rather than a copy of its list's.
 - ⚠️ **THE ORDER FORM IS WHAT TO MAKE TODAY, NOT WHAT TO BUY** (owner, 27 Aug
   2026). It is currently built as a buying screen; Stage C reshapes it into a
   dated, numbered production plan. Do not build a purchase order.
@@ -1340,9 +1355,72 @@ chocolate made, sold to 14 supermarkets, plus a shop. Rebuilt from 18 spreadshee
   and retyping was never a rule, only a missing screen. The lines are REPLACED,
   the number never moves, and changing the customer **re-freezes** the VAT rate,
   terms, currency and details.
-- ⚠️ **`/cocozuri/items` IS WHERE STOCK ITEMS AND SHELVES ARE MANAGED** (1 · Set
-  up). An item's SHELF cannot change once it exists (its movements are filed
-  against it) and a shelf is never deleted, only taken out of use.
+- ⚠️ **`/cocozuri/items` IS WHERE STOCK ITEMS ARE MANAGED, `/cocozuri/shelves`
+  THE SHELVES** (1 · Set up; the shelves screen was a bottom sheet inside items
+  until 27 Aug 2026, and a shelf is set up BEFORE the items on it). An item's
+  SHELF cannot change once it exists (its movements are filed against it) and a
+  shelf is never deleted, only taken out of use.
+- ⚠️ **THE ITEMS RAIL FILTERS BY `kind`, AND THE SHELF IS NOT THE KIND.** "Where
+  do I add a raw material" had no answer: the rail grouped by SHELF, and the
+  shelf NAMED "Raw materials" is a different field that agrees with `kind` only
+  because the backfill used one to guess the other. **Packaging reads 0** — said
+  plainly rather than left invisible.
+- ⚠️ **SET UP IS ORDERED BY THE ORDER YOU FILL IT IN, and it is a real
+  dependency chain — nothing in it needs anything BELOW it:** Lists (the words
+  the forms pick from) → Products → Customers → Prices (needs a product, and a
+  customer for an agreed price) → Shelves → Stock items (**cannot be added
+  without a shelf**, and links to a product) → Suppliers, which hands over to
+  2 · Buy. It was arranged by screen type before, which told a new starter to
+  begin at Products — the one thing that leaves them unable to add an item.
+- ⚠️ **THE MODULE WAS EMPTIED ON 27 AUG 2026 AT THE OWNER'S WORD** — all 2,149
+  rows across 30 `cz_*` tables, `RESTART IDENTITY`, so he could enter everything
+  himself. Backup first (`backups/2026-08-27T19-33-50Z`, 172 tables / 31,154
+  rows). **`scripts/cz-reset.ts --yes` is the tool**, and it REFUSES if anything
+  outside the module points into it — `TRUNCATE … CASCADE` empties whatever
+  holds a reference. **The chart of accounts (72) was KEPT** (it is the ledger's
+  template, not CocoZuri's data), and so was
+  `settings["cocozuri.seriesFloor"]`, which stops the first invoice colliding
+  with a real one on paper. `scripts/cz-audit-size.ts` counts rows and sizes and
+  writes nothing.
+- ⚠️ **AN EMPTY STATE IS A SCREEN, AND IT IS ONLY EVER SEEN IN THE STATE NOBODY
+  TESTS IN.** With the module emptied, the Stock book told the owner to run
+  `npm run seed:cz-stock` — which would have re-imported the 323 items he had
+  just cleared. Both stock screens point at **Shelves** and **Stock items** now.
+  Never put a terminal command in an empty state.
+- ⚠️ **A MOVED PAGE MUST BE FOLLOWED BY EVERY ADDRESS POINTING INTO IT, ITS OWN
+  INCLUDED.** Stage C moved the buying half to `/cocozuri/order/materials` and
+  left one `router.push("/cocozuri/order")` behind, so every shelf and cover
+  button on **What to buy** threw you onto the production plan — the screen was
+  unusable from the split until 27 Aug. `tsc`, 1,299 tests and a sweep that
+  LOADED all 22 screens all passed, because the page renders perfectly. **Only
+  pressing the button finds this.**
+- ⚠️ **`/cocozuri/prices` EXISTS BECAUSE THREE THINGS WERE UNREACHABLE.** The
+  product form's one price box could only ever add a **standard list price dated
+  today**, so: a customer's own agreed price could not be set (while **85 of 159
+  prices already ARE customer prices**, imported and unmaintainable);
+  `effectiveFrom` was never passed, which is why every price is stamped the
+  import day and **nothing could correct it**; and `deletePrice` had been written
+  with no caller. The product form stays as a shortcut and says so — both go
+  through the same `setPrice`.
+- ⚠️ **`unpricedProductIds()` IS THE ONE TEST FOR "IT CANNOT BE INVOICED".** The
+  desk counted distinct ids in `cz_prices` and said 46; the products rail counted
+  products with no list price in force and said 53. Both were labelled "no price"
+  and both were wrong about a real case — a price starting next month is not a
+  price today, and a customer's agreed price IS enough to raise an invoice.
+- ⚠️ **`reorder_level` HAS A FORM NOW, AND `belowReorder()` IS FINALLY CALLED.**
+  The column, the write path and a tested pure function had all existed since
+  Stage C with **nothing able to set a level**, so nothing was ever reported low.
+  It fills in the suggestion on What to buy only **where the rate cannot give
+  one** — a rate knows how fast the stuff actually goes.
+- ⚠️ **A LINKED ITEM DISAGREEING WITH ITS PRODUCT IS SAID, NEVER SWAPPED.** The
+  schema claimed the product's name "wins"; nothing ever made that true. Renaming
+  rows under the people who count from those sheets would be worse — so a rail
+  check counts them and the form offers the product's wording in one press.
+  ⚠️ **A blank on one side is not a disagreement.**
+- ⚠️ **A `useMemo` CALLBACK RUNS DURING THE RENDER THAT DECLARES IT.** A `const`
+  arrow function defined BELOW it is still in its temporal dead zone: What to buy
+  came down entirely with "Cannot access 'suggestionFor' before initialization"
+  while `tsc` was clean and 1,299 tests passed. **Only the browser finds this.**
 - ⚠️ **THE ORDER FORM NEEDS `MIN_DAYS_MEASURED` (7) BEFORE IT QUOTES A RATE.**
   It was two, and consumption is LUMPY — a batch takes five kilos in a morning
   and none for a fortnight — so two days suggested ordering 195,000 g of milk

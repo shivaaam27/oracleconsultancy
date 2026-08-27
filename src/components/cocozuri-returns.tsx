@@ -8,6 +8,7 @@ import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { qty as qtyText, todayInDar, type CzStockLocation } from "@/lib/cocozuri-stock-shared";
@@ -193,6 +194,36 @@ export function CocozuriReturns({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Reference, customer, chocolate…"
               wrapperClassName="w-[16rem]" className="text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Returns and damage">
+              <p>
+                <strong>One document, two doors, and only one of them moves stock inwards.</strong> A
+                customer&rsquo;s return left the books the day it was sold, so booking it in puts the
+                chocolate back on the shelf. Breakage found here never went anywhere, so booking it
+                moves nothing at all. They look identical on the screen and they are not.
+              </p>
+              <p>
+                <strong>&ldquo;Repairing&rdquo; is the gap between booking in and sorting out</strong>
+                &mdash; what has come back, less what has been repacked and what has been thrown. It
+                is the exact twin of a transfer&rsquo;s stock in transit. You can settle a return
+                more than once: five bars repacked today and five thrown next week is the real case.
+              </p>
+              <p>
+                <strong>A scrap must say what kind of loss it was and what actually happened.</strong>
+                Naming the kind is not enough.
+              </p>
+              <p>
+                <strong>The credit note is a link, not a second document.</strong> It is priced off
+                the <em>original</em> invoice rather than today&rsquo;s list, credits what came back
+                rather than what was repacked, and lands as a draft.
+              </p>
+              <p>
+                <strong>A sales return reverses the sale but does not put the cost back</strong>
+                &mdash; nothing ever took the cost of that sale out of stock, so it is still sitting
+                there and putting it back would count the same chocolate twice. Writing damaged stock
+                <em>off</em> is different and is posted, at what it cost, never at what it would have
+                sold for.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setBooking(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a return

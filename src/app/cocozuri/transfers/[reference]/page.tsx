@@ -4,6 +4,9 @@ import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { czDate } from "@/lib/cocozuri-shared";
 import { CocozuriTransferReceive } from "@/components/cocozuri-transfer-receive";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { getTransferByRef } from "@/lib/cocozuri-transfer";
 import { CZ_TRANSFER_STATUS_LABEL, daysInTransit, transferCheck } from "@/lib/cocozuri-transfer-shared";
@@ -33,7 +36,10 @@ export default async function CocozuriTransferPage({
   const transfer = await getTransferByRef(decodeURIComponent(reference));
   if (!transfer) notFound();
 
-  const company = await cocozuriCompany();
+  const [company, events] = await Promise.all([
+    cocozuriCompany(),
+    timelineFor("transfer", transfer.id),
+  ]);
   const check = transferCheck(transfer);
   const waiting = daysInTransit(transfer, todayInDar());
 
@@ -42,6 +48,36 @@ export default async function CocozuriTransferPage({
       <PageHeader
         title={transfer.reference}
         sub={`${transfer.fromLocationName ?? "?"} → ${transfer.toLocationName ?? "?"} · ${czDate(transfer.onDate)}${company ? ` · ${company.name}` : ""}`}
+        action={
+          <CocozuriHelp title="This transfer">
+            <p>
+              <strong>Record what arrived, not what was sent.</strong> The kitchen says 20 and the
+              shop counts 18 &mdash; recording 20 at both ends is what makes the shop&rsquo;s stock
+              drift, and then a stock-take blames the shop for something lost in a crate.
+            </p>
+            <p>
+              <strong>Anything missing gets no movement of its own.</strong> It belongs to neither
+              shelf. Both sides carry {transfer.reference}, so what this transfer lost is always
+              answerable &mdash; inventing a third movement to tidy the arithmetic would put those
+              units somewhere they never were.
+            </p>
+            <p>
+              A shortfall has to be explained. <strong>More arriving than was sent is refused
+              outright</strong>: stock cannot appear in transit, so that is a typo rather than a
+              windfall.
+            </p>
+            <p>
+              <strong>The lots that arrive are the lots that left</strong>, read off this
+              transfer&rsquo;s own movements. Re-picking at the receiving end would attribute the
+              arriving bars to whatever the shop already had, which is how a recall names the wrong
+              batch.
+            </p>
+            <p>
+              Cancelling puts the stock back on the sending shelf with an opposite movement, never by
+              erasing. One that has arrived cannot be cancelled &mdash; send it back the other way.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -145,6 +181,13 @@ export default async function CocozuriTransferPage({
         Every movement here carries {transfer.reference}, so what this transfer cost is always
         answerable.
       </p>
+
+      {/* ⚠️ A transfer has TWO MOMENTS, and the gap between them is the whole
+          reason this record exists. The timeline is where that gap is dated —
+          sent on one day, received on another, short by two. */}
+      <CocozuriTimeline
+        subjectType="transfer" subjectId={transfer.id} subjectRef={transfer.reference}
+        events={events} />
     </div>
   );
 }

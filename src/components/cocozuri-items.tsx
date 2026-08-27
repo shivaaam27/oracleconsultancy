@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Archive, Boxes, Loader2, Pencil, Plus, Store, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, Boxes, Loader2, Pencil, Plus, Trash2, Warehouse } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
@@ -14,9 +15,8 @@ import { typedNumberOr } from "@/lib/typed-number";
 import { CocozuriHelp } from "@/components/cocozuri-help";
 import { CZ_ITEM_KINDS, itemKindLabel, type CzItemKind } from "@/lib/cocozuri-lists-shared";
 import {
-  archiveStockItemAction, createStockItemAction, createStockLocationAction,
-  deleteStockItemAction, deleteStockLocationAction,
-  updateStockItemAction, updateStockLocationAction,
+  archiveStockItemAction, createStockItemAction,
+  deleteStockItemAction, updateStockItemAction,
 } from "@/app/cocozuri/actions";
 
 /* ------------------------------------------------------------------ *
@@ -37,6 +37,7 @@ type Row = CzStockItem & {
   locationName: string;
   productName: string | null;
   shelfLifeLabel: string;
+  levelLabel: string;
   linkLabel: string;
   kindLabel: string;
 };
@@ -46,7 +47,9 @@ export function CocozuriItems({
 }: {
   items: CzStockItem[];
   locations: CzStockLocation[];
-  products: { id: number; name: string }[];
+  /** ⚠️ Name, category and unit — because an item linked to a product may
+   *  disagree with it on any of the three, and nothing anywhere said so. */
+  products: { id: number; name: string; category: string | null; uom: string }[];
   /** The managed lists, so a category or a unit is picked and never re-typed. */
   categories: string[];
   units: string[];
@@ -57,29 +60,76 @@ export function CocozuriItems({
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<CzStockItem | null>(null);
-  const [shelves, setShelves] = useState(false);
+
   const [where, setWhere] = useState<number | null>(null);
-  const [view, setView] = useState<"live" | "archived" | "unlinked" | "nolife" | "nokind">("live");
+  const [view, setView] = useState<"live" | "archived" | "unlinked" | "nolife" | "nokind" | "nolevel" | "differs">("live");
+  /* ⚠️ WHAT SORT OF THING, which the rail could not filter by at all — it
+     grouped by SHELF, and the shelf named "Raw materials" is a different field
+     from `kind`. They agree today only because the backfill used one to guess
+     the other; the first bag of packaging bought onto the kitchen shelf parts
+     them. Asking "show me the raw materials" had no answer. */
+  const [kindView, setKindView] = useState<CzItemKind | null>(null);
 
   const locationName = useMemo(
     () => new Map(locations.map((l) => [l.id, l.name])),
     [locations],
   );
+  const productById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
   const productName = useMemo(
-    () => new Map(products.map((p) => [p.id, p.name])),
+    () => new Map(products.map((p) => [p.id, p.name] as const)),
     [products],
   );
 
+  /* ⚠️ WHERE A LINKED ITEM DISAGREES WITH ITS PRODUCT. The schema said the
+     product's name "wins" when one is linked; nothing ever made that true, and
+     the item's own wording is what every screen shows. Rather than swap it
+     silently — which would rename rows under the people who count them — the
+     disagreement is SAID, and can be settled in one press. Same stance as "the
+     recipe has moved on" on a batch. */
+  const differs = useMemo(() => {
+    const out = new Set<number>();
+    for (const i of items) {
+      if (i.archived || i.productId == null) continue;
+      const p = productById.get(i.productId);
+      if (!p) continue;
+      const sameName = p.name.trim().toLowerCase() === i.name.trim().toLowerCase();
+      const sameUom = (p.uom ?? "").trim().toLowerCase() === (i.uom ?? "").trim().toLowerCase();
+      /* ⚠️ A category NOBODY has set on one side is not a disagreement — it is
+         a blank. Only two different answers count. */
+      const a = (p.category ?? "").trim().toLowerCase();
+      const b = (i.category ?? "").trim().toLowerCase();
+      const sameCategory = !a || !b || a === b;
+      if (!sameName || !sameUom || !sameCategory) out.add(i.id);
+    }
+    return out;
+  }, [items, productById]);
+
   const rail: RecordFilter[] = [
-    { key: "live", label: "In use", count: items.filter((i) => !i.archived).length, href: "#", active: view === "live" && where == null, onSelect: () => { setView("live"); setWhere(null); } },
+    { key: "live", label: "In use", count: items.filter((i) => !i.archived).length, href: "#", active: view === "live" && where == null && kindView == null, onSelect: () => { setView("live"); setWhere(null); setKindView(null); } },
     ...locations.map((l) => ({
       key: `loc-${l.id}`,
       label: l.name,
       count: items.filter((i) => !i.archived && i.locationId === l.id).length,
       href: "#",
-      active: where === l.id,
-      onSelect: () => { setView("live"); setWhere(l.id); },
+      active: where === l.id && kindView == null,
+      onSelect: () => { setView("live"); setWhere(l.id); setKindView(null); },
       group: "Shelf",
+    })),
+    /* ⚠️ THE ONE THE RAIL WAS MISSING. "Where do I add a raw material" had no
+       answer here: you could filter by SHELF, and the shelf happens to be named
+       "Raw materials", which is a different field entirely. `kind` is what
+       recipes, packaging and the buy list all read. */
+    ...CZ_ITEM_KINDS.map((k) => ({
+      key: `kind-${k.key}`,
+      label: k.label,
+      count: items.filter((i) => !i.archived && i.kind === k.key).length,
+      href: "#",
+      active: kindView === k.key,
+      onSelect: () => { setView("live"); setWhere(null); setKindView(k.key); },
+      group: "What sort of thing",
     })),
     /* ⚠️ THE ONE THAT EARNS ITS PLACE. An item with no product link can never be
        transferred, invoiced or traced to a sale — it is invisible to half the
@@ -94,7 +144,29 @@ export function CocozuriItems({
       count: items.filter((i) => !i.archived && !i.kind).length,
       href: "#",
       active: view === "nokind",
-      onSelect: () => { setView("nokind"); setWhere(null); },
+      onSelect: () => { setView("nokind"); setWhere(null); setKindView(null); },
+      group: "Check",
+    },
+    /* ⚠️ THE BUY LIST CANNOT REPORT A LOW ITEM UNTIL SOMEBODY SETS A LEVEL, and
+       nothing could set one — the column, the write path and `belowReorder()`
+       all existed with no form behind them. ⚠️ NULL IS NOT NOUGHT: an item with
+       no level is never reported low, which is why the gap has to be countable. */
+    {
+      key: "nolevel",
+      label: "No reorder level",
+      count: items.filter((i) => !i.archived && i.reorderLevel == null).length,
+      href: "#",
+      active: view === "nolevel",
+      onSelect: () => { setView("nolevel"); setWhere(null); setKindView(null); },
+      group: "Check",
+    },
+    {
+      key: "differs",
+      label: "Differs from its product",
+      count: differs.size,
+      href: "#",
+      active: view === "differs",
+      onSelect: () => { setView("differs"); setWhere(null); setKindView(null); },
       group: "Check",
     },
     /* ⚠️ STAGE 9 SAYS EVERYTHING HAS A SHELF LIFE — the owner confirmed it —
@@ -106,7 +178,7 @@ export function CocozuriItems({
       count: items.filter((i) => !i.archived && i.shelfLifeDays == null).length,
       href: "#",
       active: view === "nolife",
-      onSelect: () => { setView("nolife"); setWhere(null); },
+      onSelect: () => { setView("nolife"); setWhere(null); setKindView(null); },
       group: "Check",
     },
     {
@@ -115,10 +187,10 @@ export function CocozuriItems({
       count: items.filter((i) => !i.archived && i.productId == null).length,
       href: "#",
       active: view === "unlinked",
-      onSelect: () => { setView("unlinked"); setWhere(null); },
+      onSelect: () => { setView("unlinked"); setWhere(null); setKindView(null); },
       group: "Check",
     },
-    { key: "archived", label: "Archived", count: items.filter((i) => i.archived).length, href: "#", active: view === "archived", onSelect: () => { setView("archived"); setWhere(null); }, group: "Archive" },
+    { key: "archived", label: "Archived", count: items.filter((i) => i.archived).length, href: "#", active: view === "archived", onSelect: () => { setView("archived"); setWhere(null); setKindView(null); }, group: "Archive" },
   ];
 
   const rows: Row[] = useMemo(() => {
@@ -128,6 +200,9 @@ export function CocozuriItems({
       .filter((i) => (view === "unlinked" ? i.productId == null : true))
       .filter((i) => (view === "nolife" ? i.shelfLifeDays == null : true))
       .filter((i) => (view === "nokind" ? !i.kind : true))
+      .filter((i) => (view === "nolevel" ? i.reorderLevel == null : true))
+      .filter((i) => (view === "differs" ? differs.has(i.id) : true))
+      .filter((i) => (kindView == null ? true : i.kind === kindView))
       .filter((i) => (where == null ? true : i.locationId === where))
       .filter((i) => !term || i.name.toLowerCase().includes(term) || (i.category ?? "").toLowerCase().includes(term))
       .map((i) => ({
@@ -140,6 +215,8 @@ export function CocozuriItems({
            as noise and stops being read at all. The FACT still matters, so it
            is said ONCE, in the rail, where it can be acted on. */
         shelfLifeLabel: i.shelfLifeDays == null ? "—" : `${i.shelfLifeDays}d`,
+        // ⚠️ A dash, not a nought — "nobody has said" is not "never report it low".
+        levelLabel: i.reorderLevel == null ? "—" : qtyText(i.reorderLevel),
         kindLabel: itemKindLabel(i.kind),
         /* ⚠️ IT PRINTED THE ITEM'S OWN NAME BACK AT ITSELF on most rows —
            `AMBER RABDI` beside `AMBER RABDI` — while the ITEM column, the one
@@ -154,7 +231,7 @@ export function CocozuriItems({
             return n.trim().toLowerCase() === i.name.trim().toLowerCase() ? "linked" : n;
           })(),
       }));
-  }, [items, q, view, where, locationName, productName]);
+  }, [items, q, view, where, kindView, differs, locationName, productName]);
 
   async function run(label: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true);
@@ -191,6 +268,11 @@ export function CocozuriItems({
           ) },
           { key: "category", label: "Category", width: "120px", defaultHidden: true, render: (r) => (
             <span className="truncate text-sm text-fg-subtle">{r.category ?? "—"}</span>
+          ) },
+          { key: "levelLabel", label: "Level", width: "72px", align: "right", defaultHidden: true, render: (r) => (
+            <span className={`text-sm tabular ${r.reorderLevel == null ? "text-fg-subtle" : "text-fg-muted"}`}>
+              {r.levelLabel}
+            </span>
           ) },
           { key: "shelfLifeLabel", label: "Lasts", width: "70px", align: "right", defaultHidden: true, render: (r) => (
             <span className={`text-sm tabular ${r.shelfLifeDays == null ? "text-fg-subtle" : "text-fg-muted"}`}>
@@ -253,14 +335,28 @@ export function CocozuriItems({
                 sale — right for a raw material, wrong for a chocolate.
               </p>
               <p>
+                <strong>&ldquo;Never go below&rdquo; is the reorder level</strong>, and it is what
+                lets What to buy report something as low without any history at all. Leaving it
+                empty means nobody has said &mdash; which is not the same as a level of nought, and
+                an item with no level is never reported low.
+              </p>
+              <p>
+                <strong>The shelf and the sort of thing are different questions.</strong> A shelf is
+                where it is counted; the kind is what it is. They agree today only because one was
+                used to guess the other, and the first packaging bought onto the kitchen shelf parts
+                them.
+              </p>
+              <p>
                 An item with stock movements behind it cannot be deleted, only archived. Its
                 movements are the history of a real shelf.
               </p>
             </CocozuriHelp>
-            <button type="button" onClick={() => setShelves(true)}
+            {/* ⚠️ Shelves have their own address now. They were a bottom sheet
+                behind this button, which is not where anybody looks for a thing. */}
+            <Link href="/cocozuri/shelves"
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
-              <Store size={13} /> Shelves
-            </button>
+              <Warehouse size={13} /> Shelves
+            </Link>
             <button type="button" onClick={() => setAdding(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> New item
@@ -286,7 +382,6 @@ export function CocozuriItems({
           categories={categories} units={units}
           onClose={() => { setAdding(false); setEditing(null); }} />
       )}
-      {shelves && <ShelvesSheet locations={locations} items={items} onClose={() => setShelves(false)} />}
     </>
   );
 }
@@ -300,7 +395,7 @@ function ItemSheet({
 }: {
   item: CzStockItem | null;
   locations: CzStockLocation[];
-  products: { id: number; name: string }[];
+  products: { id: number; name: string; category: string | null; uom: string }[];
   categories: string[];
   units: string[];
   onClose: () => void;
@@ -314,15 +409,36 @@ function ItemSheet({
   const [uom, setUom] = useState(item?.uom ?? "PCS");
   const [category, setCategory] = useState(item?.category ?? "");
   const [shelfLife, setShelfLife] = useState(item?.shelfLifeDays == null ? "" : String(item.shelfLifeDays));
+  /* ⚠️ THE FIELD THE BUY LIST HAS BEEN WAITING FOR. The column, the write path
+     and `belowReorder()` were all built in Stage C and no form ever sent one, so
+     nothing could ever be reported low. Empty means NOBODY HAS SAID — which is
+     not a level of nought, and is why it is a string here rather than a 0. */
+  const [reorderLevel, setReorderLevel] = useState(
+    item?.reorderLevel == null ? "" : String(item.reorderLevel),
+  );
   /* ⚠️ NULL IS A REAL ANSWER AND IT IS NOT "OTHER" — "nobody has said" is a job
      somebody has to do, "something else" is a decision somebody made. */
   const [kind, setKind] = useState<CzItemKind | "">((item?.kind as CzItemKind) ?? "");
+
+  /* ⚠️ A BLANK ON ONE SIDE IS NOT A DISAGREEMENT — it is a blank. Only two
+     different answers count as a difference worth reporting. */
+  const linked = productId == null ? null : products.find((p) => p.id === productId) ?? null;
+  const disagreements: string[] = [];
+  if (linked) {
+    if (linked.name.trim().toLowerCase() !== name.trim().toLowerCase()) disagreements.push("the name");
+    if ((linked.uom ?? "").trim().toLowerCase() !== (uom ?? "").trim().toLowerCase()) disagreements.push("the unit");
+    const pc = (linked.category ?? "").trim().toLowerCase();
+    const ic = (category ?? "").trim().toLowerCase();
+    if (pc && ic && pc !== ic) disagreements.push("the category");
+  }
 
   const blocker = !name.trim()
     ? "An item needs a name."
     : !locationId
       ? "Say which shelf it sits on."
-      : shelfLife.trim() !== "" && typedNumberOr(shelfLife) <= 0
+      : reorderLevel.trim() !== "" && typedNumberOr(reorderLevel) < 0
+        ? "A reorder level cannot be negative. Leave it empty if nobody has said."
+        : shelfLife.trim() !== "" && typedNumberOr(shelfLife) <= 0
         ? "A shelf life is a number of days. Leave it empty if nobody has said."
         : null;
 
@@ -338,6 +454,9 @@ function ItemSheet({
       uom,
       category: category.trim() || null,
       shelfLifeDays: shelfLife.trim() === "" ? null : Math.round(typedNumberOr(shelfLife)),
+      // ⚠️ Empty stays NULL. Sending 0 would mean "never report it low", which
+      // is a decision nobody made.
+      reorderLevel: reorderLevel.trim() === "" ? null : typedNumberOr(reorderLevel),
       kind: kind || null,
     };
     const res = item
@@ -405,16 +524,49 @@ function ItemSheet({
           </Field>
         </div>
 
-        <Field label="Sold as">
-          <FluidSelect
-            value={productId == null ? "" : String(productId)}
-            onSelect={(v) => setProductId(v ? Number(v) : null)}
-            placeholder="Not sold — a raw material"
-            options={[
-              { value: "", label: "Not sold — a raw material" },
-              ...products.map((p) => ({ value: String(p.id), label: p.name })),
-            ]} />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* ⚠️ IT EARNS ITS PLACE BECAUSE IT NEEDS NO HISTORY. "What to buy"
+              wants a week of days written down before it will quote a rate at
+              all, so a material bought rarely never gets a suggestion; "never go
+              below 5 kg" works from the moment somebody types it. */}
+          <Field label="Never go below">
+            <input value={reorderLevel} onChange={(e) => setReorderLevel(e.target.value)} inputMode="decimal"
+              className={FIELD} placeholder={`${uom || "PCS"} — leave empty if nobody has said`} />
+          </Field>
+          <Field label="Sold as">
+            <FluidSelect
+              value={productId == null ? "" : String(productId)}
+              onSelect={(v) => setProductId(v ? Number(v) : null)}
+              placeholder="Not sold — a raw material"
+              options={[
+                { value: "", label: "Not sold — a raw material" },
+                ...products.map((p) => ({ value: String(p.id), label: p.name })),
+              ]} />
+          </Field>
+        </div>
+
+        {/* ⚠️ SAID, NEVER ACTED ON. The schema claimed the product's name "wins"
+            when one is linked and nothing ever made that true — so rather than
+            swap the wording under the people who count from these sheets, the
+            disagreement is named and can be settled in one press. Same stance as
+            "the recipe has moved on" on a running batch. */}
+        {linked && disagreements.length > 0 && (
+          <div className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
+            <p>
+              This disagrees with <strong>{linked.name}</strong>, the product it is sold as:{" "}
+              {disagreements.join(", ")}.
+            </p>
+            <button type="button"
+              onClick={() => {
+                setName(linked.name);
+                setUom(linked.uom);
+                if (linked.category) setCategory(linked.category);
+              }}
+              className="mt-1.5 inline-flex h-7 items-center rounded-md border border-warn/40 px-2 text-xs font-medium hover:bg-warn/10">
+              Use the product&rsquo;s wording
+            </button>
+          </div>
+        )}
 
         {kind && (
           <p className="text-sm text-fg-subtle">
@@ -444,171 +596,6 @@ function ItemSheet({
         </div>
       </div>
     </BottomSheet>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * The shelves themselves
- * ------------------------------------------------------------------ */
-
-function ShelvesSheet({
-  locations, items, onClose,
-}: {
-  locations: CzStockLocation[];
-  items: CzStockItem[];
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [thirdLabel, setThirdLabel] = useState("");
-
-  async function run(label: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
-    setBusy(true);
-    const res = await fn();
-    setBusy(false);
-    if (!res.ok) { toast(res.error ?? "That did not work.", { tone: "danger" }); return; }
-    toast(label, { tone: "success" });
-    router.refresh();
-  }
-
-  return (
-    <BottomSheet open onClose={onClose} title="Shelves" maxWidth="max-w-2xl">
-      <div className="flex flex-col gap-3 px-1 pb-2">
-        {/* ⚠️ THE THIRD COLUMN'S NAME IS DATA, NOT CODE. There are four stock
-            sheets and each heads its third movement column with a different
-            word — the shop RETURN, the kitchen DA/SA/TA, raw materials DAMAGE.
-            Nobody has said what DA/SA/TA means, including the owner, so it is
-            stored as written and never translated into a guess. */}
-        <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm text-fg-muted">
-          A shelf is a place stock is counted — the kitchen, the shop, the raw-material store. Each
-          day sheet has a third movement column, and each shelf calls it something different, so the
-          name is kept exactly as it is written rather than translated into a guess.
-        </p>
-
-        <div className="rounded-md border border-border">
-          <div className="grid grid-cols-[minmax(0,1fr)_130px_70px_120px] items-center gap-2 border-b border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
-            <span>Shelf</span>
-            <span>Third column</span>
-            <span className="text-right">Items</span>
-            <span className="text-right">&nbsp;</span>
-          </div>
-          {locations.map((l) => (
-            <ShelfRow key={l.id} shelf={l} count={items.filter((i) => i.locationId === l.id && !i.archived).length}
-              busy={busy} onRun={run} />
-          ))}
-          {locations.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-fg-subtle">No shelves yet.</p>
-          )}
-        </div>
-
-        {adding ? (
-          <div className="space-y-2 rounded-md border border-border bg-bg-subtle px-3 py-2.5">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="What it is called">
-                <input value={name} onChange={(e) => setName(e.target.value)} className={FIELD}
-                  placeholder="Kitchen, Shop, Raw materials…" autoFocus />
-              </Field>
-              <Field label="Its third column">
-                <input value={thirdLabel} onChange={(e) => setThirdLabel(e.target.value)} className={FIELD}
-                  placeholder="Return, DA/SA/TA, Damage…" />
-              </Field>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={busy || !name.trim()}
-                onClick={() => void run("Shelf added.", async () => {
-                  const res = await createStockLocationAction({ name, thirdLabel: thirdLabel || undefined });
-                  if (res.ok) { setAdding(false); setName(""); setThirdLabel(""); }
-                  return res;
-                })}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">
-                <Plus size={13} /> Add the shelf
-              </button>
-              <button type="button" onClick={() => setAdding(false)}
-                className="h-8 rounded-md px-3 text-sm text-fg-muted hover:text-fg">Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <button type="button" onClick={() => setAdding(true)}
-            className="inline-flex h-8 w-fit items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">
-            <Plus size={13} /> Another shelf
-          </button>
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
-
-function ShelfRow({
-  shelf, count, busy, onRun,
-}: {
-  shelf: CzStockLocation;
-  count: number;
-  busy: boolean;
-  onRun: (label: string, fn: () => Promise<{ ok: boolean; error?: string }>) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(shelf.name);
-  const [thirdLabel, setThirdLabel] = useState(shelf.thirdLabel);
-
-  if (editing) {
-    return (
-      <div className="grid grid-cols-[minmax(0,1fr)_130px_70px_120px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
-        <input value={name} onChange={(e) => setName(e.target.value)} className={FIELD} aria-label="Shelf name" />
-        <input value={thirdLabel} onChange={(e) => setThirdLabel(e.target.value)} className={FIELD} aria-label="Third column" />
-        <span className="text-right text-sm tabular text-fg-subtle">{qtyText(count)}</span>
-        <span className="flex justify-end gap-1">
-          <button type="button" disabled={busy || !name.trim()}
-            onClick={() => void onRun("Shelf saved.", async () => {
-              const res = await updateStockLocationAction(shelf.id, { name, thirdLabel });
-              if (res.ok) setEditing(false);
-              return res;
-            })}
-            className="h-7 rounded-md px-1.5 text-xs text-accent hover:underline disabled:opacity-60">Save</button>
-          <button type="button" onClick={() => { setEditing(false); setName(shelf.name); setThirdLabel(shelf.thirdLabel); }}
-            className="h-7 rounded-md px-1.5 text-xs text-fg-subtle hover:text-fg">Cancel</button>
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_130px_70px_120px] items-center gap-2 border-b border-border px-2.5 py-1.5 last:border-0">
-      <span className="min-w-0 truncate text-sm text-fg">
-        {shelf.name}
-        {!shelf.active && <span className="ml-1.5 text-xs text-fg-subtle">not in use</span>}
-      </span>
-      <span className="truncate text-sm text-fg-muted">{shelf.thirdLabel}</span>
-      <span className="text-right text-sm tabular text-fg-subtle">{qtyText(count)}</span>
-      <span className="flex justify-end gap-1">
-        <button type="button" disabled={busy} onClick={() => setEditing(true)}
-          className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-xs text-fg-subtle hover:text-fg disabled:opacity-60">
-          <Pencil size={12} /> Edit
-        </button>
-        {/* ⚠️ A shelf is never deleted — its movements are the history of a real
-            place. Taking it out of use hides it from the forms and leaves every
-            figure that was ever counted on it exactly where it is. */}
-        <button type="button" disabled={busy}
-          title={shelf.active ? "Take it out of use" : "Put it back in use"}
-          onClick={() => void onRun(shelf.active ? "Out of use." : "Back in use.",
-            () => updateStockLocationAction(shelf.id, { active: !shelf.active }))}
-          className="inline-flex h-7 items-center rounded-md px-1.5 text-xs text-fg-subtle hover:text-fg disabled:opacity-60">
-          <Archive size={12} />
-        </button>
-        {/* ⚠️ A shelf with items or movements on it is refused, by name and
-            number. An empty one added by mistake can simply go. */}
-        <button type="button" disabled={busy} title="Delete it for good"
-          onClick={() => {
-            if (!confirm(`Delete ${shelf.name}? It will be refused if anything is still on it.`)) return;
-            void onRun(`${shelf.name} deleted.`, () => deleteStockLocationAction(shelf.id));
-          }}
-          className="inline-flex h-7 items-center rounded-md px-1.5 text-xs text-fg-subtle hover:text-danger disabled:opacity-60">
-          <Trash2 size={12} />
-        </button>
-      </span>
-    </div>
   );
 }
 

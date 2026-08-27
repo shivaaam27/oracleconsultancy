@@ -1,8 +1,9 @@
 import { PageHeader } from "@/components/ui";
 import { CocozuriProducts } from "@/components/cocozuri-products";
 import { listProducts, listPrices, cocozuriCompany } from "@/lib/cocozuri";
-import { priceInForce } from "@/lib/cocozuri-shared";
+import { priceInForce, unpricedProductIds } from "@/lib/cocozuri-shared";
 import { allLists } from "@/lib/cocozuri-lists";
+import { listItems } from "@/lib/cocozuri-stock";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Products — CocoZuri" };
@@ -37,20 +38,32 @@ export default async function CocozuriProductsPage({
     );
   }
 
-  const [products, archived, prices, lists] = await Promise.all([
+  const [products, archived, prices, lists, items] = await Promise.all([
     listProducts({ archived: showArchived }),
     listProducts({ archived: true }),
-    listPrices({ customerId: null }),
+    /* ⚠️ EVERY price, not the standard list alone. The LIST PRICE column wants
+       the standard one; the "no price" check wants to know whether the product
+       can be invoiced to ANYBODY — an agreed price with one customer is enough.
+       Asking for the list prices alone answered the second question with the
+       first one's data, and disagreed with the desk by seven products. */
+    listPrices(),
     // ⚠️ The managed lists, so a category can be set up BEFORE anything uses it.
     allLists(),
+    /* ⚠️ Which products a stock item is linked to. A product on NO shelf can
+       be invoiced and never counted, made or traced — the mirror of the items
+       screen's "not linked to a product", which had no twin here. */
+    listItems(),
   ]);
   const live = (k: keyof typeof lists) => lists[k].filter((v) => !v.archived).map((v) => v.value);
 
   const listPriceById: Record<number, number> = {};
   for (const p of products) {
+    // ⚠️ `customerId` omitted = the STANDARD list price, which is what the
+    // column is headed. A customer's own price is not what everybody pays.
     const inForce = priceInForce(prices, { productId: p.id });
-    if (inForce) listPriceById[p.id] = inForce.price;
+    if (inForce && inForce.customerId == null) listPriceById[p.id] = inForce.price;
   }
+  const unpriced = unpricedProductIds(products, prices);
 
   return (
     <div className="space-y-4">
@@ -59,6 +72,8 @@ export default async function CocozuriProductsPage({
         sub={`${products.length} product${products.length === 1 ? "" : "s"} · ${company.name}`}
       />
       <CocozuriProducts
+        onAShelf={[...new Set(items.map((i) => i.productId).filter((id): id is number => id != null))]}
+        unpriced={[...unpriced]}
         openNew={sp.new === "1"}
         products={products}
         listPrices={listPriceById}

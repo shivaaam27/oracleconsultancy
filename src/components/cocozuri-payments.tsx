@@ -7,6 +7,7 @@ import { AlertTriangle, BookOpen, Banknote, Loader2, Plus, Trash2 } from "lucide
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { czDate, money } from "@/lib/cocozuri-shared";
@@ -187,6 +188,23 @@ export function CocozuriPayments({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Supplier, reference…"
               wrapperClassName="w-[16rem]" className="text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Money out">
+              <p>
+                <strong>Only two kinds of purchase leave anything owed.</strong> One paid from the
+                bank or the cash box was settled the day it was bought &mdash; paying it again would
+                credit the bank twice. What is left is <em>on credit</em> and <em>bought with
+                somebody&rsquo;s own money</em>.
+              </p>
+              <p>
+                <strong>Who is owed is whoever the purchase credited.</strong> On credit, that is the
+                supplier. Bought out of somebody&rsquo;s own pocket, it is <em>that person</em>
+                &mdash; a real debt to a real human being, not to a company.
+              </p>
+              <p>
+                Only <strong>approved</strong> purchases can be paid. A draft moved no stock and
+                posted nothing, so there is nothing yet to settle.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setPaying(true)} disabled={owing.length === 0}
               title={owing.length === 0 ? "Nothing is owed." : undefined}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowDown, ArrowUp, Radar, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { CocozuriTracePicker } from "@/components/cocozuri-trace";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { czDate } from "@/lib/cocozuri-shared";
@@ -54,6 +55,35 @@ export default async function CocozuriTracePage({
       <PageHeader
         title="Trace"
         sub={`${lots.length} lot${lots.length === 1 ? "" : "s"} on record · ${company.name}`}
+        action={
+          <CocozuriHelp title="Trace">
+            <p>
+              This answers <strong>both halves of a recall</strong>: what went into a batch, and what
+              was made from a delivery. A lot and a batch are the same thing here &mdash; a dated
+              delivery line becomes a lot when the purchase is approved.
+            </p>
+            <p>
+              <strong>Who got it is the half the stock ledger cannot answer.</strong> The ledger
+              knows a lot left the building; only the invoice knows which supermarket, because an
+              invoice line names a chocolate rather than a batch.
+            </p>
+            <p>
+              <strong>Materials go out soonest-expiring first, not oldest first.</strong> A delivery
+              with no date is used last and is reported rather than guessed at.
+            </p>
+            <p>
+              <strong>Expiry is the earlier of &ldquo;made on plus shelf life&rdquo; and the soonest
+              ingredient</strong>, and it is frozen onto the batch when it closes &mdash; changing a
+              shelf life next year must not move the date on chocolate already sitting in a shop.
+              Where neither is known, nothing is shown rather than a guess.
+            </p>
+            <p>
+              <strong>What carries no date is counted separately</strong>, never as though it were
+              fine. The expiry bands and the despatch check are defaults nobody has agreed yet: they
+              warn, they never refuse.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <CocozuriTracePicker lots={lots} chosen={sp.batch ?? null} />

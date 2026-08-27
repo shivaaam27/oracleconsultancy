@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { CocozuriCostOfSales } from "@/components/cocozuri-cost-of-sales";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { czDate, czMonth, money } from "@/lib/cocozuri-shared";
@@ -79,6 +80,39 @@ export default async function CocozuriProfitPage({
       <PageHeader
         title="Profit"
         sub={`${month === "all" ? "Everything so far" : czMonth(month)} · ${company.name}`}
+        action={
+          <CocozuriHelp title="Profit">
+            <p>
+              <strong>What a single batch earned cannot be known, and this page says so.</strong> An
+              invoice line names a chocolate, not a batch. So what is shown is what the batch
+              <em> cost</em> &mdash; measured from what it actually consumed, never from the recipe
+              &mdash; and what its bars are <em>worth</em> at the price they sell for.
+            </p>
+            <p>
+              <strong>Cost per unit divides by what came out</strong>, not by what the recipe hoped
+              for. The recipe is a plan; this is a measurement.
+            </p>
+            <p>
+              <strong>The margin is taken net of VAT.</strong> Costs are before VAT and a CocoZuri
+              invoice includes it, so comparing them straight would inflate every margin by the
+              rate. The price used is what was actually charged, in preference to the list.
+            </p>
+            <p>
+              <strong>An incomplete cost makes profit a ceiling, not a floor.</strong> Profit and
+              margin read &ldquo;at most&rdquo; where something could not be valued &mdash; the
+              opposite of a cost, which reads &ldquo;at least&rdquo;.
+            </p>
+            <p>
+              <strong>Cost of sales refuses a month it cannot value in full</strong>, and names what
+              is missing. Understating the cost overstates the profit, which is the one direction of
+              error nobody ever notices.
+            </p>
+            <p>
+              Damaged stock is not counted here: it is charged when it is written off, and counting
+              it twice would make gross profit look worse the more breakage there was.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">

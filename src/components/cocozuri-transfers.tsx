@@ -8,6 +8,7 @@ import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { qty as qtyText, todayInDar, type CzStockLocation } from "@/lib/cocozuri-stock-shared";
@@ -155,6 +156,37 @@ export function CocozuriTransfers({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Reference, place, chocolate…"
               wrapperClassName="w-[16rem]" className="text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Transfers">
+              <p>
+                <strong>A transfer has two moments, and the gap between them is the point.</strong>
+                Sending takes the chocolate off the kitchen&rsquo;s shelf &mdash; it is now in
+                transit, on neither shelf. Receiving puts on the shop&rsquo;s shelf <em>what actually
+                arrived</em>.
+              </p>
+              <p>
+                <strong>Record what arrived, not what was sent.</strong> The kitchen says 20 and the
+                shop counts 18; recording 20 at both ends is what makes the shop&rsquo;s stock drift,
+                and then a stock-take blames the shop for something lost in a crate.
+              </p>
+              <p>
+                <strong>The missing units get no movement of their own.</strong> They belong to
+                neither shelf. Both sides carry this transfer&rsquo;s reference, so what it lost is
+                always answerable &mdash; inventing a third movement to tidy the arithmetic would put
+                those two bars somewhere they never were. A shortfall must be explained; more
+                arriving than was sent is refused outright.
+              </p>
+              <p>
+                <strong>The same chocolate is two rows &mdash; one per shelf &mdash; joined by the
+                product, never by name.</strong> Matching by name is what had stock and sales
+                disagreeing by 200 units in a month. A kitchen item with no matching shop row is
+                reported with the reason, never dropped and never invented.
+              </p>
+              <p>
+                <strong>The lots that arrive are the lots that left.</strong> Re-picking at the
+                receiving end would attribute the arriving bars to whatever the shop already had,
+                which is how a recall names the wrong batch.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setSending(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Send stock

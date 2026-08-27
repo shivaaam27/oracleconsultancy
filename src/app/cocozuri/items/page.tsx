@@ -65,7 +65,7 @@ export default async function CocozuriItemsPage() {
       <CocozuriItems
         items={items}
         locations={locations}
-        products={products.map((p) => ({ id: p.id, name: p.name }))}
+        products={products.map((p) => ({ id: p.id, name: p.name, category: p.category, uom: p.uom }))}
         categories={categories.filter((c) => !c.archived).map((c) => c.value)}
         units={units.filter((u) => !u.archived).map((u) => u.value)}
       />

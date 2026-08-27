@@ -3,6 +3,7 @@ import { cocozuriCompany } from "@/lib/cocozuri";
 import { deleteVerdict } from "@/lib/cocozuri-lists-shared";
 import { landedLines, purchaseTotals, type CzPurchase } from "@/lib/cocozuri-buy-shared";
 import { listPurchases } from "@/lib/cocozuri-buy";
+import { recordEvent } from "@/lib/cocozuri-events";
 
 /* ------------------------------------------------------------------ *
  * CocoZuri Stage B — who we buy from. The SERVER half.
@@ -248,7 +249,7 @@ export type CzSupplierInput = {
 };
 
 export async function saveSupplier(
-  id: number | null, input: CzSupplierInput,
+  id: number | null, input: CzSupplierInput, by = "web-ui",
 ): Promise<{ ok: boolean; id?: number; error?: string }> {
   const name = input.name?.trim();
   if (!name) return { ok: false, error: "A supplier needs a name." };
@@ -271,8 +272,24 @@ export async function saveSupplier(
   };
 
   try {
-    if (id) { await updateVendor(id, payload); return { ok: true, id }; }
-    return { ok: true, id: await createVendor(payload) };
+    if (id) {
+      await updateVendor(id, payload);
+      void recordEvent({
+        subjectType: "supplier", subjectId: id, subjectRef: name,
+        kind: "updated", summary: "Their details were changed.",
+      }, by);
+      return { ok: true, id };
+    }
+    const made = await createVendor(payload);
+    /* ⚠️ It says which register this landed on. The whole point of Stage B is
+       that this is the SHARED vendor list reached from inside CocoZuri, not a
+       second one — and somebody reading the timeline should not have to know
+       that from a handover note. */
+    void recordEvent({
+      subjectType: "supplier", subjectId: made, subjectRef: name,
+      kind: "created", summary: "Added to the shared supplier register.",
+    }, by);
+    return { ok: true, id: made };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "That did not save." };
   }
@@ -285,7 +302,7 @@ export async function saveSupplier(
  * document that was acted on — stock moved and the books were posted — and it
  * cannot lose the supplier it names.
  */
-export async function deleteSupplier(id: number): Promise<{ ok: boolean; error?: string }> {
+export async function deleteSupplier(id: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   /* ⚠️ PURCHASES ARE NOT THE ONLY THING THAT POINTS AT A SUPPLIER. `documents`
      and `assets` both carry a `vendor_id`, and both are ON DELETE **SET NULL** —
      so deleting a supplier would not fail, it would quietly detach their signed
@@ -308,13 +325,29 @@ export async function deleteSupplier(id: number): Promise<{ ok: boolean; error?:
   if (!verdict.ok) {
     return { ok: false, error: `${verdict.reason} Take them out of use instead — the history stays.` };
   }
+  const name = (await getSupplier(id))?.name ?? null;
   const { error } = await sb.from("vendors").delete().eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  /* ⚠️ The name is frozen on the event, so it still reads afterwards — and a
+     supplier only ever reaches here when nothing at all pointed at them. */
+  void recordEvent({
+    subjectType: "supplier", subjectId: null, subjectRef: name,
+    kind: "deleted",
+    summary: `${name ?? "A supplier"} was taken off the register. Nothing pointed at them.`,
+  }, by);
+  return { ok: true };
 }
 
 /** Take them out of use without losing them. */
-export async function setSupplierActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
+export async function setSupplierActive(id: number, active: boolean, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const { error } = await sb.from("vendors")
     .update({ active, updated_at: new Date().toISOString() }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "supplier", subjectId: id,
+    subjectRef: (await getSupplier(id))?.name ?? null,
+    kind: active ? "approved" : "cancelled",
+    summary: active ? "Put back into use." : "Taken out of use. Their history stays.",
+  }, by);
+  return { ok: true };
 }

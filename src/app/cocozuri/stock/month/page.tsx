@@ -40,7 +40,11 @@ export default async function CocozuriStockMonthPage({
       <div className="space-y-4">
         <PageHeader title="Stock month" sub={company.name} />
         <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
-          No stock locations yet.
+          No shelves yet, and a month is counted on a shelf. Set them up on{" "}
+          <Link href="/cocozuri/shelves" className="text-accent underline-offset-2 hover:underline">
+            Shelves
+          </Link>
+          .
         </p>
       </div>
     );

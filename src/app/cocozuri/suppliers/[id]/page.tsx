@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriSupplierMaterials } from "@/components/cocozuri-suppliers";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { getSupplier, supplierMaterials } from "@/lib/cocozuri-suppliers";
 import { czDate, money } from "@/lib/cocozuri-shared";
 
@@ -34,11 +37,38 @@ export default async function CocozuriSupplierPage({
   const supplier = await getSupplier(supplierId);
   if (!supplier) notFound();
 
-  const materials = await supplierMaterials(supplierId);
+  const [materials, events] = await Promise.all([
+    supplierMaterials(supplierId),
+    timelineFor("supplier", supplierId),
+  ]);
 
   return (
     <div className="space-y-4">
       <PageHeader
+        action={
+          <CocozuriHelp title="This supplier">
+            <p>
+              <strong>The price movement is the point of this page.</strong> The chef&rsquo;s costing
+              workbook priced 228 ingredient names at 50 different rates between them &mdash; butter
+              at 28 a gram in 82 lines and 82.34 in one. Nothing stops that being typed; this is
+              where it gets found afterwards.
+            </p>
+            <p>
+              <strong>Spent and still owed count approved purchases only.</strong> A draft moves no
+              stock and posts nothing, so counting it would inflate every supplier by whatever is
+              half-typed.
+            </p>
+            <p>
+              <strong>Still owed is credit only.</strong> A purchase paid from the bank or the cash
+              box was settled the day it was bought, and one bought with somebody&rsquo;s own money
+              is owed to <em>that person</em>, not to this supplier.
+            </p>
+            <p>
+              They are a row on the register the whole of COS shares, so their details are edited
+              there. A note left below belongs to CocoZuri.
+            </p>
+          </CocozuriHelp>
+        }
         title={supplier.name}
         sub={[
           supplier.contactName,
@@ -78,6 +108,14 @@ export default async function CocozuriSupplierPage({
       )}
 
       <CocozuriSupplierMaterials materials={materials} />
+
+      {/* ⚠️ A supplier is a row on the SHARED register, so a note left here is
+          the only place a CocoZuri-side judgement about them can live — "stopped
+          answering the phone in June" belongs to this business, not to the
+          register every company reads. */}
+      <CocozuriTimeline
+        subjectType="supplier" subjectId={supplierId} subjectRef={supplier.name}
+        events={events} />
     </div>
   );
 }

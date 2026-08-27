@@ -8,6 +8,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import { CocozuriRecipeSheet } from "@/components/cocozuri-recipe-sheet";
 import { money } from "@/lib/cocozuri-shared";
@@ -196,6 +197,38 @@ export function CocozuriRecipes({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Recipe, product, material…"
               wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Recipes">
+              <p>
+                A recipe is what goes into <strong>one batch</strong> and how many that batch makes.
+                <strong> There is no cost column</strong> &mdash; it costs itself, every time you
+                look, from what its materials have actually been bought for.
+              </p>
+              <p>
+                That figure is a <strong>weighted average of the deliveries</strong>, not the latest
+                price: one emergency bag bought dear would otherwise rewrite every recipe using it.
+              </p>
+              <p>
+                <strong>A material nobody has ever bought has no cost, and that is said rather than
+                shown as nil.</strong> An incomplete costing reads &ldquo;at least&rdquo; and names
+                the material &mdash; a total with a silent zero in it reads as cheap.
+              </p>
+              <p>
+                <strong>Cost per unit divides by the units expected to survive</strong>, not by the
+                yield. A 10% expected loss on 120 gives 108 good ones, and those 108 carry the cost
+                of all 120.
+              </p>
+              <p>
+                A recipe lands as a <strong>draft</strong>. Several may be active for one chocolate;
+                only one is the one reached for first. <strong>A recipe something has been made from
+                cannot be deleted</strong> &mdash; the batch is a record of a real morning&rsquo;s
+                work, and its recipe is how anybody knows what went into it.
+              </p>
+              <p>
+                Editing an active recipe is allowed and normal: it is a live instruction, not a
+                document somebody acted on. Batches already made are judged against the recipe
+                <strong> they were made from</strong>, frozen when they opened.
+              </p>
+            </CocozuriHelp>
             {/* The chef's costing workbook holds 174 of these. Typing them in
                 one at a time is not a plan; reading the sheet is. */}
             <Link href="/cocozuri/recipes/import"

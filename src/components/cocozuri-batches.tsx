@@ -7,6 +7,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { FluidSelect } from "@/components/fluid-select";
 import { Combobox } from "@/components/combobox";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -178,6 +179,36 @@ export function CocozuriBatches({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Batch, product, recipe…"
               wrapperClassName="w-[16rem]" className="text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Production">
+              <p>
+                Starting a batch is <strong>one press</strong>. The number is allocated for you, the
+                recipe is optional and the date can be yesterday &mdash; batch numbers are being
+                introduced here rather than copied from something people already do, so nothing about
+                it is allowed to be a chore.
+              </p>
+              <p>
+                <strong>Materials leave the shelf when you close it, not when you start.</strong>
+                The kitchen&rsquo;s shelf reads true all day, and &mdash; the real reason &mdash;
+                <strong> abandoning a batch costs nothing</strong>, so nobody avoids opening one just
+                in case. You can still take materials from the store mid-batch and record finished
+                pieces in more than one go; closing nets against whatever was already done.
+              </p>
+              <p>
+                <strong>The check reads what actually moved, not the recipe.</strong> The recipe is
+                what was <em>meant</em> to go in; reading it back as fact would make every batch
+                agree with itself. A shortfall has to say where it went &mdash; in the making, or in
+                the materials &mdash; and naming the kind is not enough, it has to say why.
+              </p>
+              <p>
+                <strong>A batch is judged against the recipe it was made from</strong>, frozen when
+                it opened. Correcting a recipe next month must not change the reported difference on
+                chocolate already made and signed off.
+              </p>
+              <p>
+                Materials come off <strong>soonest-expiring first</strong>, and the lots that went in
+                are what lets a finished bar be traced back to the bag and the supplier.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setStarting(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Play size={13} /> Start a batch

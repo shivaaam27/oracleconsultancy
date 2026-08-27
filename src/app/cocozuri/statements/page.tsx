@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileSpreadsheet } from "lucide-react";
 import { PageHeader } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { cocozuriCompany, listCustomers, listInvoices, listReceipts } from "@/lib/cocozuri";
 import { customerAccounts, money } from "@/lib/cocozuri-shared";
 
@@ -50,7 +51,27 @@ export default async function CocozuriStatementsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Statements" sub={`${customers.length} customers · ${company.name}`} />
+      <PageHeader
+        title="Statements"
+        sub={`${customers.length} customers · ${company.name}`}
+        action={
+          <CocozuriHelp title="Statements">
+            <p>
+              A statement is every issued invoice, credit note and payment for one customer over a
+              period, in date order, with the balance carried down. <strong>The period lives in the
+              address</strong>, so a statement can be bookmarked and sent as a link.
+            </p>
+            <p>
+              <strong>Only issued documents appear.</strong> A draft has not been sent to anybody and
+              a cancelled one never was.
+            </p>
+            <p>
+              <strong>A credit note attached to no invoice reduces the account but ages against
+              nothing</strong>, so it is shown apart rather than netted quietly into a band.
+            </p>
+          </CocozuriHelp>
+        }
+      />
 
       {customers.length === 0 ? (
         <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">

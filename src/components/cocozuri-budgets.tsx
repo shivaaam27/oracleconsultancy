@@ -8,6 +8,7 @@ import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FluidSelect } from "@/components/fluid-select";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import { czDate, czDayMonth, money } from "@/lib/cocozuri-shared";
 import type { CzStockLocation } from "@/lib/cocozuri-stock-shared";
@@ -255,6 +256,31 @@ export function CocozuriBudgets({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Budget or place…"
               wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Budgets">
+              <p>
+                A budget is an amount for a period, and optionally for one place. Purchases are then
+                measured against it.
+              </p>
+              <p>
+                <strong>Approval is a person and a moment</strong>, and the name is stored beside the
+                id &mdash; somebody may leave and the decision still happened. A budget nobody has
+                approved cannot be charged to at all: measuring spend against a figure that is still
+                a draft is measuring against a wish.
+              </p>
+              <p>
+                <strong>Going over is allowed, but never silently.</strong> The flour was bought and
+                it is on the shelf. Approving a purchase that takes a budget over asks somebody to
+                say so first.
+              </p>
+              <p>
+                <strong>What is spent is what leaves the bank</strong> &mdash; the goods, the VAT and
+                the freight. Say the word if it should be measured on the goods alone.
+              </p>
+              <p>
+                An approved budget is not edited. <strong>Reopen it</strong>, which clears the
+                approval, then change it and have it approved again.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setAdding(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Set a budget

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ChevronLeft, ChevronRight, ClipboardCheck, Loader2, Save } from "lucide-react";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import {
   dayRows, previousDay, qty,
@@ -173,6 +174,35 @@ export function CocozuriStockDay({
           wrapperClassName="w-[14rem]" className="h-8 text-sm" />
 
         <span className="grow" />
+        <CocozuriHelp title="The stock book">
+          <p>
+            This is the sheet as somebody writes it up: what was there this morning, what came in,
+            what went out. <strong>The closing figure is worked out, never typed</strong> &mdash;
+            opening plus in, less out, less the third column.
+          </p>
+          <p>
+            <strong>The third column is headed differently on every sheet, deliberately.</strong>
+            The shop calls it RETURN, the kitchen DA/SA/TA, raw materials DAMAGE. Nobody has been
+            able to say what DA/SA/TA stands for, so it is recorded under its own name rather than
+            translated into a guess.
+          </p>
+          <p>
+            <strong>The &ldquo;Other&rdquo; column cannot be typed into.</strong> It is the net of
+            movements that came from somewhere else &mdash; a delivery, a batch, a transfer &mdash;
+            shown rather than hidden, so the closing figure never looks as though it does not add
+            up. Retyping a delivery here would move the same stock twice.
+          </p>
+          <p>
+            <strong>A row of three zeros is deleted, not stored.</strong> &ldquo;Nothing
+            moved&rdquo; and &ldquo;nobody wrote anything down&rdquo; are different claims, and the
+            order form depends on being able to tell them apart.
+          </p>
+          <p>
+            A negative movement is refused. A negative closing figure is allowed &mdash; and warned
+            about, because it usually means something was taken out that was never recorded going
+            in.
+          </p>
+        </CocozuriHelp>
 
         {/* The month-end screen carries a link back here; this is the other half
             of that pair. Without it the only way across was the rail. */}

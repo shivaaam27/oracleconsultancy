@@ -14,7 +14,7 @@ import { transferCheck } from "@/lib/cocozuri-transfer-shared";
 import { listReturns } from "@/lib/cocozuri-return";
 import { returnCheck } from "@/lib/cocozuri-return-shared";
 import { postingOverview } from "@/lib/cocozuri-ledger";
-import { CZ_AGEING_BANDS, ageingSummary, money, outstandingOf } from "@/lib/cocozuri-shared";
+import { CZ_AGEING_BANDS, ageingSummary, money, outstandingOf, unpricedProductIds } from "@/lib/cocozuri-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "CocoZuri Operations — Oracle Consultancy" };
@@ -92,8 +92,11 @@ export default async function CocozuriPage() {
   const liveBudgets = budgets.filter((b) => b.status === "approved");
   const overrun = liveBudgets.filter((b) => budgetUsage(b, purchases).over).length;
 
-  const priced = new Set(prices.map((p) => p.productId)).size;
-  const missing = products.length - priced;
+  /* ⚠️ ONE FUNCTION, SHARED WITH THE PRODUCTS LIST. This used to count
+     distinct product ids in `cz_prices` and said 46 while the list said 53 —
+     two answers to one question, and this one called a product priced when its
+     only price starts next month. */
+  const missing = unpricedProductIds(products, prices).size;
 
   // ⚠️ Worked out on read, like everything else here. There is no stored
   // balance to go stale — which is what the workbook's hand-typed DEBTOR
@@ -121,8 +124,10 @@ export default async function CocozuriPage() {
         <Tile href="/cocozuri/customers" icon={<Building2 size={16} />} n={customers.length} label="customers" />
         {/* The stock book was reachable only from the rail — every other part of
             the module has a door on the desk, and this one is used daily. */}
-        <Tile href="/cocozuri/stock" icon={<Boxes size={16} />} n={stockItems.length} label={`items counted, in ${locations.length} place${locations.length === 1 ? "" : "s"}`} />
-        <Tile href="/cocozuri/products" icon={<Tag size={16} />} n={prices.length} label="prices on record" />
+        {/* ⚠️ It points where the items are MANAGED, not at the day book. The
+            tile counts stock items and shelves, and sent you to a day sheet. */}
+        <Tile href="/cocozuri/items" icon={<Boxes size={16} />} n={stockItems.length} label={`items counted, in ${locations.length} place${locations.length === 1 ? "" : "s"}`} />
+        <Tile href="/cocozuri/prices" icon={<Tag size={16} />} n={prices.length} label="prices on record" />
         {/* Manufacturing Stage 2 — buying. ⚠️ A draft purchase is a job nobody
             has done yet: nothing is on the shelf until it is approved. */}
         <Tile href="/cocozuri/purchases" icon={<ShoppingCart size={16} />}

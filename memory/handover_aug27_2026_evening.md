@@ -170,6 +170,67 @@ working out something that already had one.**
 
 ---
 
+## 5a · Stage F, added after the above — the timeline and Help reach the older screens
+
+**No migration.** Full account in `memory/cocozuri_manufacturing_plan.md` §18.
+
+The gap was not the widget. `CzSubjectType` names **sixteen** subjects and only
+**five** had a door writing anything, so recipes, suppliers, transfers and
+returns could be routed to and commented on while recording nothing that happened
+to them. ⚠️ **A timeline on a record whose doors write nothing reads as
+"nothing has happened here", not "nothing is being written down".**
+
+- **Doors added** for `recipe` · `supplier` · `transfer` · `return` · `purchase`.
+- **Timelines** now on the recipe, supplier, transfer and return records — seven
+  record pages in all.
+- **Help on every rail screen but the desk** — nineteen panels, each carrying
+  that screen's real rules. A record page gets its **own** panel, about what its
+  buttons do, not a copy of its list's.
+- `subjectHref()` routes recipe, transfer and return events to their records.
+- ⚠️ **Purchases and counter sales have no record page**, so no timeline; their
+  events are read on `/cocozuri/history`. Payments and money in record nothing yet.
+- ⚠️ **The audit found §4's fault a sixth time, in my own work:** the receive
+  event totted up the sent and received quantities itself while `transferCheck()`
+  already did — and an **uncounted** line is `null` there, so adding it in as a
+  zero would have filed a line nobody got to as chocolate **lost**.
+
+`tsc` clean · 1,299 tests pass · `npm run build` clean.
+
+---
+
+## 5b · The Set up audit, and the seven fixes
+
+Full account in `memory/cocozuri_manufacturing_plan.md` §19. **No migration.**
+
+The owner asked where raw materials are added and said Set up felt scattered.
+Both right — and **three features turned out to be built and unreachable**, each
+the same shape: a column, a write path, sometimes a tested function, and no form
+behind any of them.
+
+- **`reorder_level`** — `belowReorder()` was tested and **called by nothing**.
+- **A customer's own price** — the rule the module leans on, unsettable, while
+  **85 of the 159 prices already ARE customer prices**.
+- **A price's date, and removing a wrong one** — which is why every price is
+  stamped the import day and **nothing could correct it**.
+
+Built: a **`kind`** group in the items rail (packaging reads 0, said plainly);
+the reorder level on the item form, wired into What to buy; **`/cocozuri/prices`**;
+the product/item disagreement **said, not swapped**; **`/cocozuri/shelves`** with
+its own address; "No price" and "Not on a shelf" checks on products; Suppliers
+moved into Set up; the desk's tiles pointed where things are managed.
+
+⚠️ **Four bugs the visual check found and the type-checker could not:** a
+`useMemo` reading a `const` declared below it (What to buy came down entirely);
+the Prices list giving its PRODUCT column away to 533px of fixed columns; a
+`?new=1` never consumed; and **two answers to "how many products have no
+price"** — 46 on the desk, 53 on the list, both wrong about a real case. One
+function now, `unpricedProductIds()`.
+
+Proved live on a real item, then **cleared back**. 22 screens loaded, no console
+errors. `tsc` clean · 1,299 tests · build clean.
+
+---
+
 ## 6 · Data left in the live database
 
 **Nothing from this session.** Every proof — plans, batches, suppliers, list

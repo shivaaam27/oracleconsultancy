@@ -6,6 +6,7 @@ import { CocozuriBatchClose } from "@/components/cocozuri-batch-close";
 import { CocozuriBatchDraw } from "@/components/cocozuri-batch-draw";
 import { CocozuriRereadRecipe } from "@/components/cocozuri-batch-reread";
 import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { timelineFor } from "@/lib/cocozuri-events";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves } from "@/lib/cocozuri-stock";
@@ -95,6 +96,37 @@ export default async function CocozuriBatchPage({
       <PageHeader
         title={batch.batchNo}
         sub={`${batch.itemName ?? "—"}${batch.locationName ? ` · ${batch.locationName}` : ""}${batch.madeOn ? ` · ${czDate(batch.madeOn)}` : ""}${company ? ` · ${company.name}` : ""}`}
+        action={
+          <CocozuriHelp title="This batch">
+            <p>
+              <strong>Take materials from store</strong> writes them off the shelf now, under this
+              batch. <strong>Record finished pieces</strong> puts what is done onto the shelf. Both
+              can be used more than once &mdash; a three-day batch should not leave the raw-material
+              shelf reading high, and &ldquo;two hundred bars Monday and the rest Wednesday&rdquo; is
+              one batch, not two.
+            </p>
+            <p>
+              <strong>Closing nets against whatever has already been done.</strong> Only the
+              remainder moves; a negative remainder puts material back.
+            </p>
+            <p>
+              <strong>The difference above is measured from what actually moved, not from the
+              recipe.</strong> Reading the recipe back as fact would make every batch agree with
+              itself. A shortfall has to say where it went &mdash; in the making, or in the materials
+              &mdash; and naming the kind is not enough; it has to say what happened.
+            </p>
+            <p>
+              <strong>It is judged against the recipe it was made from</strong>, frozen when it
+              opened. If the recipe has moved on since, the page says so and does nothing about it
+              &mdash; it may have been corrected, or changed for next time, and only the chef knows
+              which.
+            </p>
+            <p>
+              <strong>Reopening reverses the movements, it does not erase them.</strong> Abandoning
+              costs nothing where nothing was fetched, and puts back whatever was.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">

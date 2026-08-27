@@ -84,13 +84,18 @@ export function subjectHref(e: Pick<CzEvent, "subjectType" | "subjectRef" | "sub
     case "invoice": return ref ? `/cocozuri/invoices/${encodeURIComponent(ref)}` : "/cocozuri/invoices";
     case "plan": return ref ? `/cocozuri/order/${encodeURIComponent(ref)}` : "/cocozuri/order";
     case "supplier": return e.subjectId ? `/cocozuri/suppliers/${e.subjectId}` : "/cocozuri/suppliers";
+    /* ⚠️ Purchases and counter sales have NO record page, so they can only go
+       to their list. Everything below them does, and lands on the record —
+       which is where that subject's own timeline now lives. */
     case "purchase": return "/cocozuri/purchases";
     case "counter_sale": return "/cocozuri/counter";
-    case "transfer": return "/cocozuri/transfers";
-    case "return": return "/cocozuri/returns";
+    case "transfer": return ref ? `/cocozuri/transfers/${encodeURIComponent(ref)}` : "/cocozuri/transfers";
+    case "return": return ref ? `/cocozuri/returns/${encodeURIComponent(ref)}` : "/cocozuri/returns";
     case "payment": return "/cocozuri/payments";
     case "receipt": return "/cocozuri/receipts";
-    case "recipe": return "/cocozuri/recipes";
+    /* A recipe is routed by its ID, not its name — the frozen `subjectRef` here
+       is what it was CALLED, which is exactly what a deleted one needs. */
+    case "recipe": return e.subjectId ? `/cocozuri/recipes/${e.subjectId}` : "/cocozuri/recipes";
     case "item": return "/cocozuri/items";
     case "product": return "/cocozuri/products";
     case "customer": return "/cocozuri/customers";

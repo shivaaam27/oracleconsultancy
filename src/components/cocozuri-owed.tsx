@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Plus } from "lucide-react";
 import { RecordList, type RecordColumn, type RecordFilter } from "@/components/record-list";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { CocozuriReceiptSheet } from "@/components/cocozuri-receipt-sheet";
 import {
   CZ_AGEING_BANDS, ageingSummary, customerAccounts, money, outstandingOf,
@@ -196,6 +197,24 @@ export function CocozuriOwed({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customers…"
               wrapperClassName="w-[15rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="What is owed">
+              <p>
+                <strong>Only issued invoices count.</strong> A draft has not been sent to anybody, so
+                nobody owes it.
+              </p>
+              <p>
+                <strong>There are five ageing bands, and they matter.</strong> The old spreadsheet
+                jumped from 31&ndash;60 days straight to 91+, so everything 61&ndash;90 days late was
+                reported a month younger than it was &mdash; TZS 1,567,000 of it on the day the books
+                were read.
+              </p>
+              <p>
+                <strong>A credit note attached to no invoice cannot be aged.</strong> It reduces what
+                the customer owes overall, but it belongs to no particular invoice, so it is shown
+                apart rather than quietly netted into a band.
+              </p>
+              <p>Worst first, everywhere &mdash; the oldest and largest debt is the top row.</p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setRecording(null)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a payment

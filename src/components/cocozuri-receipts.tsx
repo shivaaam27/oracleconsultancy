@@ -6,6 +6,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { CocozuriReceiptSheet } from "@/components/cocozuri-receipt-sheet";
@@ -232,6 +233,33 @@ export function CocozuriReceipts({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Customer, invoice, reference…"
               wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Money in">
+              <p>
+                <strong>The customer comes off the invoice, never off this form.</strong> A payment
+                for one customer against another&rsquo;s invoice is not something that should be
+                typeable.
+              </p>
+              <p>
+                <strong>Only issued documents can be paid.</strong> A draft has not been sent to
+                anybody and a cancelled one never was, so neither is offered.
+              </p>
+              <p>
+                <strong>One cheque covering several invoices is one row each</strong>, sharing a date
+                and a reference, and it is all or nothing &mdash; so no money ever sits &ldquo;on
+                account&rdquo; waiting for somebody to allocate it. An overpayment is recorded as it
+                stands and shown as negative rather than tidied away.
+              </p>
+              <p>
+                A payment is <strong>Dr bank or cash, Cr what the customer owes</strong>. It touches
+                neither sales nor VAT &mdash; those happened when the invoice was raised.
+              </p>
+              <p>
+                <strong>A payment received into another company is refused.</strong> Money
+                &ldquo;received in DSC&rdquo; is an open question; posting it to CocoZuri&rsquo;s
+                bank would be a lie, and inventing an inter-company account would answer the question
+                on your behalf. A posted payment cannot be deleted either &mdash; reverse it first.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setRecording(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a payment

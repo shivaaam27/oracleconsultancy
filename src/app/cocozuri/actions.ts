@@ -73,6 +73,8 @@ function refresh() {
      exactly this reason; invoices was the one that did not. */
   revalidatePath("/cocozuri/invoices", "layout");
   revalidatePath("/cocozuri/items");
+  revalidatePath("/cocozuri/shelves");
+  revalidatePath("/cocozuri/prices");
   revalidatePath("/cocozuri/lists");
   revalidatePath("/cocozuri/suppliers", "layout");
   revalidatePath("/cocozuri/history");

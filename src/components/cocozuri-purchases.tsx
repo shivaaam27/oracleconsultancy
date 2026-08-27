@@ -6,6 +6,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { useToast } from "@/components/toast";
 import { CocozuriPurchaseSheet } from "@/components/cocozuri-purchase-sheet";
 import { czDate, money } from "@/lib/cocozuri-shared";
@@ -302,6 +303,36 @@ export function CocozuriPurchases({
             <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Reference, supplier, item…"
               wrapperClassName="w-[16rem]" className="h-8 text-sm" />
             <span className="grow" />
+            <CocozuriHelp title="Buying">
+              <p>
+                <strong>Approving is what makes a purchase count.</strong> A draft moves no stock and
+                reaches no books &mdash; which is what makes it safe to type while the delivery is
+                still coming through the door. Approving writes the delivery onto the shelf;
+                cancelling writes it back off the opposite way, never by erasing.
+              </p>
+              <p>
+                <strong>A supplier is optional and always will be.</strong> Materials are often
+                bought at random or out of somebody&rsquo;s own pocket, and a form insisting on a
+                supplier simply would not get filled in. A purchase nobody records never reaches the
+                books at all.
+              </p>
+              <p>
+                <strong>Who paid decides who is owed.</strong> Bank or cash box was settled the day
+                it was bought. On credit, the supplier is owed. Bought with somebody&rsquo;s own
+                money, <em>that person</em> is owed it back &mdash; not the supplier, and not the
+                bank, because the money never left it.
+              </p>
+              <p>
+                <strong>Freight goes into the stock, spread across the lines by value.</strong>
+                Booking it as an expense would make the almonds look cheaper than they were, and
+                every batch costed from them wrong the same way.
+              </p>
+              <p>
+                <strong>&ldquo;Does the price include VAT&rdquo; has three answers</strong> &mdash;
+                yes, no, and nobody has said. The same 1,180,000 is either plus VAT or includes it,
+                so a rated purchase nobody has answered for cannot be approved.
+              </p>
+            </CocozuriHelp>
             <button type="button" onClick={() => setRecording(true)}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90">
               <Plus size={13} /> Record a purchase

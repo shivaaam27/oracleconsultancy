@@ -2647,3 +2647,303 @@ The five stages are built. What is left is the owner's, not code:
 And one thing worth saying plainly: **the timeline starts now.** It does not
 reach back over work already done, and the screen says so rather than looking
 empty for a reason nobody can see.
+
+---
+
+# §18. Stage F — the timeline and Help reach the older screens — 27 Aug 2026
+
+**No migration.** `cz_events` already existed; what was missing was doors writing
+to it and screens showing it.
+
+## What the gap actually was
+
+Stage E built the timeline and put it on **three** record pages — batch, invoice
+and plan. But `CzSubjectType` names **sixteen** subjects, and only **five** of
+them had a door that recorded anything: `plan`, `batch`, `invoice`,
+`counter_sale`, and `purchase` (approval only). Recipes, suppliers, transfers and
+returns could be routed to, labelled and commented on, and **never recorded a
+single thing that happened to them**.
+
+So "add the timeline to the older screens" was two jobs, and the first was the
+real one. ⚠️ **A timeline on a record whose doors write nothing is not a
+timeline** — it is an empty box with a comment form under it, and it would have
+been read as "nothing has happened here" rather than "nothing is being written
+down".
+
+The same shape applied to Help: **six** screens had `CocozuriHelp` and roughly
+twenty did not, so the newest work was better-finished than the work beside it.
+
+## The doors that now record
+
+| Subject | Doors |
+|---|---|
+| `recipe` | create · update · activate/take out of use · make default · delete |
+| `supplier` | add · change · put back / take out of use · delete |
+| `transfer` | send · receive · cancel |
+| `return` | book in · settle · cancel · raise the credit note |
+| `purchase` | create · update · cancel · delete (approve was already there) |
+
+Every one follows Stage E's rules unchanged: `void recordEvent(...)` so it can
+never fail the thing it describes, written **after** the work succeeded, and a
+deletion filed with `subjectId: null` and the reference **frozen** on the event
+so it still reads once the record is gone.
+
+## ⚠️ The summaries say the thing that is easy to get wrong
+
+A timeline entry is not a log line. Each one is written to carry the fact
+somebody would otherwise have to be told:
+
+- A transfer sends and says **"on its way, and on neither shelf"** — not "moved".
+- A purchase is created and says **"nothing is on the shelf until it is
+  approved"**, because approval is the moment it counts (note #47).
+- A return says which door it came in by, because a **customer's** return puts
+  stock back and **breakage found here moves nothing**, and the two look
+  identical on the screen.
+- Settling says **what is still on the bench**, because settling is cumulative
+  and a timeline that only ever read "settled" would hide the waiting half.
+- A credit note says **draft**, because a line reading "credited" over an
+  unissued note is how a customer goes uncredited while everybody believes
+  otherwise.
+- A recipe change says **"batches already made keep the recipe they were made
+  from"** — the Stage D guarantee, said where somebody is looking at it.
+
+## ⚠️ The audit found the same fault in my own work, again
+
+The receive event totted the sent and received quantities up **itself**, and
+`transferCheck()` already did exactly that. It is not a cosmetic duplicate: an
+**uncounted** line is `null` in `transferCheck`, and adding it in as a zero would
+have filed a line nobody got to as chocolate **LOST**. It re-reads the document
+and uses `transferCheck` — and takes the shortfall from its own `variance`
+rather than subtracting again.
+
+Two smaller ones of the same family: the settle summary printed the loss reason's
+stored **code** instead of putting it through `lossReasonLabel()`, and the recipe
+status summary read "Taken out of use (draft)" for a recipe pushed back to draft.
+
+**Five stages in a row have now found the same shape of fault: a second way of
+working out something that already had one.** It is worth treating as the default
+suspicion in any audit of this module.
+
+## Help
+
+**Every screen in the CocoZuri rail now carries a Help panel except the desk
+itself**, which is an overview and explains itself. Nineteen were added.
+
+They follow the Stage A rule: a working screen says what a field **is**; anything
+explaining **why** goes one click away. Each panel carries that screen's real
+rules — the five ageing bands and why 61–90 mattered; VAT contained rather than
+added; freight into the stock rather than into an expense; a count being the
+position at the **end** of its date; the third stock column being headed
+differently on every sheet on purpose; the missing units of a transfer belonging
+to neither shelf.
+
+⚠️ **The record pages got their own panels rather than a copy of the list's.** A
+record page is where somebody stands while doing the thing, so its panel covers
+what that record's buttons do — closing a batch, issuing an invoice, receiving a
+transfer, settling a return — not what the list already explains.
+
+## Also
+
+`subjectHref()` now routes **recipe, transfer and return** events to their record
+pages rather than to their lists. Those record pages existed all along; nothing
+had exercised the routes because those subjects had never recorded an event.
+
+## What is still not there, and why
+
+- **Purchases and counter sales have no record page**, so neither can carry a
+  timeline. Their events are recorded and readable on `/cocozuri/history`.
+  Building a purchase record page is a real screen, not a widget, and was left
+  alone rather than surprise-built.
+- **Payments and money in** have no record page either, and no door records
+  events for them yet.
+- ⚠️ **The timeline still starts now.** Nothing reaches back over work already
+  done, and the screens say so.
+
+**Verified: `tsc` clean · 1,299 tests pass (67 files) · `npm run build` clean.**
+
+---
+
+# §19. The Set up audit, and the seven fixes — 27 Aug 2026
+
+**No migration.** Everything here already had a column and a write path; what was
+missing was screens.
+
+## The audit
+
+The owner asked where raw materials are added, and said Set up felt duplicated
+and scattered. Both were right, and the answer to the first was the shape of the
+problem: raw materials live at `/cocozuri/items`, but the rail grouped by
+**SHELF** and by **CHECK** and could not filter by `kind` at all. What looked
+like a raw-material section was the shelf *named* "Raw materials" — a different
+field, agreeing with `kind` only because migration 0162's backfill used one to
+guess the other.
+
+⚠️ **THREE FEATURES WERE BUILT AND UNREACHABLE**, all the same shape — a column,
+a write path, sometimes a tested pure function, and no form behind any of them:
+
+- **`reorder_level`** (Stage C). `belowReorder()` was written and tested and
+  **called by nothing**; no form could set a level, so nothing was ever reported
+  low.
+- **A customer's own agreed price.** The rule the module leans on. The single
+  caller of `setPriceAction` passed `customerId: null`, so one could not be set
+  — while **85 of the 159 prices in the database already are customer prices**,
+  imported and then unmaintainable.
+- **`effectiveFrom` and `deletePrice`.** Both existed; nothing passed a date and
+  nothing called the delete. Which is why every price is stamped the day of the
+  import **and there was no screen on which to correct it.**
+
+## What was built
+
+1. **A `kind` group in the items rail** — Raw material · Packaging · Finished ·
+   Something else, beside Shelf.
+2. **A reorder level on the item form**, and `belowReorder` wired into What to
+   buy: a "below their level" toggle, an amber "below N" on the row, and the
+   shortfall used as the suggestion **where the rate cannot give one**. ⚠️ It
+   never overrides a rate — a rate knows how fast the stuff actually goes.
+3. **`/cocozuri/prices`** — every price, its date, who it is for, and its state.
+   Set a customer's own, choose the date it starts from, remove a wrong row.
+4. **The product ↔ item disagreement is SAID, not swapped.** The schema claimed
+   the product's name "wins" when one is linked; nothing ever made that true and
+   the item's own wording is what every screen shows. Rather than rename rows
+   under the people who count from those sheets, a rail check counts them and the
+   item form offers "Use the product's wording" in one press. ⚠️ **A blank on one
+   side is not a disagreement.**
+5. **`/cocozuri/shelves`** — it was a bottom sheet behind a button inside Stock
+   items. A shelf is set up *before* the items on it.
+6. **"No price" and "Not on a shelf" checks on the products rail** — the mirror
+   of the items rail's "not linked to a product", which had no twin.
+7. **Suppliers moved from 2 · Buy to 1 · Set up**, and the desk's items and
+   prices tiles now point where those things are managed rather than at the day
+   book and the product list.
+
+## ⚠️ Four bugs the visual check found, and only the browser could find them
+
+- **`suggestionFor` was declared below the `useMemo` that used it.** A `useMemo`
+  callback runs DURING the render that declares it, so the `const` was still in
+  its temporal dead zone: **What to buy came down entirely** with "Cannot access
+  'suggestionFor' before initialization" while `tsc` stayed clean and every test
+  passed. **TypeScript will not tell you this.**
+- **The Prices list gave its PRODUCT column away.** FOR 150 + PRICE 120 + FROM 95
+  + STATE 110 + ACT 58 = 533px of fixed columns in a 634px card, so `gridFor()`
+  handed the product its 7.5rem floor and all 159 rows read `50% DARK CHOC …`.
+  The state column was the one to lose — you reach those rows through a rail that
+  filters BY state, so it said "in force" 159 times. It is the colour of the date
+  now. **Add up your fixed widths.**
+- **`?new=1` was not consumed** on the new Prices screen —
+  `revalidatePath("/cocozuri/prices")` does not invalidate
+  `/cocozuri/prices?new=1`, so a price saved from the deep link would land in the
+  database while the list went on showing the old set.
+- **Two answers to "how many products have no price".** The desk counted distinct
+  product ids in `cz_prices` and said **46**; the new products rail counted
+  products with no standard list price in force and said **53**. Both were
+  labelled "no price" and **both were wrong about a real case** — the desk called
+  a product priced when its only price starts next month, the list called one
+  unpriced when it has an agreed price with a customer and can be invoiced today.
+  Now one function, `unpricedProductIds()`, shared by both: *in force, for
+  anybody*, because that is the consequence both screens state.
+
+**That is the sixth, seventh, eighth and ninth time this module's faults have
+been the same shape: a second way of working out something that already had one.**
+
+⚠️ **AND A FIFTH, FOUND BY THE OWNER USING IT:** every shelf button and every
+cover button on **What to buy** pushed to `/cocozuri/order` — the PRODUCTION
+PLAN. Stage C moved the buying half to `/cocozuri/order/materials` and left this
+one line behind, so picking Kitchen or Raw materials threw you off the screen
+onto "what to make today". **The screen was unusable the moment you chose a
+shelf**, and nothing in `tsc`, the tests or a page-load sweep could see it — it
+took pressing the button. A moved page has to be followed by every address that
+points INTO it, its own included.
+
+## Proved live, and reversed
+
+A reorder level was set on Africafe Coffee (500, then 900 against 709 on hand) to
+prove the chain end to end — "below 900" on the row, the order box pre-filled at
+**191**, and "Raise a purchase · 1 line". **Then cleared back to empty**, and the
+"No reorder level" count is 323 again. Nothing else was written.
+
+Every CocoZuri screen was loaded and its console read: **22 pages, no errors.**
+
+**Verified: `tsc` clean · 1,299 tests pass · `npm run build` clean.**
+
+## What is still the owner's
+
+Unchanged, and now actionable: the prices dated 21 Aug 2026 can finally be
+corrected on `/cocozuri/prices`. **Packaging still has 0 items** — the `kind`
+filter now shows that plainly rather than leaving it invisible.
+
+---
+
+# §20. The module emptied, and the Buy bug the owner found — 27 Aug 2026
+
+## ⚠️ THE BUG HE FOUND BY PRESSING A BUTTON
+
+On **What to buy**, every shelf button and every cover button pushed to
+`/cocozuri/order` — the PRODUCTION PLAN. Stage C moved the buying half to
+`/cocozuri/order/materials` and left one line behind:
+
+```
+router.push(`/cocozuri/order?loc=…`)   // should be /cocozuri/order/materials
+```
+
+So picking Kitchen or Raw materials threw you off the screen onto "what to make
+today". **The screen has been unusable since the split** — you could only ever
+see whichever shelf it happened to open on.
+
+⚠️ **NOTHING AUTOMATED COULD SEE IT.** `tsc` was clean, 1,299 tests passed, and a
+sweep that LOADED all 22 CocoZuri screens found no console error — because the
+page renders perfectly. It only breaks when somebody presses something. **A moved
+page has to be followed by every address pointing into it, its own included.**
+
+The Make section was then audited the same way — every address it navigates to,
+then clicked through. **No equivalent fault.** (A "Page not found" on
+`/cocozuri/order` during that check was a stale dev cache, not a bug: the route
+is correct in the production build and works after a clean restart.)
+
+## The module was emptied at the owner's word
+
+*"wipe clean all data in cocozuri module i will add everything myself."* Asked
+first whether he meant the activity only or the catalogue too, he confirmed
+everything.
+
+**`npm run db:backup` first** — 172 tables, 31,154 rows to
+`backups/2026-08-27T19-33-50Z`. Then `scripts/cz-reset.ts --yes`:
+**2,149 rows across 30 tables, all to nought**, `RESTART IDENTITY` so the first
+product he types is #1.
+
+⚠️ **THE SCRIPT REFUSES IF ANYTHING OUTSIDE THE MODULE POINTS INTO IT.**
+`TRUNCATE … CASCADE` empties whatever holds a reference, and "I cleared CocoZuri
+and my documents went" must not be possible by accident. Nothing did.
+
+⚠️ **THE CHART OF ACCOUNTS WAS KEPT** — 72 accounts. `gl_accounts` belongs to the
+general ledger, not to CocoZuri; it is a template rather than data, and wiping it
+would leave nothing able to post with no way back but a re-seed. Furaha's
+`gl_entries` and `journal_entries` were already empty.
+
+⚠️ **`settings["cocozuri.seriesFloor"]` WAS LEFT ALONE**, deliberately. It carries
+the invoice numbering on from the spreadsheets (`CZ-` from 236) and is what stops
+the first invoice raised here colliding with a real one on paper. **Say so if he
+wants numbering to restart at 1** — it is one settings row, and his call.
+
+## ⚠️ And the empty module found its own bug
+
+With nothing in it, the Stock book said:
+
+> No stock locations yet. The shop, the kitchen and raw materials come in with
+> `npm run seed:cz-stock`.
+
+**That is now the worst possible advice** — running it would re-import the 323
+items and 529 day sheets he had just asked to be rid of. It is also a terminal
+command, which is not a thing he runs. Both stock screens now point at
+**Shelves** and **Stock items**, which are pages.
+
+**An empty state is a screen too, and it is only ever seen in the state nobody
+tests in.**
+
+## Verified
+
+22 screens loaded empty, **no console errors**. `tsc` clean · 1,299 tests pass ·
+`npm run build` clean.
+
+**Two read-only tools are left behind:** `scripts/cz-audit-size.ts` (row counts
+and table sizes, writes nothing) and `scripts/cz-reset.ts` (the wipe, which
+refuses without `--yes`).

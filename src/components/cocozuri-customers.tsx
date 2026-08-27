@@ -6,6 +6,7 @@ import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { FIELD, SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
@@ -115,6 +116,23 @@ export function CocozuriCustomers({
               className="h-8 text-sm"
             />
             <span className="grow" />
+            <CocozuriHelp title="Customers">
+              <p>
+                A customer carries the terms that get <strong>frozen onto every invoice</strong>
+                raised for them &mdash; their details, the VAT rate, the payment terms and the
+                currency. An invoice prints what was true the day it was raised, so changing
+                anything here never rewrites paper that has already gone out.
+              </p>
+              <p>
+                <strong>A price agreed with one customer beats the standard list price.</strong>
+                Set it on the product, against that customer; leave it off and they pay the list.
+              </p>
+              <p>
+                The VAT rate is a field, not a rule in the code &mdash; blank falls back to the
+                CocoZuri default. Whether the rate itself is right is a question for whoever files
+                the returns.
+              </p>
+            </CocozuriHelp>
             <button
               type="button"
               onClick={() => setEditing("new")}

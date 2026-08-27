@@ -519,6 +519,15 @@ export async function createPurchase(input: PurchaseInput, by = "web-ui"): Promi
     const id = data?.id as number;
     const written = await writeLines(company.id, id, lines, byId);
     if (!written.ok) return written;
+    /* ⚠️ "A draft moves nothing" is said here for the same reason approval says
+       the opposite. Note #47: approval is the moment a purchase counts, and a
+       timeline that read "purchase recorded" would suggest the shelf had already
+       changed. */
+    void recordEvent({
+      subjectType: "purchase", subjectId: id, subjectRef: reference,
+      kind: "created",
+      summary: `Typed up as a draft — ${lines.length} line${lines.length === 1 ? "" : "s"}. Nothing is on the shelf until it is approved.`,
+    }, by);
     return { ok: true, id, reference };
   }
   return { ok: false, error: "Could not allocate a reference for this purchase." };
@@ -531,7 +540,7 @@ export async function createPurchase(input: PurchaseInput, by = "web-ui"): Promi
  * have it; correcting it then means cancelling — which reverses the movements —
  * and recording it again. Same rule as an issued invoice.
  */
-export async function updatePurchase(id: number, input: Partial<PurchaseInput>, ): Promise<{ ok: boolean; error?: string }> {
+export async function updatePurchase(id: number, input: Partial<PurchaseInput>, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const current = await getPurchase(id);
   if (!current) return { ok: false, error: "That purchase does not exist." };
   if (current.status !== "draft") {
@@ -578,6 +587,11 @@ export async function updatePurchase(id: number, input: Partial<PurchaseInput>, 
     const written = await writeLines(company.id, id, lines, byId);
     if (!written.ok) return written;
   }
+  void recordEvent({
+    subjectType: "purchase", subjectId: id, subjectRef: current.reference,
+    kind: "updated",
+    summary: input.lines ? "Changed, lines included. Still a draft." : "Changed. Still a draft.",
+  }, by);
   return { ok: true };
 }
 
@@ -789,7 +803,14 @@ export async function cancelPurchase(
     cancel_reason: reason?.trim() || null,
     updated_at: NOW(),
   }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "purchase", subjectId: id, subjectRef: purchase.reference,
+    kind: "cancelled",
+    summary: `Cancelled${reason?.trim() ? `: ${reason.trim()}` : "."}${
+      purchase.status === "approved" ? " What it put on the shelf was written back the opposite way." : ""}`,
+  }, by);
+  return { ok: true };
 }
 
 /**
@@ -797,14 +818,22 @@ export async function cancelPurchase(
  * nothing moved, nothing posted, nobody put their name to it. Everything else
  * is cancelled, which leaves the record and its reversal on the file.
  */
-export async function deletePurchase(id: number): Promise<{ ok: boolean; error?: string }> {
+export async function deletePurchase(id: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const purchase = await getPurchase(id);
   if (!purchase) return { ok: false, error: "That purchase does not exist." };
   if (purchase.status !== "draft") {
     return { ok: false, error: `${purchase.reference} has been ${purchase.status}. Cancel it instead — that leaves the record and reverses what it did.` };
   }
   const { error } = await sb.from("cz_purchases").delete().eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  /* ⚠️ The reference is frozen on the event, so this reads after the purchase
+     is gone. Only a draft ever reaches here — a draft never happened. */
+  void recordEvent({
+    subjectType: "purchase", subjectId: null, subjectRef: purchase.reference,
+    kind: "deleted",
+    summary: `${purchase.reference} was deleted while still a draft. Nothing had moved and nothing had posted.`,
+  }, by);
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ *

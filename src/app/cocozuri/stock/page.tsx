@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { CocozuriStockDay } from "@/components/cocozuri-stock-day";
 import { cocozuriCompany, listProducts } from "@/lib/cocozuri";
@@ -41,8 +42,16 @@ export default async function CocozuriStockPage({
       <div className="space-y-4">
         <PageHeader title="Stock book" sub={company.name} />
         <p className="rounded-lg border border-border bg-bg-elev px-3.5 py-6 text-center text-sm text-fg-subtle">
-          No stock locations yet. The shop, the kitchen and raw materials come in with
-          <code className="mx-1 rounded bg-bg-subtle px-1">npm run seed:cz-stock</code>.
+          No shelves yet, and stock is counted on a shelf. Set up the places you count — the
+          kitchen, the shop, the raw-material store — on{" "}
+          <Link href="/cocozuri/shelves" className="text-accent underline-offset-2 hover:underline">
+            Shelves
+          </Link>
+          , then add what sits on them under{" "}
+          <Link href="/cocozuri/items" className="text-accent underline-offset-2 hover:underline">
+            Stock items
+          </Link>
+          .
         </p>
       </div>
     );

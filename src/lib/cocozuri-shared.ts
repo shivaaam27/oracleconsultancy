@@ -136,6 +136,29 @@ export function priceInForce(
   return pick(usable.filter((p) => p.customerId == null));
 }
 
+/**
+ * **Which products cannot be put on an invoice for anybody today.**
+ *
+ * ⚠️ ONE FUNCTION, BECAUSE THERE WERE TWO ANSWERS. The desk counted distinct
+ * product ids in `cz_prices` and said 46; the products list counted products
+ * with no standard list price in force and said 53. Both were labelled "no
+ * price", and both were wrong about a real case — the desk called a product
+ * priced when its only price starts NEXT MONTH, and the list called one unpriced
+ * when it has an agreed price with a customer and can be invoiced to them today.
+ *
+ * ⚠️ THE TEST IS "IN FORCE FOR ANYBODY", because that is the consequence both
+ * screens state: an invoice cannot be raised without a price, and a
+ * customer's own price is enough to raise one.
+ */
+export function unpricedProductIds(
+  products: { id: number }[], prices: CzPrice[], on?: string,
+): Set<number> {
+  const when = on ?? new Date().toISOString();
+  const priced = new Set<number>();
+  for (const p of prices) if (p.effectiveFrom <= when) priced.add(p.productId);
+  return new Set(products.filter((p) => !priced.has(p.id)).map((p) => p.id));
+}
+
 /* ------------------------------------------------------------------ *
  * Display
  * ------------------------------------------------------------------ */

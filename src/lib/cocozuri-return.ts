@@ -3,8 +3,10 @@ import { cocozuriCompany, createInvoice, getCustomer } from "@/lib/cocozuri";
 import { listItems, listMoves, postStockMove, reverseStockVoucher } from "@/lib/cocozuri-stock";
 import { todayInDar, type CzStockItem } from "@/lib/cocozuri-stock-shared";
 import { materialCosts } from "@/lib/cocozuri-recipe";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
-  bookInBlockers, creditNotePlan, nextReturnRef, returnCheck, scrapValue, settleBlockers,
+  bookInBlockers, creditNotePlan, lossReasonLabel, nextReturnRef, returnCheck, scrapValue,
+  settleBlockers,
   type CzLossReason, type CzReturn, type CzReturnKind, type CzReturnLine,
   type CzReturnStatus, type CzScrapValue,
 } from "@/lib/cocozuri-return-shared";
@@ -368,6 +370,17 @@ export async function bookReturn(
         return { ok: false, error: res.error };
       }
     }
+    /* ⚠️ WHICH DOOR IT CAME IN BY IS THE FACT WORTH RECORDING. A customer's
+       return left the books the day it was sold, so booking it puts stock BACK
+       on the shelf; breakage found here never went anywhere, so it moves
+       nothing. The two look identical on the screen and are not. */
+    void recordEvent({
+      subjectType: "return", subjectId: id, subjectRef: reference,
+      kind: "created",
+      summary: input.kind === "customer"
+        ? `Booked in from a customer — ${clean.length} line${clean.length === 1 ? "" : "s"} back on the shelf.`
+        : `Breakage written down — ${clean.length} line${clean.length === 1 ? "" : "s"}. It never left, so nothing moved.`,
+    }, by);
     return { ok: true, id, reference };
   }
   return { ok: false, error: "Could not allocate a reference for this return." };
@@ -522,6 +535,18 @@ export async function settleReturn(
     updated_at: NOW(),
   }).eq("id", id);
   if (error) { await undo(); return { ok: false, error: error.message }; }
+  /* ⚠️ WHAT IS STILL ON THE BENCH IS SAID, because settling is cumulative —
+     five bars repacked today and five thrown next week is the real case, and a
+     timeline that only ever read "settled" would hide the half still waiting. */
+  const goodNow = check.reduce((t, c) => t + c.good, 0);
+  const scrapNow = check.reduce((t, c) => t + c.scrap, 0);
+  void recordEvent({
+    subjectType: "return", subjectId: id, subjectRef: head.reference as string,
+    kind: done ? "closed" : "updated",
+    summary: `${goodNow} repacked, ${scrapNow} thrown${lossKind ? ` (${lossReasonLabel(lossKind).toLowerCase()})` : ""}. ${
+      done ? "Nothing left on the bench." : `${outstanding} still on the bench.`}`,
+    detail: { good: goodNow, scrap: scrapNow, outstanding },
+  }, by);
   return { ok: true };
 }
 
@@ -567,7 +592,13 @@ export async function cancelReturn(
     notes: [r.notes, `Cancelled: ${reason.trim()}`].filter(Boolean).join(" · "),
     updated_at: NOW(),
   }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "return", subjectId: id, subjectRef: r.reference,
+    kind: "cancelled",
+    summary: `Cancelled: ${reason.trim()}${existing.length > 0 ? " Everything it did was written back the opposite way." : ""}`,
+  }, by);
+  return { ok: true };
 }
 
 /* ------------------------- the money half (a link) ------------------------ */
@@ -656,6 +687,15 @@ export async function raiseCreditNote(
     await sb.from("cz_invoices").delete().eq("id", res.id);
     return { ok: false, error: error.message };
   }
+  /* ⚠️ It says DRAFT, because the money half is not done until somebody
+     issues it — and a timeline reading "credited" over an unissued note is how
+     a customer goes uncredited while everybody believes otherwise. */
+  void recordEvent({
+    subjectType: "return", subjectId: id, subjectRef: r.reference,
+    kind: "updated",
+    summary: `${res.number ? `Credit note ${res.number}` : "A credit note"} prepared as a draft, priced off ${r.invoiceNumber ?? "the original invoice"}. It still has to be issued.`,
+    detail: { creditNoteId: res.id, creditNoteNumber: res.number },
+  }, by);
   return { ok: true, number: res.number };
 }
 

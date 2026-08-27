@@ -11,6 +11,7 @@ import { CocozuriDespatch } from "@/components/cocozuri-despatch";
 import { CocozuriInvoiceEdit } from "@/components/cocozuri-invoice-edit";
 import { despatchChoices, despatchFor } from "@/lib/cocozuri-despatch";
 import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import { timelineFor } from "@/lib/cocozuri-events";
 import { amountInWords, invoiceBalance, invoiceDueDate, invoiceTotals, lineAmount, money, packLabel } from "@/lib/cocozuri-shared";
 
@@ -92,6 +93,27 @@ export default async function CocozuriInvoicePage({
           <ArrowLeft size={13} /> All invoices
         </Link>
         <span className="grow" />
+        <CocozuriHelp title="This invoice">
+          <p>
+            <strong>A draft can be edited; an issued one cannot.</strong> Changing the customer on a
+            draft re-freezes the VAT rate, the terms, the currency and their details. An issued
+            invoice is answered with a credit note.
+          </p>
+          <p>
+            <strong>Issuing is not posting.</strong> Somebody presses Post, and until they do this
+            is not in the books.
+          </p>
+          <p>
+            <strong>The lots below are a despatch record and they move no stock.</strong> The day
+            sheet is what takes chocolate off the shelf. They are written at issue, soonest-expiring
+            first, and against what other invoices have already claimed of each lot &mdash; without
+            that, two invoices would each be told the whole lot was theirs.
+          </p>
+          <p>
+            <strong>They can be corrected after issue</strong>, which is the one place this module
+            bends its own rule. Which lots went in the van is not money.
+          </p>
+        </CocozuriHelp>
         {editable && (
           <CocozuriInvoiceEdit
             invoice={{

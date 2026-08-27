@@ -6,12 +6,14 @@ import { Loader2, Printer, ShoppingCart } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { purchaseFromOrderFormAction } from "@/app/cocozuri/actions";
 import { SearchInput } from "@/components/ui";
+import { CocozuriHelp } from "@/components/cocozuri-help";
 import {
   MIN_DAYS_MEASURED, orderSuggestions, qty,
   type CzStockCount, type CzStockDay, type CzStockItem, type CzStockLocation,
   type CzStockMove,
 } from "@/lib/cocozuri-stock-shared";
 import { czDate } from "@/lib/cocozuri-shared";
+import { belowReorder } from "@/lib/cocozuri-plan-shared";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -51,6 +53,7 @@ export function CocozuriOrderForm({
   const router = useRouter();
   const [q, setQ] = useState("");
   const [only, setOnly] = useState(true);
+  const [onlyLow, setOnlyLow] = useState(false);
   /** itemId → the quantity as edited. The suggestion is only ever a start. */
   const [edited, setEdited] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
@@ -64,28 +67,59 @@ export function CocozuriOrderForm({
     [items, location.id, moves, days, counts, from, to, coverDays],
   );
 
+  /* ⚠️ THE HALF OF STAGE C THAT HAS NEVER FIRED. `belowReorder()` was written
+     and tested, the column and the write path existed — and no form could set a
+     level, so nothing was ever reported low. Now that an item can carry one,
+     this is where it earns its place: the rate above needs a WEEK of days
+     written down before it will quote anything, so a material bought rarely
+     gets no suggestion at all. "Never go below 5 kg" works from the moment
+     somebody types it.
+
+     ⚠️ NULL IS NOT NOUGHT — `belowReorder` skips an item with no level, because
+     nobody has said what low means for it. */
+  const low = useMemo(() => {
+    const onHand = new Map(rows.map((r) => [r.item.id, r.onHand]));
+    return new Map(belowReorder(rows.map((r) => r.item), onHand).map((r) => [r.item.id, r]));
+  }, [rows]);
+
+  /* ⚠️ THE LEVEL FILLS IN WHERE THE HISTORY CANNOT, and never overrides it.
+     Where a rate exists it is the better answer — it knows how fast the stuff
+     actually goes. Where there is no rate the shortfall to the level is the
+     only real number on the row, and leaving the box empty is what had somebody
+     typing it from memory.
+
+     ⚠️ IT MUST BE DECLARED ABOVE `shown`, AND TYPESCRIPT WILL NOT TELL YOU.
+     A `useMemo` callback runs DURING the render that declares it, not later, so
+     a `const` arrow function defined below it is still in its temporal dead zone
+     — the whole screen came down with "Cannot access 'suggestionFor' before
+     initialization" while `tsc` stayed clean. */
+  const suggestionFor = (r: { item: { id: number }; suggested: number | null }) =>
+    r.suggested != null ? r.suggested : low.get(r.item.id)?.short ?? null;
+
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
     return rows
-      .filter((r) => (only ? (r.suggested == null || r.suggested > 0) : true))
+      .filter((r) => (onlyLow ? low.has(r.item.id) : true))
+      .filter((r) => (only ? (suggestionFor(r) == null || (suggestionFor(r) ?? 0) > 0) : true))
       .filter((r) => !term || nameOf(r.item).toLowerCase().includes(term));
-  }, [rows, q, only, productNames]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, q, only, onlyLow, low, productNames]);
 
   const valueOf = (id: number, suggested: number | null) =>
     edited[id] ?? (suggested == null ? "" : String(suggested));
 
-  const ordering = shown.filter((r) => Number(valueOf(r.item.id, r.suggested)) > 0);
+  const ordering = shown.filter((r) => Number(valueOf(r.item.id, suggestionFor(r))) > 0);
 
   /* ⚠️ EVERY LINE WITH A QUANTITY, NOT ONLY THE ONES ON SCREEN. Filtering to
      "only what needs ordering" or typing in the search box must not silently
      drop a quantity somebody has already typed against a hidden row. */
-  const allOrdering = rows.filter((r) => Number(valueOf(r.item.id, r.suggested)) > 0);
+  const allOrdering = rows.filter((r) => Number(valueOf(r.item.id, suggestionFor(r))) > 0);
 
   async function raise() {
     setBusy(true);
     const res = await purchaseFromOrderFormAction({
       locationId: location.id,
-      lines: allOrdering.map((r) => ({ itemId: r.item.id, qty: Number(valueOf(r.item.id, r.suggested)) })),
+      lines: allOrdering.map((r) => ({ itemId: r.item.id, qty: Number(valueOf(r.item.id, suggestionFor(r))) })),
       note: `Raised from the order form for ${location.name}, covering ${coverDays} days.`,
     });
     setBusy(false);
@@ -101,10 +135,15 @@ export function CocozuriOrderForm({
     );
     router.push(`/cocozuri/purchases`);
   }
-  const totalUnits = ordering.reduce((t, r) => t + Number(valueOf(r.item.id, r.suggested) || 0), 0);
+  const totalUnits = ordering.reduce((t, r) => t + Number(valueOf(r.item.id, suggestionFor(r)) || 0), 0);
 
+  /* ⚠️ `/cocozuri/order/materials`, NOT `/cocozuri/order`. Stage C moved the
+     BUYING half here and left `/cocozuri/order` to the production plan — and
+     this line was not moved with it, so every shelf button and every cover
+     button threw you off "What to buy" onto "what to make today". The screen
+     was unusable the moment you picked a shelf. */
   const go = (next: { loc?: number; cover?: number }) =>
-    router.push(`/cocozuri/order?loc=${next.loc ?? location.id}&cover=${next.cover ?? coverDays}`);
+    router.push(`/cocozuri/order/materials?loc=${next.loc ?? location.id}&cover=${next.cover ?? coverDays}`);
 
   return (
     <div className="space-y-3">
@@ -137,9 +176,42 @@ export function CocozuriOrderForm({
           <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} />
           Only what needs ordering
         </label>
+        {/* ⚠️ Offered only when something IS low — a toggle that can only ever
+            show an empty list is a control that teaches somebody not to press
+            it. The count is on the label, so it says what it will do. */}
+        {low.size > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-warn">
+            <input type="checkbox" checked={onlyLow} onChange={(e) => setOnlyLow(e.target.checked)} />
+            Only below their level ({low.size})
+          </label>
+        )}
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item…"
           wrapperClassName="w-[13rem]" className="h-8 text-sm" />
         <span className="grow" />
+        <CocozuriHelp title="What to buy">
+          <p>
+            <strong>Demand is measured over the days actually written up, not over the
+            calendar.</strong> The kitchen skips days; dividing by 30 regardless would halve every
+            figure and under-order everything.
+          </p>
+          <p>
+            <strong>A week of history is needed before a rate is quoted at all.</strong> Consumption
+            is lumpy &mdash; a batch takes five kilos in a morning and none for a fortnight &mdash;
+            and two days of it once suggested ordering 195,000 g of milk chocolate. A row with too
+            little history says so rather than printing a dash that reads as &ldquo;this never
+            sells&rdquo;.
+          </p>
+          <p>
+            <strong>A reorder level is optional, and having none is not the same as nought.</strong>
+            An item nobody has set a level for is never reported as low.
+          </p>
+          <p>
+            <strong>Raising an order makes a draft purchase.</strong> Nothing moves and nothing
+            posts until somebody approves it, so carrying a suggestion across commits nothing. Each
+            line is prefilled with what that material has actually cost &mdash; a material never
+            bought comes in at zero and is named, never quietly invented.
+          </p>
+        </CocozuriHelp>
         <button type="button" onClick={() => window.print()}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg print:hidden">
           <Printer size={13} /> Print
@@ -201,6 +273,12 @@ export function CocozuriOrderForm({
                         : `only ${r.daysMeasured} day${r.daysMeasured === 1 ? "" : "s"} written down`}
                     </span>
                   )}
+                  {/* ⚠️ The one fact that needs no history at all. */}
+                  {low.has(r.item.id) && (
+                    <span className="ml-1.5 text-xs text-warn">
+                      below {qty(low.get(r.item.id)!.level)}
+                    </span>
+                  )}
                 </span>
                 <span className="text-right text-sm tabular text-fg-muted">{qty(r.onHand)}</span>
                 <span className="text-right text-sm tabular text-fg-subtle">
@@ -214,10 +292,10 @@ export function CocozuriOrderForm({
                   {cover == null ? "not known" : !Number.isFinite(cover) ? "—" : `${Math.floor(cover)}d`}
                 </span>
                 <input
-                  value={valueOf(r.item.id, r.suggested)}
+                  value={valueOf(r.item.id, suggestionFor(r))}
                   onChange={(e) => setEdited((s) => ({ ...s, [r.item.id]: e.target.value }))}
                   inputMode="decimal"
-                  placeholder={r.suggested == null ? "?" : "0"}
+                  placeholder={suggestionFor(r) == null ? "?" : "0"}
                   aria-label={`Order quantity for ${nameOf(r.item)}`}
                   className="w-full rounded-md border border-border bg-bg px-1.5 py-1 text-right text-sm tabular outline-none focus:border-accent print:border-0"
                 />

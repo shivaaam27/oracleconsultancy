@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriRecipeActions } from "@/components/cocozuri-recipe-actions";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listLocations, listMoves, listCounts } from "@/lib/cocozuri-stock";
 import { ledgerBalanceAt, qty as qtyText, todayInDar } from "@/lib/cocozuri-stock-shared";
@@ -43,7 +46,10 @@ export default async function CocozuriRecipePage({
   if (!recipe) notFound();
 
   const company = await cocozuriCompany();
-  const [items, locations, allRecipes] = await Promise.all([listItems(), listLocations({ includeInactive: true }), listRecipes()]);
+  const [items, locations, allRecipes, events] = await Promise.all([
+    listItems(), listLocations({ includeInactive: true }), listRecipes(),
+    timelineFor("recipe", recipe.id),
+  ]);
   const costs = Object.fromEntries(await materialCosts(items.map((i) => i.id)));
   const costing = costRecipe(recipe, (itemId) => costs[itemId]?.unitCost ?? null);
 
@@ -83,6 +89,33 @@ export default async function CocozuriRecipePage({
       <PageHeader
         title={recipe.name}
         sub={`Makes ${qtyText(recipe.yieldQty)} ${recipe.yieldUom} of ${recipe.outputItemName}${recipe.outputLocationName ? ` · ${recipe.outputLocationName}` : ""}${company ? ` · ${company.name}` : ""}`}
+        action={
+          <CocozuriHelp title="This recipe">
+            <p>
+              <strong>Every figure here is worked out as the page loads.</strong> There is no cost on
+              the recipe and none on a line &mdash; a recipe is an instruction, and what it costs is
+              whatever its materials cost today, averaged across the deliveries actually bought.
+            </p>
+            <p>
+              <strong>A material nobody has bought has no cost, and is named.</strong> The total then
+              reads &ldquo;at least&rdquo;, because a total with a silent zero in it reads as cheap.
+            </p>
+            <p>
+              <strong>&ldquo;Can we make it&rdquo; shows, it does not reserve.</strong> It is the
+              figure read straight off the shelf; nothing here holds materials for you.
+            </p>
+            <p>
+              <strong>Editing this is allowed even while it is in use.</strong> It is a live
+              instruction, not a document somebody acted on &mdash; and batches already made keep the
+              version they were made from, so nothing already read and signed off can change behind
+              you.
+            </p>
+            <p>
+              A recipe something has been made from <strong>cannot be deleted</strong>. Take it out
+              of use instead; those batches are how anybody knows what went into that chocolate.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -236,6 +269,13 @@ export default async function CocozuriRecipePage({
 
       {/* Common ingredients — note #33. */}
       <SharedMaterials recipe={recipe} allRecipes={allRecipes} />
+
+      {/* ⚠️ A recipe may be edited while it is active — deliberately, because it
+          is a live instruction rather than a document somebody acted on. This is
+          where anybody finds out that it moved, and when. */}
+      <CocozuriTimeline
+        subjectType="recipe" subjectId={recipe.id} subjectRef={recipe.name}
+        events={events} />
     </div>
   );
 }

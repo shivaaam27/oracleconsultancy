@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { listItems, listMoves, listLocations } from "@/lib/cocozuri-stock";
+import { recordEvent } from "@/lib/cocozuri-events";
 import {
   itemCostFromMoves, recipeBlockers,
   type CzItemCost, type CzRecipe, type CzRecipeKind, type CzRecipeLine, type CzRecipeStatus,
@@ -242,6 +243,11 @@ export async function createRecipe(input: RecipeInput, by = "web-ui"): Promise<{
   const id = data?.id as number;
   const written = await writeLines(company.id, id, input.lines);
   if (!written.ok) return written;
+  void recordEvent({
+    subjectType: "recipe", subjectId: id, subjectRef: input.name.trim(),
+    kind: "created",
+    summary: `Written down as a draft. ${input.lines?.length ?? 0} material${(input.lines?.length ?? 0) === 1 ? "" : "s"}, making ${input.yieldQty} ${input.yieldUom?.trim() || "PCS"}.`,
+  }, by);
   return { ok: true, id };
 }
 
@@ -254,7 +260,7 @@ export async function createRecipe(input: RecipeInput, by = "web-ui"): Promise<{
  * batch ACTUALLY consumed is recorded by Stage 4's movements, so editing a
  * recipe can never rewrite the cost of something already made.
  */
-export async function updateRecipe(id: number, input: Partial<RecipeInput>): Promise<{ ok: boolean; error?: string }> {
+export async function updateRecipe(id: number, input: Partial<RecipeInput>, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const company = await cocozuriCompany();
   if (!company) return { ok: false, error: "Cocozuri is not in the company list." };
   const current = await getRecipe(id);
@@ -291,6 +297,17 @@ export async function updateRecipe(id: number, input: Partial<RecipeInput>): Pro
     const written = await writeLines(company.id, id, input.lines);
     if (!written.ok) return written;
   }
+  /* ⚠️ SAID PLAINLY, BECAUSE A RECIPE MAY BE EDITED WHILE ACTIVE. What a batch
+     already made was measured against its own frozen snapshot, so this changes
+     nothing behind anybody — but the timeline is where somebody finds out that
+     the instruction they are following moved this morning. */
+  void recordEvent({
+    subjectType: "recipe", subjectId: id, subjectRef: merged.name,
+    kind: "updated",
+    summary: input.lines
+      ? "Changed, materials included. Batches already made keep the recipe they were made from."
+      : "Changed. Batches already made keep the recipe they were made from.",
+  }, by);
   return { ok: true };
 }
 
@@ -301,7 +318,7 @@ export async function updateRecipe(id: number, input: Partial<RecipeInput>): Pro
  * again here rather than trusted from the form — activating is the moment a
  * recipe becomes something a kitchen will follow.
  */
-export async function setRecipeStatus(id: number, status: CzRecipeStatus): Promise<{ ok: boolean; error?: string }> {
+export async function setRecipeStatus(id: number, status: CzRecipeStatus, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const recipe = await getRecipe(id);
   if (!recipe) return { ok: false, error: "That recipe does not exist." };
   if (status === "active") {
@@ -312,7 +329,21 @@ export async function setRecipeStatus(id: number, status: CzRecipeStatus): Promi
   // Something out of use cannot also be the one everything reaches for first.
   if (status !== "active") patch.is_default = false;
   const { error } = await sb.from("cz_recipes").update(patch).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "recipe", subjectId: id, subjectRef: recipe.name,
+    kind: status === "active" ? "approved" : "cancelled",
+    summary: (status === "active"
+      ? "Made active. The kitchen can make to it now."
+      : status === "archived"
+        ? "Taken out of use. Nothing that was made to it changes."
+        : "Put back to a draft. The kitchen cannot make to it.")
+      /* ⚠️ Only when it is being taken OUT of use — that is the only path that
+         clears the default, and saying it on an activation would be wrong. */
+      + (status !== "active" && recipe.isDefault
+        ? " It was the one reached for first, and is not any more." : ""),
+  }, by);
+  return { ok: true };
 }
 
 /**
@@ -326,7 +357,7 @@ export async function setRecipeStatus(id: number, status: CzRecipeStatus): Promi
  * ⚠️ AND ONLY AN ACTIVE RECIPE. A draft nobody has checked must not become what
  * a kitchen follows by default.
  */
-export async function setRecipeDefault(id: number): Promise<{ ok: boolean; error?: string }> {
+export async function setRecipeDefault(id: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const recipe = await getRecipe(id);
   if (!recipe) return { ok: false, error: "That recipe does not exist." };
   if (recipe.status !== "active") {
@@ -338,7 +369,13 @@ export async function setRecipeDefault(id: number): Promise<{ ok: boolean; error
   await sb.from("cz_recipes").update({ is_default: false, updated_at: NOW() })
     .eq("company_id", company.id).eq("output_item_id", recipe.outputItemId);
   const { error } = await sb.from("cz_recipes").update({ is_default: true, updated_at: NOW() }).eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  void recordEvent({
+    subjectType: "recipe", subjectId: id, subjectRef: recipe.name,
+    kind: "updated",
+    summary: "Made the one to use first for this chocolate.",
+  }, by);
+  return { ok: true };
 }
 
 /**
@@ -352,7 +389,7 @@ export async function setRecipeDefault(id: number): Promise<{ ok: boolean; error
  * `cocozuri-batch.ts`, which imports `getRecipe` from this file — going the
  * other way would be a circular import.
  */
-export async function deleteRecipe(id: number): Promise<{ ok: boolean; error?: string }> {
+export async function deleteRecipe(id: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const { count } = await sb.from("cz_batches").select("id", { count: "exact", head: true }).eq("recipe_id", id);
   if ((count ?? 0) > 0) {
     return {
@@ -360,8 +397,17 @@ export async function deleteRecipe(id: number): Promise<{ ok: boolean; error?: s
       error: `${count} batch${count === 1 ? " has" : "es have"} been made to this recipe. Take it out of use instead — the batches are how anybody knows what went into that chocolate.`,
     };
   }
+  const name = (await getRecipe(id))?.name ?? null;
   const { error } = await sb.from("cz_recipes").delete().eq("id", id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  /* ⚠️ The name is FROZEN on the event, so it still reads once the recipe is
+     gone — that is the whole reason `subject_ref` exists. */
+  void recordEvent({
+    subjectType: "recipe", subjectId: null, subjectRef: name,
+    kind: "deleted",
+    summary: `${name ?? "A recipe"} was deleted. Nothing had ever been made to it.`,
+  }, by);
+  return { ok: true };
 }
 
 async function writeLines(

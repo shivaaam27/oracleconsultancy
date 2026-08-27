@@ -4,6 +4,9 @@ import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { czDate } from "@/lib/cocozuri-shared";
 import { CocozuriReturnActions } from "@/components/cocozuri-return-actions";
+import { CocozuriTimeline } from "@/components/cocozuri-timeline";
+import { CocozuriHelp } from "@/components/cocozuri-help";
+import { timelineFor } from "@/lib/cocozuri-events";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { getReturnByRef, returnScrapValue } from "@/lib/cocozuri-return";
 import { postingOverview, writeOffState } from "@/lib/cocozuri-ledger";
@@ -36,11 +39,12 @@ export default async function CocozuriReturnPage({
   const r = await getReturnByRef(decodeURIComponent(reference));
   if (!r) notFound();
 
-  const [company, scrap, books, posting] = await Promise.all([
+  const [company, scrap, books, posting, events] = await Promise.all([
     cocozuriCompany(),
     returnScrapValue(r),
     writeOffState(r.id),
     postingOverview(),
+    timelineFor("return", r.id),
   ]);
   const check = returnCheck(r);
   const waiting = daysWaiting(r, todayInDar());
@@ -50,6 +54,34 @@ export default async function CocozuriReturnPage({
       <PageHeader
         title={r.reference}
         sub={`${CZ_RETURN_KIND_LABEL[r.kind]} · ${r.locationName ?? "?"} · ${czDate(r.onDate)}${company ? ` · ${company.name}` : ""}`}
+        action={
+          <CocozuriHelp title="This return">
+            <p>
+              <strong>What is still &ldquo;repairing&rdquo; is what has come back less what has been
+              repacked and what has been thrown.</strong> It is the exact twin of stock in transit on
+              a transfer, and it is why this can be settled more than once &mdash; five bars repacked
+              today and five thrown next week is the real case.
+            </p>
+            <p>
+              <strong>Only the scrap moves anything now.</strong> What was repacked is already on the
+              shelf; writing a movement for it would count the same chocolate twice.
+            </p>
+            <p>
+              <strong>The write-off is posted at what it cost</strong>, never at what it would have
+              sold for, and only once nothing is left on the bench &mdash; what is still there might
+              yet be sold. A loss that cannot be valued in full is refused with the item named,
+              rather than posted short.
+            </p>
+            <p>
+              <strong>A sales return reverses the sale but does not put the cost back.</strong>
+              Nothing ever took the cost of that sale out of stock, so it is still sitting there.
+            </p>
+            <p>
+              The credit note is priced off the <em>original</em> invoice, credits what came back
+              rather than what was repacked, and lands as a draft.
+            </p>
+          </CocozuriHelp>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -179,6 +211,13 @@ export default async function CocozuriReturnPage({
         Every movement here carries {r.reference}, so what this return did to the shelf is always
         answerable.
       </p>
+
+      {/* ⚠️ SETTLING IS CUMULATIVE — five bars repacked today and five thrown
+          next week. A status column can only ever say where it ended up; this is
+          where each of those decisions is dated and attributed. */}
+      <CocozuriTimeline
+        subjectType="return" subjectId={r.id} subjectRef={r.reference}
+        events={events} />
     </div>
   );
 }
