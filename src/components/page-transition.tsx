@@ -14,13 +14,41 @@ import type { ReactNode } from "react";
  *
  * Reduced-motion is honoured globally via <MotionConfig reducedMotion="user"> in
  * the root layout (it strips the transform/opacity tweens), so we don't gate here. */
-export function PageTransition({ children }: { children: ReactNode }) {
+export function PageTransition({
+  children,
+  stableUnder,
+}: {
+  children: ReactNode;
+  /**
+   * Route prefixes under which this instance does NOT re-animate — the key
+   * collapses to the prefix, so every address inside it is "the same page".
+   *
+   * ⚠️ THE ROOT INSTANCE MUST PASS `["/portal"]`, AND THIS IS WHY. The root
+   * layout wraps `{children}` in this transition — and for portal routes,
+   * `{children}` is the ENTIRE portal layout, sidebar and all. Keyed by full
+   * pathname, every portal navigation therefore remounted and crossfaded the
+   * whole portal TWICE (this instance plus the portal layout's own), and —
+   * worse — the animation puts a `transform` on the wrapper, and a transform on
+   * an ancestor makes it the containing block for `position: fixed`. The
+   * portal's pinned sidebar lost its anchor and rode the page animation on
+   * every click, while the command centre's sidebar — mounted OUTSIDE this
+   * wrapper in the root layout — never moved. That asymmetry is what the owner
+   * kept reporting: "the sidebar breaks from its position… command centre
+   * works fine." With the key collapsed, this instance animates INTO the
+   * portal once and never again inside it; the portal layout's own instance
+   * (whose wrapper contains only the page, never the sidebar) does the
+   * per-page crossfade.
+   */
+  stableUnder?: string[];
+}) {
   const pathname = usePathname();
+  const key =
+    stableUnder?.find((p) => pathname === p || pathname.startsWith(p + "/")) ?? pathname;
   return (
     <div className="relative">
       <AnimatePresence initial={false}>
         <motion.div
-          key={pathname}
+          key={key}
           className="page-flow"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}

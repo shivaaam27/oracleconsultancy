@@ -135,7 +135,12 @@ export default async function RootLayout({ children, modal }: { children: React.
                   className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12"
                 >
                   <div className="mx-auto max-w-[1600px]">
-                    <PageTransition>{children}</PageTransition>
+                    {/* ⚠️ `stableUnder`: inside /portal this wrapper must never re-key —
+                        it contains the portal's FIXED sidebar, and re-animating it
+                        breaks `fixed` and remounts the rail on every click. The
+                        portal layout runs its own PageTransition around just the
+                        page. See the note in page-transition.tsx. */}
+                    <PageTransition stableUnder={["/portal"]}>{children}</PageTransition>
                   </div>
                 </main>
                 {modal}
