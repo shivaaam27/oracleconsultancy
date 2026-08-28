@@ -1,32 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, ShieldOff, User, Users, Briefcase, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { Shield, ShieldOff, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "./ui";
+import { Button, Select } from "./ui";
+import { DirectorScopePicker } from "./director-scope-picker";
 import { useToast } from "./toast";
 import { setPortalRoleQuick, enablePortalAccessQuick, revokePortalAccessQuick, setPortalDesignationQuick } from "@/app/people/actions";
+import { PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS, type PortalRoleKey, type ScopeLevel } from "@/lib/portal-permissions";
 
-type QuickRole = "staff" | "manager" | "director";
-const ROLES: { value: QuickRole; label: string; icon: typeof User }[] = [
-  { value: "staff", label: "Staff", icon: User },
-  { value: "manager", label: "Manager", icon: Users },
-  { value: "director", label: "Director", icon: Briefcase },
-];
+/* Manage staff-portal access for one person straight from the People drawer.
+ *
+ * ⚠️ IT OFFERS THE SAME FIVE LEVELS AS SETTINGS, and writes through the same
+ * door (`lib/portal-access.ts`). It used to offer three — Staff / Manager /
+ * Director — with Admin and Receptionist reachable only in Settings, and it
+ * could not scope a Director to companies at all. So the same person's access
+ * looked different depending on which screen you happened to open, and a
+ * Director set here was silently portfolio-wide.
+ */
 
-/* Manage staff-portal access for one person straight from the People drawer —
- * an instant Staff/Manager/Director toggle when access exists, an enable form
- * when it doesn't, plus reset-password / revoke. The every-company "Admin" role
- * stays in Settings on purpose. Mirrors the Settings flow via the *Quick
- * server actions (which revalidate /people). */
 export function PersonPortalAccess({
   personId,
   portal,
+  companies,
+  scope,
   onChanged,
   fmtDate,
 }: {
   personId: number;
-  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null; directorCompanyIds: number[] };
+  /** Active companies, for scoping a Director. */
+  companies: { id: number; name: string }[];
+  /** The live scope level per role, so this says what the portal enforces. */
+  scope: Record<PortalRoleKey, ScopeLevel>;
   onChanged: () => void;
   fmtDate: (d: Date) => string;
 }) {
@@ -35,10 +42,14 @@ export function PersonPortalAccess({
   const [showEnable, setShowEnable] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [pw, setPw] = useState("");
-  const [pwRole, setPwRole] = useState<QuickRole>("staff");
   const [reveal, setReveal] = useState(false);
   const [designation, setDesignation] = useState(portal.designation ?? "");
   const [savingDesig, setSavingDesig] = useState(false);
+
+  const current: PortalRoleKey = (PORTAL_ROLES as string[]).includes(portal.role) ? (portal.role as PortalRoleKey) : "staff";
+  // The level being chosen right now (not yet saved for a new grant).
+  const [role, setRole] = useState<PortalRoleKey>(current);
+  const [scopeIds, setScopeIds] = useState<number[]>(portal.directorCompanyIds);
 
   async function saveDesignation() {
     if (savingDesig || designation.trim() === (portal.designation ?? "").trim()) return;
@@ -49,25 +60,35 @@ export function PersonPortalAccess({
     else toast(res.error, { tone: "danger" });
   }
 
-  const role: QuickRole = portal.role === "manager" ? "manager" : portal.role === "director" ? "director" : "staff";
-  // "hr"/admin isn't one of the quick toggle options — show it but don't let the
-  // toggle silently downgrade it; switching requires Settings.
-  const isAdmin = portal.role === "hr";
-
-  async function changeRole(next: QuickRole) {
-    if (next === role || pending) return;
+  /** Save the level AND, for a Director, the companies — in ONE action.
+   *
+   *  ⚠️ It is deliberately a button, not an instant toggle. Saving on each click
+   *  would write "Director, all companies" the moment you picked Director and
+   *  then narrow it a click later, so there is a moment where somebody can see
+   *  the whole portfolio. Nothing is written until this is pressed. */
+  async function saveRole() {
+    if (pending) return;
     setPending(true);
-    const res = await setPortalRoleQuick(personId, next);
+    const res = await setPortalRoleQuick(personId, role, role === "director" ? scopeIds : []);
     setPending(false);
-    if (res.ok) { toast(`Role set to ${next}.`, { tone: "success" }); onChanged(); }
-    else toast(res.error, { tone: "danger" });
+    if (res.ok) {
+      // Match what was actually stored: a non-director carries no scope, so the
+      // picker must not still be holding the companies they had as a director.
+      setScopeIds(role === "director" ? scopeIds : []);
+      toast(`Access level set to ${ROLE_LABEL[role]}.`, { tone: "success" });
+      onChanged();
+    }
+    else { setRole(current); setScopeIds(portal.directorCompanyIds); toast(res.error, { tone: "danger" }); }
   }
+
+  const sameIds = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
+  const dirty = role !== current || (role === "director" && !sameIds(scopeIds, portal.directorCompanyIds));
 
   async function enable() {
     if (pending) return;
     if (pw.length < 8) { toast("Password must be at least 8 characters.", { tone: "warn" }); return; }
     setPending(true);
-    const res = await enablePortalAccessQuick(personId, pwRole, pw);
+    const res = await enablePortalAccessQuick(personId, role, pw, role === "director" ? scopeIds : []);
     setPending(false);
     if (res.ok) { toast("Portal access enabled.", { tone: "success" }); setPw(""); setShowEnable(false); onChanged(); }
     else toast(res.error, { tone: "danger" });
@@ -77,7 +98,9 @@ export function PersonPortalAccess({
     if (pending) return;
     if (pw.length < 8) { toast("Password must be at least 8 characters.", { tone: "warn" }); return; }
     setPending(true);
-    const res = await enablePortalAccessQuick(personId, role, pw);
+    // Their level and scope are left exactly as they are — this only changes the
+    // password (the core also refuses to demote on a reset).
+    const res = await enablePortalAccessQuick(personId, current, pw, portal.directorCompanyIds);
     setPending(false);
     if (res.ok) { toast("Password reset.", { tone: "success" }); setPw(""); setShowReset(false); onChanged(); }
     else toast(res.error, { tone: "danger" });
@@ -111,6 +134,40 @@ export function PersonPortalAccess({
     </div>
   );
 
+  /** The level chooser + what that level SEES. Shared by the enable form and
+   *  the live control, so a new grant and a change read identically. */
+  const levelRow = (withSave: boolean) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Select
+          value={role}
+          onChange={(e) => setRole(e.target.value as PortalRoleKey)}
+          disabled={pending}
+          aria-label="Access level"
+          wrapperClassName="flex-1"
+        >
+          {PORTAL_ROLES.map((r) => (
+            <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+          ))}
+        </Select>
+        {role === "director" && (
+          <DirectorScopePicker companies={companies} selected={scopeIds} onChange={setScopeIds} />
+        )}
+        {withSave && dirty && (
+          <Button type="button" size="sm" onClick={saveRole} disabled={pending}>Save</Button>
+        )}
+      </div>
+      <p className="text-xs text-fg-subtle">
+        {role === "director"
+          ? scopeIds.length === 0
+            ? "Sees the whole portfolio. Pick companies to scope them to just those."
+            : `Scoped to ${scopeIds.length} ${scopeIds.length === 1 ? "company" : "companies"}.`
+          : `Sees ${SCOPE_WORDS[scope[role]]}.`}
+        {role === "manager" && " Their companies are the ones under “Also works for” on this record."}
+      </p>
+    </div>
+  );
+
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
@@ -125,26 +182,7 @@ export function PersonPortalAccess({
 
       {portal.enabled ? (
         <>
-          {isAdmin ? (
-            <p className="text-xs text-fg-muted">
-              This person has the <span className="font-medium">Admin</span> (every-company) role — change it in Settings.
-            </p>
-          ) : (
-            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-bg-subtle/70 p-1">
-              {ROLES.map(({ value, label, icon: Icon }) => {
-                const on = value === role;
-                return (
-                  <button key={value} type="button" onClick={() => changeRole(value)} disabled={pending}
-                    className={cn(
-                      "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs transition-colors disabled:opacity-50",
-                      on ? "bg-bg-elev text-accent ring-1 ring-accent/50 font-medium" : "text-fg-muted hover:bg-bg-muted/60",
-                    )}>
-                    <Icon size={15} /> {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {levelRow(true)}
 
           {/* Optional display designation — overrides the role label in the portal
               header + role badge (e.g. a manager shown as "Group Admin Manager"). */}
@@ -181,20 +219,7 @@ export function PersonPortalAccess({
         </>
       ) : showEnable ? (
         <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-bg-subtle/70 p-1">
-            {ROLES.map(({ value, label, icon: Icon }) => {
-              const on = value === pwRole;
-              return (
-                <button key={value} type="button" onClick={() => setPwRole(value)} disabled={pending}
-                  className={cn(
-                    "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs transition-colors disabled:opacity-50",
-                    on ? "bg-bg-elev text-accent ring-1 ring-accent/50 font-medium" : "text-fg-muted hover:bg-bg-muted/60",
-                  )}>
-                  <Icon size={15} /> {label}
-                </button>
-              );
-            })}
-          </div>
+          {levelRow(false)}
           <div className="flex items-center gap-2">
             {pwField("Set a password")}
             <Button type="button" size="sm" onClick={enable} disabled={pending}>Enable</Button>
@@ -206,6 +231,13 @@ export function PersonPortalAccess({
           <Shield size={13} /> Enable access
         </Button>
       )}
+
+      <Link
+        href="/settings?section=portals#portal-permissions"
+        className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-accent"
+      >
+        What each level can do <ArrowRight size={11} />
+      </Link>
     </div>
   );
 }

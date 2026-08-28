@@ -33,6 +33,15 @@ export const SCOPE_LEVELS: { value: ScopeLevel; label: string; hint: string }[] 
   { value: "all", label: "All companies", hint: "The whole portfolio — every company." },
 ];
 
+/** What a scope level means, in one phrase, for the screens that have to SAY it
+ *  rather than offer it. One copy so the access list, the grant form and the
+ *  permissions matrix can never word the same rule differently. */
+export const SCOPE_WORDS: Record<ScopeLevel, string> = {
+  all: "every company",
+  companies: "the companies on their record",
+  own: "only their own work",
+};
+
 export type CapabilityKey =
   | "createTasks"
   | "manageAnyTask"
@@ -156,8 +165,59 @@ export type PortalPermissionsConfig = {
   caps?: Partial<Record<CapabilityKey, Partial<Record<PortalRoleKey, boolean>>>>;
 };
 
+/** Extract a director's scoped company-id set from a `people` row (join-table
+ *  embed `director_companies(company_id)`), falling back to the legacy single
+ *  `director_company_id` column where the join table was never written.
+ *
+ *  ⚠️ ONE READER for a scope stored in two places. There were three copies of
+ *  this — in portal-auth, in the Settings page and in the person record — so a
+ *  fix to the fallback had to be made three times or the screens disagreed. */
+export function directorScopeOf(row: {
+  director_company_id?: number | null;
+  director_companies?: { company_id: number }[] | { company_id: number } | null;
+}): number[] {
+  const raw = row.director_companies;
+  const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const ids = rows.map((r) => r.company_id).filter((n): n is number => typeof n === "number");
+  if (ids.length === 0 && row.director_company_id != null) return [row.director_company_id];
+  return Array.from(new Set(ids));
+}
+
+/** Coerce a stored role string to a real role. Client-safe — the server twin
+ *  is `parsePortalRole` in `lib/portal-access.ts`, which calls this shape. */
+export function asPortalRole(role: string | null | undefined): PortalRoleKey {
+  return normaliseRole(role);
+}
+
 function normaliseRole(role: string | null | undefined): PortalRoleKey {
   return role === "manager" || role === "hr" || role === "director" || role === "receptionist" ? role : "staff";
+}
+
+/* ── The two safety rules that govern a change of access ──────────────────── */
+
+/** How much a level outranks another. Receptionist is a lateral, low-power role,
+ *  not a step above Staff. Admin (hr) and Director are both "everything". */
+const RANK: Record<PortalRoleKey, number> = { staff: 0, receptionist: 0, manager: 1, hr: 2, director: 2 };
+
+/**
+ * COMPIP-01 — the level to store when a password is RESET on somebody who
+ * already has access. A reset form can submit a defaulted "staff", which would
+ * strip an Admin, Manager or Director of their access as a side effect of
+ * changing a password. So a reset can raise a level but never lower one; a
+ * deliberate demotion goes through a role change or a revoke.
+ */
+export function roleAfterReset(previous: PortalRoleKey, requested: PortalRoleKey): PortalRoleKey {
+  return RANK[requested] < RANK[previous] ? previous : requested;
+}
+
+/**
+ * The company scope to store for a level. ⚠️ Only a Director may carry one —
+ * anything else is cleared, so demoting a scoped director and promoting them
+ * again months later can never silently restore the old set of companies.
+ */
+export function scopeForRole(role: PortalRoleKey, companyIds: number[]): number[] {
+  if (role !== "director") return [];
+  return [...new Set(companyIds.filter((n) => Number.isFinite(n) && n > 0))];
 }
 
 /** The scope level for a role, config merged over defaults. */

@@ -20,6 +20,7 @@ import { useToast } from "./toast";
 import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField, bulkAddSecondaryManager, bulkSetPortalRole } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
+import { PORTAL_ROLES, ROLE_LABEL, asPortalRole as asRole, type PortalRoleKey } from "@/lib/portal-permissions";
 
 /* ------------------------------------------------------- phone filters --- */
 
@@ -260,12 +261,12 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
       if (res.ok) { setBulkEditing(false); router.refresh(); }
     });
   }
-  function applyRoleTo(ids: number[], role: "staff" | "manager" | "director", closeBulk = true) {
+  function applyRoleTo(ids: number[], role: PortalRoleKey, closeBulk = true) {
     if (!ids.length) return;
     startBulk(async () => {
       const res = await bulkSetPortalRole(ids, role);
       if (res.ok) {
-        const parts = [`${res.updated ?? 0} set to ${role}`];
+        const parts = [`${res.updated ?? 0} set to ${ROLE_LABEL[role]}`];
         if (res.skipped) parts.push(`${res.skipped} skipped (no portal access)`);
         toast(parts.join(" · "), { tone: "success" });
         if (closeBulk) setBulkEditing(false); router.refresh();
@@ -276,7 +277,7 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
   }
   const applyBulkField = (field: "company" | "department" | "manager", value: number | string | null) => applyFieldTo([...selected], field, value);
   const applyBulkSecondary = (value: number | null) => applySecondaryTo([...selected], value);
-  const applyBulkRole = (role: "staff" | "manager" | "director") => applyRoleTo([...selected], role);
+  const applyBulkRole = (role: PortalRoleKey) => applyRoleTo([...selected], role);
 
   async function copyContact(p: PersonRow) {
     const value = p.whatsapp || p.phone || p.email || "";
@@ -810,7 +811,6 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                     managerPicker={managerPicker}
                     onOpen={(x) => cardHandlers(x).onOpen()}
                     onSetManager={(id, m) => applyFieldTo([id], "manager", m, false)}
-                    onSetRole={(id, r) => applyRoleTo([id], r, false)}
                   />
                 ) : (
                 <div className="flex flex-col gap-1.5 p-2">
@@ -890,11 +890,9 @@ export function PeopleTable({ people, companies, directoryHints, createSlot, tot
                     <Combobox options={["— Clear —", ...mgrLabels]} placeholder="Set manager…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear —") { applyBulkField("manager", null); return; } const id = labelToId.get(t); if (id != null) applyBulkField("manager", id); }} />
                     <Combobox options={["— Clear extra —", ...mgrLabels]} placeholder="Also reports to…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear extra —") { applyBulkSecondary(null); return; } const id = labelToId.get(t); if (id != null) applyBulkSecondary(id); }} />
                     <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
-                    <Select defaultValue="" onChange={(e) => { const v = e.target.value; if (v) applyBulkRole(v as "staff" | "manager" | "director"); e.currentTarget.selectedIndex = 0; }} size="sm" wrapperClassName="min-w-0 col-span-2">
-                      <option value="" disabled>Set portal role… (already-enabled only)</option>
-                      <option value="staff">Staff</option>
-                      <option value="manager">Manager</option>
-                      <option value="director">Director</option>
+                    <Select defaultValue="" onChange={(e) => { const v = e.target.value; if (v) applyBulkRole(v as PortalRoleKey); e.currentTarget.selectedIndex = 0; }} size="sm" wrapperClassName="min-w-0 col-span-2">
+                      <option value="" disabled>Set portal level… (already-enabled only)</option>
+                      {PORTAL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                     </Select>
                   </>
                 );
@@ -1035,14 +1033,13 @@ type ManagerPicker = { labels: string[]; labelToId: Map<string, number>; labelBy
  * inline cells (manager combobox, portal-role cycle) on sm+; on mobile it's a
  * tap-to-open row. Reuses the same pointer handlers as the comfortable card.
  */
-function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager, onSetRole, onOpen, onPointerDown, onPointerMove, onPointerUp, onPointerLeave, onPointerCancel }: {
+function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager, onOpen, onPointerDown, onPointerMove, onPointerUp, onPointerLeave, onPointerCancel }: {
   p: PersonRow;
   hint: { onLeave: boolean; present: number; absent: number } | null;
   selectMode: boolean;
   selected: boolean;
   managerPicker: ManagerPicker;
   onSetManager: (id: number) => void;
-  onSetRole: (r: "staff" | "manager" | "director") => void;
   onOpen: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1054,7 +1051,6 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
   const wl = p.workload;
   const role: string = p.portalRole ?? "staff";
   const wlTone = wl.overdue > 0 ? "text-danger" : wl.open >= 5 ? "text-warn" : wl.open === 0 ? "text-fg-subtle" : "text-info";
-  const cycleRole = () => onSetRole(role === "staff" ? "manager" : role === "manager" ? "director" : "staff");
 
   return (
     <div
@@ -1098,20 +1094,21 @@ function CompactRow({ p, hint, selectMode, selected, managerPicker, onSetManager
         />
       </div>
 
-      {/* Portal role cell (sm+): tap-cycles staff → manager → director (enabled portals only). */}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); if (p.portalEnabled) cycleRole(); }}
-        disabled={!p.portalEnabled}
-        title={p.portalEnabled ? "Tap to change portal role" : "No portal access"}
-        className={cn("hidden sm:inline-flex w-[86px] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1 transition-colors",
-          !p.portalEnabled ? "text-fg-subtle ring-border cursor-default" :
-          role === "director" || role === "hr" ? "bg-accent-soft text-accent ring-accent/25 hover:bg-accent-soft/80" :
-          role === "manager" ? "bg-info-soft text-info ring-info/25 hover:bg-info-soft/80" :
-          "bg-bg-muted text-fg-muted ring-border hover:bg-bg-subtle")}
+      {/* Portal level (sm+) — READ ONLY. It used to tap-cycle staff → manager →
+          director, so one stray tap on a row could make somebody a director (or
+          quietly demote an Admin to Staff), with no confirmation and no way to
+          set a director's company scope. Change it on their own record, or in
+          Settings → Portals; select several rows to change them together. */}
+      <span
+        title={p.portalEnabled ? "Portal level — change it on their record, or in Settings → Portals" : "No portal access"}
+        className={cn("hidden sm:inline-flex w-[86px] shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1",
+          !p.portalEnabled ? "text-fg-subtle ring-border" :
+          role === "director" || role === "hr" ? "bg-accent-soft text-accent ring-accent/25" :
+          role === "manager" ? "bg-info-soft text-info ring-info/25" :
+          "bg-bg-muted text-fg-muted ring-border")}
       >
-        <ShieldCheck size={11} /> {p.portalEnabled ? role : "none"}
-      </button>
+        <ShieldCheck size={11} /> {p.portalEnabled ? ROLE_LABEL[asRole(role)] : "none"}
+      </span>
 
       <span className={cn("w-[54px] shrink-0 text-right text-xs font-semibold tabular", wlTone)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}

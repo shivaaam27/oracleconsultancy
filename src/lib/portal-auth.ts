@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import { getPortalPermissions } from "@/lib/portal-permissions-store";
-import { resolveRolePerms, type ScopeLevel, type CapabilityKey } from "@/lib/portal-permissions";
+import { resolveRolePerms, directorScopeOf, type ScopeLevel, type CapabilityKey } from "@/lib/portal-permissions";
 
 /* ------------------------------------------------------------------ *
  * Staff-portal authentication.
@@ -327,15 +327,10 @@ export type PortalPerson = {
   caps: Record<CapabilityKey, boolean>;
 };
 
-/** Extract a director's scoped company-id set from the people row (join-table
- *  embed `director_companies(company_id)`), falling back to the legacy single
- *  `director_company_id` column if the join table hasn't been backfilled. */
+/** Extract a director's scoped company-id set from the people row. Delegates to
+ *  the one reader in `portal-permissions` — this used to be a third copy of it. */
 function directorScopeFrom(data: Record<string, unknown>): number[] {
-  const raw = data.director_companies as { company_id: number }[] | { company_id: number } | null | undefined;
-  const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  const ids = rows.map((r) => r.company_id).filter((n): n is number => typeof n === "number");
-  if (ids.length === 0 && data.director_company_id != null) return [data.director_company_id as number];
-  return Array.from(new Set(ids));
+  return directorScopeOf(data as Parameters<typeof directorScopeOf>[0]);
 }
 
 /** The one place a `people` row becomes a resolved PortalPerson — role, company

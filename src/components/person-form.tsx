@@ -324,9 +324,23 @@ export function PersonForm({
             </Select>
             <p className="mt-1 text-xs text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
           </div>
+          {/* Related person — e.g. an immigration agent and the expat they help */}
+          <div>
+            <FieldLabel>Related to</FieldLabel>
+            <Select
+              name="relatedPersonId"
+              defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
+            >
+              <option value="">— None</option>
+              {relatedOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          </div>
+
         </FormSection>
 
-        <FormSection title="Role">
+        <FormSection title="Role &amp; companies">
           <div>
             <FieldLabel>Role / Job title</FieldLabel>
             <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
@@ -343,8 +357,67 @@ export function PersonForm({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>
-            <p className="text-xs text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others under Links.</p>
+            <p className="text-xs text-fg-subtle mt-1">Their home company — it gives them their staff ID. Any others go right below.</p>
           </div>
+
+          {/* Also works for — additional companies this person belongs to/serves.
+              Feeds person_companies, so they appear under each company in pickers,
+              company task lists and KPIs. Relationship label is optional.
+
+              ⚠️ IT IS ALSO WHAT A PORTAL MANAGER SEES. `companyScope()` resolves a
+              "their companies" role to main company ∪ these rows, so adding one
+              here widens what that person can see in the portal. It used to sit
+              in a separate "Links" section below Contact and Personal, which is
+              why adding seven companies to somebody did not look like a
+              permissions change. Say so on the screen. */}
+          <div className="col-span-2">
+            <FieldLabel>Also works for</FieldLabel>
+            <p className="mb-1.5 text-xs text-fg-subtle">
+              Other companies they work for or serve — their tasks and records show under each one.
+              If they have a portal sign-in as a <span className="font-medium">Manager</span>, this is also what they can see there.
+            </p>
+            <div className="space-y-2">
+              {associations.length === 0 && (
+                <p className="text-xs text-fg-subtle italic">None yet.</p>
+              )}
+              {associations.map((row, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <Select
+                    wrapperClassName="flex-1"
+                    value={row.companyId === "" ? "" : String(row.companyId)}
+                    onChange={(e) => updateAssociation(i, { companyId: e.target.value === "" ? "" : Number(e.target.value) })}
+                  >
+                    <option value="">— Company</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                  <input
+                    value={row.relationship}
+                    onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
+                    className={cn(inputCls, "flex-1")}
+                    placeholder="role / relationship (optional)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAssociation(i)}
+                    title="Remove"
+                    className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addAssociation}
+                className="tap-target inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+              >
+                <Plus size={13} /> Add company
+              </button>
+            </div>
+          </div>
+
 
           <div>
             <FieldLabel>Department</FieldLabel>
@@ -362,7 +435,55 @@ export function PersonForm({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
+            <p className="text-xs text-fg-subtle mt-1">Their line manager. Dotted-line ones go beside it.</p>
           </div>
+
+          {/* Also reports to — secondary / dotted-line managers (organogram) */}
+          <div>
+            <FieldLabel>Also reports to</FieldLabel>
+            <Select
+              value=""
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isInteger(v)) addSecondaryManager(v);
+                e.target.value = "";
+              }}
+            >
+              <option value="">+ Add a dotted-line manager…</option>
+              {managerCandidates
+                .filter((p) => !secondaryManagers.includes(p.id))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </Select>
+            {secondaryManagers.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {secondaryManagers.map((mid) => {
+                  const p = peopleList.find((x) => x.id === mid);
+                  return (
+                    <span
+                      key={mid}
+                      className="inline-flex items-center gap-1 rounded-full bg-bg-muted/70 px-2.5 py-1 text-xs text-fg"
+                    >
+                      {p?.name ?? `#${mid}`}
+                      <button
+                        type="button"
+                        onClick={() => removeSecondaryManager(mid)}
+                        /* 12×12 without this — an unhittable target on a phone.
+                           `tap-target` gives it a 40px hit area on phones only,
+                           with no change to how it looks. */
+                        className="tap-target text-fg-subtle hover:text-fg"
+                        aria-label={`Remove ${p?.name ?? "manager"}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
 
           <div>
             <FieldLabel>Start date</FieldLabel>
@@ -493,117 +614,6 @@ export function PersonForm({
           </div>
         </FormSection>
 
-        {/* Links — the relationships that used to hide among the plain fields. */}
-        <FormSection title="Links">
-          {/* Also reports to — secondary / dotted-line managers (organogram) */}
-          <div>
-            <FieldLabel>Also reports to</FieldLabel>
-            <Select
-              value=""
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (Number.isInteger(v)) addSecondaryManager(v);
-                e.target.value = "";
-              }}
-            >
-              <option value="">+ Add a dotted-line manager…</option>
-              {managerCandidates
-                .filter((p) => !secondaryManagers.includes(p.id))
-                .map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-            </Select>
-            {secondaryManagers.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {secondaryManagers.map((mid) => {
-                  const p = peopleList.find((x) => x.id === mid);
-                  return (
-                    <span
-                      key={mid}
-                      className="inline-flex items-center gap-1 rounded-full bg-bg-muted/70 px-2.5 py-1 text-xs text-fg"
-                    >
-                      {p?.name ?? `#${mid}`}
-                      <button
-                        type="button"
-                        onClick={() => removeSecondaryManager(mid)}
-                        /* 12×12 without this — an unhittable target on a phone.
-                           `tap-target` gives it a 40px hit area on phones only,
-                           with no change to how it looks. */
-                        className="tap-target text-fg-subtle hover:text-fg"
-                        aria-label={`Remove ${p?.name ?? "manager"}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Related person — e.g. an immigration agent and the expat they help */}
-          <div>
-            <FieldLabel>Related to</FieldLabel>
-            <Select
-              name="relatedPersonId"
-              defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
-            >
-              <option value="">— None</option>
-              {relatedOptions.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-          </div>
-
-          {/* Also works for — additional companies this person belongs to/serves.
-              Feeds person_companies, so they appear under each company in pickers,
-              company task lists and KPIs. Relationship label is optional. */}
-          <div className="col-span-2">
-            <FieldLabel>Also works for</FieldLabel>
-            <div className="space-y-2">
-              {associations.length === 0 && (
-                <p className="text-xs text-fg-subtle italic">
-                  None. Add other companies this person works for or serves — their tasks and records show under each one.
-                </p>
-              )}
-              {associations.map((row, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <Select
-                    wrapperClassName="flex-1"
-                    value={row.companyId === "" ? "" : String(row.companyId)}
-                    onChange={(e) => updateAssociation(i, { companyId: e.target.value === "" ? "" : Number(e.target.value) })}
-                  >
-                    <option value="">— Company</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </Select>
-                  <input
-                    value={row.relationship}
-                    onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
-                    className={cn(inputCls, "flex-1")}
-                    placeholder="role / relationship (optional)"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeAssociation(i)}
-                    title="Remove"
-                    className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addAssociation}
-                className="tap-target inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
-              >
-                <Plus size={13} /> Add company
-              </button>
-            </div>
-          </div>
-        </FormSection>
       </div>
 
       {error && (

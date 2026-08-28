@@ -6,6 +6,9 @@ import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared
 import { normalizePersonType, type PersonType } from "./person-types";
 import { getStaffIdMap } from "./staff-id";
 import { siteNameMap, listSiteNames } from "./sites";
+import { directorScopeOf } from "./portal-access";
+import { getPortalPermissions } from "./portal-permissions-store";
+import { resolveMatrix, type PortalRoleKey, type ScopeLevel } from "./portal-permissions";
 import { listRoleNames } from "./roles";
 import { listPersonEvents, type PersonEvent } from "./person-audit";
 import { personLeaveBalances, listLeaveRequests, personAttendanceThisMonth, type PersonAttendanceSummary } from "./leave";
@@ -296,7 +299,9 @@ export type PersonDetail = {
   /** Leave entitlement/usage per type + this person's requests (newest first). */
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   /** Staff-portal access status (read-only here; managed in Settings). */
-  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null; directorCompanyIds: number[] };
+  /** What each portal level SEES, from the owner-configurable permissions. */
+  portalScope: Record<PortalRoleKey, ScopeLevel>;
   /** People who report to THIS person — primary (solid) and dotted (secondary) lines. */
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
 };
@@ -491,13 +496,16 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     personLeaveBalances(id),
     listLeaveRequests({ personId: id }),
     personAttendanceThisMonth(id),
-    sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id").eq("id", id).maybeSingle(),
+    sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id,director_companies(company_id)").eq("id", id).maybeSingle(),
   ]);
   const portal = {
     enabled: !!(portalRow?.portal_password_hash as string | null),
     role: (portalRow?.portal_role as string | null) ?? "staff",
     designation: (portalRow?.portal_designation as string | null) ?? null,
     lastLoginAt: (portalRow?.portal_last_login_at as string | null) ?? null,
+    // A DIRECTOR's company scope. Same shape the Settings list reads, through
+    // the same helper, so the two screens can never disagree about it.
+    directorCompanyIds: portalRow ? directorScopeOf(portalRow) : [],
   };
   // Directors are excluded from task KPI — they set the work, they don't earn a
   // delivery score. Covers full directors and company-scoped directors.
@@ -511,5 +519,8 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     roles: await listRoleNames(),
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
     portal, directReports,
+    // The live per-role scope, so the drawer's access panel states what the
+    // portal actually enforces rather than a second hard-coded copy of it.
+    portalScope: resolveMatrix(await getPortalPermissions()).scope,
   };
 }

@@ -28,6 +28,7 @@ import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import { PersonPortalAccess } from "./person-portal-access";
+import type { PortalRoleKey, ScopeLevel } from "@/lib/portal-permissions";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
 import { pickChannel } from "@/lib/outbox/links";
@@ -132,7 +133,9 @@ type DrawerData = {
   roles: string[];
   events: PersonEvent[];
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
-  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null; directorCompanyIds: number[] };
+  /** What each portal level SEES, from the owner-configurable permissions. */
+  portalScope: Record<PortalRoleKey, ScopeLevel>;
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
 };
 
@@ -855,7 +858,7 @@ export function PersonDrawer() {
 
       <SectionCard className="p-3.5 space-y-2.5">
         <GroupLabel>Staff portal access</GroupLabel>
-        <PersonPortalAccess personId={person.id} portal={data.portal} onChanged={refresh} fmtDate={fmtDate} />
+        <PersonPortalAccess key={person.id} personId={person.id} portal={data.portal} companies={data.companies} scope={data.portalScope} onChanged={refresh} fmtDate={fmtDate} />
       </SectionCard>
 
       <SectionCard className="p-3.5 space-y-2">

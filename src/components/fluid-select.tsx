@@ -8,7 +8,16 @@ import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
 import { layoutRect } from "@/lib/zoom";
 
-export type FluidOption = { value: string; label: string; dot?: string };
+export type FluidOption = {
+  value: string;
+  label: string;
+  dot?: string;
+  /** A muted note at the right of the option row — a count, usually. Shown in
+   *  the MENU only, never on the closed button, so the trigger stays a plain
+   *  label. Added so a filter can move off a rail into a dropdown without
+   *  losing the count the rail was showing. */
+  hint?: string;
+};
 
 /**
  * A fluid, design-system dropdown — a glass popover with a spring pop-in,
@@ -205,6 +214,7 @@ export function FluidSelect({
                   >
                     {opt.dot && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: opt.dot }} />}
                     <span className="flex-1 truncate">{opt.label}</span>
+                    {opt.hint && <span className="shrink-0 text-xs tabular text-fg-subtle">{opt.hint}</span>}
                     {active && <Check size={14} className="text-accent shrink-0" />}
                   </button>
                 );

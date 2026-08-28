@@ -85,6 +85,16 @@ export type CommandTask = {
 
 export type Filter = "all" | "inprogress" | "overdue" | "soon" | "fromme" | "mine" | "done" | "notstarted";
 
+/* ⚠️ "notstarted" and "inprogress" are RETIRED as rail chips — they duplicated
+ * the status dropdown. They survive as URL values only, so the nudge banner's
+ * /portal/tasks?filter=notstarted link and any bookmark still land on the right
+ * list; both are translated into a status pick, so what you see selected is the
+ * dropdown, and the same filter is never offered in two places at once. */
+const LEGACY_STATUS_FILTER: Record<string, string> = {
+  notstarted: "Not Started",
+  inprogress: "In Progress",
+};
+
 const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
 const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
@@ -166,22 +176,33 @@ export function PortalTasksCommand({
    * The params are namespaced `f`/`status`/`company`/`group` and the free-text
    * one is debounced, so typing is not one navigation per keystroke. Anything at
    * its default stays OUT of the address. */
+  // A landing filter of "notstarted"/"inprogress" is a status, not a lens — open
+  // with the status dropdown set to it rather than a chip that no longer exists.
+  const initialLegacyStatus = LEGACY_STATUS_FILTER[initialFilter];
   const {
     values: uf,
     set: setUf,
     hrefFor,
   } = useUrlFilters(
-    { f: initialFilter as string, status: "all", company: "all", group: "0", q: "" },
+    {
+      f: (initialLegacyStatus ? "all" : initialFilter) as string,
+      status: initialLegacyStatus ?? "all",
+      company: "all",
+      group: "0",
+      q: "",
+    },
     { debounceKeys: ["q"] }
   );
   const q = uf.q;
   const setQ = (v: string) => setUf({ q: v });
-  const filter = uf.f as Filter;
-  // Status dropdown — covers the exact statuses that don't have their own quick
-  // chip (Under Review / Waiting External / Blocked / Escalated), plus the full
-  // set for completeness. Mutually exclusive with the chip filter: picking a
-  // status here resets the chip to "all", and vice versa.
-  const statusFilter = uf.status;
+  // An old address carrying ?f=notstarted reads as that status, so a bookmark
+  // still shows the right list AND shows it selected in the right control.
+  const legacyStatus = LEGACY_STATUS_FILTER[uf.f];
+  const filter = (legacyStatus ? "all" : uf.f) as Filter;
+  // The status dropdown is the ONLY place an exact status is chosen — all eight
+  // of them, each with its count. Mutually exclusive with the chip filter:
+  // picking a status here resets the chip to "all", and vice versa.
+  const statusFilter = legacyStatus ?? uf.status;
   const setStatusFilter = (v: string) => setUf({ status: v, f: "all" });
   const setFilter = (v: Filter) => setUf({ f: v, status: "all" });
   const companyFilter = uf.company;
@@ -214,14 +235,22 @@ export function PortalTasksCommand({
 
   const counts = useMemo(() => ({
     all: byCompany.filter((t) => !t.isDone).length,
-    inprogress: byCompany.filter((t) => t.status === "In Progress" && !t.isDone).length,
     overdue: byCompany.filter((t) => t.overdue && !t.isDone).length,
     soon: byCompany.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
     fromme: byCompany.filter((t) => t.createdByPersonId === viewerId && !t.isDone).length,
     mine: byCompany.filter((t) => t.raisedByMe && !t.isDone).length,
     done: byCompany.filter((t) => t.isDone).length,
-    notstarted: byCompany.filter((t) => t.status === "Not Started" && !t.isDone).length,
   }), [byCompany, viewerId]);
+
+  /* One count per STATUS, for the dropdown. ⚠️ It is what makes moving "Not
+   * Started" and "In Progress" off the rail lossless — the rail's whole value
+   * was the number beside the name, and the menu carries it now. */
+  const statusCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const st of ALL_STATUSES) m[st] = 0;
+    for (const t of byCompany) if (m[t.status] !== undefined) m[t.status] += 1;
+    return m;
+  }, [byCompany]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -254,8 +283,13 @@ export function PortalTasksCommand({
   // "All statuses" + every status in CLAUDE.md's canonical order, dotted to
   // match the status colour used elsewhere on the row (STATUS_COLOR/statusDot).
   const statusFilterOptions: FluidOption[] = [
-    { value: "all", label: "All statuses" },
-    ...ALL_STATUSES.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] })),
+    { value: "all", label: "All statuses", hint: String(counts.all) },
+    ...ALL_STATUSES.map((s) => ({
+      value: s,
+      label: s,
+      dot: STATUS_COLOR[s],
+      hint: String(statusCounts[s] ?? 0),
+    })),
   ];
 
   type Group = { key: string; label: string; dot?: string; dotColor?: string | null; logoUrl?: string | null; items: CommandTask[] };
@@ -348,14 +382,16 @@ export function PortalTasksCommand({
     ].filter((g) => g.items.length > 0);
   }, [filtered, groupByCompany, filter, statusFilter]);
 
-  // Staff get a stripped-down bar — just All (their open count) + Not Started.
-  // The management roles get the full set: Not Started sits right after All, and
-  // "Assigned" (tasks you're on) is distinct from "From me" (tasks you raised).
+  /* ⚠️ NO PLAIN STATUS BELONGS ON THIS RAIL — every one of them lives in the
+   * status dropdown, with its count. "Not Started" and "In Progress" used to sit
+   * here AND in that menu, so the same filter was offered twice on one screen in
+   * two different shapes, and picking one silently cleared the other. The rail
+   * now holds only the lenses a status cannot express: everything open, what is
+   * late, what is nearly due, who raised it, and finished work (which is
+   * Completed OR Closed, so it is not one status either). */
   const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = isManagement
     ? [
         { key: "all", label: "All", n: counts.all },
-        { key: "notstarted", label: "Not Started", n: counts.notstarted },
-        { key: "inprogress", label: "In Progress", n: counts.inprogress },
         { key: "overdue", label: "Overdue", n: counts.overdue, danger: true },
         { key: "soon", label: "Due soon", n: counts.soon },
         { key: "fromme", label: "I raised", n: counts.fromme },
@@ -364,7 +400,8 @@ export function PortalTasksCommand({
       ]
     : [
         { key: "all", label: "All", n: counts.all },
-        { key: "notstarted", label: "Not Started", n: counts.notstarted },
+        { key: "overdue", label: "Overdue", n: counts.overdue, danger: true },
+        { key: "done", label: "Done", n: counts.done },
       ];
 
   // Outreach (remind / message a person) stays role-based — any management role
@@ -462,7 +499,12 @@ export function PortalTasksCommand({
       <FluidSelect
         value={statusFilter}
         options={statusFilterOptions}
-        onSelect={(v) => { setStatusFilter(v); setFilter("all"); }}
+        /* ⚠️ ONE call, not two. `setStatusFilter` already clears the chip, and
+           `useUrlFilters.set` builds the next address from the CURRENT one — so
+           a second `set` in the same handler recomputed from the stale values
+           and put `status` straight back to "all". The dropdown has therefore
+           never filtered anything; picking a status just closed the menu. */
+        onSelect={setStatusFilter}
         align="right"
         buttonClassName="h-8 shrink-0 rounded-md text-base bg-bg px-2.5"
       />

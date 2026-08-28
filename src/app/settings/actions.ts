@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import { hashPassword } from "@/lib/portal-auth";
 import { recordEvent } from "@/lib/system-events";
+import {
+  grantPortalAccess,
+  changePortalRole,
+  revokePortalAccess as revokePortalAccessCore,
+  parsePortalRole,
+} from "@/lib/portal-access";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
@@ -257,48 +262,21 @@ export async function saveSettings(fd: FormData): Promise<void> {
   redirect(`/settings?saved=1${section ? `&section=${encodeURIComponent(section)}` : ""}`);
 }
 
-/** Enable (or reset the password for) staff-portal access on a person. */
+/** Enable (or reset the password for) staff-portal access on a person.
+ *  Thin wrapper over `grantPortalAccess` — the one door shared with the People
+ *  drawer, so both surfaces offer the same roles and write the same scope. */
 export async function setPortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
   const password = String(fd.get("password") ?? "");
-  const roleRaw = fd.get("portalRole");
-  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : roleRaw === "receptionist" ? "receptionist" : "staff";
-  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
-  if (password.length < 8) redirect("/settings?portal=short");
+  const role = parsePortalRole(fd.get("portalRole"));
+  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
+  if (password.length < 8) redirect("/settings?section=portals&portal=short");
 
-  // Was this a brand-new grant or a password reset? (for the audit note)
-  const { data: before } = await sb
-    .from("people")
-    .select("portal_password_hash,portal_role")
-    .eq("id", personId)
-    .maybeSingle();
-  const wasEnabled = Boolean(before?.portal_password_hash);
-  const prevRole = (before?.portal_role as string | null) ?? "staff";
-
-  // COMPIP-01: a password reset must not silently demote an existing user. The
-  // People-drawer "Reset password" control submits a default role of "staff",
-  // which previously stripped an admin (hr)/manager/director of their elevated
-  // access. So on a reset, only ever ELEVATE from the submitted form — never let
-  // a defaulted "staff" pull rank back. Deliberate demotion is done via the
-  // dedicated role change (setPortalRole) or revoke.
-  const RANK: Record<string, number> = { staff: 0, manager: 1, hr: 2, director: 2 };
-  const effectiveRole = wasEnabled && (RANK[role] ?? 0) < (RANK[prevRole] ?? 0) ? prevRole : role;
-
-  const { error } = await sb
-    .from("people")
-    .update({
-      portal_password_hash: hashPassword(password),
-      portal_enabled_at: new Date().toISOString(),
-      portal_role: effectiveRole,
-    })
-    .eq("id", personId);
-  if (error) throw new Error(error.message);
-  // Company-scoped director: a "director" with chosen companies → scoped to them;
-  // none/portfolio → cleared. Any non-director role clears the scope entirely.
-  await writeDirectorScope(personId, effectiveRole === "director" ? parseDirectorScope(fd) : []);
-  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: effectiveRole });
+  const res = await grantPortalAccess(personId, role, password, parseDirectorScope(fd));
+  if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
-  redirect("/settings?portal=saved");
+  revalidatePath("/people");
+  redirect("/settings?section=portals&portal=saved");
 }
 
 /** Parse the chosen director scope companies from the form (repeated
@@ -309,43 +287,20 @@ function parseDirectorScope(fd: FormData): number[] {
   ));
 }
 
-/** Persist a director's company scope: replace the join-table rows AND keep
- *  people.director_company_id in sync with the FIRST id (back-compat). Empty
- *  companyIds → cleared (portfolio director, or a non-director role). */
-async function writeDirectorScope(personId: number, companyIds: number[]): Promise<void> {
-  await sb.from("director_companies").delete().eq("person_id", personId);
-  if (companyIds.length > 0) {
-    await sb.from("director_companies").insert(companyIds.map((cid) => ({ person_id: personId, company_id: cid })));
-  }
-  await sb.from("people").update({ director_company_id: companyIds[0] ?? null }).eq("id", personId);
-}
-
 /** Change a portal user's access level WITHOUT resetting their password. Only
  *  applies to people who already have access. */
 export async function setPortalRole(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
-  const roleRaw = fd.get("portalRole");
-  const role = roleRaw === "manager" ? "manager" : roleRaw === "hr" ? "hr" : roleRaw === "director" ? "director" : roleRaw === "receptionist" ? "receptionist" : "staff";
-  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
+  const role = parsePortalRole(fd.get("portalRole"));
+  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
 
-  // Guard: never silently grant access via a role change — the person must
-  // already have a password set.
-  const { data: row } = await sb.from("people").select("portal_password_hash,portal_role").eq("id", personId).maybeSingle();
-  if (!row?.portal_password_hash) redirect("/settings?portal=error");
-  const prevRole = (row.portal_role as string | null) ?? "staff";
-
-  const { error } = await sb
-    .from("people")
-    .update({ portal_role: role })
-    .eq("id", personId);
-  if (error) throw new Error(error.message);
-  // Scope a director to their companies (or clear it for portfolio / any other role).
-  await writeDirectorScope(personId, role === "director" ? parseDirectorScope(fd) : []);
-  await recordEvent("portal.role.changed", "ok", { personId, from: prevRole, to: role });
+  const res = await changePortalRole(personId, role, parseDirectorScope(fd));
+  if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
+  revalidatePath("/people");
   // The change is read fresh on the person's next request (getPortalPerson hits
   // the DB every time), so it takes effect on their next navigation.
-  redirect("/settings?portal=role");
+  redirect("/settings?section=portals&portal=role");
 }
 
 /** Email automation: master pause + per-category mode. The "on" mode for each
@@ -412,7 +367,7 @@ export async function setDirectorOutreach(fd: FormData): Promise<void> {
   const paused = fd.get("paused") === "1";
   await sb.from("settings").upsert({ key: "director.outreachPaused", value: paused ? "1" : "0" }, { onConflict: "key" });
   revalidatePath("/settings");
-  redirect("/settings?portal=saved");
+  redirect("/settings?section=portals&portal=saved");
 }
 
 /**
@@ -452,14 +407,10 @@ export async function setCommandCentrePause(fd: FormData): Promise<void> {
  *  restores manager/director powers. */
 export async function revokePortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
-  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
-  const { error } = await sb
-    .from("people")
-    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
-    .eq("id", personId);
-  if (error) throw new Error(error.message);
-  await sb.from("director_companies").delete().eq("person_id", personId);
-  await recordEvent("portal.access.revoked", "ok", { personId });
+  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
+  const res = await revokePortalAccessCore(personId);
+  if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
-  redirect("/settings?portal=revoked");
+  revalidatePath("/people");
+  redirect("/settings?section=portals&portal=revoked");
 }

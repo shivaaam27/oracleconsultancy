@@ -244,8 +244,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const openScoped = scoped.filter(isOpenRow);
   const counts = {
     all: openScoped.length,
-    notStarted: openScoped.filter((r) => r.status === "Not Started").length,
-    inProgress: openScoped.filter((r) => r.status === "In Progress").length,
     overdue: openScoped.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length,
     dueSoon: openScoped.filter((r) => r.flag === "due-soon").length,
     quiet: openScoped.filter(isQuiet).length,
@@ -267,10 +265,13 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     key, label, count, active, tone,
     href: buildHref(sp, active ? clearStatus : { ...clearStatus, ...on }),
   });
+  /* ⚠️ NO PLAIN STATUS IS A CHIP — the status dropdown below already lists all
+   * eight with their counts, and "Not started" / "In progress" sat in BOTH,
+   * setting the very same `status` param from two different controls. The chips
+   * are the lenses a status cannot express: everything open, late, nearly due,
+   * gone quiet, unread, and finished (Completed OR Closed, so not one status). */
   const chips: FilterChip[] = [
     chip("all", "All", counts.all, noStatusFilters, {}),
-    chip("notstarted", "Not started", counts.notStarted, sp.status === "Not Started", { status: "Not Started" }),
-    chip("inprogress", "In progress", counts.inProgress, sp.status === "In Progress", { status: "In Progress" }),
     chip("overdue", "Overdue", counts.overdue, sp.flag === "overdue", { flag: "overdue" }, "danger"),
     chip("duesoon", "Due soon", counts.dueSoon, sp.flag === "due-soon", { flag: "due-soon" }, "warn"),
     chip("quiet", "Quiet", counts.quiet, sp.quiet === "1", { quiet: "1" }, "warn"),

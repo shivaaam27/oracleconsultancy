@@ -13,8 +13,13 @@ import { getAiKey } from "@/lib/settings";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
-import { hashPassword } from "@/lib/portal-auth";
 import { recordEvent } from "@/lib/system-events";
+import {
+  grantPortalAccess,
+  changePortalRole,
+  revokePortalAccess as revokePortalAccessCore,
+  parsePortalRole,
+} from "@/lib/portal-access";
 import { withTx, type Tx } from "@/lib/tx";
 import { people, departmentHeads, reportingLines } from "@/db/schema";
 import { eq, sql as sqlRaw } from "drizzle-orm";
@@ -1004,35 +1009,27 @@ export async function bulkAddSecondaryManager(ids: number[], managerId: number |
 
 /* ----------------------------------------------------------------------
  * Staff-portal access — manage straight from the People page (drawer Manage
- * tab + bulk bar), no trip to Settings. The quick toggle deliberately offers
- * only Staff/Manager/Director; the every-company "Admin" (hr) role stays in
- * Settings so it can't be granted with a casual tap. Mirrors the Settings
- * actions (setPortalAccess/setPortalRole/revokePortalAccess) but returns an
- * ActionResult and revalidates /people instead of redirecting to /settings.
+ * tab + bulk bar), no trip to Settings.
+ *
+ * ⚠️ These are THIN WRAPPERS over `lib/portal-access.ts`, which is the one door
+ * Settings uses too. They used to be a second implementation offering only
+ * three of the five roles and clearing a demoted director's scope in only one
+ * of the two places it is stored. Same rules, same writes, everywhere — these
+ * differ from the Settings forms only in returning an ActionResult and
+ * revalidating /people instead of redirecting.
  * ---------------------------------------------------------------------- */
-type QuickRole = "staff" | "manager" | "director";
-const asQuickRole = (r: unknown): QuickRole => (r === "manager" ? "manager" : r === "director" ? "director" : "staff");
 
 /** Change a portal user's role without touching their password. Only works for
- *  people who already have access — never grants access via a role change. */
-export async function setPortalRoleQuick(personId: number, role: string): Promise<ActionResult> {
-  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
-  const next = asQuickRole(role);
-  const { data: row } = await sb.from("people").select("portal_password_hash,portal_role").eq("id", personId).maybeSingle();
-  if (!row?.portal_password_hash) return { ok: false, error: "No portal access yet — enable it first." };
-  const prev = (row.portal_role as string | null) ?? "staff";
-  if (prev === next) return { ok: true };
-  // Demoting out of "director" clears any company-scope (a scoped director becoming a
-  // manager/staff must not keep a stale director_company_id). This quick control
-  // doesn't pick a company, so a director set here is portfolio-wide; scope it in
-  // Settings → Staff portal access.
-  const { error } = await sb
-    .from("people")
-    .update({ portal_role: next, ...(next !== "director" ? { director_company_id: null } : {}) })
-    .eq("id", personId);
-  if (error) return { ok: false, error: error.message };
-  if (next !== "director") await sb.from("director_companies").delete().eq("person_id", personId);
-  await recordEvent("portal.role.changed", "ok", { personId, from: prev, to: next });
+ *  people who already have access — never grants access via a role change.
+ *  `directorCompanyIds` scopes a Director to companies; empty = the whole
+ *  portfolio, and it is cleared outright for any other role. */
+export async function setPortalRoleQuick(
+  personId: number,
+  role: string,
+  directorCompanyIds: number[] = [],
+): Promise<ActionResult> {
+  const res = await changePortalRole(personId, parsePortalRole(role), directorCompanyIds);
+  if (!res.ok) return res;
   invalidate();
   return { ok: true };
 }
@@ -1050,44 +1047,37 @@ export async function setPortalDesignationQuick(personId: number, designation: s
   return { ok: true };
 }
 
-/** Enable portal access (set password + role) for a person with none. */
-export async function enablePortalAccessQuick(personId: number, role: string, password: string): Promise<ActionResult> {
-  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  const next = asQuickRole(role);
-  const { data: before } = await sb.from("people").select("portal_password_hash").eq("id", personId).maybeSingle();
-  const wasEnabled = Boolean(before?.portal_password_hash);
-  const { error } = await sb.from("people").update({
-    portal_password_hash: hashPassword(password),
-    portal_enabled_at: new Date().toISOString(),
-    portal_role: next,
-  }).eq("id", personId);
-  if (error) return { ok: false, error: error.message };
-  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: next });
+/** Enable portal access (set password + role), or reset an existing password. */
+export async function enablePortalAccessQuick(
+  personId: number,
+  role: string,
+  password: string,
+  directorCompanyIds: number[] = [],
+): Promise<ActionResult> {
+  const res = await grantPortalAccess(personId, parsePortalRole(role), password, directorCompanyIds);
+  if (!res.ok) return res;
   invalidate();
   return { ok: true };
 }
 
 /** Revoke portal sign-in. Keeps every record the person created; resets role to
- *  "staff" so a later re-grant never silently restores higher powers. */
+ *  "staff" and clears any director scope so a later re-grant never silently
+ *  restores higher powers. */
 export async function revokePortalAccessQuick(personId: number): Promise<ActionResult> {
-  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
-  const { error } = await sb.from("people")
-    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
-    .eq("id", personId);
-  if (error) return { ok: false, error: error.message };
-  await sb.from("director_companies").delete().eq("person_id", personId);
-  await recordEvent("portal.access.revoked", "ok", { personId });
+  const res = await revokePortalAccessCore(personId);
+  if (!res.ok) return res;
   invalidate();
   return { ok: true };
 }
 
 /** Bulk-set the portal role for selected people. Only people who already have
- *  access are changed; those without are reported back as skipped. */
+ *  access are changed; those without are reported back as skipped. A Director
+ *  set this way is portfolio-wide — scope one to companies on their own record
+ *  or in Settings → Portals. */
 export async function bulkSetPortalRole(ids: number[], role: string): Promise<ActionResult & { updated?: number; skipped?: number }> {
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
-  const next = asQuickRole(role);
+  const next = parsePortalRole(role);
   const { data: rows } = await sb.from("people").select("id,portal_password_hash,portal_role").in("id", clean);
   const eligible = (rows ?? []).filter((r) => r.portal_password_hash);
   const targets = eligible.filter((r) => ((r.portal_role as string | null) ?? "staff") !== next).map((r) => r.id as number);
@@ -1096,11 +1086,13 @@ export async function bulkSetPortalRole(ids: number[], role: string): Promise<Ac
     if (skipped === clean.length) return { ok: false, error: "None of the selected people have portal access yet." };
     return { ok: true, updated: 0, skipped };
   }
-  const { error } = await sb.from("people").update({ portal_role: next }).in("id", targets);
-  if (error) return { ok: false, error: error.message };
-  await Promise.all(targets.map((pid) => recordEvent("portal.role.changed", "ok", { personId: pid, to: next, bulk: true })));
+  // Through the one door, one person at a time — so a demoted director's scope
+  // is cleared in BOTH places it is stored, exactly as a single change would.
+  const results = await Promise.all(targets.map((pid) => changePortalRole(pid, next)));
+  const failed = results.filter((r) => !r.ok).length;
+  if (failed === targets.length) return { ok: false, error: "Couldn't change any of them." };
   invalidate();
-  return { ok: true, updated: targets.length, skipped };
+  return { ok: true, updated: targets.length - failed, skipped };
 }
 
 /* ----------------------------------------------------------------------

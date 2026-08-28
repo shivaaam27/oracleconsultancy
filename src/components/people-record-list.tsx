@@ -8,6 +8,7 @@ import { Combobox } from "./combobox";
 import { getInitials } from "@/lib/names";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { cn } from "@/lib/cn";
+import { ROLE_LABEL, asPortalRole as asRole } from "@/lib/portal-permissions";
 
 /**
  * The People list, on the shared shell (Stage 4 of the ERPNext redesign).
@@ -45,7 +46,6 @@ export function PeopleRecordList({
   managerPicker,
   onOpen,
   onSetManager,
-  onSetRole,
 }: {
   items: PersonRow[];
   selectMode: boolean;
@@ -54,7 +54,6 @@ export function PeopleRecordList({
   managerPicker: ManagerPicker;
   onOpen: (p: PersonRow) => void;
   onSetManager: (personId: number, managerId: number) => void;
-  onSetRole: (personId: number, role: "staff" | "manager" | "director") => void;
 }) {
   const columns = buildColumns<PersonRow & Record<string, unknown>>(PERSON_COLUMNS, {
     overrides: {
@@ -95,25 +94,23 @@ export function PeopleRecordList({
         </span>
       ),
 
+      // READ ONLY — see the note in people-table.tsx. A tap on a list row must
+      // never change somebody's access level.
       portalRole: (x) => {
-        const role: string = x.portalRole ?? "staff";
-        const next = role === "staff" ? "manager" : role === "manager" ? "director" : "staff";
+        const role = asRole(x.portalRole ?? "staff");
         return (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); if (x.portalEnabled) onSetRole(x.id, next as "staff" | "manager" | "director"); }}
-            disabled={!x.portalEnabled}
-            title={x.portalEnabled ? "Tap to change portal role" : "No portal access"}
+          <span
+            title={x.portalEnabled ? "Portal level — change it on their record, or in Settings → Portals" : "No portal access"}
             className={cn(
-              "inline-flex w-full items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 transition-colors",
-              !x.portalEnabled ? "cursor-default text-fg-subtle ring-border"
+              "inline-flex w-full items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1",
+              !x.portalEnabled ? "text-fg-subtle ring-border"
                 : role === "director" || role === "hr" ? "bg-accent-soft text-accent ring-accent/25"
                 : role === "manager" ? "bg-info-soft text-info ring-info/25"
                 : "bg-bg-muted text-fg-muted ring-border"
             )}
           >
-            <ShieldCheck size={10} /> {x.portalEnabled ? role : "none"}
-          </button>
+            <ShieldCheck size={10} /> {x.portalEnabled ? ROLE_LABEL[role] : "none"}
+          </span>
         );
       },
 

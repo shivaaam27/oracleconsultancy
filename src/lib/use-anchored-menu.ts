@@ -139,6 +139,13 @@ export function menuStyle(pos: MenuPos, maxWidth = "min(92vw, 32rem)"): React.CS
   return {
     position: "fixed",
     zIndex: MENU_Z,
+    /* ⚠️ AND A THIRD BUG BEHIND THE OTHER TWO: a Radix modal (every drawer and
+       dialog in COS) sets `pointer-events: none` on <body> while it is open, and
+       a menu portalled INTO body inherits it — so it draws perfectly, sits above
+       everything, and ignores every click. Measured on the People drawer:
+       computed pointer-events "none" on a fully visible menu. Re-enable it here,
+       once, for every consumer of the hook. */
+    pointerEvents: "auto",
     top: pos.top,
     bottom: pos.bottom,
     left: pos.left,

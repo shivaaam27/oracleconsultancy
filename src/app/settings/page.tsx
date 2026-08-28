@@ -12,7 +12,8 @@ import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause, savePortalPermissionsAction } from "./actions";
 import { getPortalPermissions } from "@/lib/portal-permissions-store";
-import { resolveMatrix } from "@/lib/portal-permissions";
+import { resolveMatrix, PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS } from "@/lib/portal-permissions";
+import { parsePortalRole, directorScopeOf } from "@/lib/portal-access";
 import { PortalPermissionsEditor } from "@/components/portal-permissions-editor";
 import { RevealPassword } from "@/components/reveal-password";
 import { InstallApp } from "@/components/install-app";
@@ -31,6 +32,7 @@ import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
+import { PortalAccessList } from "@/components/portal-access-list";
 import { FormSwitch } from "@/components/form-switch";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
@@ -43,11 +45,11 @@ export const dynamic = "force-dynamic";
 // group that holds it.
 const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "ledger", "location", "swipe", "navigation"] },
-  { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
+  { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
-  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal-nudges", "portal-permissions"] },
+  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
-  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys", "portal", "danger"] },
+  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
 ];
 
@@ -96,14 +98,8 @@ export default async function SettingsPage({
     name: p.name as string,
     enabled: Boolean(p.portal_password_hash),
     lastLogin: p.portal_last_login_at as string | null,
-    role: ((p.portal_role as string | null) ?? "staff") as "staff" | "manager" | "director",
-    directorCompanyIds: (() => {
-      const raw = p.director_companies as { company_id: number }[] | { company_id: number } | null | undefined;
-      const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
-      const ids = rows.map((r) => r.company_id as number);
-      if (ids.length === 0 && p.director_company_id != null) return [p.director_company_id as number];
-      return ids;
-    })(),
+    role: parsePortalRole(p.portal_role),
+    directorCompanyIds: directorScopeOf(p),
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -481,6 +477,83 @@ export default async function SettingsPage({
 
         {/* ───────────────────────── Portals ───────────────────────── */}
         <section data-group="portals" className="space-y-4">
+          {/* Staff portal access */}
+          <SettingsCard id="portal" icon={<Users size={15} />} title="Staff portal access" desc="Give staff a /portal sign-in. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
+            {sp.portal === "saved" && (
+              <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
+            )}
+            {sp.portal === "role" && (
+              <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Access level updated — it applies the next time they open the portal.</p>
+            )}
+            {sp.portal === "revoked" && (
+              <p className="text-sm text-fg-muted">Portal access revoked. Their records (tasks, messages, documents) are kept.</p>
+            )}
+            {sp.portal === "short" && (
+              <p className="text-sm text-danger">Password must be at least 8 characters.</p>
+            )}
+            {sp.portal === "error" && (
+              <p className="text-sm text-danger">Couldn&apos;t update portal access — please try again.</p>
+            )}
+
+            {portalEnabled.length > 0 && (
+              <div className="space-y-2">
+                <PortalAccessList people={portalEnabled} companies={companies} scope={portalPermsMatrix.scope} />
+                <p className="text-xs text-fg-subtle">
+                  Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, chat messages, documents, attendance, leave) stays in the system, and you can grant access again at any time.
+                </p>
+              </div>
+            )}
+
+            <form action={setPortalAccess} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+              <div className="sm:col-span-2 lg:col-span-4">
+                <FieldLabel>Add access or reset a password</FieldLabel>
+              </div>
+              <div>
+                <Select name="personId" defaultValue="" aria-label="Person">
+                  <option value="" disabled>Choose a person…</option>
+                  {portalPeople.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}{p.enabled ? " (has access — reset password)" : ""}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Select name="portalRole" defaultValue="staff" aria-label="Access level">
+                  {PORTAL_ROLES.map((r) => (
+                    <option key={r} value={r}>{ROLE_LABEL[r]} — {SCOPE_WORDS[portalPermsMatrix.scope[r]]}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-4">
+                <FieldLabel>Director only — which companies?</FieldLabel>
+                <DirectorScopePicker companies={companies} selected={[]} />
+                <p className="mt-1 text-xs text-fg-subtle">Leave as &ldquo;All companies&rdquo; for a group-wide director. Ignored for every other level — a Manager&apos;s companies come from &ldquo;Also works for&rdquo; on their own record.</p>
+              </div>
+              <div>
+                <RevealPassword name="password" minLength={8} required placeholder="Password (min 8 characters)" />
+              </div>
+              <Button type="submit"><KeyRound size={13} /> Enable access</Button>
+            </form>
+
+            <form action={setDirectorOutreach} className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Director outreach</p>
+                <p className="text-xs text-fg-muted">
+                  {directorPaused
+                    ? "Paused — directors can't draft messages/reminders right now."
+                    : "Active — directors can draft messages/reminders (saved to Outbox first)."}
+                </p>
+              </div>
+              <input type="hidden" name="paused" value={directorPaused ? "0" : "1"} />
+              <Button type="submit" variant={directorPaused ? "primary" : "secondary"}>
+                {directorPaused ? "Resume" : "Pause"}
+              </Button>
+            </form>
+          </SettingsCard>
+
+          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="Full control over what Staff, Managers, Admin & Directors can see and do." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
+            <PortalPermissionsEditor initial={portalPermsMatrix} action={savePortalPermissionsAction} />
+          </SettingsCard>
+
           <form action={saveSettings} className="space-y-4">
             <input type="hidden" name="__keys" value="portalNudges,portalNudgeNotStartedHours,portalNudgeNoUpdateDays,portalNudgeNotStartedMsg,portalNudgeNoUpdateMsg" />
             <input type="hidden" name="__section" value="portals" />
@@ -523,9 +596,6 @@ export default async function SettingsPage({
             <SaveBar />
           </form>
 
-          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="Full control over what Staff, Managers, Admin & Directors can see and do." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
-            <PortalPermissionsEditor initial={portalPermsMatrix} action={savePortalPermissionsAction} />
-          </SettingsCard>
         </section>
 
         {/* ───────────────────── Email & Integrations ───────────────────── */}
@@ -812,108 +882,6 @@ export default async function SettingsPage({
             <McpKeyManager initial={mcpKeys} create={createMcpKey} revoke={revokeMcpKey} connections={mcpConnections} revokeConnection={revokeMcpConnection} />
           </SettingsCard>
 
-          {/* Staff portal access */}
-          <SettingsCard id="portal" icon={<Users size={15} />} title="Staff portal access" desc="Give staff a /portal sign-in. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
-            {sp.portal === "saved" && (
-              <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
-            )}
-            {sp.portal === "role" && (
-              <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Access level updated — it applies the next time they open the portal.</p>
-            )}
-            {sp.portal === "revoked" && (
-              <p className="text-sm text-fg-muted">Portal access revoked. Their records (tasks, messages, documents) are kept.</p>
-            )}
-            {sp.portal === "short" && (
-              <p className="text-sm text-danger">Password must be at least 8 characters.</p>
-            )}
-            {sp.portal === "error" && (
-              <p className="text-sm text-danger">Couldn&apos;t update portal access — please try again.</p>
-            )}
-
-            {portalEnabled.length > 0 && (
-              <div className="space-y-2">
-                <FieldLabel>People with access</FieldLabel>
-                {portalEnabled.map((p) => (
-                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border">
-                    <span className="min-w-0 grow text-sm font-medium truncate">{p.name}</span>
-                    <span className="text-xs text-fg-subtle">
-                      {p.lastLogin
-                        ? `Last in ${new Date(p.lastLogin).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
-                        : "Never signed in"}
-                    </span>
-                    {/* Change role without resetting the password. */}
-                    <form action={setPortalRole} className="flex items-center gap-1.5">
-                      <input type="hidden" name="personId" value={p.id} />
-                      <Select name="portalRole" defaultValue={p.role} size="sm">
-                        <option value="staff">Staff</option>
-                        <option value="manager">Manager</option>
-                        <option value="hr">Admin</option>
-                        <option value="director">Director</option>
-                        <option value="receptionist">Receptionist</option>
-                      </Select>
-                      {/* Director scope: none = whole portfolio; one or more companies
-                          = Company Director. Ignored server-side unless role Director. */}
-                      <DirectorScopePicker companies={companies} selected={p.directorCompanyIds} />
-                      <Button type="submit" variant="secondary" size="sm">Save</Button>
-                    </form>
-                    <form action={revokePortalAccess}>
-                      <input type="hidden" name="personId" value={p.id} />
-                      <button type="submit" className="text-xs font-medium text-danger hover:underline">Revoke</button>
-                    </form>
-                  </div>
-                ))}
-                <p className="text-xs text-fg-subtle">
-                  Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, chat messages, documents, attendance, leave) stays in the system, and you can grant access again at any time.
-                </p>
-              </div>
-            )}
-
-            <form action={setPortalAccess} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
-              <div className="sm:col-span-2 lg:col-span-4">
-                <FieldLabel>Add access or reset a password</FieldLabel>
-              </div>
-              <div>
-                <Select name="personId" defaultValue="" aria-label="Person">
-                  <option value="" disabled>Choose a person…</option>
-                  {portalPeople.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}{p.enabled ? " (has access — reset password)" : ""}</option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Select name="portalRole" defaultValue="staff" aria-label="Access level">
-                  <option value="staff">Staff — own tasks only</option>
-                  <option value="manager">Manager — own + direct reports&apos; + own company&apos;s tasks, can complete</option>
-                  <option value="hr">Admin — every company&apos;s tasks, can create across all</option>
-                  <option value="director">Director — board view + create tasks/events</option>
-                  <option value="receptionist">Receptionist — cleaning log only, no tasks</option>
-                </Select>
-              </div>
-              <div className="sm:col-span-2 lg:col-span-4">
-                <FieldLabel>If Director — scope (optional)</FieldLabel>
-                <DirectorScopePicker companies={companies} selected={[]} />
-              </div>
-              <div>
-                <RevealPassword name="password" minLength={8} required placeholder="Password (min 8 characters)" />
-              </div>
-              <Button type="submit"><KeyRound size={13} /> Enable access</Button>
-            </form>
-
-            <form action={setDirectorOutreach} className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">Director outreach</p>
-                <p className="text-xs text-fg-muted">
-                  {directorPaused
-                    ? "Paused — directors can't draft messages/reminders right now."
-                    : "Active — directors can draft messages/reminders (saved to Outbox first)."}
-                </p>
-              </div>
-              <input type="hidden" name="paused" value={directorPaused ? "0" : "1"} />
-              <Button type="submit" variant={directorPaused ? "primary" : "secondary"}>
-                {directorPaused ? "Resume" : "Pause"}
-              </Button>
-            </form>
-          </SettingsCard>
 
         </section>
 

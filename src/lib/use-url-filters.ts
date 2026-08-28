@@ -87,6 +87,16 @@ export function useUrlFilters<T extends Record<string, string>>(
     [buildQuery, pathname, router]
   );
 
+  /**
+   * ⚠️ CALL THIS ONCE PER EVENT, WITH EVERY KEY YOU ARE CHANGING.
+   *
+   * `next` is built from the CURRENT values, which come from the address bar —
+   * and the address bar has not moved yet when a second call runs in the same
+   * handler. So `set({status})` followed by `set({f})` recomputes from the old
+   * values and silently drops the first change. It cost the portal's status
+   * dropdown: it wrote the status and then wiped it in the same click, so
+   * picking a status appeared to do nothing at all.
+   */
   const set = useCallback(
     (patch: Partial<T>) => {
       const slow = (Object.keys(patch) as Array<keyof T>).filter((k) => debounceKeys?.includes(k));
