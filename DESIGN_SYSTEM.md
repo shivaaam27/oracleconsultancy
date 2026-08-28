@@ -261,6 +261,33 @@ the right size for free and can never leak the default again. If you build a
 new list or a new field wrapper, set the type size on the wrapper.
 
 **The exceptions, and they are narrow:**
+### ⚠️ ONE SHAPE FOR A SECONDARY ACTION (28 Aug 2026, measured)
+
+**`ACTION_BOX` / `ACTION_ICON` / `ACTION_DANGER` in `ui.tsx`.** The small buttons
+inside a panel — "Add someone", "Message all in chat", "Delete task", and the
+square icon buttons beside them.
+
+They were **four different shapes side by side**. One person's row on the portal
+task page carried a **green** filled WhatsApp button, a **blue** filled email
+button, a **grey** filled chat button and a bare-ringed X — four treatments
+inside 120px, with two blue chips above and below them. The owner's words: *"the
+buttons, green button and other shapes feel different then the general system."*
+
+- **One resting shape**: a hairline on the page's own surface. **Colour only on
+  hover**, where it says what the thing will do.
+- ⚠️ **A soft colour fill on an ordinary action spends the colour on nothing.**
+  Desk has one blue and keeps semantic colour for meaning. Three equal actions do
+  not become clearer by being three colours.
+- ⚠️ **A destructive action is quiet at rest and solid only on the CONFIRM** —
+  that is the single place the red is earned.
+- **One primary per row, and the rest identical.** The task page's action row was
+  a solid blue button, a soft-green filled one and a white outlined one — three
+  treatments for three peers. Complete and Remind are the same shape now; the
+  green survives on the **tick**, not as a block behind the words.
+- ⚠️ **The `Switch` IS green, and that is the system's own control** — the iPhone
+  toggle used everywhere. Leave it. The rule is about buttons that invented their
+  own colour, not about the kit.
+
 - A control **inside a grid row** may use `CONTROL_BOX_SM` (`h-7`, `text-xs`) —
   a hundred of them in a column need the room. It still takes a kit type size.
 - An inline **add-link chip** (`+ Raw material`) is a chip, not a control: 24px,

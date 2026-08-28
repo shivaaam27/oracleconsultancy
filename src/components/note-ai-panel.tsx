@@ -100,28 +100,34 @@ export function NoteAiPanel({
 
   return (
     <div className="shrink-0 border-t border-border bg-bg-subtle/60">
-      <div className="flex flex-wrap items-center gap-1 px-2 py-1.5">
-        <span className="mr-1 inline-flex items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
+      {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up — the same treatment
+          the writing toolbar above already gets, and for the same reason. At
+          375px these six actions wrapped to two rows: 65px of buttons standing
+          permanently between the writing and the bottom of the screen, on the
+          device with the least room to give. Sideways, every action is still
+          reachable and the paper keeps 32px of it. */}
+      <div className="slim-scroll flex items-center gap-1 overflow-x-auto px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
+        <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
           <Sparkles size={12} /> AI
         </span>
 
-        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
           onClick={() => run("polish", polishNoteAction, (d) => setProposal({ kind: "polish", text: d.text }))}>
           {busy === "polish" ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />} Tidy the writing
         </button>
 
-        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
           onClick={() => run("summary", summariseNoteAction, (d) => setProposal({ kind: "summary", points: d.points }))}>
           {busy === "summary" ? <Loader2 size={11} className="animate-spin" /> : <Text size={11} />} Summarise
         </button>
 
-        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
           onClick={() => run("tasks", extractTasksAction, (d) =>
             setProposal({ kind: "tasks", tasks: d.tasks, picked: new Set(d.tasks.map((_, i) => i)) }))}>
           {busy === "tasks" ? <Loader2 size={11} className="animate-spin" /> : <ListChecks size={11} />} Find the jobs
         </button>
 
-        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
           onClick={() => run("title", suggestTitleAction, (d) => setProposal({ kind: "title", title: d.title }))}>
           {busy === "title" ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Name it
         </button>
@@ -129,7 +135,7 @@ export function NoteAiPanel({
         {/* The last of §6's actions. The strip below the note already offers names
             written WITHOUT an @ — this reads the meaning instead, so "the permit
             chap" finds Sulleiman. It costs a model call, so it is asked for. */}
-        <button type="button" disabled={busy !== null} className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}
+        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
           onClick={() => run("links", suggestLinksAction, (d) => setProposal({ kind: "links", links: d.links }))}>
           {busy === "links" ? <Loader2 size={11} className="animate-spin" /> : <Link2 size={11} />} Suggest links
         </button>

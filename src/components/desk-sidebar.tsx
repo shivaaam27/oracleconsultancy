@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { LayoutGrid, LogOut, PanelLeftClose, PanelLeftOpen, Search, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronRight,
+  LayoutGrid,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  type LucideIcon,
+} from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
-import { moduleForPath, moduleGroups } from "@/lib/nav";
+import { moduleForPath, moduleOwnGroups, systemItems } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { CreateMenu } from "./create-menu";
@@ -27,6 +35,10 @@ import { ThemeToggle } from "./theme-toggle";
  */
 
 const STORE = "cos-sidebar";
+/** Which groups are open, per module: `{ cocozuri: ["3 · Make"] }`. Per module
+ *  because the modules are different sizes and different jobs — the shape you
+ *  want CocoZuri's ten groups in says nothing about Task Management's three. */
+const GROUP_STORE = "cos-rail-groups";
 /** The same state as a cookie, so the server can render the right gutter — see
  *  the note in `portal-sidebar.tsx`. */
 export const DESK_RAIL_COOKIE = "cos-desk-rail";
@@ -57,9 +69,14 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
    * its first group. They are not NAV_ROUTES entries — they are the hub's tabs —
    * which is why they belong to Task Management and not to every module. */
   const active = moduleForPath(pathname);
-  const groups: { label: string; items: Item[] }[] = moduleGroups(active).map((g, i) =>
+  const groups: { label: string; items: Item[] }[] = moduleOwnGroups(active).map((g, i) =>
     i === 0 && active.lead ? { label: g.label, items: [...active.lead, ...g.items] } : g
   );
+  /* ⚠️ SYSTEM IS PINNED, NOT SCROLLED. It belongs to the app rather than to any
+   * one business, so burying it under ten groups of chocolate would be wrong —
+   * and until 28 Aug 2026 that is exactly where it sat: the last entry in one
+   * long scrolling column, which is not the same as being at the foot. */
+  const system = systemItems();
 
   useEffect(() => {
     try {
@@ -88,11 +105,128 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
 
   // The hub's Tasks tab is a query, not a path, so it needs its own test.
   const tab = params.get("tab");
-  function isActive(href: string) {
-    if (href === "/?tab=tasks") return pathname === "/" && tab === "tasks";
-    if (href === "/") return pathname === "/" && tab !== "tasks";
-    return pathname === href || pathname.startsWith(href + "/");
-  }
+
+  /* ⚠️ LONGEST MATCH WINS, the same rule `moduleForPath` follows.
+   *
+   * The old test was "exact, or a prefix", applied to each link on its own — so
+   * a module's front door matched every page inside it. On /cocozuri/trace the
+   * rail highlighted "CocoZuri" and Trace was left plain, which is the rail
+   * answering "where am I?" with the wrong answer. It went unseen because the
+   * page renders perfectly; only looking at the rail on a sub-page finds it.
+   *
+   * Scoring rather than the first hit, because both /ops and /ops/funnel are
+   * real links and only the longer one is where you are. An exact match always
+   * beats a prefix, so a front door still lights up on the front door. */
+  const activeHref = useMemo(() => {
+    let best: string | null = null;
+    let bestScore = 0;
+    const consider = (href: string) => {
+      let score = 0;
+      // The hub's Tasks tab is a query, not a path, so it needs its own test.
+      if (href === "/?tab=tasks") score = pathname === "/" && tab === "tasks" ? 10_000 : 0;
+      else if (href === "/") score = pathname === "/" && tab !== "tasks" ? 9_999 : 0;
+      else if (pathname === href) score = 1_000 + href.length;
+      else if (pathname.startsWith(href + "/")) score = href.length;
+      if (score > bestScore) {
+        bestScore = score;
+        best = href;
+      }
+    };
+    for (const g of groups) for (const it of g.items) consider(it.href);
+    for (const it of system) consider(it.href);
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, tab, active.id]);
+
+  const isActive = (href: string) => href === activeHref;
+
+  /* ------------------------------------------------------------------ *
+   * Folding the groups.
+   *
+   * ⚠️ THE RAIL WAS CLIPPING ITSELF IN SILENCE. Measured 28 Aug 2026 at
+   * 1440×900: CocoZuri's rail stood 1281px in a 696px column, so 585px of it —
+   * "5 · Sell" through "9 · Know", and every System link — was simply not there,
+   * with no fade, no scrollbar and nothing to say more existed. Task Management
+   * hid 141px. A rail you cannot see the bottom of is not navigation.
+   *
+   * So a group folds, and only the one you are working in opens by default. Your
+   * choice after that is remembered per module.
+   *
+   * ⚠️ THE GROUP YOU ARE IN IS ALWAYS OPEN, whatever is stored. Navigating must
+   * never hide where you just arrived — a rail that answers "where am I?" with a
+   * folded heading is worse than one that scrolls.
+   *
+   * ⚠️ EVERY GROUP FOLDS, INCLUDING A GROUP OF ONE. Exempting the short ones
+   * looked like the better trade — nothing to save, and a chevron over a single
+   * link is friction — but on the screen it read as broken: CocoZuri has four
+   * one-item groups, so "7 · Pay out" and "8 · Put right" sat open among eight
+   * folded headings for no reason anybody could see. A rail whose shape you
+   * cannot predict is worse than one costing a click on a page you rarely open,
+   * and the group you are IN always opens by itself anyway.
+   * ------------------------------------------------------------------ */
+  const activeGroup = groups.find((g) => g.items.some((it) => isActive(it.href)))?.label ?? null;
+
+  // null until the stored state is read, so the server and the first client
+  // paint agree — the same trick the collapse state uses above.
+  const [openGroups, setOpenGroups] = useState<string[] | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GROUP_STORE);
+      const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+      const mine = all[active.id];
+      if (Array.isArray(mine)) setOpenGroups(mine);
+      else setOpenGroups(null);
+    } catch { setOpenGroups(null); }
+  }, [active.id]);
+
+  const isOpen = (g: { label: string; items: Item[] }) => {
+    if (collapsed) return true;
+    if (g.label === activeGroup) return true;
+    // Nothing stored yet: open the group you are in, and nothing else. On a page
+    // that is in no group (the launcher) fall back to the first, so the rail is
+    // never a column of closed headings.
+    if (openGroups === null) return activeGroup === null && g.label === groups[0]?.label;
+    return openGroups.includes(g.label);
+  };
+
+  const toggleGroup = useCallback((label: string) => {
+    setOpenGroups((prev) => {
+      const base = prev ?? (activeGroup ? [activeGroup] : groups[0] ? [groups[0].label] : []);
+      const next = base.includes(label) ? base.filter((l) => l !== label) : [...base, label];
+      try {
+        const raw = localStorage.getItem(GROUP_STORE);
+        const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+        all[active.id] = next;
+        localStorage.setItem(GROUP_STORE, JSON.stringify(all));
+      } catch { /* ignore */ }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active.id, activeGroup, pathname, tab]);
+
+  /* The rail can still overflow — every group opened, or a short window — so say
+   * so. A fade is the whole of it: the failure being fixed is that there was no
+   * sign at all, not that scrolling is hard. */
+  const navRef = useRef<HTMLElement | null>(null);
+  const [more, setMore] = useState(false);
+  const measure = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    setMore(el.scrollHeight - el.clientHeight - el.scrollTop > 4);
+  }, []);
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure, openGroups, collapsed, pathname]);
+
+  // Arriving on a page whose link is below the fold used to leave the rail
+  // showing the top of the module and no highlight anywhere.
+  useEffect(() => {
+    navRef.current
+      ?.querySelector<HTMLElement>('[data-rail-active="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [pathname, tab, openGroups]);
 
   return (
     <aside
@@ -164,41 +298,137 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
         </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto slim-scroll px-2 py-2">
-        {groups.map((g) => (
-          <div key={g.label} className="mb-3">
-            {!collapsed && (
-              <p className="px-2 pb-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
-                {g.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {g.items.map((it) => {
-                const Icon = it.icon;
-                const active = isActive(it.href);
-                return (
-                  <li key={it.href}>
-                    <Link
-                      href={it.href}
-                      title={collapsed ? it.label : undefined}
+      <div className="relative min-h-0 flex-1">
+        <nav
+          ref={navRef}
+          onScroll={measure}
+          className="h-full overflow-y-auto slim-scroll px-2 py-2"
+        >
+          {groups.map((g) => {
+            const open = isOpen(g);
+            return (
+              /* ⚠️ A FOLDED GROUP IS A ROW, NOT A CAPTION.
+               *
+               * These were 11px uppercase headings with a bare number — which is
+               * how you letter a section you never touch, and they are now the
+               * thing you click. Beside 13px item rows they read as a whisper
+               * next to a shout, so a rail of mostly-folded groups looked broken
+               * rather than tidy, and one open group among them looked lopsided.
+               *
+               * A group row now carries an item row's exact metrics — same
+               * height, same size, same left edge — and is told apart by weight
+               * (darker, medium) and by the chevron sitting where an item's icon
+               * sits. Folded or open, the rail is one even list. */
+              <div key={g.label} className="mb-1">
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(g.label)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-fg transition-colors hover:bg-bg-subtle"
+                  >
+                    <ChevronRight
+                      size={14}
                       className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        collapsed && "justify-center px-0",
-                        active
-                          ? "bg-accent-soft font-medium text-accent"
-                          : "text-fg-muted hover:bg-bg-subtle hover:text-fg"
+                        "shrink-0 text-fg-subtle transition-transform",
+                        open && "rotate-90"
                       )}
-                    >
-                      <Icon size={14} className="shrink-0" />
-                      {!collapsed && <span className="truncate">{it.label}</span>}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
+                    />
+                    <span className="min-w-0 flex-1 truncate text-left">{g.label}</span>
+                    {/* Folded, the count is the only thing saying how much is
+                        behind the row. Open, you can see for yourself. */}
+                    {!open && (
+                      <span className="shrink-0 tabular text-xs text-fg-subtle">
+                        {g.items.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+                {open && (
+                  /* ⚠️ AN OPEN GROUP'S PAGES ARE INDENTED BEHIND A HAIRLINE.
+                     Flush with the group rows they read as siblings of them, not
+                     as what is inside — so an open group looked like the rail had
+                     simply grown three more headings. The rule starts under the
+                     chevron, which is what makes the fold legible at a glance;
+                     hairlines separate, which is the language everywhere else
+                     here. Never indented in the 56px icon rail, where there are
+                     no headings to belong to. */
+                  <ul
+                    className={cn(
+                      "space-y-0.5",
+                      !collapsed && "ms-[15px] mt-0.5 border-s border-border ps-[9px]"
+                    )}
+                  >
+                    {g.items.map((it) => {
+                      const Icon = it.icon;
+                      const here = isActive(it.href);
+                      return (
+                        <li key={it.href}>
+                          <Link
+                            href={it.href}
+                            data-rail-active={here ? "true" : undefined}
+                            title={collapsed ? it.label : undefined}
+                            className={cn(
+                              "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                              collapsed && "justify-center px-0",
+                              here
+                                ? "bg-accent-soft font-medium text-accent"
+                                : "text-fg-muted hover:bg-bg-subtle hover:text-fg"
+                            )}
+                          >
+                            <Icon size={14} className="shrink-0" />
+                            {!collapsed && <span className="truncate">{it.label}</span>}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+        {/* Purely a sign that there is more. `pointer-events-none` so it can
+            never eat a click on the link underneath it. */}
+        {more && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-bg-elev to-transparent" />
+        )}
+      </div>
+
+      {/* System — pinned, never scrolled. See the note where `system` is built. */}
+      {system.length > 0 && (
+        <div className="border-t border-border px-2 py-1.5">
+          {!collapsed && (
+            <p className="px-2 pb-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
+              System
+            </p>
+          )}
+          <ul className={cn("space-y-0.5", collapsed && "flex flex-col items-center")}>
+            {system.map((it) => {
+              const Icon = it.icon;
+              const here = isActive(it.href);
+              return (
+                <li key={it.href} className={cn(!collapsed && "w-full")}>
+                  <Link
+                    href={it.href}
+                    title={collapsed ? it.label : undefined}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      collapsed && "justify-center px-0",
+                      here
+                        ? "bg-accent-soft font-medium text-accent"
+                        : "text-fg-muted hover:bg-bg-subtle hover:text-fg"
+                    )}
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    {!collapsed && <span className="truncate">{it.label}</span>}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* The footer row: theme, then sign out beside it.
        *

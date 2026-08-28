@@ -200,7 +200,12 @@ export function NotesShelf({
             value={values.q}
             onChange={(e) => set({ q: e.target.value })}
             placeholder="Search notes…"
-            wrapperClassName="w-[15rem]"
+            /* ⚠️ A FIXED WIDTH WRAPS ITS OWN ROW ON A PHONE. 15rem is 240px in a
+               343px card, so the field took a line and then shoved Ask, Today,
+               New folder and New note onto lines of their own. Full width below
+               `sm` gives the search its row honestly and lets the four buttons
+               share the next one. */
+            wrapperClassName="w-full sm:w-[15rem]"
             className="h-8 text-sm"
           />
           {/* Ask a question of everything you have written — Phase 5. It sits on

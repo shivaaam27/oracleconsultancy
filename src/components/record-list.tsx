@@ -105,11 +105,14 @@ const TONE_TEXT: Record<string, string> = {
  * list on their home IS their only way to filter. Same filters, same counts,
  * same links — laid on their side.
  */
-function FilterStrip({ filters }: { filters: RecordFilter[] }) {
+function FilterStrip({ filters, always = false }: { filters: RecordFilter[]; always?: boolean }) {
   return (
     <nav
       aria-label="Filters"
-      className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className={cn(
+        "-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        !always && "md:hidden",
+      )}
     >
       {filters.map((f) => (
         <FilterLink
@@ -569,6 +572,8 @@ export function RecordList<T>({
   showHeader = true,
   showFooter = true,
   bare = false,
+  bleed = true,
+  filterLayout = "rail",
   fillViewport = true,
   listKey,
   exportName,
@@ -626,6 +631,40 @@ export function RecordList<T>({
   /** Drop the card frame — for a list rendered INSIDE an existing housing. */
   bare?: boolean;
   /**
+   * How the filters are offered.
+   *
+   * `"rail"` (the default) is the 184px column from `md` up, with a scrolling
+   * chip strip below that width.
+   *
+   * ⚠️ `"strip"` IS FOR A LIST WHOSE PAGE ALREADY FILTERS ITSELF. The portal's
+   * task list carries an "All statuses" select and an "All companies" select in
+   * its own toolbar, and heads the list with Overdue / Due soon / In progress /
+   * Done sections — so a column repeating most of that was **the same choice
+   * offered twice, in two shapes, 184px apart**. As chips it costs no width, sits
+   * beside the controls it belongs with, and the ones that are NOT duplicated
+   * ("I raised", "My work") keep a home.
+   */
+  filterLayout?: "rail" | "strip";
+  /**
+   * On a phone, run the card to both edges of the screen.
+   *
+   * ⚠️ A LIST ON A PHONE IS THE PAGE, so a border round it is a frame round the
+   * whole display. Measured at 375px: `main`'s own 16px gutters left the card
+   * 343px wide, and every row then gave up another 12px each side to its own
+   * padding — 56px of a 375px screen spent on the fact that the list is "a card".
+   * The card bleeds through the gutters below `sm` and rows carry a phone-sized
+   * 16px instead, so the writing gains room and the hairlines run edge to edge
+   * the way a list on a phone should.
+   *
+   * ⚠️ From `sm` up NOTHING CHANGES — it is a card again, with all four borders
+   * and its corners back. This is a phone rule, not a redesign.
+   *
+   * Pass `false` for a list inside somebody else's padded housing, where pulling
+   * 16px out through the gutters would push it past the edge of its container.
+   * `bare` lists never bleed: they have no card to bleed.
+   */
+  bleed?: boolean;
+  /**
    * Grow the card to the bottom of the window when the list is short.
    *
    * On by default for any list that draws its own card, because a three-row list
@@ -651,6 +690,14 @@ export function RecordList<T>({
      ERPNext's does, rather than floating halfway up a field of white. */
   const card = useRef<HTMLDivElement>(null);
   useFillViewport(card, { mode: "min", enabled: !bare && fillViewport });
+
+
+  /* Edge to edge on a phone — see the `bleed` prop. `RL_PAD` is what every row,
+     header, group heading and footer inside the card uses, so the whole card
+     shifts together: 16px on a phone (where the page gutter is gone and 12px
+     would leave the text glued to the glass), the usual dense 12px from `sm` up. */
+  const bleedNow = bleed && !bare;
+  const RL_PAD = bleedNow ? "px-4 sm:px-3" : "px-3";
 
   /* ------------------------------------------- search, then paging ------ */
   // ⚠️ Filter BEFORE paging. The other way round pages the whole list and then
@@ -805,15 +852,20 @@ export function RecordList<T>({
     <div ref={rootRef} data-record-list className={cn("flex gap-4", className)}>
       {helpOpen && <ShortcutsCard onClose={() => setHelpOpen(false)} />}
       {filters && filters.length > 0 && (
+        /* ⚠️ A LIST WHOSE FILTERS ARE CHIPS DRAWS NO COLUMN AT ALL — see
+           `filterLayout`. Otherwise the rail is the rail, at every width from
+           `md` up. */
+        filterLayout === "strip" ? null : (
         <aside className="hidden w-[184px] shrink-0 md:block">
           <FilterRail filters={filters} />
         </aside>
+        )
       )}
 
       <div className="min-w-0 flex-1">
         {/* Below md the rail cannot fit beside the table, so it lies on its side
             above it rather than disappearing. */}
-        {filters && filters.length > 0 && <FilterStrip filters={filters} />}
+        {filters && filters.length > 0 && <FilterStrip filters={filters} always={filterLayout === "strip"} />}
         {(toolbar || listKey || search) && (
           <div className="flex flex-wrap items-center gap-2">
             {search && (
@@ -886,13 +938,22 @@ export function RecordList<T>({
 
         <div
           ref={card}
-          className={cn(!bare && "mt-2 flex flex-col overflow-hidden rounded-xl border border-border bg-bg-elev")}
+          className={cn(
+            /* ⚠️ `border-y` plus a conditional `border-x`, never `border` with
+               `border-x-0` over it. Both set a border WIDTH, and which one wins
+               depends on the order Tailwind happens to emit them in — a coin
+               toss to build a layout on. */
+            !bare && "mt-2 flex flex-col overflow-hidden border-y border-border bg-bg-elev",
+            !bare && (bleedNow
+              ? "-mx-4 sm:mx-0 sm:rounded-xl sm:border-x"
+              : "rounded-xl border-x"),
+          )}
         >
           {showHeader && (
             <div
               data-list-head
               style={gridStyle}
-              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle px-3 text-xs")}
+              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle text-xs", RL_PAD)}
             >
               {tick && (
                 <span>
@@ -932,7 +993,7 @@ export function RecordList<T>({
           )}
 
           {rows.length === 0 ? (
-            <div className="flex flex-1 flex-col justify-center px-3 py-10">
+            <div className={cn("flex flex-1 flex-col justify-center py-10", RL_PAD)}>
               {/* A search that matches nothing is not an empty list — saying
                   "none yet" there sends someone hunting for data that is
                   sitting right behind the box they typed in. */}
@@ -957,7 +1018,7 @@ export function RecordList<T>({
                      the browser's 16px — which is most of them, on most lists.
                      Setting it on the ROW means a cell inherits the right size
                      for free and can never leak the default again. */
-                  <div data-list-row className="group/row relative px-3 text-sm">
+                  <div data-list-row className={cn("group/row relative text-sm", RL_PAD)}>
                     <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3")}>
                       {tick && (
                         <span onClick={(e) => e.stopPropagation()}>{tick(row)}</span>
@@ -1025,7 +1086,7 @@ export function RecordList<T>({
                          company and priority bands, and a band you can't read is
                          just a stripe. Now 12.5px semibold in full `text-fg`, with
                          the room to breathe. */
-                      <li className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle px-3 py-1.5 text-sm font-semibold uppercase tracking-[0.06em] text-fg">
+                      <li className={cn("sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle py-1.5 text-sm font-semibold uppercase tracking-[0.06em] text-fg", RL_PAD)}>
                         <span className="truncate">{group}</span>
                         <span className="tabular text-xs font-medium normal-case tracking-normal text-fg-muted">
                           {paged.filter((r) => (groupOf?.(r) ?? null) === group).length}
@@ -1065,7 +1126,7 @@ export function RecordList<T>({
           {/* The totals row, when any column asks for one. Aligned to the same
               grid as the rows, so a figure sits under its own column. */}
           {showFooter && paged.length > 0 && visibleColumns.some((c) => c.total) && (
-            <div data-list-total className="border-t border-border bg-bg-subtle px-3 py-1.5">
+            <div data-list-total className={cn("border-t border-border bg-bg-subtle py-1.5", RL_PAD)}>
               <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3 text-sm font-medium")}>
                 {tick && <span />}
                 {visibleColumns.map((c) => (
@@ -1080,7 +1141,7 @@ export function RecordList<T>({
 
           {/* Footer: how many of how many — ERPNext tells you, always. */}
           {showFooter && rows.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle px-3 py-1.5 text-xs text-fg-muted">
+            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle py-1.5 text-xs text-fg-muted", RL_PAD)}>
               <span>
                 <b className="tabular font-semibold text-fg">{shown ?? paged.length}</b>
                 {" of "}

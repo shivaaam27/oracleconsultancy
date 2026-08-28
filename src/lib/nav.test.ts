@@ -8,6 +8,9 @@ import {
   SYSTEM_GROUP,
   moduleForPath,
   moduleGroups,
+  moduleOwnGroups,
+  moduleQuick,
+  systemItems,
   ungroupedRouteIds,
   resolveRouteId,
   LEGACY_ROUTE_IDS,
@@ -111,6 +114,33 @@ describe("working out which module you are in", () => {
     for (const m of MODULES.filter((x) => !x.soon)) {
       const groups = moduleGroups(m);
       expect(groups.at(-1)?.label, `${m.id} must keep System at the foot`).toBe("System");
+    }
+  });
+
+  // The rail renders these two separately — the module's pages scroll, System
+  // stays pinned at the foot. Together they must still be the whole rail, or a
+  // page would be reachable from the old list and from neither of the new ones.
+  it("splits the rail into the module's own groups plus a pinned System", () => {
+    expect(systemItems().length).toBe(SYSTEM_GROUP.ids.length);
+    for (const m of MODULES.filter((x) => !x.soon)) {
+      const own = moduleOwnGroups(m);
+      expect(own.some((g) => g.label === "System"), `${m.id} must not scroll System`).toBe(false);
+      expect(own.length + 1).toBe(moduleGroups(m).length);
+    }
+  });
+
+  /* ⚠️ A launcher shortcut must name a page INSIDE the module whose tile it sits
+   * on. Otherwise a tile quietly becomes a door into somewhere else, and the
+   * whole point of the split — that the rail shows the module you are in — is
+   * broken by the screen you used to get there. */
+  it("keeps every launcher shortcut inside its own module", () => {
+    for (const m of MODULES) {
+      const mine = new Set(m.groups.flatMap((g) => g.ids));
+      for (const id of m.quick ?? []) {
+        expect(ROUTE_BY_ID[id], `${m.id}: quick link "${id}" is not a real route`).toBeTruthy();
+        expect(mine.has(id), `${m.id}: quick link "${id}" belongs to another module`).toBe(true);
+      }
+      expect(moduleQuick(m).length).toBe((m.quick ?? []).length);
     }
   });
 });

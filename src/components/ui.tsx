@@ -29,6 +29,30 @@ import type { ComponentProps, ReactNode } from "react";
 export const CONTROL_BOX = "h-8 rounded-md text-sm";
 /** The dense variant, for a control INSIDE a grid row. */
 export const CONTROL_BOX_SM = "h-7 rounded-md text-xs";
+
+/**
+ * A SECONDARY ACTION — the small buttons inside a panel: "Add someone",
+ * "Message all in chat", "Delete task", and every square icon button beside them.
+ *
+ * ⚠️ THEY WERE FOUR DIFFERENT SHAPES SIDE BY SIDE. On the portal task page a
+ * single person's row carried a GREEN filled WhatsApp button, a BLUE filled
+ * email button, a GREY filled chat button and a bare-ringed X — four treatments
+ * inside 120px, with "Message all in chat" and "Add someone" as blue chips above
+ * and below them. Desk has ONE blue and keeps semantic colour for meaning; a
+ * soft colour fill on an ordinary action spends it on nothing and reads as a
+ * different product.
+ *
+ * So: one resting shape — a hairline on the page's own surface — and colour only
+ * on hover, where it says what the thing will do.
+ */
+export const ACTION_BOX =
+  "inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50";
+/** The square icon-only variant of `ACTION_BOX`. */
+export const ACTION_ICON =
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50";
+/** `ACTION_BOX`, for something that destroys. Red on hover, never at rest. */
+export const ACTION_DANGER =
+  "inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2.5 text-xs font-medium text-danger transition-colors hover:border-danger/50 hover:bg-danger-soft/50 disabled:opacity-50";
 /**
  * A full-width text field. ⚠️ Use this rather than hand-writing the classes:
  * seven files had grown their own `const INPUT = "…"`, each subtly different,

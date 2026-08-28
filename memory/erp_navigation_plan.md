@@ -200,3 +200,134 @@ in one column. Ledger's is 5, Recruitment's 7, Projects' 1.
   asserts.
 - **Orders & Imports stays inside Task Management** — the owner's instruction.
   It is arguably its own module; still worth confirming.
+
+---
+
+## The launcher and the rail, revisited — 28 Aug 2026
+
+The owner asked for the module sections to be improved: how they appear, how the
+information is shown, and how the rail behaves once you are inside a module.
+Everything below was **measured at 1440×900 on the live dev server**, not guessed.
+
+### What was actually wrong
+
+**`/apps` — the launcher**
+
+1. **Three of seven tiles carried no number** — Marketing, Orders & Imports and
+   CocoZuri. `moduleCounts()` only counted four modules, and CocoZuri's `null` was
+   excused by a comment reading *"the tile already says Being built"* — which
+   **stopped being true the day the module shipped**. No module is `soon` any
+   more, so nothing said anything, and the file's own rule ("a tile that says
+   nothing is just a big button") was broken on nearly half the page.
+2. **439px of bare grey** under the grid — the owner's "dead space", on the
+   launcher itself.
+3. **Every tile was a dead end**: one destination each. You go to `/apps` to reach
+   the stock book, not the CocoZuri desk, so it cost two clicks every time.
+
+**The rail inside a module — the worse half**
+
+4. **It clipped itself in silence.** CocoZuri's rail stood **1281px in a 696px
+   column — 585px of it invisible**: "5 · Sell" through "9 · Know", and the whole
+   of System. No fade, no scrollbar, nothing to say more existed. Task Management
+   hid 141px.
+5. **System was never pinned**, though this file and `CLAUDE.md` both said it was.
+   It was the last group in one long scrolling column, which is not the same
+   thing — so Settings, Insights, Activity and ORI were out of reach in *every*
+   module.
+6. **The rail highlighted the wrong link on any sub-page.** `isActive` was "exact
+   or a prefix", tested per link, so a module's front door matched everything
+   inside it: on `/cocozuri/trace` the rail lit up **CocoZuri** and left Trace
+   plain. A pre-existing bug — the page renders perfectly, so only looking at the
+   rail on a sub-page finds it.
+
+### What was built
+
+- **`module.quick`** in `nav.ts` — three or four route ids per module, shown as
+  chips on its launcher tile. ⚠️ **`nav.test.ts` proves each one names a page
+  inside its own module**, so a tile can never quietly become a door into
+  somewhere else, and a shortcut can never outlive the page it names.
+- **A count for every module** (`mkt_posts`, `ops_order_lines`, and CocoZuri's
+  **issued** invoices — the same test the rest of that module uses; counting
+  drafts would put a figure on the launcher no screen inside agrees with). ⚠️ A
+  **zero is honest because the count ran**; the `null` case still shows nothing.
+- **Two columns until `2xl`.** Three columns made short rows and left the grey
+  behind; two wider ones give the chips room on one line. Dead space **439px →
+  201px**, without inventing anything to fill it.
+- **`moduleOwnGroups()` + `systemItems()`** split the rail in two: the module's
+  pages scroll, **System is pinned above the footer**. `moduleGroups()` still
+  returns both, so the existing test's "System at the foot" assertion holds.
+- **Every group folds**, with a count when closed; the group you are in is
+  **always open whatever is stored**, and your choice is remembered **per module**
+  (`cos-rail-groups`, keyed by module id — CocoZuri's ten groups say nothing about
+  Task Management's three). ⚠️ **A one-item group folds too.** Exempting them
+  looked like the better trade until it was on screen: CocoZuri has four, so
+  "7 · Pay out" and "8 · Put right" sat open among eight folded headings for no
+  visible reason. **A rail whose shape you cannot predict is worse than a click on
+  a page you rarely open.**
+- **Longest match wins** for the active link, the same rule `moduleForPath`
+  follows — scored, because `/ops` and `/ops/funnel` are both real links and only
+  the longer one is where you are. An exact match always beats a prefix.
+- **The active item is scrolled into view** on arrival, and a **bottom fade**
+  appears whenever the rail can still scroll (it can: open every group, or use the
+  56px icon rail, where there are no headings to fold).
+
+### Measured after
+
+| | before | after |
+|---|---|---|
+| Rail hidden, Task Management | 141px | **0** |
+| Rail hidden, CocoZuri | 585px | **0** |
+| System reachable without scrolling | no | **yes, every module** |
+| Rail highlight on `/cocozuri/trace` | "CocoZuri" | **"Trace"** |
+| Tiles with a figure | 4 of 7 | **7 of 7** |
+| Dead space under the launcher grid | 439px | 201px |
+
+1,301 tests pass; `tsc --noEmit` clean.
+
+### Still open
+
+- **The portal rail was not touched.** The portal has no modules, so there is no
+  twin to keep in step here — but it has had none of this work, and that is the
+  slice `memory/next_features_aug2026.md` already names.
+- **Projects has one page**, so its tile carries a count and no shortcuts. Honest,
+  and it will fix itself when the module grows.
+
+### A second pass on the look — same day
+
+The owner looked at the first cut and said the folded sections did not look
+right, an open group among folded ones looked unbalanced, and the tiles' size,
+layout and spacing felt wrong. All three were fair, and all three had the same
+cause: **the pieces were styled as what they used to be, not as what they had
+become.**
+
+- **A folded group was still a caption.** 11px uppercase with a bare number is how
+  you letter a section nobody touches — and these are now the thing you click.
+  Beside 13px item rows they read as a whisper next to a shout, so a rail of
+  folded groups looked broken and one open group among them looked lopsided. A
+  group row now carries **an item row's exact metrics** — same height, same size,
+  same left edge — and is told apart by weight and by the chevron sitting where an
+  item's icon sits. Folded or open, the rail is one even list.
+- **An open group's pages were flush with the group rows**, so they read as
+  siblings of them rather than as what is inside — an open group just looked like
+  the rail had grown three more headings. They are now **indented behind a
+  hairline that starts under the chevron**, which is what makes the fold legible
+  at a glance. Never in the 56px icon rail, where there are no headings to belong
+  to.
+- **The tile was two stacked boxes.** A heading with its own hover band, a rule,
+  the count, another rule, then chips — four bands in a 129px card, and a module
+  with no shortcuts (Projects) got an **empty section between two rules**. Now:
+  the heading itself is the link, the figure sits with the words it describes, and
+  there is **one hairline**, above the only part of the card that is a row of
+  links. Every tile measures 153px; a chip-less module simply has no footer.
+- **Two columns was over-correcting.** 3 columns → 2 fixed the dead space and made
+  700px tiles for 60 characters of text. Two until `xl`, three above it, where a
+  tile settles at ~400px — the width the blurbs were written for.
+- ⚠️ **NO ICON ON A CHIP, and that is a fitting decision, not a taste one.**
+  Measured at a 396px tile: four chips with icons summed **368px into 366px of
+  room**, so Recruitment wrapped to a second line and stretched its whole grid
+  row — and every module is one longer word away from the same. Dropping the icon
+  frees 18px a chip: 296px into 366px. The module's own icon is an inch above
+  them; these labels need no second one.
+- Two `text-[Npx]` literals on the tile (14px title, 15px figure) went with it —
+  `DESIGN_SYSTEM.md` forbids them and they had been there since the launcher was
+  written.

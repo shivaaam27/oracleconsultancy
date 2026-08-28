@@ -30,26 +30,36 @@ export function PortalHomeHero({
     setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
   }, []);
 
-  /* Compact page header — the twin of the board's (portal pass, Aug 2026). Same
-   * greeting, same figures, ~190px less of them. Staff see this one; keep the two
-   * in step, as the file header has always said. */
+  /* ⚠️ THE TWIN OF THE BOARD'S HERO — keep the two in step, as this file's
+   * header has always said. Both were compressed too hard in the August portal
+   * pass: an 18-20px greeting with the figures buried in an 11px sentence under
+   * it, so the first thing on the page was the smallest thing on it. The
+   * greeting is `text-2xl` now and the figures are real figures on the right.
+   * See `BoardHero` in `director-board-client.tsx` for the full note. */
   return (
     <section data-page-header style={PORTAL_HEADER_CARD}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">My work</p>
-          <h1 className="text-xl font-semibold tracking-tight">{greeting}, {firstName}</h1>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-fg-muted">
-            {subtitle && <><span>{subtitle}</span><span className="text-fg-subtle">·</span></>}
-            <span className="inline-flex items-center gap-1">
-              <ListTodo size={12} className="shrink-0 text-accent" />
-              <b className="font-semibold text-fg tabular">{open}</b> open
-              <span className="text-fg-subtle">·</span>
-              <b className={`font-semibold tabular ${overdue > 0 ? "text-danger" : "text-fg"}`}>{overdue}</b> overdue
-            </span>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-md bg-accent-soft text-sm font-semibold text-accent sm:grid">{initials}</span>
+          <span className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">My work</p>
+            <h1 className="truncate text-2xl font-semibold leading-tight tracking-tight">{greeting}, {firstName}</h1>
+            {subtitle && <p className="mt-0.5 truncate text-sm text-fg-muted">{subtitle}</p>}
+          </span>
         </div>
-        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-xs font-semibold text-accent sm:grid">{initials}</span>
+        <div className="flex shrink-0 items-center gap-6">
+          <span className="flex flex-col">
+            <span className="inline-flex items-baseline gap-1.5">
+              <ListTodo size={13} className="text-accent" />
+              <b className="tabular text-2xl font-semibold leading-none text-fg">{open}</b>
+            </span>
+            <span className="mt-1 text-xs text-fg-muted">open</span>
+          </span>
+          <span className="flex flex-col">
+            <b className={`tabular text-2xl font-semibold leading-none ${overdue > 0 ? "text-danger" : "text-fg"}`}>{overdue}</b>
+            <span className="mt-1 text-xs text-fg-muted">overdue</span>
+          </span>
+        </div>
       </div>
     </section>
   );

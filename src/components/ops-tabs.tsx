@@ -57,14 +57,20 @@ export function OpsTabs({
 
   return (
     <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border">
-      <nav className="flex items-center gap-1" aria-label="Sections">
+      {/* ⚠️ IT SCROLLS SIDEWAYS ON A PHONE. Measured on /ledger/assets at
+          375px: this strip is 499px wide, so the WHOLE PAGE scrolled
+          sideways and every screen below it could be dragged off-centre.
+          A tab strip is a row of destinations — it does not wrap into a
+          block, it scrolls, like the note toolbar and the AI bar.
+          `slim-scroll` keeps the bar invisible until it is used. */}
+      <nav className="slim-scroll flex min-w-0 items-center gap-1 overflow-x-auto" aria-label="Sections">
         {TABS.map((t) => (
           <Link
             key={t.key}
             href={withCompany(t.href, company)}
             aria-current={active === t.key ? "page" : undefined}
             className={cn(
-              "-mb-px border-b-2 px-3 py-1.5 text-base transition-colors",
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-1.5 text-base transition-colors",
               active === t.key
                 ? "border-accent font-medium text-fg"
                 : "border-transparent text-fg-muted hover:text-fg",

@@ -125,7 +125,12 @@ export const DEFAULT_SCOPE: Record<PortalRoleKey, ScopeLevel> = {
 // director) so the Command Centre view can be ported to them (e.g. Shivam).
 export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>> = {
   createTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  manageAnyTask: { staff: false, manager: false, hr: true, director: true, receptionist: false },
+  /* ⚠️ MANAGERS MANAGE ANY TASK (owner, 28 Aug 2026) — "editable by all
+     directors and managers". The live settings row had already said so; this
+     default was still `false`, so the code and the running system disagreed and
+     a fresh deployment would have behaved differently from this one. They agree
+     now. The owner can still switch it off per role in Settings → Portals. */
+  manageAnyTask: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   bulkTaskActions: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   crossCompanyTasks: { staff: false, manager: false, hr: true, director: true, receptionist: false },
   recurringTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },

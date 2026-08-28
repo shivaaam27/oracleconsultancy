@@ -989,3 +989,130 @@ more than he reads).
 - **A word count** sits by the save badge in BOTH modes, on a 700ms debounce off
   `editor.on("update")` — never per keystroke, and never off `docText` (that is
   only written on save, so a freshly opened note would have read zero).
+
+---
+
+## Phase 8 — the phone. Built 28 Aug 2026
+
+The owner asked for the note page to feel full screen on a phone, with no
+borders, so typing is immersive. It was the one phase never started.
+
+### What was measured first, on a 375×812 phone
+
+- **The writing got 277px of an 812px screen — 34%.** The rest was a control row
+  above it and three panels (to-dos, links, versions) below it.
+- The sheet was **343px wide inside a 375px screen** — 16px of grey down each
+  side, plus a border, rounded corners and a shadow. A frame round nothing, on a
+  device that only ever shows one thing at a time.
+- `min-h-[24rem]` was what actually set the height: `useFillViewport` measured
+  LESS than the floor, because it correctly subtracts everything below and there
+  were three panels there.
+- The page scrolled to 1062px, so the note was a small window you scrolled inside
+  a page you also scrolled.
+
+### What it is now
+
+**The sheet IS the screen below `lg`.** `immersive` and the existing `full`
+share one flag (`cover`) rather than growing a second code path — one is chosen
+with ⌘⇧F, the other is the only sensible default on a phone.
+
+- ⚠️ **`fixed inset-x-0 top-0 h-[100dvh]`, NOT `inset-0`.** `bottom-0` on a fixed
+  element resolves against the LARGE viewport on iOS, so the last line of a note
+  would sit under Safari's address bar — the one place a writing screen must
+  never lose. `dvh` follows the address bar **and the soft keyboard**.
+- ⚠️ **It lands at z-50, above the nav pill's z-40, so `top-pill.tsx` needed no
+  change at all.** The sheet simply covers the pill, which is what chat achieves
+  by hiding it. One less thing to keep in step.
+- ⚠️ **THE WAY OUT COMES FIRST.** Covering the pill means the phone has no way
+  back, and a note is often arrived at from a link where the browser's own back
+  goes somewhere else. A back arrow sits at the head of the toolbar — chat needed
+  a floating button for this, a note already has a toolbar.
+- ⚠️ **Everything ABOUT the note moved behind "⋯"** — folder, pin, archive,
+  template, to-dos, links, versions, in a `BottomSheet` (`note-extras.tsx`,
+  fired by a `cos:note-extras` window event). None of them is something you look
+  at WHILE writing. **Nothing was removed, only moved**, and the trigger sits in
+  the toolbar beside the tools rather than floating over the writing — a drawer
+  you cannot find is the same as a feature that was deleted.
+- ⚠️ **The AI bar was 65px of buttons wrapped onto two rows**, permanently between
+  the writing and the bottom of the screen. It now scrolls sideways on one row,
+  the same treatment the writing toolbar already had, for the same reason — 65px
+  → 37px. Its buttons needed `shrink-0`: a flex row that scrolls must not let its
+  children squash.
+- ⚠️ **The toolbar's full-screen dimming is off on touch.** `opacity-40` is a
+  promise that hovering brings it back, and a finger cannot hover — on a phone it
+  would just be a permanently faded toolbar. The full-screen BUTTON is hidden
+  there too: it offers what you already have, and its only visible effect would be
+  to dim the toolbar.
+- ⚠️ **Room under the last line is the whole of "immersive" on a phone**
+  (`pb-[40vh]`). Without it the caret sinks to the bottom edge and every word is
+  typed on the last visible row, exactly where the keyboard is about to appear.
+  ⚠️ **NOT paired with the typewriter scrolling `full` uses** — mobile browsers
+  already scroll a focused caret into view, and a second script nudging the same
+  box fights it. The padding gets the benefit with nothing to fight.
+- Safe areas both ends: the toolbar clears the notch, the paper clears the home
+  indicator.
+- ⚠️ **Both loading placeholders match the sheet at both sizes, in CSS.** The
+  `next/dynamic` one and the editor's own still drew a bordered card, so a phone
+  flashed a frame before the full-screen sheet arrived. CSS, not measurement —
+  they render before any of the editor's code does.
+
+### Measured after
+
+| on a 375×812 phone | before | after |
+|---|---|---|
+| Writing area | 277px (34%) | **734px (90%)** |
+| Sheet width | 343px, bordered | **375px, edge to edge** |
+| Chrome around the writing | 535px | **78px** |
+| Scrollers on the screen | 2 (page + note) | **1** |
+
+Desktop is untouched: same bordered card, same record bar, same right rail, same
+745px of paper, no dialog, no scroll lock.
+
+### Also
+
+- **`src/lib/use-media-query.ts`** is new and shared. Ten components hand-roll
+  `matchMedia`; this is not an eleventh copy inline. ⚠️ Its initial value is read
+  **synchronously** where there is a window — a hook that starts `false` and
+  corrects itself in an effect renders one frame of the wrong layout, which here
+  would be a bordered box flashing before the full-screen sheet. ⚠️ Its own
+  header says to **prefer a Tailwind variant**: layout CSS can express belongs in
+  CSS, and this is only for behaviour — a scroll lock, an effect that must not
+  run, a component that must not be in the tree.
+- The shelf's search box had a fixed `w-[15rem]` — 240px in a 343px card, so it
+  took a row and shoved the four buttons onto lines of their own. Full width below
+  `sm`.
+
+### Left alone, deliberately
+
+The shelf is a LIST, and a list is correctly a bordered card in Desk. Making
+lists full-bleed on a phone would mean changing `RecordList`, which is every list
+in COS — a separate decision, not a side effect of this one. It still carries
+249px of header, chips, search and four buttons above the rows on a phone.
+
+### The list too — same day
+
+The owner asked for the shelf to get the same treatment, so it went into
+`RecordList` rather than into notes: **every list in COS runs to both edges of a
+phone now** (`bleed`, on by default; 50 lists use the component).
+
+- Measured at 375px: `main`'s 16px gutters left the card 343px, and each row gave
+  up another 12px a side — **56px of a 375px screen spent on the list being "a
+  card"**. It bleeds through the gutters below `sm`, loses its side borders and
+  corners, and rows carry a phone-sized 16px. From `sm` up **nothing changes**.
+- Note titles that read `Today's Priorities — 20 Aug 20…` now fit whole.
+- ⚠️ **`border-y` plus a conditional `border-x`, never `border` with `border-x-0`
+  over it** — both set a border width and the winner depends on Tailwind's emit
+  order.
+- `bleed={false}` is the escape for a list inside somebody else's padded housing.
+  `bare` lists never bleed. Checked on `/notes`, `/hrms/assets`,
+  `/hrms/commitments`, `/documents`, `/people`, `/?tab=tasks`, `/marketing/posts`
+  and `/ledger/assets`: no page scrolls sideways, desktop is byte-identical.
+
+**And a pre-existing bug the sweep found:** `/ledger/assets` scrolled sideways by
+140px on a phone — not the list, a **tab strip**. `ledger-tabs`, `ops-tabs` and
+`project-tabs` were plain flex rows; the ledger's is 499px wide at 375px, so the
+whole page could be dragged off-centre. All three scroll within themselves now.
+
+**Still not done:** `/hrms/assets` wraps its "⋯" menu onto a second line per row
+on a phone — its own column widths, not the shell, and it was worse before the
+bleed rather than better. That is a per-list `hideBelow` job.

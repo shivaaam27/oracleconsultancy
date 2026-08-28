@@ -21,12 +21,13 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
   Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
   Table as TableIcon, Rows3, Columns3, Trash2, ListPlus, Bell, Paperclip, Info, GripVertical,
-  Sparkles, X, Maximize2, Minimize2,
+  Sparkles, X, Maximize2, Minimize2, ArrowLeft, MoreHorizontal,
 } from "lucide-react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { NoteTouchDrag } from "@/components/note-touch-drag";
 import { cn } from "@/lib/cn";
 import { useFillViewport } from "@/lib/use-fill-viewport";
+import { BELOW_LG, useMediaQuery } from "@/lib/use-media-query";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { extractMentions } from "@/lib/note-links-shared";
 import { findUnlinked, findWholeWord, type LinkCandidate } from "@/lib/note-unlinked-shared";
@@ -119,6 +120,23 @@ export function NoteEditor({
      are writing is held in the middle of the glass instead of sinking to the
      bottom edge. Esc or ⌘⇧F comes back. */
   const [full, setFull] = useState(false);
+
+  /* -------- The phone writes full screen, always --------
+     ⚠️ MEASURED ON A 375×812 PHONE: the writing got 277px — 34% of the screen —
+     inside a 343px box with 16px of grey down each side, a border and rounded
+     corners, under a control row and above three panels. Two thirds of the phone
+     was everything except the note.
+
+     So below `lg` the sheet IS the screen. There is nothing to gain from a card
+     on a device that only ever shows one thing at a time, and a border round the
+     whole display is a frame round nothing.
+
+     `immersive` and `full` are the same layout — one is chosen, one is the only
+     sensible default — so they share a flag rather than a second code path. It
+     lands at z-50, ABOVE the floating nav pill (z-40), which is why the pill
+     needs no change: the sheet simply covers it, exactly as chat does. */
+  const immersive = useMediaQuery(BELOW_LG);
+  const cover = full || immersive;
   const sheet = useRef<HTMLDivElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const [words, setWords] = useState(0);
@@ -472,11 +490,11 @@ export function NoteEditor({
 
   // Nothing behind the sheet should scroll while it is covering the screen.
   useEffect(() => {
-    if (!full) return;
+    if (!cover) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previous; };
-  }, [full]);
+  }, [cover]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -504,7 +522,7 @@ export function NoteEditor({
      in COS, which had exactly the same dead space under it. `exact` because the
      sheet is a PANE: it is this tall and the paper scrolls inside it. Off while
      full screen, where `fixed inset-0` already owns the height. */
-  useFillViewport(sheet, { mode: "exact", minimum: MIN_SHEET, enabled: !full, deps: [editor] });
+  useFillViewport(sheet, { mode: "exact", minimum: MIN_SHEET, enabled: !cover, deps: [editor] });
 
   /* Typewriter scrolling, full screen only: hold the line being written inside a
      comfortable band rather than letting it sink to the bottom edge. It only
@@ -609,7 +627,14 @@ export function NoteEditor({
   }, [title, editor]);
 
   if (!editor) {
-    return <div className="min-h-[70vh] rounded-lg border border-border bg-bg-elev" aria-hidden />;
+    /* Matches the real sheet's shape at both sizes, in CSS only, so the phone
+       never shows a bordered card for a frame before the full-screen one. */
+    return (
+      <div
+        className="h-[100dvh] bg-bg-elev lg:h-auto lg:min-h-[70vh] lg:rounded-lg lg:border lg:border-border"
+        aria-hidden
+      />
+    );
   }
 
   const currentStyle =
@@ -636,9 +661,13 @@ export function NoteEditor({
       ref={sheet}
       className={cn(
         "flex flex-col overflow-hidden bg-bg-elev",
-        full
-          /* Over the rail, the pill and the bell (all z-40); under the toasts. */
-          ? "fixed inset-0 z-50"
+        cover
+          /* Over the rail, the pill and the bell (all z-40); under the toasts.
+             ⚠️ `top-0 h-[100dvh]`, NOT `inset-0`. `bottom-0` on a fixed element
+             resolves against the LARGE viewport on iOS, so the last line of the
+             note sits under Safari's address bar — the one place a writing screen
+             must never lose. `dvh` follows the bar, and the soft keyboard. */
+          ? "fixed inset-x-0 top-0 z-50 h-[100dvh]"
           : "h-[calc(100dvh-11rem)] min-h-[24rem] rounded-lg border border-border shadow-sm",
       )}
     >
@@ -650,12 +679,31 @@ export function NoteEditor({
       <div
         className={cn(
           "slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-bg-subtle/80 px-2 py-1.5 transition-opacity duration-200 sm:flex-wrap sm:overflow-x-visible",
+          /* Covering the screen means clearing the notch as well. */
+          cover && "pt-[calc(0.375rem+env(safe-area-inset-top))]",
           /* Full screen: the tools step back until you reach for them. Still
              there, still in the same place — just not shouting at a blank page
-             you are trying to think on. */
-          full && "opacity-40 hover:opacity-100 focus-within:opacity-100",
+             you are trying to think on.
+             ⚠️ NEVER ON TOUCH. Dimming is a promise that hovering brings it back,
+             and a finger cannot hover — on a phone it would just be a permanently
+             faded toolbar. */
+          full && !immersive && "opacity-40 hover:opacity-100 focus-within:opacity-100",
         )}
       >
+        {/* ⚠️ THE WAY OUT COMES FIRST. The sheet covers the nav pill, so without
+            this the phone has no way back to the shelf but the browser's own
+            gesture — and the note page is often arrived at from a link, where
+            "back" is somewhere else entirely. Chat solved the same problem with
+            a floating Home button; a note already has a toolbar, so the way out
+            belongs in it rather than hovering over the writing. */}
+        {immersive && (
+          <>
+            <ToolButton title="All notes" onClick={() => router.push("/notes")}>
+              <ArrowLeft size={14} />
+            </ToolButton>
+            <Divider />
+          </>
+        )}
         <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo2 size={14} /></ToolButton>
         <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo2 size={14} /></ToolButton>
 
@@ -717,8 +765,25 @@ export function NoteEditor({
 
         <Divider />
 
+        {/* Everything that is ABOUT the note rather than IN it — the folder, pin,
+            archive, to-dos, links, versions — lives behind here on a phone. They
+            were three panels stacked under the writing, which is what pushed it
+            into a 277px band. `NoteExtras` on the page listens for this. */}
+        {immersive && (
+          <ToolButton
+            title="This note"
+            onClick={() => window.dispatchEvent(new CustomEvent("cos:note-extras"))}
+          >
+            <MoreHorizontal size={14} />
+          </ToolButton>
+        )}
+
         {/* Just the writing. Esc comes back — and so does this button, which is
-            why it stays put: on a phone there is no Esc key to press. */}
+            why it stays put: on a phone there is no Esc key to press.
+            ⚠️ Hidden on a phone, where the sheet is ALREADY the screen — a
+            button offering what you already have, whose only visible effect
+            would be to dim the toolbar. */}
+        {!immersive && (
         <ToolButton
           title={full ? "Leave full screen (Esc)" : "Full screen — just the writing (⌘⇧F)"}
           active={full}
@@ -726,6 +791,7 @@ export function NoteEditor({
         >
           {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </ToolButton>
+        )}
 
         <span className="grow" />
         <WordCount words={words} />
@@ -865,6 +931,9 @@ export function NoteEditor({
         className={cn(
           "note-scroller slim-scroll min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9",
           full && "sm:py-14",
+          /* Clears the home indicator, so the last line is never sitting on the
+             bar you swipe up from. */
+          cover && "pb-[calc(1.75rem+env(safe-area-inset-bottom))]",
         )}
         onMouseDown={(e) => {
           // Only when the padding itself is clicked — never steal a click aimed at
@@ -878,7 +947,16 @@ export function NoteEditor({
             writing can always sit in the middle of the glass instead of being
             pushed onto the bottom edge. */}
         {/* `relative` so the drop line can be placed against the paper. */}
-        <div className={cn("relative mx-auto w-full max-w-[68ch]", full && "pb-[45vh]")}>
+        {/* ⚠️ ROOM UNDER THE LAST LINE IS THE WHOLE OF "IMMERSIVE" ON A PHONE.
+            Without it the caret sinks to the bottom edge and every word is typed
+            on the last visible row, right where the soft keyboard is about to
+            appear. A screenful of blank paper below means you write in the middle
+            of the glass instead.
+            ⚠️ NOT paired with the typewriter scrolling `full` uses. Mobile
+            browsers already scroll a focused caret into view, and a second
+            script nudging the same box fights it — the padding gets the benefit
+            with nothing to fight. */}
+        <div className={cn("relative mx-auto w-full max-w-[68ch]", cover && (full ? "pb-[45vh]" : "pb-[40vh]"))}>
           {/* ⚠️ A TEXTAREA, NOT AN INPUT — the title has to WRAP.
               As a single-line input, a long title just scrolled sideways inside its
               own box: on a 375px phone the field was 294px wide holding 759px of

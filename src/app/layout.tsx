@@ -88,7 +88,21 @@ export default async function RootLayout({ children, modal }: { children: React.
         <InstallPromptScript />
         <ShellThemeScript />
       </head>
-      <body>
+      {/* ⚠️ ALWAYS RESERVE THE SCROLLBAR'S SPACE, OR EVERY PAGE CHANGE JUMPS
+          15px SIDEWAYS.
+          `PageTransition` crossfades routes, so for ~260ms BOTH pages are
+          mounted. The scroll height changes across that window, the body's
+          scrollbar appears or disappears with it, and the whole content shifts
+          by the scrollbar's width and back. Traced frame by frame in the staff
+          portal: `main` went 1009 → 1024 → 1009 on a single click. The sidebar
+          is `fixed`, so it alone stayed still — which is exactly why it read as
+          "the sidebar is moving". It was everything else.
+          ⚠️ **`body`, NOT `html`** — measured: with the gutter on `html` the jump
+          survives (998 → 1014), because the body is the scroll container here.
+          ⚠️ **INLINE, not `globals.css`** — Tailwind v4's Lightning CSS strips
+          `scrollbar-gutter` out of the stylesheet entirely; the `.note-scroller`
+          rule was lost the same way and is set inline for the same reason. */}
+      <body style={{ scrollbarGutter: "stable" }}>
         <AppSplash />
         <ActivityPinger />
         <ThemeProvider>

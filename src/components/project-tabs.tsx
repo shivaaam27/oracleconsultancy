@@ -27,15 +27,20 @@ const TABS = [
 ] as const;
 
 export function ProjectTabs({ projectId, active }: { projectId: number; active: string }) {
+  /* ⚠️ IT SCROLLS SIDEWAYS ON A PHONE. Measured on /ledger/assets at 375px: that
+     module's strip is 499px wide, so the WHOLE PAGE scrolled sideways and every
+     screen below it could be dragged off-centre. A tab strip is a row of
+     destinations — it does not wrap into a block, it scrolls, like the note
+     toolbar and the AI bar. `slim-scroll` hides the bar until it is used. */
   return (
-    <nav className="flex items-center gap-1 border-b border-border" aria-label="Project sections">
+    <nav className="slim-scroll flex items-center gap-1 overflow-x-auto border-b border-border" aria-label="Project sections">
       {TABS.map((t) => (
         <Link
           key={t.key}
           href={t.href(projectId)}
           aria-current={active === t.key ? "page" : undefined}
           className={cn(
-            "-mb-px border-b-2 px-3 py-1.5 text-base transition-colors",
+            "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-1.5 text-base transition-colors",
             active === t.key
               ? "border-accent font-medium text-fg"
               : "border-transparent text-fg-muted hover:text-fg",

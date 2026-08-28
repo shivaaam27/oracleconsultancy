@@ -55,9 +55,15 @@ export function TaskQuickActions({
         <button
           type="button"
           onClick={() => setCompleteOpen(true)}
-          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-success-soft px-3.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
+          /* ⚠️ ONE PRIMARY, TWO MATCHING SECONDARIES. This row was a solid blue
+             button, a soft-GREEN filled button and a white outlined one — three
+             treatments for three peers, which is what made the row read as
+             three unrelated controls. Complete and Remind are the same shape
+             now; the green survives on the TICK, where it means "finished",
+             rather than as a block behind the words. */
+          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev px-3.5 text-sm font-medium text-fg transition-colors hover:border-success/50 hover:bg-success-soft/40 active:scale-95"
         >
-          <CheckCircle2 size={15} /> Complete
+          <CheckCircle2 size={15} className="text-success" /> Complete
         </button>
       )}
       {canRemind && (
@@ -65,7 +71,7 @@ export function TaskQuickActions({
           type="button"
           onClick={remind}
           disabled={busy}
-          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md bg-bg-elev px-3.5 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
+          className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev px-3.5 text-sm font-medium text-fg transition-colors hover:border-accent/50 hover:bg-bg-muted active:scale-95 disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
           Remind{ownerName ? ` ${getGivenName(ownerName)}` : ""}
@@ -74,31 +80,13 @@ export function TaskQuickActions({
 
       <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={taskId} code={code} requiresAttachment={requiresAttachment} />
 
-      {/* The finer reminder choices, folded away.
-
-          "Remind" above already does the common thing in one tap, and its toast
-          offers "Send now". This block — a sentence, a This task / All tasks
-          toggle and two send buttons — repeated that in 110px of always-on
-          controls, and it was the untidiest part of the record. It is a line you
-          can open when you want their whole list instead. */}
-      {canRemind && ownerId != null && (
-        <div className="w-full border-t border-border/50 pt-2.5">
-          <button
-            type="button"
-            onClick={() => setMoreOpen((o) => !o)}
-            aria-expanded={moreOpen}
-            className="inline-flex items-center gap-1 text-xs text-fg-muted transition-colors hover:text-fg"
-          >
-            Remind {getGivenName(ownerName ?? "them")} — this task or their whole list
-            <ChevronDown size={12} className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"} />
-          </button>
-          {moreOpen && (
-            <div className="mt-2">
-              <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} taskId={taskId} size="sm" />
-            </div>
-          )}
-        </div>
-      )}
+      {/* ⚠️ THE "REMIND — THIS TASK OR THEIR WHOLE LIST" STRIP IS GONE (owner,
+          28 Aug 2026). It was a loose line under the buttons opening a second
+          set of reminder controls, and it read as a section of its own without
+          being one. **Reminding is not gone**: the Remind button above still
+          does the common thing in one press and its toast offers "Send now".
+          Somebody's whole list is reachable from the Outbox, which is what that
+          page is for. */}
     </div>
   );
 }

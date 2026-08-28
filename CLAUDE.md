@@ -621,8 +621,28 @@ sidebar shows **only the module you are in**, with a switcher under the brand an
   still gets a rail. `NAV_GROUPS` is now DERIVED from `MODULES` so the mobile
   launcher can never drift from the sidebar.
 - **`src/lib/nav.test.ts` is the guard** — every route filed exactly once, every
-  module home real, System never inside a module. **Add a route, add its id to a
-  module, or the test fails.**
+  module home real, System never inside a module, and **every launcher shortcut
+  inside its own module**. **Add a route, add its id to a module, or the test
+  fails.**
+- ⚠️ **A LAUNCHER TILE IS A SHELF, NOT A DOOR** (28 Aug 2026). Each tile carries
+  one figure AND `module.quick` — three or four route ids shown as chips — because
+  you open `/apps` to reach the stock book, not the CocoZuri desk. **Every module
+  has a count now**: three tiles carried none, CocoZuri's excused by a comment
+  saying the tile reads "Being built", which stopped being true the day it
+  shipped. A **zero is honest because the count ran**; `null` (couldn't find out)
+  still prints nothing.
+- ⚠️ **THE RAIL WAS CLIPPING ITSELF IN SILENCE, AND SYSTEM WAS NEVER PINNED.**
+  Measured at 1440×900: CocoZuri's rail was **1281px in a 696px column — 585px
+  invisible**, groups 5–9 and all of System, with no fade and no scrollbar.
+  `moduleOwnGroups()` now scrolls and `systemItems()` is **pinned above the
+  footer**; every group **folds** (a one-item group too — exempting four of
+  CocoZuri's made the rail's shape unpredictable, which is worse than a click),
+  the group you are in is always open whatever is stored, and the choice is
+  remembered **per module**.
+- ⚠️ **THE ACTIVE LINK IS LONGEST-MATCH**, the same rule `moduleForPath` follows.
+  "Exact or a prefix", tested per link, made a module's front door match every
+  page inside it — `/cocozuri/trace` lit up **CocoZuri** and left Trace plain. The
+  page renders perfectly, so only looking at the rail on a sub-page finds this.
 - ⌘K still lists **every individual page**, whichever module it lives in. That is
   what makes the split safe: nothing became harder to reach.
 - `/` did NOT move — it is still the command centre and Task Management's home.
@@ -746,6 +766,50 @@ folds columns away on small screens and this breaks on the first large one.
   `grid-cols-[minmax(0,1fr)_…]` collapsed its ITEM column to 0px on a phone. A
   spreadsheet-shaped grid belongs in its own `overflow-x-auto` housing with a
   `min-w-[…]` floor, the way both `/cocozuri/stock` pages now are.
+
+⚠️ **A LIST CAN LEND ITS FILTERS TO A SIDEBAR** (`lib/filter-rail-slot.tsx`,
+28 Aug 2026). Measured in a director's portal at 1440px: the portal rail took
+208px and `RecordList` drew its OWN 184px filter column beside it, so **448px —
+31% of the screen — went by before the task list began**. Both are groups of
+labelled, counted links; there was never a reason for two columns. The list now
+publishes its filters and skips its own column **at `lg` only**, giving the list
+925px → **1125px**.
+- ⚠️ **NO PROVIDER MEANS NOTHING CHANGES** — `useContext` returns null on the
+  whole command centre. The provider is in ONE file, the portal layout. The
+  command centre could take the same loan with one line; it was not asked for.
+- ⚠️ **`lg:hidden`, NEVER `md:hidden`.** The rail appears at 1024px and the
+  filter column at 768px — hide it at `md` and every width from 768 to 1023 has
+  no filters at all.
+- ⚠️ **Published by CONTENT SIGNATURE, not array identity**, or publish →
+  re-render → publish loops for ever.
+- ⚠️ **THEY HANG OFF THE TAB THEY BELONG TO — a dropdown from Tasks, not a block
+  above the menu.** Put at the head of the rail first; the owner rejected it,
+  rightly: opening Tasks pushed Work, People and More down and leaving it pulled
+  them back up, **the whole menu moving under your hand on every change of page**.
+  Work/Board/Tasks now sit at identical positions on both pages. A page that is
+  in no tab (a company's document library) drops its filters at the FOOT of the
+  rail, never the head. ⚠️ The chevron is a **separate button** — inside the link
+  every attempt to fold would navigate.
+
+⚠️ **A LIST RUNS TO BOTH EDGES ON A PHONE** (`RecordList`'s `bleed`, on by
+default, 28 Aug 2026). A list on a phone IS the page, so a border round it is a
+frame round the whole display. Measured at 375px: `main`'s 16px gutters left the
+card 343px, and every row gave up another 12px each side — **56px of a 375px
+screen spent on the fact that the list is "a card"**. It now bleeds through the
+gutters below `sm`, drops its side borders and corners, and rows carry 16px
+instead of 12px. **From `sm` up nothing changes** — it is a card again. Pass
+`bleed={false}` for a list inside somebody else's padded housing; a `bare` list
+never bleeds because it has no card to bleed.
+- ⚠️ **`border-y` plus a conditional `border-x`, NEVER `border` with `border-x-0`
+  over it.** Both set a border WIDTH, so which wins depends on the order Tailwind
+  happens to emit them in — a coin toss to build a layout on.
+
+⚠️ **A TAB STRIP SCROLLS SIDEWAYS; IT DOES NOT WRAP.** `ledger-tabs`, `ops-tabs`
+and `project-tabs` were plain flex rows: measured at 375px the ledger's is
+**499px wide, so the WHOLE PAGE scrolled sideways** and every screen under it
+could be dragged off-centre. All three are `overflow-x-auto` with `shrink-0
+whitespace-nowrap` links now — the same treatment the note toolbar and the AI bar
+already had. **A row of destinations is not a block of text.**
 
 ⚠️ **`FluidSelect`'S OUTER SPAN IS `inline-block`**, so the button's own
 `w-full` resolves against a shrink-wrapped parent and the control comes out the
@@ -1678,7 +1742,7 @@ deliberately not being done. **`RecordList` is the lever for three of the four**
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
-## Notes — BUILT through Phase 7. **Only Phase 8 (mobile) is left** (`memory/notes_module_plan.md`)
+## Notes — **ALL EIGHT PHASES BUILT** (`memory/notes_module_plan.md`)
 
 `/notes` (the shelf) and `/notes/[id]` (one note, one sheet) are live and in use,
 owner-only, behind the admin gate. **Read `memory/notes_module_plan.md` before
@@ -1788,6 +1852,30 @@ the traps that cost real time.
     a missing store by reopening one higher. Naming a version the browser is
     already AT never fires `onupgradeneeded` again; naming one it is PAST throws
     `VersionError` forever. Both were hit for real. Do not reintroduce `DB_VERSION`.
+- ⚠️ **ON A PHONE THE SHEET IS THE SCREEN** (Phase 8, 28 Aug 2026). Measured at
+  375×812, the writing had **277px of an 812px screen** — a 343px bordered card
+  with a control row above and three panels below. Now **734px (90%)**:
+  `fixed inset-x-0 top-0 h-[100dvh]` below `lg`, edge to edge, no border.
+  ⚠️ **`top-0 h-[100dvh]`, never `inset-0`** — `bottom-0` resolves against the
+  LARGE viewport on iOS, putting the last line under Safari's address bar; `dvh`
+  follows the bar and the soft keyboard. ⚠️ **z-50 covers the nav pill (z-40), so
+  `top-pill.tsx` needed no change** — but covering it means **the way out must be
+  in the toolbar** (a back arrow), because the browser's own back often goes
+  somewhere else entirely. Folder/pin/archive/to-dos/links/versions moved behind
+  **"⋯"** into a `BottomSheet` (`note-extras.tsx`, via a `cos:note-extras`
+  event) — **nothing removed, only moved**, and the trigger sits among the tools
+  rather than floating over the writing. ⚠️ **Room under the last line
+  (`pb-[40vh]`) is the whole of "immersive"**, and it is NOT paired with the
+  typewriter scrolling `full` uses — mobile browsers already scroll the caret
+  into view and a second script fights them. ⚠️ **No `opacity-40` dimming on
+  touch**: it promises that hovering brings the toolbar back, and a finger cannot
+  hover. Desktop is untouched.
+- ⚠️ **`src/lib/use-media-query.ts` is the shared one — do not hand-roll an
+  eleventh `matchMedia`.** Its initial value is read SYNCHRONOUSLY where there is
+  a window, because a hook that starts `false` renders one frame of the wrong
+  layout. **Prefer a Tailwind variant**: it is for BEHAVIOUR (a scroll lock, an
+  effect that must not run, a component that must not be in the tree), never for
+  layout CSS can express.
 - **Writing fills the screen** (19 Aug 2026). The sheet MEASURES its own top and
   takes the rest of the window — the old `calc(100dvh - 11rem)` guess left a band of
   dead grey under the paper. ⚠️ It only reclaims `<main>`'s bottom padding from

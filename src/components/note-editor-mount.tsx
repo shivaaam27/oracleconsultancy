@@ -18,8 +18,16 @@ import type { LinkCandidate } from "@/lib/note-unlinked-shared";
  */
 const NoteEditor = dynamic(() => import("@/components/note-editor").then((m) => m.NoteEditor), {
   ssr: false,
-  // Same shape as the sheet, so nothing jumps when the editor arrives.
-  loading: () => <div className="min-h-[70vh] rounded-lg border border-border bg-bg-elev shadow-sm" aria-hidden />,
+  /* Same shape as the sheet, so nothing jumps when the editor arrives — AT BOTH
+     SIZES. Below `lg` the sheet covers the screen, so a bordered card here is a
+     frame that appears for a moment and then vanishes. Expressed in CSS rather
+     than measured, because this renders before any of the editor's own code. */
+  loading: () => (
+    <div
+      className="h-[100dvh] bg-bg-elev lg:h-auto lg:min-h-[70vh] lg:rounded-lg lg:border lg:border-border lg:shadow-sm"
+      aria-hidden
+    />
+  ),
 });
 
 export function NoteEditorMount(props: {

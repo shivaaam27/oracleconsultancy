@@ -31,7 +31,11 @@ const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label:
 // One shared control edge — see CONTROL_SHELL in ui.tsx.
 const fieldShell = CONTROL_SHELL;
 
-const OPEN_KEY = "portal.manageTask.open";
+/** Broadcast by `portal-task-edit.tsx` when the pencil is pressed or cancelled.
+ *  A window event rather than lifted state because the two live in different
+ *  parts of a SERVER component's tree — the same trick the ORI trigger and the
+ *  note extras sheet use. */
+export const TASK_EDIT_EVENT = "cos:portal-task-edit";
 
 export function PortalTaskManage({
   cmd, people, companies, canEdit, canRemind,
@@ -55,13 +59,26 @@ export function PortalTaskManage({
     });
   }
   // Remembered per browser, like the density and text-size choices.
+  /* ⚠️ THE SETTINGS ARE PART OF EDITING NOW, not a panel of their own (owner,
+   * 28 Aug 2026): "when clicking edit task, the task setting becomes visible
+   * then and not a separate thing."
+   *
+   * It was a disclosure you opened yourself, remembered per browser — which
+   * meant the page had TWO ways in to one job: a pencil at the top that changed
+   * the title, and a collapsed section further down holding the priority, the
+   * due date, the people and delete. Pressing Edit now opens both, and closing
+   * closes both, so "edit this task" means the whole task. */
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* private mode */ }
+    const on = (e: Event) => setOpen(!!(e as CustomEvent<{ editing: boolean }>).detail?.editing);
+    window.addEventListener(TASK_EDIT_EVENT, on);
+    return () => window.removeEventListener(TASK_EDIT_EVENT, on);
   }, []);
 
   const changePriority = (v: string) => { if (v !== cmd.priority) save({ priority: v }, `Priority → ${v}`); };
   const changeDue = (v: string) => { if (v !== (cmd.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
+
+  if (!open) return null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -73,15 +90,10 @@ export function PortalTaskManage({
        * conversation. Shut, the record reads: what it is, what you can do, what
        * was said. Your choice is remembered, so anyone who does live in here
        * opens it once. */}
-      <button
-        type="button"
-        onClick={() => { setOpen(!open); try { localStorage.setItem(OPEN_KEY, open ? "0" : "1"); } catch { /* private mode */ } }}
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded-md text-left"
-      >
-        <SectionLabel icon={<SlidersHorizontal size={13} />}>Manage task</SectionLabel>
-        <ChevronDown size={14} className={cn("ml-auto shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
-      </button>
+      {/* A label, not a button. The pencil in the header is the only way in and
+          the only way out — a second control that also opened this was how the
+          page came to have two doors to one job. */}
+      <SectionLabel icon={<SlidersHorizontal size={13} />}>Task settings</SectionLabel>
       {/* A field LIST, not a stack of cards.
        *
        * Each setting used to be a label on its own line above a full-width
@@ -91,7 +103,6 @@ export function PortalTaskManage({
        * the right, a hairline between them — the same shape a record's field
        * section has in the command centre. It stacks on a phone, where a row
        * genuinely has no room for both. */}
-      {open && (
       <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg-elev">
         {canEdit && (
           <ManageRow icon={<Flag size={12} />} label="Priority & due">
@@ -128,7 +139,6 @@ export function PortalTaskManage({
           </div>
         )}
       </div>
-      )}
     </div>
   );
 }

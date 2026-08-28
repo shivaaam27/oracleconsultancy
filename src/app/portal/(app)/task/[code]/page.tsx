@@ -207,7 +207,17 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const closed = task.status === "Completed" || task.status === "Closed";
   // Per-task permissions (task-permissions.ts): a director/HR or the creator may
   // edit content + complete; everyone else cannot.
-  const permViewer = { id: me.id, portalRole: me.portalRole };
+  /* ⚠️ `canManageAny` MUST BE PASSED, and its absence was a real bug.
+   *
+   * `canManageTask` falls back to "director or HR" only when the caller does not
+   * tell it what the owner configured. Every SAVE path in `portal/actions.ts`
+   * passes `me.caps.manageAnyTask`; this page did not — so the grant the owner
+   * had already switched on for managers (verified in the live settings row,
+   * 28 Aug 2026) was honoured by the server and ignored by the screen. A manager
+   * could not see the Edit button on a task the system would happily have let
+   * them edit. A permission read two different ways in two places is not a
+   * permission. */
+  const permViewer = { id: me.id, portalRole: me.portalRole, canManageAny: me.caps.manageAnyTask };
   const permTask = { createdByPersonId: (task.created_by_person_id as number | null) ?? null };
   const canEdit = canEditTask(permViewer, permTask);
   const canComplete = !closed && canCompleteTask(permViewer, permTask);
@@ -297,11 +307,6 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     pinned: hasPinned,
     waiting: task.status === "Blocked" || task.status === "Waiting External",
   } as unknown as TaskRow;
-  // The freshest update for the "latest activity" glance in Overview.
-  const latestUpdate = latest;
-  const latestAuthor = latestUpdate ? authorOf(latestUpdate.created_by, me.name).name : null;
-  const fmtWhen = (iso: string) =>
-    new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="flex flex-col gap-4">
@@ -339,17 +344,17 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
           </span>
         </div>
-        <div className="mt-2 flex items-start justify-between gap-2">
-          <h1 className="min-w-0 text-lg font-semibold leading-snug">{task.action_item}</h1>
-          {canEdit && (
-            <PortalTaskEdit
-              taskId={task.id as number}
-              code={task.code as string}
-              actionItem={task.action_item as string}
-              description={(task.comments as string | null) ?? ""}
-            />
-          )}
-        </div>
+        {/* ⚠️ THE TITLE AND THE DESCRIPTION ARE ONE THING NOW, and they are edited
+            where they sit — see `portal-task-edit.tsx`. The description used to
+            print further down, below the dates and the people, so the two halves
+            of a single edit sat at opposite ends of the card. */}
+        <PortalTaskEdit
+          taskId={task.id as number}
+          code={task.code as string}
+          actionItem={task.action_item as string}
+          description={(task.comments as string | null) ?? ""}
+          canEdit={canEdit}
+        />
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
         {/* Two tiers, not three ragged lines.
 
@@ -360,51 +365,46 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
             The staff-ID chips are gone: they are an HR code, they belong on the
             person record, and here they cost a line break per name. */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {/* ⚠️ THE FACTS ARE LABELLED AND AT BODY SIZE (owner, 28 Aug 2026).
+            They were an 11px run-on line — "Due 5 August 2026  Raised by You" —
+            then a second 11px line of names behind a tiny icon, the two
+            separated by nothing and both smaller than anything else in the
+            card. A date and the person accountable are the two things somebody
+            opens a task to check; they were the smallest text on the page.
+
+            Each fact is now a quiet label over its value, at `text-sm`, laid out
+            so they line up in a row rather than running into one another. */}
+        <div className="mt-3 flex flex-wrap items-start gap-x-8 gap-y-2.5 border-t border-border pt-3">
           {task.deadline && (
-            <span className={dueTone}>
-              <CalendarDays size={12} className="mr-1 inline -mt-px" />
-              Due {new Date(task.deadline as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-            </span>
+            <Fact icon={<CalendarDays size={12} />} label="Due">
+              <span className={dueTone}>
+                {new Date(task.deadline as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+            </Fact>
           )}
-          {assignedByName && <span className="text-fg-subtle">Raised by {assignedByName}</span>}
+          {team.length > 0 && (
+            <Fact icon={<Users size={12} />} label={team.length > 1 ? "On this task" : "Accountable"}>
+              <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                {team.map((p) => (
+                  <span key={p.id} className="inline-flex items-center gap-1">
+                    {p.accountable && <Crown size={12} className="shrink-0 text-warn" />}
+                    <span className={p.accountable ? "font-medium text-fg" : "text-fg-muted"}>
+                      {p.id === me.id ? "You" : p.name}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            </Fact>
+          )}
+          {assignedByName && (
+            <Fact label="Raised by"><span className="text-fg-muted">{assignedByName}</span></Fact>
+          )}
           {srcMeeting && (
-            <span className="inline-flex items-center gap-1 text-fg-subtle">
-              <MessageSquare size={12} /> From {srcMeeting.kind === "note" ? "note" : "meeting"}: {srcMeeting.title}
-            </span>
+            <Fact icon={<MessageSquare size={12} />} label={srcMeeting.kind === "note" ? "From note" : "From meeting"}>
+              <span className="text-fg-muted">{srcMeeting.title}</span>
+            </Fact>
           )}
         </div>
-        {team.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-fg-muted">
-            <Users size={12} className="shrink-0 text-fg-subtle" />
-            {team.map((p) => (
-              <span key={p.id} className="inline-flex items-center gap-1">
-                {p.accountable && <Crown size={11} className="shrink-0 text-warn" />}
-                <span className={p.accountable ? "font-medium text-fg" : ""}>{p.id === me.id ? "You" : p.name}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        {task.comments && (
-          <p className="mt-3 text-sm text-fg-muted whitespace-pre-wrap">{task.comments}</p>
-        )}
-        {/* Latest-activity glance — mirrors the admin pop-up Overview rhythm.
-            Tap to drop to the full conversation below. */}
-        {latestUpdate && latestAuthor && (
-          <a
-            href="#conversation"
-            className="mt-2.5 flex items-start gap-2 rounded-md border border-border bg-bg-subtle px-2.5 py-2 text-left transition-colors hover:border-accent/50"
-          >
-            <MessageSquare size={14} className="mt-0.5 shrink-0 text-accent" />
-            <span className="min-w-0">
-              <span className="block text-xs text-fg-subtle">
-                {latestAuthor} · {fmtWhen(latestUpdate.created_at)}
-                {all.length > 1 ? ` · ${all.length} updates` : ""}
-              </span>
-              <span className="block truncate text-sm text-fg-muted">{latestUpdate.body}</span>
-            </span>
-          </a>
-        )}
         </div>
       </section>
       </Reveal>
@@ -438,11 +438,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         </Reveal>
       )}
 
-      <Reveal delay={0.05}>
-      <div id="conversation" className="scroll-mt-4">
-        <SectionLabel icon={<MessageSquare size={13} />}>Conversation &amp; history</SectionLabel>
-      </div>
-      </Reveal>
+      {/* ⚠️ ONE HEADING, NOT TWO. This said "Conversation & history" and then
+          `PortalConversation` printed its own "Conversation" a few pixels below
+          it — two labels for one list. The anchor stays here, because the id is
+          what `#conversation` links land on. */}
+      <div id="conversation" className="scroll-mt-4" />
 
       <Reveal delay={0.08}>
       <PortalConversation
@@ -500,5 +500,23 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         </Reveal>
       )}
     </div>
+  );
+}
+
+/** One labelled fact in the task header — a quiet label over its value.
+ *
+ *  ⚠️ A LABEL, NOT A RUN-ON LINE. "Due 5 August 2026  Raised by You  Ops Manager
+ *  Mr Gangadhar Mathankar" was one 11px sentence made of four different kinds of
+ *  fact, and you had to read it to work out where each began. */
+function Fact({
+  icon, label, children,
+}: { icon?: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
+        {icon}{label}
+      </span>
+      <span className="text-sm leading-snug">{children}</span>
+    </span>
   );
 }

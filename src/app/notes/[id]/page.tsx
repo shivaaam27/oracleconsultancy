@@ -8,6 +8,7 @@ import { NoteVersionsPanel } from "@/components/note-versions-panel";
 import { noteTodos } from "@/lib/note-todos";
 import { listTemplates, noteRevisions } from "@/lib/note-versions";
 import { NoteRecordBar } from "@/components/note-record-bar";
+import { NoteExtras } from "@/components/note-extras";
 import { getDailyTemplateId } from "@/app/notes/actions";
 
 export const dynamic = "force-dynamic";
@@ -40,27 +41,45 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
   ]);
   if (!note) notFound();
 
+  const recordBar = (
+    <NoteRecordBar
+      noteId={note.id}
+      pinned={note.pinnedAt != null}
+      archived={note.archived}
+      folderId={note.folderId}
+      folders={folders.map((f) => ({ id: f.id, name: f.name }))}
+      updatedAt={note.updatedAt}
+      isTemplate={note.kind === "template"}
+      isDailyTemplate={dailyTemplateId === note.id}
+      /* A template cannot be applied to itself, and the list is short. */
+      templates={templates.filter((t) => t.id !== note.id).map((t) => ({ id: t.id, title: t.title }))}
+    />
+  );
+
+  const panels = (
+    <>
+      {/* To-dos first: a thing you have to DO outranks a thing you linked. */}
+      <NoteTodosPanel noteId={note.id} noteTitle={note.title} todos={todos} />
+      <NoteLinksPanel links={links} incoming={incoming} />
+      <NoteVersionsPanel noteId={note.id} revisions={revisions} />
+    </>
+  );
+
   return (
     /* A sheet wants room around it, not the full 1600px working width — 58rem is
        about the widest a page of writing should ever get.
        From `xl` the links rail sits BESIDE the paper, in space that was empty
        anyway; below that it stacks underneath, where it costs nothing because the
        sheet already fills the viewport and you have to scroll to reach it. The
-       writing never gives up a pixel to it. */
+       writing never gives up a pixel to it.
+
+       ⚠️ BELOW `lg` NONE OF THIS IS ON THE SCREEN. The editor covers the phone
+       (see its own note), so the control row and the three panels move behind the
+       "⋯" in its toolbar — `NoteExtras`. They are rendered in both places on
+       purpose: which one is live is decided by width, and only one ever is. */
     <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-2.5 xl:max-w-[78rem] xl:flex-row xl:items-start xl:gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <NoteRecordBar
-          noteId={note.id}
-          pinned={note.pinnedAt != null}
-          archived={note.archived}
-          folderId={note.folderId}
-          folders={folders.map((f) => ({ id: f.id, name: f.name }))}
-          updatedAt={note.updatedAt}
-          isTemplate={note.kind === "template"}
-          isDailyTemplate={dailyTemplateId === note.id}
-          /* A template cannot be applied to itself, and the list is short. */
-          templates={templates.filter((t) => t.id !== note.id).map((t) => ({ id: t.id, title: t.title }))}
-        />
+        <div className="hidden lg:block">{recordBar}</div>
 
         <NoteEditorMount
           noteId={note.id}
@@ -79,12 +98,15 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
 
       {/* Nudged down so its first hairline lines up with the top of the paper
           rather than with the control row above it. */}
-      <div className="flex w-full flex-col gap-2.5 xl:w-[17.5rem] xl:shrink-0 xl:pt-[2.1rem]">
-        {/* To-dos first: a thing you have to DO outranks a thing you linked. */}
-        <NoteTodosPanel noteId={note.id} noteTitle={note.title} todos={todos} />
-        <NoteLinksPanel links={links} incoming={incoming} />
-        <NoteVersionsPanel noteId={note.id} revisions={revisions} />
+      <div className="hidden w-full flex-col gap-2.5 lg:flex xl:w-[17.5rem] xl:shrink-0 xl:pt-[2.1rem]">
+        {panels}
       </div>
+
+      {/* Phone only, and only once the "⋯" in the toolbar asks for it. */}
+      <NoteExtras>
+        {recordBar}
+        {panels}
+      </NoteExtras>
     </div>
   );
 }

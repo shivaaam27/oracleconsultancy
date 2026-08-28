@@ -26,7 +26,7 @@ async function count(run: () => Promise<{ count: number | null; error: unknown }
 }
 
 export async function moduleCounts(): Promise<Record<string, ModuleCount | null>> {
-  const [tasks, orders, projects, journals] = await Promise.all([
+  const [tasks, orders, projects, journals, posts, orderLines, invoices] = await Promise.all([
     count(() =>
       sb.from("tasks").select("id", { count: "exact", head: true })
         .eq("archived", false)
@@ -44,18 +44,44 @@ export async function moduleCounts(): Promise<Record<string, ModuleCount | null>
       sb.from("journal_entries").select("id", { count: "exact", head: true })
         .eq("status", "Posted") as never
     ),
+    count(() =>
+      sb.from("mkt_posts").select("id", { count: "exact", head: true })
+        .eq("archived", false) as never
+    ),
+    count(() =>
+      sb.from("ops_order_lines").select("id", { count: "exact", head: true })
+        .eq("archived", false) as never
+    ),
+    // ⚠️ ISSUED ONLY, the same test the rest of CocoZuri uses — a draft has been
+    // sent to nobody. Counting drafts here would put a figure on the launcher
+    // that no screen inside the module agrees with.
+    count(() =>
+      sb.from("cz_invoices").select("id", { count: "exact", head: true })
+        .eq("status", "issued") as never
+    ),
   ]);
 
   const one = (n: number | null, singular: string, plural: string): ModuleCount | null =>
     n == null ? null : { value: String(n), label: n === 1 ? singular : plural };
 
+  /* ⚠️ EVERY MODULE GETS A FIGURE, and that is the point of the line.
+   *
+   * Three tiles carried none until 28 Aug 2026 — Marketing, Orders & Imports and
+   * CocoZuri — so they had a blank band where their neighbours had a number, and
+   * the file's own rule ("a tile that says nothing is just a big button") was
+   * broken on nearly half the launcher. CocoZuri's was excused by a comment
+   * saying the tile already reads "Being built", which stopped being true the day
+   * the module shipped: no module is `soon` any more, so nothing said anything.
+   *
+   * A zero is honest here BECAUSE the count ran. The null case above is the one
+   * that means "we could not find out", and that still shows nothing at all. */
   return {
     tasks: one(tasks, "open task", "open tasks"),
     recruitment: one(orders, "job order", "job orders"),
     ledger: one(journals, "posted journal", "posted journals"),
     projects: one(projects, "project running", "projects running"),
-    // Nothing to count yet, and saying "0" would read as a failure rather than
-    // as "not built". The tile already says "Being built".
-    cocozuri: null,
+    marketing: one(posts, "post", "posts"),
+    ops: one(orderLines, "order line", "order lines"),
+    cocozuri: one(invoices, "invoice issued", "invoices issued"),
   };
 }

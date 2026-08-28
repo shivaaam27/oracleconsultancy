@@ -275,3 +275,547 @@ nobody has LOOKED at them at 375px.
 is the staff HOME's task housing and has the same scroll trap the board's had —
 but there it is deliberate (it keeps the To-Do List reachable below a long list),
 so it was left alone rather than changed blind.
+
+---
+
+## The portal rail, and the second column of filters — 28 Aug 2026
+
+> ⚠️ **ALL OF THIS WAS UNDONE THE SAME EVENING. `lib/filter-rail-slot.tsx` NO
+> LONGER EXISTS.** Read "The filters were a duplicate all along" at the end of
+> this file before believing anything below about lending filters to the
+> sidebar. The measurements still stand; the conclusion did not.
+
+Asked for from inside a director's portal (Pulin's): bring the rail up to what
+the command centre's got, but a smaller version of it — and get rid of the extra
+column of filters, because "the director wants a proper list of tasks and that
+side panel is taking the space".
+
+### What was measured, in that portal at 1440px
+
+| | |
+|---|---|
+| Portal rail | 208px |
+| `RecordList`'s own filter column | 184px |
+| **Before the task list began** | **448px — 31% of the screen** |
+| The list itself | 925px |
+
+Two navigation-shaped columns, one behind the other. And the filters are groups
+of labelled, counted links — which is exactly what the rail below them already
+is. There was never a reason for them to be two columns.
+
+### The loan
+
+**`src/lib/filter-rail-slot.tsx`** — a list lends its filters to a sidebar.
+
+- ⚠️ **IT IS A LOAN, NOT A MOVE.** `RecordList` still owns its filters, still
+  builds them, still decides what they mean. It publishes them and skips drawing
+  its own column **only where a sidebar is actually on the screen**.
+- ⚠️ **NO PROVIDER MEANS NOTHING CHANGES.** `useContext` returns null on the
+  whole command centre, so its aside keeps the classes it had. The provider is
+  in ONE file — `app/portal/(app)/layout.tsx`, above both the rail and the page,
+  because one publishes and the other renders.
+- ⚠️ **ONLY FROM `lg`, and that is the fiddly bit.** The portal rail appears at
+  1024px; the filter column appears at 768px. Hiding the column at `md` would
+  leave every width from **768 to 1023 with no filters at all** — a sidebar that
+  is not there cannot hold them. So the aside gains `lg:hidden`, and only when
+  the loan was taken.
+- ⚠️ **COMPARED BY CONTENT, NOT IDENTITY.** `filters` is rebuilt every render, so
+  an effect keyed on the array would publish → re-render the provider →
+  re-render the list → publish, for ever. The signature is what actually changed.
+  ⚠️ It cannot see `onSelect`, which is safe here (portal filters are links, per
+  the house rule) and irrelevant where `onSelect` lives — the offline note shelf,
+  which has no provider above it.
+- ⚠️ **THE FILTERS HANG OFF THE TAB THEY BELONG TO — they are a dropdown from
+  Tasks, not a block above the menu.** The first cut put them at the head of the
+  rail, arguing that they are what your hand is on and the navigation can wait.
+  **The owner rejected it, and he was right:** opening Tasks pushed Work, People
+  and More down the rail, and leaving it pulled them back up — **the whole menu
+  moving under your hand on every change of page.** Hung off their own tab,
+  nothing above them can move and what does move is the thing you just clicked.
+  Measured: Work 61px, Board 93px, Tasks 124px, **identical on Tasks and on
+  Board**; only what sits below Tasks shifts.
+  - ⚠️ **A SEPARATE CHEVRON BUTTON, NOT A CHEVRON INSIDE THE LINK.** Inside it,
+    every attempt to fold the filters would navigate instead.
+  - Open by default on arrival, foldable, and the fold is remembered — under ONE
+    key for all filters, because only one page's filters can be on the screen at
+    a time and a key per tab would mean collapsing them on Tasks and finding them
+    open again on the next list.
+  - ⚠️ **A PAGE THAT IS NOT IN THE MENU STILL HAS FILTERS** — a company's document
+    library, reached from the Directory, is nobody's tab. Those fall to the FOOT
+    of the rail, never the head, so nothing above them moves either.
+  - Hidden entirely while the rail is collapsed to icons: a filter is a word and a
+    count, and neither survives being reduced to a glyph.
+- The rail clears itself on the way out, so a filter list never outlives the page
+  that built it (proved: Tasks → Board, the Show section goes).
+
+### Result
+
+| | before | after |
+|---|---|---|
+| Before the list began | 448px | **248px** |
+| The list | 925px | **1125px** |
+
+### The rail itself — the smaller improvement
+
+⚠️ **WORK, PEOPLE AND MORE DO NOT FOLD. THE ONLY THING THAT FOLDS IS THE FILTER
+DROPDOWN.** They were made foldable first, to match the desk rail — where folding
+earns its keep, because CocoZuri alone puts 31 links in ten groups and 585px of it
+was off the screen. **The portal has eleven links in three groups and fits with
+room over**, so the fold bought nothing and cost three chevrons and three ways to
+hide something. The owner said so plainly and was right: *"dont make work or
+people or more collapsable or expandable. just tasks."*
+
+So the headings are quiet uppercase captions again, and **a heading you cannot
+click must not look like a link you can** — which is why they are not rows. The
+whole rail now holds exactly two buttons: collapse the sidebar, and hide the
+filters.
+
+⚠️ **THE GENERAL LESSON, and it caught two things in one day: matching the
+command centre is not a reason on its own.** The desk rail folds because it
+overflows; the portal rail does not overflow. Copying the mechanism across
+brought the cost without the benefit.
+
+### Checked
+
+`/portal/tasks` (filters in the rail, `?f=overdue` highlights *Overdue 19* and
+returns 19 rows), `/portal/board` (no Show section), `/portal/companies/[id]`
+(the document library's eight categories, list at 248px), and **900px**, where
+the rail is gone and the old column is back exactly as it was.
+
+⚠️ **The command centre could take the same loan with one line** — wrap its
+layout in `FilterRailProvider` — but it was not asked for and was not done.
+
+### Three more, after the owner looked at it — 28 Aug 2026
+
+**1. The rail flickered on the way back to the Board, and it was a real bug.**
+The filters were cleared by an effect cleanup as the old list unmounted, which is
+**a frame too late**: the Board had already painted, so for one frame it wore
+Tasks' filters and then they vanished. ⚠️ **The path is now stored WITH the
+filters and checked against the live pathname on read** — the path changes in the
+same render as the new page, so a stale set can never reach the screen. The
+cleanup stays for a list that goes without the address changing. Proved by
+sampling every animation frame across the navigation: **0 bad frames of 301**.
+
+**2. `More` is pinned to the foot**, the portal's answer to the command centre's
+System block. ⚠️ **It is the last thing you want and the last place you should
+have to look** — Insights, Activity and Profile were the end of one scrolling
+column, which is not the same as being at the foot: open the filter dropdown and
+they moved. Measured at 900px: **More 768px and Profile 863px on both the Board
+and Tasks**, where before they moved 220px between the two.
+
+**3. The look.** ⚠️ **No second guide line** — the items already sit behind one
+under their group heading, and a rule under the tab as well gave the rail two
+nested verticals and made eight filters read as heavier than the whole menu they
+hang off. A deeper indent says it quietly. ⚠️ **A filter is not a destination**,
+so it no longer wears a destination's row: at the same height and weight, eight
+of them outweighed the eleven links above them.
+
+⚠️ **AND A NUL BYTE HAD GOT INTO `portal-sidebar.tsx`** — a heredoc turned a
+` ` escape into an actual null character in the source. `tsc` passed and the
+page rendered; the only symptom was `grep` calling the file binary. The fold key
+is a plain `"__filters__"` now. **Write escapes as `\u`, or don't use them.**
+
+### The dropdown's finish — 28 Aug 2026
+
+Five things the owner asked for after looking at it, all in the rail:
+
+- **The chevron is BLACK** (`text-fg`, size 14). At `text-fg-subtle` it read as
+  decoration beside the tab rather than the one control on the row, and he could
+  not see it.
+- ⚠️ **ARRIVING ON THE PAGE ALWAYS OPENS THE FILTERS.** The fold is deliberately
+  **no longer remembered** — *"it should default to expanded view"*. Collapsing is
+  for getting the menu back while you are on the page, not a setting; coming back
+  to Tasks and finding the filters hidden is the opposite of what the dropdown is
+  for. `GROUP_STORE` and its localStorage are gone with it.
+- ⚠️ **AND IT OPENS BY ANIMATING** — *"smoothly, not snappy… as the task page
+  opens"*. Two parts, and both are needed:
+  1. **The panel is never taken out of the tree while its tab owns it.** It is
+     closed by collapsing its ROW instead, because **a height cannot animate from
+     nothing**. `grid-template-rows: 0fr → 1fr` with `overflow-hidden` inside is
+     the only way to transition to a height nobody knows in advance.
+  2. **It mounts CLOSED for exactly one frame.** Open on the first render and the
+     panel simply exists, which is the snap. One `requestAnimationFrame` is the
+     whole trick. Measured: **11 distinct heights between 0 and 220px** across the
+     navigation, so it really travels.
+  ⚠️ Reduced motion needs no guard — `globals.css` already clamps every
+  `transition-duration` to 0.01ms under `[data-motion="reduced"]`.
+- **Indented 22px → 10px.** It had drifted a long way right of the tab it hangs
+  from.
+- ⚠️ **THE FIGURES ARE BLACK, AND COLOURED ONLY WHERE THE COLOUR MEANS
+  SOMETHING:** red for what wants doing — **overdue, due soon AND not started** —
+  green for done, black for the rest. Grey said "secondary" about the only number
+  on the row. **"Due soon" was amber and "Not started" was plain; his reading is
+  that a task nobody has begun is as much a problem as a late one**, and it is his
+  list. The tones live on the `rail` array in `portal-tasks-command.tsx`, so the
+  sidebar, the 184px column and the mobile strip all take them from one place.
+
+### Does it hold for every role? — checked, 28 Aug 2026
+
+The owner asked that all of the above apply "to all portals based on permissions
+and roles". It did not, quite. **`src/lib/portal-nav.test.ts` is new and is the
+guard** — eight cases over director · manager · HR · receptionist · staff · no
+role, each against three sets of owner tab-overrides.
+
+**⚠️ THE GAP IT FOUND, and it hit the people the change was FOR.** Staff and HR
+have **no Tasks tab** — the capability is management-only — so their task list
+lives on portal **Home**, inside a housing, which means it renders **`bare`**. The
+filter loan was written as `useFilterRailPort(filters, !bare)`, so exactly the
+roles who never see the Tasks page kept the 184px column the director asked to be
+rid of. **`bare` describes the CARD** ("you are inside somebody else's housing,
+draw no card of your own"); it says nothing about where the filters should live.
+It lends now regardless, and for staff they hang off **Home**, which
+`isPortalItemActive` already treats as owning `/portal`.
+
+**What the test locks down, and why each one is silent when it breaks:**
+
+- ⚠️ **`More` is always present and always LAST.** The sidebar finds the pinned
+  foot *by label*; a role whose More came back empty would have no pinned foot at
+  all — no error, just Profile missing from where everyone else's is. It holds
+  because `profile: true` is unconditional in `portalCapabilities`, which the
+  test also pins down.
+- ⚠️ **A receptionist has no Chat and no Directory, so the People group is
+  EMPTY and drops out** — and More must still be last for them alone.
+- The owner's tab overrides can switch off Tasks, Outbox, Insights and Cleaning
+  without emptying More.
+- Every visible destination is filed in exactly one group.
+- A director is board-first with a real Tasks tab; a staff member has Home and no
+  Tasks tab. **If that ever flips, this is the line that should make somebody
+  look.**
+
+Checked live in a director's portal at 1440px afterwards: `/portal/tasks` list
+1125px with the filters in the rail, and `/portal/companies/4` — a page in nobody's
+tab — dropping its eight categories at the foot of the scroll, just above the
+pinned More.
+
+---
+
+## The task page — 28 Aug 2026
+
+The owner's reading: the hero was cluttered, the sections under it were loose,
+the Edit box was wrong, and *"everything can be edited by all directors and
+managers as per their tasks"* — answered **(b): a manager edits any task, the
+same as a director.**
+
+### ⚠️ THE PERMISSION WAS READ TWO DIFFERENT WAYS, and that was the whole bug
+
+`canManageTask` falls back to "director or HR" **only when the caller does not
+tell it what the owner configured**. Every save path in `portal/actions.ts`
+passes `me.caps.manageAnyTask`. **The task PAGE did not.**
+
+And the live settings row already said `manageAnyTask.manager = true` — the owner
+had granted it long ago. So the server would have accepted a manager's edit while
+the screen hid the Edit button and greyed the controls. **A permission answered
+differently by the screen and the server is not a permission.** One argument
+fixed it; no new rule was invented.
+
+- `DEFAULT_CAPS.manageAnyTask.manager` was still `false`, so the shipped code and
+  the running system disagreed and a fresh deployment would have behaved
+  differently from this one. Now `true`, matching the owner's decision. **A stored
+  override still wins either way** — the toggle in Settings → Portals keeps
+  working in both directions.
+- **`src/lib/task-permissions.test.ts` is new** and pins both halves to the same
+  function, including the fallback case that caused this: with no grant passed, a
+  director passes and a manager does not. ⚠️ **The creator rule is fixed and no
+  setting removes it** — a person can always edit what they raised.
+
+### The hero
+
+Eleven things in one card, and the description printed **twice** — once as the
+paragraph, and again inside a "latest activity" panel that repeated the newest
+message from the conversation shown in full a few hundred pixels below.
+
+- The latest-activity panel is **gone**. It was a copy of what follows it.
+- **The description moved up beside the title** it belongs to, out from under the
+  dates and the people — which is why the two halves of one edit used to sit at
+  opposite ends of the card.
+- Measured: hero **227px → 161px**, and the whole page now fits one 900px screen.
+
+### ⚠️ THE EDIT BOX OPENED BESIDE THE TITLE, NOT IN PLACE
+
+The Edit button lived in a `justify-between` row with the `<h1>`, so pressing it
+put a full-width form in the right-hand half. Measured at 1024px: **the title
+squeezed to 242px on the left while a 425px form sat next to it, and the old
+description still ran underneath** — the old and the new on screen at once, and
+no way to tell which was which.
+
+The heading now BECOMES the field and the description BECOMES the field, same
+place, same width (675px of a 709px card). Nothing is duplicated and nothing
+reflows sideways; the card simply grows 161 → 263px.
+
+### Names and headings
+
+- **"Manage task" → "Task settings"**. The old name said nothing about what was
+  inside: priority, due date, company, category, risk, who is on it, delete.
+- ⚠️ **ONE conversation heading, not two.** The page printed "Conversation &
+  history" and `PortalConversation` printed its own "Conversation" a few pixels
+  below it. The `#conversation` anchor stays, because links land on it.
+
+### Not done, and deliberately
+
+The title and description were **not** folded into the Task settings panel, which
+was step 3 of the plan as written. Burying the commonest edit behind a collapsed
+panel makes it worse, and editing the title where the title is was the other
+thing asked for. **Say so if the single-panel version is still wanted.**
+
+### Editing is one state, and the remind strip is gone — 28 Aug 2026
+
+**⚠️ "REMIND" AND "MESSAGE A TEAMMATE" ARE NOT THE SAME THING**, though they
+read alike on the page. Checked before touching either:
+
+| | Remind | Message a teammate |
+|---|---|---|
+| Where it goes | **Out of COS** — opens WhatsApp or email with a link back to the task | **Inside COS** — a direct chat in the portal |
+| Who it reaches | only the person **responsible** (owner, else accountable) | **anyone** on the task |
+| Who may use it | management (`messageOnTasks`) | everyone — chat is everyone↔everyone |
+| What it leaves | no Outbox draft; an activity event only | a real chat thread |
+
+So one is a nudge to somebody's phone and the other is a conversation in the
+app. **Neither replaces the other**, and the owner was told so.
+
+What was removed is the **strip**, not the feature: a loose line under the
+buttons — *"Remind X — this task or their whole list"* — that opened a second set
+of reminder controls and read as a section of its own without being one. The
+**Remind button stays** (one press, and its toast offers "Send now"), and
+somebody's whole list is what the Outbox is for.
+
+**⚠️ EDITING IS NOW ONE STATE FOR THE WHOLE TASK** (owner: *"when clicking edit
+task, the task setting becomes visible then and not a separate thing"*). The page
+had two doors to one job — a pencil at the top that changed the title, and a
+collapsed *Task settings* section further down holding priority, due date,
+company, classify, people and delete, remembered per browser.
+
+Pressing Edit now opens **both**; Cancel or Save closes both. `Task settings`
+renders **nothing at all** when not editing, so the default view is: the task,
+three buttons, message a teammate, the composer, the conversation — and it fits
+one 900px screen. The heading is a label rather than a button: a second control
+that also opened it is how the two doors happened in the first place.
+
+⚠️ Wired by a **window event** (`TASK_EDIT_EVENT`), not lifted state — the two
+components sit in different branches of a server component's tree. Same pattern
+as the ORI trigger and the note extras sheet.
+
+### The task page made uniform — 28 Aug 2026
+
+*"the buttons, green button and other shapes feel different then the general
+system"* — and they were. Counted on one person's row inside Task settings:
+**four different treatments in 120px** — a green filled WhatsApp button, a blue
+filled email button, a grey filled chat button, and a bare-ringed X — with
+"Message all in chat" and "Add someone" as blue chips above and below them, and
+the member's name set at `text-base` while everything else on its row was
+`text-xs`.
+
+**`ACTION_BOX` / `ACTION_ICON` / `ACTION_DANGER` are new in `ui.tsx`** and are now
+the one shape for a secondary action anywhere. See `DESIGN_SYSTEM.md` for the
+rule. Measured after: every named button in the panel is white, the same border
+colour and **28px tall**; the icon buttons are all 28×28.
+
+- The action row was **solid blue / soft-green / white outline** — three
+  treatments for three peers. One primary (Add update) and two identical
+  secondaries now; **the green survives on the tick**, not as a block behind the
+  word.
+- Delete is quiet at rest and **solid red only on the confirm**, which is the one
+  place the colour is earned.
+- The member's name is `text-sm` — it was the biggest thing in the panel, larger
+  than the headings above it.
+- ⚠️ **THE LEAD TOGGLE STAYS GREEN and was NOT changed.** It is the kit `Switch`,
+  which is `bg-success` everywhere in COS. The rule is about buttons that
+  invented their own colour, not about the kit's own controls.
+- ⚠️ **"Escalate" stays 36px** while the panel's other buttons are 28px, and that
+  is right: it sits in the Classify row beside two 36px dropdowns and belongs to
+  them, not to the buttons.
+
+### The rail audit, and four fixes — 28 Aug 2026 (late)
+
+**⚠️ SUPERSEDED — the accordion was NOT the answer. See "The real cause" below.**
+
+**The first audit said:** *"when moving from any tab
+to tasks tab the side bar is moving."* Sampled every frame of the navigation:
+**Chat travelled from 235px to 455px — 220px down the rail** — and snapped back
+on the way out, every time you changed page. That is not a bug in the animation,
+it is what an accordion *is*: it pushes whatever sits under it.
+
+So the filters were moved out of the Tasks row into **their own slot between the
+scrolling menu and the pinned foot**, in space that was empty anyway. **The
+chevron stays on the Tasks row** — it is still that tab's dropdown; only the
+space it opens into changed. Measured after: `moved: []` — Board 80, Tasks 112,
+Chat 235, Directory 266, Profile 863, **identical on Board and on Tasks**. The
+only thing that changes size is the panel you asked to see, and it still glides.
+Capped at `45vh` with its own scroll, so a long filter list can never crush the
+menu above it.
+
+**The greeting.** *"too small"* — and it was, in both heroes. They had been
+compressed hard in the August portal pass (the version before was ~190px before
+the first task), and the fix over-corrected: an 18px heading with both figures
+buried in an 11px run-on line, so **the first thing on the page was the smallest
+thing on it**. Now: greeting at `text-2xl`, a 40px avatar, and the two figures as
+REAL figures on the right rather than words in a sentence. ⚠️ **Both twins
+changed** — `BoardHero` and `PortalHomeHero` — as that file's header has always
+demanded.
+
+**Save and Cancel.** Moved to the **bottom right** of the block they act on;
+left-aligned under the fields they read as the start of the next thing. ⚠️
+**Cancel is an outlined RED button, not bare text** — it was the only control in
+the pair without a box, so the pair read as one button and a link, and it throws
+away what you have just typed.
+
+**The header facts.** *"Due 5 August 2026  Raised by You"* then a second 11px
+line of names behind a tiny icon — one run-on sentence made of four kinds of
+fact, all of it smaller than anything else in the card. **A date and the person
+accountable are the two things somebody opens a task to check.** They are
+labelled columns now (`DUE` · `ON THIS TASK` · `RAISED BY`), values at body size,
+under a hairline. `Fact` is a small local component so the four cannot drift.
+
+### The real cause of the rail "glitch" — 28 Aug 2026
+
+The owner pushed back twice, and was right both times. *"stop fixing things and
+assuming… despite that when clicking the task tab the side bar still glitches
+please check or maybe there is a stale issue or needing restart?"*
+
+**Restarting was the right instinct and I checked it: it is not stale state.**
+Server stopped, `.next` deleted, restarted, both pages compiled fresh. Then
+traced every animation frame of a Board → Tasks click:
+
+| | |
+|---|---|
+| Page changed | **113ms** |
+| Rail changed | **1833ms** |
+| **Gap** | **1720ms** |
+
+**⚠️ THAT IS THE GLITCH: the menu rearranges itself 1.7 SECONDS after you have
+arrived and started reading.** Not a rough animation — content turning up late.
+It is structural: a list can only publish its filters from an EFFECT, which
+cannot run until that page's client tree has mounted, and the tasks command
+component is a big one. **No amount of easing hides content that is two seconds
+late; it only makes the late jump smoother.**
+
+**The fix: the last filters seen at an address are remembered** (`sessionStorage`,
+keyed by path AND query — which filter is `active` depends on the query). On
+returning, the panel is the right size from the first frame and the real figures
+replace it in place, moving nothing. **Measured after: 1720ms → 68ms.**
+
+⚠️ **`sessionStorage`, not `localStorage`** — a count is a fact about right now,
+and carrying last week's figures into a new session is worse than a blank.
+⚠️ **The FIRST visit to a page in a session still waits.** There is nothing to
+remember yet, and inventing the labels in the rail would be a second source of
+truth for something the list owns.
+
+**And the dropdown went back under the Tasks tab.** Moving it to the foot of the
+rail was my own idea, not what was asked — it removed the visible push, but the
+owner wanted the dropdown where he had asked for it. With the lateness fixed, the
+push is a 200ms slide you caused by clicking, which is what a dropdown should be.
+
+**Also removed:** the **Outbox bar** on the board — a full-width row whose only
+job was linking to a page that is already a tab in the rail two inches to its
+left.
+
+---
+
+## The filters were a duplicate all along — 28 Aug 2026, last
+
+The owner, after three rounds of me moving the thing around:
+
+> *"wait there is already all status filter in task page then remove the drop
+> down from tasks page and remove dead code. we are just duplicating things."*
+
+He was right, and it is the thing none of the previous rounds had checked.
+Compared properly:
+
+| Rail filter | Where else it already lives |
+|---|---|
+| Not Started · In Progress · Done | the toolbar's **"All statuses"** select |
+| Overdue · Due soon | the list's **own headed sections** |
+| I raised · My work | **nowhere else** |
+
+Six of the eight were **the same choice offered twice, in two shapes, 184px
+apart**. I had spent three rounds arranging a duplicate — a column, then a block
+above the menu, then a dropdown, then a slot at the foot — without once asking
+whether it should be on the screen at all.
+
+**What was deleted:** `src/lib/filter-rail-slot.tsx` and every reference —
+`FilterRailProvider` from the portal layout, `useFilterRailPort` from
+`RecordList`, and `useFilterRailSlot` / `FilterList` / `FilterRow` / the
+`RailFilter` type / the chevron and its animation from `portal-sidebar.tsx`.
+`TONE_TEXT` is un-exported again. **The sidebar is a menu and nothing else.**
+
+**What replaced it:** `RecordList` gained **`filterLayout?: "rail" | "strip"`**.
+The portal task list passes `"strip"` — its filters are a row of chips above its
+own toolbar, costing no width, sitting with the controls they belong to. **"I
+raised" and "My work" keep a home**, which is the only reason the filters were
+not simply deleted.
+
+⚠️ **`"rail"` IS STILL THE DEFAULT AND EVERY OTHER LIST IS UNTOUCHED.** The
+portal's company document library keeps its 184px column (verified: 184px, and
+the sidebar carries nothing) because that page has no duplicate controls of its
+own. **The rule is not "columns are bad" — it is "do not offer the same choice
+twice".**
+
+**Also gone:** the **Outbox bar** on the board — a full-width row linking to a
+page that is already a tab in the rail two inches to its left.
+
+### ⚠️ The lesson, and it cost four rounds
+
+Every round was spent on HOW the duplicate should look. The question that ended
+it — *is this the only place you can do this?* — takes one grep and should come
+first. **Measure whether a thing should exist before measuring where to put it.**
+
+### And the sidebar was put back exactly as it was — 28 Aug 2026, final
+
+> *"the side bar is annoying me now. please fix it it never used to do that
+> before."*
+
+`git diff` on `portal-sidebar.tsx` settled it in one command. With the filters
+already gone, **one behavioural change remained: `More` pinned to the foot.** It
+had been asked for — *"keep it fixed at the bottom as how we did to command
+centre"* — and it was the wrong borrow.
+
+⚠️ **THE COMMAND CENTRE PINS ITS FOOT BECAUSE ITS RAIL OVERFLOWS. THE PORTAL'S
+DOES NOT.** CocoZuri alone puts 31 links in ten groups; the portal has eleven in
+three and fits with room over. Pinning a foot to a rail that already fits does
+not hold anything in place — it just tears the last group off the bottom of the
+list and leaves a hole in the middle. Same mistake as the folding: **copying a
+mechanism across because it makes the two match, without the condition that
+earned it.** Twice, in one file, in one evening.
+
+`git checkout -- src/components/portal-sidebar.tsx`. Verified: WORK · PEOPLE ·
+MORE flow one after another again, Profile at 390px directly under Activity, no
+gap, no chevrons, no pinned block, no filters. **The file is byte-identical to
+the committed version** — nothing of this evening survives in it.
+
+Everything else from the evening stands: the task page, both heroes, the Outbox
+bar, and the task filters as chips. They are in other files.
+
+### The rail was never the problem — 28 Aug 2026, the actual cause
+
+The sidebar was reverted to its committed version and the owner still saw it
+glitch on every tab change. So it was never anything I had done to it.
+
+Instrumented the rail itself first: **`data-portal-sidebar` is perfectly still.**
+Width 208, left 0, **zero remounts**, `--portal-sidebar` constant. It does not
+move, and it never did.
+
+⚠️ **IT IS THE SCROLLBAR, AND THE SIDEBAR ONLY LOOKED GUILTY BECAUSE IT IS THE
+ONE THING THAT DOES NOT MOVE.** `PageTransition` crossfades routes, so for ~260ms
+**both pages are mounted at once**. The scroll height changes across that window,
+the **body's** scrollbar appears or disappears with it, and the whole content
+shifts by its width and back. Traced frame by frame on one click in the staff
+portal: **`main` went 1009 → 1024 → 1009**. Everything on the page slid 15px
+sideways and back — except the `fixed` rail, which stayed put, so the eye reads
+the rail as the thing that moved.
+
+**Fix: `scrollbar-gutter: stable` on `<body>`.** Verified across three
+navigations, back and forth: `main` holds **1009 on every single frame**.
+
+- ⚠️ **`body`, NOT `html`.** Measured both: with the gutter on `html` the jump
+  survives (998 → 1014), because the body is the scroll container here. The
+  obvious placement is the wrong one.
+- ⚠️ **INLINE in the root layout, not `globals.css`.** Tailwind v4's Lightning
+  CSS strips `scrollbar-gutter` out of the stylesheet entirely — the same trap
+  that cost the `.note-scroller` rule, which is set inline for the same reason.
+- It fixes the **command centre too**: same `<body>`, same crossfade, same jump.
+
+### ⚠️ The lesson, and it is the same one as the filters
+
+Four rounds were spent rearranging the sidebar because the sidebar was where the
+movement was *visible*. **The thing that looks broken is not always the thing
+that is broken** — and one `getBoundingClientRect` on the element itself would
+have said so on the first round. **Measure the accused before redesigning it.**

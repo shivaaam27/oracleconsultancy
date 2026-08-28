@@ -273,6 +273,18 @@ export type NavModule = {
   /** Links that are not `NAV_ROUTES` entries — the hub's own tabs. */
   lead?: { href: string; label: string; icon: LucideIcon }[];
   groups: NavGroup[];
+  /**
+   * The three or four pages people actually open, shown on the launcher tile.
+   *
+   * ⚠️ A LAUNCHER TILE WITH ONE DESTINATION IS A BIG BUTTON. Without these the
+   * only way into a module is its front door, and the front door is almost never
+   * where the work is — you go to /apps to reach the stock book, not the desk.
+   *
+   * Route ids, and they must belong to THIS module's own groups: `nav.test.ts`
+   * proves it, so a quick link can never point into a module you are not
+   * entering, and can never outlive the page it names.
+   */
+  quick?: string[];
   /** Shown on the launcher, kept out of the rail: the module is not built yet. */
   soon?: boolean;
 };
@@ -298,6 +310,7 @@ export const MODULES: NavModule[] = [
       { href: "/", label: "Home", icon: Home },
       { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
     ],
+    quick: ["approvals", "people", "documents", "calendar"],
     groups: [
       { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
       { label: "Records", ids: ["people", "companies", "documents", "assets"] },
@@ -320,6 +333,7 @@ export const MODULES: NavModule[] = [
     // ⚠️ Grouped by the order the work happens, not by what sort of screen each
     // one is — the same rule the CocoZuri rail follows. Adding a page? Put it
     // where it happens in the day.
+    quick: ["mkt-posts", "mkt-calendar", "mkt-results", "mkt-library"],
     groups: [
       { label: "Start", ids: ["marketing"] },
       { label: "1 Plan", ids: ["mkt-campaigns", "mkt-calendar"] },
@@ -336,6 +350,7 @@ export const MODULES: NavModule[] = [
     blurb: "Indian professionals for Tanzanian employers — orders, shortlists, placements.",
     home: "/recruitment",
     match: ["/recruitment"],
+    quick: ["rec-orders", "rec-candidates", "rec-shortlists", "rec-placements"],
     groups: [
       { label: "Desk", ids: ["recruitment", "rec-orders", "rec-candidates", "rec-clients"] },
       { label: "In progress", ids: ["rec-shortlists", "rec-interviews", "rec-placements"] },
@@ -348,6 +363,7 @@ export const MODULES: NavModule[] = [
     blurb: "The books — chart of accounts, journals, reports and tax.",
     home: "/ledger",
     match: ["/ledger"],
+    quick: ["ledger-reports", "ledger-journals", "ledger-entries", "ledger-tax"],
     groups: [
       { label: "Books", ids: ["ledger", "ledger-journals", "ledger-entries"] },
       { label: "Output", ids: ["ledger-reports", "ledger-tax"] },
@@ -369,6 +385,7 @@ export const MODULES: NavModule[] = [
     blurb: "The trading and import business — orders, shipments, billing and what is owed.",
     home: "/ops",
     match: ["/ops"],
+    quick: ["ops", "ops-imports", "ops-invoices", "ops-payments"],
     groups: [
       { label: "Sell", ids: ["ops", "ops-funnel"] },
       { label: "Ship", ids: ["ops-imports", "ops-invoices"] },
@@ -383,6 +400,7 @@ export const MODULES: NavModule[] = [
     blurb: "Chocolate — products, invoices, what is owed, and the daily stock book.",
     home: "/cocozuri",
     match: ["/cocozuri"],
+    quick: ["cz-stock", "cz-batches", "cz-invoices", "cz-owed"],
     /* ⚠️ THE RAIL FOLLOWS THE CHOCOLATE, in the order it actually happens: set
        it up, buy the materials, make it, keep it, sell it, get paid, pay out,
        put right what went wrong, then find out whether it was worth doing. The
@@ -447,11 +465,40 @@ export function moduleForPath(pathname: string): NavModule {
   return best ?? MODULE_BY_ID.tasks!;
 }
 
-/** One module's rail: its own groups, then System underneath. */
-export function moduleGroups(m: NavModule): { label: string; items: NavRoute[] }[] {
-  return [...m.groups, SYSTEM_GROUP]
+/**
+ * A module's OWN groups — the scrolling half of the rail. System is deliberately
+ * not here.
+ *
+ * ⚠️ SYSTEM MUST NOT SCROLL OFF THE BOTTOM. It was the last entry in one long
+ * scrolling column, which is not the same as being pinned: measured 28 Aug 2026
+ * at 1440×900, CocoZuri's rail stood 1281px tall in a 696px column, so Settings,
+ * Insights, Activity and ORI were invisible in every module and five of the
+ * module's own groups were too. Splitting the two is what lets the foot stay put
+ * while the module's pages scroll above it.
+ */
+export function moduleOwnGroups(m: NavModule): { label: string; items: NavRoute[] }[] {
+  return m.groups
     .map((g) => ({ label: g.label, items: g.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean) }))
     .filter((g) => g.items.length > 0);
+}
+
+/** The System routes, pinned at the foot of every rail. */
+export function systemItems(): NavRoute[] {
+  return SYSTEM_GROUP.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
+}
+
+/** One module's rail: its own groups, then System underneath. */
+export function moduleGroups(m: NavModule): { label: string; items: NavRoute[] }[] {
+  const system = systemItems();
+  return [
+    ...moduleOwnGroups(m),
+    ...(system.length ? [{ label: SYSTEM_GROUP.label, items: system }] : []),
+  ];
+}
+
+/** A module's launcher shortcuts, resolved to real routes. */
+export function moduleQuick(m: NavModule): NavRoute[] {
+  return (m.quick ?? []).map((id) => ROUTE_BY_ID[id]).filter(Boolean);
 }
 
 /**

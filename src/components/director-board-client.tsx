@@ -115,19 +115,13 @@ export function DirectorBoardClient(p: Props) {
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} companyCount={p.companies.length} label={p.boardLabel ?? "Director board"} />
       <SmartCaptureBar people={p.people} companies={p.companies} modes={p.composerModes} canRepeat={p.canRepeat} />
 
-      {/* Outbox — your team's open work, per person (chase / remind). Contacts live
-          on the Directory tab; the standalone Team page was folded into these. */}
-      <Link
-        href="/portal/outbox"
-        className="group flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3.5 py-2.5 text-sm ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
-      >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Send size={15} /></span>
-        <span className="min-w-0 flex-1 font-medium">Outbox</span>
-        <span className="hidden text-xs text-fg-subtle sm:inline">Open work, per person</span>
-        <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
-      </Link>
+      {/* ⚠️ THE OUTBOX BAR WAS REMOVED (owner, 28 Aug 2026). It was a full-width
+          row on the board doing nothing but linking to a page that is already a
+          tab in the rail two inches to its left — a whole band of the board
+          spent on a duplicate of the navigation. The Outbox itself is
+          untouched. */}
 
-      {/* Next meeting sits up top, right under Outbox — full width. */}
+      {/* Next meeting, full width. */}
       <WeekAhead events={p.upcomingEvents} />
 
       {/* Then the two working columns: what needs you (the swipe/tap task cards)
@@ -156,36 +150,48 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCoun
     setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
   }, []);
 
-  /* The compact page header (portal pass, Aug 2026). This was an aurora-lit glass
-   * slab with a 3xl greeting and a separate stats card below it — roughly 190px
-   * before the first task. The greeting, the live stamp and both figures all
-   * survive; they are simply one dense line now, the same header shape the
-   * command centre uses. */
+  /* ⚠️ THE GREETING IS THE PAGE'S HEADING AND NOW READS LIKE ONE (owner,
+   * 28 Aug 2026: "the hero greeting section in board for portals is too small").
+   *
+   * It had been compressed hard in the August portal pass — the previous version
+   * was an aurora slab with a 3xl greeting and a separate stats card, ~190px
+   * before the first task, and the fix went too far the other way: an 18px
+   * heading with both figures buried in an 11px run-on line under it, so the
+   * first thing on the page was the smallest thing on it.
+   *
+   * The middle ground: the greeting at `text-2xl`, the two figures as REAL
+   * figures on the right rather than words in a sentence, and the avatar at 40px
+   * so it reads as a person. Still one band, still nothing like 190px.
+   *
+   * ⚠️ THE TWO HEROES ARE TWINS — staff see `portal-home-hero.tsx` and
+   * managers/directors see this one. Change one, change the other. */
   return (
     <section data-page-header style={PORTAL_HEADER_CARD}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
-            {label}
-            <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
-              <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-            </span>
-            <span className="normal-case tracking-normal text-success/90">live</span>
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight">{greeting}, {getGivenName(first)}</h1>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-fg-muted">
-            <span>{liveStamp} · across {companyCount} {companyCount === 1 ? "company" : "companies"}</span>
-            <span className="text-fg-subtle">·</span>
-            <span className="inline-flex items-center gap-1">
-              <Target size={12} className="shrink-0 text-accent" />
-              <b className="font-semibold text-fg tabular">{needsYou}</b> need{needsYou === 1 ? "s" : ""} you
-              <span className="text-fg-subtle">·</span>
-              <b className="font-semibold text-fg tabular">{dueToday}</b> due today
-            </span>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-md bg-accent-soft text-sm font-semibold text-accent sm:grid">{initials}</span>
+          <span className="min-w-0">
+            <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
+              {label}
+              <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
+                <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+              </span>
+              <span className="normal-case tracking-normal text-success/90">live</span>
+            </p>
+            <h1 className="truncate text-2xl font-semibold leading-tight tracking-tight">
+              {greeting}, {getGivenName(first)}
+            </h1>
+            <p className="mt-0.5 truncate text-sm text-fg-muted">
+              {liveStamp} · across {companyCount} {companyCount === 1 ? "company" : "companies"}
+            </p>
+          </span>
         </div>
-        <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-xs font-semibold text-accent sm:grid">{initials}</span>
+        {/* The two figures, as figures. They were words in an 11px sentence. */}
+        <div className="flex shrink-0 items-center gap-6">
+          <HeroStat icon={<Target size={13} className="text-accent" />} value={needsYou} label={needsYou === 1 ? "needs you" : "need you"} />
+          <HeroStat value={dueToday} label="due today" />
+        </div>
       </div>
     </section>
   );
@@ -531,5 +537,19 @@ export function AttentionCard({ w }: { w: WatchItem }) {
         </a>
       )}
     </div>
+  );
+}
+
+/** One number in a portal hero — the figure big, its name quiet underneath.
+ *  Shared in spirit with `portal-home-hero.tsx`; keep the two in step. */
+function HeroStat({ icon, value, label }: { icon?: React.ReactNode; value: number; label: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className="inline-flex items-baseline gap-1.5">
+        {icon}
+        <b className="tabular text-2xl font-semibold leading-none text-fg">{value}</b>
+      </span>
+      <span className="mt-1 text-xs text-fg-muted">{label}</span>
+    </span>
   );
 }

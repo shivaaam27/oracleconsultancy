@@ -12,7 +12,7 @@ import {
   AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
-import { Avatar, Button, CaretInput, Switch } from "@/components/ui";
+import { ACTION_BOX, ACTION_DANGER, ACTION_ICON, Avatar, Button, CaretInput, Switch } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DatePopover } from "@/components/date-popover";
@@ -397,7 +397,16 @@ export function PortalTasksCommand({
     href: hrefFor({ f: f.key, status: "all" }),
     active: statusFilter === "all" && filter === f.key,
     group: "Show",
-    tone: f.key === "overdue" ? "danger" : f.key === "soon" ? "warn" : f.key === "done" ? "success" : undefined,
+    /* ⚠️ THE OWNER CHOSE THESE (28 Aug 2026): red for anything wanting doing —
+       overdue, due soon AND not started — green for done, and nothing on the
+       rest. "Due soon" was amber and "Not started" was plain; his reading is
+       that a task nobody has begun is as much a problem as a late one, and it
+       is his list. The same tones reach the rail, the mobile strip and the
+       sidebar, because all three read this one array. */
+    tone:
+      f.key === "overdue" || f.key === "soon" || f.key === "notstarted" ? "danger"
+      : f.key === "done" ? "success"
+      : undefined,
   }));
 
   /** The people on a row, lead first — the lead's avatar takes the accent ring.
@@ -520,6 +529,16 @@ export function PortalTasksCommand({
           toolbar={toolbar}
           bare={houseList}
           filters={rail}
+          /* ⚠️ CHIPS, NOT A COLUMN — the page already filters itself (owner,
+             28 Aug 2026: "there is already all status filter in task page…
+             we are just duplicating things"). The toolbar carries an "All
+             statuses" select covering Not Started / In Progress / Done, and the
+             list heads itself with Overdue / Due soon / In progress / Done
+             sections. A 184px column repeating most of that was the same choice
+             offered twice, in two shapes, 184px apart. As chips it costs no
+             width and sits with the controls it belongs to — and "I raised" and
+             "My work", which exist nowhere else, keep a home. */
+          filterLayout="strip"
           groupOf={(t) => groupLabelOf.get(t.taskId) ?? null}
           selectionSlot={selectable ? (t) => (
             <SelectBox checked={selected.has(t.taskId)} onToggle={() => toggleSelect(t.taskId)} />
@@ -1375,7 +1394,7 @@ export function TaskPeoplePanel({
             type="button"
             onClick={messageAll}
             disabled={chatBusy}
-            className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-sm font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
+            className={ACTION_BOX}
           >
             {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message all in chat
           </button>
@@ -1391,7 +1410,10 @@ export function TaskPeoplePanel({
                 identifies nobody. 7.5rem is the width that fits the longest real
                 name here beside the buttons, so the row stays ONE line. */}
             <span className="min-w-[7rem] flex-1">
-              <span className="block truncate text-base font-medium leading-tight">{m.name}</span>
+              {/* ⚠️ `text-sm`, the body size. At `text-base` the name was the
+                  biggest thing in the panel — bigger than the section headings
+                  above it — while everything else on its row was `text-xs`. */}
+              <span className="block truncate text-sm font-medium leading-tight">{m.name}</span>
               {/* Lead toggle: ON = Lead, OFF = Working — assign the lead inline (those
                   who may edit). Everyone else sees a read-only Lead/Working label. */}
               {canEditLeads && m.id != null ? (
@@ -1431,7 +1453,7 @@ export function TaskPeoplePanel({
                 disabled={removeBusy || leadBusy}
                 title={`Remove ${getGivenName(m.name)} from this task`}
                 aria-label={`Remove ${m.name} from this task`}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-subtle ring-1 ring-border transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+                className={cn(ACTION_ICON, "hover:border-danger/50 hover:text-danger")}
               >
                 {removeBusy ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
               </button>
@@ -1498,7 +1520,7 @@ function AddPersonPicker({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy || people.length === 0}
-        className="h-7 rounded-md bg-accent-soft/70 px-2.5 text-sm font-medium text-accent ring-1 ring-accent/25 inline-flex items-center gap-1.5 transition-colors hover:bg-accent-soft active:scale-[0.97] disabled:opacity-50"
+        className={ACTION_BOX}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
         {people.length === 0 ? "Everyone's on it" : "Add someone"}
@@ -1708,18 +1730,20 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
       router.push(`/portal/chat/${res.threadId}`);
     });
 
-  // Square 28px icon buttons — the same secondary height as every other action
-  // on a task row, so WhatsApp/Email/Chat line up with Edit, History and Delete.
-  const iconBtn = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 transition-transform active:scale-90 disabled:opacity-50";
+  /* ⚠️ ONE SHAPE, NOT THREE FILLS. These were a GREEN WhatsApp button, a BLUE
+     email button and a GREY chat button sitting shoulder to shoulder — three
+     treatments for three actions of exactly equal weight, with the remove X
+     beside them as a fourth. The colour said nothing except "we picked a
+     different one each time". `ACTION_ICON` is the kit's answer; see its note. */
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <button type="button" onClick={whatsapp} disabled={busy} title="WhatsApp this task" aria-label={`WhatsApp ${first} about this task`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
+      <button type="button" onClick={whatsapp} disabled={busy} title="WhatsApp this task" aria-label={`WhatsApp ${first} about this task`} className={ACTION_ICON}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={15} />}
       </button>
-      <button type="button" onClick={email} disabled={busy} title="Email this task" aria-label={`Email ${first} about this task`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
+      <button type="button" onClick={email} disabled={busy} title="Email this task" aria-label={`Email ${first} about this task`} className={ACTION_ICON}>
         <Mail size={15} />
       </button>
-      <button type="button" onClick={chat} disabled={busy} title="Message in chat" aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>
+      <button type="button" onClick={chat} disabled={busy} title="Message in chat" aria-label={`Message ${first} in chat`} className={ACTION_ICON}>
         <MessageSquarePlus size={15} />
       </button>
     </div>
@@ -1801,13 +1825,15 @@ export function TaskDeleteFooter({ taskId, code, onDeleted }: { taskId: number; 
         </p>
         {confirm ? (
           <span className="inline-flex items-center gap-1.5">
-            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger px-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+            {/* The CONFIRM is solid — this one really does destroy something,
+                and that is the single place the colour is earned. */}
+            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger px-3 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
               {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete the whole task
             </button>
-            <button type="button" onClick={() => setConfirm(false)} className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg-muted hover:text-fg">Keep it</button>
+            <button type="button" onClick={() => setConfirm(false)} className="inline-flex h-7 items-center rounded-md px-2 text-xs text-fg-muted hover:text-fg">Keep it</button>
           </span>
         ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-danger-soft px-3 text-sm font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
+          <button type="button" onClick={() => setConfirm(true)} className={cn(ACTION_DANGER, "shrink-0")}>
             <Trash2 size={13} /> Delete task
           </button>
         )}
