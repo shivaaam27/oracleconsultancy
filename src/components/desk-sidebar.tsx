@@ -179,6 +179,35 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
     } catch { setOpenGroups(null); }
   }, [active.id]);
 
+  /* ⚠️ OPENING IS ADDITIVE — NOTHING EVER CLOSES BY ITSELF.
+   *
+   * The first cut kept a group open only WHILE it was the active one, so
+   * clicking from "4 · Keep" into "3 · Make" opened Make and snapped Keep shut
+   * in the same instant — the rail rearranged itself on every cross-group
+   * click, which the owner reported as "the sidebar moves and glitches and
+   * doesn't stay in its position". He is right: navigation must never take
+   * away something you could see a moment ago. Arriving in a group opens it,
+   * for ever; the ONLY thing that folds a group is your own click on its
+   * heading. The rail can end up mostly open and scroll — that is what the
+   * fade and scroll-into-view are for, and it is calmer than a menu that
+   * rearranges under the pointer. */
+  useEffect(() => {
+    if (!activeGroup) return;
+    setOpenGroups((prev) => {
+      const base = prev ?? (activeGroup ? [] : groups[0] ? [groups[0].label] : []);
+      if (base.includes(activeGroup)) return prev;
+      const next = [...base, activeGroup];
+      try {
+        const raw = localStorage.getItem(GROUP_STORE);
+        const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+        all[active.id] = next;
+        localStorage.setItem(GROUP_STORE, JSON.stringify(all));
+      } catch { /* ignore */ }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup, active.id]);
+
   const isOpen = (g: { label: string; items: Item[] }) => {
     if (collapsed) return true;
     if (g.label === activeGroup) return true;
