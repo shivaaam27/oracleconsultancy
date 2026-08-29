@@ -29,7 +29,9 @@ import {
   mcpCreateTask, mcpAddTaskUpdate, mcpCreateEvent, mcpCreateDocument,
   mcpAssignAsset, mcpDraftMessage, mcpUndoLast,
   mcpArchiveTask, mcpArchiveDocument, mcpBulkTaskAction,
+  mcpTaskDetail, mcpUpdateTask, mcpManageTask,
   PRIORITIES, CATEGORIES, OPEN_STATUSES, ALL_STATUSES, BULK_ACTIONS,
+  RISKS, ESCALATIONS, ACCOUNTABILITY, TASK_ACTIONS,
 } from "@/lib/mcp/writes";
 import {
   mcpListRecords, mcpManageTodo, mcpMarkAttendance, mcpManagePipeline, mcpDraftAnnouncement,
@@ -425,19 +427,31 @@ export const MCP_TOOLS: McpTool[] = [
     name: "create_task",
     title: "Create a task",
     description:
-      "Raise ONE new task. Give the company and a title; optionally who it's for, a deadline " +
-      "(yyyy-mm-dd), a priority and an opening note. People must already exist — if a name " +
-      "doesn't match anybody this fails rather than inventing a member of staff. " +
+      "Raise ONE new task, with any of the fields the task form has. Give the company and a " +
+      "title; everything else is optional. People and departments must already exist — if a " +
+      "name doesn't match anybody this fails rather than inventing a member of staff. " +
       "Tell the person what you created, including the task code you get back.",
     schema: z.object({
       company: z.string().describe("Company name or its two-letter prefix, e.g. 'DSC Ltd' or 'DS'"),
       title: z.string().min(3).describe("What actually needs doing, in a line"),
       assignees: z.array(z.string()).optional().describe("Names of existing people to make responsible"),
       deadline: z.string().optional().describe("Due date, yyyy-mm-dd"),
-      priority: z.enum(PRIORITIES).optional().describe("Default Medium"),
+      priority: z.enum(PRIORITIES).optional().describe("How soon it matters. Default Medium"),
       status: z.enum(OPEN_STATUSES).optional().describe("Starting status, default Not Started"),
       category: z.enum(CATEGORIES).optional(),
       note: z.string().optional().describe("An opening instruction or context for whoever picks it up"),
+      department: z.string().optional().describe("An EXISTING department, e.g. 'Finance'"),
+      risk: z.enum(RISKS).optional().describe("How bad it is if this slips — separate from priority, which is how soon"),
+      escalation: z.enum(ESCALATIONS).optional().describe("Yes also starts the task in the Escalated status"),
+      meetingDate: z.string().optional().describe("The meeting this came out of, yyyy-mm-dd"),
+      comments: z.string().optional().describe("Standing background on the task — not the same as `note`, which is the first timeline entry"),
+      accountability: z.enum(ACCOUNTABILITY).optional()
+        .describe("'shared' (default — everyone on it carries the overdue) or 'lead' (the FIRST name carries it alone; needs at least one assignee)"),
+      repeat: z.object({
+        cadence: z.enum(["weekly", "monthly"]),
+        weekdays: z.array(z.number().int().min(0).max(6)).optional().describe("Weekly only. 0 = Sunday … 6 = Saturday"),
+        dayOfMonth: z.number().int().min(1).max(31).optional().describe("Monthly only"),
+      }).optional().describe("A STANDING rule that raises this task again on the days you name. Today's task is created either way — say that you set up a repeat."),
     }),
     capability: "createTasks",
     write: true,
@@ -459,6 +473,87 @@ export const MCP_TOOLS: McpTool[] = [
     capability: "messageOnTasks",
     write: true,
     run: async (args, caller) => await mcpAddTaskUpdate(caller, args as Parameters<typeof mcpAddTaskUpdate>[1]),
+  },
+
+  {
+    // The read that pairs with update_task. list_tasks is deliberately slim — it
+    // is a list — but an assistant asked to change a field has to be able to see
+    // that field first, and to quote back what it is about to overwrite.
+    name: "get_task",
+    title: "Read one task in full",
+    description:
+      "Everything on ONE task: every field, who it's for and who leads, whether it's blocked " +
+      "and on whom, its recent conversation (with the id of each update) and, if you ask, its " +
+      "change history. Use this before update_task so you can say what you're changing FROM.",
+    schema: z.object({
+      taskCode: z.string().describe("Task code, e.g. DS-014"),
+      updates: z.boolean().optional().describe("Include the conversation, newest first (default true)"),
+      history: z.boolean().optional().describe("Include the audit trail — who changed what, when (default false)"),
+    }),
+    capability: "navTasks",
+    run: async (args, caller) => await mcpTaskDetail(caller, args as Parameters<typeof mcpTaskDetail>[1]),
+  },
+
+  {
+    name: "update_task",
+    title: "Change a task",
+    description:
+      "Edit ONE task. Send ONLY the fields you are changing — anything you leave out is left " +
+      "exactly as it is. Read it with get_task first so you can say what moved and from what. " +
+      "Two things to be careful of: `assignees` REPLACES the whole list (so include the people " +
+      "already on it, or you are taking them off), and `company` moves the task and RE-ISSUES " +
+      "its code, so quote the new code back. Pass null to clear a deadline, risk, category, " +
+      "meeting date, department or comments. To post an update or move the status with a note, " +
+      "use add_task_update — that leaves a record of why.",
+    schema: z.object({
+      taskCode: z.string().describe("Task code, e.g. DS-014"),
+      title: z.string().min(3).optional().describe("A new one-line description of the work"),
+      company: z.string().optional().describe("Move it to this company — the task code is re-issued under the new prefix"),
+      department: z.string().nullable().optional().describe("An EXISTING department, or null to clear it"),
+      status: z.enum(ALL_STATUSES).optional().describe("Prefer add_task_update when the move deserves an explanation"),
+      priority: z.enum(PRIORITIES).optional(),
+      risk: z.enum(RISKS).nullable().optional().describe("How bad if it slips — null clears it"),
+      escalation: z.enum(ESCALATIONS).optional().describe("Yes also moves it to the Escalated status"),
+      category: z.enum(CATEGORIES).nullable().optional(),
+      deadline: z.string().nullable().optional().describe("yyyy-mm-dd, or null for no deadline"),
+      meetingDate: z.string().nullable().optional().describe("yyyy-mm-dd, or null"),
+      comments: z.string().nullable().optional().describe("Standing background on the task"),
+      assignees: z.array(z.string()).optional().describe("REPLACES everyone on the task with these existing people"),
+      accountability: z.enum(ACCOUNTABILITY).optional()
+        .describe("'shared' (everyone on it carries the overdue) or 'lead' (the first name carries it alone)"),
+      reason: z.string().optional().describe("Why — recorded against every field this call changes"),
+    }),
+    capability: "manageAnyTask",
+    write: true,
+    run: async (args, caller) => await mcpUpdateTask(caller, args as Parameters<typeof mcpUpdateTask>[1]),
+  },
+
+  {
+    // ⚠️ ONE tool for the controls that are not fields — nine of these as
+    // separate entries would put nine descriptions in every conversation.
+    name: "manage_task",
+    title: "Task controls",
+    description:
+      "The handful of task controls that aren't fields. 'block' records that a task is waiting " +
+      "on a named person for a stated reason — it goes Blocked and its overdue is suspended for " +
+      "everybody until 'unblock'. 'part_done' / 'part_reopened' mark ONE person's share of a " +
+      "shared task finished, without finishing the task. The rest correct the conversation: " +
+      "'edit_update' rewrites an update (the original wording is kept), 'pin_update' / " +
+      "'unpin_update' pin one to the top, and 'remove_update' takes one off the timeline — that " +
+      "is NOT a delete, the row stays and 'restore_update' puts it straight back. Update ids " +
+      "come from get_task.",
+    schema: z.object({
+      action: z.enum(TASK_ACTIONS),
+      taskCode: z.string().optional().describe("Task code — for block, unblock, part_done, part_reopened"),
+      person: z.string().optional().describe("Who it's waiting on, or whose part is done"),
+      reason: z.string().optional().describe("Why it's blocked, or why an update was changed or taken down"),
+      note: z.string().optional().describe("What resolved it, for unblock"),
+      updateId: z.number().int().optional().describe("The update to act on — get_task lists these"),
+      body: z.string().optional().describe("The corrected wording, for edit_update"),
+    }),
+    capability: "manageAnyTask",
+    write: true,
+    run: async (args, caller) => await mcpManageTask(caller, args as Parameters<typeof mcpManageTask>[1]),
   },
 
   {

@@ -1,19 +1,19 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
+// bustTag, NEVER updateTag, anywhere in this file. Half of these actions are
+// also called from /api/mcp - a route handler, where updateTag throws, and it
+// throws AFTER the write has committed, so the tool would report a failure for
+// a change that really happened. bustTag tries updateTag first, so a Server
+// Action behaves exactly as it did.
 import { bustTag } from "@/lib/cache-bust";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import {
-  getOrCreatePersonSb,
-  getOrCreateDeptSb,
-  deptNameSb,
-  logChangeSb,
-} from "@/lib/db-helpers";
+import { logChangeSb } from "@/lib/db-helpers";
 import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { computeClosedDateFrom } from "@/lib/task-status";
-import { createTaskCore, addTaskUpdateCore } from "@/lib/task-write";
+import { createTaskCore, updateTaskCore, addTaskUpdateCore } from "@/lib/task-write";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { invalidateAllTasks } from "@/lib/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
@@ -146,12 +146,6 @@ function taskDeleteUndo(
   };
 }
 
-async function allPeopleMap(): Promise<Map<number, string>> {
-  const { data, error } = await sb.from("people").select("id,name");
-  if (error) throw new Error(error.message);
-  return new Map((data ?? []).map((p) => [p.id as number, p.name as string]));
-}
-
 /** Fire the cross-process cascade when a task's status changes: completing a task
  *  that DRIVES a pipeline case (pipeline.task_id) advances that case a stage.
  *  Guarded + dynamic-imported (avoids cycles); never affects the task write. */
@@ -237,174 +231,40 @@ export async function adminRemindTask(
   return { ok: true, link, name, channel, contactMissing: !to };
 }
 
+/**
+ * Edit a task from the web form.
+ *
+ * The write itself lives in `updateTaskCore` (lib/task-write.ts) so /api/mcp
+ * edits tasks through identical code. What stays here is what only a browser
+ * has: the FormData, the undo cookie and the redirect.
+ *
+ * ⚠️ The core treats an absent field as "leave it alone"; this form is a FULL
+ * REPLACE, so every field it owns is passed explicitly — including the nulls
+ * that clear a deadline or a comment. Do not "tidy" these into optional spreads.
+ */
 export async function updateTask(code: string, formData: FormData) {
-  const actionItemField = str(formData.get("actionItem"));
-  const departmentName = str(formData.get("department"));
-  const statusField = str(formData.get("status"));
-  const priorityField = str(formData.get("priority"));
-  const riskField = formData.has("risk") ? str(formData.get("risk")) : undefined;
-  const escalationField = str(formData.get("escalation"));
-  const categoryField = formData.has("category") ? str(formData.get("category")) : undefined;
-  const deadline = parseDate(formData.get("deadline"));
-  const meetingDate = parseDate(formData.get("meetingDate"));
-  const comments = str(formData.get("comments"));
-  const latestUpdate = str(formData.get("latestUpdate"));
-  const accountableRaw = str(formData.get("accountable"));
-  const changeReason = str(formData.get("changeReason"));
   const companyIdField = formData.has("companyId") ? parseInt(String(formData.get("companyId")), 10) : NaN;
 
-  const result = await mutate({
-    kind: "task.update",
-    run: async () => {
-      const t = await findTaskByCode(code);
-      if (!t) throw new Error("Task not found");
-
-      // Company change: the task moves to the new company and gets a fresh code
-      // under that company's prefix. The old code is kept in legacy_code so any
-      // saved link or reference still redirects here. History follows the task.
-      const movingCompany = Number.isFinite(companyIdField) && companyIdField !== t.company_id;
-      const finalCompanyId = movingCompany ? companyIdField : t.company_id;
-      let finalCode = t.code;
-      if (movingCompany) {
-        const [{ data: newComp }, { data: oldComp }, { data: existingCodes }] = await Promise.all([
-          sb.from("companies").select("name,code,code_prefix").eq("id", finalCompanyId).maybeSingle(),
-          sb.from("companies").select("name").eq("id", t.company_id).maybeSingle(),
-          sb.from("tasks").select("code").eq("company_id", finalCompanyId),
-        ]);
-        if (!newComp) throw new Error("Company not found");
-        const prefix = (newComp.code_prefix as string | null) || (newComp.code as string);
-        let maxNum = 0;
-        for (const row of existingCodes ?? []) {
-          const m = (row.code as string).match(/(\d+)$/);
-          if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-        }
-        finalCode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
-
-        await logChangeSb(t.id, t.code, t.company_id, "Company", (oldComp?.name as string) ?? String(t.company_id), newComp.name as string, changeReason);
-        await logChangeSb(t.id, t.code, t.company_id, "Task code", t.code, finalCode, "Re-issued after company change");
-      }
-
-      const actionItem = actionItemField || t.action_item;
-      const departmentId = await getOrCreateDeptSb(departmentName);
-      const status = statusField ?? t.status;
-      const priority = priorityField ?? t.priority;
-      const risk = riskField === undefined ? t.risk : riskField;
-      const escalation = escalationField ?? t.escalation ?? "No";
-      const category = categoryField === undefined ? t.category : categoryField;
-
-      const [oldDeptName, newDeptName] = await Promise.all([
-        deptNameSb(t.department_id),
-        deptNameSb(departmentId),
-      ]);
-
-      const beforeAssignees = await loadAssignees(t.id);
-
-      const fields: [string, unknown, unknown][] = [
-        ["Action Item", t.action_item, actionItem],
-        ["Department", oldDeptName, newDeptName],
-        ["Status", t.status, status],
-        ["Priority", t.priority, priority],
-        ["Risk", t.risk, risk],
-        ["Escalation", t.escalation, escalation],
-        ["Category", t.category, category],
-        ["Deadline", t.deadline ? new Date(t.deadline) : null, deadline],
-        ["Meeting Date", t.meeting_date ? new Date(t.meeting_date) : null, meetingDate],
-        ["Comments", t.comments, comments],
-        ["Latest Update", t.latest_update, latestUpdate],
-      ];
-      for (const [f, o, n] of fields) {
-        await logChangeSb(t.id, t.code, t.company_id, f, o, n, changeReason);
-      }
-
-      const newClosedDate = computeClosedDateFrom(t.status, status, t.closed_date);
-
-      const baseUpdate = {
-        action_item: actionItem,
-        department_id: departmentId,
-        status,
-        priority,
-        risk,
-        escalation,
-        category,
-        deadline: isoOrNull(deadline),
-        meeting_date: isoOrNull(meetingDate),
-        comments,
-        latest_update: latestUpdate,
-        last_updated_at: new Date().toISOString(),
-        closed_date: newClosedDate,
-      };
-
-      if (movingCompany) {
-        // Retry on code collision (someone created a task in the new company
-        // between our read and this write).
-        let applied = false;
-        for (let attempt = 0; attempt < 5 && !applied; attempt++) {
-          const { error } = await sb
-            .from("tasks")
-            .update({ ...baseUpdate, company_id: finalCompanyId, code: finalCode, legacy_code: t.code })
-            .eq("id", t.id);
-          if (!error) { applied = true; break; }
-          if (!/duplicate key|unique/i.test(error.message || "")) throw new Error(error.message);
-          const m = finalCode.match(/^(.*-)(\d+)$/);
-          if (!m) throw new Error(error.message);
-          finalCode = `${m[1]}${String(parseInt(m[2], 10) + 1).padStart(3, "0")}`;
-        }
-        if (!applied) throw new Error("Could not allocate a unique task code in the new company.");
-        // History follows the task: re-point every audit entry to the new code.
-        await sb.from("audit_log").update({ task_code: finalCode, company_id: finalCompanyId }).eq("task_id", t.id);
-      } else {
-        await sb.from("tasks").update(baseUpdate).eq("id", t.id);
-      }
-      await fireTaskCascade(t.id, t.status as string, status);
-
-      const newNames = splitNames(accountableRaw);
-      const pMap = await allPeopleMap();
-      const oldNamesStr = beforeAssignees.map((id) => pMap.get(id)).filter(Boolean).join(", ");
-      const newNamesStr = newNames.join(", ");
-      if (oldNamesStr !== newNamesStr) {
-        await logChangeSb(t.id, finalCode, finalCompanyId, "Accountable", oldNamesStr, newNamesStr, changeReason);
-        await sb.from("task_assignees").delete().eq("task_id", t.id);
-        for (const n of newNames) {
-          const pid = await getOrCreatePersonSb(n, finalCompanyId);
-          await sb
-            .from("task_assignees")
-            .upsert({ task_id: t.id, person_id: pid }, { ignoreDuplicates: true });
-        }
-      }
-
-      // Best-effort re-index after the edit (status/action item/latest update +
-      // lifecycle may all have moved). No-op unless semantic search is enabled.
-      void reindexEntity("task", t.id);
-
-      return {
-        result: { code: finalCode },
-        undo: {
-          kind: "task.update",
-          taskId: t.id,
-          payload: {
-            taskId: t.id,
-            taskCode: t.code,
-            companyId: t.company_id,
-            before: {
-              actionItem: t.action_item,
-              departmentId: t.department_id,
-              status: t.status,
-              priority: t.priority,
-              risk: t.risk,
-              escalation: t.escalation,
-              category: t.category,
-              deadline: t.deadline,
-              meetingDate: t.meeting_date,
-              comments: t.comments,
-              latestUpdate: t.latest_update,
-              lastUpdatedAt: t.last_updated_at,
-              closedDate: t.closed_date,
-            },
-            beforeAssignees,
-          },
-        },
-      };
-    },
+  const result = await updateTaskCore(code, {
+    companyId: Number.isFinite(companyIdField) ? companyIdField : undefined,
+    // An empty title keeps the existing one (the core does the falling back).
+    actionItem: str(formData.get("actionItem")) ?? undefined,
+    departmentName: str(formData.get("department")),
+    status: str(formData.get("status")) ?? undefined,
+    priority: str(formData.get("priority")) ?? undefined,
+    // Risk and Category are three-state on this form: absent = untouched,
+    // present-but-empty = cleared.
+    risk: formData.has("risk") ? str(formData.get("risk")) : undefined,
+    escalation: str(formData.get("escalation")) ?? undefined,
+    category: formData.has("category") ? str(formData.get("category")) : undefined,
+    deadline: parseDate(formData.get("deadline")),
+    meetingDate: parseDate(formData.get("meetingDate")),
+    comments: str(formData.get("comments")),
+    latestUpdate: str(formData.get("latestUpdate")),
+    // By NAME: the owner typing somebody new means it.
+    assigneeNames: splitNames(str(formData.get("accountable"))),
+    changeReason: str(formData.get("changeReason")),
+    createdBy: "web-ui",
   });
 
   if (!result.ok) throw new Error(result.error);
@@ -417,7 +277,7 @@ export async function updateTask(code: string, formData: FormData) {
   if (finalCode !== code) revalidatePath(`/task/${finalCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   // Return the user to where they opened the task from (a company page, a filtered
   // list) instead of the generic Tasks list — unless the company changed (the code
   // changed too, so land on the renamed task to avoid a stale link).
@@ -494,7 +354,7 @@ export async function createTask(formData: FormData) {
 
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   // When created from the modal flow, return to the originating section (tasks
   // list / company page) instead of the standalone task page — keeps the user
   // in context. Falls back to the task detail page for the full-page form.
@@ -559,7 +419,7 @@ export async function deleteTask(code: string) {
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   redirect("/registry");
 }
 
@@ -580,7 +440,7 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   await broadcastPulse("task-update");
 }
 
@@ -697,7 +557,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   await broadcastPulse("task-update");
 }
 
@@ -775,7 +635,8 @@ async function findTaskMeta(taskId: number) {
 export async function editTaskUpdate(
   updateId: number,
   newBody: string,
-  reason?: string
+  reason?: string,
+  by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
   const trimmed = newBody.trim();
   if (!trimmed) return { ok: false, error: "Body cannot be empty." };
@@ -809,7 +670,7 @@ export async function editTaskUpdate(
     new_value: trimmed,
     change_reason: reason ?? null,
     created_at: now,
-    created_by: "web-ui",
+    created_by: by,
   });
 
   await recomputeLatestUpdateMirror(u.task_id);
@@ -817,15 +678,15 @@ export async function editTaskUpdate(
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
 export async function deleteTaskUpdate(
   updateId: number,
-  reason?: string
+  reason?: string,
+  by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  void reason;
   const u = await loadUpdate(updateId);
   if (!u) return { ok: true }; // already gone
   if (u.deleted_at) return { ok: true }; // already removed
@@ -838,6 +699,17 @@ export async function deleteTaskUpdate(
   // disappears from view immediately.
   await sb.from("task_updates").update({ deleted_at: new Date().toISOString() }).eq("id", updateId);
 
+  // A hidden update is still a change to the record — say who hid it and why.
+  if (t) {
+    await sb.from("audit_log").insert({
+      task_id: u.task_id, task_code: t.code, company_id: t.company_id,
+      entry_type: "CHANGE", field: "Update removed",
+      old_value: u.body, new_value: null,
+      change_reason: reason ?? null,
+      created_at: new Date().toISOString(), created_by: by,
+    });
+  }
+
   await recomputeLatestUpdateMirror(u.task_id);
   void reindexEntity("task", u.task_id); // latest_update mirror changed
   if (t) {
@@ -845,27 +717,34 @@ export async function deleteTaskUpdate(
     revalidatePath(`/companies/${t.company_id}`);
   }
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
-export async function restoreTaskUpdate(updateId: number): Promise<{ ok: boolean; error?: string }> {
+export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   const t = await findTaskMeta(u.task_id);
   if (!t) return { ok: false, error: "Task not found." };
 
   await sb.from("task_updates").update({ deleted_at: null }).eq("id", updateId);
+  await sb.from("audit_log").insert({
+    task_id: u.task_id, task_code: t.code, company_id: t.company_id,
+    entry_type: "CHANGE", field: "Update restored",
+    old_value: null, new_value: u.body,
+    change_reason: null,
+    created_at: new Date().toISOString(), created_by: by,
+  });
   await recomputeLatestUpdateMirror(u.task_id);
   void reindexEntity("task", u.task_id); // latest_update mirror changed
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
 
-export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
+export async function toggleUpdatePin(updateId: number, by = "web-ui"): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   if (u.deleted_at) return { ok: false, error: "Update is deleted." };
@@ -890,13 +769,13 @@ export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; 
     new_value: wasPinned ? null : "pinned",
     change_reason: null,
     created_at: now,
-    created_by: "web-ui",
+    created_by: by,
   });
 
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   return { ok: true, pinned: !wasPinned };
 }
 
@@ -1025,7 +904,6 @@ export async function bulkUpdateTasks(
   }
 
   revalidatePath("/");
-  // bustTag, not updateTag: also called from /api/mcp (a route handler).
   bustTag("tasks"); invalidateAllTasks();
 
   return { ok: errors.length === 0, applied, skipped, errors };
@@ -1125,7 +1003,7 @@ export async function inlineUpdateTask(
 
   revalidatePath(`/task/${code}`);
   revalidatePath("/");
-  updateTag("tasks"); invalidateAllTasks();
+  bustTag("tasks"); invalidateAllTasks();
   return { ok: true, undoToken: result.undoToken };
 }
 
@@ -1148,7 +1026,6 @@ export async function setTaskArchived(
   // Re-index to re-stamp lifecycle (active ↔ history). We keep history searchable,
   // so this is reindexEntity, not removeEntityIndex.
   void reindexEntity("task", t.id);
-  // bustTag, not updateTag: this is also called from /api/mcp (a route handler).
   revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true };
 }
@@ -1174,7 +1051,7 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
   });
   if (!result.ok) return { ok: false, error: result.error };
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true, undoToken: result.undoToken };
 }
 
@@ -1190,44 +1067,47 @@ async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {
 
 /** Switch a task between "shared" and "lead" overdue-blame modes. */
 export async function setTaskAccountability(taskId: number, mode: "shared" | "lead") {
+  // ⚠️ The column only. `updateTaskCore` is the door that ALSO re-points the
+  // accountable role and tasks.owner_id — reach for that when the assignees may
+  // move with the mode.
   await sb.from("tasks").update({ accountability: mode }).eq("id", taskId);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
 /** Raise a documented blocker — overdue is SUSPENDED for everyone until cleared. */
-export async function setTaskBlocker(taskId: number, personId: number, reason: string) {
+export async function setTaskBlocker(taskId: number, personId: number, reason: string, by = "web-ui") {
   const r = (reason || "").trim();
   if (!r) return { ok: false as const, error: "A reason is required to raise a blocker." };
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
   await sb.from("tasks").update({
     blocked_on_person_id: personId, blocked_reason: r, blocked_since: new Date().toISOString(), status: "Blocked",
   }).eq("id", taskId);
-  await postTaskUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`);
+  await postTaskUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`, by);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
 /** Clear the blocker — the task is live again and overdue blame resumes. */
-export async function clearTaskBlocker(taskId: number, note?: string) {
+export async function clearTaskBlocker(taskId: number, note?: string, by = "web-ui") {
   await sb.from("tasks").update({
     blocked_on_person_id: null, blocked_reason: null, blocked_since: null, status: "In Progress",
   }).eq("id", taskId);
-  await postTaskUpdate(taskId, `▶ Blocker cleared${note ? `: ${note.trim()}` : ""}`);
+  await postTaskUpdate(taskId, `▶ Blocker cleared${note ? `: ${note.trim()}` : ""}`, by);
   void reindexEntity("task", taskId);
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }
 
 /** Toggle a person's "my part is done" flag — spares them this task's overdue blame. */
-export async function toggleMyPartDone(taskId: number, personId: number, done: boolean) {
+export async function toggleMyPartDone(taskId: number, personId: number, done: boolean, by = "web-ui") {
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
   await sb.from("task_assignees")
     .update({ part_done_at: done ? new Date().toISOString() : null })
     .eq("task_id", taskId).eq("person_id", personId);
-  await postTaskUpdate(taskId, done ? `✓ ${p?.name ?? "Someone"} marked their part done` : `↺ ${p?.name ?? "Someone"} reopened their part`);
-  revalidatePath("/"); updateTag("tasks"); invalidateAllTasks();
+  await postTaskUpdate(taskId, done ? `✓ ${p?.name ?? "Someone"} marked their part done` : `↺ ${p?.name ?? "Someone"} reopened their part`, by);
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
 }

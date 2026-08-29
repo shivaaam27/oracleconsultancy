@@ -39,7 +39,7 @@
 import { sb } from "@/db/supabase";
 import { companyScope, personCanSeeTask } from "@/lib/portal-auth";
 import { callerStamp, type McpCaller } from "@/lib/mcp/auth";
-import { createTaskCore, addTaskUpdateCore } from "@/lib/task-write";
+import { createTaskCore, updateTaskCore, addTaskUpdateCore, type TaskRepeatRecipe } from "@/lib/task-write";
 import { mutate, type Actor } from "@/lib/mutate";
 import { consumeUndo } from "@/lib/undo";
 import "@/lib/undo-handlers";
@@ -66,6 +66,19 @@ export const OPEN_STATUSES = [
 export const ALL_STATUSES = [
   ...OPEN_STATUSES, "Completed", "Closed",
 ] as const;
+
+/** Risk shares the priority words, and is a SEPARATE field: priority is how soon,
+ *  risk is how bad if it slips. Kept as its own constant so one can move without
+ *  silently dragging the other. */
+export const RISKS = ["Critical", "High", "Medium", "Low"] as const;
+
+/** Escalation is a Yes/No flag on the task, not a status. Setting it to Yes ALSO
+ *  moves the task to Escalated, exactly as the tick-box and the bulk bar do. */
+export const ESCALATIONS = ["Yes", "No"] as const;
+
+/** Who carries the overdue: everybody on the task ("shared") or the first name
+ *  only ("lead"). Completion credit is always shared either way. */
+export const ACCOUNTABILITY = ["shared", "lead"] as const;
 
 export type WriteResult = { ok: true; [k: string]: unknown } | { ok: false; error: string };
 
@@ -234,6 +247,53 @@ function oneOf<T extends string>(list: readonly T[], value: unknown): T | null {
  * 1 — create_task  (tier 1: safe)
  * --------------------------------------------------------------- */
 
+/**
+ * A department NAME → an existing department id.
+ *
+ * ⚠️ Unlike the web form, this NEVER creates one. `getOrCreateDeptSb` would add a
+ * department for a typo, and departments are managed reference data with rename
+ * and merge on the Companies hub — a silent "Finanace" would sit in that list
+ * until somebody noticed. Same stance as people and companies (rule 2).
+ */
+async function resolveDepartment(needle: string): Promise<{ name: string } | { error: string }> {
+  const n = (needle ?? "").trim();
+  if (!n) return { error: "Which department?" };
+  const { data } = await sb.from("departments").select("name").order("name");
+  const rows = (data ?? []).map((d) => d.name as string);
+  const lower = n.toLowerCase();
+  const exact = rows.find((r) => r.toLowerCase() === lower);
+  if (exact) return { name: exact };
+  const partial = rows.filter((r) => r.toLowerCase().includes(lower));
+  if (partial.length === 1) return { name: partial[0] };
+  if (partial.length > 1) return { error: `"${n}" matches ${partial.join(", ")}. Which one?` };
+  return { error: `There's no department called "${n}". The ones that exist: ${rows.join(", ") || "none yet"}.` };
+}
+
+/**
+ * A repeat recipe as an assistant may give it, validated.
+ *
+ * The rule is the form's: weekly needs at least one weekday, monthly needs a day
+ * of the month. A half-filled recipe is refused rather than silently ignored —
+ * "make it repeat every Monday" that quietly doesn't is worse than an error.
+ */
+function parseRepeat(
+  raw: { cadence?: string; weekdays?: number[]; dayOfMonth?: number } | undefined,
+): { repeat: TaskRepeatRecipe } | { error: string } | null {
+  if (!raw) return null;
+  const cadence = raw.cadence === "monthly" ? "monthly" : raw.cadence === "weekly" ? "weekly" : null;
+  if (!cadence) return { error: "A repeat is either 'weekly' or 'monthly'." };
+  if (cadence === "weekly") {
+    const days = Array.from(new Set((raw.weekdays ?? []).map((d) => Math.round(Number(d)))))
+      .filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)
+      .sort((a, b) => a - b);
+    if (days.length === 0) return { error: "Which days? Weekly repeats need weekdays, 0 = Sunday to 6 = Saturday." };
+    return { repeat: { cadence, weekdays: days, dayOfMonth: 1 } };
+  }
+  const day = Math.round(Number(raw.dayOfMonth));
+  if (!Number.isFinite(day) || day < 1 || day > 31) return { error: "Which day of the month? A number from 1 to 31." };
+  return { repeat: { cadence, weekdays: [], dayOfMonth: day } };
+}
+
 export async function mcpCreateTask(
   caller: McpCaller,
   args: {
@@ -245,6 +305,13 @@ export async function mcpCreateTask(
     status?: string;
     category?: string;
     note?: string;
+    department?: string;
+    risk?: string;
+    escalation?: string;
+    meetingDate?: string;
+    comments?: string;
+    accountability?: string;
+    repeat?: { cadence?: string; weekdays?: number[]; dayOfMonth?: number };
   },
 ): Promise<WriteResult> {
   const title = (args.title ?? "").trim();
@@ -269,16 +336,52 @@ export async function mcpCreateTask(
 
   const deadline = dayToDate(args.deadline);
   if (args.deadline && !deadline) return { ok: false, error: `"${args.deadline}" isn't a date I can read — use yyyy-mm-dd.` };
+  const meetingDate = dayToDate(args.meetingDate);
+  if (args.meetingDate && !meetingDate) return { ok: false, error: `"${args.meetingDate}" isn't a date I can read — use yyyy-mm-dd.` };
+
+  let departmentName: string | null = null;
+  if (args.department) {
+    const dept = await resolveDepartment(args.department);
+    if ("error" in dept) return { ok: false, error: dept.error };
+    departmentName = dept.name;
+  }
+
+  const risk = args.risk ? oneOf(RISKS, args.risk) : null;
+  if (args.risk && !risk) return { ok: false, error: `Risk is one of: ${RISKS.join(", ")}.` };
+  const escalation = args.escalation ? oneOf(ESCALATIONS, args.escalation) : null;
+  if (args.escalation && !escalation) return { ok: false, error: "Escalation is Yes or No." };
+
+  const accountability = args.accountability ? oneOf(ACCOUNTABILITY, args.accountability) : null;
+  if (args.accountability && !accountability) return { ok: false, error: "Accountability is 'shared' or 'lead'." };
+  // "lead" means the FIRST name carries the overdue alone — with nobody on the
+  // task there is no lead, so this would silently mean nothing.
+  if (accountability === "lead" && assigneeIds.length === 0) {
+    return { ok: false, error: "A lead needs somebody to be the lead — give me at least one name, or leave it shared." };
+  }
+
+  const repeat = parseRepeat(args.repeat);
+  if (repeat && "error" in repeat) return { ok: false, error: repeat.error };
+
+  // Escalating means the task is escalated: same rule the tick-box and the bulk
+  // bar follow, so the three doors can't disagree.
+  const status = oneOf(OPEN_STATUSES, args.status) ?? (escalation === "Yes" ? "Escalated" : "Not Started");
 
   const result = await createTaskCore({
     companyId: company.id,
     actionItem: title,
+    departmentName,
     priority: oneOf(PRIORITIES, args.priority) ?? "Medium",
-    status: oneOf(OPEN_STATUSES, args.status) ?? "Not Started",
+    status,
     category: oneOf(CATEGORIES, args.category),
+    risk,
+    escalation: escalation ?? "No",
     deadline,
+    meetingDate,
+    comments: (args.comments ?? "").trim() || null,
     latestUpdate: (args.note ?? "").trim() || null,
     assigneeIds,
+    accountability: accountability ?? "shared",
+    repeat: repeat ? repeat.repeat : null,
     createdBy: callerStamp(caller),
     actor: actorFor(caller),
   });
@@ -290,6 +393,9 @@ export async function mcpCreateTask(
     company: company.name,
     assigned: assigneeNames,
     deadline: deadline ? deadline.toISOString().slice(0, 10) : null,
+    department: departmentName,
+    accountability: accountability ?? "shared",
+    repeats: repeat ? repeat.repeat : null,
     undoToken: result.undoToken ?? null,
   };
 }
@@ -336,6 +442,411 @@ export async function mcpAddTaskUpdate(
     statusNow: newStatus ?? task.status,
     undoToken: result.undoToken ?? null,
   };
+}
+
+/* --------------------------------------------------------------- *
+ * 2b — get_task / update_task / manage_task  (the rest of a task)
+ * --------------------------------------------------------------- *
+ *
+ * `create_task` could raise a task with eight of its fields and nothing could
+ * change one afterwards — an assistant could complete a task but not move its
+ * deadline, and could not read the risk rating it was being asked about. These
+ * three close that: read one in full, patch any field, and work the handful of
+ * controls that are not fields (the blocker, somebody's part being done, a
+ * correction to an update already posted).
+ *
+ * The rules do not bend here. `update_task` goes through `updateTaskCore`, the
+ * same door the web edit form uses, so a change an assistant makes is written by
+ * the same code, logs the same audit rows and offers the same undo. Nothing
+ * DELETES: removing an update sets `deleted_at` and `restore_update` puts it
+ * straight back, which is archiving under another name.
+ */
+
+/** Every task field an assistant may see. The list is deliberately fuller than
+ *  `slimTask` on the read side: what you may change, you must be able to read. */
+export async function mcpTaskDetail(
+  caller: McpCaller,
+  args: { taskCode: string; includeArchived?: boolean; updates?: boolean; history?: boolean },
+): Promise<WriteResult> {
+  const task = await resolveTask(caller, args.taskCode, { includeArchived: args.includeArchived !== false });
+  if ("error" in task) return { ok: false, error: task.error };
+
+  const { data: raw, error } = await sb.from("tasks").select("*").eq("id", task.id).maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!raw) return { ok: false, error: `No task with the code ${args.taskCode}.` };
+  const t = raw as Record<string, unknown>;
+
+  const [{ data: comp }, { data: dept }, { data: rows }] = await Promise.all([
+    sb.from("companies").select("name").eq("id", t.company_id as number).maybeSingle(),
+    t.department_id != null
+      ? sb.from("departments").select("name").eq("id", t.department_id as number).maybeSingle()
+      : Promise.resolve({ data: null }),
+    sb.from("task_assignees").select("person_id,role,part_done_at").eq("task_id", task.id),
+  ]);
+
+  const personIds = new Set<number>((rows ?? []).map((r) => r.person_id as number));
+  if (t.blocked_on_person_id != null) personIds.add(t.blocked_on_person_id as number);
+  const { data: people } = personIds.size
+    ? await sb.from("people").select("id,name").in("id", Array.from(personIds))
+    : { data: [] };
+  const nameById = new Map((people ?? []).map((p) => [p.id as number, p.name as string]));
+  const day = (v: unknown) => (v ? new Date(v as string).toISOString().slice(0, 10) : null);
+
+  const detail: Record<string, unknown> = {
+    code: t.code,
+    previousCode: t.legacy_code ?? null,
+    title: t.action_item,
+    company: comp?.name ?? null,
+    department: (dept as { name?: string } | null)?.name ?? null,
+    status: t.status,
+    priority: t.priority,
+    risk: t.risk ?? null,
+    escalation: t.escalation ?? "No",
+    category: t.category ?? null,
+    deadline: day(t.deadline),
+    meetingDate: day(t.meeting_date),
+    createdDate: day(t.created_date),
+    closedDate: day(t.closed_date),
+    comments: t.comments ?? null,
+    latestUpdate: t.latest_update ?? null,
+    archived: Boolean(t.archived),
+    accountability: (t.accountability as string) === "lead" ? "lead" : "shared",
+    assignees: (rows ?? []).map((r) => ({
+      name: nameById.get(r.person_id as number) ?? null,
+      role: r.role as string,
+      partDone: Boolean(r.part_done_at),
+    })),
+    blockedOn: t.blocked_on_person_id != null ? (nameById.get(t.blocked_on_person_id as number) ?? null) : null,
+    blockedReason: t.blocked_reason ?? null,
+  };
+
+  // The conversation, WITH ids — an assistant asked to correct a typo in an
+  // update needs the id to give back to manage_task.
+  if (args.updates !== false) {
+    const { data: updates } = await sb
+      .from("task_updates")
+      .select("id,body,created_at,created_by,edited_at,pinned_at")
+      .eq("task_id", task.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    detail.updates = (updates ?? []).map((u) => ({
+      id: u.id as number,
+      body: u.body as string,
+      at: u.created_at as string,
+      by: u.created_by as string | null,
+      edited: Boolean(u.edited_at),
+      pinned: Boolean(u.pinned_at),
+    }));
+  }
+
+  if (args.history) {
+    const { data: audit } = await sb
+      .from("audit_log")
+      .select("field,old_value,new_value,change_reason,created_at,created_by")
+      .eq("task_id", task.id)
+      .order("created_at", { ascending: false })
+      .limit(40);
+    detail.history = audit ?? [];
+  }
+
+  return { ok: true, task: detail };
+}
+
+export async function mcpUpdateTask(
+  caller: McpCaller,
+  args: {
+    taskCode: string;
+    title?: string;
+    company?: string;
+    department?: string | null;
+    status?: string;
+    priority?: string;
+    risk?: string | null;
+    escalation?: string;
+    category?: string | null;
+    deadline?: string | null;
+    meetingDate?: string | null;
+    comments?: string | null;
+    assignees?: string[];
+    accountability?: string;
+    reason?: string;
+  },
+): Promise<WriteResult> {
+  const task = await resolveTask(caller, args.taskCode);
+  if ("error" in task) return { ok: false, error: task.error };
+
+  const patch: Parameters<typeof updateTaskCore>[1] = {
+    createdBy: callerStamp(caller),
+    actor: actorFor(caller),
+    changeReason: (args.reason ?? "").trim() || null,
+  };
+  const changed: string[] = [];
+
+  if (args.title !== undefined) {
+    const title = args.title.trim();
+    if (title.length < 3) return { ok: false, error: "A title that short says nothing — give me the line in full." };
+    patch.actionItem = title;
+    changed.push("title");
+  }
+
+  // Moving a task between companies RE-ISSUES its code. Said out loud in the
+  // result, because the code the person quoted at you stops being the answer.
+  let movedTo: string | null = null;
+  if (args.company !== undefined) {
+    const company = await resolveCompany(caller, args.company);
+    if ("error" in company) return { ok: false, error: company.error };
+    if (company.id !== task.companyId) {
+      patch.companyId = company.id;
+      movedTo = company.name;
+      changed.push("company");
+    }
+  }
+
+  if (args.department !== undefined) {
+    if (args.department === null || args.department.trim() === "") {
+      patch.departmentName = null;
+    } else {
+      const dept = await resolveDepartment(args.department);
+      if ("error" in dept) return { ok: false, error: dept.error };
+      patch.departmentName = dept.name;
+    }
+    changed.push("department");
+  }
+
+  if (args.status !== undefined) {
+    const allowed = mayFinishTasks(caller) ? ALL_STATUSES : OPEN_STATUSES;
+    const status = oneOf(allowed, args.status);
+    if (!status) return { ok: false, error: `Which status? One of: ${allowed.join(", ")}.` };
+    patch.status = status;
+    changed.push("status");
+  }
+
+  if (args.priority !== undefined) {
+    const priority = oneOf(PRIORITIES, args.priority);
+    if (!priority) return { ok: false, error: `Priority is one of: ${PRIORITIES.join(", ")}.` };
+    patch.priority = priority;
+    changed.push("priority");
+  }
+
+  if (args.risk !== undefined) {
+    if (args.risk === null || args.risk.trim() === "") {
+      patch.risk = null;
+    } else {
+      const risk = oneOf(RISKS, args.risk);
+      if (!risk) return { ok: false, error: `Risk is one of: ${RISKS.join(", ")}.` };
+      patch.risk = risk;
+    }
+    changed.push("risk");
+  }
+
+  if (args.escalation !== undefined) {
+    const escalation = oneOf(ESCALATIONS, args.escalation);
+    if (!escalation) return { ok: false, error: "Escalation is Yes or No." };
+    patch.escalation = escalation;
+    // Escalating moves the task to Escalated unless the same call says otherwise
+    // — the rule the tick-box and the bulk bar already follow. De-escalating
+    // leaves the status where it is; only a person knows what it should become.
+    if (escalation === "Yes" && patch.status === undefined) patch.status = "Escalated";
+    changed.push("escalation");
+  }
+
+  if (args.category !== undefined) {
+    if (args.category === null || args.category.trim() === "") {
+      patch.category = null;
+    } else {
+      const category = oneOf(CATEGORIES, args.category);
+      if (!category) return { ok: false, error: `Category is one of: ${CATEGORIES.join(", ")}.` };
+      patch.category = category;
+    }
+    changed.push("category");
+  }
+
+  for (const [key, value] of [["deadline", args.deadline], ["meetingDate", args.meetingDate]] as const) {
+    if (value === undefined) continue;
+    if (value === null || value.trim() === "") {
+      patch[key] = null;
+    } else {
+      const d = dayToDate(value);
+      if (!d) return { ok: false, error: `"${value}" isn't a date I can read — use yyyy-mm-dd.` };
+      patch[key] = d;
+    }
+    changed.push(key === "deadline" ? "deadline" : "meeting date");
+  }
+
+  if (args.comments !== undefined) {
+    patch.comments = args.comments === null ? null : args.comments.trim() || null;
+    changed.push("comments");
+  }
+
+  // Replacing the assignees replaces ALL of them — say so in the result, because
+  // "add Fatma" and "make it Fatma" are one call apart.
+  let assignedNames: string[] | null = null;
+  if (args.assignees !== undefined) {
+    const ids: number[] = [];
+    const names: string[] = [];
+    for (const raw of args.assignees) {
+      const person = await resolvePerson(caller, raw);
+      if ("error" in person) return { ok: false, error: person.error };
+      if (!ids.includes(person.id)) { ids.push(person.id); names.push(person.name); }
+    }
+    patch.assigneeIds = ids;
+    assignedNames = names;
+    changed.push("who it's for");
+  }
+
+  if (args.accountability !== undefined) {
+    const mode = oneOf(ACCOUNTABILITY, args.accountability);
+    if (!mode) return { ok: false, error: "Accountability is 'shared' or 'lead'." };
+    if (mode === "lead" && assignedNames?.length === 0) {
+      return { ok: false, error: "A lead needs somebody to be the lead — you're taking everybody off this task." };
+    }
+    patch.accountability = mode;
+    changed.push("accountability");
+  }
+
+  if (changed.length === 0) return { ok: false, error: "Nothing to change — tell me which field to move." };
+
+  const result = await updateTaskCore(task.code, patch);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return {
+    ok: true,
+    code: result.result.code,
+    wasCode: result.result.code === task.code ? null : task.code,
+    movedToCompany: movedTo,
+    changed,
+    assigned: assignedNames,
+    note:
+      result.result.code === task.code
+        ? undefined
+        : `It moved company, so its code is now ${result.result.code} — ${task.code} still redirects.`,
+    undoToken: result.undoToken ?? null,
+  };
+}
+
+/**
+ * The task controls that are not fields.
+ *
+ * Grouped into ONE tool with an `action` because every description here sits in
+ * every conversation's prompt (the MCP forward rule) — nine of these as separate
+ * tools would cost nine descriptions for a set of buttons nobody reaches for
+ * often.
+ */
+export const TASK_ACTIONS = [
+  "block", "unblock",
+  "part_done", "part_reopened",
+  "edit_update", "pin_update", "unpin_update", "remove_update", "restore_update",
+] as const;
+
+export async function mcpManageTask(
+  caller: McpCaller,
+  args: {
+    action: (typeof TASK_ACTIONS)[number];
+    taskCode?: string;
+    person?: string;
+    reason?: string;
+    note?: string;
+    updateId?: number;
+    body?: string;
+  },
+): Promise<WriteResult> {
+  const by = callerStamp(caller);
+  const actions = await import("@/app/task/actions");
+
+  // The update actions are addressed by update id, so the task has to be found
+  // from the update before the caller's visibility can be tested — never after.
+  const updateActions = new Set(["edit_update", "pin_update", "unpin_update", "remove_update", "restore_update"]);
+  if (updateActions.has(args.action)) {
+    const id = Math.round(Number(args.updateId));
+    if (!Number.isFinite(id)) return { ok: false, error: "Which update? get_task lists them with their ids." };
+    const { data: u } = await sb.from("task_updates").select("task_id").eq("id", id).maybeSingle();
+    if (!u) return { ok: false, error: `There's no update with the id ${id}.` };
+    const { data: t } = await sb.from("tasks").select("code").eq("id", u.task_id as number).maybeSingle();
+    if (!t) return { ok: false, error: "That update's task has gone." };
+    const task = await resolveTask(caller, t.code as string, { includeArchived: true });
+    if ("error" in task) return { ok: false, error: task.error };
+
+    switch (args.action) {
+      case "edit_update": {
+        const body = (args.body ?? "").trim();
+        if (!body) return { ok: false, error: "What should it say instead?" };
+        const res = await actions.editTaskUpdate(id, body, (args.reason ?? "").trim() || undefined, by);
+        if (!res.ok) return { ok: false, error: res.error ?? "That update couldn't be changed." };
+        return { ok: true, task: task.code, updateId: id, note: "The original wording is kept on the record and the edit is logged." };
+      }
+      case "pin_update":
+      case "unpin_update": {
+        const { data: cur } = await sb.from("task_updates").select("pinned_at").eq("id", id).maybeSingle();
+        const isPinned = Boolean(cur?.pinned_at);
+        const want = args.action === "pin_update";
+        if (isPinned === want) return { ok: true, task: task.code, updateId: id, pinned: isPinned, note: "Already the way you asked for." };
+        const res = await actions.toggleUpdatePin(id, by);
+        if (!res.ok) return { ok: false, error: res.error ?? "That update couldn't be pinned." };
+        return { ok: true, task: task.code, updateId: id, pinned: res.pinned };
+      }
+      case "remove_update": {
+        // NOT a delete: `deleted_at` is set, the row stays, and restore_update
+        // puts it back. Archiving, under the name the UI uses.
+        const res = await actions.deleteTaskUpdate(id, (args.reason ?? "").trim() || undefined, by);
+        if (!res.ok) return { ok: false, error: res.error ?? "That update couldn't be taken down." };
+        return { ok: true, task: task.code, updateId: id, note: "Taken off the timeline, not deleted — restore_update brings it back." };
+      }
+      default: {
+        const res = await actions.restoreTaskUpdate(id, by);
+        if (!res.ok) return { ok: false, error: res.error ?? "That update couldn't be brought back." };
+        return { ok: true, task: task.code, updateId: id, note: "Back on the timeline." };
+      }
+    }
+  }
+
+  const task = await resolveTask(caller, args.taskCode ?? "");
+  if ("error" in task) return { ok: false, error: task.error };
+
+  switch (args.action) {
+    case "block": {
+      const reason = (args.reason ?? "").trim();
+      if (!reason) return { ok: false, error: "A blocker needs a reason — what is it waiting on?" };
+      if (!args.person) return { ok: false, error: "Waiting on whom?" };
+      const person = await resolvePerson(caller, args.person);
+      if ("error" in person) return { ok: false, error: person.error };
+      const res = await actions.setTaskBlocker(task.id, person.id, reason, by);
+      if (!res.ok) return { ok: false, error: res.error };
+      return {
+        ok: true, code: task.code, blockedOn: person.name, reason,
+        note: "The task is Blocked and its overdue penalty is suspended for everyone until it's cleared.",
+      };
+    }
+    case "unblock": {
+      const res = await actions.clearTaskBlocker(task.id, (args.note ?? "").trim() || undefined, by);
+      if (!res.ok) return { ok: false, error: "The blocker couldn't be cleared." };
+      return { ok: true, code: task.code, status: "In Progress", note: "Clearing a blocker puts the task back to In Progress." };
+    }
+    case "part_done":
+    case "part_reopened": {
+      if (!args.person) return { ok: false, error: "Whose part?" };
+      const person = await resolvePerson(caller, args.person);
+      if ("error" in person) return { ok: false, error: person.error };
+      const { data: row } = await sb
+        .from("task_assignees")
+        .select("person_id")
+        .eq("task_id", task.id)
+        .eq("person_id", person.id)
+        .maybeSingle();
+      if (!row) return { ok: false, error: `${person.name} isn't on ${task.code}.` };
+      const done = args.action === "part_done";
+      const res = await actions.toggleMyPartDone(task.id, person.id, done, by);
+      if (!res.ok) return { ok: false, error: "That couldn't be recorded." };
+      return {
+        ok: true, code: task.code, person: person.name, partDone: done,
+        note: done
+          ? "Their part is marked done — the task stays open and they're spared its overdue."
+          : "Their part is open again.",
+      };
+    }
+    default:
+      return { ok: false, error: `I can do: ${TASK_ACTIONS.join(", ")}.` };
+  }
 }
 
 /* --------------------------------------------------------------- *

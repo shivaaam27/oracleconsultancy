@@ -17,7 +17,7 @@
 // Server-only.
 
 import { sb } from "@/db/supabase";
-import { getOrCreateDeptSb, getOrCreatePersonSb } from "@/lib/db-helpers";
+import { getOrCreateDeptSb, getOrCreatePersonSb, deptNameSb, logChangeSb } from "@/lib/db-helpers";
 import { mutate, type Actor, type MutateResult } from "@/lib/mutate";
 import { withTx } from "@/lib/tx";
 import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
@@ -349,4 +349,313 @@ async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: str
     const m = await import("@/lib/automation-reactions");
     await m.reactToTaskStatusChange(taskId, wasStatus, nowStatus);
   } catch { /* best-effort */ }
+}
+
+/* ================================================================= *
+ * Editing an existing task
+ * ================================================================= *
+ *
+ * The twin of `createTaskCore`, and it exists for the same reason: there are now
+ * two doors onto a task edit (the web form and /api/mcp) and only one of them has
+ * a FormData, a redirect and an undo cookie. `updateTask` in
+ * src/app/task/actions.ts is the web wrapper; `mcpUpdateTask` is the assistant's.
+ *
+ * ⚠️ `undefined` means LEAVE IT ALONE; `null` means CLEAR IT. That distinction is
+ * the whole reason this is a patch and not the form's full replace — an assistant
+ * asked to move a deadline must not wipe the risk rating it never mentioned. The
+ * web wrapper passes a concrete value for every field its form owns, so its
+ * behaviour is unchanged: absent-in-the-form still means cleared, there.
+ */
+
+export type UpdateTaskInput = {
+  /** Move the task to another company. The code is RE-ISSUED under the new
+   *  prefix and the old one kept in `legacy_code`, so saved links still work. */
+  companyId?: number;
+  actionItem?: string;
+  departmentName?: string | null;
+  status?: string;
+  priority?: string;
+  risk?: string | null;
+  escalation?: string;
+  category?: string | null;
+  deadline?: Date | null;
+  meetingDate?: Date | null;
+  comments?: string | null;
+  latestUpdate?: string | null;
+  /** "lead" makes the first assignee carry the overdue on their own. */
+  accountability?: "shared" | "lead";
+  /**
+   * Replace the assignees, by NAME — an unknown name CREATES a person (the web
+   * form's behaviour, where the owner is typing and means it).
+   */
+  assigneeNames?: string[];
+  /**
+   * Replace the assignees, by id — resolved beforehand, so nothing new is
+   * created. Assistants use this. Ignored when `assigneeNames` is given.
+   */
+  assigneeIds?: number[];
+  /** Free-text "why", recorded against every field this call changes. */
+  changeReason?: string | null;
+  /** Audit stamp: "web-ui" | "mcp:<Name>" | … */
+  createdBy?: string;
+  /** Undo-token owner. Defaults to "web-ui". */
+  actor?: Actor;
+};
+
+/**
+ * Patch a task, log every field that actually moved, and return an undo token.
+ *
+ * Never throws for an expected failure — returns `{ ok: false, error }`.
+ */
+export async function updateTaskCore(
+  code: string,
+  input: UpdateTaskInput,
+): Promise<MutateResult<{ code: string; taskId: number }>> {
+  const by = input.createdBy || "web-ui";
+  const reason = input.changeReason ?? null;
+
+  return await mutate({
+    kind: "task.update",
+    actor: input.actor,
+    run: async () => {
+      const { data: raw, error: tErr } = await sb.from("tasks").select("*").eq("code", code).maybeSingle();
+      if (tErr) throw new Error(tErr.message);
+      if (!raw) throw new Error("Task not found");
+      const t = raw as Record<string, unknown>;
+      const taskId = t.id as number;
+      const oldCompanyId = t.company_id as number;
+      const oldCode = t.code as string;
+
+      // Company change: the task moves and gets a fresh code under the new
+      // company's prefix. The old code lives on in legacy_code so any saved link
+      // still redirects here, and the audit history follows the task.
+      const movingCompany =
+        typeof input.companyId === "number" && Number.isFinite(input.companyId) && input.companyId !== oldCompanyId;
+      const finalCompanyId = movingCompany ? (input.companyId as number) : oldCompanyId;
+      let finalCode = oldCode;
+      if (movingCompany) {
+        const [{ data: newComp }, { data: oldComp }, { data: existingCodes }] = await Promise.all([
+          sb.from("companies").select("name,code,code_prefix").eq("id", finalCompanyId).maybeSingle(),
+          sb.from("companies").select("name").eq("id", oldCompanyId).maybeSingle(),
+          sb.from("tasks").select("code").eq("company_id", finalCompanyId),
+        ]);
+        if (!newComp) throw new Error("Company not found");
+        const prefix = (newComp.code_prefix as string | null) || (newComp.code as string);
+        let maxNum = 0;
+        for (const row of existingCodes ?? []) {
+          const m = (row.code as string).match(/(\d+)$/);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        }
+        finalCode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+
+        await logChangeSb(taskId, oldCode, oldCompanyId, "Company", (oldComp?.name as string) ?? String(oldCompanyId), newComp.name as string, reason, by);
+        await logChangeSb(taskId, oldCode, oldCompanyId, "Task code", oldCode, finalCode, "Re-issued after company change", by);
+      }
+
+      const asDate = (v: unknown): Date | null => (v ? new Date(v as string) : null);
+
+      const actionItem = input.actionItem?.trim() || (t.action_item as string);
+      const departmentId =
+        input.departmentName === undefined
+          ? (t.department_id as number | null)
+          : await getOrCreateDeptSb(input.departmentName);
+      const status = input.status ?? (t.status as string);
+      const priority = input.priority ?? (t.priority as string);
+      const risk = input.risk === undefined ? (t.risk as string | null) : input.risk;
+      const escalation = input.escalation ?? (t.escalation as string | null) ?? "No";
+      const category = input.category === undefined ? (t.category as string | null) : input.category;
+      const deadline = input.deadline === undefined ? asDate(t.deadline) : input.deadline;
+      const meetingDate = input.meetingDate === undefined ? asDate(t.meeting_date) : input.meetingDate;
+      const comments = input.comments === undefined ? (t.comments as string | null) : input.comments;
+      const latestUpdate = input.latestUpdate === undefined ? (t.latest_update as string | null) : input.latestUpdate;
+      const oldAccountability = (t.accountability as string) === "lead" ? "lead" : "shared";
+      const accountability = input.accountability ?? oldAccountability;
+
+      const [oldDeptName, newDeptName] = await Promise.all([
+        deptNameSb(t.department_id as number | null),
+        deptNameSb(departmentId),
+      ]);
+
+      const { data: beforeRows, error: aErr } = await sb
+        .from("task_assignees")
+        .select("person_id")
+        .eq("task_id", taskId);
+      if (aErr) throw new Error(aErr.message);
+      const beforeAssignees = (beforeRows ?? []).map((a) => a.person_id as number);
+
+      const fields: [string, unknown, unknown][] = [
+        ["Action Item", t.action_item, actionItem],
+        ["Department", oldDeptName, newDeptName],
+        ["Status", t.status, status],
+        ["Priority", t.priority, priority],
+        ["Risk", t.risk, risk],
+        ["Escalation", t.escalation, escalation],
+        ["Category", t.category, category],
+        ["Deadline", asDate(t.deadline), deadline],
+        ["Meeting Date", asDate(t.meeting_date), meetingDate],
+        ["Comments", t.comments, comments],
+        ["Latest Update", t.latest_update, latestUpdate],
+        ["Accountability", oldAccountability, accountability],
+      ];
+      for (const [f, o, n] of fields) {
+        await logChangeSb(taskId, oldCode, oldCompanyId, f, o, n, reason, by);
+      }
+
+      const newClosedDate = computeClosedDateFrom(t.status as string, status, t.closed_date as string | null);
+
+      const baseUpdate: Record<string, unknown> = {
+        action_item: actionItem,
+        department_id: departmentId,
+        status,
+        priority,
+        risk,
+        escalation,
+        category,
+        deadline: deadline ? deadline.toISOString() : null,
+        meeting_date: meetingDate ? meetingDate.toISOString() : null,
+        comments,
+        latest_update: latestUpdate,
+        accountability,
+        last_updated_at: new Date().toISOString(),
+        closed_date: newClosedDate,
+      };
+
+      if (movingCompany) {
+        // Retry on code collision (somebody created a task in the new company
+        // between our read and this write).
+        let applied = false;
+        for (let attempt = 0; attempt < 5 && !applied; attempt++) {
+          const { error } = await sb
+            .from("tasks")
+            .update({ ...baseUpdate, company_id: finalCompanyId, code: finalCode, legacy_code: oldCode })
+            .eq("id", taskId);
+          if (!error) { applied = true; break; }
+          if (!/duplicate key|unique/i.test(error.message || "")) throw new Error(error.message);
+          const m = finalCode.match(/^(.*-)(\d+)$/);
+          if (!m) throw new Error(error.message);
+          finalCode = `${m[1]}${String(parseInt(m[2], 10) + 1).padStart(3, "0")}`;
+        }
+        if (!applied) throw new Error("Could not allocate a unique task code in the new company.");
+        // History follows the task: re-point every audit entry to the new code.
+        await sb.from("audit_log").update({ task_code: finalCode, company_id: finalCompanyId }).eq("task_id", taskId);
+      } else {
+        const { error } = await sb.from("tasks").update(baseUpdate).eq("id", taskId);
+        if (error) throw new Error(error.message);
+      }
+      await fireTaskCascade(taskId, t.status as string, status);
+
+      // Assignees. Only touched when the caller actually passed a list — an
+      // assistant moving a deadline must not empty the task.
+      let assigneesChanged = false;
+      if (input.assigneeNames !== undefined || input.assigneeIds !== undefined) {
+        const { data: peopleRows } = await sb.from("people").select("id,name");
+        const nameById = new Map((peopleRows ?? []).map((p) => [p.id as number, p.name as string]));
+
+        let finalIds: number[] = [];
+        if (input.assigneeNames !== undefined) {
+          const oldNamesStr = beforeAssignees.map((id) => nameById.get(id)).filter(Boolean).join(", ");
+          const newNamesStr = input.assigneeNames.join(", ");
+          assigneesChanged = oldNamesStr !== newNamesStr;
+          if (assigneesChanged) {
+            await logChangeSb(taskId, finalCode, finalCompanyId, "Accountable", oldNamesStr, newNamesStr, reason, by);
+            for (const n of input.assigneeNames) {
+              finalIds.push(await getOrCreatePersonSb(n, finalCompanyId));
+            }
+          }
+        } else {
+          const ids = Array.from(new Set(input.assigneeIds ?? []));
+          const sameSet = ids.length === beforeAssignees.length && ids.every((id) => beforeAssignees.includes(id));
+          assigneesChanged = !sameSet;
+          if (assigneesChanged) {
+            await logChangeSb(
+              taskId, finalCode, finalCompanyId, "Accountable",
+              beforeAssignees.map((id) => nameById.get(id)).filter(Boolean).join(", "),
+              ids.map((id) => nameById.get(id)).filter(Boolean).join(", "),
+              reason, by,
+            );
+          }
+          finalIds = ids;
+        }
+
+        if (assigneesChanged) {
+          await sb.from("task_assignees").delete().eq("task_id", taskId);
+          for (let i = 0; i < finalIds.length; i++) {
+            await sb.from("task_assignees").upsert(
+              {
+                task_id: taskId,
+                person_id: finalIds[i],
+                // Mirrors createTaskCore: in "lead" mode the FIRST name carries it.
+                role: accountability === "lead" && i === 0 ? "accountable" : "working",
+              },
+              { ignoreDuplicates: true },
+            );
+          }
+        }
+      }
+
+      // tasks.owner_id is the first accountable person (the KPI reader's
+      // back-compat route). Re-point it whenever the mode or the list moved, so
+      // a task switched to "lead" actually HAS a lead.
+      if (input.accountability !== undefined || assigneesChanged) {
+        const { data: nowRows } = await sb
+          .from("task_assignees")
+          .select("person_id,role")
+          .eq("task_id", taskId);
+        const rows = nowRows ?? [];
+        if (accountability === "lead") {
+          const lead =
+            (rows.find((r) => r.role === "accountable")?.person_id as number | undefined) ??
+            (rows[0]?.person_id as number | undefined);
+          if (lead !== undefined) {
+            await sb.from("task_assignees").update({ role: "working" }).eq("task_id", taskId);
+            await sb.from("task_assignees").update({ role: "accountable" }).eq("task_id", taskId).eq("person_id", lead);
+            await sb.from("tasks").update({ owner_id: lead }).eq("id", taskId);
+          }
+        } else if (oldAccountability === "lead") {
+          // Everybody shares it again — no single accountable row.
+          await sb.from("task_assignees").update({ role: "working" }).eq("task_id", taskId);
+        }
+      }
+
+      // Best-effort re-index (status / action item / latest update / lifecycle
+      // may all have moved). No-op unless semantic search is enabled.
+      void reindexEntity("task", taskId);
+
+      return {
+        result: { code: finalCode, taskId },
+        undo: {
+          kind: "task.update",
+          taskId,
+          payload: {
+            taskId,
+            taskCode: oldCode,
+            companyId: oldCompanyId,
+            // Only on a company MOVE, and deliberately: their presence is what
+            // tells the undo handler to put the code, the company and the old
+            // legacy_code back. Sending them on every edit would clear a
+            // legacy_code the DS rename left behind on a task nobody moved.
+            ...(movingCompany ? { code: oldCode, legacyCode: (t.legacy_code as string | null) ?? null } : {}),
+            before: {
+              actionItem: t.action_item,
+              departmentId: t.department_id,
+              status: t.status,
+              priority: t.priority,
+              risk: t.risk,
+              escalation: t.escalation,
+              category: t.category,
+              deadline: t.deadline,
+              meetingDate: t.meeting_date,
+              comments: t.comments,
+              latestUpdate: t.latest_update,
+              lastUpdatedAt: t.last_updated_at,
+              closedDate: t.closed_date,
+              accountability: oldAccountability,
+              ownerId: t.owner_id,
+            },
+            beforeAssignees,
+          },
+        },
+      };
+    },
+  });
 }

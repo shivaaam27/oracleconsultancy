@@ -416,7 +416,7 @@ the owner be able to ask Claude to do this?** "No" is a fine and common answer
 (admin plumbing, settings, anything dangerous → do nothing). "Yes" → add ONE entry
 to `src/lib/mcp/registry.ts`. Group by SUBJECT, not per button (one tool with an
 `action` argument, like `bulk_task_action`) — every description sits in every
-conversation's prompt, so **27 (as of Aug 2026)** is fine and 150 would wreck tool-picking.
+conversation's prompt, so **30 (as of Aug 2026)** is fine and 150 would wreck tool-picking.
 Three things already flow automatically and need no work: **new rows** in existing
 tables, **permission changes** in Settings (re-resolved per request), and a new
 `EntityDef` in `entity-registry.ts` (makes it searchable via `search_cos` free).
@@ -443,9 +443,31 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
   `next.config.ts`** (they must sit at the domain root). `src/proxy.ts` must keep
   excluding BOTH `api/mcp` and `mcp/connect`.
 - **Task writes go through `src/lib/task-write.ts`** (`createTaskCore` /
-  `addTaskUpdateCore`). The web actions in `src/app/task/actions.ts` are thin
-  wrappers over them — FormData, undo cookie, redirect. **Any new task write path
-  calls the cores**; a second insert would drift out of audit.
+  **`updateTaskCore`** / `addTaskUpdateCore`). The web actions in
+  `src/app/task/actions.ts` are thin wrappers over them — FormData, undo cookie,
+  redirect. **Any new task write path calls the cores**; a second insert would
+  drift out of audit.
+  - ⚠️ **`updateTaskCore` is a PATCH; the web form is a full REPLACE.**
+    `undefined` = leave it alone, `null` = clear it — an assistant asked to move
+    a deadline must not wipe the risk rating it never mentioned. The web wrapper
+    therefore passes a concrete value for every field its form owns, nulls
+    included, which is what keeps its behaviour identical. Do not "tidy" those
+    into optional spreads.
+  - ⚠️ **`bustTag`, NEVER `updateTag`, anywhere in `src/app/task/actions.ts`.**
+    `updateTag` throws outside a Server Action — and it throws AFTER the write
+    has committed, so an MCP tool reports a failure for a change that really
+    happened. Half that file is reachable from `/api/mcp` now, so all of it uses
+    `bustTag`, which tries `updateTag` first and is identical on the web.
+- **MCP has the whole of task management** (Aug 2026): `create_task` takes every
+  field the form does (department, risk, escalation, meeting date, comments,
+  accountability, and a standing **repeat** rule), **`get_task`** reads one in
+  full with its conversation and each update's id, **`update_task`** patches any
+  field, and **`manage_task`** carries the controls that are not fields —
+  block/unblock, part done/reopened, and correcting, pinning or taking down an
+  update. ⚠️ **`remove_update` is still not a delete** (`deleted_at`, restorable),
+  **`assignees` REPLACES the list**, **moving a company re-issues the task code**,
+  and **a department is resolved, never created**. See
+  `memory/mcp_stage2_safe_writes.md` § "the task half finished".
 - **Permissions are NOT reimplemented.** A caller resolves to the same
   `PortalPerson` the portal builds (`portalPersonById`), so `portal-permissions`
   capabilities and `companyScope()` govern MCP unchanged. Every tool is checked

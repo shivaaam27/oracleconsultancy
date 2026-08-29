@@ -16,6 +16,10 @@ type TaskFields = {
   latestUpdate: string | null;
   lastUpdatedAt: string | null;
   closedDate: string | null;
+  /** Added Aug 2026 with the editable accountability mode. Absent on tokens
+   *  minted before it, so both are restored only when present. */
+  accountability?: string | null;
+  ownerId?: number | null;
 };
 
 async function writeUndoAudit(
@@ -45,25 +49,39 @@ registerUndoHandler("task.update", async (raw) => {
     companyId: number;
     before: TaskFields;
     beforeAssignees: number[];
+    /** The code the task carried before the edit. Present only on tokens minted
+     *  once a task could be MOVED between companies — an edit that re-issues the
+     *  code, so undoing it has to put the old one back or the task is left under
+     *  the wrong company with a code nobody can find it by. */
+    code?: string;
+    legacyCode?: string | null;
   };
-  await sb
-    .from("tasks")
-    .update({
-      action_item: p.before.actionItem,
-      department_id: p.before.departmentId,
-      status: p.before.status,
-      priority: p.before.priority,
-      risk: p.before.risk,
-      escalation: p.before.escalation,
-      category: p.before.category,
-      deadline: p.before.deadline,
-      meeting_date: p.before.meetingDate,
-      comments: p.before.comments,
-      latest_update: p.before.latestUpdate,
-      last_updated_at: p.before.lastUpdatedAt,
-      closed_date: p.before.closedDate,
-    })
-    .eq("id", p.taskId);
+  const patch: Record<string, unknown> = {
+    action_item: p.before.actionItem,
+    department_id: p.before.departmentId,
+    status: p.before.status,
+    priority: p.before.priority,
+    risk: p.before.risk,
+    escalation: p.before.escalation,
+    category: p.before.category,
+    deadline: p.before.deadline,
+    meeting_date: p.before.meetingDate,
+    comments: p.before.comments,
+    latest_update: p.before.latestUpdate,
+    last_updated_at: p.before.lastUpdatedAt,
+    closed_date: p.before.closedDate,
+  };
+  if (p.before.accountability != null) patch.accountability = p.before.accountability;
+  if (p.before.ownerId !== undefined) patch.owner_id = p.before.ownerId;
+  if (p.code) {
+    // Reverse a company move: the code and the company go back together, and so
+    // does the audit history that followed the task across.
+    patch.code = p.code;
+    patch.company_id = p.companyId;
+    patch.legacy_code = p.legacyCode ?? null;
+    await sb.from("audit_log").update({ task_code: p.code, company_id: p.companyId }).eq("task_id", p.taskId);
+  }
+  await sb.from("tasks").update(patch).eq("id", p.taskId);
 
   await sb.from("task_assignees").delete().eq("task_id", p.taskId);
   for (const personId of p.beforeAssignees) {

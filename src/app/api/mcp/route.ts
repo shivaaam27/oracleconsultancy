@@ -122,11 +122,18 @@ function serverFor(caller: McpCaller, companies: string[], origin: string) {
         "Task codes look like DS-001 (a two-letter company prefix and a number). 'Open' means any " +
         "status except Completed and Closed. Dates you send are yyyy-mm-dd and times are Dar es " +
         "Salaam (EAT, UTC+3). Reach for search_cos when you don't know which list something lives in. " +
-        "\n\nWHAT YOU CAN CHANGE. Most tools read. The rest change real records: raise tasks, post " +
-        "updates, complete and close them, archive them, change several at once, put meetings in the " +
-        "diary, file documents, hand out equipment. Before any of them, be sure of the details — the " +
-        "company, the person, the date — and ASK rather than guess. A task on the wrong company is " +
-        "worse than a question, and nothing here is urgent enough to guess at. " +
+        "\n\nWHAT YOU CAN CHANGE. Most tools read. The rest change real records: raise tasks and " +
+        "edit any field on them, post updates, complete and close them, block and unblock them, " +
+        "archive them, change several at once, put meetings in the diary, file documents, hand out " +
+        "equipment. Before any of them, be sure of the details — the company, the person, the " +
+        "date — and ASK rather than guess. A task on the wrong company is worse than a question, " +
+        "and nothing here is urgent enough to guess at. " +
+        "\n\nEDITING A TASK. Read it with get_task first, so you can say what you are changing and " +
+        "what it was before. update_task changes ONLY the fields you send — but `assignees` " +
+        "REPLACES everyone on the task, and `company` re-issues the task code, so quote the new one " +
+        "back. When a status move deserves an explanation, use add_task_update instead: it leaves " +
+        "the reason on the timeline, and a status that moved with no note is a record nobody can " +
+        "read later. " +
         "\n\nTWO THINGS YOU CANNOT DO. **You cannot delete anything.** When someone asks you to get " +
         "rid of a task or a document, archive it — that keeps the record and its history while taking " +
         "it out of the way — and tell them that's what you did. Deleting for real is done in COS by " +
