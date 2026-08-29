@@ -452,6 +452,8 @@ export const MCP_TOOLS: McpTool[] = [
         weekdays: z.array(z.number().int().min(0).max(6)).optional().describe("Weekly only. 0 = Sunday … 6 = Saturday"),
         dayOfMonth: z.number().int().min(1).max(31).optional().describe("Monthly only"),
       }).optional().describe("A STANDING rule that raises this task again on the days you name. Today's task is created either way — say that you set up a repeat."),
+      requiresAttachment: z.boolean().optional()
+        .describe("Completing it will REFUSE without a file attached. Use when somebody asks for proof — a receipt, a signed form, a photograph."),
     }),
     capability: "createTasks",
     write: true,
@@ -521,6 +523,8 @@ export const MCP_TOOLS: McpTool[] = [
       assignees: z.array(z.string()).optional().describe("REPLACES everyone on the task with these existing people"),
       accountability: z.enum(ACCOUNTABILITY).optional()
         .describe("'shared' (everyone on it carries the overdue) or 'lead' (the first name carries it alone)"),
+      requiresAttachment: z.boolean().optional()
+        .describe("Whether completing it refuses without a file attached"),
       reason: z.string().optional().describe("Why — recorded against every field this call changes"),
     }),
     capability: "manageAnyTask",

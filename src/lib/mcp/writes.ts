@@ -312,6 +312,7 @@ export async function mcpCreateTask(
     comments?: string;
     accountability?: string;
     repeat?: { cadence?: string; weekdays?: number[]; dayOfMonth?: number };
+    requiresAttachment?: boolean;
   },
 ): Promise<WriteResult> {
   const title = (args.title ?? "").trim();
@@ -382,6 +383,12 @@ export async function mcpCreateTask(
     assigneeIds,
     accountability: accountability ?? "shared",
     repeat: repeat ? repeat.repeat : null,
+    requiresAttachment: args.requiresAttachment === true,
+    // Who RAISED it. `canManageTask` reads this, so without it a manager who
+    // asked Claude to raise a task could not then complete it on their own
+    // portal — MCP reach would be narrower than the portal's for no reason. The
+    // owner's key has no person row, and null is right for them.
+    createdByPersonId: caller.kind === "person" ? caller.person.id : null,
     createdBy: callerStamp(caller),
     actor: actorFor(caller),
   });
@@ -396,6 +403,7 @@ export async function mcpCreateTask(
     department: departmentName,
     accountability: accountability ?? "shared",
     repeats: repeat ? repeat.repeat : null,
+    requiresAttachment: args.requiresAttachment === true,
     undoToken: result.undoToken ?? null,
   };
 }
@@ -570,6 +578,7 @@ export async function mcpUpdateTask(
     comments?: string | null;
     assignees?: string[];
     accountability?: string;
+    requiresAttachment?: boolean;
     reason?: string;
   },
 ): Promise<WriteResult> {
@@ -703,6 +712,11 @@ export async function mcpUpdateTask(
     }
     patch.accountability = mode;
     changed.push("accountability");
+  }
+
+  if (args.requiresAttachment !== undefined) {
+    patch.requiresAttachment = args.requiresAttachment === true;
+    changed.push(args.requiresAttachment ? "proof required to complete" : "proof no longer required");
   }
 
   if (changed.length === 0) return { ok: false, error: "Nothing to change — tell me which field to move." };

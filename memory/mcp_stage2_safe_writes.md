@@ -218,7 +218,25 @@ the gap was closed in one pass.
 
 **`create_task` gained the seven fields it was missing** — `department`, `risk`,
 `escalation`, `meetingDate`, `comments`, `accountability` and `repeat`. Every one
-already existed on `createTaskCore`; nothing new was invented.
+already existed on `createTaskCore`; nothing new was invented. That is **the whole
+admin create form** — the only thing not passed is `returnTo`, which is a redirect
+target, not a field.
+
+**Plus `requiresAttachment`, the proof gate**, which is on neither admin form: it
+was portal-only, and it is enforced (`portal/actions.ts` refuses a completion with
+no file). `create_task` and `update_task` both carry it now, and `createTaskCore`
+gained the column.
+
+⚠️ **A staff caller's tasks are now stamped `created_by_person_id`.** Without it a
+manager who asked Claude to raise a task **could not then complete it on their own
+portal** — `canManageTask` reads that column — so MCP reach was narrower than the
+portal's for no reason. The owner's key has no person row; null is right for them.
+
+⚠️ **`creator_close_only` is deliberately NOT exposed, because it does nothing.**
+The director composer writes it and the completion gate SELECTS it — and then
+calls `canManageTask` with only `createdByPersonId`, never the flag. Written,
+selected, never read. Offering it through MCP would promise a restriction that
+isn't there. Fix the flag first, then expose it.
 
 **Three tools were added**, and only three, because every description sits in
 every conversation's prompt:

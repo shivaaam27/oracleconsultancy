@@ -460,13 +460,17 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
     `bustTag`, which tries `updateTag` first and is identical on the web.
 - **MCP has the whole of task management** (Aug 2026): `create_task` takes every
   field the form does (department, risk, escalation, meeting date, comments,
-  accountability, and a standing **repeat** rule), **`get_task`** reads one in
+  accountability, a standing **repeat** rule, and the portal-only **proof gate**
+  `requiresAttachment`), **`get_task`** reads one in
   full with its conversation and each update's id, **`update_task`** patches any
   field, and **`manage_task`** carries the controls that are not fields —
   block/unblock, part done/reopened, and correcting, pinning or taking down an
   update. ⚠️ **`remove_update` is still not a delete** (`deleted_at`, restorable),
   **`assignees` REPLACES the list**, **moving a company re-issues the task code**,
-  and **a department is resolved, never created**. See
+  and **a department is resolved, never created**. A staff caller's tasks are
+  stamped `created_by_person_id` so they can still complete their own work on the
+  portal. ⚠️ **`creator_close_only` is NOT exposed: the column is written and
+  selected but never actually read**, so it restricts nothing. See
   `memory/mcp_stage2_safe_writes.md` § "the task half finished".
 - **Permissions are NOT reimplemented.** A caller resolves to the same
   `PortalPerson` the portal builds (`portalPersonById`), so `portal-permissions`

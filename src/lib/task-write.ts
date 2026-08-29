@@ -61,6 +61,13 @@ export type CreateTaskInput = {
   accountability?: "shared" | "lead";
   /** Optional standing repeat rule saved alongside today's task. */
   repeat?: TaskRepeatRecipe | null;
+  /** Completing this task will REFUSE without a file attached (the proof gate,
+   *  enforced in the portal completion path). */
+  requiresAttachment?: boolean;
+  /** The person who raised it. `canManageTask` reads this to decide who may
+   *  complete it, so a staff caller raising a task through /api/mcp must be
+   *  stamped here or they lose the right to finish their own task. */
+  createdByPersonId?: number | null;
   /** Audit stamp: "web-ui" | "capture" | "mcp:<Name>" | … */
   createdBy: string;
   /** Undo-token owner. Defaults to "web-ui". */
@@ -157,6 +164,8 @@ export async function createTaskCore(
                   lastUpdatedAt: now,
                   closedDate: closedDate ? new Date(closedDate) : null,
                   archived: false,
+                  requiresAttachment: input.requiresAttachment ?? false,
+                  createdByPersonId: input.createdByPersonId ?? undefined,
                   accountability,
                   // In "lead" mode the first assignee owns it (carries overdue).
                   ownerId: accountability === "lead" && assigneeIds.length ? assigneeIds[0] : undefined,
@@ -382,6 +391,8 @@ export type UpdateTaskInput = {
   meetingDate?: Date | null;
   comments?: string | null;
   latestUpdate?: string | null;
+  /** Completing it will refuse without a file attached. */
+  requiresAttachment?: boolean;
   /** "lead" makes the first assignee carry the overdue on their own. */
   accountability?: "shared" | "lead";
   /**
@@ -470,6 +481,8 @@ export async function updateTaskCore(
       const latestUpdate = input.latestUpdate === undefined ? (t.latest_update as string | null) : input.latestUpdate;
       const oldAccountability = (t.accountability as string) === "lead" ? "lead" : "shared";
       const accountability = input.accountability ?? oldAccountability;
+      const oldRequiresAttachment = Boolean(t.requires_attachment);
+      const requiresAttachment = input.requiresAttachment ?? oldRequiresAttachment;
 
       const [oldDeptName, newDeptName] = await Promise.all([
         deptNameSb(t.department_id as number | null),
@@ -496,6 +509,7 @@ export async function updateTaskCore(
         ["Comments", t.comments, comments],
         ["Latest Update", t.latest_update, latestUpdate],
         ["Accountability", oldAccountability, accountability],
+        ["Proof required", oldRequiresAttachment ? "Yes" : "No", requiresAttachment ? "Yes" : "No"],
       ];
       for (const [f, o, n] of fields) {
         await logChangeSb(taskId, oldCode, oldCompanyId, f, o, n, reason, by);
@@ -516,6 +530,7 @@ export async function updateTaskCore(
         comments,
         latest_update: latestUpdate,
         accountability,
+        requires_attachment: requiresAttachment,
         last_updated_at: new Date().toISOString(),
         closed_date: newClosedDate,
       };
@@ -651,6 +666,7 @@ export async function updateTaskCore(
               closedDate: t.closed_date,
               accountability: oldAccountability,
               ownerId: t.owner_id,
+              requiresAttachment: oldRequiresAttachment,
             },
             beforeAssignees,
           },

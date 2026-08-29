@@ -20,6 +20,7 @@ type TaskFields = {
    *  minted before it, so both are restored only when present. */
   accountability?: string | null;
   ownerId?: number | null;
+  requiresAttachment?: boolean;
 };
 
 async function writeUndoAudit(
@@ -73,6 +74,7 @@ registerUndoHandler("task.update", async (raw) => {
   };
   if (p.before.accountability != null) patch.accountability = p.before.accountability;
   if (p.before.ownerId !== undefined) patch.owner_id = p.before.ownerId;
+  if (p.before.requiresAttachment !== undefined) patch.requires_attachment = p.before.requiresAttachment;
   if (p.code) {
     // Reverse a company move: the code and the company go back together, and so
     // does the audit history that followed the task across.
