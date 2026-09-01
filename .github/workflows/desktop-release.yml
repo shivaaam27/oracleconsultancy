@@ -59,7 +59,7 @@ jobs:
           Write-Host "Paste into src/lib/desktop-release.ts"
 
       - name: Keep the installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: oracle-consultancy-windows
           path: desktop-win/installer/out/*.exe
