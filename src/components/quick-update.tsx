@@ -8,13 +8,13 @@ import { useToast } from "./toast";
 /**
  * Post an update on a task WITHOUT opening the task.
  *
- * Both lists — the command centre's and the portal's — could show you that a
+ * Both lists — the administrator's and the portal's — could show you that a
  * task had gone quiet and then made you open the record to say anything about
  * it. This is the one-line answer: a composer that opens inside the row, takes a
  * sentence, and closes. The record page is still there for everything else.
  *
  * It is deliberately dumb about WHERE it posts: the caller passes `post`, so the
- * command centre hands it `addTaskUpdate` and the portal hands it
+ * administrator hands it `addTaskUpdate` and the portal hands it
  * `portalAddUpdate`. Neither side's permission model is duplicated here — both
  * of those actions re-check on the server, which is the only check that counts.
  */

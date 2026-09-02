@@ -59,7 +59,7 @@ Anything you build inherits, with no work on your part:
 - the density switch — `data-density="compact"` on `<html>`, from the nav pill;
 - reduced-motion and increased-contrast handling.
 
-### ⚠️ The Command Centre home is a deliberate exception — do NOT flatten it
+### ⚠️ The Administrator home is a deliberate exception — do NOT flatten it
 
 The rules above govern the **list and record screens**. The home page (`/`) keeps
 its warmer treatment — the aurora-lit hero, the soft-tinted company heat tiles,
@@ -474,10 +474,10 @@ deadline), **Due soon = soonest first**, **In progress / open = most recent firs
 housing** (`houseList` prop) so a growing list scrolls in place instead of running
 the page long; the full Tasks tab uses natural page scroll.
 
-## §14 · Command Centre control language (THE standard — follow on every CC page)
+## §14 · Administrator control language (THE standard — follow on every CC page)
 
 Set on the Tasks page and now the CC-wide standard. When building or redesigning
-ANY Command Centre surface, reuse these exactly — do not invent new button/icon
+ANY Administrator surface, reuse these exactly — do not invent new button/icon
 styles. (This is the CC layer on top of Desk above.)
 
 - **Buttons are rounded-RECTANGLES, not pills** — `rounded-lg`, roomy padding

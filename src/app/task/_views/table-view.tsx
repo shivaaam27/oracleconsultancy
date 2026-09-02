@@ -13,7 +13,7 @@ import { SnoozeSheet } from "@/components/snooze-sheet";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { TaskCard } from "@/components/task-card";
 import { TaskUpdateLine } from "@/components/task-update-line";
-import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
+import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
 import { QuickUpdate } from "@/components/quick-update";
 import { addTaskUpdate } from "@/app/task/actions";
@@ -201,6 +201,7 @@ export function TableView({
           listKey="task"
           total={total}
           groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
+          subRowAlways
           selectionSlot={(r) => <SelectCheckbox code={r.code} />}
           rowActions={(r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}
           /* Stage 3: the columns, their order, widths, labels and sortability
@@ -222,9 +223,16 @@ export function TableView({
                   onPointerCancel={clearPress}
                   onContextMenu={(e) => e.preventDefault()}
                 >
-                  <span title={`${r.priority} priority`} className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))} />
-                  {r.unread && (
-                    <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
+                  {/* One glyph at most: unread wins (it is news), else a dot for
+                      Critical/High only. Medium and Low carried a dot too, so
+                      every row began with two coloured spots and the ones that
+                      mattered did not stand out. */}
+                  {r.unread ? (
+                    <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent" />
+                  ) : (r.priority === "Critical" || r.priority === "High") ? (
+                    <span title={`${r.priority} priority`} className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))} />
+                  ) : (
+                    <span className="h-2 w-2 shrink-0" aria-hidden />
                   )}
                   <span className="tabular inline-flex shrink-0 items-center rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium tracking-wide text-fg-muted ring-1 ring-border">
                     {r.code}
@@ -259,18 +267,23 @@ export function TableView({
                 onCancel={() => setComposeFor(null)}
               />
             ) : (
-            <div className="space-y-0.5">
-              <div className="flex min-w-0 items-center gap-2">
-                {!hideCompany && (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-fg-muted">
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                    <span className="max-w-[9rem] truncate">{r.companyName}</span>
-                  </span>
-                )}
-                <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
-                <span className="min-w-0 flex-1"><TaskMetaLine task={r} /></span>
-              </div>
-              <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
+            /* ONE context line, not two: company · waiting-on · the latest update.
+               Stacking the company and the update made every row three lines
+               (80px) — a 74-task list ran to 5,700px. The About text is on the
+               record; the list's second line is for what is HAPPENING. */
+            /* Capped at ~70 characters: a long update used to run the full
+               width of the row, under the status and deadline columns, and
+               read as a paragraph in a list. It truncates; the record has
+               the rest. */
+            <div className="flex h-5 min-w-0 max-w-[72ch] items-center gap-2">
+              {!hideCompany && (
+                <span className="max-w-[9rem] shrink-0 truncate text-xs text-fg-muted">{r.companyName}</span>
+              )}
+              <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
+              {(!hideCompany || r.waiting) && <span className="h-3 w-px shrink-0 bg-border" aria-hidden />}
+              <span className="min-w-0 flex-1">
+                <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
+              </span>
             </div>
             )
           )}

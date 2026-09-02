@@ -143,7 +143,7 @@ async function Board({ me, scope, boardLabel, composerModes, todos }: { me: Port
       // command-centre's owner resolution — otherwise these read "Unassigned").
       sb.from("task_assignees").select("task_id,person_id,role").in("task_id", watchIds),
     ]);
-    // Resolve the responsible person the same way the command centre does:
+    // Resolve the responsible person the same way the administrator does:
     // prefer an explicit "accountable" assignee, but fall back to the FIRST
     // assignee of any role. Web-UI assignments write task_assignees with the
     // default role ("working") and leave owner_id null, so without this fallback

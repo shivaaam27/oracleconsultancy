@@ -46,14 +46,14 @@ carries `lg:hidden`, the same arrangement as admin.
   bypass the permissions engine.
 - ⚠️ It publishes **`--portal-sidebar`**, deliberately NOT `--desk-sidebar`; the
   admin gutter reads the latter and sharing one variable would let a portal page
-  shove the command centre's layout about. The `[data-portal-shell]` gutter in
+  shove the administrator's layout about. The `[data-portal-shell]` gutter in
   `globals.css` falls back to 0, so if the rail is ever absent the portal keeps
   its old centred column.
 - Verified live as a director: 9 destinations, no Home (board-first roles don't
   get one), pill hidden at lg, pill back and gutter 0 on a phone.
 
 **BUILT: the portal task list is now `RecordList`.** `portal-tasks-command.tsx`
-renders the same shell the command centre does, so the portal inherited the
+renders the same shell the administrator does, so the portal inherited the
 column header, the filter rail with live counts, the "N of M shown" footer and
 keyboard navigation in one change. Columns come from `ENTITY_VIEWS.task` — admin
 and portal now describe a task identically.
@@ -130,7 +130,7 @@ the same change. **Keep both in step when adding to the rail.**
   (`NeedsYou` in `command-deck.tsx`) has **no column header and no Status column**
   — a code chip, the title, the days figure, and company · person beneath. I gave
   it a "TASK / STATUS / DUE" header; that was wrong. `showHeader={false}`.
-- The company-health tiles are **tinted** in the command centre, so they stay
+- The company-health tiles are **tinted** in the administrator, so they stay
   tinted here. I "improved" them to neutral dots-and-text (the Desk rule) and that
   was also wrong — it made the two sides differ, which is the one thing this pass
   exists to remove. **If the tint ever goes, it goes from BOTH, together.**

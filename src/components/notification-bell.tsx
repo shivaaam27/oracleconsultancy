@@ -83,7 +83,7 @@ export function NotificationBell({
 }: {
   to: "/portal/task" | "/task";
   align?: "left" | "right";
-  /** Split into "Needs you" / "Activity". Command centre only — for portal
+  /** Split into "Needs you" / "Activity". Administrator only — for portal
    *  users 90%+ of rows are activity, so tabs just hide their work behind a
    *  click. They get one plain list instead. */
   lanes?: boolean;
@@ -264,7 +264,7 @@ export function NotificationBell({
     return style;
   })();
 
-  // Portals get one plain list; only the command centre splits into lanes.
+  // Portals get one plain list; only the administrator splits into lanes.
   const groups = showLanes ? lanes[lane] : lanes.all;
   const laneUnread = showLanes ? (lane === "needs-you" ? lanes.needsUnread : lanes.activityUnread) : count;
 

@@ -1,6 +1,6 @@
 "use server";
 
-// Command Centre control levers — the one-tap switches the owner pulls from the
+// Administrator control levers — the one-tap switches the owner pulls from the
 // home cockpit. Each mirrors a setting that otherwise lives only in /settings, so
 // the operator can hold or release the whole operation without leaving home.
 

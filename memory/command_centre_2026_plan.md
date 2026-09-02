@@ -1,14 +1,14 @@
 ---
 name: command-centre-2026-plan
-description: "The Command Centre → Living Command Wall plan: the v5 target design, and a single clean roadmap (what's done, what's pending)."
+description: "The Administrator → Living Command Wall plan: the v5 target design, and a single clean roadmap (what's done, what's pending)."
 metadata:
   node_type: memory
   type: project
 ---
 
-# Command Centre → Living Command Wall — plan & roadmap
+# Administrator → Living Command Wall — plan & roadmap
 
-Companion to [[command-centre]] (what the Command Centre is). This is the design target +
+Companion to [[command-centre]] (what the Administrator is). This is the design target +
 the single source of truth for phasing. **Principle (locked): reuse, don't duplicate** —
 almost everything is backed by data we already compute and primitives we already have.
 **Everything below is LOCAL, NOT PUSHED** unless said otherwise.
@@ -31,7 +31,7 @@ The look is locked to these mockups (most recent wins):
 - `living_command_wall_people_world_v4` — filled rails + a **world opened** (People).
 - `living_command_centre_centred_v3` / `_wall_v2` — earlier exploration.
 
-Owner decisions locked: **keep the name "Command Centre"**; **centred, never edge-to-edge**;
+Owner decisions locked: **keep the name "Administrator"**; **centred, never edge-to-edge**;
 **no negative space**; **iPhone-style toggles**; **side rails empty for now, fill later**;
 **dark "ops/mission-control" theme = YES** (build in P8); **match v5 exactly (minimal)** —
 old heavy modules dropped from the wall, their detail still on their own pages / via Worlds.

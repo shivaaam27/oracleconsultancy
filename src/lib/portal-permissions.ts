@@ -11,7 +11,7 @@
  * config changes nothing. Two things are deliberately NOT togg-able and are
  * enforced in code regardless of config:
  *   • a person may ALWAYS manage a task they created (creator rule);
- *   • the Command Centre owner/admin bypasses all of this (not a portal person).
+ *   • the Administrator owner/admin bypasses all of this (not a portal person).
  */
 
 export type PortalRoleKey = "staff" | "manager" | "hr" | "director" | "receptionist";
@@ -131,7 +131,7 @@ export const DEFAULT_SCOPE: Record<PortalRoleKey, ScopeLevel> = {
 // The receptionist is a data-entry-only role: every task/comms/nav power is OFF —
 // her portal is just Home (announcements + to-do) + the cleaning log. Only the two
 // cleaning caps are on. cleaningOverview is on for the oversight roles (manager/hr/
-// director) so the Command Centre view can be ported to them (e.g. Shivam).
+// director) so the Administrator view can be ported to them (e.g. Shivam).
 export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>> = {
   createTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   /* ⚠️ MANAGERS MANAGE ANY TASK (owner, 28 Aug 2026) — "editable by all

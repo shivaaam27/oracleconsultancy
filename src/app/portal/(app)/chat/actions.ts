@@ -49,7 +49,7 @@ async function me(): Promise<{ id: number; participant: string; canGroup: boolea
 }
 
 /** created_by stamp for a chat-uploaded document — the sender's portal stamp, so
- *  the Command Centre attributes it like other portal documents. */
+ *  the Administrator attributes it like other portal documents. */
 async function chatDocStamp(): Promise<string> {
   const p = await getPortalPerson();
   if (!p) return "portal:chat";

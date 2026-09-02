@@ -55,7 +55,7 @@ export function PortalPermissionsEditor({
         <ShieldCheck size={15} className="mt-0.5 shrink-0 text-accent" />
         <p>
           Two rules are always on and can&apos;t be switched off: a person can always manage a task they raised,
-          and the Command Centre owner always has full access. Everything else is yours to set.
+          and the Administrator owner always has full access. Everything else is yours to set.
         </p>
       </div>
 

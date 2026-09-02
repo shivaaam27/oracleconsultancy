@@ -141,7 +141,7 @@ in `calendar/attachment-actions.ts` therefore checks for itself:
   plainly. Ids are checked to exist, be unarchived, and actually have a file.
 
 ## Where it is in the UI
-- **Command centre** → calendar → new/edit event → **Attachments**: drop a file,
+- **Administrator** → calendar → new/edit event → **Attachments**: drop a file,
   or pick one already filed. Per-file **"Send to guests" / "Reference only"**.
 - **Portal** (`director-event-form.tsx`) → same control, upload only.
 - Both share `components/event-attachments.tsx` + its `ReadSummary` strip

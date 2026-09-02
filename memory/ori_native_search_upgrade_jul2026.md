@@ -71,7 +71,7 @@ hero set `setActiveValue("__r_<type>_<id>")` so hover drives the preview precise
 update via `onValueChange`. So: pane shows the hero on open, follows your mouse, and follows ↑↓.
 
 ## ✅ PHASE 1+2 BUILT (7 Jul, tsc clean, NOT pushed) — palette reskin + live search
-Owner asked to make ORI match the Command Centre design language (§13, like Home/Tasks/People)
+Owner asked to make ORI match the Administrator design language (§13, like Home/Tasks/People)
 and feel like "god mode", not a chatbot. Ran a 3-agent workflow (2 parallel implementers + tsc verify).
 **Phase 1 — reskin `src/components/command-palette.tsx` to §13** (RESKIN, all modes preserved):
 - Removed the WebGL `CommandBackdrop` (+ its `next/dynamic` import); overlay now a calm

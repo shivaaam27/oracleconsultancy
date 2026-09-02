@@ -2,7 +2,7 @@
 
 // Portal-scoped "Recurring tasks" (automation) actions — managers/directors/HR
 // manage their OWN standing recurring_task rules from the Tasks page. UNLIKE the
-// Command Centre's /ori-automations actions (owner-only, no internal auth), every
+// Administrator's /ori-automations actions (owner-only, no internal auth), every
 // action here re-verifies the caller with getPortalPerson() + the `recurringTasks`
 // capability, because portal routes are NOT admin-gated (see cleaning/actions.ts
 // for the same pattern).
@@ -238,7 +238,7 @@ export async function portalSetRecurringTaskPaused(id: number, paused: boolean):
 }
 
 /** Soft-delete (active=false) one of the caller's own recurring-task rules —
- *  mirrors the Command Centre's cancelAutomation (recoverable, never hard-deleted). */
+ *  mirrors the Administrator's cancelAutomation (recoverable, never hard-deleted). */
 export async function portalDeleteRecurringTask(id: number): Promise<Result> {
   const ctx = await requireCap();
   if (!ctx) return { ok: false, error: "You don't have permission to manage recurring tasks." };

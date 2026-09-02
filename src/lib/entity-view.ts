@@ -133,9 +133,9 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   task: {
     listColumns: [
       { key: "actionItem", label: "Task", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "status", label: "Status", width: "150px", format: "status", hideBelow: "sm", sortable: true },
-      { key: "deadline", label: "Deadline", width: "116px", format: "date", sortable: true },
-      { key: "assignees", label: "Who", width: "80px", format: "people", align: "right", hideBelow: "md", sortable: true },
+      { key: "status", label: "Status", width: "132px", format: "status", hideBelow: "sm", sortable: true },
+      { key: "deadline", label: "Deadline", width: "104px", format: "date", sortable: true },
+      { key: "assignees", label: "Who", width: "76px", format: "people", align: "right", hideBelow: "md", sortable: true },
     ],
     filters: [
       { label: "Status", source: "status" },

@@ -2,7 +2,7 @@ import "server-only";
 
 /* Server → cockpit realtime, the same safe way chat does it (see chat-broadcast.ts):
  * POST a tiny event to the Supabase Realtime *broadcast* REST endpoint on the
- * `cos-pulse` channel. Open Command Centres subscribe with the anon key and refresh
+ * `cos-pulse` channel. Open Administrators subscribe with the anon key and refresh
  * instantly. Only an opaque {reason, at} stamp crosses the wire — never data.
  *
  * Silent no-op when realtime isn't configured (no URL/service key); the cockpit's

@@ -9,9 +9,9 @@ metadata:
 # Login & auth (June 2026)
 
 ## Login screen (`/login`)
-One screen, two tabs via `src/app/login/auth-tabs.tsx`: **Staff Login** (default) | **Command Centre**, sliding-pill indicator. Staff tab = portal form (identifier+password, "Remember me", "No access yet" note); Command Centre = owner form (now Name/email + password). Shared `AuthShell` (`components/auth-shell.tsx`) now: logo image `public/logo-source.png` in a gradient-framed white tile + accent halo, big "Oracle Consultancy", optional title/subtitle, entrance motion, "secure sign-in" footer. `/portal/login` still exists and shares the shell.
+One screen, two tabs via `src/app/login/auth-tabs.tsx`: **Staff Login** (default) | **Administrator**, sliding-pill indicator. Staff tab = portal form (identifier+password, "Remember me", "No access yet" note); Administrator = owner form (now Name/email + password). Shared `AuthShell` (`components/auth-shell.tsx`) now: logo image `public/logo-source.png` in a gradient-framed white tile + accent halo, big "Oracle Consultancy", optional title/subtitle, entrance motion, "secure sign-in" footer. `/portal/login` still exists and shares the shell.
 
-## Owner identity (optional 2nd factor on Command Centre)
+## Owner identity (optional 2nd factor on Administrator)
 `admin-auth.ts`: `getOwnerIdentity`/`setOwnerIdentity`/`ownerIdentifierMatches` (settings keys `v2.ownerName`,`v2.ownerEmail`). `adminLogin` now checks the typed Name/email matches IF configured (blank = password-only, **no lockout**). Editor in Settings → Owner sign-in (`adminSaveOwnerIdentity`).
 
 ## Passkeys — Face ID / fingerprint (WebAuthn)

@@ -32,7 +32,7 @@ import { adminRemindTask, inlineUpdateTask } from "@/app/task/actions";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { taskHref } from "@/lib/task-href";
 
-/* Cards view — the merged Tasks view (Command Centre unification, round 2).
+/* Cards view — the merged Tasks view (Administrator unification, round 2).
  * ONE view with a Comfortable | Compact density toggle. Both skins share:
  *   • an ALIGNED grid (dot · code · title · Status · Due · Activity · Who ·
  *     actions) so every control lines up in a rail down the page;

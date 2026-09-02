@@ -525,7 +525,7 @@ before converting any of them.**
 - **The calendar** (`/calendar`). A calendar rendered as a list view is strictly
   worse.
 - **Chat** (`/chat`).
-- **The command centre home and Director Brief.** Glance surfaces, not record
+- **The administrator home and Director Brief.** Glance surfaces, not record
   lists — "every number is a door" is the point of them.
 
 ## The mockup's design tokens (Stage 1 can lift these directly)

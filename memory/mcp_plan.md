@@ -1,6 +1,6 @@
 ---
 name: mcp-plan
-description: Master plan — give Claude a door into COS via MCP, command centre first, director portal later
+description: Master plan — give Claude a door into COS via MCP, administrator first, director portal later
 metadata:
   type: project
 ---
@@ -24,7 +24,7 @@ locked to his portal.
 Plus [[mcp_extending]] — **what MCP does as COS grows**, and the forward rule for
 anyone shipping a new feature. Read it before adding one.
 
-Owner's instruction (Aug 2026): **command centre first, prove it works, then
+Owner's instruction (Aug 2026): **administrator first, prove it works, then
 Pulin.** Followed, and done: the owner's claude.ai connector is live and Pulin's
 access is verified. Stage 4 (unattended, scheduled runs) is the only one left, and
 nothing depends on it.
@@ -55,7 +55,7 @@ effectively the whole thing.
 ### 1. One door, not two — identity decides what's behind it
 
 There is **ONE** endpoint: `/api/mcp`, inside the existing Next.js app. Not one
-for the command centre and another for the portal. The key you connect with says
+for the administrator and another for the portal. The key you connect with says
 who you are, and the answers follow from that.
 
 Why this matters: two endpoints would mean two sets of scope rules, and the day

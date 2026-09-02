@@ -1,6 +1,6 @@
 # COS System
 
-A **Chief-of-Staff command centre** for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
+A **Chief-of-Staff administrator** for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
 
 - CO01 Dar Spices
 - CO02 Cocozuri Chocolat
@@ -16,7 +16,7 @@ Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supa
 
 ## Current Highlights (V2)
 
-- Command centre dashboard with Overview, Companies, and Tasks tabs; task cards/popups/pages now surface the **Description** (the standing context) alongside the Latest update.
+- Administrator dashboard with Overview, Companies, and Tasks tabs; task cards/popups/pages now surface the **Description** (the standing context) alongside the Latest update.
 - Task registry with per-task timeline and audit history.
 - **HRMS** hub (`/hrms`): **OECR** office-equipment **stock control** (items + purchases/issues, current stock derived, TZS, negative-stock guard) and **OCR** daily **cleaning checklist** (tap-to-tick areas, comments, attendance, sign-off). Companies/People/Documents live under HRMS.
 - **Director Brief** (`/brief`): glanceable portfolio report incl. completed/closed this month, with **WhatsApp/Email/Copy** share and a multi-page **print-to-PDF** detailed report.

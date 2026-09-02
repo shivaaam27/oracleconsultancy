@@ -1,4 +1,4 @@
-# Oracle Consultancy — Chief-of-Staff Command Centre · V2 Handover
+# Oracle Consultancy — Chief-of-Staff Administrator · V2 Handover
 
 This is the handover for **V2** of the system. It captures what V2 added, the
 architecture, how to run it, and where to continue. Start technical onboarding
@@ -10,7 +10,7 @@ The owner is non-technical — keep explanations in plain British English.
 
 ## 1. What the system is
 
-A single-operator command centre for **Oracle Consultancy** and its 7 portfolio
+A single-operator administrator for **Oracle Consultancy** and its 7 portfolio
 companies (Dar Spices, Cocozuri Chocolat, Terra Green, Oracle Consultancy, PES
 Ltd, MES Ltd, Pamoja Plus). It replaces an Excel workbook with task tracking,
 per-task timelines, risk views, meetings/notes, a personal to-do list, document

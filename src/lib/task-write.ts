@@ -24,6 +24,53 @@ import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
 import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { reindexEntity } from "@/lib/index-hooks";
+import { notifyMany, personRecipient } from "@/lib/notifications";
+
+/**
+ * Who a notification says did it. The portal doors name the person; the owner's
+ * doors stamp "web-ui"/"ai-command", which the bell already shows as
+ * "Management" (see adminAddUpdate). An assistant's stamp is "mcp:<Name>".
+ */
+function actorLabel(createdBy: string): string {
+  if (createdBy === "web-ui" || createdBy === "ai-command" || createdBy === "meeting-mode") return "Management";
+  const m = /^(?:mcp|portal(?:-dir|-mgr|-hr)?):(.+)$/.exec(createdBy);
+  return m ? m[1] : createdBy;
+}
+
+/**
+ * Tell newly-assigned people they have a task — the bell row AND the push.
+ * The portal doors did this inline and the cores never did, so a task raised
+ * from the administrator (or by an assistant) reached nobody's phone. Now it
+ * lives beside the write, so EVERY door notifies. The owner's bell is included
+ * only when somebody else did the assigning (the owner needs no buzz about a
+ * task they just typed). Best-effort: a failed push never fails the write.
+ */
+async function notifyAssigned(args: {
+  taskId: number;
+  taskCode: string;
+  personIds: number[];
+  exceptPersonId?: number | null;
+  createdBy: string;
+  title: string;
+  body: string;
+}): Promise<void> {
+  const actor = actorLabel(args.createdBy);
+  const recipients = Array.from(new Set(args.personIds))
+    .filter((id) => id !== args.exceptPersonId)
+    .map(personRecipient);
+  if (actor !== "Management") recipients.push("admin");
+  if (!recipients.length) return;
+  try {
+    await notifyMany(recipients, {
+      kind: "assigned",
+      taskId: args.taskId,
+      taskCode: args.taskCode,
+      title: args.title,
+      body: args.body,
+      actor,
+    });
+  } catch { /* best-effort */ }
+}
 
 export type TaskRepeatRecipe = {
   cadence: "weekly" | "monthly";
@@ -211,6 +258,16 @@ export async function createTaskCore(
 
       // Best-effort semantic index (no-op unless semantic search is enabled).
       void reindexEntity("task", task.id);
+
+      await notifyAssigned({
+        taskId: task.id,
+        taskCode: task.code,
+        personIds: assigneeIds,
+        exceptPersonId: input.createdByPersonId ?? null,
+        createdBy: input.createdBy,
+        title: `${actorLabel(input.createdBy)} assigned you a task`,
+        body: actionItem,
+      });
 
       // Standing repeat rule — mirrors this task's template (title, company,
       // assignees, priority, status, description) so future copies auto-create
@@ -605,6 +662,20 @@ export async function updateTaskCore(
               { ignoreDuplicates: true },
             );
           }
+        }
+
+        // Only the people who were not on it before — an edit that keeps the
+        // same three names must not buzz all three again.
+        if (assigneesChanged) {
+          await notifyAssigned({
+            taskId,
+            taskCode: finalCode,
+            personIds: finalIds.filter((id) => !beforeAssignees.includes(id)),
+            exceptPersonId: (t.created_by_person_id as number | null) ?? null,
+            createdBy: by,
+            title: `${actorLabel(by)} assigned you a task`,
+            body: actionItem,
+          });
         }
       }
 

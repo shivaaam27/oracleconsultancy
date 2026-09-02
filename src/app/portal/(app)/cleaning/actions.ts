@@ -20,7 +20,7 @@ type Result = { ok: true } | { ok: false; error: string };
 
 function revalidate() {
   revalidatePath("/portal/cleaning");
-  revalidatePath("/hrms/cleaning"); // the Command Centre reflects her work immediately
+  revalidatePath("/hrms/cleaning"); // the Administrator reflects her work immediately
 }
 
 async function requireCleaner() {

@@ -58,7 +58,7 @@ export default async function PortalDirectoryPage({
       : [...personCompaniesMap!.entries()]
           .filter(([, theirCids]) => theirCids.some((c) => cidSet.has(c)))
           .map(([pid]) => pid);
-    // The Command Centre is a default support contact for EVERYONE — always
+    // The Administrator is a default support contact for EVERYONE — always
     // include it even when the viewer shares no company with it.
     visiblePersonIds = [...new Set([...inScope, ...(await commandCentrePersonIds())])];
   }

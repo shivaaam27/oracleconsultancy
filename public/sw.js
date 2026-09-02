@@ -90,7 +90,7 @@ self.addEventListener("fetch", (event) => {
   // Never cache API routes — always go to the network.
   if (url.pathname.startsWith("/api/")) return;
 
-  // HTML navigations are NEVER cached. The whole app (admin Command Centre AND the
+  // HTML navigations are NEVER cached. The whole app (admin Administrator AND the
   // staff portal) sits behind a login, so a cached HTML snapshot could flash stale
   // or signed-out content — and, worse, a transient 404/redirect response would get
   // frozen into the cache and served back forever as "not found" in the installed

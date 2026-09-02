@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   // Absolute base so link-preview crawlers (WhatsApp/Twilio) resolve OG image URLs.
   metadataBase: new URL(appBaseUrl()),
   title: "Oracle Consultancy Limited — Operations",
-  description: "Chief-of-Staff command centre for Oracle Consultancy",
+  description: "Chief-of-Staff administrator for Oracle Consultancy",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Oracle Consultancy" },
   icons: {

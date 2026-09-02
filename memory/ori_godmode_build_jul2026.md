@@ -7,7 +7,7 @@ metadata:
 
 # ORI "God Mode" — Phases 1–6 (7 Jul 2026)
 
-Owner brief: make ORI search match the Command Centre design (like Home/Tasks/People), and make ORI
+Owner brief: make ORI search match the Administrator design (like Home/Tasks/People), and make ORI
 feel like GOD MODE — whatever you can do on any page/portal, ORI does from one search: commands, search,
 controls, analysis, oversight. Built via sequenced multi-agent workflows (one verified per phase).
 **Status: ALL tsc CLEAN, 25/25 automations tests pass, boundary + scope audits clean. NOT pushed, NOT
@@ -89,7 +89,7 @@ clean inverse exists; tier-3 = confirm-always.
   `TELEGRAM_WEBHOOK_SECRET`; verifies secret header; forwards text to READ-ONLY `/api/ask`, replies via
   sendMessage. No write autonomy from Telegram. Owner setWebhook step documented in the file.
 
-## Routing fix — Command Centre ORI now acts on natural language (7 Jul, tsc clean, NOT pushed)
+## Routing fix — Administrator ORI now acts on natural language (7 Jul, tsc clean, NOT pushed)
 Owner hit "ORI says it can't edit/reopen". Root cause was ROUTING, not capability: `submitPrompt` sent
 anything not matching a narrow imperative regex to the READ-ONLY Ask brain (`/api/ask`), which honestly
 refuses. Fixed in `command-palette.tsx`: new `stripLeadIns()` (strips "can you/please/I want to/…") + a
@@ -102,7 +102,7 @@ DAR-012"). NOTE: dev logs showed Gemini `TimeoutError` walking the ladder — th
 quota/latency ceiling affects it exactly like Ask. Not pushed.
 
 ## Session 2 — EXTREME god mode (7 Jul, tsc clean, 133 tools) — PUSHED
-Owner: "from Command Centre I want FULL portal + page control — add/edit/delete/search/access/
+Owner: "from Administrator I want FULL portal + page control — add/edit/delete/search/access/
 permissions/analysis/post-as-ORI — whatever a page can do, ORI does it, with a confirm step. Improve
 RAG + native search. Increase words so ORI understands more natural language."
 

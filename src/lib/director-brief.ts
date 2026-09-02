@@ -545,7 +545,7 @@ export async function getBrief(
     .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyId: r.companyId, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
   // Statutory deadlines coming up — per-company aware: inside the warning window
-  // with an applicable company still outstanding this period (see Command Centre).
+  // with an applicable company still outstanding this period (see Administrator).
   // Dropped entirely when the Tax & Legal area is paused (master switch).
   const { commandCentrePaused } = appSettings;
   const statutory: BriefStatutory[] = commandCentrePaused || historicOnly

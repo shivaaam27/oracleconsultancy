@@ -4,24 +4,52 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Plus, Check, Search, ArrowRight } from "lucide-react";
+import { Plus, Check, Search, ArrowRight, Building2, CalendarDays, Flag, ClipboardList, X } from "lucide-react";
 import { createCaptureTask } from "@/app/capture/actions";
 import { deleteTaskQuick } from "@/app/task/actions";
 import { useToast } from "./toast";
+import { PasteTasks } from "./paste-tasks";
+import { PRIORITIES } from "@/lib/constants";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/cn";
-import { getInitials as initials } from "@/lib/names";
+import { getInitials as initials, getGivenName } from "@/lib/names";
 import type { QuickTaskCompany } from "./quick-task-popover";
 
 /* ------------------------------------------------------------------ *
- * InlineAddTask — one-step task create, right in the list (no popup).
+ * InlineAddTask — the quick-add row, built for TEN tasks in a row.
  *
- * Type the action; pick Company · Assignee(s) · Deadline as small circles
- * (assignees render as the same avatar stack the rows use, so names never
- * clutter). Save (Enter or ✓) creates via createCaptureTask, plays a calm
- * "swipe away" motion, clears, and keeps focus for the next one. A quiet
- * "Full form →" stays for the rare task that needs everything.
+ * Type the action, Enter, next. The details every task needs — company,
+ * person, deadline, priority — are CHIPS on the row that STAY SET between
+ * adds (and are remembered on this device), so you set the company once
+ * and type the list. A line that names a company or a person overrides the
+ * chip for that one task, the same reading the capture wizard does.
+ *
+ *   Enter        → save, keep the chips, keep focus for the next one
+ *   Shift+Enter  → the full form, with the line and the chips carried across
+ *   Paste a list → many lines at once, previewed before anything is created
+ *
+ * Every task goes through createCaptureTask → createTaskCore, the one door,
+ * so a quick-added task notifies its assignee and audits like any other.
  * ------------------------------------------------------------------ */
+
+const STORE_KEY = "cos.quickAdd.ctx.v1";
+
+type Ctx = { companyId?: number; assignees: string[]; deadline: string; priority: string };
+
+function ymdLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function plusDays(n: number): string { const d = new Date(); d.setDate(d.getDate() + n); return ymdLocal(d); }
+function monthEnd(): string { const d = new Date(); return ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+function shortDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+function shortCompany(name: string): string {
+  return name.replace(/\s+(ltd|limited|llc|fzco|pvt\.?\s*ltd)\.?$/i, "").trim();
+}
+
 export function InlineAddTask({
   companies,
   people = [],
@@ -30,6 +58,7 @@ export function InlineAddTask({
 }: {
   companies: QuickTaskCompany[];
   people?: string[];
+  /** The company the list is filtered to, if any — it pins the company chip. */
   defaultCompanyId?: number;
   fullFormHref?: string;
 }) {
@@ -40,181 +69,306 @@ export function InlineAddTask({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [action, setAction] = useState("");
-  // Company is no longer picked here (the form collects it) — the default only
-  // powers the Shift+Enter quick-save.
-  const [companyId] = useState<number | undefined>(defaultCompanyId ?? companies[0]?.id);
-  const [assignees, setAssignees] = useState<string[]>([]);
+  const [ctx, setCtx] = useState<Ctx>({ companyId: defaultCompanyId, assignees: [], deadline: "", priority: "Medium" });
   const [fly, setFly] = useState<string | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [added, setAdded] = useState<string[]>([]);
 
-  /** Enter → the full form, director-portal style: carries the typed title +
-   *  any circles already picked, and guesses the company from the title words
-   *  (e.g. "…for Terra Green" → Terra Green) when the picker wasn't touched. */
+  // Remembered on this device — a convenience, never the truth. A filter's
+  // company always wins over what was stored.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Ctx>;
+        setCtx((c) => ({
+          companyId: defaultCompanyId ?? (companies.some((x) => x.id === saved.companyId) ? saved.companyId : undefined),
+          assignees: Array.isArray(saved.assignees) ? saved.assignees.filter((n) => people.includes(n)) : c.assignees,
+          deadline: typeof saved.deadline === "string" && saved.deadline >= ymdLocal(new Date()) ? saved.deadline : "",
+          priority: PRIORITIES.includes(saved.priority ?? "") ? saved.priority! : "Medium",
+        }));
+      }
+    } catch { /* no storage — fine */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { if (defaultCompanyId) setCtx((c) => ({ ...c, companyId: defaultCompanyId })); }, [defaultCompanyId]);
+  useEffect(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(ctx)); } catch { /* ignore */ } }, [ctx]);
+
+  function guessCompany(text: string): number | undefined {
+    if (!text) return undefined;
+    return companies.find((c) => {
+      const n = shortCompany(c.name).toLowerCase();
+      return n.length > 2 && text.toLowerCase().includes(n);
+    })?.id;
+  }
+
+  /** Shift+Enter → the full form, with the line and every chip carried across. */
   function openForm() {
     const text = action.trim();
     const params = new URLSearchParams();
     if (text) params.set("title", text);
-    const guessed = text
-      ? companies.find((c) => {
-          const n = c.name.toLowerCase().replace(/\s+(ltd|limited|llc|fzco)\.?$/i, "").trim();
-          return n.length > 2 && text.toLowerCase().includes(n);
-        })
-      : undefined;
-    const cid = guessed?.id ?? companyId;
+    const cid = guessCompany(text) ?? ctx.companyId;
     if (cid) params.set("companyId", String(cid));
-    if (assignees.length) params.set("assignees", assignees.join(","));
+    if (ctx.assignees.length) params.set("assignees", ctx.assignees.join(","));
+    if (ctx.deadline) params.set("deadline", ctx.deadline);
     params.set("returnTo", `${location.pathname}${location.search}`);
     router.push(`${fullFormHref}?${params.toString()}`);
   }
 
+  /** Enter → save on the spot. Needs a company: the chip, the filter, or one
+   *  named in the line. Without one the form opens instead of guessing. */
   function submit() {
     const text = action.trim();
     if (!text) { inputRef.current?.focus(); return; }
-    if (!companyId) { toast("Pick a company first.", { tone: "warn" }); return; }
-    const names = assignees.slice();
-    if (!reduce) setFly(text); // swipe-away the typed line
+    const cid = guessCompany(text) ?? ctx.companyId;
+    if (!cid) {
+      toast("Pick a company on the chip first, or name one in the line.", { tone: "warn", duration: 4000 });
+      return;
+    }
+    const names = ctx.assignees.slice();
+    const { deadline, priority } = ctx;
+    if (!reduce) setFly(text);
     setAction("");
-    setAssignees([]);
     inputRef.current?.focus();
     start(async () => {
       const res = await createCaptureTask({
-        companyId,
+        companyId: cid,
         actionItem: text,
-        priority: "Medium",
+        priority,
         status: "Not Started",
-        deadline: null,
+        deadline: deadline || null,
         assignees: names.join(", ") || undefined,
         createdBy: "web-ui",
       });
       if (!res.ok || !res.code) {
+        setAction(text); // give the line back
         toast(res.error || "Couldn't add the task.", { tone: "danger" });
         return;
       }
       const code = res.code;
-      toast(`${code} added.`, {
+      setAdded((a) => [code, ...a].slice(0, 8));
+      toast(`${code} added${names.length ? ` for ${getGivenName(names[0])}` : ""}.`, {
         tone: "success",
-        duration: 7000,
-        action: { label: "Undo", onClick: async () => { await deleteTaskQuick(code); router.refresh(); } },
+        duration: 6000,
+        action: { label: "Undo", onClick: async () => { await deleteTaskQuick(code); setAdded((a) => a.filter((c) => c !== code)); router.refresh(); } },
       });
       router.refresh();
     });
   }
 
+  const company = companies.find((c) => c.id === ctx.companyId);
+  const companyPinned = !!defaultCompanyId;
+  const quickDates = [
+    { label: "Today", v: plusDays(0) }, { label: "Tomorrow", v: plusDays(1) },
+    { label: "Next week", v: plusDays(7) }, { label: "Month end", v: monthEnd() },
+  ];
+
   return (
-    <div
-      className={cn(
-        "group/add relative flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 transition-colors",
-        "border-border/70 bg-transparent focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15",
-      )}
-    >
-      {/* Leading + — decoration, not a control. It goes on a phone: it was
-          sitting seven pixels from the assignee circle, which is a REAL "+",
-          and between them they left the box you actually type in 174px wide. */}
-      <span className="hidden h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent sm:grid">
-        <Plus size={15} />
-      </span>
-
-      {/* action input — bare (no grey well) with a blinking caret + hint while
-          empty, so it's clear you can type here. Enter opens the form; the
-          quick pickers are gone (the form collects company/date). */}
-      <div className="relative min-w-0 flex-1">
-        <input
-          ref={inputRef}
-          id="inline-add-action"
-          value={action}
-          onChange={(e) => setAction(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); submit(); }
-            else if (e.key === "Enter") { e.preventDefault(); openForm(); }
-          }}
-          placeholder=" "
-          aria-label="New task — what needs doing?"
-          className="bare-field peer w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent"
-        />
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
-          <span className="caret-blink mr-1.5 inline-block h-[1.15em] w-px shrink-0 rounded-full bg-accent" />
-          <span className="truncate text-sm text-fg-subtle">
-            What needs doing?<span className="hidden sm:inline"> · Enter opens the form · Shift+Enter quick-saves</span>
-          </span>
-        </span>
-        <AnimatePresence>
-          {fly && (
-            <motion.span
-              key={fly}
-              initial={{ opacity: 1, y: 0 }}
-              animate={{ opacity: 0, y: -24, filter: "blur(1px)" }}
-              transition={{ duration: 0.42, ease: "easeOut" }}
-              onAnimationComplete={() => setFly(null)}
-              className="pointer-events-none absolute inset-y-0 left-0 flex items-center text-sm text-fg"
-            >
-              {fly}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Only the assignee circle stays — company + deadline are collected by
-          the form that opens on Enter. */}
-      <div className="flex shrink-0 items-center gap-1.5">
-        <CirclePicker label="Assignee" align="right" trigger={
-          <span className="flex items-center" title={assignees.length ? assignees.join(", ") : "Add assignee"}>
-            {assignees.length > 0 && (
-              <span className="flex -space-x-1.5">
-                {assignees.slice(0, 3).map((n, i) => (
-                  <span key={i} className="grid h-7 w-7 place-items-center rounded-full bg-bg-subtle text-xs font-semibold text-fg-muted ring-2 ring-bg-elev">{initials(n)}</span>
-                ))}
-              </span>
-            )}
-            <span className={cn(
-              "grid h-7 w-7 place-items-center rounded-full ring-1 transition-colors",
-              assignees.length ? "-ml-1.5 bg-bg-subtle text-fg-subtle ring-bg-elev" : "bg-bg-subtle text-fg-subtle ring-border/60",
-            )}>
-              <Plus size={13} />
-            </span>
-          </span>
-        }>
-          {() => <PeoplePicker people={people} selected={assignees} onToggle={(n) =>
-            setAssignees((cur) => cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n])
-          } />}
-        </CirclePicker>
-      </div>
-
-      {/* Add */}
-      <button
-        type="button"
-        onClick={submit}
-        disabled={pending}
+    <div className="space-y-1.5">
+      <div
         className={cn(
-          "shrink-0 inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-base font-medium transition-all active:scale-95",
-          action.trim() ? "bg-accent text-accent-fg shadow-sm" : "bg-bg-subtle text-fg-subtle",
+          "group/add relative flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border px-3 py-2 transition-colors sm:flex-nowrap",
+          "border-border bg-bg-elev focus-within:border-accent/50",
         )}
       >
-        Add
-      </button>
+        <span className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent sm:grid">
+          <Plus size={14} />
+        </span>
 
-      {/* Full form — same destination as Enter, carries the typed line along. */}
-      <button
-        type="button"
-        onClick={openForm}
-        className="hidden shrink-0 items-center gap-0.5 pl-0.5 pr-1 text-xs text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
-        title="Open the full task form (Enter)"
-      >
-        Full form <ArrowRight size={11} />
-      </button>
+        <div className="relative min-w-[12rem] flex-1 basis-full sm:basis-auto">
+          <input
+            ref={inputRef}
+            id="inline-add-action"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); openForm(); }
+              else if (e.key === "Enter") { e.preventDefault(); submit(); }
+            }}
+            placeholder=" "
+            aria-label="New task — what needs doing?"
+            className="bare-field peer h-8 w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent"
+          />
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
+            <span className="caret-blink mr-1.5 inline-block h-[1.15em] w-px shrink-0 bg-accent" />
+            <span className="truncate text-sm text-fg-subtle">
+              What needs doing?<span className="hidden md:inline"> · Enter adds it · Shift+Enter opens the form</span>
+            </span>
+          </span>
+          <AnimatePresence>
+            {fly && (
+              <motion.span
+                key={fly}
+                initial={{ opacity: 1, y: 0 }}
+                animate={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                onAnimationComplete={() => setFly(null)}
+                className="pointer-events-none absolute inset-y-0 left-0 flex items-center text-sm text-fg"
+              >
+                {fly}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* The sticky chips. Each stays as set until you change it. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <ChipPicker
+            label="Company"
+            set={!!company}
+            pinned={companyPinned}
+            icon={<Building2 size={12} />}
+            text={company ? shortCompany(company.name) : "Company"}
+            width={260}
+          >
+            {(close) => (
+              <SearchList
+                items={companies.map((c) => c.name)}
+                selected={company ? [company.name] : []}
+                onPick={(name) => { const c = companies.find((x) => x.name === name); if (c) setCtx((k) => ({ ...k, companyId: c.id })); close(); }}
+                placeholder="Search companies…"
+              />
+            )}
+          </ChipPicker>
+
+          <ChipPicker
+            label="Assignee"
+            set={ctx.assignees.length > 0}
+            icon={ctx.assignees.length ? undefined : <Plus size={12} />}
+            text={ctx.assignees.length ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="flex -space-x-1">
+                  {ctx.assignees.slice(0, 3).map((n) => (
+                    <span key={n} className="grid h-4 w-4 place-items-center rounded-full bg-accent/15 text-[9px] font-semibold text-accent ring-1 ring-bg-elev">{initials(n)}</span>
+                  ))}
+                </span>
+                {ctx.assignees.length === 1 ? getGivenName(ctx.assignees[0]) : `${ctx.assignees.length} people`}
+              </span>
+            ) : "Who"}
+            onClear={ctx.assignees.length ? () => setCtx((k) => ({ ...k, assignees: [] })) : undefined}
+            width={260}
+          >
+            {() => (
+              <SearchList
+                items={people}
+                selected={ctx.assignees}
+                multi
+                allowNew
+                onPick={(n) => setCtx((k) => ({ ...k, assignees: k.assignees.includes(n) ? k.assignees.filter((x) => x !== n) : [...k.assignees, n] }))}
+                placeholder="Search people…"
+              />
+            )}
+          </ChipPicker>
+
+          <ChipPicker
+            label="Deadline"
+            set={!!ctx.deadline}
+            icon={<CalendarDays size={12} />}
+            text={ctx.deadline ? shortDate(ctx.deadline) : "When"}
+            onClear={ctx.deadline ? () => setCtx((k) => ({ ...k, deadline: "" })) : undefined}
+            width={220}
+          >
+            {(close) => (
+              <div className="space-y-1 p-1.5">
+                {quickDates.map((q) => (
+                  <button key={q.label} type="button" onClick={() => { setCtx((k) => ({ ...k, deadline: q.v })); close(); }}
+                    className={cn("flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-bg-muted", ctx.deadline === q.v ? "bg-accent/10 font-medium text-accent" : "text-fg")}>
+                    {q.label}<span className="text-xs text-fg-subtle">{shortDate(q.v)}</span>
+                  </button>
+                ))}
+                <input type="date" value={ctx.deadline} onChange={(e) => { setCtx((k) => ({ ...k, deadline: e.target.value })); if (e.target.value) close(); }}
+                  className="mt-1 h-8 w-full rounded-md border border-border bg-bg-elev px-2 text-sm" />
+              </div>
+            )}
+          </ChipPicker>
+
+          <ChipPicker
+            label="Priority"
+            set={ctx.priority !== "Medium"}
+            icon={<Flag size={12} className={ctx.priority === "Critical" ? "text-danger" : ctx.priority === "High" ? "text-warn" : undefined} />}
+            text={ctx.priority}
+            width={160}
+          >
+            {(close) => (
+              <div className="p-1.5">
+                {PRIORITIES.map((p) => (
+                  <button key={p} type="button" onClick={() => { setCtx((k) => ({ ...k, priority: p })); close(); }}
+                    className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-bg-muted", ctx.priority === p ? "bg-accent/10 font-medium text-accent" : "text-fg")}>
+                    <span className={cn("h-2 w-2 rounded-full", p === "Critical" ? "bg-danger" : p === "High" ? "bg-warn" : p === "Medium" ? "bg-info" : "bg-fg-subtle")} />
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+          </ChipPicker>
+        </div>
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending}
+          className={cn(
+            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
+            action.trim() ? "bg-accent text-accent-fg hover:opacity-90" : "bg-bg-subtle text-fg-subtle",
+          )}
+        >
+          Add
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setPasteOpen(true)}
+          className="hidden h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg sm:inline-flex"
+          title="Paste several tasks, one per line"
+        >
+          <ClipboardList size={13} /> Paste a list
+        </button>
+        <button
+          type="button"
+          onClick={openForm}
+          className="hidden h-8 shrink-0 items-center gap-0.5 px-1 text-xs text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
+          title="Open the full task form (Shift+Enter)"
+        >
+          Full form <ArrowRight size={11} />
+        </button>
+      </div>
+
+      {/* What this sitting has added — so ten in a row is countable, and the
+          last one is one click away if it needs its description. */}
+      {added.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1 text-xs text-fg-muted">
+          <span>Added:</span>
+          {added.map((c) => (
+            <a key={c} href={`/task/${c}`} className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-fg-muted ring-1 ring-border hover:text-accent">{c}</a>
+          ))}
+          <button type="button" onClick={() => setAdded([])} className="ml-1 text-fg-subtle hover:text-fg" aria-label="Clear the list"><X size={12} /></button>
+        </div>
+      )}
+
+      <PasteTasks
+        open={pasteOpen}
+        onClose={() => setPasteOpen(false)}
+        companies={companies}
+        people={people}
+        defaults={ctx}
+      />
     </div>
   );
 }
 
-/* A small circular trigger that opens an app-anchored glass popover under it. */
-function CirclePicker({
-  trigger,
-  children,
-  label,
-  align = "left",
+/* A chip that opens a small anchored menu beneath it. Set chips read as
+   filled; a pinned chip (the list's company filter) cannot be changed here. */
+function ChipPicker({
+  label, icon, text, set, pinned = false, onClear, width = 240, children,
 }: {
-  trigger: React.ReactNode;
-  children: (close: () => void) => React.ReactNode;
   label: string;
-  align?: "left" | "right";
+  icon?: React.ReactNode;
+  text: React.ReactNode;
+  set: boolean;
+  pinned?: boolean;
+  onClear?: () => void;
+  width?: number;
+  children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -226,10 +380,9 @@ function CirclePicker({
     const place = () => {
       const r = btnRef.current?.getBoundingClientRect();
       if (!r) return;
-      const w = 240;
-      let left = align === "right" ? r.right - w : r.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
-      setPos({ top: r.bottom + 8, left });
+      let left = r.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      setPos({ top: r.bottom + 6, left });
     };
     place();
     const raf = requestAnimationFrame(place);
@@ -240,31 +393,49 @@ function CirclePicker({
       if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
     document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
       document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
-  }, [open, align]);
+  }, [open, width]);
 
   return (
-    <>
+    <span className="inline-flex items-center">
       <button
         ref={btnRef}
         type="button"
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
+        disabled={pinned}
+        title={pinned ? `${label}: set by the list's filter` : label}
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+        className={cn(
+          "inline-flex h-7 max-w-[11rem] items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+          set ? "border-accent/30 bg-accent-soft text-accent" : "border-border bg-bg-elev text-fg-muted hover:text-fg",
+          pinned && "cursor-default opacity-90",
+          onClear && "rounded-r-none border-r-0",
+        )}
       >
-        {trigger}
+        {icon}
+        <span className="truncate">{text}</span>
       </button>
+      {onClear && (
+        <button
+          type="button"
+          aria-label={`Clear ${label.toLowerCase()}`}
+          onClick={onClear}
+          className="grid h-7 w-6 place-items-center rounded-r-md border border-accent/30 bg-accent-soft text-accent/70 hover:text-accent"
+        >
+          <X size={11} />
+        </button>
+      )}
       {typeof document !== "undefined" && createPortal(
         <AnimatePresence>
           {open && (
@@ -272,12 +443,12 @@ function CirclePicker({
               ref={popRef}
               role="dialog"
               aria-label={label}
-              initial={{ opacity: 0, scale: 0.96, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: -2 }}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -2 }}
               transition={spring}
-              style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? "visible" : "hidden" }}
-              className="fixed z-[140] w-60 glass glass-menu elevated rounded-xl shadow-lg"
+              style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width, visibility: pos ? "visible" : "hidden" }}
+              className="fixed z-[140] rounded-md border border-border bg-bg-elev shadow-lg"
             >
               {children(() => setOpen(false))}
             </motion.div>
@@ -285,24 +456,25 @@ function CirclePicker({
         </AnimatePresence>,
         document.body,
       )}
-    </>
+    </span>
   );
 }
 
-/* Searchable, multi-select person list for the assignee picker. */
-function PeoplePicker({
-  people,
-  selected,
-  onToggle,
+/* A searchable list — single pick (companies) or multi-tick (people). */
+function SearchList({
+  items, selected, onPick, placeholder, multi = false, allowNew = false,
 }: {
-  people: string[];
+  items: string[];
   selected: string[];
-  onToggle: (name: string) => void;
+  onPick: (name: string) => void;
+  placeholder: string;
+  multi?: boolean;
+  allowNew?: boolean;
 }) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
-  const matches = people.filter((p) => p.toLowerCase().includes(query));
-  const canAddNew = query.length > 1 && !people.some((p) => p.toLowerCase() === query);
+  const matches = items.filter((p) => p.toLowerCase().includes(query));
+  const canAddNew = allowNew && query.length > 1 && !items.some((p) => p.toLowerCase() === query);
 
   return (
     <div className="p-1.5">
@@ -312,8 +484,9 @@ function PeoplePicker({
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search people…"
-          className="w-full rounded-lg bg-bg-subtle/60 py-1.5 pl-8 pr-2.5 text-sm outline-none focus:ring-2 focus:ring-accent/40"
+          onKeyDown={(e) => { if (e.key === "Enter" && matches[0]) { e.preventDefault(); onPick(matches[0]); if (!multi) return; setQ(""); } }}
+          placeholder={placeholder}
+          className="h-8 w-full rounded-md border border-border bg-bg-elev pl-8 pr-2.5 text-sm outline-none focus:border-accent/50"
         />
       </div>
       <div className="max-h-56 overflow-y-auto">
@@ -323,13 +496,13 @@ function PeoplePicker({
             <button
               key={name}
               type="button"
-              onClick={() => onToggle(name)}
+              onClick={() => onPick(name)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
-                on ? "bg-accent/12 text-fg font-medium" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                on ? "bg-accent/10 font-medium text-fg" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
               )}
             >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bg-subtle text-xs font-semibold text-fg-muted">{initials(name)}</span>
+              {multi && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted">{initials(name)}</span>}
               <span className="flex-1 truncate">{name}</span>
               {on && <Check size={14} className="text-accent" />}
             </button>
@@ -338,15 +511,15 @@ function PeoplePicker({
         {canAddNew && (
           <button
             type="button"
-            onClick={() => { onToggle(q.trim()); setQ(""); }}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-accent hover:bg-accent/10"
+            onClick={() => { onPick(q.trim()); setQ(""); }}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-accent hover:bg-accent/10"
           >
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/10"><Plus size={13} /></span>
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/10"><Plus size={12} /></span>
             <span className="flex-1 truncate">Add “{q.trim()}”</span>
           </button>
         )}
         {matches.length === 0 && !canAddNew && (
-          <p className="px-2 py-3 text-center text-xs text-fg-subtle">No people found.</p>
+          <p className="px-2 py-3 text-center text-xs text-fg-subtle">Nothing found.</p>
         )}
       </div>
     </div>

@@ -120,7 +120,7 @@ The whole admin side is now behind a single owner password:
 
 ## June 2026 — login redesign, passkeys, owner identity, portal additions
 
-- **`/login` is one tabbed screen** (`app/login/auth-tabs.tsx`): **Staff Login** (default; portal form) | **Command Centre** (owner; now Name/email + password). Shared `components/auth-shell.tsx` (logo image `public/logo-source.png` in a gradient tile, big "Oracle Consultancy", entrance motion). `/portal/login` still exists and shares the shell. See `memory/auth_login.md`.
+- **`/login` is one tabbed screen** (`app/login/auth-tabs.tsx`): **Staff Login** (default; portal form) | **Administrator** (owner; now Name/email + password). Shared `components/auth-shell.tsx` (logo image `public/logo-source.png` in a gradient tile, big "Oracle Consultancy", entrance motion). `/portal/login` still exists and shares the shell. See `memory/auth_login.md`.
 - **Owner identity (optional 2nd factor):** `getOwnerIdentity`/`setOwnerIdentity`/`ownerIdentifierMatches` in `admin-auth.ts` (settings `v2.ownerName`/`v2.ownerEmail`). `adminLogin` requires the typed Name/email match IF set (blank = password-only, no lockout). Editor in Settings → Owner sign-in.
 - **Passkeys (Face ID / Touch ID / Windows Hello / fingerprint) — WebAuthn** for BOTH owner and staff. Table `webauthn_credentials` (public key only). `lib/webauthn.ts` (discoverable registration + authentication; rpID/origin from headers; challenge in cookie `cos_webauthn`). Register while signed in: owner in **Settings → Face ID & fingerprint** (`app/settings/passkey-actions.ts`), staff in **portal profile → Sign in faster** (`app/portal/passkey-actions.ts`); shared `components/passkey-manager.tsx`. Login screen: "Use Face ID instead" button (`passkey-login-button.tsx`, platform-aware label) + **conditional-UI autofill** (auto-prompts on iPhone). NOT live-tested (no biometric hardware in the dev preview); needs HTTPS/localhost.
 - **Portal profile additions** (`portal/(app)/profile/page.tsx`): Your documents · **Your attendance** (`portal-attendance.tsx`, self check-in + week strip) · Your leave · onboarding · equipment · **Sign in faster** (passkeys).
@@ -143,7 +143,7 @@ A 5-wave audit-and-fix pass after the owner reported mobile crashes, sign-out la
 - `LiveSync` aborts the in-flight probe on unmount (AbortController); `AutoRefresh` has a pending guard.
 - **Service worker `cos-v5`: never caches `/portal` HTML** (a cached snapshot could flash a previous/signed-out session before the server re-checks auth).
 
-**Wave 3 — Command Centre / Settings + data lifecycle (commit f3d757d):**
+**Wave 3 — Administrator / Settings + data lifecycle (commit f3d757d):**
 - **`setPortalRole`** changes a portal user's access level WITHOUT resetting their password (per-person role dropdown in Settings → Staff portal access).
 - Portal password field masked with show/hide (`components/reveal-password.tsx`) — was plain `type="text"`.
 - **Revoke** now also resets `portal_role` to `staff` (a re-grant never silently restores manager/director powers) + clear help text that all their records are kept.
@@ -187,7 +187,7 @@ Business data belongs to the **person/company record**, NOT to the portal sessio
 
 ### Email login (owner's question)
 - **Staff/manager/director portal** at `/login` (Staff tab) or `/portal/login`: sign in with **name OR email** + password (`portalLogin` matches email first, then name; case-insensitive). Email login works.
-- **Command Centre** (owner): password is primary; the name/email is an **optional** second factor — only required if an owner identity is set in Settings → Owner sign-in (blank = password-only, no lockout).
+- **Administrator** (owner): password is primary; the name/email is an **optional** second factor — only required if an owner identity is set in Settings → Owner sign-in (blank = password-only, no lockout).
 
 ## June 2026 additions (portal unification wave)
 
@@ -196,7 +196,7 @@ Full record: **`portal_unification_jun2026.md`**. Summary of the portal-facing c
 - **Unified task composer** — `DirectorTaskForm` (`src/components/director-task-form.tsx`) now backs the Board, the portal Tasks page, and the pill New-task action. Multi-company **fan-out** (one task per company), all-active-people searchable "Responsible people" picker, **"Only I can close it"** lock (new `tasks.creator_close_only` col, applied idempotently — no drizzle migration), role-adaptive director/manager. Directors are **no longer auto-defaulted as accountable**.
 - **Multiple leads** — "Who is the lead?" star toggles in the composer; `LeadMultiSelect` in the editor; `leadIds` via `queries.getAllTasks` (`owner_id` = first lead); set via `portalSetTaskLeads`.
 - **Task "On this task" people panel** — Lead/Working badges, per-person WhatsApp/Email/Chat-DM icons, "Message In Chat" group thread (`portalMessageTaskGroup`), 1:1 DM (`portalOpenDm`). **Add/remove people (Jul 2026)**: director/HR or the task's creator can **Add someone** (searchable picker → added as an accountable via `portalSetTaskLeads`) and **remove** a member (× per row → `portalRemoveTaskPerson`; refuses to remove the last person, hands owner_id to a remaining lead). Gated by `canEditTask`/`canManageTask` — same rule as the rest of the editor.
-- **Command-centre parity on the portal (Jul 2026 — built, NOT pushed):** brings the director/management task surfaces up to the admin command centre.
+- **Command-centre parity on the portal (Jul 2026 — built, NOT pushed):** brings the director/management task surfaces up to the admin administrator.
   - **Tasks command view (`portal-tasks-command.tsx`):** (a) **bulk multi-select** behind a **"Select" toggle** (next to "Company wise") — ticks + a sticky `BulkBar` appear only in select mode → **Delete** (soft-archive) / **Postpone** (+1 week / +1 month), each with an **Undo** toast; routed through `portalBulkTaskAction(taskIds, action)` which re-checks `canManageTask`+`personCanSeeTask` per task (director = any, manager = own) and returns an `undo` payload the client replays. (b) **Classify** (Category + Risk auto-save) + one-tap **Escalate** via extended `portalEditTask` ({category,risk,escalation}; "Yes" also forces status→Escalated). (c) **Delete moved to a footer danger-zone** (only while the edit-pen is toggled) — "Delete the whole task", two-step confirm. (d) **Remove the LAST accountable person** is now allowed (task → Unassigned, owner_id null) — `portalRemoveTaskPerson` guard relaxed.
   - **Shared extracted controls** (reuse-don't-duplicate): `TaskPeoplePanel`, `TaskClassifyControls`, `TaskDeleteFooter` are now exported from `portal-tasks-command.tsx`.
   - **Full task page (`/portal/task/[code]`) unification:** new `components/portal-task-manage.tsx` (`PortalTaskManage`) renders the SAME controls for management (priority/due + classify/escalate + `TaskPeoplePanel` add/remove/lead + delete→navigates to /portal/tasks). Built from `buildCommandTasks([task.id])` + scoped people. **Update moderation**: `PortalConversation` (shared twin) gained optional `editAction`/`deleteAction`/`canModerate` → inline **edit + soft-delete** per message (author, or director/HR moderator); admin twin unaffected (props optional). New actions `portalEditUpdate`/`portalDeleteUpdate`/`portalRestoreUpdate` (FormData→void, server-enforced). A moderator **"Recently deleted · Restore"** `<details>` list sits below the conversation. **Related work**: a safe **source-meeting** chip in the header (task's own provenance).
@@ -205,7 +205,7 @@ Full record: **`portal_unification_jun2026.md`**. Summary of the portal-facing c
   - **Round 3 (built, NOT pushed):** (a) **Create composer field styling** (`director-task-form.tsx`) — every field is now a filled `bg-bg-subtle ring-1 ring-border` box (removed `bare-field`, which had zeroed fill+border+ring so they looked invisible next to the boxed people picker). (b) **"Assign task" validation** — the button is now **clickable when invalid** (only `disabled` while pending; greyed via `opacity-60` + `aria-disabled`) and shows a specific "Add at least one company and one responsible person…" message; `canSubmit` now also requires **≥1 company** (not just people). (c) **"≥1 responsible person" rule** re-enforced server-side — `portalRemoveTaskPerson` again refuses to remove the LAST person (add someone first); supersedes the earlier "allow removing last" relaxation. (d) **Fan-out copies in edit** (owner's choice): the edit company control is now `components/task-copy-companies.tsx` (`TaskCopyToCompanies`) — the task's own company is ticked+locked, ticking another creates an **independent copy** there via new action `portalCopyTaskToCompany(taskId, companyId)` (copies title/desc/priority/deadline/risk/category/flags + all assignees; new code; group director/HR only), unticking a **session** copy archives it (`portalDeleteTask`). Replaced the single-company "move" selector on both the Tasks card and the task-page manage panel. NOTE: copies are independent (no link column), so cross-session membership isn't tracked — the picker shows only the current company on re-open; copies appear as their own tasks. `portalEditTask({companyId})` move code remains in the backend but is no longer wired to any UI. All of the above applies portal-wide by permission (staff never see composer/company/remove-last controls). Still no DB migration.
   - **Round 4 (built + pushed):** (a) **Update-author fix** — the latest-update line + conversation now show the updater's **first name**; "You" appears ONLY when the current viewer authored it from their own portal; command-centre (`web-ui`) updates show the configured **owner name** (`v2.ownerName`) or "Management", never "You". New `src/lib/update-author.ts` `portalUpdateAuthor(by, viewerName, ownerName)`; `getAllTasks` now carries raw `latestActivity.by`; `buildCommandTasks(ids, viewerId, viewerName)` + task page `authorOf(by, myName, ownerName)` both use it. Applies to Tasks list, task page, all portal roles. (b) On the expanded task card, the "· person" next to the company name now lists **all LEAD names** and updates live as you promote/demote. (c) **More spacing between sections/companies** (gap-7, gap-8 company-wise) so each block reads distinctly.
   - **Round 5 (7-phase build — PUSHED Jul 2026, one commit per phase):**
-    - **P1 — author label fix (the round-4 bug):** `portal-command-tasks.ts` had a settings-ownerName var shadowed by the per-row task-owner, so web-ui (Command Centre) updates showed the task owner's first name (Shivam/Amal/Vishal…). Fixed: `portalUpdateAuthor(by, viewerName)` now returns literal **"Command Centre"** for web-ui / any non-portal stamp, first name for portal posts, "You" only for the viewer's own; dropped the ownerName arg + settings query entirely (kills the shadow). Task page `authorOf` matches.
+    - **P1 — author label fix (the round-4 bug):** `portal-command-tasks.ts` had a settings-ownerName var shadowed by the per-row task-owner, so web-ui (Administrator) updates showed the task owner's first name (Shivam/Amal/Vishal…). Fixed: `portalUpdateAuthor(by, viewerName)` now returns literal **"Administrator"** for web-ui / any non-portal stamp, first name for portal posts, "You" only for the viewer's own; dropped the ownerName arg + settings query entirely (kills the shadow). Task page `authorOf` matches.
     - **P2 — create composer:** responsible-people list now scoped to the SELECTED companies (directors too; prunes stale picks); managers with >1 company get the searchable `CompanyMultiSelect` in new `single` mode; Deadline swapped to the Aurora `DatePopover` (hidden input).
     - **P3 — Shivam re-attribution:** intentional, follows new rules → no change.
     - **P4 — closed-task tidy-ups:** bulk Postpone skips Completed/Closed; `portalEditTask` refuses to escalate a done task + the Escalate button hides on done; Done group sorts by `closedAt` (close date).
@@ -286,7 +286,7 @@ so it was left alone rather than changed blind.
 > sidebar. The measurements still stand; the conclusion did not.
 
 Asked for from inside a director's portal (Pulin's): bring the rail up to what
-the command centre's got, but a smaller version of it — and get rid of the extra
+the administrator's got, but a smaller version of it — and get rid of the extra
 column of filters, because "the director wants a proper list of tasks and that
 side panel is taking the space".
 
@@ -311,7 +311,7 @@ is. There was never a reason for them to be two columns.
   builds them, still decides what they mean. It publishes them and skips drawing
   its own column **only where a sidebar is actually on the screen**.
 - ⚠️ **NO PROVIDER MEANS NOTHING CHANGES.** `useContext` returns null on the
-  whole command centre, so its aside keeps the classes it had. The provider is
+  whole administrator, so its aside keeps the classes it had. The provider is
   in ONE file — `app/portal/(app)/layout.tsx`, above both the rail and the page,
   because one publishes and the other renders.
 - ⚠️ **ONLY FROM `lg`, and that is the fiddly bit.** The portal rail appears at
@@ -371,7 +371,7 @@ whole rail now holds exactly two buttons: collapse the sidebar, and hide the
 filters.
 
 ⚠️ **THE GENERAL LESSON, and it caught two things in one day: matching the
-command centre is not a reason on its own.** The desk rail folds because it
+administrator is not a reason on its own.** The desk rail folds because it
 overflows; the portal rail does not overflow. Copying the mechanism across
 brought the cost without the benefit.
 
@@ -382,7 +382,7 @@ returns 19 rows), `/portal/board` (no Show section), `/portal/companies/[id]`
 (the document library's eight categories, list at 248px), and **900px**, where
 the rail is gone and the old column is back exactly as it was.
 
-⚠️ **The command centre could take the same loan with one line** — wrap its
+⚠️ **The administrator could take the same loan with one line** — wrap its
 layout in `FilterRailProvider` — but it was not asked for and was not done.
 
 ### Three more, after the owner looked at it — 28 Aug 2026
@@ -396,7 +396,7 @@ same render as the new page, so a stale set can never reach the screen. The
 cleanup stays for a list that goes without the address changing. Proved by
 sampling every animation frame across the navigation: **0 bad frames of 301**.
 
-**2. `More` is pinned to the foot**, the portal's answer to the command centre's
+**2. `More` is pinned to the foot**, the portal's answer to the administrator's
 System block. ⚠️ **It is the last thing you want and the last place you should
 have to look** — Insights, Activity and Profile were the end of one scrolling
 column, which is not the same as being at the foot: open the filter dropdown and
@@ -811,7 +811,7 @@ navigations, back and forth: `main` holds **1009 on every single frame**.
 - ⚠️ **INLINE in the root layout, not `globals.css`.** Tailwind v4's Lightning
   CSS strips `scrollbar-gutter` out of the stylesheet entirely — the same trap
   that cost the `.note-scroller` rule, which is set inline for the same reason.
-- It fixes the **command centre too**: same `<body>`, same crossfade, same jump.
+- It fixes the **administrator too**: same `<body>`, same crossfade, same jump.
 
 ### ⚠️ The lesson, and it is the same one as the filters
 

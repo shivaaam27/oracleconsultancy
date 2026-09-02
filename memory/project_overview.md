@@ -6,9 +6,9 @@ metadata:
   type: project
 ---
 
-# COS System - Chief of Staff Command Centre
+# COS System - Chief of Staff Administrator
 
-COS System is a single-operator web app for the principal / Chief of Staff of **Oracle Consultancy**. It runs weekly operations across 7 portfolio companies and replaces the old `Chief Of Staff Workflow - Live.xlsx` workbook with a database-backed command centre.
+COS System is a single-operator web app for the principal / Chief of Staff of **Oracle Consultancy**. It runs weekly operations across 7 portfolio companies and replaces the old `Chief Of Staff Workflow - Live.xlsx` workbook with a database-backed administrator.
 
 The app is intentionally single-user. There is no auth and no multi-tenant model. UI-created records usually use `createdBy = "web-ui"`; AI command mutations use `createdBy = "ai-command"`; Meeting Workspace task creation uses `createdBy = "meeting-mode"`.
 
@@ -28,7 +28,7 @@ Task codes use the company's two-letter `code_prefix`, e.g. `DS-001` for Dar Spi
 
 ## Main Workflows
 
-- **Command centre** - `/` shows Overview, Companies, and Tasks tabs with KPIs, Needs Attention, risk, company breakdowns, and task views.
+- **Administrator** - `/` shows Overview, Companies, and Tasks tabs with KPIs, Needs Attention, risk, company breakdowns, and task views.
 - **Task registry** - tasks have company, status, priority, deadline, owner/assignees, risk, escalation, comments, and latest update.
 - **Timeline** - each task shows progress updates and audit-log field changes in one history stream.
 - **Quick Capture** - embedded in the hub; turns typed or dictated natural-language task text into structured task data.

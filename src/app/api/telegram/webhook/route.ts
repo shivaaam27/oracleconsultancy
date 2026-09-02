@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Forward to the admin ORI ASK path — READ-ONLY. We call the same /api/ask
-  // endpoint the command centre uses (non-streaming) rather than importing its
+  // endpoint the administrator uses (non-streaming) rather than importing its
   // server internals, keeping this scaffold self-contained. It never writes.
   try {
     const base =

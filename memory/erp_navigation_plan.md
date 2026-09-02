@@ -68,7 +68,7 @@ would be wrong.
    click away no matter where he is. This is the safety valve that makes the whole
    thing cheaper than today, not dearer.
 
-**⚠️ `/` does not move.** The command centre stays exactly where it is and stays
+**⚠️ `/` does not move.** The administrator stays exactly where it is and stays
 the home of Task Management. Making `/` the launcher would put an extra click in
 front of the page the owner opens most, and would break every link and bookmark
 that points at the hub.

@@ -96,7 +96,7 @@ Digital version of the paper "Oracle Office Cleaning Register" (daily checklist)
 
 NOTE: the nav "More" sheet was removed long ago — the HRMS icon opens a single "Go to" launcher. Below supersedes older lines where they conflict.
 
-### Tax & Legal (was "Command Centre")
+### Tax & Legal (was "Administrator")
 `/hrms/command-centre` is **labelled "Tax & Legal"** in the launcher + page header (route unchanged). Recurring tax/statutory/legal obligations engine (`recurring_obligations` + `obligation_company`), tick-habit, per-company applicable, create-task-from-obligation. `lib/recurring.ts`, `app/hrms/command-centre/`.
 
 ### Organogram (`/hrms/org`)

@@ -21,7 +21,7 @@ import { useSwipeRow } from "@/lib/use-swipe-row";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { taskHref } from "@/lib/task-href";
 
-/* The Command Centre "deck" — the unified home's working surfaces
+/* The Administrator "deck" — the unified home's working surfaces
  * (memory/command_centre_unification.md):
  *   • NeedsYou      — worst-first open tasks, scroll-housed; swipe left = Remind
  *   • CompanyHeat   — ALL companies as logo heat tiles (portal HealthTile twin),

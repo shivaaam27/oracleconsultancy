@@ -6,10 +6,10 @@ import { getGivenName } from "@/lib/names";
  *   • "You" ONLY when the current viewer authored it from their own portal.
  *   • A portal update by someone else → the poster's FIRST name.
  *   • Command-centre updates (`web-ui`, and any non-portal stamp) → the literal
- *     "Command Centre" — never "You" (the portal viewer isn't the command centre)
+ *     "Administrator" — never "You" (the portal viewer isn't the administrator)
  *     and never a person's name (nobody in the portal authored it).
  * Stamps: "portal:Name" (staff), "portal-dir:Name", "portal-mgr:Name",
- * "portal-hr:Name", "web-ui" (admin/command centre), "ai-command", "meeting-mode".
+ * "portal-hr:Name", "web-ui" (admin/administrator), "ai-command", "meeting-mode".
  */
 export function portalUpdateAuthor(by: string | null, viewerName: string): string {
   if (!by) return "System";
@@ -26,6 +26,6 @@ export function portalUpdateAuthor(by: string | null, viewerName: string): strin
     if (name.trim().toLowerCase() === viewerName.trim().toLowerCase()) return "You";
     return getGivenName(name);
   }
-  // web-ui or any other non-portal stamp = the command centre / admin side.
-  return "Command Centre";
+  // web-ui or any other non-portal stamp = the administrator / admin side.
+  return "Administrator";
 }

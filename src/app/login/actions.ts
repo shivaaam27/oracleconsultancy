@@ -49,7 +49,7 @@ export async function adminLogin(_prev: LoginState, fd: FormData): Promise<Login
   redirect("/");
 }
 
-/** Save the owner name/email used to verify the Command Centre sign-in (Settings). */
+/** Save the owner name/email used to verify the Administrator sign-in (Settings). */
 export async function adminSaveOwnerIdentity(fd: FormData): Promise<void> {
   const name = String(fd.get("ownerName") ?? "").trim() || null;
   const email = String(fd.get("ownerEmail") ?? "").trim() || null;

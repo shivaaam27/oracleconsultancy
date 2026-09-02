@@ -41,7 +41,7 @@ export default async function PortalInsightsPage() {
 
   const groupWide = seesAllCompanies(me);
 
-  // Always derive from the SAME source the admin command centre uses, then scope.
+  // Always derive from the SAME source the admin administrator uses, then scope.
   //  - director / HR: the whole portfolio (group-wide).
   //  - manager: only their visible set (own + team + their companies' tasks),
   //    and the by-company chart is limited to their own companies.

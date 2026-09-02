@@ -14,7 +14,7 @@ All list/data pages are dynamic because operational data changes often.
 
 | Route | File | Purpose |
 |---|---|---|
-| `/` | `src/app/page.tsx` + `_hub/*` | Command centre with Overview, Companies, and Tasks tabs. Includes Welcome Hero, Needs Attention, company risk, task views, Quick Capture, and Ask COS. |
+| `/` | `src/app/page.tsx` + `_hub/*` | Administrator with Overview, Companies, and Tasks tabs. Includes Welcome Hero, Needs Attention, company risk, task views, Quick Capture, and Ask COS. |
 | `/task/new` | `src/app/task/new/page.tsx` | Create task form. |
 | `/task/[code]` | `src/app/task/[code]/page.tsx` | Task detail, edit form, assignees, latest update, source meeting card, updates, audit timeline, similar tasks, draft email. |
 | `/registry` | `src/app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
@@ -134,7 +134,7 @@ One bottom-floating pill: **Home · Director Brief · Task Management · Workboo
 Note: meeting extraction now lives in `src/app/meeting/actions.ts` rather than a separate `/api/extract-meeting` route.
 
 ## June 2026 route/page changes
-- `/login` — tabbed (Staff Login default | Command Centre) + passkey button; `app/login/{auth-tabs,passkey-login-button,passkey-actions}.tsx`. See `memory/auth_login.md`.
+- `/login` — tabbed (Staff Login default | Administrator) + passkey button; `app/login/{auth-tabs,passkey-login-button,passkey-actions}.tsx`. See `memory/auth_login.md`.
 - `/hrms/command-centre` — UI label is now **"Tax & Legal"** (route path unchanged).
 - `/hrms/org` — Portfolio view = ELK flowchart (`org-flow.tsx`). See `memory/organogram.md`.
 - `/hrms/leave` — **Leave | Attendance** tabs (`?view=attendance&ym=YYYY-MM`); attendance register built.

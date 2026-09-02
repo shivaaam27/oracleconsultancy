@@ -91,7 +91,8 @@ export function PersonPicker({
       if (open && opt) add(opt.value);
     } else if (e.key === "Backspace" && query === "" && selected.length > 0) {
       remove(selected[selected.length - 1]);
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && open) {
+      e.preventDefault(); // claimed — the modal around this form must not close too
       setOpen(false);
     }
   }
@@ -104,14 +105,14 @@ export function PersonPicker({
       <input type="hidden" name={name} value={selected.join(", ")} />
       <div
         className={cn(
-          "w-full min-h-9 px-2 py-1.5 text-sm rounded-lg border border-border bg-bg-elev",
+          "w-full min-h-8 px-2 py-1 text-sm rounded-md border border-border bg-bg-elev",
           "flex flex-wrap items-center gap-1.5 cursor-text",
           "focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/40"
         )}
         onClick={() => inputRef.current?.focus()}
       >
         {selected.map((n) => (
-          <span key={n} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
+          <span key={n} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-accent/10 text-accent text-xs font-medium">
             {n}
             <button
               type="button"
@@ -131,7 +132,7 @@ export function PersonPicker({
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKeyDown}
           placeholder={selected.length === 0 ? placeholder : ""}
-          className="flex-1 min-w-[120px] bg-transparent outline-none border-none p-0 text-sm placeholder:text-fg-subtle"
+          className="bare-field flex-1 min-w-[120px] bg-transparent outline-none border-none p-0 text-sm placeholder:text-fg-subtle"
         />
       </div>
 

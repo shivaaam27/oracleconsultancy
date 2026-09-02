@@ -712,7 +712,7 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
               for (const pid of aIds) await sb.from("task_assignees").upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
               // Attribute the audit entry to whoever owns the standing rule (portal
               // rules stamp "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>";
-              // the AI chat path stamps "ai-command"; the Command Centre builder "web-ui").
+              // the AI chat path stamps "ai-command"; the Administrator builder "web-ui").
               const ruleCreatedBy = (raw.created_by as string | null) || "ai-command";
               await sb.from("audit_log").insert({ task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task", old_value: null, new_value: title, change_reason: "Recurring task (ORI automation)", created_at: nowIso, created_by: ruleCreatedBy });
               void reindexEntity("task", task.id);

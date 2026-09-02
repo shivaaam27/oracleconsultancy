@@ -32,13 +32,13 @@ export async function sendTestEmail(
 
   const result = await sendEmail({
     to: addr,
-    subject: "Test email from your Oracle Consultancy command centre",
+    subject: "Test email from your Oracle Consultancy administrator",
     text:
-      "This is a test message from your Chief-of-Staff command centre.\n\n" +
+      "This is a test message from your Chief-of-Staff administrator.\n\n" +
       "If you're reading this, real email sending is working — drafts you approve in the Outbox will be delivered from here.",
     html:
       '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.6;color:#111">' +
-      "<p>This is a test message from your Chief-of-Staff command centre.</p>" +
+      "<p>This is a test message from your Chief-of-Staff administrator.</p>" +
       "<p>If you're reading this, <strong>real email sending is working</strong> — drafts you approve in the Outbox will be delivered from here.</p>" +
       "</div>",
   });
@@ -81,7 +81,7 @@ export async function sendTestWhatsApp(
         "📊 2 open · 1 overdue",
         "This is a test of the rich WhatsApp format.",
       ].join("\n")
-    : "Test from your Oracle Consultancy command centre via WhatsApp. " +
+    : "Test from your Oracle Consultancy administrator via WhatsApp. " +
       "If you can read this, WhatsApp sending is working — drafts you approve in the Outbox can go out from here.";
 
   const result = await sendWhatsApp({

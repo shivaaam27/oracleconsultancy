@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-/* The Command Centre's heartbeat. Keeps the wall current and shows a live
+/* The Administrator's heartbeat. Keeps the wall current and shows a live
  * "synced …" stamp so it always feels awake.
  *
  * Liveness, most-instant first:

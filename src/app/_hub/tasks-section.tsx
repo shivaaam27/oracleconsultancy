@@ -194,12 +194,15 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const isQuiet = (r: (typeof all)[number]) =>
     isOpenRow(r) && (!r.lastUpdatedAt || nowMsQ - r.lastUpdatedAt.getTime() >= QUIET_MS);
 
-  // In the archived view show every archived task regardless of status (many are
-  // Closed/Completed); otherwise hide Closed unless explicitly opted in.
+  // "All" means every OPEN task — Done is its own entry on the rail, and the
+  // count beside "All" has always been the open count. ⚠️ This used to hide
+  // only Closed, so Completed tasks leaked into "All": the rail said 74 over a
+  // list of 82. The archived view, the Done tab, `closed=1` and an explicit
+  // Completed/Closed status filter still show finished tasks.
   const showClosed = sp.closed === "1" || showArchived || doneTab;
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
 
-  let rows = showClosed || statusOverridesClosed ? base : base.filter((r) => r.status !== "Closed");
+  let rows = showClosed || statusOverridesClosed ? base : base.filter(isOpenRow);
   if (doneTab) rows = rows.filter((r) => r.status === "Completed" || r.status === "Closed");
   if (sp.company) rows = rows.filter((r) => r.companyName === sp.company);
   rows = rows.filter(matchesPerson);
@@ -401,6 +404,22 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // keep their column order inside each group instead of fighting it.
   const sortKey = sp.sort && SORTERS[sp.sort] ? sp.sort : null;
   const sortDir: "asc" | "desc" = sp.dir === "desc" ? "desc" : "asc";
+  // No column clicked → the order follows the FILTER (owner's ask, 2 Sept
+  // 2026): All = most recently touched first; Overdue = most late first; Due
+  // soon = nearest first; Quiet = quietest first; Done = most recently closed.
+  // The cards view has always done this; the list fell back to the query's
+  // own order, so "All" opened on whatever the database returned first.
+  if (!sortKey && view === "table") {
+    const touched = (r: (typeof rows)[number]) => +(r.lastUpdatedAt ?? r.createdDate ?? 0);
+    const days = (r: (typeof rows)[number]) => (typeof r.daysToDeadline === "number" ? r.daysToDeadline : 1e9);
+    const cmp: (a: (typeof rows)[number], b: (typeof rows)[number]) => number =
+      sortMode === "overdue" ? (a, b) => days(a) - days(b) || touched(a) - touched(b)
+      : sortMode === "duesoon" ? (a, b) => days(a) - days(b)
+      : sortMode === "quiet" ? (a, b) => touched(a) - touched(b)
+      : sortMode === "done" ? (a, b) => +(b.closedDate ?? 0) - +(a.closedDate ?? 0)
+      : (a, b) => touched(b) - touched(a);
+    rows = [...rows].sort(cmp);
+  }
   if (sortKey && view === "table") {
     const { cmp, isEmpty } = SORTERS[sortKey];
     rows = [...rows].sort((a, b) => {

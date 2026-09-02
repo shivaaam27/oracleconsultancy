@@ -25,11 +25,11 @@ export type WaSummary = {
   notices: WaNotice[];
 };
 
-/** "web-ui" → Command Centre · "portal-dir:Name" → Director · "portal-mgr:Name" → Manager. */
+/** "web-ui" → Administrator · "portal-dir:Name" → Director · "portal-mgr:Name" → Manager. */
 function sourceLabel(createdBy: string): string {
   if (createdBy.startsWith("portal-dir")) return "Director";
   if (createdBy.startsWith("portal-mgr")) return "Manager";
-  return "Command Centre";
+  return "Administrator";
 }
 
 export const loadWaSummary = cache(async (personId: number, withNotices = true): Promise<WaSummary> => {

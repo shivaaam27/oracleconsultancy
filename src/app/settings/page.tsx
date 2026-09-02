@@ -457,7 +457,7 @@ export default async function SettingsPage({
             </form>
           </SettingsCard>
 
-          <SettingsCard id="tax-legal" icon={<Scale size={15} />} title="Tax & Legal" desc="Pause the area until you have real data. Resumes fresh." keywords="tax legal pause hide obligations statutory command centre">
+          <SettingsCard id="tax-legal" icon={<Scale size={15} />} title="Tax & Legal" desc="Pause the area until you have real data. Resumes fresh." keywords="tax legal pause hide obligations statutory administrator">
             <form action={setCommandCentrePause} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">{s.commandCentrePaused ? "Paused" : "Live"}</p>
@@ -834,7 +834,7 @@ export default async function SettingsPage({
               </div>
               <Button type="submit" variant="secondary">Save identity</Button>
               <p className="-mt-1 text-xs text-fg-subtle sm:col-span-3">
-                When set, the Command Centre sign-in requires this name or email <span className="font-medium">and</span> the password. Leave both blank to sign in with the password alone.
+                When set, the Administrator sign-in requires this name or email <span className="font-medium">and</span> the password. Leave both blank to sign in with the password alone.
               </p>
             </form>
 

@@ -4,9 +4,9 @@ Built by two parallel Sonnet agents (Fable orchestrating), verified centrally: t
 
 ## Recurring tasks (rides the EXISTING `recurring_task` automation rule kind)
 - `src/lib/ori/automations.ts`: config now takes `weekdays: number[]` (multi-day, wins over legacy `weekday`) + full task template (`status`/`description`); tests in `automations.test.ts`.
-- Creation UI: "Repeat" section (weekday chips / monthly day) on BOTH the Command Centre `/task/new` form (`task-form-fields.tsx` `RepeatSection`, wired in `createTask`) and the portal director/manager composer (`director-task-form.tsx`, `portalDirectorCreateTask`). The task is created today as normal AND a rule is saved for future copies.
+- Creation UI: "Repeat" section (weekday chips / monthly day) on BOTH the Administrator `/task/new` form (`task-form-fields.tsx` `RepeatSection`, wired in `createTask`) and the portal director/manager composer (`director-task-form.tsx`, `portalDirectorCreateTask`). The task is created today as normal AND a rule is saved for future copies.
 - New CapabilityKey **`recurringTasks`** (manager/hr/director ✓ by default; owner-flippable in Settings → Portals). Threaded as `canRepeat` through board client, smart-capture-bar, portal task pages and `portal-tasks-command.tsx` QuickAdd.
-- Management: portal Tasks page gets an "Automations" panel (`portal-recurring-tasks.tsx` + portal-scoped, cap-checked CRUD in `portal/(app)/tasks/automations-actions.ts`; ownership matched on `created_by` tag `portal-dir:<Name>` etc.). Command Centre manages the same rules on `/ori-automations` (builder gained a full recurring-task path; `describe.ts` renders "every Mon, Wed, Fri").
+- Management: portal Tasks page gets an "Automations" panel (`portal-recurring-tasks.tsx` + portal-scoped, cap-checked CRUD in `portal/(app)/tasks/automations-actions.ts`; ownership matched on `created_by` tag `portal-dir:<Name>` etc.). Administrator manages the same rules on `/ori-automations` (builder gained a full recurring-task path; `describe.ts` renders "every Mon, Wed, Fri").
 - ⚠️ Rules fire via the cron-job.org pinger — currently `*/15 8-18 * * 1-5`, so WEEKEND recurrence will NOT fire until the owner widens that schedule on cron-job.org.
 
 ## Status picker on portal task creation
@@ -17,7 +17,7 @@ Built by two parallel Sonnet agents (Fable orchestrating), verified centrally: t
 - Portal list: `portal-tasks-command.tsx` Status dropdown (all 8), mutually exclusive with the quick chips. All roles.
 
 ## Cleaning visibility
-`portal-permissions.ts` DEFAULT_CAPS: `cleaningOverview` now false for director/hr (manager + receptionist keep it → Shivam + receptionist + Command Centre only). Portal pill/layout had a raw role check for the Cleaning tab — replaced with a cap-driven tabOverride. Note: ANY manager sees it; if more managers are added later, flip per-role in Settings → Portals.
+`portal-permissions.ts` DEFAULT_CAPS: `cleaningOverview` now false for director/hr (manager + receptionist keep it → Shivam + receptionist + Administrator only). Portal pill/layout had a raw role check for the Cleaning tab — replaced with a cap-driven tabOverride. Note: ANY manager sees it; if more managers are added later, flip per-role in Settings → Portals.
 
 ## Fix applied during verification
 Agent made `BuilderPayload.condition` optional → 3 tsc errors in `rule-builder.tsx`; fixed by making the Draft's condition `NonNullable<>` (builder always initialises "always").

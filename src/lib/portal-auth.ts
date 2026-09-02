@@ -273,7 +273,7 @@ export async function colleagueCompanyScope(p: PortalPerson): Promise<number[] |
   return await myCompanyIds(p);
 }
 
-/** The universal "Command Centre" support contact(s) — ALWAYS reachable to every
+/** The universal "Administrator" support contact(s) — ALWAYS reachable to every
  *  portal user (chat / email / call) regardless of company, for help, feedback &
  *  bugs. Identified by name so it's available by default to directors/managers/
  *  staff who have no association with its home company (Oracle Consultancy). */
@@ -281,7 +281,7 @@ export async function commandCentrePersonIds(): Promise<number[]> {
   const { data } = await sb
     .from("people")
     .select("id")
-    .ilike("name", "Command Centre")
+    .or("name.ilike.Administrator,name.ilike.Command Centre")
     .eq("active", true);
   return (data ?? []).map((r) => r.id as number);
 }
@@ -423,7 +423,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       if (!data.active || !data.portal_password_hash) return null; // access revoked
       // AUTHSEC-02 was a HARD logout on a password-hash fingerprint mismatch — but
       // that was the suspected cause of installed-PWA relaunch sign-outs (the
-      // command centre has no such DB check and never logs out). The signed,
+      // administrator has no such DB check and never logs out). The signed,
       // unexpired cookie already proves authenticity, so we DOWNGRADE this to a
       // warning and keep the session. (Access revocation still works via `active`,
       // and changing a password no longer force-logs-out other devices.)
@@ -454,7 +454,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
 
 /** Every company id this portal person belongs to: their primary
  *  people.company_id (if any) UNION every person_companies association row.
- *  A person set up in the command centre to work for more than one company
+ *  A person set up in the administrator to work for more than one company
  *  belongs to ALL of them, so every portal scope (colleagues, companies,
  *  tasks) must span this set rather than the single primary company.
  *  Returns [] when they have no company at all. This is a small, cheap query

@@ -93,7 +93,7 @@ be driven by real count.
 
 **OWNER DECISION (confirmed 2026-06-30):** ALL 13 are real companies — **show all 13**. When a
 new company is added it must appear here automatically, AND sync to the **other portals where
-relevant + the command centre**. A company with no tasks yet should still show (and once a task
+relevant + the administrator**. A company with no tasks yet should still show (and once a task
 is created for it, its figures populate).
 
 **Fix plan (batch later):**
@@ -101,7 +101,7 @@ is created for it, its figures populate).
   company list (membership-style or seed from `companies` table), so every company shows with
   zero-task "All clear" figures until it has work. Knock-on: the company filter dropdown + health
   counts then cover all 13.
-- Audit every other "companies" surface that is task-derived (command centre Overview/Companies,
+- Audit every other "companies" surface that is task-derived (administrator Overview/Companies,
   any portal company pickers) so a newly-added company appears everywhere, not just where tasks
   exist. Single source = the `companies` table.
 - Replace the hardcoded "across 7 companies" (`director-board-client.tsx:190`) with the real
@@ -212,7 +212,7 @@ rows add `bg-accent-soft/25` (`:381`), compounding it. The "Clear" reveal on hov
 
 ---
 
-## #6 — Notification panel opens BELOW the viewport / off-screen (web + mobile, incl. command centre)
+## #6 — Notification panel opens BELOW the viewport / off-screen (web + mobile, incl. administrator)
 
 **Root cause:** `notification-bell.tsx:259-271` positions the panel with plain CSS (`md:absolute
 md:top-full`, opens DOWNWARD) and does NOT use the existing `src/lib/use-anchored.ts` hook (which

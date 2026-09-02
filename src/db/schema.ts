@@ -77,7 +77,7 @@ export const webauthnCredentials = pgTable("webauthn_credentials", {
 // MCP access keys — the credential an AI assistant presents to reach COS through
 // the Model Context Protocol (/api/mcp). See memory/mcp_plan.md.
 //
-// `person_id` NULL = the owner (command centre, full reach); otherwise the key
+// `person_id` NULL = the owner (administrator, full reach); otherwise the key
 // resolves to that staff member and inherits their portal role, capabilities and
 // company scope — the same engine the portal itself uses.
 //
@@ -701,7 +701,7 @@ export const updateAcks = pgTable(
 );
 
 // Who last viewed a task and when — powers the "Seen" indicator. Viewer is
-// "admin" (the owner's command centre) or "person:<id>" (a portal user).
+// "admin" (the owner's administrator) or "person:<id>" (a portal user).
 export const taskViews = pgTable(
   "task_views",
   {

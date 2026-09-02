@@ -31,9 +31,9 @@ export function PageTransition({
    * worse — the animation puts a `transform` on the wrapper, and a transform on
    * an ancestor makes it the containing block for `position: fixed`. The
    * portal's pinned sidebar lost its anchor and rode the page animation on
-   * every click, while the command centre's sidebar — mounted OUTSIDE this
+   * every click, while the administrator's sidebar — mounted OUTSIDE this
    * wrapper in the root layout — never moved. That asymmetry is what the owner
-   * kept reporting: "the sidebar breaks from its position… command centre
+   * kept reporting: "the sidebar breaks from its position… administrator
    * works fine." With the key collapsed, this instance animates INTO the
    * portal once and never again inside it; the portal layout's own instance
    * (whose wrapper contains only the page, never the sidebar) does the

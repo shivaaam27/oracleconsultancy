@@ -10,7 +10,7 @@ import type { CalendarEvent } from "@/lib/calendar";
 /**
  * Cascade: when a calendar event is deleted or cancelled, remove every task it
  * spawned (tasks.source_event_id = eventId) so the meeting's work items don't
- * linger as orphaned open tasks across the command centre and every portal.
+ * linger as orphaned open tasks across the administrator and every portal.
  * Assignees/updates cascade away with the row; each task's search index entry
  * is dropped. Best-effort and idempotent. Returns the number of tasks removed.
  */

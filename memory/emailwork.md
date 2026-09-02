@@ -75,7 +75,7 @@ creds → mail is truly From him. Else fall back to admin (current behaviour).
 1. Director/manager **portal profile**: "Send email from my own address" section —
    enter Google app password (with a short how-to), Connected/Not-connected state,
    personal on/off Switch, Disconnect button.
-2. **Command centre (Settings)** master switch "Allow staff to send from their own
+2. **Administrator (Settings)** master switch "Allow staff to send from their own
    mailbox" (governance kill switch, like `director.outreachPaused`) + a small list
    of who's connected with an admin Disconnect. "For safe keeping" = owner can kill
    the whole feature instantly regardless of personal toggles.

@@ -266,7 +266,7 @@ export async function createEventAction(
     } catch { /* task spawn is best-effort — never block event creation */ }
 
     // Notify the people invited — the bell + a push ("You've been added to a
-    // meeting"). This was missing, so attendees added from the command centre or
+    // meeting"). This was missing, so attendees added from the administrator or
     // a portal never heard about it. Gated by the same eventAttendeePings setting
     // that governs meeting-start pings; the organiser isn't notified of their own
     // event. Best-effort — never block event creation.
@@ -611,9 +611,9 @@ export type EventSender = {
  *  • portal-dir:<Name> → OC Director's Office, replies to the director's own email,
  *    footer "Name / Director - <Company>";
  *  • portal-mgr:<Name> → OC Manager's Office, likewise;
- *  • everything else (web-ui / meeting-mode / ai-command) → the Command Centre,
+ *  • everything else (web-ui / meeting-mode / ai-command) → the Administrator,
  *    signing plainly as Oracle Consultancy, replies to the admin address.
- * Falls back to the Command Centre if the named person can't be resolved.
+ * Falls back to the Administrator if the named person can't be resolved.
  */
 async function resolveEventSender(createdBy: string): Promise<EventSender> {
   const { emailFrom } = await getAppSettings();
@@ -646,7 +646,7 @@ async function resolveEventSender(createdBy: string): Promise<EventSender> {
     // Named person not found — still sign as the office, reply to admin.
     return { office, fromName: senderName(office), replyTo: adminReply, signoffName: name, signoffTitle: `${roleWord} - Oracle Consultancy Ltd` };
   }
-  // Command Centre (owner / automations).
+  // Administrator (owner / automations).
   return { office: "command", fromName: senderName("command"), replyTo: adminReply, signoffName: null, signoffTitle: null };
 }
 
@@ -1066,7 +1066,7 @@ export async function deleteEventAction(id: number): Promise<Result> {
     }
     // Remove the tasks this event spawned BEFORE deleting the row — the FK is
     // ON DELETE SET NULL, so once the event is gone the link is lost and the
-    // tasks can no longer be found. This clears them everywhere (command centre
+    // tasks can no longer be found. This clears them everywhere (administrator
     // + all portals) so a deleted meeting leaves no orphaned open tasks.
     await deleteTasksForEvent(id);
     await deleteCalendarEvent(id);
@@ -1093,7 +1093,7 @@ export async function cancelEventAction(id: number): Promise<Result> {
       googleCancelled = r.ok;
     }
     // A cancelled meeting has no work to do — clear its spawned tasks too so they
-    // don't linger as open tasks across the command centre and portals.
+    // don't linger as open tasks across the administrator and portals.
     await deleteTasksForEvent(id);
     await markCalendarEventCancelled(id);
     invalidate();

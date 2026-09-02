@@ -62,7 +62,7 @@ export function Panel({
  *
  * This WAS a 3xl title inside an aurora-lit glass slab, which cost ~190px before
  * a single row of content and was the loudest thing on every page it appeared on.
- * It is now the same compact header the command centre uses (`PageHeader` in
+ * It is now the same compact header the administrator uses (`PageHeader` in
  * ui.tsx — same markup, same `data-page-header` hook), because the portal pass
  * has one goal: the two sides look like one product.
  *
@@ -77,7 +77,7 @@ export function Panel({
  * The portal page header is a CARD — a real edge around the title, the figures
  * and whatever else the hero carries.
  *
- * The command centre keeps its hairline: there the title sits above a dense
+ * The administrator keeps its hairline: there the title sits above a dense
  * list and a box round it would compete. In the portal everything BELOW the
  * header is a card, so a bare line of text at the top read as unfinished — the
  * board especially, where the greeting, the date and the figures had nothing

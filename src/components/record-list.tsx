@@ -563,6 +563,7 @@ export function RecordList<T>({
   selectionSlot,
   bulkBar,
   subRow,
+  subRowAlways = false,
   rowActions,
   groupOf,
   total,
@@ -617,6 +618,11 @@ export function RecordList<T>({
   /** Optional second line under the columns (context ERPNext wouldn't show, but
    *  the owner reads: company, latest update). Hidden in Compact until hover. */
   subRow?: (row: T) => ReactNode;
+  /** Keep the context line in Compact too (it normally folds until hover).
+   *  For a list whose second line is the point — Tasks, where it carries the
+   *  latest update — and where a row growing under the pointer would make the
+   *  list lurch as you read down it. */
+  subRowAlways?: boolean;
   /** Hover-revealed actions, overlaid right so they never shift the columns. */
   rowActions?: (row: T) => ReactNode;
   /** Return a heading to start a new group at this row. */
@@ -1052,7 +1058,7 @@ export function RecordList<T>({
                     {(subRow || rowActions) && (
                       <div className="mt-0.5 flex min-w-0 items-center gap-2">
                         {subRow && (
-                          <div data-subrow className={cn("min-w-0 flex-1", tick && "pl-[2.4rem]")}>
+                          <div data-subrow={subRowAlways ? "always" : "hover"} className={cn("min-w-0 flex-1", tick && "pl-[2.4rem]")}>
                             {subRow(row)}
                           </div>
                         )}

@@ -28,10 +28,12 @@ export default function NewTaskModal({ searchParams }: { searchParams: SP }) {
 
 async function ModalFormLoader({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
-  const [{ data: rows }, { data: ppl }] = await Promise.all([
+  const [{ data: rows }, { data: ppl }, { data: depts }] = await Promise.all([
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("departments").select("name").order("name"),
   ]);
+  const departments = (depts ?? []).map((d) => d.name as string);
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const people = (ppl ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   const presetCompany = sp.companyId ? parseInt(sp.companyId, 10) : companies[0]?.id;
@@ -39,6 +41,7 @@ async function ModalFormLoader({ searchParams }: { searchParams: SP }) {
     <NewTaskForm
       companies={companies}
       people={people}
+      departments={departments}
       presetCompany={presetCompany}
       returnTo={sp.returnTo}
       defaultTitle={sp.title}

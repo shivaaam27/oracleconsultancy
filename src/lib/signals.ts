@@ -163,7 +163,7 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
 
   // Statutory deadlines coming up — per-company aware: only obligations inside
   // their warning window that still have an applicable company not done this
-  // period (see Command Centre). Shared definition via outstandingDeadlines.
+  // period (see Administrator). Shared definition via outstandingDeadlines.
   // Dropped from Home signals when the Tax & Legal area is paused (master switch).
   const { commandCentrePaused } = await getAppSettings();
   const upcomingDeadlines = commandCentrePaused ? [] : await outstandingDeadlines(obligations, now);

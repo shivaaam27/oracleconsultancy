@@ -14,14 +14,14 @@ import { cn } from "@/lib/cn";
  * phone and wasteful on a monitor, where the directors actually work: a fixed
  * rail costs nothing horizontally and puts every destination one click away
  * instead of behind a scrolling row of icons. It also makes the portal read as
- * the SAME product as the command centre, which is the whole point of this pass.
+ * the SAME product as the administrator, which is the whole point of this pass.
  *
  * It shows from `lg` up, and the pill hides at that width (see portal-pill.tsx)
  * — exactly the arrangement the admin side uses.
  *
  * ⚠️ It publishes `--portal-sidebar` on <html>, NOT `--desk-sidebar`. The two
  * must stay separate: the admin gutter reads its own variable, and a portal page
- * that overwrote it would shove the command centre's layout about on the next
+ * that overwrote it would shove the administrator's layout about on the next
  * navigation.
  *
  * Its items come from `portalNavItems`, the one map the pill also reads, so a

@@ -165,4 +165,4 @@ company filter at all. A scoping bug would be invisible in his account.
 1–2 days, **provided stages 1–2 were built as specified**. If the capability tags
 or the scope helpers were skipped as "we'll add them for Pulin later", this stage
 becomes a rewrite instead. That is the single reason to build them in from the
-start even though the command centre alone does not need them.
+start even though the administrator alone does not need them.

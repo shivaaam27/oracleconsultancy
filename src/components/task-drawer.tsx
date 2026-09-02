@@ -19,21 +19,23 @@ import {
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeAvatars } from "./assignee-avatars";
-import { Badge, Input, Select, Textarea, Button, IconButton } from "./ui";
+import { Badge, Textarea, Button, IconButton, FIELD } from "./ui";
+import { SelectField } from "./select-field";
+import { FormSwitch } from "./form-switch";
+import { Combobox } from "./combobox";
 import { PolishedInput } from "./polished-input";
 import { PersonPicker } from "./person-picker";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "./portal-conversation";
 import { TaskInlineStatus, TaskInlinePriority } from "./task-inline-edit";
 import { WaitingOnChip } from "./task-meta-line";
 import { Segmented } from "./macos";
-import { FluidSelect } from "./fluid-select";
 import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
 import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask } from "@/app/task/actions";
 import { getGivenName, getInitials } from "@/lib/names";
-import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
+import { STATUSES, PRIORITIES, RISKS, CATEGORIES } from "@/lib/constants";
 import {
   sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
   groupFieldEdits, liftPinnedUpdates, applyTimelineFilter,
@@ -58,6 +60,7 @@ type DrawerData = {
   statusOptions: string[];
   people: { id: number; name: string }[];
   companies: { id: number; name: string }[];
+  departments: string[];
 };
 
 function dateInput(d: Date | string | null | undefined) {
@@ -103,22 +106,15 @@ const FILTER_LABELS: Record<TimelineFilter, string> = {
   all: "All", updates: "Updates", status: "Status", field: "Edits", escalation: "Escalations", bulk: "Bulk",
 };
 
-/** A grouped inset card holding related edit fields. */
-function EditCard({ title, children }: { title?: string; children: React.ReactNode }) {
+/** Single labelled control on the Edit tab. */
+function Field({ label, hint, children, className }: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
+  /* Label and control sit at the BOTTOM of the cell so a row of fields lines
+     up whatever the labels do (the same rule every CocoZuri form follows). */
   return (
-    <SectionCard className="p-3 space-y-2.5">
-      {title && <div className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{title}</div>}
+    <div className={cn("flex h-full min-w-0 flex-col justify-end", className)}>
+      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</label>
       {children}
-    </SectionCard>
-  );
-}
-
-/** Single labelled control inside an EditCard. */
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("space-y-1 min-w-0", className)}>
-      <label className="block text-xs font-medium text-fg-muted">{label}</label>
-      {children}
+      {hint && <p className="mt-1 text-xs leading-snug text-fg-subtle">{hint}</p>}
     </div>
   );
 }
@@ -187,11 +183,6 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   // Decision-strip re-date popover (inline date input, no Edit-tab trip).
   const [redating, setRedating] = useState(false);
   const [newDate, setNewDate] = useState("");
-  // Controlled values for the Edit tab's FluidSelects (kit dropdowns don't emit a
-  // form field, so each is mirrored into a hidden input). Re-seeded when data loads.
-  const [editCompany, setEditCompany] = useState("");
-  const [editRisk, setEditRisk] = useState("");
-  const [editEscalation, setEditEscalation] = useState("No");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -232,7 +223,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   // (e.g. table-view openTask(code,"conversation") sets ?dtab=conversation). A
   // drawer-specific name, NOT "tab" (which selects the page section). The ids
   // here must match the DrawerTab ids below. Falls back to Conversation — the
-  // task view is conversation-first (Command Centre unification, owner-approved).
+  // task view is conversation-first (Administrator unification, owner-approved).
   useEffect(() => {
     setActiveTab(searchParams.get("dtab") ?? "conversation");
     setConfirmDel(false);
@@ -343,14 +334,6 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, refreshKey, refreshNonce, isTaskPage, mode]);
 
-  // Seed the Edit-tab controlled selects whenever the task data (re)loads.
-  useEffect(() => {
-    if (!data) return;
-    setEditCompany(String(data.task.companyId));
-    setEditRisk(data.task.risk || "");
-    setEditEscalation(data.task.escalation || "No");
-  }, [data]);
-
   const t = data?.task;
 
   // Copy the record's own permanent URL. A record is a page now, so the link is
@@ -397,7 +380,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   const quietDays = t?.lastUpdatedAt ? Math.floor((Date.now() - new Date(t.lastUpdatedAt).getTime()) / 86_400_000) : null;
   const needsAttention = !!t && !done && (lateDays > 0 || (quietDays !== null && quietDays >= 7) || quietDays === null);
   const decisionStrip = t && needsAttention ? (
-    <div className="rounded-2xl bg-danger-soft/25 p-2.5 ring-1 ring-danger/20">
+    <div className="rounded-lg border border-danger/20 bg-danger-soft/25 p-2.5">
       <p className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-danger">
         <AlertOctagon size={12} className="shrink-0" />
         {lateDays > 0 && <span>{lateDays}d late</span>}
@@ -470,7 +453,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     <>
       {/* Pinned-instruction banner (info tint) */}
       {pinnedUpdate && (
-        <div className="rounded-2xl ring-1 ring-info/30 bg-info-soft/40 p-3.5">
+        <div className="rounded-lg border border-info/30 bg-info-soft/40 p-3.5">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-info">
             <Pin size={12} /> Current instruction
             <button type="button" onClick={() => setActiveTab("conversation")}
@@ -562,7 +545,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
 
       {/* Inline add-update box (reuses adminAddUpdate — same action as Conversation) */}
       {!done && (
-        <form action={postUpdate} className="rounded-2xl border border-border/60 bg-bg-elev p-3 space-y-2.5 transition-colors focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15">
+        <form action={postUpdate} className="rounded-lg border border-border bg-bg-elev p-3 space-y-2.5 transition-colors focus-within:border-accent/50">
           <input type="hidden" name="taskId" value={t.id} />
           <input type="hidden" name="code" value={t.code} />
           <input type="hidden" name="parentUpdateId" value="" />
@@ -576,7 +559,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-fg-subtle">@mention, attach or set status? Open Conversation.</span>
-            <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
+            <Button type="submit" size="sm" className="shrink-0" loading={posting} disabled={posting}>
               {!posting && <Send size={13} />} Post
             </Button>
           </div>
@@ -588,25 +571,25 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       <div className="flex flex-wrap items-center justify-end gap-2">
         {t.assignees.length > 0 && !done && (
           <>
-            <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-xs">
+            <div className="inline-flex items-center gap-0.5 rounded-md bg-bg-subtle p-0.5 ring-1 ring-border text-xs">
               {(["task", "all"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setRemindScope(s)}
                   title={s === "task" ? "Remind about this task" : "Remind about all their open tasks"}
-                  className={cn("rounded-full px-2 py-0.5 font-medium transition-colors", remindScope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg")}
+                  className={cn("rounded px-2 py-0.5 font-medium transition-colors", remindScope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg")}
                 >
                   {s === "task" ? "This task" : "All tasks"}
                 </button>
               ))}
             </div>
-            <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={remindOwner} loading={reminding} disabled={reminding}>
+            <Button type="button" variant="ghost" size="sm" onClick={remindOwner} loading={reminding} disabled={reminding}>
               {!reminding && <Bell size={13} />} Remind {getGivenName(t.assignees[0])}
             </Button>
           </>
         )}
-        <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={copyLink}>
+        <Button type="button" variant="ghost" size="sm" onClick={copyLink}>
           <LinkIcon size={13} /> Copy link
         </Button>
         <DraftEmailButton taskId={t.id} />
@@ -710,68 +693,95 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   ) : null;
 
   const editContent = t && data ? (
-    <form action={updateTask.bind(null, t.code)} className="space-y-2.5">
-      <input type="hidden" name="returnTo" value={`${pathname}?task=${encodeURIComponent(t.code)}&tr=${Date.now()}`} />
+    /* ⚠️ THE WEB FORM IS A FULL REPLACE (see updateTask): every field it owns
+       is submitted, blanks included. So a control must never be "absent" here
+       — a missing hidden input would CLEAR that field on save.
 
-      <EditCard>
-        <Field label="Action item">
-          <PolishedInput name="actionItem" defaultValue={t.actionItem} required />
-        </Field>
-        <Field label="Company">
-          <input type="hidden" name="companyId" value={editCompany} />
-          <FluidSelect
-            value={editCompany}
-            onSelect={setEditCompany}
-            options={data.companies.map((c) => ({ value: String(c.id), label: c.name }))}
-            className="w-full"
-            buttonClassName="w-full justify-between"
-          />
-          <p className="text-xs text-fg-subtle leading-snug">Changing this issues a new code; the old one keeps redirecting.</p>
-        </Field>
-      </EditCard>
+       Desk, matching the New Task form: one card, two-column grid, the ONE
+       control box, no native <select>, and Category / Department offered from
+       their lists rather than typed free. `key` re-seeds every self-managed
+       control (SelectField, Combobox, FormSwitch hold their own state) when
+       the record reloads, so a save never leaves stale values in the boxes. */
+    <form
+      key={`${t.code}-${refreshKey}`}
+      action={updateTask.bind(null, t.code)}
+      className="space-y-3"
+    >
+      {/* Where to land after saving. On the page that is the page itself; the
+          legacy drawer goes back to whatever page it was opened over. `tr`
+          is a nonce the record re-fetches on. */}
+      <input
+        type="hidden"
+        name="returnTo"
+        value={mode === "page"
+          ? `${taskHref(t.code)}?tr=${Date.now()}`
+          : `${pathname}?task=${encodeURIComponent(t.code)}&tr=${Date.now()}`}
+      />
 
-      <EditCard title="Details">
-        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2.5">
-          <Field label="Status"><Select name="status" defaultValue={t.status}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-          <Field label="Priority"><Select name="priority" defaultValue={t.priority}>{PRIORITIES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-          <Field label="Risk">
-            <input type="hidden" name="risk" value={editRisk} />
-            <FluidSelect
-              value={editRisk}
-              onSelect={setEditRisk}
-              placeholder="—"
-              options={[{ value: "", label: "—" }, ...RISKS.map((s) => ({ value: s, label: s }))]}
-              className="w-full"
-              buttonClassName="w-full justify-between"
-            />
+      <div className="rounded-lg border border-border bg-bg-elev">
+        <div className="space-y-4 p-4 sm:p-5">
+          <Field label="Action item">
+            <PolishedInput name="actionItem" defaultValue={t.actionItem} required />
           </Field>
-          <Field label="Escalation">
-            <input type="hidden" name="escalation" value={editEscalation} />
-            <FluidSelect
-              value={editEscalation}
-              onSelect={setEditEscalation}
-              options={[{ value: "No", label: "No" }, { value: "Yes", label: "Yes" }]}
-              className="w-full"
-              buttonClassName="w-full justify-between"
-            />
-          </Field>
-          <Field label="Department"><Input name="department" defaultValue={t.department || ""} placeholder="—" /></Field>
-          <Field label="Category"><Input name="category" defaultValue={t.category || ""} placeholder="—" /></Field>
-          <Field label="Meeting date"><Input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} /></Field>
-          <Field label="Deadline"><Input name="deadline" type="date" defaultValue={dateInput(t.deadline)} /></Field>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <Field label="Company" hint="Changing this issues a new code; the old one keeps redirecting.">
+              <SelectField name="companyId" defaultValue={String(t.companyId)} options={data.companies.map((c) => ({ value: String(c.id), label: c.name }))} />
+            </Field>
+            <Field label="Accountable">
+              <PersonPicker people={data.people} defaultNames={t.assignees} placeholder="Search people, or type a new name…" />
+            </Field>
+            <Field label="Status">
+              <SelectField name="status" defaultValue={t.status} options={STATUSES.map((s) => ({ value: s, label: s }))} />
+            </Field>
+            <Field label="Priority">
+              <SelectField name="priority" defaultValue={t.priority} options={PRIORITIES.map((s) => ({ value: s, label: s }))} />
+            </Field>
+            <Field label="Deadline">
+              <input name="deadline" type="date" defaultValue={dateInput(t.deadline)} className={FIELD} />
+            </Field>
+            <Field label="Meeting date">
+              <input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} className={FIELD} />
+            </Field>
+            <Field label="Risk">
+              <SelectField name="risk" defaultValue={t.risk || ""} placeholder="—" options={[{ value: "", label: "—" }, ...RISKS.map((s) => ({ value: s, label: s }))]} />
+            </Field>
+            <Field label="Escalation">
+              <SelectField name="escalation" defaultValue={t.escalation || "No"} options={[{ value: "No", label: "No" }, { value: "Yes", label: "Yes" }]} />
+            </Field>
+            <Field label="Department">
+              <Combobox name="department" options={data.departments} defaultValue={t.department || ""} placeholder="Pick, or type a new one" />
+            </Field>
+            <Field label="Category">
+              <SelectField name="category" defaultValue={t.category || ""} placeholder="—" options={[{ value: "", label: "—" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} />
+            </Field>
+            <Field label="Description" className="sm:col-span-2">
+              <Textarea name="comments" defaultValue={t.comments || ""} rows={3} />
+            </Field>
+          </div>
         </div>
-      </EditCard>
 
-      <EditCard title="People & notes">
-        <Field label="Accountable">
-          <PersonPicker people={data.people} defaultNames={t.assignees} placeholder="Search people, or type a new name…" />
-        </Field>
-        <Field label="Comments">
-          <Textarea name="comments" defaultValue={t.comments || ""} rows={2} />
-        </Field>
-      </EditCard>
+        <div className="border-t border-border" />
 
-      <Button type="submit" size="lg" className="w-full rounded-full"><Save size={14} /> Save changes</Button>
+        <div className="grid grid-cols-1 gap-2.5 p-4 sm:grid-cols-2 sm:p-5">
+          <FormSwitch
+            name="leadMode"
+            defaultChecked={t.accountability === "lead"}
+            label="The first person is the lead"
+            hint="Only they carry the overdue. Off: everyone on it shares it."
+          />
+          <FormSwitch
+            name="requiresAttachment"
+            defaultChecked={t.requiresAttachment}
+            label="Needs a file to complete"
+            hint="Completing on the portal refuses without an attachment."
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setActiveTab("overview")}>Cancel</Button>
+        <Button type="submit"><Save size={14} /> Save changes</Button>
+      </div>
     </form>
   ) : null;
 
@@ -794,7 +804,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   const actionBar = t ? (
     <div className="space-y-2">
       {confirmDel && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-soft/50 ring-1 ring-danger/25 px-3 py-1.5 text-xs">
+        <div className="flex items-center gap-2 rounded-lg bg-danger-soft/50 ring-1 ring-danger/25 px-3 py-1.5 text-xs">
           <Trash2 size={14} className="text-danger shrink-0" />
           <span className="min-w-0 flex-1">Delete this task permanently?</span>
           <Button type="button" onClick={() => setConfirmDel(false)} variant="ghost" size="sm" className="shrink-0">Cancel</Button>
@@ -805,18 +815,18 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       )}
       <div className="flex items-center gap-2">
         <Button type="button" onClick={() => quickAction("complete")} disabled={acting !== null} loading={acting === "complete"}
-          variant="primary" size="lg" className="rounded-full flex-1 sm:flex-none">
+          variant="primary" size="lg" className="flex-1 sm:flex-none">
           {acting !== "complete" && (done ? <RotateCcw size={15} /> : <CheckCircle2 size={15} />)}
           {done ? "Reopen" : "Complete"}
         </Button>
         {t.escalation !== "Yes" && (
           <Button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} loading={acting === "escalate"}
-            variant="danger-soft" size="lg" className="rounded-full">
+            variant="danger-soft" size="lg">
             {acting !== "escalate" && <AlertOctagon size={15} />} Escalate
           </Button>
         )}
         <Button type="button" onClick={() => setConfirmDel((v) => !v)} aria-label="Delete"
-          variant="ghost" size="lg" className={`ml-auto rounded-full w-10 px-0 ${confirmDel ? "text-danger bg-danger-soft" : "hover:text-danger"}`}>
+          variant="ghost" size="lg" className={`ml-auto w-10 px-0 ${confirmDel ? "text-danger bg-danger-soft" : "hover:text-danger"}`}>
           <Trash2 size={16} />
         </Button>
       </div>

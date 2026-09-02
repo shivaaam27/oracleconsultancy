@@ -8,7 +8,7 @@ metadata:
 
 # COS System - V2 Status and Roadmap
 
-**What this app is:** a Chief-of-Staff command centre for Oracle Consultancy's 7 companies. Single operator, no auth. It replaced an Excel workbook with a database-backed Next.js app.
+**What this app is:** a Chief-of-Staff administrator for Oracle Consultancy's 7 companies. Single operator, no auth. It replaced an Excel workbook with a database-backed Next.js app.
 
 **Owner context:** the owner is non-technical. Explain in plain language and use British English.
 

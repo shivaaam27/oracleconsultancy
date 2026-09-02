@@ -95,7 +95,7 @@ All seven phases implemented, type-checked (`tsc --noEmit` clean after every pha
 - **1.2 ⚪ Count badges hardcode white/black instead of theme colours** [design] · S — `documents-table.tsx:412`, `people-table.tsx:327`, `outbox/pending-list.tsx:161`, `needs-attention-panel.tsx:219`.
 - **1.3 ⚪ Faint user icon in Ask COS chat (dark mode)** [dark] · S — `ask-cos.tsx:409` (`text-white bg-fg-muted` → accent fill).
 - **1.4 ⚪ Tiny grey labels hard to read on glass** [dark] · S — `top-pill.tsx:147,209`, `auth-shell.tsx:63` (bump one step darker).
-- **1.5 🟡 Stale brand "Chief of Staff Command Center" (US spelling) leaks in shared digest + app metadata** [nav] · S — `src/lib/digest.ts:74`, `src/app/layout.tsx:28`, `public/manifest.json`.
+- **1.5 🟡 Stale brand "Chief of Staff Administrator" (US spelling) leaks in shared digest + app metadata** [nav] · S — `src/lib/digest.ts:74`, `src/app/layout.tsx:28`, `public/manifest.json`.
 - **1.6 ⚪ Old "AUMIO" name lingers in search + storage keys** [nav] · S — `command-palette.tsx:532`, `attention-list.tsx:58,63`.
 - **1.7 ⚪ Dead `.wordmark` CSS referencing the removed sidebar** [nav] · S — `globals.css:188`.
 - **1.8 🟡 A whole second action-bar component is built but never shown (dead code)** [nav] · S — `context-actions.tsx:111` (`ContextActionBar`).

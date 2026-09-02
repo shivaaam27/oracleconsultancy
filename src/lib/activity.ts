@@ -1,7 +1,7 @@
 import "server-only";
 import { sb } from "@/db/supabase";
 
-// Recent portfolio activity for the Command Centre "Live activity" feed. Reads the
+// Recent portfolio activity for the Administrator "Live activity" feed. Reads the
 // newest task updates across every company (the richest "what just happened" signal)
 // and resolves the author from the createdBy stamp. Read-only — no new backend.
 

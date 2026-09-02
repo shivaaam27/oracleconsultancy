@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
     const brief = await buildMorningBrief();
 
     // 3. One notification — deep-link to the cockpit when there's something to act
-    //    on, else the command centre. Skip entirely when there's nothing to say.
+    //    on, else the administrator. Skip entirely when there's nothing to say.
     if (brief.empty) {
       await recordEvent("cron.morning", "ok", { sent: 0, reason: "nothing-to-say", work, gaps, digest });
       return NextResponse.json({ ok: true, sent: 0, work, gaps, digest });

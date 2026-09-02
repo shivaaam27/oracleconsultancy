@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useUrlFilters } from "@/lib/use-url-filters";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
   Megaphone, Plus, Paperclip, Layers as LayersIcon, type LucideIcon,
 } from "lucide-react";
-import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea, PageHeader, CONTROL_BOX } from "@/components/ui";
 import { useCreateParam } from "@/lib/use-create-param";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
 import { ANNOUNCEMENT_TYPES } from "@/lib/announcements-shared";
@@ -38,10 +39,11 @@ import { createEventAction, updateEventAction, deleteEventAction, sendEventInvit
 const PREFS_KEY = "cos.calendar.prefs.v1";
 type CalendarPrefs = {
   view: ViewMode;
-  search: string;
-  companyFilter: string;
-  sourceFilter: string;
-  categoryFilter: string;
+  /** Older saves carried the filters too; they now live in the URL. */
+  search?: string;
+  companyFilter?: string;
+  sourceFilter?: string;
+  categoryFilter?: string;
   disabledLayers: OverlayKind[];
   meetingsOnly: boolean;
   collapseRecurring: boolean;
@@ -203,18 +205,28 @@ export function CalendarBoard({
   const [tab, setTab] = useState<BriefTab>("events");
   const [formOpen, setFormOpen] = useState(false);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("all");
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   // /calendar?new=1 — the global New menu's "Event".
   useCreateParam("1", () => openNew());
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
-  const [view, setView] = useState<ViewMode>("agenda");
+  // The view and the filters are the URL (the rule every list follows now), so
+  // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
+  // that name is watched globally by CompanyDrawer. Layers and the two noise
+  // switches stay device preferences: they are taste, not a view.
+  const url = useUrlFilters({ view: "agenda", co: "all", type: "all", src: "all", q: "" }, { debounceKeys: ["q"] });
+  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : "agenda";
+  const setView = (v: ViewMode) => url.set({ view: v });
+  const companyFilter = url.values.co;
+  const setCompanyFilter = (v: string) => url.set({ co: v });
+  const categoryFilter = url.values.type;
+  const setCategoryFilter = (v: string) => url.set({ type: v });
+  const sourceFilter = url.values.src;
+  const setSourceFilter = (v: string) => url.set({ src: v });
+  const search = url.values.q;
+  const setSearch = (v: string) => url.set({ q: v });
   const [needInvitesOnly, setNeedInvitesOnly] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
-  const [search, setSearch] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
   const [enabledLayers, setEnabledLayers] = useState<Set<OverlayKind>>(() => new Set(OVERLAY_KINDS));
   // "Meetings only" hides every overlay layer at once; "Hide repeats" collapses a
   // recurring series to one chip per period (with a ↻ badge) so it stops filling
@@ -232,22 +244,20 @@ export function CalendarBoard({
       const raw = window.localStorage.getItem(PREFS_KEY);
       if (raw) {
         const p = JSON.parse(raw) as Partial<CalendarPrefs>;
-        if (p.view && (["month", "week", "day", "agenda"] as const).includes(p.view)) setView(p.view);
-        else if (window.innerWidth < 640) setView("agenda");
-        if (typeof p.search === "string") setSearch(p.search);
-        if (typeof p.companyFilter === "string") setCompanyFilter(p.companyFilter);
-        if (typeof p.sourceFilter === "string") setSourceFilter(p.sourceFilter);
-        if (typeof p.categoryFilter === "string") setCategoryFilter(p.categoryFilter);
+        // The last VIEW is remembered, but an address that names one wins —
+        // a link to "Month" must open Month whatever was used last.
+        if (!url.dirty && p.view && (["month", "week", "day"] as const).includes(p.view as "month")) {
+          url.set({ view: p.view });
+        }
         if (Array.isArray(p.disabledLayers)) {
           setEnabledLayers(new Set(OVERLAY_KINDS.filter((k) => !p.disabledLayers!.includes(k))));
         }
         if (typeof p.meetingsOnly === "boolean") setMeetingsOnly(p.meetingsOnly);
         if (typeof p.collapseRecurring === "boolean") setCollapseRecurring(p.collapseRecurring);
-      } else if (window.innerWidth < 640) {
-        setView("agenda");
       }
     } catch { /* corrupt/absent prefs → defaults */ }
     hydrated.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist filters whenever they change (skip the first render so we never write
@@ -256,13 +266,13 @@ export function CalendarBoard({
     if (!hydrated.current) return;
     try {
       const prefs: CalendarPrefs = {
-        view, search, companyFilter, sourceFilter, categoryFilter,
+        view,
         disabledLayers: OVERLAY_KINDS.filter((k) => !enabledLayers.has(k)),
         meetingsOnly, collapseRecurring,
       };
       window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch { /* storage full / disabled → ignore */ }
-  }, [view, search, companyFilter, sourceFilter, categoryFilter, enabledLayers, meetingsOnly, collapseRecurring]);
+  }, [view, enabledLayers, meetingsOnly, collapseRecurring]);
 
   function toggleLayer(k: OverlayKind) {
     setEnabledLayers((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -296,6 +306,22 @@ export function CalendarBoard({
       return true;
     });
   }, [events, search, companyFilter, sourceFilter, categoryFilter, needInvitesOnly]);
+
+  // The figures under the title follow the FILTERS — they used to come from
+  // the server, before any filter, so picking a company changed nothing.
+  // "Next 7 days" is what it always counted; it was labelled "this week".
+  const figures = useMemo(() => {
+    const now = Date.now();
+    const in7 = now + 7 * 24 * 3600_000;
+    let next7 = 0, today = 0, needInvites = 0;
+    for (const e of filtered) {
+      const t = new Date(e.startAt).getTime();
+      if (t >= now && t < in7) next7++;
+      if (keyOfIso(e.startAt) === todayKeyGlobal) today++;
+      if (t >= now && !e.googleEventId && e.attendees.some((a) => a.email)) needInvites++;
+    }
+    return { next7, today, needInvites };
+  }, [filtered]);
 
   // Expand recurring events into individual occurrences across a wide window so
   // every view can page without refetching. Occurrences keep the base id (edit/
@@ -364,41 +390,33 @@ export function CalendarBoard({
   }, [view, cursor]);
 
   const views: ViewMode[] = ["agenda", "month", "week", "day"];
-  const chip = "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ring-1 transition-all";
+  const chip = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors";
 
   return (
     <div className="space-y-4">
-      {/* ---- Hero: BRIEF · Events | Announcements · KPI pill ---- */}
-      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
-        <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.22), transparent 70%)" }} />
-        <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="min-w-0 sm:flex-1">
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">
-              Brief
-              <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" /></span>
-              <span className="normal-case tracking-normal text-success/90">live</span>
-            </p>
-            <h1 className="mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">The week, briefed</h1>
-          </div>
-          {/* Tabs only — the hero never carries an "add" button (CC rule). */}
-          <span className="inline-flex items-center gap-0.5 self-start rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60 sm:self-auto">
-            <button type="button" onClick={() => setTab("events")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "events" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+      <PageHeader
+        title="Calendar"
+        sub="Events, invitations and what the week holds — with deadlines, renewals and birthdays laid over it."
+        action={
+          <span className="inline-flex items-center rounded-md border border-border bg-bg-elev p-0.5">
+            <button type="button" onClick={() => setTab("events")} className={cn("inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors", tab === "events" ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
               <CalendarDays size={13} /> Events
             </button>
-            <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all", tab === "announcements" ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+            <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors", tab === "announcements" ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
               <Megaphone size={13} /> Announcements
-              {counts.unacknowledged > 0 && <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white">{counts.unacknowledged}</span>}
+              {counts.unacknowledged > 0 && <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] font-semibold", tab === "announcements" ? "bg-white/20" : "bg-violet-500 text-white")}>{counts.unacknowledged}</span>}
             </button>
           </span>
-        </div>
-        {/* KPI pill — clean stat units (wrap as whole items, no floating separators). */}
-        <div className="relative mt-3 flex flex-wrap gap-x-5 gap-y-1.5 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-sm ring-1 ring-border">
-          <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{counts.thisWeek}</b><span className="text-fg-muted">this week</span></span>
-          <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{counts.today}</b><span className="text-fg-muted">today</span></span>
-          <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.needInvites > 0 ? "text-warn" : "text-fg")}>{counts.needInvites}</b><span className="text-fg-muted">need invites</span></span>
-          <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.unacknowledged > 0 ? "text-violet-500" : "text-fg")}>{counts.unacknowledged}</b><span className="text-fg-muted">unacknowledged</span></span>
-        </div>
-      </section>
+        }
+        metrics={
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+            <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{figures.next7}</b><span className="text-fg-muted">next 7 days</span></span>
+            <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{figures.today}</b><span className="text-fg-muted">today</span></span>
+            <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", figures.needInvites > 0 ? "text-warn" : "text-fg")}>{figures.needInvites}</b><span className="text-fg-muted">need invites</span></span>
+            <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.unacknowledged > 0 ? "text-violet-500" : "text-fg")}>{counts.unacknowledged}</b><span className="text-fg-muted">unacknowledged</span></span>
+          </div>
+        }
+      />
 
       {/* Remounted on each open so its state seeds cleanly from `editing`. */}
       {formOpen && (
@@ -427,16 +445,14 @@ export function CalendarBoard({
                 The hero itself never carries an add button (CC rule). */}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
               <div className="relative sm:flex-1">
-                <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
-                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
-                  className="w-full rounded-full border border-border/70 bg-bg-elev py-2.5 pl-10 pr-4 text-sm outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50 focus:ring-2 focus:ring-accent/15" />
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
+                <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
+                  className={cn(CONTROL_BOX, "w-full border border-border bg-bg-elev pl-9 pr-3 outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50")} />
               </div>
               {tab === "events" ? (
-                <button type="button" onClick={openNew} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90 sm:w-auto sm:py-2">
-                  <Plus size={15} /> New event
-                </button>
+                <Button type="button" onClick={openNew} className="w-full sm:w-auto"><Plus size={15} /> New event</Button>
               ) : (
-                <Link href="/announcements" className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg shadow-sm transition-all hover:opacity-90 sm:w-auto sm:py-2">
+                <Link href="/announcements" className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 sm:w-auto">
                   <Plus size={15} /> New announcement
                 </Link>
               )}
@@ -445,32 +461,32 @@ export function CalendarBoard({
             <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
               {views.map((v) => (
                 <button key={v} type="button" onClick={() => setView(v)}
-                  className={cn(chip, "capitalize", view === v ? "bg-accent text-accent-fg ring-accent font-semibold" : "bg-bg-elev text-fg-muted ring-border/60 hover:text-fg hover:ring-2")}>
+                  className={cn(chip, "capitalize", view === v ? "border-accent/40 bg-accent-soft text-accent" : "border-border bg-bg-elev text-fg-muted hover:text-fg")}>
                   {v}
                 </button>
               ))}
               <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden />
-              {counts.needInvites > 0 && (
+              {figures.needInvites > 0 && (
                 <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)}
-                  className={cn(chip, needInvitesOnly ? "bg-warn text-white ring-warn font-semibold" : "bg-warn-soft/50 text-warn ring-warn/25 hover:ring-2")}>
-                  <Bell size={13} /> Need invites <b className="font-bold tabular">{counts.needInvites}</b>
+                  className={cn(chip, needInvitesOnly ? "border-warn bg-warn text-white" : "border-warn/30 bg-warn-soft/50 text-warn")}>
+                  <Bell size={13} /> Need invites <b className="font-bold tabular">{figures.needInvites}</b>
                 </button>
               )}
               <div className="shrink-0"><FluidSelect value={companyFilter} onSelect={setCompanyFilter}
                 options={[{ value: "all", label: "Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
-                buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
+                buttonClassName="h-8 rounded-md border border-border bg-bg-elev px-3 text-xs font-medium" /></div>
               <div className="shrink-0"><FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
                 options={[{ value: "all", label: "Types" }, ...categories.map((c) => ({ value: String(c.id), label: c.name })), ...(categories.length ? [{ value: "none", label: "Uncategorised" }] : [])]}
-                buttonClassName="rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium" /></div>
+                buttonClassName="h-8 rounded-md border border-border bg-bg-elev px-3 text-xs font-medium" /></div>
               {/* ⋯ More — source, noise controls, category manager. */}
               <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
                 <DropdownMenu.Trigger asChild>
-                  <button type="button" className={cn(chip, "bg-bg-elev text-fg-muted ring-border/60 hover:text-fg hover:ring-2")}>
+                  <button type="button" className={cn(chip, "border-border bg-bg-elev text-fg-muted hover:text-fg")}>
                     <MoreHorizontal size={13} /> More
                   </button>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
-                  <DropdownMenu.Content align="end" sideOffset={6} className="z-[140] w-56 glass glass-menu elevated rounded-2xl p-1.5 shadow-lg text-sm">
+                  <DropdownMenu.Content align="end" sideOffset={6} className="z-[140] w-56 rounded-md border border-border bg-bg-elev p-1.5 text-sm shadow-lg">
                     <div className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Source</div>
                     {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((s) => (
                       <button key={s.v} type="button" onClick={() => setSourceFilter(s.v)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors", sourceFilter === s.v ? "bg-accent/12 font-medium text-fg" : "text-fg-muted hover:bg-bg-muted")}>
@@ -494,9 +510,9 @@ export function CalendarBoard({
               {/* Period nav for the grid views. */}
               {view !== "agenda" && (
                 <span className="ml-auto flex shrink-0 items-center gap-1">
-                  <button type="button" onClick={() => step(-1)} title="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2"><ChevronLeft size={15} /></button>
-                  <button type="button" onClick={goToday} className="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2">Today</button>
-                  <button type="button" onClick={() => step(1)} title="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted ring-1 ring-border/60 hover:text-fg hover:ring-2"><ChevronRight size={15} /></button>
+                  <button type="button" onClick={() => step(-1)} title="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted hover:text-fg"><ChevronLeft size={15} /></button>
+                  <button type="button" onClick={goToday} className="inline-flex h-8 items-center rounded-md border border-border bg-bg-elev px-3 text-xs font-medium text-fg-muted hover:text-fg">Today</button>
+                  <button type="button" onClick={() => step(1)} title="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted hover:text-fg"><ChevronRight size={15} /></button>
                 </span>
               )}
             </div>
@@ -595,7 +611,7 @@ function DaySheet({
     <div className="space-y-3">
       {evs.length > 0 && <div className="space-y-2">{evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}</div>}
       {ovs.length > 0 && (
-        <section className="overflow-hidden rounded-2xl bg-bg-elev/40 ring-1 ring-border/60">
+        <section className="overflow-hidden rounded-lg border border-border bg-bg-elev">
           <div className="border-b border-border/60 bg-bg-subtle/60 px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-fg-subtle">
             {evs.length > 0 ? "Also on this day" : "On this day"} · {ovs.length}
           </div>
@@ -643,7 +659,7 @@ function MonthView({
   return (
     <>
       {/* Desktop / tablet — the full chip grid (unchanged). */}
-      <div className="hidden sm:block bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
+      <div className="hidden sm:block overflow-hidden rounded-lg border border-border bg-bg-elev">
         <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
           {dows.map((d) => (
             <div key={d} className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
@@ -661,8 +677,14 @@ function MonthView({
               ...ovs.map((o) => <OverlayChip key={o.id} item={o} />),
             ];
             return (
-              <button key={i} type="button" onClick={() => onPickDay(cell)}
-                className={cn("min-h-[96px] text-left border-b border-r border-border/50 p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus:ring-1 focus:ring-accent/50",
+              /* ⚠️ A div, not a button: every event chip inside is a button, and a
+                 button inside a button is invalid HTML — it threw a hydration
+                 error on every Month load and the first paint came up blank. */
+              <div key={i} role="button" tabIndex={0}
+                onClick={() => onPickDay(cell)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPickDay(cell); } }}
+                aria-label={cell.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
+                className={cn("min-h-[96px] cursor-pointer text-left border-b border-r border-border/50 p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
                   i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20")}>
                 <div className={cn("text-xs mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
                   isToday ? "bg-accent text-white font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
@@ -672,7 +694,7 @@ function MonthView({
                   {chips.slice(0, 3)}
                   {chips.length > 3 && <div className="text-xs text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -680,7 +702,7 @@ function MonthView({
 
       {/* Phones — condensed dots-per-day grid; tap a day to list its events below. */}
       <div className="sm:hidden space-y-3">
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-border bg-bg-elev">
           <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
             {dows.map((d) => (
               <div key={d} className="py-1 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d.charAt(0)}</div>
@@ -832,7 +854,7 @@ function HousedAgenda({
         const isToday = key === todayKeyGlobal;
         const ovs = overlayByDay.get(key) ?? [];
         return (
-          <section key={key} className={cn("overflow-hidden rounded-2xl bg-bg-elev/40 ring-1", isToday ? "ring-accent/30" : "ring-border/60")}>
+          <section key={key} className={cn("overflow-hidden rounded-lg border bg-bg-elev", isToday ? "border-accent/40" : "border-border")}>
             <div className={cn("flex items-center gap-2 border-b px-3.5 py-2.5", isToday ? "border-accent/20 bg-accent-soft/40" : "border-border/60 bg-bg-subtle/60")}>
               {isToday && <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-accent opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" /></span>}
               <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
@@ -875,7 +897,7 @@ function MiniMonth({
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const monthLabel = viewMonth.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" });
   return (
-    <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+    <div className="rounded-lg border border-border bg-bg-elev p-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{monthLabel}</span>
         <span className="ml-auto flex items-center gap-0.5">
@@ -931,7 +953,7 @@ function BriefRail({
       <MiniMonth cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={onPickDay} />
 
       {!meetingsOnly && availableLayers.length > 0 && (
-        <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+        <div className="rounded-lg border border-border bg-bg-elev p-3">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle"><LayersIcon size={12} /> Layers</p>
           <div className="flex flex-wrap gap-1.5">
             {availableLayers.map((k) => {
@@ -948,7 +970,7 @@ function BriefRail({
         </div>
       )}
 
-      <div className="rounded-2xl bg-bg-elev/50 p-3 ring-1 ring-border/60">
+      <div className="rounded-lg border border-border bg-bg-elev p-3">
         <div className="mb-1.5 flex items-center gap-2">
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-violet-500"><Megaphone size={12} /> Announcements</p>
           <Link href="/announcements" className="ml-auto text-xs font-medium text-accent hover:underline">Manage →</Link>
@@ -1139,115 +1161,45 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
             )}
           </div>
 
-          {/* Desktop / tablet — the full action row (unchanged). */}
-          <div className="hidden sm:flex flex-wrap items-center gap-1.5 mt-2.5">
-            <a
-              href={event.icsPath}
-              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors"
-              title="Download .ics — saves to any calendar"
-            >
-              <Download size={13} /> .ics
-            </a>
-            <a
-              href={event.googleUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors"
-              title="Add to Google Calendar"
-            >
-              <CalendarDays size={13} /> Google
-            </a>
-            <button
-              onClick={copyLink}
-              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors"
-            >
-              {copied ? <Check size={13} /> : <Copy size={13} />} Link
-            </button>
-            <button
-              onClick={shareWhatsApp}
-              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors"
-            >
-              <MessageCircle size={13} /> Share
-            </button>
-            {emailCount > 0 && (
-              <button
-                onClick={openPreview}
-                disabled={pending}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
-                title="See exactly what guests will receive before sending"
-              >
-                <Mail size={13} /> Preview
-              </button>
-            )}
-            {emailCount > 0 && (
+          {/* ONE action row, every size: what you do most (send the invite,
+              edit) as buttons, everything else behind ⋯. Seven small buttons
+              on every card made two events fill a screen. */}
+          <div className="mt-2.5 flex items-center gap-1.5">
+            {emailCount > 0 && !isPast && (
               <button
                 onClick={sendInvite}
                 disabled={pending}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50"
                 title={`Email the invite (.ics attached) to ${emailCount} attendee${emailCount === 1 ? "" : "s"}`}
               >
                 <Mail size={13} /> Send invite
               </button>
             )}
-            {emailCount > 0 && !isPast && (
-              <button
-                onClick={draftReminders}
-                disabled={pending}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
-                title="Draft reminder messages to attendees in the Outbox"
-              >
-                <Bell size={13} /> Remind
-              </button>
-            )}
-            {emailCount > 0 && isPast && (
-              <button
-                onClick={draftFollowup}
-                disabled={pending}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
-                title="Draft a post-meeting follow-up to attendees in the Outbox"
-              >
-                <Reply size={13} /> Follow-up
-              </button>
-            )}
-            <div className="flex-1" />
-            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-bg-muted transition-colors" title="Edit">
-              <Pencil size={14} />
+            <button onClick={onEdit} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-3 text-xs font-medium text-fg-muted transition-colors hover:text-fg" title="Edit">
+              <Pencil size={13} /> Edit
             </button>
-            <button onClick={remove} disabled={pending} className="p-1.5 rounded-lg hover:bg-danger/10 text-danger transition-colors" title="Delete">
-              <Trash2 size={14} />
-            </button>
-          </div>
-
-          {/* Phones — primary actions stay at a 44px tap target; everything
-              secondary folds into a kebab so nothing is crushed under-thumb. */}
-          <div className="flex sm:hidden items-center gap-1.5 mt-2.5">
-            <button onClick={onEdit} className="inline-flex items-center gap-1.5 h-11 px-3.5 rounded-xl bg-bg-muted hover:bg-bg-muted/70 text-sm font-medium transition-colors" title="Edit">
-              <Pencil size={16} /> Edit
-            </button>
-            <a
-              href={event.icsPath}
-              className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-bg-muted hover:bg-bg-muted/70 transition-colors"
-              title="Download .ics — saves to any calendar"
-              aria-label="Download .ics"
-            >
-              <Download size={18} />
-            </a>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-bg-muted hover:bg-bg-muted/70 transition-colors"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted transition-colors hover:text-fg"
                   aria-label="More actions"
                 >
-                  <MoreHorizontal size={18} />
+                  <MoreHorizontal size={15} />
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
                   sideOffset={6}
-                  align="end"
-                  className="z-[60] min-w-[180px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm"
+                  align="start"
+                  className="z-[60] min-w-[200px] rounded-md border border-border bg-bg-elev p-1 text-sm shadow-lg"
                 >
+                  <DropdownMenu.Item asChild>
+                    <a href={event.icsPath}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted">
+                      <Download size={15} /> Download .ics
+                    </a>
+                  </DropdownMenu.Item>
                   <DropdownMenu.Item asChild>
                     <a href={event.googleUrl} target="_blank" rel="noreferrer"
                       className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted">
@@ -1275,13 +1227,13 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
                       <Mail size={15} /> Preview email
                     </DropdownMenu.Item>
                   )}
-                  {emailCount > 0 && (
+                  {emailCount > 0 && isPast && (
                     <DropdownMenu.Item
                       disabled={pending}
                       onSelect={(e) => { e.preventDefault(); sendInvite(); }}
-                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none text-accent data-[highlighted]:bg-accent/10 data-[disabled]:opacity-50"
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted data-[disabled]:opacity-50"
                     >
-                      <Mail size={15} /> Send invite
+                      <Mail size={15} /> Send invite again
                     </DropdownMenu.Item>
                   )}
                   {emailCount > 0 && !isPast && (

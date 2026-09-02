@@ -75,7 +75,7 @@ export type NavRoute = {
  * the nav pill AND the pinnable nav rail (Settings) AND the ⌘K page-jump list
  * all read from this one list, so they can never drift apart.
  *
- * Order here is the default order. The command centre (`/`, with its Overview/
+ * Order here is the default order. The administrator (`/`, with its Overview/
  * Companies/Tasks tabs) is reached via the Home button in the pill, so it isn't
  * listed as a destination.
  */

@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# MCP stage 2 — safe writes, command centre (BUILT, Aug 2026)
+# MCP stage 2 — safe writes, administrator (BUILT, Aug 2026)
 
 Read [[mcp_plan]] and [[mcp_stage1_read_only]] first.
 
@@ -15,7 +15,7 @@ to Nayan, due Friday" — and it exists, properly, in the system.
 ## The rule that governs this stage
 
 **The owner set this line himself (Aug 2026)**, after asking a fair question:
-*"I'm in full control of my command centre — what I can do there, I should be able
+*"I'm in full control of my administrator — what I can do there, I should be able
 to do here."* He is right about everything reversible. The first build was stricter
 than it needed to be; this is where it landed:
 
@@ -35,7 +35,7 @@ the UI, which is precisely why they are allowed and why a real delete is not.
 | Delete anything, spend anything | **Never.** One-way doors |
 
 The reasoning worth keeping: the limit was never about the owner's authority. In
-the command centre he presses a button and one click equals one intended action.
+the administrator he presses a button and one click equals one intended action.
 Through MCP he types a sentence and the assistant infers what he meant — and it
 also acts on text it reads, so a pasted email can carry instructions. That gap is
 survivable for anything undoable, and not for anything that isn't.

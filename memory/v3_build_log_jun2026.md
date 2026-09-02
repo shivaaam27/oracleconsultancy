@@ -26,7 +26,7 @@ metadata:
 
 7. **Rename:** `/hrms/command-centre` UI label → **"Tax & Legal"** (route unchanged).
 
-8. **Login redesign + owner identity.** `/login` = tabbed **Staff Login | Command Centre**; logo image, bigger brand, entrance motion. Optional **owner identity** (name/email) as a 2nd factor on the Command Centre tab. `auth-shell.tsx`, `app/login/{page,auth-tabs,login-form}.tsx`, `admin-auth.ts` (`getOwnerIdentity`/`ownerIdentifierMatches`). Deep dive: `memory/auth_login.md`.
+8. **Login redesign + owner identity.** `/login` = tabbed **Staff Login | Administrator**; logo image, bigger brand, entrance motion. Optional **owner identity** (name/email) as a 2nd factor on the Administrator tab. `auth-shell.tsx`, `app/login/{page,auth-tabs,login-form}.tsx`, `admin-auth.ts` (`getOwnerIdentity`/`ownerIdentifierMatches`). Deep dive: `memory/auth_login.md`.
 
 9. **Passkeys — Face ID / Touch ID / Windows Hello / fingerprint (WebAuthn).** Owner + staff. `webauthn_credentials` table (public key only), `lib/webauthn.ts` (@simplewebauthn), login button + conditional-UI autofill, manager `passkey-manager.tsx` in Settings (owner) + portal profile (staff). **NOT live-tested** (no biometric hardware in preview). Deep dive: `memory/auth_login.md`.
 

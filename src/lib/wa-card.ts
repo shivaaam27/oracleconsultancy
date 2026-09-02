@@ -52,13 +52,13 @@ export function sanitizeFrom(s: string | null | undefined): string | undefined {
 }
 
 /** Build the "from who" label from a sender's name + role/office.
- *  Director/Manager show the person's name; admin/owner = the Command Centre. */
+ *  Director/Manager show the person's name; admin/owner = the Administrator. */
 export function waFromLabel(opts: { name?: string | null; role?: string | null }): string {
   const role = (opts.role ?? "").toLowerCase();
   const name = (opts.name ?? "").trim();
   if (role === "director") return name ? `${name} · Director` : "the Director's Office";
   if (role === "manager") return name ? `${name} · Manager` : "the Manager's Office";
-  return name ? `${name} · Command Centre` : "the Command Centre";
+  return name ? `${name} · Administrator` : "the Administrator";
 }
 
 /** Absolute, signed image URL for a person — safe to hand to Twilio's MediaUrl.

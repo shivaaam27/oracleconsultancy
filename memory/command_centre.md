@@ -1,27 +1,27 @@
 ---
 name: command-centre
-description: "What the owner-side Command Centre is, how it's named, and the cockpit reshape (See/Control/Exceptions/Command + control levers on home)."
+description: "What the owner-side Administrator is, how it's named, and the cockpit reshape (See/Control/Exceptions/Command + control levers on home)."
 metadata:
   node_type: memory
   type: project
 ---
 
-# Command Centre — naming & cockpit reshape (June 2026)
+# Administrator — naming & cockpit reshape (June 2026)
 
-## What "Command Centre" means (decided: keep the name)
+## What "Administrator" means (decided: keep the name)
 
 The owner asked whether to rename it now that day-to-day work is moving to the
 **portal side** (staff self-serve, managers/directors operate, email automation
-sends/drafts). After mapping it, **owner chose to KEEP the name "Command Centre"**
+sends/drafts). After mapping it, **owner chose to KEEP the name "Administrator"**
 and instead **sharpen the split with the portal + reshape the home into a real
 cockpit**.
 
-"Command Centre" is two things wearing one name:
+"Administrator" is two things wearing one name:
 
-1. **The owner's door** — the `/login` tab labelled **"Command Centre"** (owner
+1. **The owner's door** — the `/login` tab labelled **"Administrator"** (owner
    sign-in; `auth-tabs.tsx`), paired with the **"Staff Login"** tab.
 2. **The owner's home** at `/` — internally **Mission Control**
-   (`home-mission-control.tsx`). Never *labelled* "Command Centre" on screen.
+   (`home-mission-control.tsx`). Never *labelled* "Administrator" on screen.
 
 The phrase only surfaces in ~4 user-facing spots: the login tab, two Settings help
 lines (owner-identity 2FA + passkey card), and test email/WhatsApp copy. (Red
@@ -63,7 +63,7 @@ engine, force; still respects master pause → toasts "paused" and sends nothing
 if email unwired), and an inline **Test mode** toggle (only when email connected).
 
 **Login tab relabel (added):** the staff sign-in tab is now **"Team Portal"**
-(was "Staff Login") — symmetric with "Command Centre" and accurate, since managers/
+(was "Staff Login") — symmetric with "Administrator" and accurate, since managers/
 HR/directors sign in there too. `auth-tabs.tsx`.
 
 ### Files
@@ -102,7 +102,7 @@ the owner cockpit; no portal twin.
 
 ## Next: full 2026 cockpit redesign
 
-The big "make the Command Centre look like a modern 2026 command centre" plan lives
+The big "make the Administrator look like a modern 2026 administrator" plan lives
 in **[[command-centre-2026-plan]]** (`memory/command_centre_2026_plan.md`) — the full
 "Living Command Wall" north star + grounded, reuse-first build phases A–D.
 

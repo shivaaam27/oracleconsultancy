@@ -137,7 +137,7 @@ export function Combobox({
             if (open && filtered[highlight]) { e.preventDefault(); commit(filtered[highlight]); }
             else if (canCreate) { e.preventDefault(); void create(); }
             else if (onCommit) { e.preventDefault(); commit((e.target as HTMLInputElement).value.trim()); }
-          } else if (e.key === "Escape") { setOpen(false); }
+          } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } // claimed: a modal must not close too
         }}
       />
       <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle" />

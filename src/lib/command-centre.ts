@@ -1,5 +1,5 @@
 // ============================================================================
-// Command Centre — shared flag + date engine.
+// Administrator — shared flag + date engine.
 // Adopted from the owner's COS handover (cosTypes.ts), mapped to our design
 // tokens. Flags are DERIVED, never stored — recompute from dates on render so
 // they're always correct relative to today. Bands differ by risk class:

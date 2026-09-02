@@ -17,7 +17,7 @@
                        Text="Oracle Consultancy"
                        FontSize="17" FontWeight="SemiBold" />
             <TextBlock x:Name="Tagline"
-                       Text="The Chief-of-Staff command centre, in a window."
+                       Text="The Chief-of-Staff administrator, in a window."
                        FontSize="12" Margin="0,2,0,0" />
 
             <Border x:Name="Divider" Height="1" Margin="0,16,0,16" />

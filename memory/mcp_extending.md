@@ -102,7 +102,7 @@ worse at picking the right tool. So:
 
 1. **One tool per subject, not per button.** `bulk_task_action` does six things
    through one `action` argument; `archive_task` does archive AND restore through
-   one boolean. On that pattern, the whole remaining command centre — people,
+   one boolean. On that pattern, the whole remaining administrator — people,
    to-dos, attendance, chat, governance, stock, cleaning, pipeline, commitments —
    is roughly **10–14 more tools, not 150**.
 2. **Distinct descriptions beat a short list.** Claude picks the wrong tool when

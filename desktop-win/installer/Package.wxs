@@ -80,13 +80,13 @@
 
         <Shortcut Id="StartMenuShortcut" Directory="AppMenuFolder"
                   Name="Oracle Consultancy"
-                  Description="The Oracle Consultancy command centre"
+                  Description="The Oracle Consultancy administrator"
                   Target="[INSTALLFOLDER]Oracle Consultancy.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="AppIcon.ico" />
 
         <Shortcut Id="DesktopShortcut" Directory="DesktopFolder"
                   Name="Oracle Consultancy"
-                  Description="The Oracle Consultancy command centre"
+                  Description="The Oracle Consultancy administrator"
                   Target="[INSTALLFOLDER]Oracle Consultancy.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="AppIcon.ico" />
 

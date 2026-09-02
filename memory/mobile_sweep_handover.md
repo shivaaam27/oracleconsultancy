@@ -1,12 +1,12 @@
 ---
 name: mobile-sweep-handover
-description: "IN PROGRESS — a page-by-page mobile sweep of the COS command centre. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated. Task Management, the Go-to launcher and /people are DONE and merged; resume at /companies."
+description: "IN PROGRESS — a page-by-page mobile sweep of the COS administrator. Read this first; the previous attempt measured geometry instead of LOOKING and must not be repeated. Task Management, the Go-to launcher and /people are DONE and merged; resume at /companies."
 metadata:
   node_type: memory
   type: project
 ---
 
-# Mobile sweep of the command centre — handover
+# Mobile sweep of the administrator — handover
 
 **Status: IN PROGRESS. Task Management — the hub Tasks tab in all five views,
 `/task/new` and `/task/[code]` — the Go-to launcher, and `/people` + the person

@@ -18,7 +18,7 @@ file (linked). Owner is non-technical; British English; token-conscious.
 New `receptionist` staff-portal role (free-text `portal_role`, NO migration). Her portal =
 Home (announcements + check-in + to-do) + a **Cleaning** tab where she ticks rooms, comments
 per room, and submits the day (submission marks her Present — attendance = cleaning). The
-Command Centre `/hrms/ocr` is reframed as **overview + control** (reflects her ticks via the
+Administrator `/hrms/ocr` is reframed as **overview + control** (reflects her ticks via the
 same tables). Managers/directors (e.g. Shivam, Group Admin Manager) get a **read-only overview**
 on the same `/portal/cleaning` route via the `cleaningOverview` cap. New caps: `cleaningLog`,
 `cleaningOverview`. Files: `portal-permissions.ts`/`portal-auth.ts`/`portal-capabilities.ts`/

@@ -344,6 +344,27 @@ function parseDeadline(text: string): { date: Date | null; label: string | null;
     phrases.push("today");
     return { date: today, label: "Today", phrases };
   }
+  // "by Friday", "on Monday", "next Tuesday", "Friday" — the NEXT such day
+  // (a bare weekday name never means today; "next X" skips a week if X is
+  // within the coming six days only when written "next").
+  const wd = lower.match(/\b(?:(by|on|next|this)\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b/);
+  if (wd) {
+    const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const target = names.indexOf(wd[2].slice(0, 3));
+    const d = new Date(today);
+    let diff = (target - d.getDay() + 7) % 7 || 7;
+    if (wd[1] === "next" && diff < 7) diff += 7;
+    d.setDate(d.getDate() + diff);
+    phrases.push(wd[0]);
+    return { date: d, label: d.toLocaleDateString("en-GB", { weekday: "long" }), phrases };
+  }
+  const inDays = lower.match(/\bin\s+(\d{1,2})\s+days?\b/);
+  if (inDays) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + Number(inDays[1]));
+    phrases.push(inDays[0]);
+    return { date: d, label: `In ${inDays[1]} days`, phrases };
+  }
 
   const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
   const mShort = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];

@@ -4,7 +4,7 @@ Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain lan
 
 ## Product
 
-Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
+Chief-of-Staff administrator for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
 
 - CO01 Dar Spices
 - CO02 Cocozuri Chocolat
@@ -82,7 +82,7 @@ See `memory/database_schema.md`.
 
 ## Current Pages
 
-- `/` - command centre: Overview, Companies, Tasks
+- `/` - administrator: Overview, Companies, Tasks
 - `/task/new`
 - `/task/[code]`
 - `/registry` - redirects to hub Tasks table

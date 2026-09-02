@@ -321,7 +321,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       </div>
 
       <Reveal delay={0}>
-      {/* Flat, like the command centre’s record header.
+      {/* Flat, like the administrator’s record header.
 
           Two blurred radial gradients used to sit behind this card. That is
           Aurora’s language — Desk has no glows, and the record header the owner

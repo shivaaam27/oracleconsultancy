@@ -11,7 +11,7 @@ export type EmailTone = "default" | "danger" | "warn" | "accent" | "success" | "
 
 // Who the email is "from" — drives the footer sign-off ({Office} / Oracle
 // Consultancy Limited). Set per email by its source, NOT a person's job title.
-// "command" = the Command Centre / owner — signs plainly as Oracle Consultancy
+// "command" = the Administrator / owner — signs plainly as Oracle Consultancy
 // (no "…Office"), used for admin-console-initiated sends.
 export type EmailOffice = "director" | "manager" | "admin" | "compliance" | "hr" | "command";
 
@@ -30,7 +30,7 @@ const COMPANY_SHORT_NAME = "Oracle Consultancy Ltd";
 
 /**
  * The inbox "from" display name for who sent it. Director/Manager portal sends
- * carry their office; the Command Centre signs as plain Oracle Consultancy;
+ * carry their office; the Administrator signs as plain Oracle Consultancy;
  * everything else (automations + compliance/HR) sends as the Admin Office.
  */
 export function senderName(office?: EmailOffice): string {
@@ -191,7 +191,7 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
   // Footer sign-off:
   //  • person + title  → "Mr Pulin Manek" / "Director - Oracle Consultancy Ltd";
   //  • person, no title → name / office / legal name;
-  //  • Command Centre   → Oracle Consultancy / legal name;
+  //  • Administrator   → Oracle Consultancy / legal name;
   //  • system (no name) → office / legal name.
   const signHtml = doc.signoffName && doc.signoffTitle
     ? bold(doc.signoffName) + muted(doc.signoffTitle)
@@ -223,7 +223,7 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
     : "";
 
   const width = doc.wide ? 760 : 600;
-  // Masthead identity: Command Centre shows just the org; an office shows "{Office} | {Org}".
+  // Masthead identity: Administrator shows just the org; an office shows "{Office} | {Org}".
   const identity = isCommand
     ? `<span style="font-weight:600;color:${C.ink}">${esc(orgName)}</span>`
     : `<span style="font-weight:600;color:${C.ink}">${esc(officeLabel)}</span><span style="color:${C.faint};padding:0 6px">|</span><span style="color:${C.muted}">${esc(orgName)}</span>`;

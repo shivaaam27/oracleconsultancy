@@ -312,7 +312,7 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
     <>
     {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
     {/* From lg up the PortalSidebar takes over, so the pill hides — the same
-        arrangement the command centre uses. Below lg the pill is still the
+        arrangement the administrator uses. Below lg the pill is still the
         navigation. (`lg:hidden` has to come last so it wins over the `md:flex`
         that the chat case sets.) */}
     <div className={cn(

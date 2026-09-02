@@ -1,6 +1,6 @@
 # Portal access & roles — unified (29 Aug 2026)
 
-The owner's complaint, in his words: the Command Centre's staff-portal list and
+The owner's complaint, in his words: the Administrator's staff-portal list and
 the per-person "reporting" fields were **"mixed up and duplicated and wrong"**,
 and *"even in the settings the role and permission isn't kept properly"*. The
 portal side itself was fine and was not touched.

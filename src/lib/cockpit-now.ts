@@ -3,7 +3,7 @@ import { sb } from "@/db/supabase";
 import { listCalendarEvents } from "@/lib/calendar";
 import { leaveMetrics } from "@/lib/leave";
 
-// "Right now" data for the Command Centre — today's events, who's on leave, leave to
+// "Right now" data for the Administrator — today's events, who's on leave, leave to
 // approve, upcoming birthdays, and the live headcount. All cheap reads; reused, not new.
 
 export type NowEvent = { id: number; title: string; startAt: string; allDay: boolean };

@@ -63,7 +63,7 @@ export function PolishedInput({ name, defaultValue = "", required, placeholder, 
           onChange={e => { setValue(e.target.value); setState("idle"); setSource(null); }}
           required={required}
           placeholder={placeholder}
-          className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors ${
+          className={`w-full h-8 rounded-md border px-2.5 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors ${
             state === "done" ? "border-accent bg-accent/5" : "border-border bg-bg"
           }`}
         />

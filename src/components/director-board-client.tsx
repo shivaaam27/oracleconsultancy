@@ -238,13 +238,13 @@ function HealthPanel({
 }
 
 /**
- * One company's health — the twin of the command centre's `CompanyHeat` tile
+ * One company's health — the twin of the administrator's `CompanyHeat` tile
  * (`command-deck.tsx`). Owner's rule: the two surfaces MATCH.
  *
  * ⚠️ These tinted tiles are a deliberate exception to the Desk "status is a dot,
- * never a block of colour" rule, and the command centre takes the same exception.
+ * never a block of colour" rule, and the administrator takes the same exception.
  * They were briefly changed to neutral cards here and that was wrong — it made
- * the portal differ from the command centre, which is the one thing this pass is
+ * the portal differ from the administrator, which is the one thing this pass is
  * meant to remove. If the tint ever goes, it goes from BOTH, together.
  */
 function HealthTile({ c }: { c: CompanyHealth }) {
@@ -357,7 +357,7 @@ function AttentionStack({ watch }: { watch: WatchItem[] }) {
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elev">
         <div className="slim-scroll scroll-fade-y-lg lg:max-h-[42rem] lg:overflow-y-auto lg:overscroll-contain">
           {/* ⚠️ NO column header, and no Status column — this is a board PANEL,
-              not a list screen, and its twin in the command centre
+              not a list screen, and its twin in the administrator
               (`NeedsYou` in command-deck.tsx) shows exactly this: a code chip, the
               title, the days figure, and the company · person line beneath.
               Owner's instruction: the two must match. A "TASK / STATUS / DUE"

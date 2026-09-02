@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * The Command Centre layout shell.
+ * The Administrator layout shell.
  *
  * Desk rule: the working area uses the WIDTH OF THE SCREEN. The centre column is
  * therefore unconstrained here — the app layout's 1600px cap is the only stop, so

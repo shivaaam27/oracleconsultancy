@@ -137,7 +137,7 @@ export async function postMessage(
 }
 
 export async function editChatMessage(messageId: number, body: string) {
-  // Command Centre (owner) has full edit/delete access (bar system channels).
+  // Administrator (owner) has full edit/delete access (bar system channels).
   const ok = await editMessage(messageId, { participant: ADMIN, role: "owner" }, body.trim());
   return { ok };
 }

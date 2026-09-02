@@ -101,7 +101,7 @@ export function PortalTaskManage({
        * settings came to roughly 900px of screen, which is what "manage task
        * looks huge" was. They are rows now: the name on the left, the control on
        * the right, a hairline between them — the same shape a record's field
-       * section has in the command centre. It stacks on a phone, where a row
+       * section has in the administrator. It stacks on a phone, where a row
        * genuinely has no room for both. */}
       <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg-elev">
         {canEdit && (

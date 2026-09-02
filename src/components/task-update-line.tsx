@@ -2,14 +2,13 @@
 
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { getInitials } from "@/lib/names";
 import type { TaskRow } from "@/lib/queries";
 
 /* ------------------------------------------------------------------ *
  * TaskUpdateLine — the "latest activity" line for an Aurora task row.
  *
  * Renders, from a task's `latestActivity` enrichment:
- *   • an author-initials avatar + name
+ *   • the author name
  *   • a one-line snippet of the newest update (or "moved to X" for a
  *     status change, with an arrow)
  *   • a relative time with an exact-time tooltip
@@ -20,9 +19,6 @@ import type { TaskRow } from "@/lib/queries";
  * Presentational only. Tapping the line should take the operator to the
  * Conversation tab — wire `onOpenConversation` from the row/card.
  * ------------------------------------------------------------------ */
-
-/** Initials from a display name (e.g. "Aisha Khan" → "AK", "You" → "Y"). */
-const initials = getInitials; // honorific-stripped
 
 /** Compact relative time. Re-evaluated on render, so it stays fresh on refresh. */
 function ago(iso: string): string {
@@ -72,7 +68,7 @@ export function TaskUpdateLine({
   if (!a) {
     const quiet = daysSince(task.lastActivityISO);
     return (
-      <div className={cn("flex items-center gap-1.5 text-xs text-fg-subtle italic", className)}>
+      <div className={cn("flex h-5 items-center gap-1.5 text-xs text-fg-subtle italic", className)}>
         <MessageSquare size={11} className="opacity-60 not-italic" />
         <span>
           No updates yet
@@ -88,13 +84,8 @@ export function TaskUpdateLine({
 
   const content = (
     <>
-      {/* Author initials avatar */}
-      <span
-        className="shrink-0 inline-flex items-center justify-center h-[18px] w-[18px] rounded-full bg-accent-soft text-accent text-[9px] font-semibold leading-none"
-        aria-hidden
-      >
-        {initials(a.author)}
-      </span>
+      {/* The name alone — the initials bubble beside it was one more coloured
+          spot on every row, and it said nothing the name did not. */}
       <span className="font-medium text-fg shrink-0">{a.author}</span>
 
       {/* Status change renders specially; otherwise a quoted snippet. */}
@@ -129,7 +120,7 @@ export function TaskUpdateLine({
         onClick={(e) => { e.stopPropagation(); onOpenConversation(); }}
         className={cn(
           "group/upd flex items-center gap-1.5 text-xs min-w-0 max-w-full text-left",
-          "rounded-md px-1 -mx-1 py-0.5 hover:bg-bg-muted/60 transition-colors",
+          "h-5 rounded-md px-1 -mx-1 hover:bg-bg-muted/60 transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring/50",
           className,
         )}
@@ -141,7 +132,7 @@ export function TaskUpdateLine({
   }
 
   return (
-    <div className={cn("flex items-center gap-1.5 text-xs min-w-0 max-w-full", className)}>
+    <div className={cn("flex h-5 items-center gap-1.5 text-xs min-w-0 max-w-full", className)}>
       {content}
     </div>
   );

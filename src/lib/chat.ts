@@ -134,7 +134,7 @@ function isTaskGroup(kind: ChatKind, dmKey: string | null): boolean {
 
 /**
  * Who may edit/delete messages in a thread (owner's brief, Jun 2026):
- *   • Command Centre (owner) — anything, anywhere (bar system channels).
+ *   • Administrator (owner) — anything, anywhere (bar system channels).
  *   • System channels (Task reminders / Announcements) — locked for everyone.
  *   • Task-reminder GROUP chats — a director/manager may edit/delete ANY message;
  *     staff cannot touch even their own.
@@ -675,7 +675,7 @@ export async function hideThreadForViewer(threadId: number, viewer: string): Pro
 }
 
 /** "Delete conversation for everyone" — archives the whole thread so it leaves
- *  every participant's list. Owner-only (Command Centre) — staff can only delete
+ *  every participant's list. Owner-only (Administrator) — staff can only delete
  *  a shared conversation for themselves, never for others. Never a system channel. */
 export async function archiveThreadForEveryone(threadId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
   if (viewer.role !== "owner") return false;

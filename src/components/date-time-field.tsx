@@ -22,7 +22,7 @@ export const FIELD_TRIGGER = "rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 
  *
  * The inverse of what the server's `localToIso` does on submit. It lives here,
  * beside `composeDT`/`dateOf`/`timeOf`, because both event forms now need it —
- * the command centre to show an event being edited, and the portal sheet to
+ * the administrator to show an event being edited, and the portal sheet to
  * drop in a time read off an attached ticket.
  */
 export function isoToLocalInput(iso: string | null, allDay: boolean): string {
@@ -195,7 +195,7 @@ export function DateTimeField({
   // A time chosen BEFORE a date has nowhere to live in the combined value —
   // composeDT returns "" without a date, so it used to be thrown away and the
   // field snapped back to the default. Hold it here until a date arrives.
-  // (The command centre solves this by keeping date and time as separate state;
+  // (The administrator solves this by keeping date and time as separate state;
   // this component's contract is a single string, so it remembers the draft.)
   const [timeDraft, setTimeDraft] = useState<string | null>(null);
   const time = timeOf(value) || timeDraft || defaultTime;

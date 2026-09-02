@@ -145,7 +145,7 @@ identity, so nothing there could shift.
 **visual** pixels (already scaled by the zoom), but those numbers are then written
 back as **CSS** pixels into a document that scales them by 0.8 again. Portal pages
 set `zoom: 0.8` (`portal-zoom.tsx` + `globals.css` ~line 584); the admin side is
-`zoom: 1`, which is why the command centre looks perfect and only the portal is
+`zoom: 1`, which is why the administrator looks perfect and only the portal is
 wrong — and why this survived so long.
 
 Affected (all read a rect and write it as a style): **`lib/use-anchored.ts`**
@@ -175,7 +175,7 @@ so breakpoints still fire at true sizes; there is no horizontal overflow
 
 ## ✅ Real identities were being used as placeholders (17 Aug 2026)
 
-The Command Centre tab's "Name or email" field carried
+The Administrator tab's "Name or email" field carried
 `placeholder="admin@oracle.co.tz"` — the owner's **actual** sign-in identifier,
 shown to anyone who opened `/login`. When owner identity is configured that field
 IS the second factor, so the page was giving away half of it. Now no placeholder at
@@ -220,7 +220,7 @@ The fix, in three parts:
    and they **never remove it on cleanup**.
 3. **Portal pages opt out of the admin gutter with `body main:has([data-portal-shell])`**
    — a separate rule, so a browser without `:has()` drops only the override instead
-   of failing shut and un-guttering the command centre.
+   of failing shut and un-guttering the administrator.
 
 **FORWARD RULE: layout geometry must not depend on an effect.** If CSS paints it
 immediately, CSS (or the server) has to size it immediately.

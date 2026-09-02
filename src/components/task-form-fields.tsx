@@ -1,21 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Repeat, ChevronDown } from "lucide-react";
+import { CalendarDays, Repeat } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FluidSelect } from "@/components/fluid-select";
-import { Switch } from "@/components/ui";
+import { Switch, CONTROL_BOX } from "@/components/ui";
 import { PRIORITIES } from "@/lib/constants";
 
-/* Portal-grade field controls for the New-task form (Command Centre
- * unification, tasks refinement round 1): priority as a segment, deadline as
- * quick-pick chips + calendar, company as the kit FluidSelect. Each mirrors its
- * value into a plain form field so the server-action form stays unchanged. */
+/* Field controls for the New-task form. Each mirrors its value into a plain
+ * hidden form field so the server-action form (createTask) reads it with
+ * FormData — the same trick SelectField and FormSwitch use.
+ *
+ * Desk, not Aurora: every chip is a small square-cornered button in the ONE
+ * control box height, never a pill; no glows, no blur. */
+
+const CHIP = "h-8 rounded-md px-3 text-xs font-medium border transition-colors";
+const CHIP_OFF = "border-border bg-bg-elev text-fg-muted hover:text-fg hover:bg-bg-subtle";
+const CHIP_ON = "border-accent/40 bg-accent-soft text-accent";
 
 export function PrioritySegment({ defaultValue = "Medium" }: { defaultValue?: string }) {
   const [value, setValue] = useState(defaultValue);
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
+    <div className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="priority" value={value} />
       {PRIORITIES.map((p) => (
         <button
@@ -24,14 +30,14 @@ export function PrioritySegment({ defaultValue = "Medium" }: { defaultValue?: st
           onClick={() => setValue(p)}
           aria-pressed={value === p}
           className={cn(
-            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            CHIP,
             value === p
               ? p === "Critical"
-                ? "bg-danger text-white shadow-sm"
+                ? "border-danger/40 bg-danger/10 text-danger"
                 : p === "High"
-                  ? "bg-warn text-white shadow-sm"
-                  : "bg-accent text-accent-fg shadow-sm"
-              : "text-fg-muted hover:text-fg",
+                  ? "border-warn/40 bg-warn/10 text-warn"
+                  : CHIP_ON
+              : CHIP_OFF,
           )}
         >
           {p}
@@ -41,14 +47,22 @@ export function PrioritySegment({ defaultValue = "Medium" }: { defaultValue?: st
   );
 }
 
+/* ⚠️ LOCAL DATES, NEVER `toISOString().slice(0, 10)`. That is the UTC day: in
+   Dar (UTC+3) "Today" pressed before 3am gave yesterday, and "Month end" —
+   built from LOCAL midnight on the last day — was ALWAYS one day short, because
+   local midnight on the 31st is 21:00 UTC on the 30th. */
+function ymdLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 function ymd(daysFromToday: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysFromToday);
-  return d.toISOString().slice(0, 10);
+  return ymdLocal(d);
 }
 function monthEnd(): string {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 
 export function DeadlineQuickPick({ name = "deadline", defaultValue = "" }: { name?: string; defaultValue?: string }) {
@@ -70,10 +84,7 @@ export function DeadlineQuickPick({ name = "deadline", defaultValue = "" }: { na
           type="button"
           onClick={() => { setValue(value === q.v ? "" : q.v); setShowPicker(false); }}
           aria-pressed={value === q.v}
-          className={cn(
-            "rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors",
-            value === q.v ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-elev text-fg-muted ring-border/60 hover:text-fg",
-          )}
+          className={cn(CHIP, value === q.v ? CHIP_ON : CHIP_OFF)}
         >
           {q.label}
         </button>
@@ -84,19 +95,19 @@ export function DeadlineQuickPick({ name = "deadline", defaultValue = "" }: { na
           value={value}
           autoFocus={showPicker}
           onChange={(e) => setValue(e.target.value)}
-          className="rounded-full bg-bg-elev px-3 py-1 text-xs ring-1 ring-accent/30 outline-none"
+          className={cn(CONTROL_BOX, "px-2.5 border border-accent/40 bg-bg-elev outline-none")}
         />
       ) : (
         <button
           type="button"
           onClick={() => setShowPicker(true)}
-          className="inline-flex items-center gap-1 rounded-full bg-bg-elev px-3 py-1.5 text-xs font-medium text-fg-muted ring-1 ring-border/60 transition-colors hover:text-fg"
+          className={cn(CHIP, CHIP_OFF, "inline-flex items-center gap-1.5")}
         >
-          <CalendarDays size={12} /> Pick…
+          <CalendarDays size={13} /> Pick a date
         </button>
       )}
       {value && (
-        <button type="button" onClick={() => { setValue(""); setShowPicker(false); }} className="text-xs text-fg-subtle hover:text-fg">
+        <button type="button" onClick={() => { setValue(""); setShowPicker(false); }} className="h-8 px-2 text-xs text-fg-subtle hover:text-fg">
           Clear
         </button>
       )}
@@ -109,96 +120,82 @@ const REPEAT_DAY_CHIPS = [
   { v: 5, l: "Fri" }, { v: 6, l: "Sat" }, { v: 0, l: "Sun" },
 ];
 
-/** Collapsed "Repeat" section for the New Task form: toggle on → day-of-week
- *  chips (multi-select) or a Monthly day-of-month alternative. Mirrors its state
- *  into hidden fields (`repeatOn`/`repeatCadence`/`repeatWeekdays`/
- *  `repeatDayOfMonth`) so the plain server-action form (createTask) can read it
- *  with FormData — same pattern as PrioritySegment/CompanySelectField above.
- *  When on, createTask ALSO saves a standing recurring_task automation so future
- *  copies of this task auto-create on the chosen days/date (today's task is
- *  still created normally either way). */
+/** The "Repeat" row of the New Task form: one switch, and when it is on, the
+ *  weekday chips or a day-of-month. Mirrors its state into hidden fields
+ *  (`repeatOn`/`repeatCadence`/`repeatWeekdays`/`repeatDayOfMonth`) so
+ *  createTask reads it with FormData. When on, createTask ALSO saves a standing
+ *  recurring_task automation so future copies auto-create on those days —
+ *  today's task is created normally either way.
+ *
+ *  It used to be a collapsed box inside a box: a chevron to open, THEN a switch
+ *  to turn on. One switch now; the options appear beneath it. */
 export function RepeatSection() {
-  const [open, setOpen] = useState(false);
   const [on, setOn] = useState(false);
   const [cadence, setCadence] = useState<"weekly" | "monthly">("weekly");
   const [weekdays, setWeekdays] = useState<number[]>([1]);
   const [dayOfMonth, setDayOfMonth] = useState(1);
 
   return (
-    <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
+    <div className="space-y-2.5">
       <input type="hidden" name="repeatOn" value={on ? "1" : ""} />
       <input type="hidden" name="repeatCadence" value={cadence} />
       <input type="hidden" name="repeatWeekdays" value={weekdays.join(",")} />
       <input type="hidden" name="repeatDayOfMonth" value={String(dayOfMonth)} />
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left"
+        role="switch"
+        aria-checked={on}
+        onClick={() => setOn((v) => !v)}
+        className="flex w-full items-center gap-3 rounded-md border border-border bg-bg-elev px-3 py-2 text-left hover:bg-bg-subtle transition-colors"
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-fg">
-          <Repeat size={14} className="text-fg-muted" /> Repeat
+        <Repeat size={14} className="shrink-0 text-fg-muted" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-fg">Repeat this task</span>
+          <span className="block text-xs text-fg-muted">
+            {on
+              ? cadence === "weekly"
+                ? `Every ${REPEAT_DAY_CHIPS.filter((c) => weekdays.includes(c.v)).map((c) => c.l).join(", ") || "— pick a day"}`
+                : `On day ${dayOfMonth} of every month`
+              : "Recreate it automatically on chosen days"}
+          </span>
         </span>
-        <span className="flex items-center gap-2">
-          {on && <span className="text-xs text-accent">On</span>}
-          <ChevronDown size={14} className={cn("text-fg-subtle transition-transform", open && "rotate-180")} />
-        </span>
+        <Switch on={on} />
       </button>
-      {open && (
-        <div className="px-3.5 pb-3.5 space-y-2.5">
-          <button
-            type="button"
-            onClick={() => setOn((v) => !v)}
-            className="flex w-full items-center justify-between rounded-xl bg-bg-elev px-3 py-2.5 ring-1 ring-border/60"
-          >
-            <span className="text-xs text-fg-muted">Recreate this task automatically</span>
-            <Switch on={on} />
-          </button>
-          {on && (
-            <>
-              <div className="flex flex-wrap gap-1.5">
-                {(["weekly", "monthly"] as const).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setCadence(c)}
-                    aria-pressed={cadence === c}
-                    className={cn(
-                      "rounded-lg px-2.5 py-1.5 text-xs ring-1 transition-colors capitalize",
-                      cadence === c ? "bg-accent/12 text-accent ring-accent/40 font-medium" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
-                    )}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              {cadence === "weekly" ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {REPEAT_DAY_CHIPS.map(({ v, l }) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setWeekdays((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]))}
-                      aria-pressed={weekdays.includes(v)}
-                      className={cn(
-                        "rounded-lg px-2.5 py-1.5 text-xs ring-1 transition-colors",
-                        weekdays.includes(v) ? "bg-accent/12 text-accent ring-accent/40 font-medium" : "bg-bg-elev text-fg-muted ring-border hover:text-fg",
-                      )}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-fg-muted">Day of month</span>
-                  <input
-                    type="number" min={1} max={31} value={dayOfMonth}
-                    onChange={(e) => setDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
-                    className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
-                  />
-                </div>
-              )}
-            </>
+      {on && (
+        <div className="flex flex-wrap items-center gap-1.5 pl-1">
+          {(["weekly", "monthly"] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCadence(c)}
+              aria-pressed={cadence === c}
+              className={cn(CHIP, "capitalize", cadence === c ? CHIP_ON : CHIP_OFF)}
+            >
+              {c}
+            </button>
+          ))}
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          {cadence === "weekly" ? (
+            REPEAT_DAY_CHIPS.map(({ v, l }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setWeekdays((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]))}
+                aria-pressed={weekdays.includes(v)}
+                className={cn(CHIP, "px-2.5", weekdays.includes(v) ? CHIP_ON : CHIP_OFF)}
+              >
+                {l}
+              </button>
+            ))
+          ) : (
+            <label className="flex items-center gap-2 text-xs text-fg-muted">
+              Day of month
+              <input
+                type="number" min={1} max={31} value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+                className={cn(CONTROL_BOX, "w-16 px-2.5 border border-border bg-bg-elev")}
+              />
+            </label>
           )}
         </div>
       )}

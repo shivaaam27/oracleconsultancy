@@ -299,7 +299,7 @@ export function buildTaskReminderDoc(
 
 function buildAllMessages(name: string, list: TaskRow[], personId: number | null, from?: string): Record<Channel, string> {
   // Per-person signed link → WhatsApp renders the live Aurora preview card.
-  // `from` is the "from who" sign-off line in the message text (the Command Centre
+  // `from` is the "from who" sign-off line in the message text (the Administrator
   // for admin Outbox sends) — the link itself no longer carries it.
   // Falls back to the plain /portal link for people not in the directory.
   const link = personId != null ? waReminderLink(personId) : undefined;
@@ -327,7 +327,7 @@ export async function generateDrafts(): Promise<OutboxDraft[]> {
     snoozedUntil: p.snoozed_until ? new Date(p.snoozed_until as string) : null,
   }));
   const pByName = new Map(people.map((p) => [p.name, p]));
-  // Admin Outbox reminders are "from" the Command Centre (or the owner's name if set
+  // Admin Outbox reminders are "from" the Administrator (or the owner's name if set
   // in Settings → Owner sign-in). Read it directly to keep gen.ts free of the
   // server-only admin-auth chain.
   const { data: ownerRow } = await sb.from("settings").select("value").eq("key", "v2.ownerName").maybeSingle();

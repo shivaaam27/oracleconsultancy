@@ -93,7 +93,7 @@ NOT empty.
 
 ## Director portal slim-down (Jun 2026, same uncommitted batch — director-scoped, careful)
 Owner asked to remove attendance + requests from the director portal and merge the (redundant)
-Team page into Outbox. ALL director-scoped — managers/HR/staff + the command centre are untouched.
+Team page into Outbox. ALL director-scoped — managers/HR/staff + the administrator are untouched.
 - **Attendance + Team→Outbox**: `/portal/team` now `redirect("/portal/outbox")` for directors only
   (managers/HR keep the Team page WITH its attendance grid). Board "Team page" tile + the "On
   leave" KPI now link to `/portal/outbox`. Team's two jobs are covered by Outbox (per-person open
@@ -104,14 +104,14 @@ Team page into Outbox. ALL director-scoped — managers/HR/staff + the command c
   pendingRequests prop + the board's listRequestsForPortal fetch) all removed; `/portal/requests`
   and `/portal/requests/[id]` redirect directors to `/portal/board`; `requestRecipientsFor` no
   longer offers directors (so staff don't address a director who can't see it — managers/HR/dept-
-  head remain, owner sees all in the command centre). NOTE: the admin composer `allActivePeople`
+  head remain, owner sees all in the administrator). NOTE: the admin composer `allActivePeople`
   still lists directors (owner can address anyone) — left as-is; edge case.
 - Verified live (Pulin): /portal/team→/portal/outbox, /portal/requests→/portal/board, no Requests
   nav tab, no "Waiting on you", board "Team & reminders"→Outbox. tsc clean; 126/126 tests pass.
 
 ## Task-management redesign (management Tasks view, Jun 2026, same uncommitted batch)
 Owner cleanup of `PortalTasksCommand` (`/portal/tasks` for manager/HR/director — NOT staff [they
-use PortalTasksTable, a follow-up] and NOT the command centre [separate components]). Decisions:
+use PortalTasksTable, a follow-up] and NOT the administrator [separate components]). Decisions:
 management view now/align staff next; keep "Remind all" as "Message all in chat"; Lead toggle only
 for editors.
 - Desktop rows are now **floating cards** (was one Panel with divide-y → "felt like one task").

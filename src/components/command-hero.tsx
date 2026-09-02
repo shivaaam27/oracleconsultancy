@@ -2,11 +2,11 @@ import { Sparkles, Target } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CockpitLive } from "@/components/cockpit-live";
 
-/* Command Centre hero strip — the owner-grade twin of the portal BoardHero
+/* Administrator hero strip — the owner-grade twin of the portal BoardHero
  * (aurora glass, live dot, avatar, slim one-line stats pill + ORI's read).
  * Deliberately clean: the engine actions (Run · Brief · Approvals) live in the
  * bottom HomeControlBar and portfolio health lives in the Company-health header,
- * so the hero stays calm. Part of the Command Centre unification —
+ * so the hero stays calm. Part of the Administrator unification —
  * memory/command_centre_unification.md. */
 
 export function CommandHero({
@@ -38,7 +38,7 @@ export function CommandHero({
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Command Centre</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Administrator</p>
             <CockpitLive />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">

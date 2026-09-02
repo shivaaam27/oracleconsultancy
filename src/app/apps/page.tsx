@@ -20,7 +20,7 @@ export const metadata = { title: "Modules — Oracle Consultancy" };
  * you are in, and pins that cross module boundaries. See
  * `memory/erp_navigation_plan.md`.
  *
- * ⚠️ `/` DOES NOT MOVE. The command centre stays the home of Task Management —
+ * ⚠️ `/` DOES NOT MOVE. The administrator stays the home of Task Management —
  * putting a click in front of the page the owner opens most would be a poor
  * trade for tidiness.
  *

@@ -157,7 +157,7 @@ async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: str
   } catch { /* best-effort */ }
 }
 
-/** Per-task reminder (Command Centre): draft a SINGLE-task WhatsApp/Email/SMS
+/** Per-task reminder (Administrator): draft a SINGLE-task WhatsApp/Email/SMS
  *  message to the task's accountable person and return a ready-to-send deep link.
  *  Unlike the Outbox bundle (every open task per person), this is scoped to ONE
  *  task — mirrors the portal's portalRemindTask. The greeting uses the given name
@@ -222,7 +222,7 @@ export async function adminRemindTask(
   // summary) so the recipient can see their whole open/overdue list, not just the
   // one task being nudged about.
   const cardLink = channel === "WHATSAPP" ? waReminderLink(person.id as number) : undefined;
-  const body = buildTaskSummaryWhatsApp(name, rows, cardLink, "Command Centre");
+  const body = buildTaskSummaryWhatsApp(name, rows, cardLink, "Administrator");
   const subject = allTasks ? "Your open tasks" : "Task reminder";
   const link = linkFor(channel, to, subject, body);
 
@@ -260,9 +260,18 @@ export async function updateTask(code: string, formData: FormData) {
     deadline: parseDate(formData.get("deadline")),
     meetingDate: parseDate(formData.get("meetingDate")),
     comments: str(formData.get("comments")),
-    latestUpdate: str(formData.get("latestUpdate")),
+    // ⚠️ ONLY when the form carries the field. The record's Edit tab has no
+    // "latest update" box (the conversation owns it), and passing null here
+    // CLEARED the task's latest update on EVERY save — found 2 Sept 2026 when
+    // a no-change save on ME-020 wrote "Latest Update: <text> → (blank)".
+    latestUpdate: formData.has("latestUpdate") ? str(formData.get("latestUpdate")) : undefined,
     // By NAME: the owner typing somebody new means it.
     assigneeNames: splitNames(str(formData.get("accountable"))),
+    // The two switches on the record's Edit tab. Sent as "on"/"off" by
+    // FormSwitch; absent from any form that does not carry them, in which
+    // case the core leaves both alone.
+    accountability: formData.has("leadMode") ? (formData.get("leadMode") === "on" ? "lead" : "shared") : undefined,
+    requiresAttachment: formData.has("requiresAttachment") ? formData.get("requiresAttachment") === "on" : undefined,
     changeReason: str(formData.get("changeReason")),
     createdBy: "web-ui",
   });
@@ -314,7 +323,11 @@ export async function createTask(formData: FormData) {
   const accountableRaw = str(formData.get("accountable"));
   // Overdue-blame mode (completion credit is always shared). "lead" marks the
   // first assignee as the accountable lead so only they carry an overdue hit.
-  const accountability = str(formData.get("accountability")) === "lead" ? "lead" : "shared";
+  const accountability =
+    str(formData.get("accountability")) === "lead" || formData.get("leadMode") === "on" ? "lead" : "shared";
+  // The proof gate (portal-only until now on the web form): completing refuses
+  // without a file attached. A FormSwitch submits "on"/"off".
+  const requiresAttachment = formData.get("requiresAttachment") === "on";
 
   // Optional "Repeat" recipe (RepeatSection on the New Task form). Alongside
   // today's task, save a standing recurring_task automation so future copies
@@ -343,6 +356,7 @@ export async function createTask(formData: FormData) {
     // The web form is the owner typing: an unknown name is a new person, on purpose.
     assigneeNames: splitNames(accountableRaw),
     accountability,
+    requiresAttachment,
     repeat: willRepeat
       ? { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth }
       : null,

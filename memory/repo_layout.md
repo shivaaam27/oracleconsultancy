@@ -91,7 +91,7 @@ cos-system/
 
 ## Important Files
 
-- `src/app/page.tsx` - command centre.
+- `src/app/page.tsx` - administrator.
 - `src/app/meeting/actions.ts` - Meeting Workspace server actions and AI helpers.
 - `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
 - `src/components/meeting-extractor.tsx` - Meeting Workspace UI.

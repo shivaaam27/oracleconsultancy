@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Megaphone, X, ChevronRight } from "lucide-react";
 
 /* A calm, dismissible announcement banner shown at the top of the board / home
- * (like the command centre). Surfaces the newest announcement still needing the
+ * (like the administrator). Surfaces the newest announcement still needing the
  * viewer's attention; "Open" jumps to the Announcements tab on Briefings, and the
  * × dismisses it locally (remembered in localStorage so it doesn't nag on every
  * navigation — the full item still lives on the Announcements tab). */

@@ -103,7 +103,7 @@ Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain lan
 
 ## Product
 
-Chief-of-Staff command centre for Oracle Consultancy's portfolio companies (the
+Chief-of-Staff administrator for Oracle Consultancy's portfolio companies (the
 parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is
 also one of the companies).
 
@@ -128,7 +128,7 @@ against the live database Aug 2026:
 | RU | Rugantino | added later |
 | TA | Tanam Advisory PVT. Ltd | added later |
 
-Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/proxy.ts` — the Next-16 `proxy` convention, renamed from `src/middleware.ts` in June 2026; cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Command Centre** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Command Centre tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; staff-portal posts use `"portal:<Name>"`.
+Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/proxy.ts` — the Next-16 `proxy` convention, renamed from `src/middleware.ts` in June 2026; cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Administrator** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Administrator tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; staff-portal posts use `"portal:<Name>"`.
 
 The system replaces an Excel workbook with:
 
@@ -485,7 +485,7 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 
 ## Current Pages
 
-- `/` - command centre: Overview, Companies, Tasks. **The Tasks tab opens on the LIST view** (columns, filter rail, sorting, bulk edit); Cards/Board/Calendar/Timeline are one click away in the switcher.
+- `/` - administrator: Overview, Companies, Tasks. **The Tasks tab opens on the LIST view** (columns, filter rail, sorting, bulk edit); Cards/Board/Calendar/Timeline are one click away in the switcher.
 - `/task/new`
 - `/task/[code]` - **the task record, as a real page** (Aug 2026). A record is a page with its own URL, as in ERPNext. Everything links here via `taskHref()` in `src/lib/task-href.ts` — never `?task=`. The old drawer still opens for legacy `?task=CODE` links.
 - `/registry` - redirects to hub Tasks table
@@ -688,7 +688,7 @@ sidebar shows **only the module you are in**, with a switcher under the brand an
   page renders perfectly, so only looking at the rail on a sub-page finds this.
 - ⌘K still lists **every individual page**, whichever module it lives in. That is
   what makes the split safe: nothing became harder to reach.
-- `/` did NOT move — it is still the command centre and Task Management's home.
+- `/` did NOT move — it is still the administrator and Task Management's home.
 - Plan and the full break-audit: `memory/erp_navigation_plan.md`.
 
 Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], Supplies, **Assets & Vendors, Attendance**, Cleaning, Companies, People, Documents, Outbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
@@ -818,8 +818,8 @@ labelled, counted links; there was never a reason for two columns. The list now
 publishes its filters and skips its own column **at `lg` only**, giving the list
 925px → **1125px**.
 - ⚠️ **NO PROVIDER MEANS NOTHING CHANGES** — `useContext` returns null on the
-  whole command centre. The provider is in ONE file, the portal layout. The
-  command centre could take the same loan with one line; it was not asked for.
+  whole administrator. The provider is in ONE file, the portal layout. The
+  administrator could take the same loan with one line; it was not asked for.
 - ⚠️ **`lg:hidden`, NEVER `md:hidden`.** The rail appears at 1024px and the
   filter column at 768px — hide it at `md` and every width from 768 to 1023 has
   no filters at all.

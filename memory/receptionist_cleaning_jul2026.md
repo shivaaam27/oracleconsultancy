@@ -1,6 +1,6 @@
 ---
 name: receptionist-cleaning-jul2026
-description: Receptionist portal role + portal cleaning log; Command Centre OCR as overview/control
+description: Receptionist portal role + portal cleaning log; Administrator OCR as overview/control
 metadata:
   type: project
 ---
@@ -8,7 +8,7 @@ metadata:
 # Receptionist role + portal Office Cleaning (8 Jul 2026) — PUSHED @ad4f4b5
 
 The cleaning registry (OCR = Office Cleaning Registry, `/hrms/ocr`) is now driven by a
-receptionist from the portal; the Command Centre + oversight roles only VIEW/control.
+receptionist from the portal; the Administrator + oversight roles only VIEW/control.
 
 **Role:** new `receptionist` portal role. `portal_role` is free-text → NO migration.
 Registered in `portal-permissions.ts` (union/PORTAL_ROLES/ROLE_LABEL/DEFAULT_SCOPE/
@@ -33,7 +33,7 @@ RULE holds: gate on `me.caps.cleaningLog/cleaningOverview`, never the role.
 - `components/portal-cleaning.tsx` (entry, portal kit, inline comments, "Submit today's
   cleaning") + `components/cleaning-overview.tsx` (read-only, pure render / server-safe).
 
-**Command Centre** `/hrms/ocr` — reframed header to "overview & control"; reflects her
+**Administrator** `/hrms/ocr` — reframed header to "overview & control"; reflects her
 ticks automatically (SAME `cleaning_days`/`cleaning_checks` tables) and keeps full edit.
 
 **Home strip** (`portal/(app)/page.tsx`): `isReceptionist` hides tasks + meetings; raise-

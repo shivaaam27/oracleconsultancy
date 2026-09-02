@@ -13,7 +13,7 @@
 //   MCP NEVER SENDS A MESSAGE — except a meeting/event invitation, which the
 //   owner opened deliberately in Aug 2026.
 //
-// Everything else the owner can do in the command centre is available here.
+// Everything else the owner can do in the administrator is available here.
 // Anything outbound that isn't an invitation becomes an Outbox draft. Every write
 // tool sets `write: true` below — that flag is what marks it non-read-only to the
 // client and what puts it behind the care language in the server instructions.

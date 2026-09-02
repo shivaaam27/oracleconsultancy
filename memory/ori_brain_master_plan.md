@@ -1,6 +1,6 @@
 ---
 name: ori_brain_master_plan
-description: "Master plan — ORI as the complete brain: agentic clarify→confirm→execute loop, tool library, automations engine, analytics + telemetry, across command centre + all portals"
+description: "Master plan — ORI as the complete brain: agentic clarify→confirm→execute loop, tool library, automations engine, analytics + telemetry, across administrator + all portals"
 metadata:
   node_type: memory
   type: project
@@ -10,7 +10,7 @@ metadata:
 
 Owner's vision: ORI + AI + System Intelligence should READ everything and ACT on
 everything (add/edit/delete/automate/cross-reference/suggest/follow-up), in the
-Command Centre AND every portal (director/manager/staff), scoped by permission.
+Administrator AND every portal (director/manager/staff), scoped by permission.
 It must feel like Claude/ChatGPT INSIDE the system — a multi-turn conversation
 that asks clarifying questions before it commits (e.g. "which director?", "give me
 the event details"), then executes a multi-step workflow.

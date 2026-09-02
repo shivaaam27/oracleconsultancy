@@ -1,11 +1,11 @@
 ---
 name: mcp-stage1-read-only
-description: MCP stage 1 — Claude can read COS from the command centre; nothing can be changed
+description: MCP stage 1 — Claude can read COS from the administrator; nothing can be changed
 metadata:
   type: project
 ---
 
-# MCP stage 1 — read-only, command centre (BUILT + VERIFIED, Aug 2026)
+# MCP stage 1 — read-only, administrator (BUILT + VERIFIED, Aug 2026)
 
 Read [[mcp_plan]] first. This is the stage that proved the idea works.
 

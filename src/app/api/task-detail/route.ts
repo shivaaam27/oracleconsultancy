@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   // Stamp the owner's view so portal users see "Seen by Management".
   await recordTaskView(task.id, "admin");
 
-  const [{ data: updateRaw }, { data: auditRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }] =
+  const [{ data: updateRaw }, { data: auditRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }, { data: deptRaw }] =
     await Promise.all([
       sb
         .from("task_updates")
@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
         .maybeSingle(),
       sb.from("people").select("id,name").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),
+      sb.from("departments").select("name").order("name"),
     ]);
 
   const updates = updateRaw ?? [];
@@ -158,5 +159,6 @@ export async function GET(req: NextRequest) {
     statusOptions: STATUSES.filter((s) => s !== task.status),
     people: (pplRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
     companies: (compRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })),
+    departments: (deptRaw ?? []).map((d) => d.name as string),
   });
 }

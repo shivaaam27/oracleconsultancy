@@ -168,7 +168,7 @@ async function searchPeople(
         if (theirCids.some((c) => cidSet.has(c))) allowedIds.add(pid);
       }
     }
-    // The viewer can always find themselves + the universal Command Centre contact.
+    // The viewer can always find themselves + the universal Administrator contact.
     allowedIds.add(me.id);
     for (const id of await commandCentrePersonIds()) allowedIds.add(id);
     if (allowedIds.size === 0) return [];

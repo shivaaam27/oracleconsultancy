@@ -8,7 +8,7 @@
 //      which the owner explicitly opened, because an event nobody is told about is
 //      not worth putting in a diary.
 //
-// Everything else the owner can do in the command centre, an assistant can do here:
+// Everything else the owner can do in the administrator, an assistant can do here:
 // complete and close tasks, archive them, act on several at once. Those are all
 // reversible from the UI, which is exactly why they are allowed and why deleting
 // is not. A person's message to another person still becomes an Outbox DRAFT.

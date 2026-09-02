@@ -72,7 +72,7 @@ export function derivePageContext(pathname: string, params?: Params): PageContex
       };
     }
     if (drawerTask) return { label: `Task ${drawerTask} (open)`, taskCode: drawerTask, section: "overview", tab: "overview" };
-    return { label: "Command centre (Overview)", section: "overview", tab: "overview" };
+    return { label: "Administrator (Overview)", section: "overview", tab: "overview" };
   }
 
   if (p === "/companies") return { label: "Companies list", section: "companies" };

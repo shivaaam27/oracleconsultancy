@@ -22,7 +22,7 @@ import { HomeActions } from "./home-actions";
 import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
 import type { Todo } from "@/app/todos/actions";
 
-/* The Command Centre home — "Mission Deck + Rooms" composition (owner-approved,
+/* The Administrator home — "Mission Deck + Rooms" composition (owner-approved,
  * memory/command_centre_unification.md): hero strip → deck (Needs-you | heat +
  * levers) → live rooms → ORI recap → Now → activity. Presentational over the
  * same loaders as before; the health ring was retired (health is a figure in

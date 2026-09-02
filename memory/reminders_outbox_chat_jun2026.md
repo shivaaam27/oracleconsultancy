@@ -8,7 +8,7 @@ metadata:
 # Reminders · Outbox · Chat · Push — June 2026 sprint
 
 Multi-session rework of how reminders, the Outbox and notifications work, across
-the staff portal AND the command centre. Shipped to master + deployed to prod
+the staff portal AND the administrator. Shipped to master + deployed to prod
 (Vercel **Hobby** plan — see cron note).
 
 ## Outbox — live, per-person (no stored draft clutter)
@@ -18,7 +18,7 @@ the staff portal AND the command centre. Shipped to master + deployed to prod
   - Portal: `src/app/portal/(app)/outbox/page.tsx` + `portal-outbox-list.tsx`
     (scoped via `managerTeamIds` for managers, group-wide for director/HR). Task
     rows link to `/portal/task/[code]`.
-  - Command centre: `/outbox` already lived on `generateDrafts()` (`src/lib/outbox/gen.ts`).
+  - Administrator: `/outbox` already lived on `generateDrafts()` (`src/lib/outbox/gen.ts`).
 - **Stopped persisting reminder drafts**: `portalSendTaskSummaryWhatsApp`,
   `portalRemindTask`, `adminRemindTask` no longer INSERT `outbox` rows — a send
   just opens WhatsApp / posts to chat. Killed the duplicate/"group-name" pile-up.

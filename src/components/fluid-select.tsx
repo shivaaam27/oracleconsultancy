@@ -111,16 +111,23 @@ export function FluidSelect({
       if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); btnRef.current?.focus(); } };
+    // ⚠️ CAPTURE, and CLAIM it. A modal (ModalShell, BottomSheet) closes on
+    // Escape from a document listener of its own; pressing Escape to shut this
+    // menu closed the whole New Task modal — and router.back() threw away
+    // everything typed. Capture runs before the modal's bubble listener, and
+    // preventDefault is the signal it checks.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); setOpen(false); btnRef.current?.focus(); }
+    };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
     document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
       document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

@@ -574,7 +574,17 @@ input:disabled, select:disabled, textarea:disabled {
    A calm hairline rail: transparent track, a soft rounded thumb that only
    deepens on hover. Firefox gets `scrollbar-width: thin` + a themed colour via
    the root (inherited everywhere). Applies app-wide incl. every portal. */
-:root { scrollbar-width: thin; scrollbar-color: hsl(var(--fg) / 0.2) transparent; }
+/* ⚠️ THE STANDARD PROPERTY SWITCHES THE WEBKIT RULES OFF. Chromium (121+)
+   honours `scrollbar-width`/`scrollbar-color`, and once either is set on an
+   element it IGNORES every `::-webkit-scrollbar` rule for it — and both
+   INHERIT, so setting them on :root gave every scroller in Chrome and the
+   Windows app the classic 15px bar with arrows, exactly what the rules below
+   exist to replace. Photographed by the owner inside the New Task modal. So
+   the standard pair is for Firefox ONLY, where the pseudo-element does not
+   exist. */
+@supports not selector(::-webkit-scrollbar) {
+  :root { scrollbar-width: thin; scrollbar-color: hsl(var(--fg) / 0.2) transparent; }
+}
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -589,8 +599,10 @@ input:disabled, select:disabled, textarea:disabled {
 /* Even slimmer overlay rail for scroll areas INSIDE cards/panels (e.g. the board
    "Needs you" list), so the scrollbar never reads as chrome. Thumb hides until
    the region is hovered. */
-.slim-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-.slim-scroll:hover { scrollbar-color: hsl(var(--fg) / 0.2) transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  .slim-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .slim-scroll:hover { scrollbar-color: hsl(var(--fg) / 0.2) transparent; }
+}
 .slim-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .slim-scroll::-webkit-scrollbar-track { background: transparent; }
 .slim-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; border: 1px solid transparent; background-clip: padding-box; transition: background .2s; }
@@ -714,7 +726,7 @@ input:disabled, select:disabled, textarea:disabled {
      below. This is a second rule rather than a `:not(:has(…))` on the one above
      on purpose: if a browser lacks `:has()` it drops only this override and the
      admin gutter survives, where a combined selector would have failed shut and
-     left the command centre tucked under its own rail. `body` earns it the
+     left the administrator tucked under its own rail. `body` earns it the
      specificity to win. The `[data-portal-zoom]` guard above cannot do this job
      alone — that attribute is written by an effect, so it is absent for the first
      paint, which is exactly the moment we are fixing. */
@@ -740,7 +752,7 @@ input:disabled, select:disabled, textarea:disabled {
   /* The portal has its own rail now (PortalSidebar), publishing its own width as
      --portal-sidebar. It is a SEPARATE variable on purpose: the admin gutter
      above reads --desk-sidebar, and sharing one would let a portal page shove
-     the command centre's layout about. The fallback is 0 so that if the rail is
+     the administrator's layout about. The fallback is 0 so that if the rail is
      ever not mounted (or the person's role has no destinations) the portal keeps
      its old centred column exactly as before. */
   [data-portal-shell] {
@@ -756,7 +768,7 @@ input:disabled, select:disabled, textarea:disabled {
    The portal used to render at `zoom: 0.8` on the web, from a time when it was
    a roomy touch-first layout that felt huge on a monitor. Desk is dense already
    — 13px body, 32px controls — so shrinking it another fifth just made it small,
-   and it did not match the command centre sitting at 100% next to it.
+   and it did not match the administrator sitting at 100% next to it.
 
    `lib/zoom.ts` stays: rootZoom() now returns 1 everywhere, so every measurement
    that divides by it is the identity, and nothing has to be unpicked. */
@@ -1200,7 +1212,7 @@ h1, h2, h3 { letter-spacing: normal; }
 :root[data-density="compact"] [data-list-row] { padding-top: 4px; padding-bottom: 4px; }
 /* A list row's context line (RecordList `subRow`) folds away in Compact and
    comes back on hover: one line per row, detail still one glance away. */
-:root[data-density="compact"] [data-subrow] { display: none; }
+:root[data-density="compact"] [data-subrow]:not([data-subrow="always"]) { display: none; }
 :root[data-density="compact"] [data-list-row]:hover [data-subrow] { display: block; }
 /* …but a row with an OPEN quick-update composer keeps its second line no matter
    where the pointer is — otherwise moving the mouse away to think would snatch

@@ -110,7 +110,7 @@ const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label:
 // Classification (command-centre parity). Risk shares the four-band scale;
 // category is the fixed list from CLAUDE.md. Both offer a "clear" option.
 /** The portal task list is defined in metadata, not here — the same entry the
- *  command centre's Tasks table reads, so the two cannot drift. */
+ *  administrator's Tasks table reads, so the two cannot drift. */
 // The shared task columns, with the deadline trimmed for this list: the portal
 // renders a short label there ("29d overdue", "No date"), not the admin’s inline
 // date editor, so 116px was 20px of empty column taken off the task NAME on a
@@ -171,7 +171,7 @@ export function PortalTasksCommand({
   /* Filters live in the URL, not in component state (the Stage 2 rule, and what
    * pays for saved views later — a list filtered with useState has nothing to
    * save). `hrefFor` is what lets each rail entry be a real link rather than a
-   * button, so the rail behaves exactly like the command centre's.
+   * button, so the rail behaves exactly like the administrator's.
    *
    * The params are namespaced `f`/`status`/`company`/`group` and the free-text
    * one is debounced, so typing is not one navigation per keystroke. Anything at
@@ -464,7 +464,7 @@ export function PortalTasksCommand({
     return out.sort((a, b) => Number(b.lead) - Number(a.lead));
   }
 
-  /* ONE toolbar, at the command centre's sizes.
+  /* ONE toolbar, at the administrator's sizes.
    *
    * This page used to carry its own block of controls — a tall rounded search
    * box, then the status select, then company + Company wise + Select + a second
@@ -474,7 +474,7 @@ export function PortalTasksCommand({
    *
    * It is now handed to RecordList's `toolbar` slot, so every control shares one
    * wrapping row with Export and Columns, and every control is the same 32px
-   * high / 13px shell the command centre uses. `Company wise` and `Select` drop
+   * high / 13px shell the administrator uses. `Company wise` and `Select` drop
    * to their icons below `sm`, where the words are what overflowed. The Done
    * duplicate is gone: it is a chip in the filter strip like every other filter,
    * and that strip scrolls. */
@@ -547,7 +547,7 @@ export function PortalTasksCommand({
       {/* The dense list (the portal pass, Aug 2026).
        *
        * This used to be one floating card per task, in two hand-written variants
-       * (desktop + mobile). It is now the SAME `RecordList` the command centre
+       * (desktop + mobile). It is now the SAME `RecordList` the administrator
        * uses, so the portal gets its filter rail with live counts, its column
        * header, its "N of M shown" footer and its keyboard navigation for free —
        * and the columns come from ENTITY_VIEWS.task, so admin and portal cannot
@@ -586,7 +586,7 @@ export function PortalTasksCommand({
             <SelectBox checked={selected.has(t.taskId)} onToggle={() => toggleSelect(t.taskId)} />
           ) : undefined}
           /* The second line — company, who is waiting, and the latest update.
-           * The command centre's list has had this all along (hidden until you
+           * The administrator's list has had this all along (hidden until you
            * hover, in Compact); the portal's had none, which is why a director
            * saw less on the same task than the owner did. Same information, same
            * hover behaviour — what differs is only what the PERSON may see, and

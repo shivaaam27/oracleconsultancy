@@ -23,7 +23,7 @@ import { portalPersonById, type PortalPerson } from "@/lib/portal-auth";
  */
 export type CallerScopes = string[] | undefined;
 
-/** The owner (command centre): no person row, sees and does everything. */
+/** The owner (administrator): no person row, sees and does everything. */
 export type OwnerCaller = { kind: "owner"; label: string; keyId: number; scopes?: CallerScopes };
 /** A staff member: reach is whatever their portal role allows, nothing more. */
 export type PersonCaller = { kind: "person"; label: string; keyId: number; person: PortalPerson; scopes?: CallerScopes };

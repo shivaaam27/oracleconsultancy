@@ -83,7 +83,7 @@ export async function portalLogin(
 
 /* Sign out lands on the unified login screen (/login), NOT /portal/login — so
  * every role (staff, manager, director, and the owner) returns to the same
- * default sign-in, with the Staff Login / Command Centre tabs. */
+ * default sign-in, with the Staff Login / Administrator tabs. */
 export async function portalLogout() {
   await clearSessionCookie();
   redirect("/login");
@@ -1282,7 +1282,7 @@ export async function portalEditTask(input: {
     }
   }
   // Escalation flag. Setting "Yes" ALSO forces status → Escalated (mirrors the
-  // command centre); "No" clears the flag but leaves the status untouched. Never
+  // administrator); "No" clears the flag but leaves the status untouched. Never
   // overrides a status the caller set explicitly in this same edit.
   if (canManage && input.escalation !== undefined) {
     const next = input.escalation === "Yes" ? "Yes" : "No";
@@ -1304,7 +1304,7 @@ export async function portalEditTask(input: {
   // Company move — re-issues the task code under the new company's prefix (the
   // old code is kept in legacy_code so saved links still resolve). Only a GROUP
   // director / HR may move a task across companies; scoped directors/managers are
-  // company-bound. Mirrors the command centre's updateTask.
+  // company-bound. Mirrors the administrator's updateTask.
   let movedCode: string | null = null;
   const targetCompany = input.companyId;
   if (canManage && targetCompany && targetCompany !== (t.company_id as number)) {

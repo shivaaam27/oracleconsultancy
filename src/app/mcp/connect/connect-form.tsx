@@ -94,7 +94,7 @@ export function ConnectForm({
                   who === k ? "bg-bg shadow-sm" : "text-fg-muted hover:text-fg"
                 }`}
               >
-                {k === "owner" ? "Command Centre" : "Staff"}
+                {k === "owner" ? "Administrator" : "Staff"}
               </button>
             ))}
           </div>

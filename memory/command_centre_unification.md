@@ -1,11 +1,11 @@
-# Command Centre unification — match the portal design (Jul 2026)
+# Administrator unification — match the portal design (Jul 2026)
 
 **Status: Home + Tasks (+ task drawer) SHIPPED (pushed). Brief (calendar +
 announcements) BUILT — check git log for what's pushed. Continue page-by-page.**
 
 ## ⭐ COMMAND CENTRE CONTROL / DESIGN LANGUAGE — THE STANDARD (follow everywhere)
 Owner mandate: every CC page reuses ONE control language, first set on the Tasks
-page. When building/redesigning ANY Command Centre surface, match this exactly —
+page. When building/redesigning ANY Administrator surface, match this exactly —
 do NOT invent new button/icon styles. (CC-specific layer on top of Aurora /
 DESIGN_SYSTEM.md; the same rules are mirrored in DESIGN_SYSTEM.md § Command
 Centre.)
@@ -93,7 +93,7 @@ below the rooms. **Round 2 (same day, owner feedback): ALL deferred items built 
 
 ## The brief (owner, 4 Jul 2026)
 Portal side (staff/manager/director boards, tasks, briefings, meetings, announcements)
-is now unified and the owner loves it. Next: bring the **Command Centre** to the same
+is now unified and the owner loves it. Next: bring the **Administrator** to the same
 design language — one page at a time, mockup-first. Rules the owner set:
 
 - Work **one page at a time**; for each page produce ~6 mockups, owner picks, then build.
@@ -301,7 +301,7 @@ Route: /calendar renamed Brief in nav/launcher (redirect kept). Build order
 in artifact: shell/tabs → agenda → rail → day-sheet → announcements → verify.
 **BUILT + verified desktop+375, tsc clean, NOT pushed (4 Jul 2026).**
 Owner mandate this build: "same button + icon design as tasks page throughout
-the Command Centre" — rounded-lg roomy buttons + outline lucide icons + FluidSelect
+the Administrator" — rounded-lg roomy buttons + outline lucide icons + FluidSelect
 is now the CC-wide standard (applied here). Changes:
 - nav.ts + worlds.ts label "Calendar"→"Brief" (route /calendar unchanged).
 - announcements/actions.ts: +nudgeAnnouncementAction (re-notify unseenPersonIds).
