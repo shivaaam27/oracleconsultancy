@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { NoteTouchDrag } from "@/components/note-touch-drag";
+import { NoteCaret } from "@/components/note-caret";
 import { cn } from "@/lib/cn";
 import { useFillViewport } from "@/lib/use-fill-viewport";
 import { BELOW_LG, useMediaQuery } from "@/lib/use-media-query";
@@ -659,6 +660,7 @@ export function NoteEditor({
        not a floating box of its own. */
     <div
       ref={sheet}
+      data-note-toolbar
       className={cn(
         "flex flex-col overflow-hidden bg-bg-elev",
         cover
@@ -929,7 +931,7 @@ export function NoteEditor({
         ref={scroller}
         style={{ scrollbarGutter: "stable both-edges" }}
         className={cn(
-          "note-scroller slim-scroll min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9",
+          "note-scroller slim-scroll relative min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9",
           full && "sm:py-14",
           /* Clears the home indicator, so the last line is never sitting on the
              bar you swipe up from. */
@@ -986,6 +988,9 @@ export function NoteEditor({
               block and it lifts. Phase 8 left this open on purpose. */}
           <NoteTouchDrag editor={editor} />
         </div>
+        {/* The caret you can see — a 2px accent bar that survives the window
+            losing focus. See note-caret.tsx for the owner's report. */}
+        <NoteCaret editor={editor} scroller={scroller} />
       </div>
 
       {/* AI (Phase 5). Every action is a PROPOSAL — nothing here touches the note

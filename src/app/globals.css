@@ -656,6 +656,11 @@ input:disabled, select:disabled, textarea:disabled {
 /* Blinking caret affordance for empty compose fields (CaretInput). The global
    reduced-motion rule below neutralises the blink (the bar just stays solid). */
 @keyframes caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* The hairline that runs along the top of the window while the next page is
+   on its way (desk-sidebar.tsx). A third of the width, sweeping left to right. */
+@keyframes nav-progress { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.nav-progress-bar { animation: nav-progress 1s ease-in-out infinite; }
 .caret-blink { animation: caret-blink 1.05s step-start infinite; }
 
 /* --- Nav pill: quietly-alive divider + "more to scroll" peek --- */
@@ -1387,7 +1392,12 @@ section[data-page-header],
    is the one that matters: `:focus` stops matching whenever the WINDOW loses focus,
    so the band would flicker off every time you clicked another app and back — and
    `.ProseMirror-focused` is the hook the library maintains for exactly this. */
-.note-canvas.ProseMirror-focused .note-active-line {
+/* ⚠️ GATED ON `data-note-live`, NOT `.ProseMirror-focused` (2 Sept 2026). The
+   library's class drops the instant the WINDOW loses focus — a click on the
+   scrollbar in the Windows shell, an alt-tab — and with it went the only mark
+   of where you were, which is the moment you most need it. note-caret.tsx sets
+   the flag from first focus until focus moves to something else on the page. */
+[data-note-live="1"] .note-active-line {
   background: hsl(var(--accent) / 0.05);
   border-radius: 3px;
   /* Reaches a little past the text on both sides WITHOUT touching layout — a real
@@ -1412,6 +1422,18 @@ section[data-page-header],
 .note-title-field {
   caret-color: hsl(var(--accent));
 }
+
+/* The drawn caret — see note-caret.tsx. 2px, accent, blinking like the native
+   one it sits beside. Never on a phone: a finger has no caret to lose, and the
+   native one there is already fat. */
+.note-caret-mark {
+  width: 2px;
+  border-radius: 1px;
+  background: hsl(var(--accent));
+  animation: caret-blink 1.05s step-start infinite;
+}
+@media (pointer: coarse) { .note-caret-mark { display: none; } }
+@media (prefers-reduced-motion: reduce) { .note-caret-mark { animation: none; } }
 
 /* ⚠️ NO focus ring on the writing surface. `*:focus-visible` (twice in this file)
    paints a 2px accent outline around anything focusable, and the canvas is a

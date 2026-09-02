@@ -224,6 +224,30 @@ export async function setNoteArchived(id: number, archived: boolean): Promise<{ 
 }
 
 /**
+ * Archive every note that is untitled AND empty. They pile up — a "New note"
+ * pressed and abandoned, the old ?new=1 back-button fault — and each one is a
+ * row on the shelf saying nothing. Archived, not deleted: the shelf's rule.
+ * Returns how many went.
+ */
+export async function tidyEmptyNotes(): Promise<{ ok: boolean; count: number }> {
+  const { data, error } = await sb
+    .from("notes")
+    .select("id,title,body_text,kind")
+    .eq("archived", false);
+  if (error) return { ok: false, count: 0 };
+  const empties = (data ?? [])
+    .filter((n) => (n.kind as string) !== "template")
+    .filter((n) => !String(n.title ?? "").trim() && !String(n.body_text ?? "").trim())
+    .map((n) => n.id as number);
+  if (empties.length === 0) return { ok: true, count: 0 };
+  const { error: uErr } = await sb.from("notes").update({ archived: true, updated_at: NOW() }).in("id", empties);
+  if (uErr) return { ok: false, count: 0 };
+  for (const id of empties) await reindexEntity("note", id);
+  revalidatePath("/notes");
+  return { ok: true, count: empties.length };
+}
+
+/**
  * Put this note into the search index. Phase 6.
  *
  * ⚠️ CALLED ON A LONG IDLE, NEVER FROM `saveNoteBody`. Autosave fires ~1s after

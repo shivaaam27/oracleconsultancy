@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, FolderPlus, Pin, Plus, StickyNote } from "lucide-react";
+import { CalendarDays, FolderPlus, Pin, Plus, StickyNote, Eraser } from "lucide-react";
 import { RecordList, type RecordFilter } from "@/components/record-list";
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
@@ -12,7 +12,7 @@ import { SearchInput } from "@/components/ui";
 import { AskNotes } from "@/components/ask-notes";
 import { useToast } from "@/components/toast";
 import { noteTitle, type NoteFolder, type NoteListRow } from "@/lib/notes-shared";
-import { createNote, createFolder, openTodaysNote } from "@/app/notes/actions";
+import { createNote, createFolder, openTodaysNote, tidyEmptyNotes } from "@/app/notes/actions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -92,6 +92,18 @@ export function NotesShelf({
       const fd = new FormData();
       if (folderId != null) fd.set("folderId", String(folderId));
       await createNote(fd);
+    });
+  };
+
+  // Untitled AND empty notes on the shelf right now — the button only shows
+  // when there is something for it to do.
+  const emptyCount = rows.filter((r) => r.kind !== "template" && !r.title.trim() && !r.bodyText.trim()).length;
+  const tidy = () => {
+    start(async () => {
+      const r = await tidyEmptyNotes();
+      if (!r.ok) { toast("Couldn't tidy the shelf.", { tone: "danger" }); return; }
+      toast(r.count ? `${r.count} empty note${r.count === 1 ? "" : "s"} archived.` : "Nothing to tidy.", { tone: "success" });
+      router.refresh();
     });
   };
 
@@ -213,6 +225,16 @@ export function NotesShelf({
               "which note said…", which is a corpus question. */}
           <AskNotes />
           <span className="grow" />
+          {emptyCount > 0 && filter !== "archived" && (
+            <button
+              type="button"
+              onClick={tidy}
+              title="Archive every note that has no title and no writing"
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg"
+            >
+              <Eraser size={12} /> Tidy {emptyCount} empty
+            </button>
+          )}
           {/* One page per day, opened or created. The partial unique index on
               daily_date is what actually stops two pages for one day. */}
           <button

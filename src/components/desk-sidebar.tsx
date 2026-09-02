@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,6 +15,24 @@ import {
 import { adminLogout } from "@/app/login/actions";
 import { moduleForPath, moduleOwnGroups, systemItems } from "@/lib/nav";
 import { cn } from "@/lib/cn";
+
+/* ⚠️ THE PAGE STAYS PUT WHILE THE NEXT ONE LOADS (2 Sept 2026). The root
+   `loading.tsx` swapped every page for a grey skeleton the instant a rail link
+   was clicked, so each click LOOKED like a reload. It is gone: the current page
+   stays on screen, the rail link shows a small pulse and a hairline runs along
+   the top of the window until the new page arrives, and every rail link is
+   prefetched on hover so most of the wait has already happened. */
+function LinkPulse() {
+  const { pending } = useLinkStatus();
+  return pending ? <NavProgress /> : null;
+}
+function NavProgress() {
+  return (
+    <span aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-0.5 overflow-hidden">
+      <span className="nav-progress-bar block h-full w-1/3 bg-accent" />
+    </span>
+  );
+}
 import { useCommandPalette } from "./command-palette";
 import { CreateMenu } from "./create-menu";
 import { ThemeToggle } from "./theme-toggle";
@@ -395,6 +413,7 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
                         <li key={it.href}>
                           <Link
                             href={it.href}
+                            prefetch
                             data-rail-active={here ? "true" : undefined}
                             title={collapsed ? it.label : undefined}
                             className={cn(
@@ -407,6 +426,7 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
                           >
                             <Icon size={14} className="shrink-0" />
                             {!collapsed && <span className="truncate">{it.label}</span>}
+                            <LinkPulse />
                           </Link>
                         </li>
                       );
@@ -440,6 +460,7 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
                 <li key={it.href} className={cn(!collapsed && "w-full")}>
                   <Link
                     href={it.href}
+                    prefetch
                     title={collapsed ? it.label : undefined}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
@@ -451,6 +472,7 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
                   >
                     <Icon size={14} className="shrink-0" />
                     {!collapsed && <span className="truncate">{it.label}</span>}
+                    <LinkPulse />
                   </Link>
                 </li>
               );
