@@ -198,6 +198,31 @@ public partial class MainWindow : Window
             Close();
             return;
         }
+        catch (Exception ex)
+        {
+            // EVERY OTHER START-UP FAILURE USED TO KILL THE APP WITH NO WORD.
+            // This runs inside an async event handler, so an exception here is
+            // unobserved and the window simply never appears - the shape of
+            // "I clicked it and nothing happened". The usual cause is the
+            // browser profile still being held by a copy that has not finished
+            // closing (right after a reboot, or after a crash). Say so, and
+            // offer to try again rather than making the person guess.
+            var again = MessageBox.Show(
+                "Oracle Consultancy could not start its browser window.\n\n" +
+                ex.Message + "\n\n" +
+                "This usually clears itself in a few seconds. Try again now?",
+                "Could not start",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (again == MessageBoxResult.Yes)
+            {
+                await Task.Delay(1500);
+                await StartWebViewAsync();
+                return;
+            }
+            Close();
+            return;
+        }
 
         var core = Web.CoreWebView2;
 
@@ -300,6 +325,12 @@ public partial class MainWindow : Window
      * ------------------------------------------------------------------ */
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
+    // A SEPARATE CLIENT FOR THE INSTALLER. The 8-second limit above is right
+    // for a version check and wrong for a 53 MB download on an office link,
+    // which it would cancel mid-way with "A task was canceled" - read as a
+    // broken update. The download has its own progress readout; it needs no
+    // deadline.
+    private static readonly HttpClient Download = new() { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
 
     private string? _downloadUrl;
     private string? _expectedSha256;
@@ -446,7 +477,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(folder);
             file = Path.Combine(folder, $"Oracle Consultancy Setup {_newVersion}.exe");
 
-            using (var response = await Http.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            using (var response = await Download.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 response.EnsureSuccessStatusCode();
                 // Copied by hand rather than with CopyToAsync so there is

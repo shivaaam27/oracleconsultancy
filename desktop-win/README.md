@@ -100,9 +100,40 @@ files are ordinary files.
 shipping one file.** The installer gives you the single file to SHARE; what it
 lays down on disk must stay a folder.
 
-Signing is therefore **not needed** to distribute this internally. It is still
-worth having eventually — it removes the SmartScreen download warning — but it is
-not what stands between you and a working app.
+Signing is therefore **not needed to get the app running** — but read the next
+section before deciding it is not needed at all.
+
+## ⚠️ "Smart App Control blocked it" — sometimes, then not (2 Sept 2026)
+
+The owner reported that after restarting the PC the installed app refused to
+start with a Smart App Control message, and that trying again later worked.
+The Code Integrity log confirmed it: three launches of
+`…\Oracle Consultancy\Oracle Consultancy.exe` at 21:25 were blocked (event 3077,
+"did not meet the Enterprise signing level requirements"), 38 minutes after a
+20:47 boot, and the same file ran fine afterwards.
+
+**This is how Smart App Control treats an UNSIGNED app.** It has no local list
+of allowed programs. For an app with no trusted signature it asks Microsoft's
+cloud, each time, whether that exact file is known to be safe, and **if the
+answer is "unknown" or the question cannot be asked, it blocks.** Right after a
+boot the network is often not up yet, or the reputation service has not yet
+answered — so the launch fails, and a few minutes later the same launch is
+allowed. There is no per-app exception in Smart App Control, nothing the app
+can do from inside (it is never started), and turning SAC off is one-way, so
+that is not an option either.
+
+**The fix is a signature SAC trusts**, which removes the cloud question:
+
+1. **Azure Trusted Signing** (Microsoft's own service, about US$10/month, no
+   certificate to buy or store; the company's registration is verified once).
+   Sign `Oracle Consultancy.exe` and the setup .exe in `build-installer.cmd`
+   with `signtool` and the Trusted Signing dlib. This also ends the SmartScreen
+   "unknown publisher" warning on download.
+2. **The Microsoft Store** (MSIX) — the Store signs it, and SAC always allows
+   Store apps. Slower to set up, free, and it handles updates too.
+
+Until one of those is done, the workaround is simply to wait a minute after a
+reboot before opening the app, or open it a second time.
 
 ## Testing it while developing
 
