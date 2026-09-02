@@ -11,7 +11,7 @@ import {
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
   Megaphone, Plus, Paperclip, Layers as LayersIcon, type LucideIcon,
 } from "lucide-react";
-import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea, PageHeader, CONTROL_BOX } from "@/components/ui";
+import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea, PageHeader, CONTROL_BOX, Switch } from "@/components/ui";
 import { useCreateParam } from "@/lib/use-create-param";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
 import { ANNOUNCEMENT_TYPES } from "@/lib/announcements-shared";
@@ -1070,6 +1070,14 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
     });
   }
 
+  function addMeetNow() {
+    start(async () => {
+      const m = await ensureEventMeetLink(event.id);
+      if (m.meetLink) toast("Google Meet link added. Press Send invite so guests get it.", { tone: "success", duration: 8000 });
+      else toast("Google gave no Meet link — is Google connected in Settings?", { tone: "warn", duration: 6000 });
+    });
+  }
+
   function draftReminders() {
     start(async () => {
       const r = await draftEventRemindersAction(event.id);
@@ -1194,6 +1202,15 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
                   align="start"
                   className="z-[60] min-w-[200px] rounded-md border border-border bg-bg-elev p-1 text-sm shadow-lg"
                 >
+                  {!event.meetLink && !isPast && (
+                    <DropdownMenu.Item
+                      disabled={pending}
+                      onSelect={(e) => { e.preventDefault(); addMeetNow(); }}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted data-[disabled]:opacity-50"
+                    >
+                      <Video size={15} /> Add a Google Meet link
+                    </DropdownMenu.Item>
+                  )}
                   <DropdownMenu.Item asChild>
                     <a href={event.icsPath}
                       className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted">
@@ -1445,6 +1462,10 @@ function EventForm({
   const [pending, start] = useTransition();
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [picked, setPicked] = useState<CalendarAttendee[]>(editing?.attendees ?? []);
+  useEffect(() => {
+    if (editing || meetTouched.current) return;
+    setAddMeet(picked.some((p) => p.email));
+  }, [picked, editing]);
   const [reminders, setReminders] = useState<number[]>(editing?.reminders ?? []);
   const [recurrence, setRecurrence] = useState<string>(editing?.recurrence ?? "none");
   const [recurrenceUntil, setRecurrenceUntil] = useState<string>(editing?.recurrenceUntil ? editing.recurrenceUntil.slice(0, 10) : "");
@@ -1464,10 +1485,13 @@ function EventForm({
 
   const startVal = startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : "";
   const endVal = endDate ? `${endDate}T${endTime}` : "";
-  // Meet links are OPT-IN. Most entries in a diary are not video calls — a site
-  // visit, a flight, a lunch — and a link nobody asked for is worse than a
-  // missing one. Tick it when you actually want a room.
+  // A Meet room FOLLOWS THE GUESTS until you touch the switch: an entry with
+  // somebody invited by email is a meeting and gets a room; a flight, a site
+  // visit or a lunch with nobody on it does not. The old rule was opt-in for
+  // everything, and an interview went out to three guests with no link
+  // because the tick under "Meeting link" read as a footnote (2 Sept 2026).
   const [addMeet, setAddMeet] = useState(false);
+  const meetTouched = useRef(false);
   // New events: also track the meeting as a task (creates one task per company).
   const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
   // OFF by default (owner's call, Aug 2026). Most diary entries — a flight, a
@@ -1614,8 +1638,13 @@ function EventForm({
             ? " · email not switched on — share the invite manually"
             : "";
         if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
-          const m = await ensureEventMeetLink(r.id);
-          toast((m.meetLink ? "Event created — Google Meet link added." : "Event created.") + taskNote + inviteNote, { tone: r.inviteNotConfigured ? "warn" : "success" });
+          // The server minted the room BEFORE it sent the invitation; this is
+          // only the belt-and-braces retry for a room Google refused first time.
+          const m = r.meetMissing ? await ensureEventMeetLink(r.id) : { meetLink: "ok" };
+          const roomNote = r.meetMissing
+            ? (m.meetLink ? " Google gave the Meet link late — press Send invite so guests get it." : " Google gave NO Meet link — check the Google connection in Settings, then Send invite again.")
+            : " Google Meet link added.";
+          toast("Event created." + roomNote + taskNote + inviteNote, { tone: r.meetMissing || r.inviteNotConfigured ? "warn" : "success", duration: r.meetMissing ? 10000 : 6000 });
         } else if (editing) {
           // Say exactly what happened. The old toast claimed "guests notified"
           // whenever Google synced, which was true of the calendar but read as
@@ -1764,12 +1793,24 @@ function EventForm({
         </div>
         <div>
           <FieldLabel>Meeting link</FieldLabel>
-          <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" className={FIELD} />
+          <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Paste a Zoom / Teams link, or leave blank for Google Meet" className={FIELD} />
           {!editing && (
-            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-xs text-fg-muted">
-              <input type="checkbox" checked={addMeet} onChange={(e) => setAddMeet(e.target.checked)} className="accent-[var(--accent)]" />
-              {addMeet ? "A Google Meet link is added on create" : "No Meet link will be added"}
-            </label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={addMeet}
+              onClick={() => { meetTouched.current = true; setAddMeet((v) => !v); }}
+              className="mt-2 flex w-full items-center gap-3 rounded-md border border-border bg-bg-elev px-3 py-2 text-left transition-colors hover:bg-bg-subtle"
+            >
+              <Video size={14} className={cn("shrink-0", addMeet ? "text-accent" : "text-fg-muted")} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-fg">{addMeet ? "Google Meet link will be added" : "No video link"}</span>
+                <span className="block text-xs text-fg-muted">
+                  {addMeet ? "Created with the event and sent in the invitation." : picked.some((p) => p.email) ? "Guests will get the invitation without a way to join online." : "Switch on for a video call."}
+                </span>
+              </span>
+              <Switch on={addMeet} />
+            </button>
           )}
         </div>
 

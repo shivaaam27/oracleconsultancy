@@ -50,6 +50,10 @@ type Result =
       unchanged?: boolean;
       /** An "updated" email really went out (only when the box was ticked). */
       guestsEmailed?: boolean;
+      /** A Meet room was asked for and Google gave none — the invite went
+       *  without a link, and the owner must be told rather than left to find
+       *  out from a guest. */
+      meetMissing?: boolean;
       /** How many fields changed — lets the toast say what happened. */
       changeCount?: number;
     }
@@ -304,9 +308,34 @@ export async function createEventAction(
     // is minted at creation: `requestMeet` ("1"/"0", set by both event forms)
     // decides. Previously the invitation minted one unconditionally, so ticking
     // "No Meet link will be added" was ignored for any event with an email guest.
+    const requestMeet = fd.get("requestMeet") === "1";
+    let meetMissing = false;
     try {
       const fresh = await getCalendarEvent(ev.id);
-      if (fresh) await ensureGoogleEvent(fresh, { requestMeet: fd.get("requestMeet") === "1" });
+      if (fresh) {
+        const g = await ensureGoogleEvent(fresh, { requestMeet });
+        // ⚠️ THE ROOM MUST EXIST BEFORE THE INVITE IS SENT. Until 2 Sept 2026
+        // the form minted it AFTER create, so the invitation had already gone
+        // out with no link ("Interview With Karan"). If the insert came back
+        // without one, patch a room onto the Google entry now, and if that
+        // fails too, say so.
+        if (requestMeet && !g.meetLink && !fresh.meetLink) {
+          const again = await getCalendarEvent(ev.id);
+          if (again?.googleEventId) {
+            const m = await addGoogleMeet(again.googleEventId, ev.id);
+            if (m.ok && m.meetLink) {
+              await sb.from("calendar_events").update({ meet_link: m.meetLink, updated_at: new Date().toISOString() }).eq("id", ev.id);
+            } else {
+              meetMissing = true;
+              if (!m.ok && m.reason === "error") {
+                await recordEvent("calendar.google-push", "error", { eventId: ev.id, title: ev.title, message: `Meet: ${m.error ?? "unknown"}` });
+              }
+            }
+          } else {
+            meetMissing = true;
+          }
+        }
+      }
     } catch { /* the Google mirror is always best-effort */ }
 
     // Auto-send the branded invitation to any guests with an email — create ==
@@ -325,7 +354,7 @@ export async function createEventAction(
     } catch { /* invite send is best-effort */ }
 
     invalidate();
-    return { ok: true, id: ev.id, taskCodes, invited, inviteNotConfigured };
+    return { ok: true, id: ev.id, taskCodes, invited, inviteNotConfigured, meetMissing };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not create event." };
   }
