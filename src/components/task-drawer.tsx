@@ -14,7 +14,7 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore,
 } from "lucide-react";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
@@ -33,7 +33,11 @@ import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskArchived, copyTaskToCompany } from "@/app/task/actions";
+import { TaskCopyToCompanies, type CopyActions } from "@/components/task-copy-companies";
+import { setTaskRecurrence, stopTaskRecurrence } from "@/app/task/recurring-actions";
+import { RecurringTaskSheet, draftFromRule, scheduleLabel, BLANK as BLANK_RULE } from "@/components/portal-recurring-tasks";
+import type { RecurringTaskRule } from "@/lib/recurring-task-rules";
 import { getGivenName, getInitials } from "@/lib/names";
 import { STATUSES, PRIORITIES, RISKS, CATEGORIES } from "@/lib/constants";
 import {
@@ -61,6 +65,8 @@ type DrawerData = {
   people: { id: number; name: string }[];
   companies: { id: number; name: string }[];
   departments: string[];
+  /** The standing rule this task came from; null = it does not repeat. */
+  recurrence: RecurringTaskRule | null;
 };
 
 function dateInput(d: Date | string | null | undefined) {
@@ -205,9 +211,11 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [mode, pathname, router, searchParams]);
 
-  const close = useCallback(() => {
+  const close = useCallback((opts?: { replace?: boolean }) => {
     if (mode === "page") {
-      router.push("/?tab=tasks");
+      // After a delete the record no longer exists, so REPLACE the history
+      // entry — Back must not land on a page for a task that is gone.
+      if (opts?.replace) router.replace("/?tab=tasks"); else router.push("/?tab=tasks");
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
@@ -282,6 +290,72 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     }
   }
 
+  // Repeats — the rule this task came from, changeable from here. "Stop" asks
+  // twice: it switches the rule off for every occurrence, not just this one.
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const [repeatBusy, setRepeatBusy] = useState(false);
+  const repeatDraft = useMemo(() => {
+    if (!data) return BLANK_RULE;
+    if (data.recurrence) return draftFromRule(data.recurrence, data.companies, data.people);
+    const t = data.task;
+    return {
+      ...BLANK_RULE,
+      title: t.actionItem,
+      companyName: t.companyName,
+      priority: ["Critical", "High", "Medium", "Low"].includes(t.priority) ? t.priority : "Medium",
+      assigneeNames: t.assignees,
+      description: t.comments ?? "",
+    };
+  }, [data]);
+  async function saveRepeat(input: Parameters<typeof setTaskRecurrence>[1]) {
+    if (!data) return;
+    setRepeatBusy(true);
+    const res = await setTaskRecurrence(data.task.id, input);
+    setRepeatBusy(false);
+    if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+    toast(data.recurrence ? "Repeat changed." : `${data.task.code} now repeats.`, { tone: "success" });
+    setRepeatOpen(false);
+    setRefreshKey((k) => k + 1);
+    router.refresh();
+  }
+  async function stopRepeat() {
+    if (!data) return;
+    setRepeatBusy(true);
+    const res = await stopTaskRecurrence(data.task.id);
+    setRepeatBusy(false);
+    setConfirmStop(false);
+    if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+    toast("Stopped repeating. Tasks already made are untouched.", { tone: "success" });
+    setRefreshKey((k) => k + 1);
+    router.refresh();
+  }
+
+  // Archive is the normal way to put a task away; delete is the last resort.
+  const [archiving, setArchiving] = useState(false);
+  async function toggleArchived() {
+    if (!data) return;
+    const next = !data.task.archived;
+    setArchiving(true);
+    const res = await setTaskArchived(data.task.code, next);
+    setArchiving(false);
+    if (!res.ok) { toast(res.error || "Could not change it.", { tone: "danger" }); return; }
+    toast(next ? `${data.task.code} archived.` : `${data.task.code} restored.`, {
+      tone: "success", duration: 8000,
+      action: { label: "Undo", onClick: async () => { await setTaskArchived(data.task.code, !next); setRefreshKey((k) => k + 1); router.refresh(); } },
+    });
+    setRefreshKey((k) => k + 1);
+    router.refresh();
+  }
+  const copyActions: CopyActions = useMemo(() => ({
+    copy: (taskId, companyId) => copyTaskToCompany(data?.task.code ?? "", companyId),
+    // A copy made a moment ago is archived, not deleted — same as the portal.
+    undo: async (_taskId, code) => {
+      const r = await setTaskArchived(code, true);
+      return r.ok ? {} : { error: r.error };
+    },
+  }), [data?.task.code]);
+
   async function handleDelete() {
     if (!data) return;
     setActing("delete");
@@ -289,9 +363,10 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     setActing(null);
     if (res.ok) {
       const c = data.task.code;
-      close();
-      toast(`${c} deleted`, { tone: "success", duration: 8000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
-      router.refresh();
+      // deleteTaskQuick already revalidated the list; the navigation fetches it
+      // fresh, so no extra refresh of the page we are leaving.
+      close({ replace: true });
+      toast(`${c} deleted`, { tone: "success", duration: 10000, action: res.undoToken ? { label: "Undo", onClick: async () => { const r = await callUndo(res.undoToken!); toast(r.message, { tone: r.ok ? "success" : "warn", duration: 3000 }); router.refresh(); } } : undefined });
     } else {
       toast(res.error || "Could not delete", { tone: "warn", duration: 3000 });
     }
@@ -501,14 +576,40 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             : {}),
         })}
         sidebar={
-          <RecordSidebarBlock title="Accountable">
-            {t.assignees.length ? (
-              <span className="inline-flex min-w-0 items-center gap-2 align-middle">
-                <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={22} />
-                <span className="max-w-[10rem] truncate text-fg-muted">{t.assignees.join(", ")}</span>
-              </span>
-            ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
-          </RecordSidebarBlock>
+          <>
+            <RecordSidebarBlock title="Accountable">
+              {t.assignees.length ? (
+                <span className="inline-flex min-w-0 items-center gap-2 align-middle">
+                  <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={22} />
+                  <span className="max-w-[10rem] truncate text-fg-muted">{t.assignees.join(", ")}</span>
+                </span>
+              ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
+            </RecordSidebarBlock>
+            <RecordSidebarBlock title="Repeats">
+              {data.recurrence ? (
+                <div className="space-y-1.5">
+                  <p className="text-fg">
+                    {scheduleLabel(data.recurrence)}
+                    {data.recurrence.paused ? <span className="ml-1.5 text-fg-muted">· switched off</span> : null}
+                  </p>
+                  {confirmStop ? (
+                    <p className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-fg-muted">Stop every future copy?</span>
+                      <button type="button" onClick={stopRepeat} disabled={repeatBusy} className="font-medium text-danger hover:underline">Stop repeating</button>
+                      <button type="button" onClick={() => setConfirmStop(false)} className="text-fg-muted hover:text-fg">Keep</button>
+                    </p>
+                  ) : (
+                    <p className="flex flex-wrap items-center gap-3 text-xs">
+                      <SetLink onClick={() => setRepeatOpen(true)}>Change how it repeats</SetLink>
+                      <button type="button" onClick={() => setConfirmStop(true)} className="text-fg-muted hover:text-danger">Stop</button>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <SetLink onClick={() => setRepeatOpen(true)}>Make this task repeat</SetLink>
+              )}
+            </RecordSidebarBlock>
+          </>
         }
       />
 
@@ -825,10 +926,26 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             {acting !== "escalate" && <AlertOctagon size={15} />} Escalate
           </Button>
         )}
-        <Button type="button" onClick={() => setConfirmDel((v) => !v)} aria-label="Delete"
-          variant="ghost" size="lg" className={`ml-auto w-10 px-0 ${confirmDel ? "text-danger bg-danger-soft" : "hover:text-danger"}`}>
-          <Trash2 size={16} />
-        </Button>
+        <span className="ml-auto flex items-center gap-1.5">
+          {data && data.companies.length > 1 && !t.archived && (
+            <TaskCopyToCompanies
+              taskId={t.id}
+              currentCompanyId={t.companyId}
+              currentCompanyName={t.companyName}
+              companies={data.companies}
+              actions={copyActions}
+            />
+          )}
+          <Button type="button" onClick={toggleArchived} disabled={archiving} loading={archiving}
+            variant="ghost" size="lg" title={t.archived ? "Bring this task back" : "Put this task away (keeps everything; can be restored)"}>
+            {!archiving && (t.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />)}
+            {t.archived ? "Restore" : "Archive"}
+          </Button>
+          <Button type="button" onClick={() => setConfirmDel((v) => !v)} aria-label="Delete"
+            variant="ghost" size="lg" className={`w-10 px-0 ${confirmDel ? "text-danger bg-danger-soft" : "hover:text-danger"}`}>
+            <Trash2 size={16} />
+          </Button>
+        </span>
       </div>
     </div>
   ) : undefined;
@@ -836,6 +953,21 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   /* ---------------- The record AS A PAGE (/task/CODE) ----------------
      Same data, same tabs, same actions — laid out by the shared RecordPage
      shell, so it is the same shape as every other record screen. */
+  // The repeat editor portals to <body>, so it mounts once, whichever shell
+  // (page or drawer) is showing the record.
+  const repeatSheet = data ? (
+    <RecurringTaskSheet
+      open={repeatOpen}
+      onClose={() => setRepeatOpen(false)}
+      editing={!!data.recurrence}
+      initial={repeatDraft}
+      companies={data.companies}
+      people={data.people}
+      busy={repeatBusy}
+      onSave={saveRepeat}
+    />
+  ) : null;
+
   if (mode === "page") {
     if (loading && !data) {
       return <p className="py-16 text-center text-base text-fg-muted">Loading {code}…</p>;
@@ -854,7 +986,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     return (
       <div className="mx-auto max-w-[1100px]">
         <div className="mb-3 flex items-center gap-1.5">
-          <Button type="button" onClick={close} variant="ghost" size="sm">
+          <Button type="button" onClick={() => close()} variant="ghost" size="sm">
             <ChevronLeft size={14} /> Tasks
           </Button>
           {(prevCode || nextCode) && (
@@ -880,11 +1012,14 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
         >
           {active?.content}
         </RecordPage>
+        {repeatSheet}
       </div>
     );
   }
 
   return (
+    <>
+    {repeatSheet}
     <EntityDrawer
       open={open}
       onClose={close}
@@ -903,6 +1038,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       onTabChange={setActiveTab}
       actionBar={actionBar}
     />
+    </>
   );
 }
 

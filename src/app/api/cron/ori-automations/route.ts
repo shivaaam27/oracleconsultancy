@@ -708,6 +708,9 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
                 deadline: null, createdDate: created, lastUpdatedAt: created, archived: false, category: "Admin",
                 comments: description,
               });
+              // Every copy points back at the rule it came from (migration 0166),
+              // which is what lets the list mark it and the record change it.
+              await sb.from("tasks").update({ recurring_rule_id: raw.id as number }).eq("id", task.id);
               const aIds = Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [];
               for (const pid of aIds) await sb.from("task_assignees").upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
               // Attribute the audit entry to whoever owns the standing rule (portal

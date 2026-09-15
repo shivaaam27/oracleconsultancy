@@ -20,13 +20,27 @@ import { cn } from "@/lib/cn";
 // One shared control edge — see CONTROL_SHELL in ui.tsx.
 const fieldShell = CONTROL_SHELL;
 
+export type CopyActions = {
+  /** Make an independent copy in `companyId`; returns the new task. */
+  copy: (taskId: number, companyId: number) => Promise<{ ok: true; code: string; taskId: number } | { ok: false; error: string }>;
+  /** Take back a copy made in this session (archive it). */
+  undo: (taskId: number, code: string) => Promise<{ error?: string }>;
+};
+
+const PORTAL_COPY: CopyActions = {
+  copy: portalCopyTaskToCompany,
+  undo: portalDeleteTask,
+};
+
 export function TaskCopyToCompanies({
-  taskId, currentCompanyId, currentCompanyName, companies,
+  taskId, currentCompanyId, currentCompanyName, companies, actions = PORTAL_COPY,
 }: {
   taskId: number;
   currentCompanyId: number | null;
   currentCompanyName: string;
   companies: BoardCompany[];
+  /** ONE control, TWO doors: the portal's (default) or the administrator's. */
+  actions?: CopyActions;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -68,7 +82,7 @@ export function TaskCopyToCompanies({
     if (copies[companyId]) {
       // Untick → archive the copy created this session.
       start(async () => {
-        const res = await portalDeleteTask(copies[companyId].taskId);
+        const res = await actions.undo(copies[companyId].taskId, copies[companyId].code);
         setBusyId(null);
         if (res?.error) { toast(res.error, { tone: "danger" }); return; }
         setCopies((c) => { const n = { ...c }; delete n[companyId]; return n; });
@@ -78,7 +92,7 @@ export function TaskCopyToCompanies({
     } else {
       // Tick → create an independent copy there.
       start(async () => {
-        const res = await portalCopyTaskToCompany(taskId, companyId);
+        const res = await actions.copy(taskId, companyId);
         setBusyId(null);
         if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
         setCopies((c) => ({ ...c, [companyId]: { taskId: res.taskId, code: res.code } }));

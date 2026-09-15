@@ -51,6 +51,7 @@ type TaskRowRaw = {
   id: number;
   code: string;
   company_id: number;
+  recurring_rule_id?: number | null;
   department_id: number | null;
   action_item: string;
   owner_id: number | null;
@@ -109,40 +110,40 @@ async function loadMeetingLinksSnapshot(taskId: number) {
  *  conversation + links are snapshotted because deleting the task row cascades
  *  them away (FK onDelete: cascade) — without the snapshot, Undo would silently
  *  lose them (ACTTASKS-02). */
-function taskDeleteUndo(
-  t: TaskRowRaw,
-  assignees: number[],
-  updates: Awaited<ReturnType<typeof loadTaskUpdatesSnapshot>>,
-  meetingLinks: Awaited<ReturnType<typeof loadMeetingLinksSnapshot>>
-): UndoSpec {
+/** Everything a 10-minute Undo needs to put a deleted task back — the row, its
+ *  assignees, the whole conversation and its meeting links. Shared by the single
+ *  delete and the bulk delete, so the two can never restore different things. */
+async function snapshotForDelete(t: TaskRowRaw): Promise<Record<string, unknown>> {
+  const [assignees, updates, meetingLinks] = await Promise.all([
+    loadAssignees(t.id),
+    loadTaskUpdatesSnapshot(t.id),
+    loadMeetingLinksSnapshot(t.id),
+  ]);
   return {
-    kind: "task.delete",
-    taskId: t.id,
-    payload: {
-      updates,
-      meetingLinks,
-      task: {
-        code: t.code,
-        companyId: t.company_id,
-        departmentId: t.department_id,
-        meetingDate: t.meeting_date,
-        actionItem: t.action_item,
-        ownerId: t.owner_id,
-        createdDate: t.created_date,
-        deadline: t.deadline,
-        status: t.status,
-        priority: t.priority,
-        category: t.category,
-        risk: t.risk,
-        escalation: t.escalation,
-        comments: t.comments,
-        latestUpdate: t.latest_update,
-        lastUpdatedAt: t.last_updated_at,
-        closedDate: t.closed_date,
-        archived: t.archived,
-      },
-      assignees,
+    updates,
+    meetingLinks,
+    task: {
+      code: t.code,
+      companyId: t.company_id,
+      departmentId: t.department_id,
+      meetingDate: t.meeting_date,
+      actionItem: t.action_item,
+      ownerId: t.owner_id,
+      createdDate: t.created_date,
+      deadline: t.deadline,
+      status: t.status,
+      priority: t.priority,
+      category: t.category,
+      risk: t.risk,
+      escalation: t.escalation,
+      comments: t.comments,
+      latestUpdate: t.latest_update,
+      lastUpdatedAt: t.last_updated_at,
+      closedDate: t.closed_date,
+      archived: t.archived,
+      recurringRuleId: t.recurring_rule_id ?? null,
     },
+    assignees,
   };
 }
 
@@ -399,42 +400,6 @@ async function purgeTaskHistory(taskId: number, code: string) {
   }
   await sb.from("audit_log").delete().eq("task_id", taskId);
   await sb.from("audit_log").delete().eq("task_code", code);
-}
-
-export async function deleteTask(code: string) {
-  const result = await mutate({
-    kind: "task.delete",
-    run: async () => {
-      const t = await findTaskByCode(code);
-      if (!t) return { result: null, undo: undefined };
-      const [assignees, updates, meetingLinks] = await Promise.all([
-        loadAssignees(t.id),
-        loadTaskUpdatesSnapshot(t.id),
-        loadMeetingLinksSnapshot(t.id),
-      ]);
-
-      // Recoverable delete: remove the task row (updates/assignees/meeting-links
-      // cascade away) but KEEP its audit history — the FK nulls task_id, so the
-      // audit rows survive by task_code. The conversation + meeting links are
-      // snapshotted into the undo payload first so a 10-minute Undo restores the
-      // task, assignees, the full discussion thread and its provenance.
-      await sb.from("tasks").delete().eq("id", t.id);
-
-      // Hard-delete: the row is gone, so drop its index entry. (A 10-minute Undo
-      // re-creates the task via the create path, which re-indexes it.)
-      void removeEntityIndex("task", t.id);
-
-      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
-    },
-  });
-
-  if (!result.ok) throw new Error(result.error);
-
-  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
-  revalidatePath("/registry");
-  revalidatePath("/");
-  bustTag("tasks"); invalidateAllTasks();
-  redirect("/registry");
 }
 
 /**
@@ -800,13 +765,21 @@ export type BulkAction =
   | { kind: "escalate" }
   | { kind: "close" }
   | { kind: "delete" }
-  | { kind: "update"; body: string };
+  | { kind: "update"; body: string }
+  // Soft-retire / bring back — the pair that makes delete the LAST resort.
+  | { kind: "archive" }
+  | { kind: "restore" }
+  // A different date per task in one go (null clears). The portal has had this
+  // since Jul 2026; the administrator could only postpone everything by N days.
+  | { kind: "set-deadlines"; deadlines: [string, string | null][] };
 
 export type BulkResult = {
   ok: boolean;
   applied: number;
   skipped: number;
   errors: { code: string; error: string }[];
+  /** Bulk delete only — one token puts every deleted task back (10 minutes). */
+  undoToken?: string;
 };
 
 export async function bulkUpdateTasks(
@@ -821,6 +794,8 @@ export async function bulkUpdateTasks(
   const errors: { code: string; error: string }[] = [];
   let applied = 0;
   let skipped = 0;
+  // Bulk delete: every deleted task's snapshot, so ONE Undo restores them all.
+  const deleted: Record<string, unknown>[] = [];
 
   for (const code of codes) {
     try {
@@ -831,11 +806,23 @@ export async function bulkUpdateTasks(
       }
 
       // Delete the task row but KEEP its audit history (the FK nulls task_id; the
-      // rows survive by task_code). Bulk delete has no per-item Undo yet — the UI
-      // confirms first; grouped undo is a planned follow-up.
+      // rows survive by task_code). The snapshot goes into one grouped undo
+      // token below — bulk delete was the one delete with no way back.
+      if (action.kind === "archive" || action.kind === "restore") {
+        const archived = action.kind === "archive";
+        if (t.archived === archived) { skipped++; continue; }
+        const res = await setTaskArchived(code, archived, createdBy);
+        if (!res.ok) throw new Error(res.error ?? "Could not change it.");
+        applied++;
+        continue;
+      }
+
       if (action.kind === "delete") {
-        await sb.from("tasks").delete().eq("id", t.id);
+        const snapshot = await snapshotForDelete(t);
+        const { error } = await sb.from("tasks").delete().eq("id", t.id);
+        if (error) throw new Error(error.message);
         void removeEntityIndex("task", t.id); // row gone — drop its index entry
+        deleted.push(snapshot);
         applied++;
         continue;
       }
@@ -863,6 +850,19 @@ export async function bulkUpdateTasks(
         oldVal = t.priority;
         newVal = action.value;
         changeReason = "Bulk update";
+      } else if (action.kind === "set-deadlines") {
+        const entry = action.deadlines.find(([c]) => c === code);
+        if (!entry) { skipped++; continue; }
+        const raw = entry[1];
+        const next = raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T12:00:00+03:00`) : null;
+        if (raw && !next) throw new Error(`Bad date for ${code}.`);
+        const before = t.deadline ? new Date(t.deadline).toISOString().slice(0, 10) : null;
+        if (before === (next ? next.toISOString().slice(0, 10) : null)) { skipped++; continue; }
+        patch.deadline = next ? next.toISOString() : null;
+        field = "Deadline";
+        oldVal = t.deadline ? new Date(t.deadline) : null;
+        newVal = next;
+        changeReason = "Bulk: deadline set";
       } else if (action.kind === "postpone") {
         const base = t.deadline ? new Date(t.deadline) : new Date();
         const next = new Date(base);
@@ -917,10 +917,21 @@ export async function bulkUpdateTasks(
     }
   }
 
-  revalidatePath("/");
+  let undoToken: string | undefined;
+  if (deleted.length > 0) {
+    // The rows are already gone; this only registers the token, so the failure
+    // mode is "no Undo offered", never "deleted twice".
+    const reg = await mutate({
+      kind: "task.delete.bulk",
+      run: async () => ({ result: null, undo: { kind: "task.delete.bulk", payload: { items: deleted } } as UndoSpec }),
+    });
+    if (reg.ok) undoToken = reg.undoToken;
+  }
+
+  revalidatePath("/"); revalidatePath("/task", "layout");
   bustTag("tasks"); invalidateAllTasks();
 
-  return { ok: errors.length === 0, applied, skipped, errors };
+  return { ok: errors.length === 0, applied, skipped, errors, undoToken };
 }
 
 export async function inlineUpdateTask(
@@ -1044,29 +1055,75 @@ export async function setTaskArchived(
   return { ok: true };
 }
 
-/** Delete a task and return an undo token (no redirect — for swipe/quick delete). */
+/** Delete a task and return an undo token (no redirect — for the row menu, the
+ *  record page, the quick-task popover and ORI). This is THE delete path; the
+ *  form-and-redirect `deleteTask` was removed Sept 2026 (no caller).
+ *  ⚠️ NO undo cookie here: every caller shows its own "deleted · Undo" toast, and
+ *  setting the cookie as well made `UndoBanner` fire a SECOND one — on the next
+ *  full page load, up to a minute later, on whatever page that happened to be. */
 export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
   const result = await mutate({
     kind: "task.delete",
     run: async () => {
       const t = await findTaskByCode(code);
-      if (!t) return { result: null, undo: undefined };
-      const [assignees, updates, meetingLinks] = await Promise.all([
-        loadAssignees(t.id),
-        loadTaskUpdatesSnapshot(t.id),
-        loadMeetingLinksSnapshot(t.id),
-      ]);
-      // Recoverable delete (see deleteTask): snapshot conversation + meeting links
-      // for a faithful Undo, keep audit history, offer a 10-min Undo.
-      await sb.from("tasks").delete().eq("id", t.id);
+      if (!t) throw new Error(`${code} was not found — it may already be deleted.`);
+      const snapshot = await snapshotForDelete(t);
+      // Recoverable delete: remove the task row (updates/assignees/meeting-links
+      // cascade away) but KEEP its audit history — the FK nulls task_id, so the
+      // audit rows survive by task_code. The conversation + meeting links are
+      // snapshotted first so a 10-minute Undo restores the task, assignees, the
+      // full discussion thread and its provenance.
+      const { error } = await sb.from("tasks").delete().eq("id", t.id);
+      // The database's answer used to be discarded — a refused delete still said
+      // "deleted" and offered an Undo for a task that was still there.
+      if (error) throw new Error(error.message);
       void removeEntityIndex("task", t.id); // row gone — drop its index entry
-      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
+      return { result: { deleted: true }, undo: { kind: "task.delete", taskId: t.id, payload: snapshot } as UndoSpec };
     },
   });
   if (!result.ok) return { ok: false, error: result.error };
-  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
-  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
+  revalidatePath("/"); revalidatePath("/task", "layout"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true, undoToken: result.undoToken };
+}
+
+/** Copy a task into another company as an independent task — same title,
+ *  description, priority, deadline, risk, category, proof gate and people; a
+ *  fresh code in the new company, status Not Started. Goes through
+ *  `createTaskCore` like every create, so it is audited, indexed and undoable.
+ *  The director portal has had this since Jul 2026 (`portalCopyTaskToCompany`). */
+export async function copyTaskToCompany(
+  code: string,
+  companyId: number,
+): Promise<{ ok: true; code: string; taskId: number } | { ok: false; error: string }> {
+  const t = await findTaskByCode(code);
+  if (!t) return { ok: false, error: "Task not found." };
+  if (t.company_id === companyId) return { ok: false, error: "The task is already in that company." };
+  const { data: comp } = await sb.from("companies").select("id,name").eq("id", companyId).maybeSingle();
+  if (!comp) return { ok: false, error: "That company doesn't exist." };
+  const { data: src } = await sb
+    .from("tasks")
+    .select("action_item,comments,priority,deadline,risk,category,requires_attachment,accountability")
+    .eq("id", t.id).maybeSingle();
+  if (!src) return { ok: false, error: "Task not found." };
+  const assigneeIds = await loadAssignees(t.id);
+  const result = await createTaskCore({
+    companyId,
+    actionItem: src.action_item as string,
+    comments: (src.comments as string | null) ?? null,
+    priority: (src.priority as string | null) ?? "Medium",
+    deadline: src.deadline ? new Date(src.deadline as string) : null,
+    risk: (src.risk as string | null) ?? null,
+    category: (src.category as string | null) ?? null,
+    requiresAttachment: (src.requires_attachment as boolean) ?? false,
+    accountability: ((src.accountability as string | null) === "lead" ? "lead" : "shared"),
+    assigneeIds,
+    status: "Not Started",
+    latestUpdate: `Copied from ${code}`,
+    createdBy: "web-ui",
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
+  return { ok: true, code: result.result.code, taskId: result.result.taskId };
 }
 
 /* ─── KPI accountability controls ──────────────────────────────────────────

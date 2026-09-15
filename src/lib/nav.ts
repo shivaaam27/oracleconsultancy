@@ -44,6 +44,7 @@ import {
   DraftingCompass,
   Scale as ScaleIcon,
   CheckSquare,
+  Repeat,
   Home,
   Briefcase,
   BookOpen,
@@ -81,6 +82,9 @@ export type NavRoute = {
  */
 export const NAV_ROUTES: NavRoute[] = [
   { id: "approvals",   href: "/approvals",           label: "Approvals",           icon: ListChecks },
+  // Standing repeat rules — the tasks that recreate themselves. The portal had a
+  // panel for these from the start; the administrator only had ORI Automation.
+  { id: "recurring",   href: "/task/recurring",      label: "Recurring tasks",     icon: Repeat },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
   { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: Scale },
   { id: "supplies",    href: "/hrms/supplies",       label: "Supplies",            icon: Package },
@@ -312,7 +316,7 @@ export const MODULES: NavModule[] = [
     ],
     quick: ["approvals", "people", "documents", "calendar"],
     groups: [
-      { label: "Work", ids: ["approvals", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
+      { label: "Work", ids: ["approvals", "recurring", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
       { label: "Records", ids: ["people", "companies", "documents", "assets"] },
       // Was "Registers" until Aug 2026 — the word meant three things at once (this
       // group, the commitments page, and the legacy /registry task list). The pages

@@ -20,6 +20,8 @@ export type TaskRow = {
   createdByPersonId: number | null;
   /** When set, completing the task requires a file (the secure proof gate). */
   requiresAttachment: boolean;
+  /** The standing repeat rule this task came from, if any (migration 0166). */
+  recurringRuleId: number | null;
   assignees: string[];
   /** Parallel array to `assignees`; same order, same length. Enables PersonDrawerLink rendering. */
   assigneeIds: number[];
@@ -112,6 +114,7 @@ type SbTask = {
   closed_date: string | null;
   archived: boolean;
   requires_attachment: boolean | null;
+  recurring_rule_id: number | null;
   accountability: string | null;
   blocked_on_person_id: number | null;
   blocked_reason: string | null;
@@ -211,7 +214,7 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
  *  tasks never inflate lists, KPIs or the Director Brief (ACTTASKS-01). */
 async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   // Exclude archived rows at the source unless explicitly opted in.
-  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment,accountability,blocked_on_person_id,blocked_reason");
+  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment,recurring_rule_id,accountability,blocked_on_person_id,blocked_reason");
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
     includeArchived ? tasksQuery : tasksQuery.eq("archived", false),
     sb.from("companies").select("id,name,accent_color"),
@@ -330,6 +333,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
       ownerId: t.owner_id ?? null,
       createdByPersonId: t.created_by_person_id ?? null,
       requiresAttachment: (t.requires_attachment as boolean) ?? false,
+      recurringRuleId: (t.recurring_rule_id as number | null) ?? null,
       assignees: aMap.get(t.id) || [],
       assigneeIds: aIdMap.get(t.id) || [],
       leadIds: leadIdMap.get(t.id) ?? (t.owner_id != null ? [t.owner_id] : []),

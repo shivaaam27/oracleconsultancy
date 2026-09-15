@@ -275,7 +275,7 @@ export async function createTaskCore(
       // today's task creation if it fails).
       if (repeat && (repeat.cadence === "monthly" || repeat.weekdays.length > 0)) {
         try {
-          await sb.from("automation_rules").insert({
+          const { data: rule } = await sb.from("automation_rules").insert({
             task_id: null, company_id: input.companyId, kind: "recurring_task",
             config: {
               cadence: repeat.cadence,
@@ -287,7 +287,10 @@ export async function createTaskCore(
               ...(input.comments ? { description: input.comments } : {}),
             },
             active: true, done: false, created_by: input.createdBy, created_at: nowIso,
-          });
+          }).select("id").single();
+          // Today's task is the first occurrence — point it at its rule so the
+          // list can mark it and the record can change how it repeats.
+          if (rule?.id) await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
         } catch { /* best-effort — today's task is created regardless */ }
       }
 

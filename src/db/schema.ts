@@ -604,6 +604,12 @@ export const tasks = pgTable("tasks", {
   // overrides. Default ON for director-created tasks; off elsewhere. Enforced
   // server-side in the portal completion + edit gates.
   creatorCloseOnly: boolean("creator_close_only").notNull().default(false),
+  // The standing repeat rule this task came from (automation_rules, kind
+  // recurring_task) — set on the seed task and on every copy the cron makes.
+  // Migration 0166. SET NULL on delete: a rule is soft-deleted, its occurrences
+  // are still real work. Declared as a plain integer here because
+  // automation_rules is defined further down this file.
+  recurringRuleId: integer("recurring_rule_id"),
   // KPI accountability mode for overdue blame (completion credit is ALWAYS shared
   // across everyone involved — this only governs who carries an OVERDUE penalty):
   //   "shared" — every assignee/owner/lead shares the overdue hit (default).

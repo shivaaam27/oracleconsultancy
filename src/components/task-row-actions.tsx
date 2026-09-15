@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, AlertTriangle, MoreHorizontal, Pin, Clock, Trash2, Loader2, MessageSquarePlus} from "lucide-react";
+import { Check, AlertTriangle, MoreHorizontal, Pin, Clock, Trash2, Loader2, MessageSquarePlus, Archive } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { inlineUpdateTask, deleteTaskQuick, adminTogglePin } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminTogglePin, setTaskArchived } from "@/app/task/actions";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
 import { SnoozeSheet } from "./snooze-sheet";
@@ -152,8 +152,13 @@ export function TaskRowActions({
     });
   }
 
+  // Delete asks twice: the first press turns the item into a confirm row, the
+  // second deletes. One click from a ⋯ menu was the only unconfirmed delete in
+  // the system (the record page and bulk edit both confirm).
+  const [confirmDel, setConfirmDel] = useState(false);
   function del() {
     setMenuOpen(false);
+    setConfirmDel(false);
     start(async () => {
       const res = await deleteTaskQuick(task.code);
       if (!res.ok) { toast(res.error || "Couldn't delete.", { tone: "danger" }); return; }
@@ -174,10 +179,25 @@ export function TaskRowActions({
     });
   }
 
+  function archive() {
+    setMenuOpen(false);
+    start(async () => {
+      const res = await setTaskArchived(task.code, true);
+      if (!res.ok) { toast(res.error || "Couldn't archive.", { tone: "danger" }); return; }
+      toast(`${task.code} archived.`, {
+        tone: "success", duration: 8000,
+        action: { label: "Undo", onClick: async () => { await setTaskArchived(task.code, false); router.refresh(); } },
+      });
+      onDone?.();
+      router.refresh();
+    });
+  }
+
   const menuItems = [
     { key: "pin", label: task.pinned ? "Unpin instruction" : "Pin latest update", icon: <Pin size={14} className={task.pinned ? "fill-current" : undefined} />, onClick: togglePin, tone: "default" as const },
     { key: "snooze", label: "Snooze…", icon: <Clock size={14} />, onClick: () => { setMenuOpen(false); setSnoozeOpen(true); }, tone: "default" as const },
-    { key: "delete", label: "Delete", icon: <Trash2 size={14} />, onClick: del, tone: "danger" as const },
+    { key: "archive", label: "Archive", icon: <Archive size={14} />, onClick: archive, tone: "default" as const },
+    { key: "delete", label: "Delete…", icon: <Trash2 size={14} />, onClick: () => setConfirmDel(true), tone: "danger" as const },
   ];
 
   return (
@@ -265,9 +285,16 @@ export function TaskRowActions({
                   <div className="my-1 h-px bg-border/60" />
                 </>
               )}
-              {menuItems.map((m) => (
+              {menuItems.filter((m) => !(confirmDel && m.key === "delete")).map((m) => (
                 <MenuButton key={m.key} icon={m.icon} tone={m.tone} onClick={m.onClick}>{m.label}</MenuButton>
               ))}
+              {confirmDel && (
+                <div className="mt-1 flex items-center gap-1.5 rounded-md bg-danger-soft/50 px-2 py-1.5 text-xs ring-1 ring-danger/25">
+                  <span className="min-w-0 flex-1">Delete {task.code}?</span>
+                  <button type="button" onClick={() => setConfirmDel(false)} className="rounded px-1.5 py-0.5 text-fg-muted hover:text-fg">Keep</button>
+                  <button type="button" onClick={del} className="rounded bg-danger px-2 py-0.5 font-medium text-white hover:opacity-90">Delete</button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>,

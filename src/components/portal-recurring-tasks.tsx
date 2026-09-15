@@ -1,13 +1,14 @@
 "use client";
 
-// Portal "Recurring tasks" panel — a compact Aurora section on the portal Tasks
-// page (managers/directors/HR, cap-gated on `recurringTasks`) listing the standing
-// recurring_task automations THIS person created, with add/edit/delete. Mirrors the
-// task-composer's own "Repeat" section (director-task-form.tsx) so the two stay
-// visually consistent; server-side every action re-verifies ownership + the cap
-// (see src/app/portal/(app)/tasks/automations-actions.ts).
+// "Recurring tasks" panel — ONE panel, TWO doors. `RecurringTasksPanel` takes
+// its server actions as props, so the portal Tasks page (managers/directors/HR,
+// cap-gated on `recurringTasks`, listing only the rules THIS person created) and
+// the Administrator's /task/recurring (every rule) render the same list, sheet
+// and switch. `PortalRecurringTasks` below is the portal wrapper; the admin page
+// passes src/app/task/recurring-actions.ts. Server-side each door does its own
+// checks — the panel trusts neither.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Repeat, Plus, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
@@ -19,8 +20,27 @@ import type { PickerCompany, PickerPerson } from "@/lib/portal-picker";
 import { Switch } from "@/components/ui";
 import {
   portalCreateRecurringTask, portalUpdateRecurringTask, portalDeleteRecurringTask, portalSetRecurringTaskPaused,
-  type RecurringTaskRule, type RecurringTaskInput,
 } from "@/app/portal/(app)/tasks/automations-actions";
+import { creatorLabel, type RecurringTaskRule, type RecurringTaskInput, type Result } from "@/lib/recurring-task-rules";
+
+export type RecurringTaskActions = {
+  create: (input: RecurringTaskInput) => Promise<Result>;
+  update: (id: number, input: RecurringTaskInput) => Promise<Result>;
+  setPaused: (id: number, paused: boolean) => Promise<Result>;
+  remove: (id: number) => Promise<Result>;
+};
+
+const PORTAL_ACTIONS: RecurringTaskActions = {
+  create: portalCreateRecurringTask,
+  update: portalUpdateRecurringTask,
+  setPaused: portalSetRecurringTaskPaused,
+  remove: portalDeleteRecurringTask,
+};
+
+/** The portal's panel — its own rules, through the portal door. */
+export function PortalRecurringTasks(props: { rules: RecurringTaskRule[]; companies: PickerCompany[]; people: PickerPerson[] }) {
+  return <RecurringTasksPanel {...props} actions={PORTAL_ACTIONS} />;
+}
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
@@ -33,7 +53,7 @@ const DAY_LABEL: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "We
 const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
 const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 
-type Draft = {
+export type Draft = {
   title: string;
   companyName: string;
   cadence: "weekly" | "monthly";
@@ -45,12 +65,28 @@ type Draft = {
   description: string;
 };
 
-const BLANK: Draft = {
+export const BLANK: Draft = {
   title: "", companyName: "", cadence: "weekly", weekdays: [1], dayOfMonth: 1,
   priority: "Medium", status: "Not Started", assigneeNames: [], description: "",
 };
 
-function scheduleLabel(r: Pick<RecurringTaskRule, "cadence" | "weekdays" | "dayOfMonth">): string {
+type Named = { id: number; name: string };
+
+export function draftFromRule(r: RecurringTaskRule, companies: Named[], people: Named[]): Draft {
+  return {
+    title: r.title,
+    companyName: companies.find((c) => c.id === r.companyId)?.name ?? "",
+    cadence: r.cadence,
+    weekdays: r.weekdays.length ? r.weekdays : [1],
+    dayOfMonth: r.dayOfMonth ?? 1,
+    priority: r.priority,
+    status: r.status,
+    assigneeNames: r.assigneePersonIds.map((id) => people.find((p) => p.id === id)?.name).filter((n): n is string => !!n),
+    description: r.description,
+  };
+}
+
+export function scheduleLabel(r: Pick<RecurringTaskRule, "cadence" | "weekdays" | "dayOfMonth">): string {
   if (r.cadence === "monthly") {
     const d = r.dayOfMonth ?? 1;
     return `Day ${d} of each month`;
@@ -58,51 +94,30 @@ function scheduleLabel(r: Pick<RecurringTaskRule, "cadence" | "weekdays" | "dayO
   return [...r.weekdays].sort().map((w) => DAY_LABEL[w]).join(", ");
 }
 
-export function PortalRecurringTasks({
-  rules, companies, people,
+/** The form for one rule — used by the panel (add / edit) and by the task record
+ *  ("Make this repeat" / "Change how it repeats"). Owns its draft; resets to
+ *  `initial` every time it opens, so a cancelled edit leaves nothing behind. */
+export function RecurringTaskSheet({
+  open, onClose, editing, initial, companies, people, busy, onSave,
 }: {
-  rules: RecurringTaskRule[];
-  companies: PickerCompany[];
-  people: PickerPerson[];
+  open: boolean;
+  onClose: () => void;
+  editing: boolean;
+  initial: Draft;
+  companies: Named[];
+  people: Named[];
+  busy: boolean;
+  onSave: (input: RecurringTaskInput) => void;
 }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [d, setD] = useState<Draft>(BLANK);
-  const [busy, start] = useTransition();
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
+  const [d, setD] = useState<Draft>(initial);
+  useEffect(() => { if (open) setD(initial); }, [open, initial]);
   const set = (patch: Partial<Draft>) => setD((prev) => ({ ...prev, ...patch }));
   const companyByName = new Map(companies.map((c) => [c.name, c.id]));
   const personByName = new Map(people.map((p) => [p.name, p.id]));
-
-  function openNew() {
-    setEditingId(null);
-    setD({ ...BLANK, companyName: companies.length === 1 ? companies[0].name : "" });
-    setOpen(true);
-  }
-
-  function openEdit(r: RecurringTaskRule) {
-    setEditingId(r.id);
-    setD({
-      title: r.title,
-      companyName: companies.find((c) => c.id === r.companyId)?.name ?? "",
-      cadence: r.cadence,
-      weekdays: r.weekdays.length ? r.weekdays : [1],
-      dayOfMonth: r.dayOfMonth ?? 1,
-      priority: r.priority,
-      status: r.status,
-      assigneeNames: r.assigneePersonIds.map((id) => people.find((p) => p.id === id)?.name).filter((n): n is string => !!n),
-      description: r.description,
-    });
-    setOpen(true);
-  }
-
   const canSubmit = d.title.trim().length > 0 && companyByName.has(d.companyName) && (d.cadence === "monthly" || d.weekdays.length > 0);
 
-  function save() {
-    const input: RecurringTaskInput = {
+  function submit() {
+    onSave({
       title: d.title.trim(),
       companyId: companyByName.get(d.companyName) ?? 0,
       cadence: d.cadence,
@@ -112,20 +127,144 @@ export function PortalRecurringTasks({
       status: d.status,
       description: d.description.trim(),
       assigneePersonIds: d.assigneeNames.map((n) => personByName.get(n)).filter((x): x is number => typeof x === "number"),
-    };
-    start(async () => {
-      const res = editingId != null ? await portalUpdateRecurringTask(editingId, input) : await portalCreateRecurringTask(input);
-      if (!res.ok) { toast(res.error ?? "Could not save.", { tone: "danger" }); return; }
-      toast(editingId != null ? "Recurring task updated." : "Recurring task saved.", { tone: "success" });
-      setOpen(false);
-      router.refresh();
     });
   }
+
+  return (
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title={editing ? "Edit recurring task" : "New recurring task"}
+      icon={<Repeat size={16} />}
+      footer={
+        <button
+          type="button"
+          disabled={!canSubmit || busy}
+          onClick={submit}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition-transform active:scale-[0.99] disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Repeat size={15} />}
+          {busy ? "Saving…" : "Save"}
+        </button>
+      }
+    >
+      <div className="flex flex-col gap-3.5">
+        <div>
+          <label className={fieldLabel}>What needs to be done?</label>
+          <input value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Open the shop" className={inputCls} />
+        </div>
+
+        <div>
+          <label className={fieldLabel}>Company</label>
+          {companies.length > 1 ? (
+            <Combobox options={companies.map((c) => c.name)} defaultValue={d.companyName} placeholder="Pick a company…" onCommit={(v) => set({ companyName: v })} onInput={(v) => set({ companyName: v })} />
+          ) : (
+            <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
+          )}
+        </div>
+
+        <div>
+          <label className={fieldLabel}>Repeats</label>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip on={d.cadence === "weekly"} onClick={() => set({ cadence: "weekly" })}>Weekly</Chip>
+            <Chip on={d.cadence === "monthly"} onClick={() => set({ cadence: "monthly" })}>Monthly</Chip>
+          </div>
+          {d.cadence === "weekly" ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {DAY_CHIPS.map(({ v, l }) => (
+                <Chip key={v} on={d.weekdays.includes(v)} onClick={() => set({ weekdays: d.weekdays.includes(v) ? d.weekdays.filter((x) => x !== v) : [...d.weekdays, v] })}>
+                  {l}
+                </Chip>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs text-fg-muted">Day of month</span>
+              <input
+                type="number" min={1} max={31} value={d.dayOfMonth}
+                onChange={(e) => set({ dayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
+                className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div>
+            <label className={fieldLabel}>Priority</label>
+            <FluidSelect value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p }))} onSelect={(v) => set({ priority: v })} />
+          </div>
+          <div>
+            <label className={fieldLabel}>Starting status</label>
+            <FluidSelect value={d.status} options={STATUSES.map((s) => ({ value: s, label: s }))} onSelect={(v) => set({ status: v })} />
+          </div>
+        </div>
+
+        <div>
+          <label className={fieldLabel}>Assign to (optional)</label>
+          <Combobox
+            options={people.filter((p) => !d.assigneeNames.includes(p.name)).map((p) => p.name)}
+            placeholder="Add people…"
+            clearOnCommit
+            onCommit={(v) => { if (personByName.has(v) && !d.assigneeNames.includes(v)) set({ assigneeNames: [...d.assigneeNames, v] }); }}
+          />
+          {d.assigneeNames.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {d.assigneeNames.map((n) => (
+                <button key={n} type="button" onClick={() => set({ assigneeNames: d.assigneeNames.filter((x) => x !== n) })}
+                  className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs ring-1 ring-border hover:bg-danger/10 hover:text-danger">
+                  {n} ×
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className={fieldLabel}>Description (optional)</label>
+          <textarea value={d.description} onChange={(e) => set({ description: e.target.value })} rows={2} placeholder="Becomes the task's comments" className={inputCls} />
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+export function RecurringTasksPanel({
+  rules, companies, people, actions, showCreator = false,
+}: {
+  rules: RecurringTaskRule[];
+  companies: PickerCompany[];
+  people: PickerPerson[];
+  actions: RecurringTaskActions;
+  /** Say who set each rule up — for the Administrator, who sees everyone's. */
+  showCreator?: boolean;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [d, setD] = useState<Draft>(BLANK);
+  const [busy, start] = useTransition();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+
+  function openNew() {
+    setEditingId(null);
+    setD({ ...BLANK, companyName: companies.length === 1 ? companies[0].name : "" });
+    setOpen(true);
+  }
+
+  function openEdit(r: RecurringTaskRule) {
+    setEditingId(r.id);
+    setD(draftFromRule(r, companies, people));
+    setOpen(true);
+  }
+
 
   function remove(id: number) {
     setDeletingId(id);
     start(async () => {
-      const res = await portalDeleteRecurringTask(id);
+      const res = await actions.remove(id);
       setDeletingId(null);
       if (!res.ok) { toast(res.error ?? "Could not remove it.", { tone: "danger" }); return; }
       toast("Recurring task removed.", { tone: "success" });
@@ -138,7 +277,7 @@ export function PortalRecurringTasks({
   function togglePaused(r: RecurringTaskRule) {
     setTogglingId(r.id);
     start(async () => {
-      const res = await portalSetRecurringTaskPaused(r.id, !r.paused);
+      const res = await actions.setPaused(r.id, !r.paused);
       setTogglingId(null);
       if (!res.ok) { toast(res.error ?? "Could not update it.", { tone: "danger" }); return; }
       toast(r.paused ? "Recurring task switched on." : "Recurring task switched off.", { tone: "success" });
@@ -174,7 +313,7 @@ export function PortalRecurringTasks({
               <div className={`min-w-0 ${r.paused ? "opacity-50" : ""}`}>
                 <p className="truncate text-sm font-medium text-fg">{r.title}</p>
                 <p className="mt-0.5 text-xs text-fg-muted">
-                  {scheduleLabel(r)} · {r.companyName || "—"}{r.paused ? " · Off" : ""}
+                  {scheduleLabel(r)} · {r.companyName || "—"}{showCreator ? ` · set up by ${creatorLabel(r.createdBy)}` : ""}{r.paused ? " · Off" : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -207,101 +346,24 @@ export function PortalRecurringTasks({
         </div>
       )}
 
-      <BottomSheet
+      <RecurringTaskSheet
         open={open}
         onClose={() => setOpen(false)}
-        title={editingId != null ? "Edit recurring task" : "New recurring task"}
-        icon={<Repeat size={16} />}
-        footer={
-          <button
-            type="button"
-            disabled={!canSubmit || busy}
-            onClick={save}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition-transform active:scale-[0.99] disabled:opacity-50"
-          >
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Repeat size={15} />}
-            {busy ? "Saving…" : "Save"}
-          </button>
-        }
-      >
-        <div className="flex flex-col gap-3.5">
-          <div>
-            <label className={fieldLabel}>What needs to be done?</label>
-            <input value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Open the shop" className={inputCls} />
-          </div>
-
-          <div>
-            <label className={fieldLabel}>Company</label>
-            {companies.length > 1 ? (
-              <Combobox options={companies.map((c) => c.name)} defaultValue={d.companyName} placeholder="Pick a company…" onCommit={(v) => set({ companyName: v })} onInput={(v) => set({ companyName: v })} />
-            ) : (
-              <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
-            )}
-          </div>
-
-          <div>
-            <label className={fieldLabel}>Repeats</label>
-            <div className="flex flex-wrap gap-1.5">
-              <Chip on={d.cadence === "weekly"} onClick={() => set({ cadence: "weekly" })}>Weekly</Chip>
-              <Chip on={d.cadence === "monthly"} onClick={() => set({ cadence: "monthly" })}>Monthly</Chip>
-            </div>
-            {d.cadence === "weekly" ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {DAY_CHIPS.map(({ v, l }) => (
-                  <Chip key={v} on={d.weekdays.includes(v)} onClick={() => set({ weekdays: d.weekdays.includes(v) ? d.weekdays.filter((x) => x !== v) : [...d.weekdays, v] })}>
-                    {l}
-                  </Chip>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-fg-muted">Day of month</span>
-                <input
-                  type="number" min={1} max={31} value={d.dayOfMonth}
-                  onChange={(e) => set({ dayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
-                  className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div>
-              <label className={fieldLabel}>Priority</label>
-              <FluidSelect value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p }))} onSelect={(v) => set({ priority: v })} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Starting status</label>
-              <FluidSelect value={d.status} options={STATUSES.map((s) => ({ value: s, label: s }))} onSelect={(v) => set({ status: v })} />
-            </div>
-          </div>
-
-          <div>
-            <label className={fieldLabel}>Assign to (optional)</label>
-            <Combobox
-              options={people.filter((p) => !d.assigneeNames.includes(p.name)).map((p) => p.name)}
-              placeholder="Add people…"
-              clearOnCommit
-              onCommit={(v) => { if (personByName.has(v) && !d.assigneeNames.includes(v)) set({ assigneeNames: [...d.assigneeNames, v] }); }}
-            />
-            {d.assigneeNames.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {d.assigneeNames.map((n) => (
-                  <button key={n} type="button" onClick={() => set({ assigneeNames: d.assigneeNames.filter((x) => x !== n) })}
-                    className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs ring-1 ring-border hover:bg-danger/10 hover:text-danger">
-                    {n} ×
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className={fieldLabel}>Description (optional)</label>
-            <textarea value={d.description} onChange={(e) => set({ description: e.target.value })} rows={2} placeholder="Becomes the task's comments" className={inputCls} />
-          </div>
-        </div>
-      </BottomSheet>
+        editing={editingId != null}
+        initial={d}
+        companies={companies}
+        people={people}
+        busy={busy}
+        onSave={(input) => {
+          start(async () => {
+            const res = editingId != null ? await actions.update(editingId, input) : await actions.create(input);
+            if (!res.ok) { toast(res.error ?? "Could not save.", { tone: "danger" }); return; }
+            toast(editingId != null ? "Recurring task updated." : "Recurring task saved.", { tone: "success" });
+            setOpen(false);
+            router.refresh();
+          });
+        }}
+      />
     </Panel>
   );
 }

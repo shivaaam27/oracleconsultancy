@@ -4,6 +4,7 @@ import { sb } from "@/db/supabase";
 import { recordTaskView } from "@/lib/portal-auth";
 import { STATUSES } from "@/lib/constants";
 import type { ConvoMessage, ConvoEvent } from "@/components/portal-conversation";
+import { taskRecurrence } from "@/app/task/recurring-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +159,9 @@ export async function GET(req: NextRequest) {
     latestId: latestUpd ? (latestUpd.id as number) : null,
     statusOptions: STATUSES.filter((s) => s !== task.status),
     people: (pplRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+    // The standing rule this task came from (null = does not repeat), so the
+    // record can say so and change it — migration 0166.
+    recurrence: await taskRecurrence(task.id),
     companies: (compRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })),
     departments: (deptRaw ?? []).map((d) => d.name as string),
   });

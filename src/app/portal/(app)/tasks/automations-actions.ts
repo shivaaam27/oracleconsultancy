@@ -16,47 +16,15 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { getPortalPerson, companyScope, type PortalPerson } from "@/lib/portal-auth";
 import type { RuleConfig } from "@/lib/ori/automations";
+import {
+  buildConfig, cleanAssigneeIds, rowToRule, PAUSED_FOREVER,
+  type RecurringRuleRow, type RecurringTaskInput, type RecurringTaskRule, type Result,
+} from "@/lib/recurring-task-rules";
 
-type Result = { ok: true } | { ok: false; error: string };
-
-const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
-const PRIORITIES = ["Critical", "High", "Medium", "Low"];
-
-export type RecurringTaskRule = {
-  id: number;
-  title: string;
-  cadence: "weekly" | "monthly";
-  weekdays: number[]; // weekly only
-  dayOfMonth: number | null; // monthly only
-  companyId: number | null;
-  companyName: string;
-  priority: string;
-  status: string;
-  description: string;
-  assigneePersonIds: number[];
-  active: boolean;
-  /** Switched off (config.pausedUntil in the future) — the rule keeps its settings
-   *  but creates nothing until switched back on. */
-  paused: boolean;
-  lastFiredAt: string | null;
-};
-
-/** Far-future sentinel for the on/off switch — "paused indefinitely". The engine's
- *  pausedUntil gate (evaluateRule) treats any future instant as not-due, so no
- *  cron/engine change is needed. */
-const PAUSED_FOREVER = "2999-01-01";
-
-export type RecurringTaskInput = {
-  title: string;
-  companyId: number;
-  cadence: "weekly" | "monthly";
-  weekdays: number[];
-  dayOfMonth: number;
-  priority: string;
-  status: string;
-  description: string;
-  assigneePersonIds: number[];
-};
+// The shape and the checks live in src/lib/recurring-task-rules.ts, shared with
+// the Administrator's door (src/app/task/recurring-actions.ts). Re-exported so the
+// portal panel's imports do not move.
+export type { RecurringTaskInput, RecurringTaskRule };
 
 /** "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>" — the exact tag
  *  portalDirectorCreateTask stamps, so a person's own recurring rules can be found
@@ -87,12 +55,12 @@ export async function portalListRecurringTasks(): Promise<RecurringTaskRule[]> {
 
   const { data } = await sb
     .from("automation_rules")
-    .select("id,company_id,config,active,last_fired_at")
+    .select("id,company_id,config,active,last_fired_at,created_by")
     .eq("kind", "recurring_task")
     .eq("active", true)
     .eq("created_by", tag)
     .order("created_at", { ascending: false });
-  let rows = (data ?? []) as { id: number; company_id: number | null; config: RuleConfig; active: boolean; last_fired_at: string | null }[];
+  let rows = (data ?? []) as RecurringRuleRow[];
   if (scope != null) rows = rows.filter((r) => r.company_id != null && scope.includes(r.company_id));
 
   const companyIds = [...new Set(rows.map((r) => r.company_id).filter((id): id is number => id != null))];
@@ -102,46 +70,7 @@ export async function portalListRecurringTasks(): Promise<RecurringTaskRule[]> {
     for (const c of comps ?? []) companyNames.set(c.id as number, c.name as string);
   }
 
-  return rows.map((r) => {
-    const cfg = r.config ?? {};
-    const cadence: "weekly" | "monthly" = cfg.cadence === "monthly" ? "monthly" : "weekly";
-    return {
-      id: r.id,
-      title: (cfg.title as string | undefined) ?? "",
-      cadence,
-      weekdays: Array.isArray(cfg.weekdays) && cfg.weekdays.length ? cfg.weekdays : (typeof cfg.weekday === "number" ? [cfg.weekday] : [1]),
-      dayOfMonth: typeof cfg.dayOfMonth === "number" ? cfg.dayOfMonth : null,
-      companyId: r.company_id,
-      companyName: r.company_id != null ? companyNames.get(r.company_id) ?? "" : "",
-      priority: (cfg.priority as string | undefined) ?? "Medium",
-      status: (cfg.status as string | undefined) ?? "Not Started",
-      description: (cfg.description as string | undefined) ?? "",
-      assigneePersonIds: Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [],
-      active: r.active,
-      paused: !!cfg.pausedUntil && Date.parse(cfg.pausedUntil) > Date.now(),
-      lastFiredAt: r.last_fired_at,
-    };
-  });
-}
-
-function buildConfig(input: RecurringTaskInput): RuleConfig | { error: string } {
-  const title = input.title.trim().slice(0, 300);
-  if (!title) return { error: "Give the recurring task a title." };
-  const cadence = input.cadence === "monthly" ? "monthly" : "weekly";
-  const config: RuleConfig = { cadence, companyId: input.companyId, title };
-  if (cadence === "weekly") {
-    const weekdays = [...new Set((input.weekdays ?? []).map((n) => Math.round(Number(n))).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))];
-    if (weekdays.length === 0) return { error: "Pick at least one day of the week." };
-    config.weekdays = weekdays;
-  } else {
-    const dom = Math.round(Number(input.dayOfMonth));
-    config.dayOfMonth = Number.isInteger(dom) ? Math.min(31, Math.max(1, dom)) : 1;
-  }
-  config.priority = PRIORITIES.includes(input.priority) ? input.priority : "Medium";
-  config.status = OPEN_STATUSES.includes(input.status) ? input.status : "Not Started";
-  const description = (input.description ?? "").trim();
-  if (description) config.description = description.slice(0, 2000);
-  return config;
+  return rows.map((r) => rowToRule(r, companyNames));
 }
 
 /** Create a new standing recurring-task rule for one of the caller's own companies. */
@@ -158,7 +87,7 @@ export async function portalCreateRecurringTask(input: RecurringTaskInput): Prom
   const cfg = buildConfig(input);
   if ("error" in cfg) return { ok: false, error: cfg.error };
 
-  const assigneeIds = [...new Set((input.assigneePersonIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 50);
+  const assigneeIds = cleanAssigneeIds(input.assigneePersonIds);
   if (assigneeIds.length) {
     const { data } = await sb.from("people").select("id").in("id", assigneeIds);
     if ((data ?? []).length !== assigneeIds.length) return { ok: false, error: "One of the assignees couldn't be found." };
@@ -199,7 +128,7 @@ export async function portalUpdateRecurringTask(id: number, input: RecurringTask
   const cfg = buildConfig(input);
   if ("error" in cfg) return { ok: false, error: cfg.error };
 
-  const assigneeIds = [...new Set((input.assigneePersonIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 50);
+  const assigneeIds = cleanAssigneeIds(input.assigneePersonIds);
   if (assigneeIds.length) {
     const { data } = await sb.from("people").select("id").in("id", assigneeIds);
     if ((data ?? []).length !== assigneeIds.length) return { ok: false, error: "One of the assignees couldn't be found." };

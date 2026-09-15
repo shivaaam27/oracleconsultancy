@@ -603,7 +603,7 @@ export function CardsView({
 
   return (
     <div>
-      <OrderRegistrar codes={rows.map((r) => r.code)} />
+      <OrderRegistrar codes={rows.map((r) => r.code)} info={Object.fromEntries(rows.map((r) => [r.code, { title: r.actionItem, deadline: r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : null }]))} />
       <div className="mb-2 flex items-center gap-2">
         {/* Comfortable | Compact density toggle. */}
         <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">

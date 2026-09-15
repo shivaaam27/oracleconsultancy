@@ -17,7 +17,7 @@ import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import type { RecordFilter } from "@/components/record-list";
 import type { TaskRow } from "@/lib/queries";
-import { CheckSquare, Sparkles, Archive } from "lucide-react";
+import { CheckSquare, Sparkles, Archive, Repeat } from "lucide-react";
 
 type Sp = {
   company?: string;
@@ -127,6 +127,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // excluded from every default list/KPI (ACTTASKS-01), so this view loads the
   // archived set on its own from getArchivedTasks().
   const showArchived = sp.archived === "1";
+  // The standing repeat rules — the door to /task/recurring sits on the stats
+  // row, because "where are the recurring tasks" had no answer on this page.
+  const recurringRulesCount = sb
+    .from("automation_rules").select("id", { count: "exact", head: true })
+    .eq("kind", "recurring_task").eq("active", true)
+    .then((r) => r.count ?? 0);
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
   const [all, savedViews, taskSources, adminViews, peopleRows, autoEvents, logoMap, companiesRes] = await Promise.all([
@@ -207,7 +213,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   if (sp.company) rows = rows.filter((r) => r.companyName === sp.company);
   rows = rows.filter(matchesPerson);
   if (sp.priority) rows = rows.filter((r) => r.priority === sp.priority);
-  if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
+  // "recurring" is not a computed flag but a fact on the row (migration 0166).
+  if (sp.flag === "recurring") rows = rows.filter((r) => r.recurringRuleId != null);
+  else if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
   if (sp.status) rows = rows.filter((r) => r.status === sp.status);
   if (sp.noOwner === "1") rows = rows.filter((r) => r.assignees.length === 0);
   if (sp.unread === "1") rows = rows.filter((r) => r.unread);
@@ -257,6 +265,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     stalled: openScoped.filter((r) => r.flag === "stalled").length,
     noDeadline: openScoped.filter((r) => r.flag === "no-deadline").length,
     noOwner: openScoped.filter((r) => r.assignees.length === 0).length,
+    recurring: openScoped.filter((r) => r.recurringRuleId != null).length,
   };
 
   const noStatusFilters = !sp.flag && !sp.status && !sp.quiet && !sp.unread && !sp.done && sp.noOwner !== "1" && !sp.priority;
@@ -348,6 +357,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     chip("stalled", "Stalled", counts.stalled, sp.flag === "stalled", { flag: "stalled" }),
     chip("nodeadline", "No deadline", counts.noDeadline, sp.flag === "no-deadline", { flag: "no-deadline" }),
     chip("noowner", "No owner", counts.noOwner, sp.noOwner === "1", { noOwner: "1" }),
+    chip("recurring", "Recurring", counts.recurring, sp.flag === "recurring", { flag: "recurring" }),
     {
       key: "renewals",
       label: "Renewals & admin lane",
@@ -383,7 +393,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     // Renewals can legitimately be empty, and both must stay reachable because the
     // More popover is hidden at this width.
     ...moreItems
-      .filter((m) => (m.count ?? 0) > 0 || m.active || m.key === "archived" || m.key === "renewals")
+      .filter((m) => (m.count ?? 0) > 0 || m.active || m.key === "archived" || m.key === "renewals" || m.key === "recurring")
       .map((m) => ({
         key: `f-${m.key}`,
         label: m.label,
@@ -596,6 +606,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           <span><b className="font-semibold text-fg tabular">{onTrackPct}%</b> on track</span>
           <span aria-hidden className="hidden text-border sm:inline">·</span>
           <span><b className="font-semibold text-fg tabular">{completedThisMonth}</b> done this month</span>
+          <span aria-hidden className="hidden text-border sm:inline">·</span>
+          <Link href="/task/recurring" className="inline-flex items-center gap-1 hover:text-fg" title="Every standing repeat rule — add, change, switch off">
+            <Repeat size={12} /> <b className="font-semibold text-fg tabular">{await recurringRulesCount}</b> recurring
+          </Link>
           <span className="col-span-2 mt-1 sm:col-span-1 sm:ml-auto sm:mt-0">
             <ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />
           </span>

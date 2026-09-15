@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
+import { ExternalLink, CheckCircle2, AlertOctagon, Clock, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
@@ -163,7 +163,7 @@ export function TableView({
 
   return (
     <>
-      <OrderRegistrar codes={rows.map((r) => r.code)} />
+      <OrderRegistrar codes={rows.map((r) => r.code)} info={Object.fromEntries(rows.map((r) => [r.code, { title: r.actionItem, deadline: r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : null }]))} />
 
       {/* Mobile: one compiled card per task (no horizontal scroll) */}
       <div className="sm:hidden space-y-2.5">
@@ -238,6 +238,9 @@ export function TableView({
                     {r.code}
                   </span>
                   <PinnedMarker task={r} className="shrink-0" />
+                  {r.recurringRuleId != null && (
+                    <Repeat size={12} className="shrink-0 text-fg-muted" aria-label="Repeats" />
+                  )}
                   <span className={cn(
                     "truncate text-base font-medium leading-snug",
                     (r.status === "Completed" || r.status === "Closed") && "text-fg-muted line-through decoration-fg-subtle/40",

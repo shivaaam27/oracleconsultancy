@@ -1170,6 +1170,13 @@
       "when": 1787834807013,
       "tag": "0165_cocozuri_events",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1789478289224,
+      "tag": "0166_task_recurring_rule",
+      "breakpoints": true
     }
   ]
 }

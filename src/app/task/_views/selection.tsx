@@ -24,15 +24,21 @@ import {
   MessageSquarePlus,
   ListChecks,
   Trash2,
+  Archive,
+  ArchiveRestore,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
+import { callUndo } from "@/components/undo-banner";
 import { useToast } from "@/components/toast";
 import { Button, Select } from "@/components/ui";
 
 type SelectionCtx = {
+  /** What a code is, for panels that list the selection (title + current deadline). */
+  infoOf: (code: string) => { title: string; deadline: string | null };
   /** All codes currently rendered (used by selectAll). Reset by SelectionProvider on each render. */
-  registerOrder: (codes: string[]) => void;
+  registerOrder: (codes: string[], info?: Record<string, { title: string; deadline: string | null }>) => void;
   selected: Set<string>;
   toggle: (code: string, opts?: { shift?: boolean }) => void;
   selectAll: () => void;
@@ -50,10 +56,12 @@ export function useSelection() {
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const orderRef = useRef<string[]>([]);
+  const infoRef = useRef<Record<string, { title: string; deadline: string | null }>>({});
   const lastClickedRef = useRef<string | null>(null);
 
-  const registerOrder = useCallback((codes: string[]) => {
+  const registerOrder = useCallback((codes: string[], info?: Record<string, { title: string; deadline: string | null }>) => {
     orderRef.current = codes;
+    if (info) infoRef.current = info;
   }, []);
 
   const toggle = useCallback((code: string, opts?: { shift?: boolean }) => {
@@ -90,9 +98,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     lastClickedRef.current = null;
   }, []);
 
+  const infoOf = useCallback((code: string) => infoRef.current[code] ?? { title: code, deadline: null }, []);
   const value = useMemo<SelectionCtx>(
-    () => ({ registerOrder, selected, toggle, selectAll, clear }),
-    [registerOrder, selected, toggle, selectAll, clear]
+    () => ({ registerOrder, infoOf, selected, toggle, selectAll, clear }),
+    [registerOrder, infoOf, selected, toggle, selectAll, clear]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -102,10 +111,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
  * Registers the rendered task order with the selection context so shift-click ranges work.
  * Mount once per view (Board, Table) with the full visible code list.
  */
-export function OrderRegistrar({ codes }: { codes: string[] }) {
+export function OrderRegistrar({ codes, info }: { codes: string[]; info?: Record<string, { title: string; deadline: string | null }> }) {
   const { registerOrder } = useSelection();
   // Register on every render — cheap, ensures the order tracks filter changes.
-  registerOrder(codes);
+  registerOrder(codes, info);
   return null;
 }
 
@@ -148,9 +157,12 @@ const STATUSES = [
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 export function BulkBar() {
-  const { selected, clear, selectAll } = useSelection();
+  const { selected, clear, selectAll, infoOf } = useSelection();
   const [pending, start] = useTransition();
-  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update" | "delete">(null);
+  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update" | "delete" | "deadlines">(null);
+  // Per-task dates for the "Deadlines" panel — seeded from each task's current
+  // deadline when the panel opens, so an untouched row changes nothing.
+  const [dates, setDates] = useState<Record<string, string>>({});
   const [value, setValue] = useState("");
   const [days, setDays] = useState(7);
   const router = useRouter();
@@ -162,6 +174,7 @@ export function BulkBar() {
   const codes = Array.from(selected);
 
   const run = (action: BulkAction, label: string) => {
+    const inverse: BulkAction | null = action.kind === "archive" ? { kind: "restore" } : action.kind === "restore" ? { kind: "archive" } : null;
     start(async () => {
       const res = await bulkUpdateTasks(codes, action);
       if (res.errors.length > 0) {
@@ -169,7 +182,25 @@ export function BulkBar() {
       } else {
         toast(
           `${label}: ${res.applied} applied${res.skipped > 0 ? `, ${res.skipped} unchanged` : ""}`,
-          { tone: "success" }
+          {
+            tone: "success",
+            duration: res.undoToken || inverse ? 10000 : undefined,
+            action: res.undoToken ? {
+              label: "Undo",
+              onClick: async () => {
+                const r = await callUndo(res.undoToken!);
+                toast(r.message, { tone: r.ok ? "success" : "warn", duration: 3000 });
+                router.refresh();
+              },
+            } : inverse ? {
+              label: "Undo",
+              onClick: async () => {
+                const r = await bulkUpdateTasks(codes, inverse);
+                toast(r.errors.length ? "Some could not be put back." : "Put back.", { tone: r.errors.length ? "warn" : "success", duration: 3000 });
+                router.refresh();
+              },
+            } : undefined,
+          }
         );
       }
       setMode(null);
@@ -194,7 +225,17 @@ export function BulkBar() {
       const body = value.trim();
       if (!body) return;
       run({ kind: "update", body }, "Post update");
+    } else if (mode === "deadlines") {
+      run({ kind: "set-deadlines", deadlines: codes.map((c) => [c, dates[c] || null]) }, "Set deadlines");
     }
+  };
+
+  const openDeadlines = () => {
+    if (mode === "deadlines") { setMode(null); return; }
+    const seed: Record<string, string> = {};
+    for (const c of codes) seed[c] = infoOf(c).deadline ?? "";
+    setDates(seed);
+    setMode("deadlines");
   };
 
   return (
@@ -230,14 +271,45 @@ export function BulkBar() {
           <BulkButton icon={ChevronUp} label="Status" onClick={() => { setMode(mode === "status" ? null : "status"); setValue(""); }} active={mode === "status"} />
           <BulkButton icon={Flag} label="Priority" onClick={() => { setMode(mode === "priority" ? null : "priority"); setValue(""); }} active={mode === "priority"} />
           <BulkButton icon={CalendarClock} label="Postpone" onClick={() => { setMode(mode === "postpone" ? null : "postpone"); }} active={mode === "postpone"} />
+          <BulkButton icon={CalendarDays} label="Deadlines" onClick={openDeadlines} active={mode === "deadlines"} />
           <BulkButton icon={MessageSquarePlus} label="Update" onClick={() => { setMode(mode === "update" ? null : "update"); setValue(""); }} active={mode === "update"} />
           <BulkButton icon={AlertOctagon} label="Escalate" tone="danger" onClick={() => run({ kind: "escalate" }, "Escalated")} />
           <BulkButton icon={CheckCheck} label="Close" tone="success" onClick={() => run({ kind: "close" }, "Closed")} />
+          <BulkButton icon={Archive} label="Archive" onClick={() => run({ kind: "archive" }, "Archived")} />
+          <BulkButton icon={ArchiveRestore} label="Restore" onClick={() => run({ kind: "restore" }, "Restored")} />
           <BulkButton icon={Trash2} label="Delete" tone="danger" onClick={() => setMode(mode === "delete" ? null : "delete")} active={mode === "delete"} />
         </div>
 
+        {/* Deadlines — a date per task, one save. Blank clears it. */}
+        {mode === "deadlines" && (
+          <div className="border-t border-border bg-bg-subtle">
+            <div className="max-h-64 overflow-y-auto divide-y divide-border/60">
+              {codes.map((c) => {
+                const info = infoOf(c);
+                return (
+                  <label key={c} className="flex items-center gap-3 px-3 py-1.5 text-sm">
+                    <span className="tabular shrink-0 font-mono text-xs text-fg-muted">{c}</span>
+                    <span className="min-w-0 flex-1 truncate">{info.title}</span>
+                    <input
+                      type="date"
+                      value={dates[c] ?? ""}
+                      onChange={(e) => setDates((d) => ({ ...d, [c]: e.target.value }))}
+                      className="h-8 rounded-md bg-bg px-2 text-sm ring-1 ring-border outline-none"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+              <span className="mr-auto text-xs text-fg-muted">A blank date clears that task&apos;s deadline.</span>
+              <Button variant="primary" size="sm" onClick={confirm} disabled={pending}>Save deadlines</Button>
+              <button onClick={() => setMode(null)} className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">Cancel</button>
+            </div>
+          </div>
+        )}
+
         {/* Inline confirmation panel for actions needing a value */}
-        {mode && mode !== "delete" && (
+        {mode && mode !== "delete" && mode !== "deadlines" && (
           <div className="border-t border-border px-3 py-2 flex items-center gap-2 bg-bg-subtle">
             {mode === "status" && (
               <Select wrapperClassName="flex-1"
@@ -303,12 +375,12 @@ export function BulkBar() {
           </div>
         )}
 
-        {/* Delete confirmation — permanent, no undo */}
+        {/* Delete confirmation — one grouped Undo for ten minutes, then gone */}
         {mode === "delete" && (
           <div className="border-t border-danger/20 px-3 py-2.5 flex items-center gap-2 bg-danger-soft/40">
             <Trash2 size={15} className="text-danger shrink-0" />
             <span className="flex-1 text-sm text-danger min-w-0">
-              Permanently delete {count} task{count === 1 ? "" : "s"}? This cannot be undone.
+              Delete {count} task{count === 1 ? "" : "s"}? You can undo for ten minutes; after that they are gone.
             </span>
             <Button
               variant="danger"

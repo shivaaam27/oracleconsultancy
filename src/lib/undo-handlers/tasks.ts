@@ -101,8 +101,7 @@ registerUndoHandler("task.create", async (raw) => {
   void removeEntityIndex("task", p.taskId); // row gone — drop its index entry
 });
 
-registerUndoHandler("task.delete", async (raw) => {
-  const p = raw as {
+type DeletedTaskSnapshot = {
     task: {
       code: string;
       companyId: number;
@@ -122,6 +121,7 @@ registerUndoHandler("task.delete", async (raw) => {
       lastUpdatedAt: string | null;
       closedDate: string | null;
       archived: boolean;
+      recurringRuleId?: number | null;
     };
     assignees: number[];
     // Snapshotted in task/actions.ts so Undo restores the discussion + provenance
@@ -138,8 +138,12 @@ registerUndoHandler("task.delete", async (raw) => {
       attachment_document_id: number | null;
     }>;
     meetingLinks?: Array<{ meeting_id: number; created_at: string | null }>;
-  };
-  const { data: inserted } = await sb
+};
+
+/** Put one deleted task back — the row, its assignees, the whole conversation
+ *  (flattened) and its meeting links. Shared by the single and the bulk undo so
+ *  they can never restore different things. */
+async function restoreDeletedTask(p: DeletedTaskSnapshot): Promise<void> {  const { data: inserted } = await sb
     .from("tasks")
     .insert({
       code: p.task.code,
@@ -160,6 +164,7 @@ registerUndoHandler("task.delete", async (raw) => {
       last_updated_at: p.task.lastUpdatedAt,
       closed_date: p.task.closedDate,
       archived: p.task.archived,
+      recurring_rule_id: p.task.recurringRuleId ?? null,
     })
     .select("id")
     .single();
@@ -197,6 +202,21 @@ registerUndoHandler("task.delete", async (raw) => {
     await writeUndoAudit(newId, p.task.code, p.task.companyId, "task.delete");
     void reindexEntity("task", newId); // task re-created — re-index (best-effort)
   }
+}
+
+registerUndoHandler("task.delete", async (raw) => {
+  await restoreDeletedTask(raw as DeletedTaskSnapshot);
+});
+
+/** A bulk delete's grouped undo — every task in the batch, one token. A task
+ *  that fails to come back does not stop the rest. */
+registerUndoHandler("task.delete.bulk", async (raw) => {
+  const { items } = raw as { items: DeletedTaskSnapshot[] };
+  let failed = 0;
+  for (const item of items ?? []) {
+    try { await restoreDeletedTask(item); } catch { failed++; }
+  }
+  if (failed > 0) throw new Error(`${failed} of ${items.length} tasks could not be restored.`);
 });
 
 registerUndoHandler("task.update.add", async (raw) => {

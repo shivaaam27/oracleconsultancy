@@ -1101,7 +1101,7 @@ export async function portalDirectorCreateTask(
     // assignees, priority, status, description). Never bound to today's task row —
     // the cron evaluates it against a synthetic open task on its own cadence.
     if (willRepeat) {
-      await sb.from("automation_rules").insert({
+      const { data: rule } = await sb.from("automation_rules").insert({
         task_id: null, company_id: companyId, kind: "recurring_task",
         config: {
           cadence: repeatCadence,
@@ -1111,7 +1111,9 @@ export async function portalDirectorCreateTask(
           ...(instruction ? { description: instruction } : {}),
         },
         active: true, done: false, created_by: createdBy, created_at: now.toISOString(),
-      });
+      }).select("id").single();
+      // Today's task is the first occurrence — link it (migration 0166).
+      if (rule?.id) await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
     }
 
     const recipients = [...leads, ...workings].map(personRecipient);
