@@ -277,7 +277,20 @@ The system replaces an Excel workbook with:
   **Do not also push the working branch** — pushing both `HEAD:master` and the branch is what
   produced two builds of identical code (one production, one preview) and wasted a deploy.
 - **Dependency security**: `package.json` `overrides` pin patched `postcss`/`esbuild`/`sharp`/`fast-uri`/`nanoid`/`brace-expansion` (keeps `npm audit` clean without breaking downgrades — do not remove without re-checking audit). Dependabot config in `.github/dependabot.yml`.
-  - **`npm audit --omit=dev` is CLEAN as of 17 Aug 2026 — 0 vulnerabilities.** Keep it that way.
+  - **`npm audit --omit=dev` was clean on 17 Aug 2026 and drifted to 43 findings
+    by 17 Sep** — a month of new advisories on packages already installed, not a
+    regression anyone introduced. **A clean audit does not stay clean; re-check
+    it, do not assume it.** Patched back to 34 on 17 Sep (see below), and every
+    one of those 34 is the single deferred tiptap advisory counted per package.
+  - ⚠️ **TIPTAP IS PINNED AT 3.30.1 ON PURPOSE.** The fix needs the whole
+    `@tiptap/*` set on 3.31.3 together, because `extension-drag-handle-react`
+    peer-depends on an **exact** sibling version while `extension-drag-handle`
+    is only transitive — so the lockfile pins the old one and npm cannot
+    resolve. Every route out is `--force` / `--legacy-peer-deps`, which npm
+    itself calls "an incorrect (and potentially broken) dependency resolution".
+    The flaw is quadratic-time markdown parsing, it needs hostile input, and
+    Notes is owner-only. **Revisit when tiptap's own tree untangles; do not
+    force it.**
   - **RESOLVED (17 Aug 2026): the long-standing `brace-expansion` exception is gone.**
     The old note here said "there is no patched 2.x, do NOT add a `brace-expansion`
     override" — that was true when written and is **no longer true**: upstream shipped
