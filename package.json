@@ -34,7 +34,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.58.0",
     "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.1",
+    "@simplewebauthn/server": "^13.3.2",
     "@supabase/supabase-js": "^2.106.2",
     "@tiptap/extension-drag-handle-react": "^3.30.1",
     "@tiptap/extension-link": "^3.30.1",
@@ -60,7 +60,7 @@
     "mcp-handler": "^2.1.0",
     "next": "16.2.11",
     "next-themes": "^0.4.6",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.1.1",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
@@ -85,18 +85,22 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
     "typescript": "^5",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss": "^8.5.23",
     "esbuild": "^0.28.1",
-    "sharp": "^0.35.3",
-    "fast-uri": "^3.1.5",
+    "sharp": "^0.35.4",
+    "fast-uri": "^3.1.6",
     "nanoid": "^3.3.18",
     "brace-expansion": "^5.0.9",
     "minimatch": {
       "brace-expansion": "^2.1.4"
-    }
+    },
+    "browserslist": "^4.28.7",
+    "qs": "^6.16.0",
+    "baseline-browser-mapping": "^2.11.0",
+    "@xmldom/xmldom": "^0.8.15"
   },
   "allowScripts": {
     "@sentry/cli@2.58.6": true,
