@@ -22,9 +22,16 @@ import {
 } from "@/lib/recurring-task-rules";
 
 // The shape and the checks live in src/lib/recurring-task-rules.ts, shared with
-// the Administrator's door (src/app/task/recurring-actions.ts). Re-exported so the
-// portal panel's imports do not move.
-export type { RecurringTaskInput, RecurringTaskRule };
+// the Administrator's door (src/app/task/recurring-actions.ts).
+//
+// ⚠️ NOTHING BUT AN ASYNC FUNCTION MAY BE EXPORTED FROM A "use server" FILE —
+// a re-exported TYPE included. `export type { … }` reads as erased-at-compile,
+// but Next's server-actions loader re-exports every name this module exports,
+// and the type is not there at runtime: "ReferenceError: RecurringTaskInput is
+// not defined", thrown while the module is evaluated, which took down EVERY
+// page whose action graph reaches this file — /login included, so nobody could
+// sign in. `tsc` and the tests both pass; only running the app finds it.
+// Types are imported from lib/recurring-task-rules.ts directly.
 
 /** "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>" — the exact tag
  *  portalDirectorCreateTask stamps, so a person's own recurring rules can be found

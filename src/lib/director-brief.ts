@@ -11,6 +11,7 @@ import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./pers
 import { listObligations, outstandingDeadlines } from "./recurring";
 import { getAppSettings } from "./settings";
 import { listCalendarEvents } from "./calendar";
+import { hasElapsed } from "./event-time-shared";
 import { listBriefNotes, type BriefNote } from "./brief-notes";
 import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
@@ -471,7 +472,9 @@ export async function getBrief(
   const companyNameById = new Map(allKpis.map((k) => [k.id, k.name]));
 
   // Next 7 days window (used by the calendar read below).
-  const weekFrom = now.toISOString();
+  // A day of slack at the near end so a meeting that is UNDER WAY is still
+  // read back; hasElapsed then drops only what has genuinely finished.
+  const weekFrom = new Date(now.getTime() - 24 * 3600_000).toISOString();
   const weekTo = new Date(now.getTime() + 7 * 24 * 3600_000).toISOString();
 
   // These reads are all independent of one another and use the Supabase REST
@@ -580,6 +583,8 @@ export async function getBrief(
   // Next 7 days of calendar events (fetched above). For a multi-company scope the
   // fetch isn't company-filtered, so keep only the scoped companies' events.
   const weekAhead: BriefWeekEvent[] = (historicOnly ? [] : calEvents)
+    // A finished meeting is not "the week ahead" — it stays on the calendar.
+    .filter((e) => !hasElapsed(e, now))
     .filter((e) => !scopeSet || (e.companyId != null && scopeSet.has(e.companyId)))
     .slice(0, 12)
     .map((e) => ({

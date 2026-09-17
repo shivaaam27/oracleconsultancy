@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, Repeat } from "lucide-react";
+import { occursToday } from "@/lib/recurring-task-rules";
 import { cn } from "@/lib/cn";
 import { FluidSelect } from "@/components/fluid-select";
 import { Switch, CONTROL_BOX } from "@/components/ui";
@@ -123,9 +124,14 @@ const REPEAT_DAY_CHIPS = [
 /** The "Repeat" row of the New Task form: one switch, and when it is on, the
  *  weekday chips or a day-of-month. Mirrors its state into hidden fields
  *  (`repeatOn`/`repeatCadence`/`repeatWeekdays`/`repeatDayOfMonth`) so
- *  createTask reads it with FormData. When on, createTask ALSO saves a standing
- *  recurring_task automation so future copies auto-create on those days —
- *  today's task is created normally either way.
+ *  createTask reads it with FormData. When on, createTask saves a standing
+ *  recurring_task automation so copies auto-create on those days.
+ *
+ *  ⚠️ TODAY'S TASK IS NOT ALWAYS CREATED (owner, 17 Sep 2026). Choose only days
+ *  still to come and nothing appears now — the rule is saved and the task turns
+ *  up by itself on the first chosen day. "Create one for today as well" is the
+ *  override. When today IS one of the chosen days it is created without asking,
+ *  because it is due today rather than early.
  *
  *  It used to be a collapsed box inside a box: a chevron to open, THEN a switch
  *  to turn on. One switch now; the options appear beneath it. */
@@ -134,10 +140,15 @@ export function RepeatSection() {
   const [cadence, setCadence] = useState<"weekly" | "monthly">("weekly");
   const [weekdays, setWeekdays] = useState<number[]>([1]);
   const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [alsoToday, setAlsoToday] = useState(false);
+  // Is today one of the chosen days? The SAME function the server uses to
+  // decide, so the sentence here and what actually happens always agree.
+  const dueToday = occursToday({ cadence, weekdays, dayOfMonth });
 
   return (
     <div className="space-y-2.5">
       <input type="hidden" name="repeatOn" value={on ? "1" : ""} />
+      <input type="hidden" name="repeatAlsoToday" value={alsoToday ? "1" : ""} />
       <input type="hidden" name="repeatCadence" value={cadence} />
       <input type="hidden" name="repeatWeekdays" value={weekdays.join(",")} />
       <input type="hidden" name="repeatDayOfMonth" value={String(dayOfMonth)} />
@@ -196,6 +207,32 @@ export function RepeatSection() {
                 className={cn(CONTROL_BOX, "w-16 px-2.5 border border-border bg-bg-elev")}
               />
             </label>
+          )}
+        </div>
+      )}
+      {on && (
+        <div className="pl-1">
+          {dueToday ? (
+            <p className="text-xs text-fg-muted">
+              Today is one of these days, so this task is created now and again each time it comes round.
+            </p>
+          ) : (
+            <>
+              <label className="flex cursor-pointer items-start gap-2 text-xs text-fg-muted">
+                <input
+                  type="checkbox"
+                  checked={alsoToday}
+                  onChange={(e) => setAlsoToday(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--accent)]"
+                />
+                <span>Create one for today as well</span>
+              </label>
+              <p className="mt-1 text-xs text-fg-subtle">
+                {alsoToday
+                  ? "One task now, and then on the days you chose."
+                  : "Nothing appears today — the task is saved and turns up by itself on the next day you chose."}
+              </p>
+            </>
           )}
         </div>
       )}

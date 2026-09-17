@@ -14,6 +14,9 @@ import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { computeClosedDateFrom } from "@/lib/task-status";
 import { createTaskCore, updateTaskCore, addTaskUpdateCore } from "@/lib/task-write";
+import { shouldCreateTodaysCopy } from "@/lib/recurring-task-rules";
+import { saveRuleOnly } from "./recurring-actions";
+import { getOrCreatePersonSb } from "@/lib/db-helpers";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { invalidateAllTasks } from "@/lib/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
@@ -340,6 +343,29 @@ export async function createTask(formData: FormData) {
   const repeatDayOfMonthRaw = Math.round(Number(formData.get("repeatDayOfMonth")));
   const repeatDayOfMonth = Number.isInteger(repeatDayOfMonthRaw) ? Math.min(31, Math.max(1, repeatDayOfMonthRaw)) : 1;
   const willRepeat = repeatOn && (repeatCadence === "monthly" || repeatWeekdays.length > 0);
+  // ⚠️ A REPEATING TASK WHOSE NEXT TURN IS A FUTURE DAY IS SAVED, NOT CREATED
+  // (owner, 17 Sep 2026). Set it up on Wednesday for Friday and nothing appears
+  // until Friday morning; tick "create one for today as well" to also have it
+  // now. Today's copy is made without asking when today is one of the chosen
+  // days — it is due today, not early.
+  const alsoToday = formData.get("repeatAlsoToday") === "1";
+  const recipe = { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth };
+  if (willRepeat && !shouldCreateTodaysCopy(recipe, alsoToday)) {
+    const assigneePersonIds: number[] = [];
+    for (const n of splitNames(str(formData.get("accountable")))) {
+      assigneePersonIds.push(await getOrCreatePersonSb(n, companyId));
+    }
+    const saved = await saveRuleOnly({
+      title: actionItem, companyId, cadence: repeatCadence,
+      weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth,
+      priority: priority || "Medium",
+      status: status === "Completed" || status === "Closed" ? "Not Started" : status,
+      description: comments ?? "", assigneePersonIds,
+    });
+    if (!saved.ok) throw new Error(saved.error);
+    revalidatePath("/"); revalidatePath("/task", "layout"); bustTag("tasks"); invalidateAllTasks();
+    redirect("/task/recurring?saved=1");
+  }
 
   const result = await createTaskCore({
     companyId,
@@ -359,7 +385,7 @@ export async function createTask(formData: FormData) {
     accountability,
     requiresAttachment,
     repeat: willRepeat
-      ? { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth }
+      ? { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth, todaysCopyMade: true }
       : null,
     createdBy: "web-ui",
   });

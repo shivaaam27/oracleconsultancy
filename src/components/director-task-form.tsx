@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardCheck, Plus, Loader2, CheckCircle2, Star, RefreshCw, ChevronDown,
 } from "lucide-react";
+import { occursToday } from "@/lib/recurring-task-rules";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { SwitchRow } from "@/components/ui";
 import { NotifyPerson } from "@/components/notify-person";
@@ -123,6 +124,8 @@ export function DirectorTaskForm({
   const [repeatCadence, setRepeatCadence] = useState<"weekly" | "monthly">("weekly");
   const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([1]);
   const [repeatDayOfMonth, setRepeatDayOfMonth] = useState(1);
+  const [repeatAlsoToday, setRepeatAlsoToday] = useState(false);
+  const repeatDueToday = occursToday({ cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth });
 
   // Everyone can fan out across the companies they're allowed. Auto-select the
   // only company when a person has just one (nothing to choose).
@@ -172,6 +175,7 @@ export function DirectorTaskForm({
     setRepeatCadence("weekly");
     setRepeatWeekdays([1]);
     setRepeatDayOfMonth(1);
+    setRepeatAlsoToday(false);
   }
 
   // Responsible-people list is scoped to the SELECTED companies (for BOTH roles)
@@ -267,6 +271,7 @@ export function DirectorTaskForm({
           <input type="hidden" name="repeatCadence" value={repeatCadence} />
           <input type="hidden" name="repeatWeekdays" value={repeatWeekdays.join(",")} />
           <input type="hidden" name="repeatDayOfMonth" value={String(repeatDayOfMonth)} />
+          <input type="hidden" name="repeatAlsoToday" value={repeatAlsoToday ? "1" : ""} />
         </>
       )}
 
@@ -378,7 +383,12 @@ export function DirectorTaskForm({
           </button>
           {repeatOpen && (
             <div className="px-3.5 pb-3.5 space-y-2.5">
-              <SwitchRow label="Recreate this task automatically" hint="Saves a standing rule alongside today's task" on={repeatOn} onChange={setRepeatOn} />
+              <SwitchRow
+                label="Recreate this task automatically"
+                hint={repeatOn && !repeatDueToday ? "Saved for the days you choose — nothing appears today" : "Saves a standing rule, and creates today's task when today is one of the days"}
+                on={repeatOn}
+                onChange={setRepeatOn}
+              />
               {repeatOn && (
                 <>
                   <div className="flex flex-wrap gap-1.5">
@@ -417,6 +427,21 @@ export function DirectorTaskForm({
                         className="w-16 rounded-lg bg-bg-elev px-2.5 py-1.5 text-sm ring-1 ring-border"
                       />
                     </div>
+                  )}
+                  {/* ⚠️ A repeating task whose next turn is a future day is
+                      SAVED, not created (owner, 17 Sep 2026). `occursToday` is
+                      the same function the server decides with. */}
+                  {repeatDueToday ? (
+                    <p className="text-xs text-fg-muted">
+                      Today is one of these days, so this task is created now and again each time it comes round.
+                    </p>
+                  ) : (
+                    <SwitchRow
+                      label="Create one for today as well"
+                      hint={repeatAlsoToday ? "One task now, then on the days you chose" : "Nothing appears today — it turns up by itself on the next day you chose"}
+                      on={repeatAlsoToday}
+                      onChange={setRepeatAlsoToday}
+                    />
                   )}
                 </>
               )}

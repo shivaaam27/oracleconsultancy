@@ -30,6 +30,7 @@ import {
 import { computeClosedDate, isClosedStatus } from "@/lib/task-status";
 import { canManageTask } from "@/lib/task-permissions";
 import { reindexEntity } from "@/lib/index-hooks";
+import { occursToday, shouldCreateTodaysCopy, todaysOccurrenceInstant } from "@/lib/recurring-task-rules";
 import { createGroup, getOrCreateDm, personParticipant, sendMessage, threadFromTask } from "@/lib/chat";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
@@ -1011,6 +1012,12 @@ export async function portalDirectorCreateTask(
   const repeatDayOfMonthRaw = Math.round(Number(formData.get("repeatDayOfMonth")));
   const repeatDayOfMonth = Number.isInteger(repeatDayOfMonthRaw) ? Math.min(31, Math.max(1, repeatDayOfMonthRaw)) : 1;
   const willRepeat = repeatWanted && (repeatCadence === "monthly" || repeatWeekdays.length > 0);
+  // ⚠️ A REPEATING TASK WHOSE NEXT TURN IS A FUTURE DAY IS SAVED, NOT CREATED
+  // (owner, 17 Sep 2026) — the same rule as the administrator's form, through
+  // the same shared decision so the two can never drift apart.
+  const repeatAlsoToday = formData.get("repeatAlsoToday") === "1" || formData.get("repeatAlsoToday") === "on";
+  const repeatRecipe = { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth };
+  const saveRuleWithoutTask = willRepeat && !shouldCreateTodaysCopy(repeatRecipe, repeatAlsoToday);
 
   // Multi-company fan-out: parse the comma-separated companyIds → unique valid
   // ids; fall back to a single companyId field if companyIds is absent/empty.
@@ -1059,6 +1066,26 @@ export async function portalDirectorCreateTask(
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
   const createdBy = `${isDir ? "portal-dir" : me.portalRole === "hr" ? "portal-hr" : "portal-mgr"}:${me.name}`;
+
+  // Nothing is due yet: save the standing rule for each chosen company and
+  // create no task at all. It appears by itself on the first chosen day.
+  if (saveRuleWithoutTask) {
+    for (const companyId of companyIds) {
+      await sb.from("automation_rules").insert({
+        task_id: null, company_id: companyId, kind: "recurring_task",
+        config: {
+          cadence: repeatCadence,
+          ...(repeatCadence === "weekly" ? { weekdays: repeatWeekdays } : { dayOfMonth: repeatDayOfMonth }),
+          title: actionItem, companyId, priority, status,
+          assigneePersonIds: [...leads, ...workings],
+          ...(instruction ? { description: instruction } : {}),
+        },
+        active: true, done: false, created_by: createdBy, created_at: now.toISOString(),
+      });
+    }
+    revalidatePath("/portal"); revalidatePath("/portal/board"); revalidatePath("/portal/tasks"); revalidatePath("/");
+    return null;
+  }
 
   // Create one task per selected company.
   for (const companyId of companyIds) {
@@ -1113,7 +1140,16 @@ export async function portalDirectorCreateTask(
         active: true, done: false, created_by: createdBy, created_at: now.toISOString(),
       }).select("id").single();
       // Today's task is the first occurrence — link it (migration 0166).
-      if (rule?.id) await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
+      if (rule?.id) {
+        await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
+        // We have just made today's copy; stop the 09:00 job making a second
+        // one. (See the same guard in lib/task-write.ts.)
+        if (occursToday(repeatRecipe, now)) {
+          await sb.from("automation_rules")
+            .update({ last_fired_at: new Date(todaysOccurrenceInstant(now)).toISOString() })
+            .eq("id", rule.id as number);
+        }
+      }
     }
 
     const recipients = [...leads, ...workings].map(personRecipient);

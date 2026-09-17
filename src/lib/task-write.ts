@@ -18,6 +18,7 @@
 
 import { sb } from "@/db/supabase";
 import { getOrCreateDeptSb, getOrCreatePersonSb, deptNameSb, logChangeSb } from "@/lib/db-helpers";
+import { occursToday, todaysOccurrenceInstant } from "./recurring-task-rules";
 import { mutate, type Actor, type MutateResult } from "@/lib/mutate";
 import { withTx } from "@/lib/tx";
 import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
@@ -74,6 +75,9 @@ async function notifyAssigned(args: {
 
 export type TaskRepeatRecipe = {
   cadence: "weekly" | "monthly";
+  /** True when this call has ALSO created today's copy, so the standing job
+   *  must not make a second one this morning. See stampFiredToday below. */
+  todaysCopyMade?: boolean;
   /** 0 = Sunday … 6 = Saturday. Weekly cadence only. */
   weekdays: number[];
   /** 1–31. Monthly cadence only. */
@@ -290,7 +294,19 @@ export async function createTaskCore(
           }).select("id").single();
           // Today's task is the first occurrence — point it at its rule so the
           // list can mark it and the record can change how it repeats.
-          if (rule?.id) await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
+          if (rule?.id) {
+            await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
+            // ⚠️ We have just put today's copy on the board. If today is one of
+            // the rule's own days and the 09:00 job has not run yet, it would
+            // create a SECOND copy this morning. Stamping today's occurrence as
+            // already fired is what stops that; tomorrow's is later, so the rule
+            // carries on normally.
+            if (repeat.todaysCopyMade !== false && occursToday({ cadence: repeat.cadence, weekdays: repeat.weekdays, dayOfMonth: repeat.dayOfMonth })) {
+              await sb.from("automation_rules")
+                .update({ last_fired_at: new Date(todaysOccurrenceInstant()).toISOString() })
+                .eq("id", rule.id as number);
+            }
+          }
         } catch { /* best-effort — today's task is created regardless */ }
       }
 

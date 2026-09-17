@@ -120,3 +120,56 @@ export function creatorLabel(createdBy: string | null): string {
   if (createdBy === "ai-command" || createdBy.startsWith("ori")) return "ORI";
   return createdBy;
 }
+
+/** Is TODAY one of the days this schedule names? Dar es Salaam (UTC+3) — a
+ *  recurring task belongs to a calendar day here, not to UTC, so "Friday" must
+ *  mean Friday in the office. `now` is injectable so it can be tested.
+ *
+ *  This is the ONE answer both create forms and both servers use, so the tick
+ *  box you see and the decision the server makes can never disagree. */
+export function occursToday(
+  r: { cadence: "weekly" | "monthly"; weekdays: number[]; dayOfMonth: number },
+  now: Date = new Date(),
+): boolean {
+  const dar = new Date(now.getTime() + 3 * 3_600_000); // shift into UTC+3
+  if (r.cadence === "monthly") {
+    const wanted = Math.min(31, Math.max(1, Math.round(r.dayOfMonth)));
+    const lastDom = new Date(Date.UTC(dar.getUTCFullYear(), dar.getUTCMonth() + 1, 0)).getUTCDate();
+    // A 31st rule in a 30-day month lands on the 30th — the same clamp the
+    // engine's nextRecurrenceInstant uses, so the two always agree.
+    return dar.getUTCDate() === Math.min(wanted, lastDom);
+  }
+  return r.weekdays.some((w) => Math.min(6, Math.max(0, Math.round(w))) === dar.getUTCDay());
+}
+
+/** The hour (Dar time) the daily job runs and creates a due recurring task.
+ *  Must match the `ori-automations` cron in vercel.json (06:00 UTC) and the
+ *  START_HOUR in nextRecurrenceInstant. */
+export const RECURRING_FIRES_AT_HOUR = 9;
+
+/** The instant the standing job would create TODAY's copy (today at 09:00 Dar),
+ *  in ms. Stamped onto a rule as `last_fired_at` when a form has already made
+ *  today's copy itself, so the job sees today as done and does not make a
+ *  second one. Tomorrow's occurrence is later than this, so the rule carries on
+ *  normally.
+ *
+ *  ⚠️ WITHOUT THIS, CREATING A REPEATING TASK BEFORE 09:00 ON ONE OF ITS OWN
+ *  DAYS PUT THE SAME TASK ON THE BOARD TWICE — once from the form, once from
+ *  the job an hour or two later. */
+export function todaysOccurrenceInstant(now: Date = new Date()): number {
+  const dar = new Date(now.getTime() + 3 * 3_600_000);
+  return Date.UTC(dar.getUTCFullYear(), dar.getUTCMonth(), dar.getUTCDate(), RECURRING_FIRES_AT_HOUR) - 3 * 3_600_000;
+}
+
+/** Should creating this repeating task also put one on the board RIGHT NOW?
+ *  The rule the owner asked for (17 Sep 2026): a task whose next turn is a
+ *  future day is SAVED, not created — nothing appears until that day comes.
+ *  Today's copy is made when today is one of the chosen days, or when the
+ *  person ticked "create one for today as well". */
+export function shouldCreateTodaysCopy(
+  r: { cadence: "weekly" | "monthly"; weekdays: number[]; dayOfMonth: number },
+  alsoToday: boolean,
+  now: Date = new Date(),
+): boolean {
+  return occursToday(r, now) || alsoToday;
+}

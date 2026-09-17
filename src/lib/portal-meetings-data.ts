@@ -1,6 +1,7 @@
 import "server-only";
 import { sb } from "@/db/supabase";
 import { listCalendarEvents } from "@/lib/calendar";
+import { hasElapsed } from "@/lib/event-time-shared";
 import { companyScope, type PortalPerson } from "@/lib/portal-auth";
 import { listEventCategories } from "@/lib/event-categories";
 import { googleCalendarUrl } from "@/lib/ics";
@@ -55,7 +56,11 @@ export async function scopedUpcomingMeetings(
   opts?: { daysAhead?: number },
 ): Promise<PortalMeetingView[]> {
   const now = new Date();
-  const from = now.toISOString();
+  // ⚠️ FROM THE START OF TODAY, NOT FROM THIS MINUTE. Filtering on
+  // `start_at >= now` dropped a meeting THE MOMENT IT BEGAN — it vanished from
+  // "Next meeting" as you were walking into it. The window is widened here and
+  // `hasElapsed` (which knows about end times) does the real filtering below.
+  const from = new Date(now.getTime() - 24 * 3600_000).toISOString();
   const to = new Date(now.getTime() + (opts?.daysAhead ?? 90) * 86400000).toISOString();
 
   const isStaff = me.portalRole === "staff";
@@ -72,6 +77,8 @@ export async function scopedUpcomingMeetings(
 
   const visible = events.filter((ev) => {
     if ((ev.status ?? "confirmed") === "cancelled") return false;
+    // Finished means finished — it stays on the calendar, not in "what's next".
+    if (hasElapsed(ev, now)) return false;
     const invited = ev.attendees.some((a) => a.personId === me.id);
     if (isStaff) return invited; // staff: only their own meetings
     // Management: everything in company scope (or all), plus anything they're invited to.

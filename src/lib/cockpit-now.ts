@@ -1,16 +1,20 @@
 import "server-only";
 import { sb } from "@/db/supabase";
 import { listCalendarEvents } from "@/lib/calendar";
+import { splitByElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import { leaveMetrics } from "@/lib/leave";
 
 // "Right now" data for the Administrator — today's events, who's on leave, leave to
 // approve, upcoming birthdays, and the live headcount. All cheap reads; reused, not new.
 
-export type NowEvent = { id: number; title: string; startAt: string; allDay: boolean };
+export type NowEvent = { id: number; title: string; startAt: string; endAt: string | null; allDay: boolean; happeningNow: boolean };
 export type NowBirthday = { name: string; inDays: number };
 
 export type CockpitNowData = {
   events: NowEvent[];
+  /** Today's events that have already finished. Counted, not listed — they are
+   *  saved and on the calendar, they are simply no longer something to do. */
+  finishedToday: number;
   onLeaveToday: number;
   pendingLeave: number;
   birthdays: NowBirthday[];
@@ -49,8 +53,19 @@ export async function gatherCockpitNow(): Promise<CockpitNowData> {
     .sort((a, b) => a.inDays - b.inDays)
     .slice(0, 2);
 
+  // ⚠️ AN EVENT THAT HAS FINISHED IS NOT "NOW" (owner, 17 Sep 2026). This panel
+  // used to list every event of the calendar day, so a meeting that ended at
+  // nine was still sitting in "right now" at five o'clock. Finished ones are
+  // counted instead; nothing is deleted.
+  const nowMs = Date.now();
+  const { upcoming, finished } = splitByElapsed(events, nowMs);
+
   return {
-    events: events.slice(0, 3).map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay })),
+    events: upcoming.slice(0, 3).map((e) => ({
+      id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt, allDay: e.allDay,
+      happeningNow: isHappeningNow(e, nowMs),
+    })),
+    finishedToday: finished.length,
     onLeaveToday: leave.onLeaveToday,
     pendingLeave: leave.pending,
     birthdays,

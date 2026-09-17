@@ -26,11 +26,18 @@ export function CockpitNow({ now, dueToday }: { now: CockpitNowData; dueToday: n
 
   for (const e of now.events) {
     chips.push(
-      <Chip key={`e${e.id}`} href="/calendar" icon={<CalendarDays size={13} className="text-fg-muted" />}>
-        {e.title} · {eventTime(e.startAt, e.allDay)}
+      <Chip key={`e${e.id}`} href="/calendar" icon={<CalendarDays size={13} className={e.happeningNow ? "text-accent" : "text-fg-muted"} />}>
+        {e.title} · {e.happeningNow ? "on now" : eventTime(e.startAt, e.allDay)}
       </Chip>,
     );
   }
+  // What has already happened today: on the calendar, not in the way.
+  if (now.finishedToday > 0)
+    chips.push(
+      <Chip key="done-today" href="/calendar" icon={<CalendarDays size={13} className="text-fg-subtle" />}>
+        {now.finishedToday} finished today
+      </Chip>,
+    );
   if (dueToday > 0)
     chips.push(
       <Chip key="due" href="/?tab=tasks&flag=due-soon" icon={<CircleDot size={13} className="text-warn" />}>

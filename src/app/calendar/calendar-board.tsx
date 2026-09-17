@@ -29,6 +29,7 @@ import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
+import { hasElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
@@ -835,6 +836,16 @@ function HousedAgenda({
   overlayByDay: Map<string, OverlayItem[]>;
   onEdit: (e: CalendarEventView) => void;
 }) {
+  // ⚠️ AN EVENT THAT HAS FINISHED IS STILL LISTED HERE — the calendar is where
+  // everything is SAVED — but it must not read as something still to come
+  // (owner, 17 Sep 2026). It dims, is struck through and says "Finished"; the
+  // one under way says "On now". Ticking every half minute so a meeting changes
+  // state while you are looking at the page, rather than only on a reload.
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   const grouped = useMemo(() => {
     const map = new Map<string, CalendarEventView[]>();
     for (const e of events) (map.get(keyOfIso(e.startAt)) ?? map.set(keyOfIso(e.startAt), []).get(keyOfIso(e.startAt))!).push(e);
@@ -858,10 +869,25 @@ function HousedAgenda({
             <div className={cn("flex items-center gap-2 border-b px-3.5 py-2.5", isToday ? "border-accent/20 bg-accent-soft/40" : "border-border/60 bg-bg-subtle/60")}>
               {isToday && <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-accent opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" /></span>}
               <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
-              <span className="ml-auto text-xs text-fg-subtle">{evs.length} event{evs.length === 1 ? "" : "s"}</span>
+              <span className="ml-auto text-xs text-fg-subtle">
+                {(() => {
+                  const left = evs.filter((e) => !hasElapsed(e, nowMs)).length;
+                  if (left === evs.length) return `${evs.length} event${evs.length === 1 ? "" : "s"}`;
+                  if (left === 0) return `${evs.length} event${evs.length === 1 ? "" : "s"} · all done`;
+                  return `${left} of ${evs.length} left`;
+                })()}
+              </span>
             </div>
             <div className="space-y-2 p-2">
-              {evs.map((e) => <EventRow key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
+              {evs.map((e) => (
+                <EventRow
+                  key={occKey(e)}
+                  event={e}
+                  onEdit={() => onEdit(e)}
+                  finished={hasElapsed(e, nowMs)}
+                  onNow={isHappeningNow(e, nowMs)}
+                />
+              ))}
             </div>
             {ovs.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/60 bg-bg-subtle/30 px-3.5 py-2">
@@ -1000,7 +1026,7 @@ function BriefRail({
   );
 }
 
-function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => void }) {
+function EventRow({ event, onEdit, finished = false, onNow = false }: { event: CalendarEventView; onEdit: () => void; finished?: boolean; onNow?: boolean }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
@@ -1119,16 +1145,20 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   }
 
   return (
-    <Card className="p-3">
+    <Card className={cn("p-3", finished && "opacity-55", onNow && "ring-1 ring-accent/40")}>
       <div className="flex items-start gap-3">
         <div className="shrink-0 w-14 text-center">
-          <div className="text-sm font-semibold tabular-nums">{event.allDay ? "All day" : fmtTime(event.startAt)}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", finished && "text-fg-muted")}>{event.allDay ? "All day" : fmtTime(event.startAt)}</div>
           {!event.allDay && event.endAt && (
             <div className="text-xs text-fg-muted tabular-nums">{fmtTime(event.endAt)}</div>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-medium leading-snug">{event.title}</div>
+          <div className={cn("font-medium leading-snug", finished && "text-fg-muted line-through decoration-fg-subtle/40")}>
+            {event.title}
+            {onNow && <span className="ml-2 align-middle rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">On now</span>}
+            {finished && <span className="ml-2 align-middle text-[10px] font-medium uppercase tracking-wide text-fg-subtle">Finished</span>}
+          </div>
           {event.description && (
             <p className="text-sm text-fg-muted mt-0.5 line-clamp-2 whitespace-pre-wrap">{event.description}</p>
           )}

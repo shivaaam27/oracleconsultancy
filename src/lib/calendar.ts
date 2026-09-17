@@ -4,6 +4,7 @@
 
 import { randomUUID } from "crypto";
 import { sb } from "@/db/supabase";
+import { hasElapsed } from "@/lib/event-time-shared";
 import type { IcsAttachment, IcsAttendee, IcsEvent } from "@/lib/ics";
 
 export type CalendarAttendee = {
@@ -156,7 +157,10 @@ export async function upcomingEventsForPerson(
   opts?: { limit?: number; daysAhead?: number }
 ): Promise<CalendarEvent[]> {
   const now = new Date();
-  const from = now.toISOString();
+  // A day of slack at the near end so an event that is UNDER WAY is still read
+  // back; `hasElapsed` then drops only what has actually finished. Filtering on
+  // start_at alone made a running meeting disappear at its start time.
+  const from = new Date(now.getTime() - 24 * 3600_000).toISOString();
   const to = new Date(now.getTime() + (opts?.daysAhead ?? 60) * 86400000).toISOString();
   const { data, error } = await sb
     .from("calendar_events")
@@ -166,7 +170,9 @@ export async function upcomingEventsForPerson(
     .order("start_at", { ascending: true });
   if (error) throw new Error(error.message);
   const mapped = (data ?? []).map(mapRow);
-  const mine = mapped.filter((ev) => ev.attendees.some((a) => a.personId === personId));
+  const mine = mapped
+    .filter((ev) => !hasElapsed(ev, now))
+    .filter((ev) => ev.attendees.some((a) => a.personId === personId));
   return opts?.limit ? mine.slice(0, opts.limit) : mine;
 }
 

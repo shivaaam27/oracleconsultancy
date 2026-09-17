@@ -69,6 +69,22 @@ async function findRule(id: number): Promise<{ config: RuleConfig | null } | nul
   return { config: (data.config as RuleConfig | null) ?? null };
 }
 
+/** Save a standing rule and create NOTHING today — the "it is for Friday, so
+ *  leave it until Friday" path. Returns the new rule's id. Used by the create
+ *  forms when the chosen days are all in the future; the rule itself is the
+ *  same one `createRecurringTask` writes. */
+export async function saveRuleOnly(input: RecurringTaskInput, createdBy = "web-ui"): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  const checked = await checkedConfig(input);
+  if ("error" in checked) return { ok: false, error: checked.error };
+  const { data, error } = await sb.from("automation_rules").insert({
+    kind: "recurring_task", task_id: null, company_id: checked.companyId,
+    config: checked.cfg, active: true, done: false, created_by: createdBy, created_at: new Date().toISOString(),
+  }).select("id").single();
+  if (error || !data) return { ok: false, error: "Could not save the recurring task." };
+  revalidate();
+  return { ok: true, id: data.id as number };
+}
+
 export async function createRecurringTask(input: RecurringTaskInput): Promise<Result> {
   const checked = await checkedConfig(input);
   if ("error" in checked) return { ok: false, error: checked.error };
