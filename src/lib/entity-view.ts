@@ -240,68 +240,18 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
      first LARGE one), so the answer is a smaller budget. Brand is the column
      that went: the whole catalogue holds two of them, COCOZURI and COCOFIX, so
      it tells you least — and Columns puts it back. */
-  cz_product: {
-    listColumns: [
-      { key: "name", label: "Product", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "category", label: "Category", width: "130px", format: "muted", hideBelow: "md", sortable: true },
-      { key: "brand", label: "Brand", width: "90px", format: "muted", hideBelow: "lg", sortable: true, defaultHidden: true },
-      { key: "packLabel", label: "Pack", width: "80px", format: "muted", hideBelow: "md" },
-      { key: "listPrice", label: "List price", width: "100px", format: "muted", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "name", dir: "asc" },
-    create: { label: "Product", href: "/cocozuri/products?new=1" },
-  },
 
-  cz_customer: {
-    listColumns: [
-      { key: "name", label: "Customer", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "branchLabel", label: "Branches", width: "150px", format: "muted", hideBelow: "lg" },
-      { key: "tin", label: "TIN", width: "110px", format: "muted", hideBelow: "lg", defaultHidden: true },
-      { key: "vatLabel", label: "VAT", width: "70px", format: "muted", align: "right", sortable: true },
-      { key: "termsLabel", label: "Terms", width: "80px", format: "muted", align: "right", hideBelow: "md" },
-    ],
-    defaultSort: { key: "name", dir: "asc" },
-    create: { label: "Customer", href: "/cocozuri/customers?new=1" },
-  },
 
   /* Phase 3 — the money coming back in. The reference is the thing somebody
      looks for when a customer says "we paid you last Tuesday". */
   /* ⚠️ Six columns is one too many for the card at 1024px, so How and Reference
      start folded and Columns puts them back. Received · Customer · Against ·
      Amount is what somebody actually scans down. */
-  cz_receipt: {
-    listColumns: [
-      { key: "receivedLabel", label: "Received", width: "100px", format: "muted", sortable: true },
-      { key: "customerName", label: "Customer", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "invoiceNumber", label: "Against", width: "110px", format: "muted", sortable: true },
-      { key: "method", label: "How", width: "110px", format: "muted", hideBelow: "md", defaultHidden: true },
-      /* Kept on: it is the thing somebody looks up when a customer says "we
-         paid you last Tuesday". It folds away on a phone and, on a tight
-         desktop, truncates rather than pushing the customer out. */
-      { key: "reference", label: "Reference", width: "130px", format: "muted", hideBelow: "lg" },
-      { key: "amountLabel", label: "Amount", width: "110px", format: "muted", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "receivedLabel", dir: "desc" },
-    create: { label: "Payment", href: "/cocozuri/receipts?new=1" },
-  },
 
   /* Manufacturing Stage 2 — what was bought.
      ⚠️ FIVE FIXED COLUMNS COME TO 430px, which fits the card at `lg` with the
      desk sidebar taking 208px. The supplier is the flexible one because it is
      what somebody scans down; adding a sixth would start squeezing it. */
-  cz_purchase: {
-    listColumns: [
-      { key: "reference", label: "Ref", width: "90px", format: "text", sortable: true },
-      { key: "purchasedLabel", label: "Bought", width: "100px", format: "muted", sortable: true },
-      { key: "supplier", label: "From", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "locationName", label: "Into", width: "110px", format: "muted", hideBelow: "md", sortable: true },
-      { key: "paidLabel", label: "Paid", width: "110px", format: "muted", hideBelow: "lg", defaultHidden: true },
-      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
-      { key: "totalLabel", label: "Total", width: "110px", format: "muted", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "purchasedLabel", dir: "desc" },
-    create: { label: "Purchase", href: "/cocozuri/purchases?new=1" },
-  },
 
   /* Manufacturing Stage 3 — recipes.
      ⚠️ COST PER UNIT IS THE COLUMN SOMEBODY OPENS THIS PAGE FOR, so it is kept
@@ -313,87 +263,10 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
   /* Manufacturing Stage 5 — kitchen to shop.
      ⚠️ SENT and ARRIVED sit side by side because the gap between them is the
      entire reason this record exists. */
-  cz_transfer: {
-    listColumns: [
-      { key: "reference", label: "Ref", width: "110px", format: "text", sortable: true },
-      { key: "onDate", label: "Sent", width: "100px", format: "muted", sortable: true },
-      { key: "route", label: "From → to", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
-      { key: "sentLabel", label: "Sent", width: "90px", format: "muted", align: "right" },
-      { key: "receivedLabel", label: "Arrived", width: "90px", format: "muted", align: "right" },
-      { key: "varianceLabel", label: "Lost", width: "90px", format: "muted", align: "right" },
-    ],
-    defaultSort: { key: "onDate", dir: "desc" },
-    create: { label: "Transfer", href: "/cocozuri/transfers?new=1" },
-  },
 
-  /* CocoZuri, manufacturing Stage 6 — returns, repairs and damage. */
-  cz_return: {
-    listColumns: [
-      // ⚠️ THE FIXED WIDTHS ADD UP TO 460px, ON PURPOSE. At `lg` the desk sidebar
-      // appears AND every `hideBelow` column un-hides, so the card is at its
-      // narrowest exactly when the columns are at their widest — measured 562px
-      // here. Past ~450px of fixed track the subject column is pushed onto its
-      // floor and the rest squeeze to an ellipsis, so "Repacked" is offered in
-      // the Columns chooser rather than shown by default.
-      { key: "reference", label: "Ref", width: "100px", format: "text", sortable: true },
-      { key: "onDate", label: "Date", width: "92px", format: "muted", sortable: true },
-      { key: "subject", label: "What came back", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "statusLabel", label: "Status", width: "108px", format: "status", sortable: true },
-      { key: "cameBackLabel", label: "Came back", width: "88px", format: "muted", align: "right", hideBelow: "md" },
-      { key: "goodLabel", label: "Repacked", width: "88px", format: "muted", align: "right", hideBelow: "lg", defaultHidden: true },
-      { key: "scrappedLabel", label: "Thrown", width: "84px", format: "muted", align: "right" },
-    ],
-    defaultSort: { key: "onDate", dir: "desc" },
-    create: { label: "Return", href: "/cocozuri/returns?new=1" },
-  },
 
-  cz_batch: {
-    listColumns: [
-      /* ⚠️ THE FIXED WIDTHS ADDED UP TO 600px AND THE CARD IS ABOUT 620px AT
-         `lg`, so `gridFor()` shrank every fixed track — and the BATCH NUMBER,
-         which is the record's whole identity, came out as `BATCH-26…` on every
-         row. Two batches were indistinguishable in a list of two. Expected is
-         the least load-bearing of the three figures (it comes off the recipe,
-         and "came out" and "difference" are the point of the page), so it is
-         off by default and still one click away in the Columns chooser. */
-      { key: "batchNo", label: "Batch", width: "132px", format: "text", sortable: true },
-      { key: "itemName", label: "What", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "madeOn", label: "Made", width: "90px", format: "muted", sortable: true },
-      { key: "statusLabel", label: "Status", width: "85px", format: "status", sortable: true },
-      { key: "plannedLabel", label: "Expected", width: "90px", format: "muted", align: "right", defaultHidden: true },
-      { key: "producedLabel", label: "Came out", width: "85px", format: "muted", align: "right", sortable: true },
-      { key: "varianceLabel", label: "Difference", width: "90px", format: "muted", align: "right" },
-    ],
-    defaultSort: { key: "madeOn", dir: "desc" },
-    create: { label: "Batch", href: "/cocozuri/batches?new=1" },
-  },
 
-  cz_recipe: {
-    listColumns: [
-      { key: "name", label: "Recipe", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "outputItemName", label: "Makes", width: "150px", format: "muted", hideBelow: "md", sortable: true },
-      { key: "yieldLabel", label: "Per batch", width: "100px", format: "muted", align: "right", hideBelow: "lg" },
-      { key: "statusLabel", label: "Status", width: "90px", format: "status", sortable: true },
-      { key: "batchCostLabel", label: "A batch", width: "110px", format: "muted", align: "right", sortable: true },
-      { key: "unitCostLabel", label: "Each", width: "100px", format: "muted", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "name", dir: "asc" },
-    create: { label: "Recipe", href: "/cocozuri/recipes?new=1" },
-  },
 
-  cz_budget: {
-    listColumns: [
-      { key: "title", label: "Budget", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "periodLabel", label: "Period", width: "150px", format: "muted", sortable: true },
-      { key: "locationLabel", label: "Where", width: "110px", format: "muted", hideBelow: "md" },
-      { key: "statusLabel", label: "Status", width: "100px", format: "status", sortable: true },
-      { key: "amountLabel", label: "Amount", width: "110px", format: "muted", align: "right", sortable: true },
-      { key: "leftLabel", label: "Left", width: "110px", format: "muted", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "periodLabel", dir: "desc" },
-    create: { label: "Budget", href: "/cocozuri/budgets?new=1" },
-  },
 
   asset: {
     listColumns: [
@@ -406,89 +279,6 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Asset", href: "/hrms/assets?view=assets&new=asset" },
   },
 
-  /**
-   * Capital projects — the construction jobs (Phase 1 of the PES workbook).
-   *
-   * The columns are the SNAPSHOT sheet's header block, which is what the owner
-   * reads first: which job, for whom, where it is up to, and how much time is
-   * left. Money is deliberately NOT in the list. The contract is 195 million and
-   * the budget 146 million; two nine-digit figures side by side in a dense row
-   * are unreadable at a glance and invite mistaking one for the other. They
-   * belong on the record, laid out and labelled.
-   *
-   * `daysRemaining` is derived, not stored (see lib/projects-shared.ts). It is
-   * still a real column: the page computes it for every row and sorts on it,
-   * which is how "what is running late" becomes one click instead of a read
-   * through the list.
-   */
-  project: {
-    /**
-     * ⚠️ WATCH THE TOTAL FIXED WIDTH. The flexible first column gets whatever is
-     * left, and there is far less room than the screen suggests: the desk
-     * sidebar takes 208px and the filter rail another 184px, so a 1186px window
-     * leaves the list about **725px**. Every 12px gap counts too.
-     *
-     * The first draft had six columns totalling 620px of fixed width; with the
-     * tick box and six gaps that came to 720px, the project name was allotted
-     * the remaining 5px and **collapsed to zero** — an unreadable list of blank
-     * rows. Commitments, by comparison, fixes only 392px.
-     *
-     * Now: 434px fixed + 28 + 60 of gaps = 522, leaving ~200px for the name.
-     * Company is deliberately NOT a column — the second line of the name cell
-     * already carries it, and it is a filter in the rail.
-     */
-    listColumns: [
-      { key: "name", label: "Project", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "client", label: "Client", width: "140px", format: "text", hideBelow: "md", sortable: true },
-      { key: "status", label: "Status", width: "110px", format: "status", hideBelow: "sm", sortable: true },
-      { key: "completionPct", label: "Complete", width: "88px", format: "number", align: "right", sortable: true },
-      { key: "daysRemaining", label: "Days left", width: "96px", format: "number", align: "right", hideBelow: "sm", sortable: true },
-    ],
-    filters: [
-      { label: "Status", source: "status" },
-      { label: "Company", source: "company" },
-    ],
-    formSections: [
-      {
-        id: "identity",
-        title: "Project",
-        fields: [
-          { key: "name", label: "Project" },
-          { key: "variant", label: "Build type" },
-          { key: "client", label: "Client" },
-          { key: "location", label: "Location" },
-          { key: "companyName", label: "Company", format: "company" },
-          { key: "poNumber", label: "PO number", format: "code" },
-        ],
-      },
-      {
-        id: "programme",
-        title: "Programme",
-        fields: [
-          { key: "startDate", label: "Start date", format: "date" },
-          { key: "durationDays", label: "Duration (days)", format: "number" },
-          { key: "expectedCompletion", label: "Expected completion", format: "date" },
-          { key: "daysElapsed", label: "Days in progress", format: "number" },
-          { key: "daysRemaining", label: "Days remaining", format: "number" },
-          { key: "completionPct", label: "Work completed", format: "number" },
-        ],
-      },
-      {
-        id: "contract",
-        title: "Contract",
-        fields: [
-          { key: "quotationValue", label: "Quotation (excl. VAT)", format: "number" },
-          { key: "poValue", label: "PO value (incl. VAT)", format: "number" },
-          { key: "additionalWork", label: "Additional work (incl. VAT)", format: "number" },
-          { key: "totalContract", label: "Total contract", format: "number" },
-          { key: "vatRate", label: "VAT rate", format: "number" },
-          { key: "whtRate", label: "Withholding tax rate", format: "number" },
-        ],
-      },
-    ],
-    defaultSort: { key: "daysRemaining", dir: "asc" },  // worst-first, per DESIGN_SYSTEM.md §12
-    create: { label: "Project", href: "/projects?new=1" },
-  },
 
   /* ─────────────────────────────── the recruitment desk (Phase 1) ─────────
      Three record types, one shape. The reference and the context live on the
@@ -496,144 +286,8 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
      tasks and projects lists use, and the only way a dense list still reads on
      a phone. Fixed width is kept well under 400px for the reason spelled out
      at the top of this file. */
-  rec_job_order: {
-    listColumns: [
-      { key: "title", label: "Role", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "stage", label: "Stage", width: "150px", format: "status", hideBelow: "sm", sortable: true },
-      { key: "feeTZS", label: "Fee (TZS)", width: "120px", format: "number", align: "right", sortable: true },
-      { key: "targetStartOn", label: "Target start", width: "116px", format: "date", align: "right", hideBelow: "md", sortable: true },
-    ],
-    filters: [
-      { label: "Stage", source: "status" },
-    ],
-    formSections: [
-      {
-        id: "brief",
-        title: "The brief",
-        fields: [
-          { key: "ref", label: "Reference", format: "code" },
-          { key: "clientName", label: "Client" },
-          { key: "title", label: "Role" },
-          { key: "sector", label: "Sector" },
-          { key: "seniorityLabel", label: "Seniority" },
-          { key: "stage", label: "Stage", format: "status" },
-        ],
-      },
-      {
-        id: "fee",
-        title: "Salary and fee",
-        fields: [
-          { key: "monthlyGrossUsd", label: "Monthly gross (USD)", format: "number" },
-          { key: "grossTZS", label: "Monthly gross (TZS)", format: "number" },
-          { key: "feeTZS", label: "Fee — one month", format: "number" },
-          { key: "vatTZS", label: "VAT at 18%", format: "number" },
-          { key: "totalTZS", label: "Invoice total", format: "number" },
-        ],
-      },
-      {
-        id: "dates",
-        title: "Dates",
-        fields: [
-          { key: "openedOn", label: "Opened", format: "date" },
-          { key: "signedOn", label: "Job Order signed", format: "date" },
-          { key: "targetStartOn", label: "Target start", format: "date" },
-          { key: "permitExpiry", label: "Permit expires", format: "date" },
-        ],
-      },
-    ],
-    // Oldest first: the role that has been open longest is the one being let
-    // down (DESIGN_SYSTEM.md §12 — worst first, everywhere).
-    defaultSort: { key: "openedOn", dir: "asc" },
-    create: { label: "Job order", href: "/recruitment/orders?new=1" },
-  },
 
-  rec_candidate: {
-    listColumns: [
-      { key: "name", label: "Candidate", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "seniorityLabel", label: "Seniority", width: "100px", format: "text", hideBelow: "md", sortable: true },
-      { key: "expectedSalaryUsd", label: "Salary (USD)", width: "110px", format: "number", align: "right", sortable: true },
-      { key: "passport", label: "Passport", width: "116px", format: "text", hideBelow: "sm", sortable: true },
-    ],
-    formSections: [
-      {
-        id: "who",
-        title: "Who they are",
-        fields: [
-          { key: "name", label: "Name" },
-          { key: "title", label: "Current role" },
-          { key: "sector", label: "Sector" },
-          { key: "seniorityLabel", label: "Seniority" },
-          { key: "yearsExp", label: "Years of experience", format: "number" },
-          { key: "originLabel", label: "Sourced from" },
-          { key: "email", label: "Email" },
-          { key: "phone", label: "Phone" },
-        ],
-      },
-      {
-        id: "travel",
-        title: "Travel and identity",
-        fields: [
-          { key: "passportNo", label: "Passport number", format: "code" },
-          { key: "passportExpiry", label: "Passport expires", format: "date" },
-          { key: "ecnrLabel", label: "ECNR" },
-          { key: "idVerifiedLabel", label: "Identity checked" },
-          { key: "partnerName", label: "Introduced by" },
-        ],
-      },
-      {
-        id: "papers",
-        title: "Papers signed",
-        fields: [
-          { key: "consentSignedOn", label: "Registration & Consent", format: "date" },
-          { key: "engagementSignedOn", label: "Terms of Engagement", format: "date" },
-        ],
-      },
-    ],
-    defaultSort: { key: "name", dir: "asc" },
-    create: { label: "Candidate", href: "/recruitment/candidates?new=1" },
-  },
 
-  rec_client: {
-    listColumns: [
-      { key: "name", label: "Client", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "contactName", label: "Contact", width: "150px", format: "text", hideBelow: "md", sortable: true },
-      { key: "papers", label: "Papers", width: "130px", format: "text", hideBelow: "sm", sortable: true },
-      { key: "openOrders", label: "Open roles", width: "100px", format: "number", align: "right", sortable: true },
-    ],
-    formSections: [
-      {
-        id: "who",
-        title: "The employer",
-        fields: [
-          { key: "name", label: "Client" },
-          { key: "sector", label: "Sector" },
-          { key: "city", label: "City" },
-          { key: "contactName", label: "Contact" },
-          { key: "contactEmail", label: "Email" },
-          { key: "contactPhone", label: "Phone" },
-        ],
-      },
-      {
-        id: "papers",
-        title: "Papers signed",
-        fields: [
-          { key: "termsSignedOn", label: "Terms of Business", format: "date" },
-          { key: "dsaSignedOn", label: "Data Sharing Agreement", format: "date" },
-        ],
-      },
-      {
-        id: "ratio",
-        title: "Head count",
-        fields: [
-          { key: "localEmployees", label: "Tanzanian staff", format: "number" },
-          { key: "foreignEmployees", label: "Foreign staff", format: "number" },
-          { key: "ratioText", label: "10:1 ratio", full: true },
-        ],
-      },
-    ],
-    defaultSort: { key: "name", dir: "asc" },
-    create: { label: "Recruitment client", href: "/recruitment/clients?new=1" },
-  },
 
   commitment: {
     listColumns: [
@@ -686,12 +340,24 @@ const EXTRA_CREATES: { id: string; create: CreateDef }[] = [
 ];
 
 /** Menu order — the things raised most often first, not alphabetical. */
-const CREATE_ORDER = [
-  // "note" sits second on purpose: capturing a rough thought is the second most
-  // common thing the owner starts from scratch, after raising a task.
-  "task", "note", "event", "person", "document", "company",
-  "vendor", "asset", "commitment", "pipeline", "announcement",
-];
+/**
+ * The New menu, in order.
+ *
+ * ⚠️ IT IS A SHORTLIST, NOT EVERYTHING CREATABLE (owner, 21 Sept 2026). The menu
+ * had grown to twenty-odd entries — every record type in COS, module ones
+ * included — which made the seven things actually raised from scratch hard to
+ * find. Vendor, Asset, Commitment and Application are still created, on their
+ * own pages where the rest of that work happens; they are simply not worth a
+ * line in a global menu.
+ *
+ * "note" sits second because capturing a rough thought is the second most
+ * common thing started from nothing, after raising a task.
+ *
+ * ⚠️ ANYTHING NOT LISTED HERE IS LEFT OUT OF THE MENU ENTIRELY — see
+ * `creatables()`. Adding a `create` to an entity no longer puts it in the menu
+ * on its own, which is deliberate: the menu is chosen, not accumulated.
+ */
+const CREATE_ORDER = ["task", "note", "event", "person", "document", "company", "announcement"];
 
 export type Creatable = { id: string; label: string; href: string };
 
@@ -709,11 +375,10 @@ export function creatables(): Creatable[] {
       .map(([id, v]) => ({ id, label: v!.create!.label, href: v!.create!.href })),
     ...EXTRA_CREATES.map((e) => ({ id: e.id, label: e.create.label, href: e.create.href })),
   ];
-  const rank = (id: string) => {
-    const i = CREATE_ORDER.indexOf(id);
-    return i === -1 ? CREATE_ORDER.length : i;   // anything new sorts to the end
-  };
-  return all.sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label));
+  // ⚠️ The list is the shortlist. Anything with a `create` that is not in
+  // CREATE_ORDER stays out of the menu — it is still creatable on its own page.
+  const rank = (id: string) => CREATE_ORDER.indexOf(id);
+  return all.filter((c) => rank(c.id) !== -1).sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 /** The view for an entity, or undefined if it hasn't been given a screen yet. */

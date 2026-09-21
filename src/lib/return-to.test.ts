@@ -74,9 +74,9 @@ describe("returnLabel", () => {
 
   it("names an administrator destination", () => {
     expect(returnLabel("/hrms/assets")).toBe("Assets, Tools & Vendors");
-    expect(returnLabel("/ops/imports")).toBe("Imports");
-    // Longest match wins, or every /ops page would read "Orders".
-    expect(returnLabel("/ops")).toBe("Orders");
+    expect(returnLabel("/hrms/commitments")).toBe("Commitments");
+    // Longest match wins: /notes/21 is still "Notes", not the last segment.
+    expect(returnLabel("/notes")).toBe("Notes");
   });
 
   it("reads the administrator's home by its tab", () => {
@@ -87,7 +87,7 @@ describe("returnLabel", () => {
 
   it("gives a sub-page the name of the section it belongs to", () => {
     expect(returnLabel("/companies/7")).toBe("Companies");
-    expect(returnLabel("/projects/12/requisitions")).toBe("Projects");
+    expect(returnLabel("/hrms/assets/12")).toBe("Assets, Tools & Vendors");
   });
 
   it("falls back to the last word of a path nothing owns, ignoring ids", () => {

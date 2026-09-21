@@ -5,7 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
-  LayoutGrid,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -300,28 +299,23 @@ export function DeskSidebar({ initialCollapsed = false }: { initialCollapsed?: b
         </button>
       </div>
 
-      {/* The module switcher.
-       *
-       * ⚠️ ONE CLICK, NOT TWO. A launcher that you reach by going "up" a level
-       * first would make every page in another module cost two clicks — more
-       * work than the single long rail it replaced. From here the launcher is
-       * always one click away, wherever you are. */}
-      <Link
-        href="/apps"
-        title={collapsed ? `${active.label} — switch module` : "Switch module"}
+      {/* ⚠️ NO MODULE SWITCHER, AND NO `/apps`. COS was split into six modules
+          behind a launcher in Aug 2026; the other five were removed on 21 Sept
+          2026 at the owner's word. A switcher with one destination — itself —
+          is a control that cannot do anything, and the launcher would be a page
+          listing a single tile. The rail is simply the app again.
+
+          The name still shows, because a person wants to know where they are;
+          it just is not a door any more. */}
+      <div
         className={cn(
-          "flex items-center gap-2 border-b border-border px-3 py-2 text-sm transition-colors hover:bg-bg-subtle",
+          "flex items-center gap-2 border-b border-border px-3 py-2 text-sm",
           collapsed && "justify-center px-0"
         )}
       >
         <active.icon size={15} className="shrink-0 text-accent" />
-        {!collapsed && (
-          <>
-            <span className="min-w-0 flex-1 truncate font-medium text-fg">{active.label}</span>
-            <LayoutGrid size={13} className="shrink-0 text-fg-subtle" />
-          </>
-        )}
-      </Link>
+        {!collapsed && <span className="min-w-0 flex-1 truncate font-medium text-fg">{active.label}</span>}
+      </div>
 
       {/* Create + search — the two things you reach for most. */}
       <div className={cn("flex flex-col gap-1.5 border-b border-border px-2 py-2", collapsed && "px-1.5")}>

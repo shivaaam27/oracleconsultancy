@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { BellRing, Building2, Check, ChevronDown, Ellipsis, ListChecks, Search, SlidersHorizontal, User, X } from "lucide-react";
+
+/** How long the keyboard has to go quiet before the list catches up. Long
+ *  enough that a typed word is one navigation, short enough to feel live. */
+const SEARCH_SETTLE_MS = 300;
 import { cn } from "@/lib/cn";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useToast } from "@/components/toast";
@@ -338,7 +342,48 @@ export function TaskFilterBar({
   const [text, setText] = useState(q);
   const [reminding, setReminding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  useEffect(() => setText(q), [q]);
+
+  /* ⚠️ THE LIST FILTERS AS YOU TYPE (owner, 21 Sept 2026: "searching tasks
+   * should be responsive and not when i just type and press enter"). It used to
+   * commit only on Enter, which meant the list sat there unchanged while you
+   * typed — and every other list in COS has filtered live for months, so this
+   * one was the odd one out. `useUrlFilters` is the same idea; this bar cannot
+   * use it directly because its address is built server-side into
+   * `searchHrefBase`.
+   *
+   * ⚠️ AND IT REPLACES, NEVER PUSHES. One history entry per keystroke would
+   * make the browser's Back button walk backwards through your own typing,
+   * letter by letter, instead of leaving the page.
+   *
+   * ⚠️ `typing` IS WHAT STOPS THE URL CLOBBERING THE BOX. The address lands a
+   * beat behind the keyboard, so a naive `setText(q)` on every `q` change
+   * rewrites "reco" back to the "rec" that is only now arriving — the caret
+   * jumps and letters vanish. While somebody is typing, the box is the truth;
+   * the moment they stop, the address is. */
+  const typing = useRef(false);
+  useEffect(() => {
+    if (typing.current) return;
+    setText(q);
+  }, [q]);
+
+  const commitSearch = useCallback(
+    (value: string) => {
+      typing.current = false;
+      const u = new URL(searchHrefBase, window.location.origin);
+      if (value.trim()) u.searchParams.set("q", value.trim());
+      else u.searchParams.delete("q");
+      const next = `${u.pathname}?${u.searchParams.toString()}`;
+      if (`${window.location.pathname}${window.location.search}` === next) return;
+      router.replace(next, { scroll: false });
+    },
+    [router, searchHrefBase],
+  );
+
+  useEffect(() => {
+    if (!typing.current) return;
+    const id = setTimeout(() => commitSearch(text), SEARCH_SETTLE_MS);
+    return () => clearTimeout(id);
+  }, [text, commitSearch]);
 
   /* The same five pickers the desktop row carries, described once so the phone
      sheet and the desktop popovers cannot drift apart. */
@@ -358,11 +403,9 @@ export function TaskFilterBar({
   ];
   const sheetActive = sheetGroups.reduce((n, g) => n + g.active, 0);
 
+  /** Enter still works — it just skips the wait. */
   function submitSearch() {
-    const u = new URL(searchHrefBase, window.location.origin);
-    if (text.trim()) u.searchParams.set("q", text.trim());
-    else u.searchParams.delete("q");
-    router.push(`${u.pathname}?${u.searchParams.toString()}`, { scroll: false });
+    commitSearch(text);
   }
 
   function remindAll() {
@@ -399,7 +442,7 @@ export function TaskFilterBar({
         <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
         <input
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { typing.current = true; setText(e.target.value); }}
           onKeyDown={(e) => {
             if (e.key === "Enter") submitSearch();
           }}
@@ -412,18 +455,17 @@ export function TaskFilterBar({
             {q && (
               <button
                 type="button"
-                onClick={() => {
-                  setText("");
-                  router.push(searchHrefBase, { scroll: false });
-                }}
+                onClick={() => { setText(""); commitSearch(""); }}
                 className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-fg-subtle hover:text-fg"
                 aria-label="Clear search"
               >
                 <X size={12} />
               </button>
             )}
+            {/* The list is already catching up; this is only for somebody who
+                does not want to wait the beat. */}
             {text.trim() !== q && (
-              <button type="button" onClick={submitSearch} className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-fg">
+              <button type="button" onClick={submitSearch} className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-accent-fg">
                 Search
               </button>
             )}

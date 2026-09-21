@@ -43,11 +43,7 @@ export type SearchResultType =
   // ⚠️ This union is maintained BY HAND and is separate from the entity
   // registry — adding an EntityDef alone is not enough, as the Notes module
   // found out. A type missing here compiles and then never appears.
-  | "project"
-  | "governance" | "risk" | "pipeline" | "commitment"
-  // The PES trading module (Stages 2–5).
-  | "ops_order" | "ops_shipment" | "ops_enquiry" | "ops_invoice"
-  | "ops_payment" | "ops_tender";
+  | "governance" | "risk" | "pipeline" | "commitment";
 
 export type SearchResult = {
   type: SearchResultType;

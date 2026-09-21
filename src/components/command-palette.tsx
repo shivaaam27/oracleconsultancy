@@ -2,15 +2,16 @@
 import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, LayoutGrid, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, Gauge, type LucideIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Zap, Loader2, Check, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, User, Building2, GitBranch, FileText, ChevronRight, Image as ImageIcon, FileSpreadsheet, Presentation, FileType, Activity, Gauge, type LucideIcon } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
 import type { SmartAnswer } from "@/lib/smart-answer";
 import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
-import { NAV_ROUTES, ROUTE_BY_ID, MODULES } from "@/lib/nav";
+import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { creatables } from "@/lib/entity-view";
 import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
@@ -557,10 +558,18 @@ export function CommandPaletteProvider({
     else runAsk(t);
   }
 
+  /* ⚠️ ⌘K OPENS A RECORD, SO IT MUST SAY WHERE FROM. Every other opener in COS
+   * carries the address it was clicked from (`lib/return-to.ts`); the palette
+   * did not, so a task opened from here had a back button pointing at a bare,
+   * unfiltered task list — and whatever had been typed to find it was gone,
+   * which is exactly the "I have to retype the name" the owner reported.
+   * `withReturn` leaves the link alone when the target IS the current page. */
   const go = useCallback(
     (href: string) => {
       setIsOpen(false);
-      router.push(href);
+      const to = withReturn(href, `${window.location.pathname}${window.location.search}`);
+      markPush(to);
+      router.push(to);
     },
     [router],
   );
@@ -790,7 +799,7 @@ export function CommandPaletteProvider({
                   onRetry={(t) => { append({ id: newId(), role: "user", text: t }); if (looksLikeAgentCommand(t)) runAgent(t); else if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t); else runAsk(t); }}
                   onBack={() => { setMode("search"); setThread([]); }}
                   onClose={() => setIsOpen(false)}
-                  onNavigate={(href) => { setIsOpen(false); router.push(href); }}
+                  onNavigate={(href) => go(href)}
                   currentView={currentView}
                 />
               ) : (
@@ -1347,33 +1356,13 @@ export function CommandPaletteProvider({
                       <RouteGroup heading="Pages" routes={otherRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
 
-                    {/* Modules.
-                        ⚠️ Last on purpose. Every individual PAGE is still listed
-                        above, whichever module it now lives in — the palette is
-                        what makes the module split safe, because it means no
-                        page ever became harder to reach. This section is for
-                        going to a whole business, not for finding a page. */}
-                    <Command.Group heading="Modules">
-                      {MODULES.filter((m) => !m.soon).map((m) => (
-                        <Command.Item
-                          key={m.id}
-                          value={`module ${m.label} ${m.blurb}`}
-                          onSelect={() => go(m.home)}
-                          className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-base data-[selected=true]:bg-accent-soft"
-                        >
-                          <m.icon size={14} className="shrink-0 text-fg-subtle" />
-                          <span className="flex-1 truncate">{m.label}</span>
-                        </Command.Item>
-                      ))}
-                      <Command.Item
-                        value="modules all launcher apps"
-                        onSelect={() => go("/apps")}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-base data-[selected=true]:bg-accent-soft"
-                      >
-                        <LayoutGrid size={14} className="shrink-0 text-fg-subtle" />
-                        <span className="flex-1 truncate">All modules</span>
-                      </Command.Item>
-                    </Command.Group>
+                    {/* ⚠️ NO MODULE SECTION HERE. COS was six modules behind a
+                        launcher from Aug 2026 until 21 Sept 2026, when the other
+                        five were removed at the owner's word. A section listing
+                        one destination, and an "All modules" entry opening a
+                        page that no longer exists, are both worse than nothing —
+                        every individual PAGE is listed above, which is all this
+                        section was ever protecting. */}
                   </Command.List>
                   {/* Live preview pane — desktop only, when a query has results. */}
                   {trimmed && (results.length > 0 || items.length > 0) && (

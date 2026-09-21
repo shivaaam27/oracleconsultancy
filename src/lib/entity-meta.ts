@@ -28,35 +28,16 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   note:       { uiLabel: "Notes",        searchOrder: 5 },
   // The EntityDef landed in Stage 0 of the ops programme, so this took a real
   // position. (searchOrder −1 still means "has a screen, nothing indexed yet".)
-  project:    { uiLabel: "Projects",     searchOrder: 6 },
   vendor:     { uiLabel: "Vendors",      searchOrder: 7 },
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
   pipeline:   { uiLabel: "Applications", searchOrder: 9 },
   commitment: { uiLabel: "Commitments",  searchOrder: 10 },
   // The recruitment desk. searchOrder −1 = has a screen, nothing indexed yet
   // (the same state Projects was in at its Phase 1).
-  rec_client:    { uiLabel: "Recruitment clients", searchOrder: -1 },
   /* searchOrder -1 = not offered in search yet; the EntityDefs arrive with the
      invoices in Phase 2. */
-  cz_product:    { uiLabel: "CocoZuri products", searchOrder: -1 },
-  cz_customer:   { uiLabel: "CocoZuri customers", searchOrder: -1 },
-  cz_receipt:    { uiLabel: "CocoZuri payments", searchOrder: -1 },
-  cz_purchase:   { uiLabel: "CocoZuri purchases", searchOrder: -1 },
-  cz_budget:     { uiLabel: "CocoZuri budgets", searchOrder: -1 },
-  cz_recipe:     { uiLabel: "CocoZuri recipes", searchOrder: -1 },
-  cz_batch:      { uiLabel: "CocoZuri batches", searchOrder: -1 },
-  cz_transfer:   { uiLabel: "CocoZuri transfers", searchOrder: -1 },
-  cz_return:     { uiLabel: "CocoZuri returns", searchOrder: -1 },
-  rec_candidate: { uiLabel: "Candidates",          searchOrder: -1 },
-  rec_job_order: { uiLabel: "Job orders",          searchOrder: -1 },
   // The PES trading module. Each is a reference-number lookup: a PO, a BL, an
   // RFQ, an invoice.
-  ops_order:    { uiLabel: "Order lines",  searchOrder: 11 },
-  ops_shipment: { uiLabel: "Shipments",    searchOrder: 12 },
-  ops_enquiry:  { uiLabel: "Enquiries",    searchOrder: 13 },
-  ops_invoice:  { uiLabel: "Deliveries",   searchOrder: 14 },
-  ops_payment:  { uiLabel: "Payments",     searchOrder: 15 },
-  ops_tender:   { uiLabel: "Tenders",      searchOrder: 16 },
 };
 
 /** The searchable types in display order, with their headings — what the command

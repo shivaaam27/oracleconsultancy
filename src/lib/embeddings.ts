@@ -32,55 +32,7 @@ export type SourceType =
   /** Notes (Phase 1). Not indexed yet — the EntityDef arrives in Phase 6; this
    *  member exists so the module can have an ENTITY_VIEWS entry like every other
    *  record type. */
-  | "note"
-  /** The recruitment desk (Phase 1) — Oracle Consultancy's agency. Not indexed
-   *  yet; the EntityDefs arrive in Phase 8. These members exist so the module can
-   *  have ENTITY_VIEWS entries like every other record type. */
-  | "rec_client"
-  | "rec_candidate"
-  | "rec_job_order"
-  /** CocoZuri Operations (Phase 1) — Furaha Innovation's chocolate business,
-   *  rebuilt from 18 spreadsheets. Not indexed yet; the EntityDefs arrive with
-   *  the invoices. These members exist so the module can have ENTITY_VIEWS
-   *  entries like every other record type. */
-  | "cz_product"
-  | "cz_customer"
-  // Phase 3. A screen only — nothing is indexed, and a payment is not a thing
-  // anybody searches for by name.
-  | "cz_receipt"
-  /** Manufacturing Stage 2 — buying. A screen only, for the same reason: a
-   *  purchase reference is looked up on its own list, and a budget is something
-   *  you decide rather than something you search for. */
-  | "cz_purchase"
-  | "cz_budget"
-  /** Manufacturing Stage 3 — recipes. A screen only; what a bar is made of is
-   *  not something anybody types into a search box. */
-  | "cz_recipe"
-  /** Manufacturing Stage 4 — a production batch. A screen only for now; ⚠️ this
-   *  is the ONE cz record that will eventually earn a search entry, because a
-   *  batch number is exactly the thing somebody quotes when a bar is wrong. */
-  | "cz_batch"
-  /** Manufacturing Stage 5 — kitchen to shop. A screen only. */
-  | "cz_transfer"
-  /** Manufacturing Stage 6 — returns, repairs and damage. A screen only. */
-  | "cz_return"
-  /** The PES trading module (Stages 2–5). Four record types, each carrying a
-   *  reference number somebody quotes down the phone — a PO, a bill of lading,
-   *  an RFQ, an invoice — which is exactly what a search box is for. */
-  | "ops_order"
-  | "ops_shipment"
-  | "ops_enquiry"
-  | "ops_invoice"
-  /** Stage 7 — money out, and bids being chased. */
-  | "ops_payment"
-  | "ops_tender"
-  /** Capital projects — the construction jobs rebuilt from the PES workbook
-   *  (Phase 1). Same arrangement as `note` above: NOT indexed yet, so there is
-   *  deliberately no EntityDef in entity-registry.ts. The member exists so the
-   *  module can have an ENTITY_VIEWS entry and inherit the standard list and
-   *  record screens. Making it searchable later is one EntityDef and nothing
-   *  else — see the FORWARD RULE in CLAUDE.md. */
-  | "project";
+  | "note";
 
 // Lifecycle of an indexed source row. `active` = current/live; `history` = the
 // row still EXISTS but is archived/closed/inactive (kept searchable, just

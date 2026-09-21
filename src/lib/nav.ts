@@ -98,17 +98,7 @@ export const NAV_ROUTES: NavRoute[] = [
      other module's does, and ⌘K can reach each of them by name. The in-page
      tab strip (`ops-tabs.tsx`) stays — the two agree because both are lists of
      the same seven addresses. */
-  { id: "ops",          href: "/ops",                 label: "Orders",              icon: Ship },
-  { id: "ops-funnel",   href: "/ops/funnel",          label: "Funnel",              icon: Filter },
-  { id: "ops-imports",  href: "/ops/imports",         label: "Imports",             icon: Container },
-  { id: "ops-invoices", href: "/ops/invoices",        label: "Delivery & billing",  icon: Receipt },
-  { id: "ops-payments", href: "/ops/payments",        label: "Payments",            icon: Banknote },
-  { id: "ops-report",   href: "/ops/report",          label: "Report",              icon: BarChart3 },
-  { id: "ops-setup",    href: "/ops/setup",           label: "Setup",               icon: ListChecks },
-  // The general ledger — chart of accounts, journals, entries. COS is the
   // accounting system now (owner, Aug 2026); see `memory/erp_gap_plan.md`.
-  { id: "ledger",      href: "/ledger",              label: "Ledger",              icon: ScaleIcon },
-  // ⚠️ "Brief" means the DIRECTOR BRIEF at /brief. This entry used to be labelled
   // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
   // and the real Brief had no entry at all.
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
@@ -116,19 +106,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
-  { id: "projects",    href: "/projects",            label: "Projects",            icon: DraftingCompass },
-  // Oracle Consultancy's recruitment agency — India to Tanzania sourcing.
   // See memory/recruitment_module_plan.md.
-  { id: "recruitment", href: "/recruitment",         label: "Recruitment",         icon: UserSearch },
-  { id: "marketing",           href: "/marketing",           label: "Overview",         icon: LayoutGrid },
-  { id: "mkt-posts",           href: "/marketing/posts",     label: "Posts",            icon: Send },
-  { id: "mkt-calendar",        href: "/marketing/calendar",  label: "Calendar",         icon: CalendarRange },
-  { id: "mkt-accounts",        href: "/marketing/accounts",  label: "Accounts",         icon: AtSign },
-  { id: "mkt-clients",         href: "/marketing/clients",   label: "Clients",          icon: Handshake },
-  { id: "mkt-campaigns",       href: "/marketing/campaigns", label: "Campaigns",        icon: Megaphone },
-  { id: "mkt-shoots",          href: "/marketing/shoots",    label: "Shoots",           icon: Camera },
-  { id: "mkt-library",         href: "/marketing/library",   label: "Pictures",         icon: Images },
-  { id: "mkt-results",         href: "/marketing/results",   label: "Results",          icon: BarChart3 },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
@@ -145,77 +123,38 @@ export const NAV_ROUTES: NavRoute[] = [
    * These existed as pages already and were simply unreachable from any rail —
    * you had to be on the desk and click through. Listing them here also puts
    * them in ⌘K and in the pinnable list, which is the point. */
-  { id: "rec-orders",     href: "/recruitment/orders",     label: "Job orders",   icon: Briefcase },
-  { id: "rec-candidates", href: "/recruitment/candidates", label: "Candidates",   icon: Users },
-  { id: "rec-clients",    href: "/recruitment/clients",    label: "Clients",      icon: Handshake },
-  { id: "rec-shortlists", href: "/recruitment/shortlists", label: "Shortlists",   icon: ClipboardCheck },
-  { id: "rec-interviews", href: "/recruitment/interviews", label: "Interviews",   icon: CalendarCheck },
-  { id: "rec-placements", href: "/recruitment/placements", label: "Placements",   icon: Trophy },
-
-  { id: "ledger-journals", href: "/ledger/journals",       label: "Journals",     icon: BookText },
-  { id: "ledger-entries",  href: "/ledger/entries",        label: "Entries",      icon: Receipt },
-  { id: "ledger-reports",  href: "/ledger/reports",        label: "Reports",      icon: BarChart3 },
-  { id: "ledger-tax",      href: "/ledger/tax",            label: "Tax rates",    icon: Percent },
-
   /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md. */
-  { id: "cz-desk",      href: "/cocozuri",            label: "CocoZuri",   icon: Candy },
-  { id: "cz-products",  href: "/cocozuri/products",   label: "Products",   icon: Package },
-  { id: "cz-customers", href: "/cocozuri/customers",  label: "Customers",  icon: Building2 },
   /* ⚠️ The things you COUNT, as against the things you SELL. The only way to
      make one used to be an add-button inside a count sheet, and shelves could
      not be managed at all. */
-  { id: "cz-items",     href: "/cocozuri/items",      label: "Stock items", icon: Boxes },
   /* ⚠️ SHELVES HAD NO ADDRESS. They were managed in a sheet inside Stock
      items, which is not somewhere anybody finds a thing — and a shelf is set up
      BEFORE the items that sit on it, so it belongs in the rail ahead of them. */
-  { id: "cz-shelves",   href: "/cocozuri/shelves",    label: "Shelves",     icon: Warehouse },
   /* ⚠️ The words you pick from. They were free text, and the catalogue has
      five count units where it has three. */
-  { id: "cz-lists",     href: "/cocozuri/lists",      label: "Lists",       icon: ListChecks },
-  { id: "cz-invoices",  href: "/cocozuri/invoices",   label: "Invoices",   icon: Receipt },
   /* CocoZuri Operations — Phase 3: money in, what is owed, statements. */
-  { id: "cz-receipts",   href: "/cocozuri/receipts",   label: "Money in",   icon: Banknote },
-  { id: "cz-owed",       href: "/cocozuri/owed",       label: "Owed",       icon: AlarmClock },
-  { id: "cz-statements", href: "/cocozuri/statements", label: "Statements", icon: FileSpreadsheet },
   /* CocoZuri Operations — Phase 4: the daily stock book. */
-  { id: "cz-stock",       href: "/cocozuri/stock",       label: "Stock book", icon: Boxes },
-  { id: "cz-stock-month", href: "/cocozuri/stock/month", label: "Month end", icon: ClipboardCheck },
   /* Phase 5 — what to make and send, from the shelf's own history. */
   /* ⚠️ WHAT TO MAKE TODAY, not what to buy (owner, 27 Aug 2026). The buying
      half lives at /cocozuri/order/materials and is reached from a plan whose
      materials fall short. */
-  { id: "cz-order",       href: "/cocozuri/order",       label: "Order form", icon: OrderIcon },
-  { id: "cz-buy-list",    href: "/cocozuri/order/materials", label: "What to buy", icon: ShoppingCart },
   /* Manufacturing Stage 2 — what was bought, and the budget it was bought
      against. See memory/cocozuri_manufacturing_plan.md. */
-  { id: "cz-purchases",   href: "/cocozuri/purchases",   label: "Purchases",  icon: ShoppingCart },
   /* ⚠️ The SHARED vendor register, not a second list — it simply lived in
      another module, so from inside CocoZuri nobody could see it. */
-  { id: "cz-suppliers",   href: "/cocozuri/suppliers",   label: "Suppliers",  icon: Building2 },
   /* ⚠️ A PRICE IS A ROW WITH A DATE, and until now the only thing any screen
      could do was add one dated today for everybody. No customer's own price
      could be set, no date corrected, no wrong one removed. */
-  { id: "cz-prices",      href: "/cocozuri/prices",      label: "Prices",     icon: Tag },
-  { id: "cz-budgets",     href: "/cocozuri/budgets",     label: "Budgets",    icon: Wallet },
   /* Manufacturing Stage 3 — what a bar costs to make, before one is made. */
-  { id: "cz-recipes",     href: "/cocozuri/recipes",     label: "Recipes",    icon: ChefHat },
   /* Manufacturing Stage 4 — what was planned, what came out, and where the
      difference went. */
-  { id: "cz-batches",     href: "/cocozuri/batches",     label: "Production", icon: Factory },
   /* Manufacturing Stage 5 — kitchen to shop, with what actually arrived. */
-  { id: "cz-transfers",   href: "/cocozuri/transfers",   label: "Transfers",  icon: Truck },
   /* Manufacturing Stage 6 — what came back, what was repacked, what was thrown. */
-  { id: "cz-returns",     href: "/cocozuri/returns",     label: "Returns & damage", icon: Undo2 },
   /* Manufacturing Stage 7 — which chocolate makes money. */
-  { id: "cz-profit",      href: "/cocozuri/profit",      label: "Profit",     icon: TrendingUp },
   /* Manufacturing Stage 8 — money out, the twin of money in. */
-  { id: "cz-payments",    href: "/cocozuri/payments",    label: "Money out",  icon: Banknote },
   /* Manufacturing Stage 9 — expiry, shelf life and the batch trace. */
-  { id: "cz-trace",       href: "/cocozuri/trace",       label: "Trace",      icon: Radar },
   /* ⚠️ What happened, and when — nothing in the module could answer it. */
-  { id: "cz-history",     href: "/cocozuri/history",     label: "What happened", icon: HistoryIcon },
   /* Manufacturing Stage 5b — what goes over a counter. ⚠️ A record, not a till. */
-  { id: "cz-counter",     href: "/cocozuri/counter",     label: "The counter", icon: Store },
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -327,126 +266,7 @@ export const MODULES: NavModule[] = [
       { label: "Operations", ids: ["tax-legal", "commitments", "pipeline", "leave", "supplies", "cleaning"] },
     ],
   },
-  {
-    id: "marketing",
-    label: "Marketing",
-    icon: Megaphone,
-    blurb: "Social media and photography — what went out, for whom, and what it did.",
-    home: "/marketing",
-    match: ["/marketing"],
-    // ⚠️ Grouped by the order the work happens, not by what sort of screen each
-    // one is — the same rule the CocoZuri rail follows. Adding a page? Put it
-    // where it happens in the day.
-    quick: ["mkt-posts", "mkt-calendar", "mkt-results", "mkt-library"],
-    groups: [
-      { label: "Start", ids: ["marketing"] },
-      { label: "1 Plan", ids: ["mkt-campaigns", "mkt-calendar"] },
-      { label: "2 Shoot", ids: ["mkt-shoots", "mkt-library"] },
-      { label: "3 Post", ids: ["mkt-posts"] },
-      { label: "4 Measure", ids: ["mkt-results"] },
-      { label: "5 Set up", ids: ["mkt-accounts", "mkt-clients"] },
-    ],
-  },
-  {
-    id: "recruitment",
-    label: "Recruitment",
-    icon: UserSearch,
-    blurb: "Indian professionals for Tanzanian employers — orders, shortlists, placements.",
-    home: "/recruitment",
-    match: ["/recruitment"],
-    quick: ["rec-orders", "rec-candidates", "rec-shortlists", "rec-placements"],
-    groups: [
-      { label: "Desk", ids: ["recruitment", "rec-orders", "rec-candidates", "rec-clients"] },
-      { label: "In progress", ids: ["rec-shortlists", "rec-interviews", "rec-placements"] },
-    ],
-  },
-  {
-    id: "ledger",
-    label: "Ledger",
-    icon: ScaleIcon,
-    blurb: "The books — chart of accounts, journals, reports and tax.",
-    home: "/ledger",
-    match: ["/ledger"],
-    quick: ["ledger-reports", "ledger-journals", "ledger-entries", "ledger-tax"],
-    groups: [
-      { label: "Books", ids: ["ledger", "ledger-journals", "ledger-entries"] },
-      { label: "Output", ids: ["ledger-reports", "ledger-tax"] },
-    ],
-  },
-  {
-    id: "projects",
-    label: "Projects",
-    icon: DraftingCompass,
-    blurb: "Capital projects — budgets, requisitions, funds and site progress.",
-    home: "/projects",
-    match: ["/projects"],
-    groups: [{ label: "Projects", ids: ["projects"] }],
-  },
-  {
-    id: "ops",
-    label: "Orders & Imports",
-    icon: Ship,
-    blurb: "The trading and import business — orders, shipments, billing and what is owed.",
-    home: "/ops",
-    match: ["/ops"],
-    quick: ["ops", "ops-imports", "ops-invoices", "ops-payments"],
-    groups: [
-      { label: "Sell", ids: ["ops", "ops-funnel"] },
-      { label: "Ship", ids: ["ops-imports", "ops-invoices"] },
-      { label: "Money", ids: ["ops-payments", "ops-report"] },
-      { label: "Lists", ids: ["ops-setup"] },
-    ],
-  },
-  {
-    id: "cocozuri",
-    label: "CocoZuri Operations",
-    icon: Candy,
-    blurb: "Chocolate — products, invoices, what is owed, and the daily stock book.",
-    home: "/cocozuri",
-    match: ["/cocozuri"],
-    quick: ["cz-stock", "cz-batches", "cz-invoices", "cz-owed"],
-    /* ⚠️ THE RAIL FOLLOWS THE CHOCOLATE, in the order it actually happens: set
-       it up, buy the materials, make it, keep it, sell it, get paid, pay out,
-       put right what went wrong, then find out whether it was worth doing. The
-       owner asked for this (22 Aug 2026) and it is the right default — a
-       sidebar grouped by "what sort of screen is this" makes somebody learn a
-       map; grouped by the work, it reads like the day.
 
-       ⚠️ Adding a page? Put it where it happens in the day, not at the end. */
-    groups: [
-      { label: "Start", ids: ["cz-desk"] },
-      /* ⚠️ SET UP IS IN THE ORDER YOU FILL IT IN, and that order is a chain of
-         real dependencies — nothing here needs anything BELOW it:
-
-           Lists       the words the forms below pick from
-           Products    what you sell
-           Customers   who you sell it to
-           Prices      what you charge — needs a product, and a customer for an
-                       agreed price, so it cannot come before either
-           Shelves     the places you count; a stock item CANNOT be added
-                       without one
-           Stock items what you count, on those shelves, linked to those
-                       products — so both come first
-           Suppliers   who you buy from, which hands over to 2 · Buy
-
-         ⚠️ SUPPLIERS IS SET-UP, NOT BUYING. It was filed under Buy because that
-         is where it was built. Shelves and Prices had no home at all — a shelf
-         was a sheet inside Stock items, and a price was one box on the product
-         form that could only ever add one dated today. */
-      { label: "1 · Set up", ids: [
-        "cz-lists", "cz-products", "cz-customers", "cz-prices",
-        "cz-shelves", "cz-items", "cz-suppliers",
-      ] },
-      { label: "2 · Buy", ids: ["cz-buy-list", "cz-budgets", "cz-purchases"] },
-      { label: "3 · Make", ids: ["cz-order", "cz-recipes", "cz-batches"] },
-      { label: "4 · Keep", ids: ["cz-stock", "cz-stock-month", "cz-transfers"] },
-      { label: "5 · Sell", ids: ["cz-counter", "cz-invoices"] },
-      { label: "6 · Get paid", ids: ["cz-receipts", "cz-owed", "cz-statements"] },
-      { label: "7 · Pay out", ids: ["cz-payments"] },
-      { label: "8 · Put right", ids: ["cz-returns"] },
-      { label: "9 · Know", ids: ["cz-profit", "cz-trace", "cz-history"] },
-    ],
-  },
 ];
 
 export const MODULE_BY_ID: Record<string, NavModule> = Object.fromEntries(

@@ -91,11 +91,16 @@ describe("the modules themselves", () => {
 });
 
 describe("working out which module you are in", () => {
-  it("matches a module by its address", () => {
-    expect(moduleForPath("/recruitment").id).toBe("recruitment");
-    expect(moduleForPath("/recruitment/orders/JO-2608-01").id).toBe("recruitment");
-    expect(moduleForPath("/ledger/reports/trial-balance").id).toBe("ledger");
-    expect(moduleForPath("/projects/12/budget").id).toBe("projects");
+  /* ⚠️ THERE IS ONLY ONE MODULE NOW (21 Sept 2026). The other five and the
+   * `/apps` launcher were removed at the owner's word, so "which module am I
+   * in" has one answer and the fallback below is the whole behaviour. The
+   * machinery is kept because it is what draws the rail, and because a module
+   * is a cheap thing to add back. */
+  it("puts every address in Task Management", () => {
+    expect(MODULES).toHaveLength(1);
+    expect(moduleForPath("/task/DS-001").id).toBe("tasks");
+    expect(moduleForPath("/hrms/assets/12").id).toBe("tasks");
+    expect(moduleForPath("/documents").id).toBe("tasks");
   });
 
   it("falls back to Task Management rather than an empty rail", () => {

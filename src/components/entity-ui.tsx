@@ -28,32 +28,6 @@ export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> =
   risk:       { icon: AlertTriangle, tint: "text-rose-600" },
   pipeline:   { icon: Workflow,      tint: "text-cyan-600" },
   commitment: { icon: ScrollText,    tint: "text-lime-600" },
-  project:    { icon: DraftingCompass,       tint: "text-orange-500" },
-  // The PES trading module — one row per record type it can find.
-  ops_order:    { icon: ShoppingCart,       tint: "text-emerald-600" },
-  ops_shipment: { icon: Ship,               tint: "text-blue-600" },
-  ops_enquiry:  { icon: MessageSquareQuote, tint: "text-fuchsia-600" },
-  ops_invoice:  { icon: Receipt,            tint: "text-yellow-600" },
-  ops_payment:  { icon: Banknote,           tint: "text-lime-600" },
-  ops_tender:   { icon: Gavel,              tint: "text-orange-600" },
-  // The recruitment desk. Not searchable yet (the EntityDefs are Phase 8), but
-  // the map is exhaustive over EntityType, so the compiler demanded these rows the
-  // moment they joined the union — which is how it should work.
-  rec_client:    { icon: BadgeCheck, tint: "text-purple-600" },
-  /* CocoZuri. Not searchable yet — these exist so the module can have
-     ENTITY_VIEWS entries like every other record type. */
-  cz_product:    { icon: Package, tint: "text-amber-600" },
-  cz_customer:   { icon: Building2, tint: "text-amber-700" },
-  cz_receipt:    { icon: Banknote, tint: "text-amber-800" },
-  /* Manufacturing Stage 2 — buying. */
-  cz_purchase:   { icon: ShoppingCart, tint: "text-amber-600" },
-  cz_budget:     { icon: Wallet, tint: "text-amber-700" },
-  cz_recipe:     { icon: ChefHat, tint: "text-amber-800" },
-  cz_batch:      { icon: Boxes, tint: "text-amber-600" },
-  cz_transfer:   { icon: Truck, tint: "text-amber-700" },
-  cz_return:     { icon: Undo2, tint: "text-rose-600" },
-  rec_candidate: { icon: UserSearch, tint: "text-pink-600" },
-  rec_job_order: { icon: Briefcase,  tint: "text-red-500" },
   // Tasks aren't in the deep-index search groups (they keep their own task rows),
   // but the map is keyed by EntityType so we give them a sensible default.
   task:       { icon: FileText,      tint: "text-fg-muted" },
