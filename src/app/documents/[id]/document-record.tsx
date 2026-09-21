@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { ReturnLink } from "@/components/back-link";
 import Link from "next/link";
 import { ExternalLink, Pencil } from "lucide-react";
 import { RecordPage, RecordSidebarBlock, type RecordSection } from "@/components/record-page";
@@ -202,11 +203,11 @@ export function DocumentRecord({
             <ul>
               {tasks.map((t) => (
                 <li key={t.code} className="border-b border-border last:border-0">
-                  <Link href={taskHref(t.code)} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle">
+                  <ReturnLink href={taskHref(t.code)} data-list-row className="group flex items-center gap-2 px-3 hover:bg-bg-subtle">
                     <span className="shrink-0 text-xs tabular text-fg-subtle">{t.code}</span>
                     <span className="min-w-0 flex-1 truncate text-base group-hover:text-accent">{t.title}</span>
                     <span className="shrink-0 text-xs text-fg-muted">{t.status}</span>
-                  </Link>
+                  </ReturnLink>
                 </li>
               ))}
             </ul>

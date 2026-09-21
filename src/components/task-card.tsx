@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import type { TaskRow } from "@/lib/queries";
 import { SelectCheckbox } from "@/app/task/_views/selection";
 import { AssigneeAvatars } from "@/components/assignee-avatars";
@@ -59,7 +60,9 @@ export function TaskCard({
   const openConversation =
     onOpenConversation ??
     (() => {
-      router.push(taskHref(row.code, { tab: "conversation" }));
+      const to = withReturn(taskHref(row.code, { tab: "conversation" }), `${window.location.pathname}${window.location.search}`);
+      markPush(to);
+      router.push(to);
     });
 
   return (

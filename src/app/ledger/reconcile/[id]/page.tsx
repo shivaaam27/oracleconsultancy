@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { LedgerRecDetail } from "@/components/ledger-reconcile";
 import { recWithCheck } from "@/lib/ledger-reconcile";
@@ -37,10 +36,11 @@ export default async function LedgerRecPage({
         sub={full.rec.accountName ?? `Account #${full.rec.accountId}`}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/ledger/reconcile${co ? `?co=${co}` : ""}`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All statements
-        </Link>
+        <BackLink
+          fallbackHref={`/ledger/reconcile${co ? `?co=${co}` : ""}`}
+          fallbackLabel="All statements"
+          className="h-8 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
+        />
         <span className={`inline-flex h-8 items-center rounded-md px-2.5 text-sm ${
           full.rec.status === "closed" ? "bg-success/10 text-success" : "bg-warn/10 text-warn"}`}>
           {full.rec.status === "closed" ? "Agreed and closed" : "Open"}

@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getDocument, signDocumentFile } from "@/lib/documents";
 import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { sb } from "@/db/supabase";
@@ -55,12 +54,11 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-3">
-      <Link
-        href="/documents"
-        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
-      >
-        <ArrowLeft size={13} /> Documents
-      </Link>
+      <BackLink
+          fallbackHref="/documents"
+          fallbackLabel="Documents"
+          className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
+        />
       <DocumentRecord
         doc={{
           id: doc.id,

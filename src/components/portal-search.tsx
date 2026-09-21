@@ -2,6 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
+
+/** Open a task, carrying where it was opened FROM so its back link returns
+ *  here rather than to a bare task list. See `lib/return-to.ts`. */
+function openTask(router: { push: (href: string) => void }, code: string) {
+  const to = withReturn(`/portal/task/${code}`, `${window.location.pathname}${window.location.search}`);
+  markPush(to);
+  router.push(to);
+}
+
 import { Search, X, ClipboardList, User, ArrowUpRight } from "lucide-react";
 import type {
   PortalSearchResult,
@@ -192,7 +202,7 @@ export function PortalSearch() {
               {results.tasks.length > 0 && (
                 <Section label="Tasks">
                   {results.tasks.map((t) => (
-                    <TaskRow key={t.code} task={t} onOpen={() => { close(); router.push(`/portal/task/${t.code}`); }} />
+                    <TaskRow key={t.code} task={t} onOpen={() => { close(); openTask(router, t.code); }} />
                   ))}
                 </Section>
               )}

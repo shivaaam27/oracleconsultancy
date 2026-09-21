@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ReturnLink } from "@/components/back-link";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -69,7 +70,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
         style={{ transform: `translateX(${offset}px)`, transition: dragging ? "none" : "transform 200ms cubic-bezier(.2,.8,.2,1)" }}
         className="relative touch-pan-y"
       >
-        <Link
+        <ReturnLink
           href={taskHref(t.code)}
           onClick={(e) => {
             if (swiped) {
@@ -89,7 +90,7 @@ function NeedsYouRow({ t }: { t: NeedsYouItem }) {
             </span>
           </span>
           <span className="mt-1 block truncate pl-[3px] text-xs text-fg-subtle">{t.meta}</span>
-        </Link>
+        </ReturnLink>
       </div>
     </li>
   );

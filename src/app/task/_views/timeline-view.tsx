@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import { CalendarOff, Activity, CalendarRange } from "lucide-react";
 import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
 import { Badge, EmptyState } from "@/components/ui";
@@ -98,7 +99,9 @@ export function TimelineView({
 
   function openTask(code: string) {
     // Triage list — the record's Prev/Next arrows walk this in render order.
-    router.push(taskHref(code, { list: triageCodes.split(",") }));
+    const to = withReturn(taskHref(code, { list: triageCodes.split(",") }), `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
   }
 
   const metaByCode = useMemo(() => {

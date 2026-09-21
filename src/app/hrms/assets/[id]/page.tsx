@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getAsset, listAssetHistory } from "@/lib/assets";
 import { ASSET_STATUS_LABELS } from "@/lib/assets-shared";
 import { AssetRecord } from "./asset-record";
@@ -33,12 +32,11 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-3">
-      <Link
-        href="/hrms/assets"
-        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
-      >
-        <ArrowLeft size={13} /> Assets
-      </Link>
+      <BackLink
+          fallbackHref="/hrms/assets"
+          fallbackLabel="Assets"
+          className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
+        />
       <AssetRecord asset={asset} statusLabel={ASSET_STATUS_LABELS[asset.status] ?? asset.status} history={history} />
     </div>
   );

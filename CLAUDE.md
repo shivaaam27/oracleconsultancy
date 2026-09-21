@@ -823,6 +823,71 @@ folds columns away on small screens and this breaks on the first large one.
   spreadsheet-shaped grid belongs in its own `overflow-x-auto` housing with a
   `min-w-[…]` floor, the way both `/cocozuri/stock` pages now are.
 
+⚠️ **GOING BACK FROM A RECORD PICKS UP WHERE YOU LEFT OFF** (20 Sept 2026,
+owner's report on the director portal). A record is a PAGE, which is right — but
+the way back was a `<Link>` to ONE fixed address, so opening a task threw away
+the filter, the search and the place in the list, and pushed a fresh history
+entry on top. Measured live as Pulin: left `/portal/tasks?f=done&q=tra` at 758px,
+came back to a bare `/portal/tasks` at 0px with 61 rows instead of 18 — and from
+his BOARD he was returned to a Tasks page he had never opened. Three separate
+faults, three separate fixes, and they are independent:
+
+- ⚠️ **`html, body { height: 100% }` WAS BREAKING SCROLL RESTORATION EVERYWHERE**
+  — the administrator too, and every page, for as long as it has been there. A
+  fixed-height `html` plus the `overflow-x: hidden` beside it makes **`body`**
+  the scrolling box, so `document.scrollingElement` never moves and
+  **`window.scrollY` reads 0 however far down you are**. Next's restoration and
+  the browser's own both save and restore that number, so both saved 0. `body`
+  now takes `min-height`, and the document scrolls. **Do not put a fixed height
+  back on `html`** — and if scroll ever misbehaves again, check
+  `document.scrollingElement` before anything else.
+- **The address is carried, not guessed** (`lib/return-to.ts`). `RecordList`
+  appends `?back=<the list you were on, filters and all>` to every `rowHref`, so
+  **every converted list in COS gets this without asking** — that is why it lives
+  there and not in each page. `BackLink` (`components/back-link.tsx`) reads it
+  and names it, so the link says **"‹ Board"** when you came from the board.
+  ⚠️ **`safeReturn` is the gate** — a query parameter is attacker-supplied, and a
+  back button that can be pointed off-site is an open redirect. Everything that
+  reads the parameter goes through it. ⚠️ **It REPLACES, never pushes**, or the
+  browser's own Back walks forward into the record you just left.
+  Non-list openers (a feed, a board card, a search result) use **`ReturnLink`**.
+- **Your place in the list** (`lib/use-list-place.ts`) — it remembers the ROW,
+  never a pixel offset, and scrolls it back into view. ⚠️ **A SCROLL HOUSING IS
+  BEYOND THE BROWSER AND NEXT**: the board's columns and the staff home list are
+  their own `overflow-y:auto` panels, and no restoration anywhere touches a div's
+  scrollTop. `scrollIntoView` moves every scrolling ancestor, which is the whole
+  reason a row beats an offset.
+  - ⚠️ **IT WATCHES, IT DOES NOT ASSUME — AND THAT IS NOT THE OBVIOUS DESIGN.**
+    The shortcut ("after a real history step, trust the browser") worked on
+    `/portal/tasks` and did NOTHING on `/hrms/assets`, because
+    `history.scrollRestoration` is **"auto"** here and the browser restores
+    alongside Next: on one page they agree exactly, on the other the list
+    arrived carrying the RECORD's scroll. So one rule everywhere — look every
+    100ms from 400ms (restoration lands first, or you nudge a page that was
+    about to be right), move ONLY a row that is out of view, stop after three
+    still checks, and stop instantly on any scroll, touch or key.
+  - ⚠️ **AN ATTEMPT ONLY COUNTS ONCE THE ROW HAS STOPPED MOVING.** A long list
+    is still drawing for the first half second and the row's position shifts
+    with it; counting those spent the whole budget on a page that had not
+    finished, and the safety net put it back at the top.
+  - ⚠️ **HOLD A REF TO THE ROW, NOT THE NODE** — React replaces a row's element
+    as the list re-renders, and a watcher holding the first one saw
+    `isConnected` go false and gave up in silence. The key it is hunting for
+    lives in a ref too: the state is cleared as soon as watching starts (the
+    mark has to clear), so an `attach` testing the STATE stopped matching on
+    the very next render.
+  - ⚠️ **ONE LIST PLACES THE PAGE, AND A `listKey` DOES NOT MEAN ONE LIST.**
+    `/hrms/assets` renders the Assets list TWICE under the same key, and both
+    copies moved the window to their own row in turn — measured 2,944px out.
+    The claim is a **module-level lock**, because the thing being fought over
+    is page-level; a copy that is not being rendered never takes it. Same fault
+    in a different shape on the board, where two lists set NO key and both
+    fell back to the pathname — hence the column signature in the fallback.
+  - ⚠️ **IT ONLY REACHES `RecordList` LISTS.** A hand-built list in a housing —
+    the administrator Overview's "Needs you" — gets the right page and the
+    right label, but its panel returns to the top. The fix is to convert it,
+    not to bolt a second mechanism beside this one.
+
 ⚠️ **A LIST CAN LEND ITS FILTERS TO A SIDEBAR** (`lib/filter-rail-slot.tsx`,
 28 Aug 2026). Measured in a director's portal at 1440px: the portal rail took
 208px and `RecordList` drew its OWN 184px filter column beside it, so **448px —

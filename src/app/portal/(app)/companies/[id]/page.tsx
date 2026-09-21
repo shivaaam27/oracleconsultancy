@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { ReturnLink } from "@/components/back-link";
 import { ArrowLeft, ClipboardCheck, AlertTriangle, FileText } from "lucide-react";
 import { getPortalPerson, personCanSeeCompany } from "@/lib/portal-auth";
 import { portalCapabilities } from "@/lib/portal-capabilities";
@@ -114,14 +115,14 @@ export default async function PortalCompanyPage({
                 const od = t.flag === "overdue" || t.flag === "escalate-now";
                 return (
                   <li key={t.id}>
-                    <Link
+                    <ReturnLink
                       href={`/portal/task/${t.code}`}
                       className="group flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-bg-subtle"
                     >
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${od ? "bg-danger" : "bg-accent/70"}`} />
                       <span className="min-w-0 flex-1 truncate text-sm group-hover:text-accent">{t.actionItem}</span>
                       {od && <AlertTriangle size={13} className="shrink-0 text-danger" />}
-                    </Link>
+                    </ReturnLink>
                   </li>
                 );
               })}

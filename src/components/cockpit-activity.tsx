@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ReturnLink } from "@/components/back-link";
 import { Activity, Sparkles, CircleCheck, MessageSquare, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CockpitModule } from "@/components/cockpit-module";
@@ -35,7 +35,7 @@ export function CockpitActivity({ items }: { items: ActivityItem[] }) {
           const tone = it.isOri ? "text-accent" : it.management ? "text-success" : "text-fg-muted";
           return (
             <li key={it.id}>
-              <Link
+              <ReturnLink
                 href={it.code ? taskHref(it.code) : "/?tab=tasks"}
                 className="group flex items-center gap-3 py-2.5 transition-colors"
               >
@@ -55,7 +55,7 @@ export function CockpitActivity({ items }: { items: ActivityItem[] }) {
                   size={15}
                   className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100"
                 />
-              </Link>
+              </ReturnLink>
             </li>
           );
         })}

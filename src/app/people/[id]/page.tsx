@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, Phone } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
+import { BackLink } from "@/components/back-link";
 import { ButtonLink } from "@/components/ui";
 import { getPersonDetail } from "@/lib/people-queries";
 import { taskHref } from "@/lib/task-href";
@@ -42,12 +42,11 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-3">
-      <Link
-        href="/people"
-        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
-      >
-        <ArrowLeft size={13} /> People
-      </Link>
+      <BackLink
+        fallbackHref="/people"
+        fallbackLabel="People"
+        className="text-sm text-fg-muted transition-colors hover:text-accent"
+      />
 
       <PersonRecord
         person={{

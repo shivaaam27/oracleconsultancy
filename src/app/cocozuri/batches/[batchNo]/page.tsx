@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Truck } from "lucide-react";
+import { AlertTriangle, Truck } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriBatchClose } from "@/components/cocozuri-batch-close";
 import { CocozuriBatchDraw } from "@/components/cocozuri-batch-draw";
@@ -130,10 +131,11 @@ export default async function CocozuriBatchPage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/cocozuri/batches"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All batches
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/batches"
+          fallbackLabel="All batches"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
+        />
         <span className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm ${
           batch.status === "closed" ? "bg-success/10 text-success"
             : batch.status === "cancelled" ? "bg-bg-subtle text-fg-subtle" : "bg-warn/10 text-warn"}`}>

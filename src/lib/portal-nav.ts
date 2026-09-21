@@ -40,7 +40,9 @@ export type PortalNavItem = {
 };
 
 /** Order is the order both navigations show. */
-const ITEMS: PortalNavItem[] = [
+/** Every portal destination. Exported because `lib/return-to.ts` names a back
+ *  link after the page it returns to, and this is the list of their names. */
+export const PORTAL_NAV: PortalNavItem[] = [
   { id: "board",     href: "/portal/board",     label: "Board",     icon: ListTodo,      group: "Work" },
   { id: "home",      href: "/portal",           label: "Home",      icon: ClipboardList, group: "Work", tourTag: "nav-home" },
   { id: "tasks",     href: "/portal/tasks",     label: "Tasks",     icon: ClipboardList, group: "Work" },
@@ -65,7 +67,7 @@ export function portalNavItems(
   overrides?: PortalTabOverrides
 ): PortalNavItem[] {
   const caps = portalCapabilities(role);
-  return ITEMS.filter((it) => {
+  return PORTAL_NAV.filter((it) => {
     const configurable = overrides?.[it.id as keyof PortalTabOverrides];
     if (configurable !== undefined) return configurable;
     return caps.tabs[it.id as keyof typeof caps.tabs] ?? false;

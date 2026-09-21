@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriPlanRecord } from "@/components/cocozuri-plan-record";
 import { cocozuriCompany } from "@/lib/cocozuri";
@@ -43,10 +42,11 @@ export default async function CocozuriPlanPage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/cocozuri/order"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All plans
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/order"
+          fallbackLabel="All plans"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
+        />
       </div>
 
       <CocozuriPlanRecord

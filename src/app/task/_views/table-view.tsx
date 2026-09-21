@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
@@ -114,7 +115,9 @@ export function TableView({
   function openTask(code: string, tab?: "conversation") {
     // A record is a page with its own URL. `list` carries the order you are
     // looking at, so the record's Prev/Next arrows walk the same queue.
-    router.push(taskHref(code, { tab, list: rows.map((r) => r.code) }));
+    const to = withReturn(taskHref(code, { tab, list: rows.map((r) => r.code) }), `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
   }
 
   // Long-press → peek preview (without fighting clicks or scroll).

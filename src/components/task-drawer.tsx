@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { RecordBody, RecordPage, RecordSidebarBlock } from "./record-page";
 import { taskHref } from "@/lib/task-href";
+import { canStepBack, clearPush, returnLabel, safeReturn } from "@/lib/return-to";
 import { buildSections } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SectionCard } from "./drawer-kit";
@@ -172,6 +173,9 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   // step-through by adding `&tl=DS-001,DS-002,…` when it opens the record; absent
   // here, the arrows simply don't render (no-op-safe).
   const tlParam = searchParams.get("tl");
+  // What the way out should be CALLED — the list that opened this record.
+  const backTo = safeReturn(searchParams.get("back"));
+  const backLabel = backTo ? returnLabel(backTo) : "Tasks";
   const isTaskPage = /^\/task\//.test(pathname);
   const open = mode === "page" ? true : (!!code && !isTaskPage);
 
@@ -213,9 +217,20 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
 
   const close = useCallback((opts?: { replace?: boolean }) => {
     if (mode === "page") {
-      // After a delete the record no longer exists, so REPLACE the history
-      // entry — Back must not land on a page for a task that is gone.
-      if (opts?.replace) router.replace("/?tab=tasks"); else router.push("/?tab=tasks");
+      /* ⚠️ BACK TO THE LIST YOU CAME FROM, not to a bare `/?tab=tasks`.
+       * The hub's filters, sort and chosen view live in its address, so a fixed
+       * one threw the lot away and pushed a fresh entry on top — the same fault
+       * the portal had. `?back=` is put there by whatever opened the record
+       * (`RecordList` does it for every list); absent, the old address is still
+       * the fallback. REPLACE either way, so the browser's Back never walks
+       * forward into the task you just left. */
+      const home = safeReturn(searchParams.get("back")) ?? "/?tab=tasks";
+      /* A true history step where it provably is one — the browser restores the
+       * scroll with it, exactly, which no forward navigation can. Anything else
+       * (a bookmark, a step sideways through Prev/Next) replaces, which always
+       * lands on the right page. Same rule as `components/back-link.tsx`. */
+      if (canStepBack()) { clearPush(); router.back(); return; }
+      router.replace(home);
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
@@ -986,8 +1001,12 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     return (
       <div className="mx-auto max-w-[1100px]">
         <div className="mb-3 flex items-center gap-1.5">
+          {/* ⚠️ IT SAYS WHERE IT IS GOING. A fixed "Tasks" was a promise the
+              button could not keep once the record could be opened from the
+              board, the timeline, a company or a person — `returnLabel` reads
+              the address the opener handed over. */}
           <Button type="button" onClick={() => close()} variant="ghost" size="sm">
-            <ChevronLeft size={14} /> Tasks
+            <ChevronLeft size={14} /> {backLabel}
           </Button>
           {(prevCode || nextCode) && (
             <span className="ml-auto flex items-center gap-1">

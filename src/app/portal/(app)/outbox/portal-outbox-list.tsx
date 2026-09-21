@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { ReturnLink } from "@/components/back-link";
 import { Send, ChevronDown, ChevronRight, Search, X, AlertTriangle } from "lucide-react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { NotifyPerson } from "@/components/notify-person";
@@ -64,7 +64,7 @@ function PersonCard({ p }: { p: OutboxPerson }) {
           <ul className="space-y-1">
             {p.tasks.map((t, i) => (
               <li key={i}>
-                <Link
+                <ReturnLink
                   href={`/portal/task/${t.code}`}
                   className="group flex items-start gap-2 rounded-lg px-1.5 py-1 -mx-1.5 transition-colors hover:bg-bg-elev/70"
                 >
@@ -77,7 +77,7 @@ function PersonCard({ p }: { p: OutboxPerson }) {
                     </span>
                   </span>
                   <ChevronRight size={14} className="mt-1 shrink-0 text-fg-subtle/50 group-hover:text-accent transition-colors" />
-                </Link>
+                </ReturnLink>
               </li>
             ))}
           </ul>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { markPush, withReturn } from "@/lib/return-to";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
@@ -211,7 +212,9 @@ export function NotificationBell({
       router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {
       if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
-        router.push(taskHref(n.taskCode));
+        const to = withReturn(taskHref(n.taskCode), `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
       } else {
         router.push(`${to}/${n.taskCode}`);
       }

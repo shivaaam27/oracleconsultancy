@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { listVendors, vendorDocuments } from "@/lib/vendors";
 import { assetCountByVendor } from "@/lib/assets";
 import { VendorRecord } from "./vendor-record";
@@ -38,12 +37,11 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-3">
-      <Link
-        href="/hrms/assets?view=vendors"
-        className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
-      >
-        <ArrowLeft size={13} /> Vendors
-      </Link>
+      <BackLink
+          fallbackHref="/hrms/assets?view=vendors"
+          fallbackLabel="Vendors"
+          className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
+        />
       <VendorRecord vendor={vendor} documents={documents} assetCount={assetCount} />
     </div>
   );

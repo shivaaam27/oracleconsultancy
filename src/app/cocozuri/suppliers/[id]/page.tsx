@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriSupplierMaterials } from "@/components/cocozuri-suppliers";
 import { CocozuriTimeline } from "@/components/cocozuri-timeline";
@@ -79,10 +80,11 @@ export default async function CocozuriSupplierPage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/cocozuri/suppliers"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All suppliers
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/suppliers"
+          fallbackLabel="All suppliers"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
+        />
         {/* ⚠️ Editing happens on the shared register, not here — one list. */}
         <Link href="/hrms/assets?tab=vendors"
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted transition-colors hover:border-accent hover:text-accent">

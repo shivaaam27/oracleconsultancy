@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
 import {
   ExternalLink, Clock, CheckCircle2, AlertOctagon, Plus, X, Building2,
@@ -103,7 +104,9 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   const orderedCodes = columns.flatMap((c) => c.items.map((r) => r.code));
 
   function openTask(code: string) {
-    router.push(taskHref(code, { list: orderedCodes }));
+    const to = withReturn(taskHref(code, { list: orderedCodes }), `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
   }
 
   async function move(r: TaskRow, toStatus: string) {

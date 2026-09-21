@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Star } from "lucide-react";
+import { AlertTriangle, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { CocozuriRecipeActions } from "@/components/cocozuri-recipe-actions";
 import { CocozuriTimeline } from "@/components/cocozuri-timeline";
@@ -119,10 +120,11 @@ export default async function CocozuriRecipePage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/cocozuri/recipes"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All recipes
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/recipes"
+          fallbackLabel="All recipes"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-sm text-fg-muted hover:text-fg"
+        />
         <span className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm ${
           recipe.status === "active" ? "bg-success/10 text-success"
             : recipe.status === "draft" ? "bg-warn/10 text-warn" : "bg-bg-subtle text-fg-subtle"}`}>

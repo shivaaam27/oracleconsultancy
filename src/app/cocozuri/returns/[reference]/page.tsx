@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { czDate } from "@/lib/cocozuri-shared";
 import { CocozuriReturnActions } from "@/components/cocozuri-return-actions";
@@ -85,10 +86,11 @@ export default async function CocozuriReturnPage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/cocozuri/returns"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg">
-          <ArrowLeft size={13} /> All returns
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/returns"
+          fallbackLabel="All returns"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:text-fg"
+        />
         <span className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm ${
           r.status === "settled" ? "bg-success/10 text-success"
             : r.status === "cancelled" ? "bg-bg-subtle text-fg-subtle" : "bg-warn/10 text-warn"}`}>

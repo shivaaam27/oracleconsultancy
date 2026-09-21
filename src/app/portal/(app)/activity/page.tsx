@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ReturnLink } from "@/components/back-link";
 import { redirect } from "next/navigation";
 import { ListTodo, MessageSquare } from "lucide-react";
 import { sb } from "@/db/supabase";
@@ -116,7 +116,7 @@ export default async function PortalActivity() {
                 return (
                   <li key={r.id} className="relative">
                     <span className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-bg ${dot}`} />
-                    <Link
+                    <ReturnLink
                       href={`/portal/task/${r.code}`}
                       className="group block rounded-2xl bg-bg-elev p-3.5 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
                     >
@@ -135,7 +135,7 @@ export default async function PortalActivity() {
                       </div>
                       <p className="mt-1 text-sm leading-snug line-clamp-2">{r.body}</p>
                       {r.action_item && <p className="mt-0.5 truncate text-xs text-fg-subtle">{r.action_item}</p>}
-                    </Link>
+                    </ReturnLink>
                   </li>
                 );
               })}

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { ReturnLink } from "@/components/back-link";
 import { ArrowLeft, Mail, Briefcase, Building2, CalendarDays, User } from "lucide-react";
 import { getPortalPerson, personCanSeePerson } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
@@ -137,14 +138,14 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
                 const od = t.flag === "overdue" || t.flag === "escalate-now";
                 return (
                   <li key={t.id}>
-                    <Link
+                    <ReturnLink
                       href={`/portal/task/${t.code}`}
                       className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-3 py-2 ring-1 ring-border/40 transition-all hover:ring-accent/30"
                     >
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${od ? "bg-danger" : "bg-accent/70"}`} />
                       <span className="min-w-0 flex-1 truncate text-sm group-hover:text-accent">{t.actionItem}</span>
                       <span className="shrink-0 text-xs text-fg-subtle">{t.companyName}</span>
-                    </Link>
+                    </ReturnLink>
                   </li>
                 );
               })}

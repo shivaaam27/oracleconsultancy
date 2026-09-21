@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, Crown, MessageCircle, MessageSquare, Users } from "lucide-react";
+import { CalendarDays, Crown, MessageCircle, MessageSquare, Users } from "lucide-react";
+import { BackLink } from "@/components/back-link";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -314,9 +314,17 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       <PortalTrace />
 
       <div className="flex items-center justify-between gap-3">
-        <Link href={isManagement ? "/portal/tasks" : "/portal"} className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
-          <ArrowLeft size={15} /> {isManagement ? "All tasks" : "My tasks"}
-        </Link>
+        {/* ⚠️ THE WAY BACK IS WHERE YOU CAME FROM, not one fixed address.
+            There are nine places in the portal that open a task — this list,
+            the board (a tap and a swipe), home, the activity feed, a company,
+            a person, the outbox, and search — and every one of them used to
+            return you to `/portal/tasks`, unfiltered and at the top. See
+            `components/back-link.tsx`. The fallback below is what it always
+            did, for a task opened from a bookmark or a notification. */}
+        <BackLink
+          fallbackHref={isManagement ? "/portal/tasks" : "/portal"}
+          fallbackLabel={isManagement ? "All tasks" : "My tasks"}
+        />
         <PortalTraceButton kind="task" id={task.id as number} title={task.code as string} />
       </div>
 

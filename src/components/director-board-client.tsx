@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import Link from "next/link";
 import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
@@ -480,7 +481,12 @@ export function AttentionCard({ w }: { w: WatchItem }) {
   // gesture must never be read as a tap.
   function openTask() {
     if (swipe.swiped) { swipe.reset(); return; }
-    router.push(`/portal/task/${w.code}`);
+    // Carry the board (and anything filtering it) so the task's back link
+    // returns HERE. A director works from this column; being dropped on the
+    // Tasks page instead is what made him start over each time.
+    const to = withReturn(`/portal/task/${w.code}`, `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
   }
 
   // Overdue hero (Option B): the days figure is pre-computed server-side in

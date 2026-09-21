@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { defaultVatRate, getInvoiceByNumber, listCustomers, listInvoices, listPrices, listProducts, listReceipts } from "@/lib/cocozuri";
 import { cocozuriCompany } from "@/lib/cocozuri";
 import { invoiceBooksState, resolveAccounts } from "@/lib/cocozuri-ledger";
@@ -88,10 +87,11 @@ export default async function CocozuriInvoicePage({
     <div className="mx-auto w-full max-w-[58rem] space-y-3">
       {/* Everything in here is chrome, and none of it prints. */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Link href="/cocozuri/invoices"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-subtle hover:text-fg">
-          <ArrowLeft size={13} /> All invoices
-        </Link>
+        <BackLink
+          fallbackHref="/cocozuri/invoices"
+          fallbackLabel="All invoices"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-subtle hover:text-fg"
+        />
         <span className="grow" />
         <CocozuriHelp title="This invoice">
           <p>

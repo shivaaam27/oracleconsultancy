@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Check, Download, Keyboard, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { toCsv, listFileName, downloadCsv, nodeText } from "@/lib/csv";
 import { useFillViewport } from "@/lib/use-fill-viewport";
+import { markPush, withReturn } from "@/lib/return-to";
+import { useListPlace } from "@/lib/use-list-place";
 
 /**
  * RecordList — the ONE list screen (Stage 2 of the ERPNext redesign).
@@ -555,6 +557,7 @@ export function RecordList<T>({
   columns,
   rowKey,
   rowHref,
+  carryReturn = true,
   onRowClick,
   filters,
   toolbar,
@@ -584,8 +587,20 @@ export function RecordList<T>({
   rows: T[];
   columns: RecordColumn<T>[];
   rowKey: (row: T) => string | number;
-  /** Makes the whole row a link. Ignored when `onRowClick` is given. */
+  /**
+   * Makes the whole row a link. Ignored when `onRowClick` is given.
+   *
+   * ⚠️ THE LINK CARRIES WHERE IT WAS CLICKED FROM. The address of a list IS its
+   * state — filter, search, sort, company — so the record it opens is given a
+   * `?back=` pointing at it, and `BackLink` on the record returns you there
+   * rather than to a bare, unfiltered list. Every converted list gets this
+   * without asking, which is the whole reason it lives here and not in each
+   * page. See `lib/return-to.ts`.
+   */
   rowHref?: (row: T) => string;
+  /** Opt out of the return address, for a row that opens something which is not
+   *  a record of this list (an external link, a download). */
+  carryReturn?: boolean;
   onRowClick?: (row: T) => void;
   /** Left rail. Omit for a list with no filters — the rail disappears entirely. */
   filters?: RecordFilter[];
@@ -757,6 +772,30 @@ export function RecordList<T>({
   const visibleColumns = columns.filter((c, i) => i === 0 || !hidden.includes(c.key));
   const gridStyle = gridFor(visibleColumns, !!tick);
 
+  /* --------------------------------------------- where you were --------- */
+  const pathname = usePathname();
+  /* The return address a row link carries. `location.search` is read at click
+     time, not render time, so a filter changed a moment ago is still caught. */
+
+  /* ⚠️ THE PLACE KEY MUST BE UNIQUE PER LIST, AND THE PATHNAME IS NOT.
+     `/hrms/assets` draws THREE lists and they do not all set a `listKey`, so
+     they shared one key — and because a row id can exist in more than one of
+     them, two lists both matched the remembered row and scrolled the page to
+     their own copy, in turn, for as long as the watcher ran. Measured: the
+     window flipping between 608 and 2930 every 100ms. The column set is what
+     distinguishes one list from another on a page, and it is stable across
+     re-renders. */
+  const placeKey = listKey ?? `${pathname}#${columns.map((c) => c.key).join(",")}`;
+  const place = useListPlace(placeKey);
+  const linkFor = useCallback(
+    (row: T) => {
+      const href = rowHref!(row);
+      if (!carryReturn || typeof window === "undefined") return href;
+      return withReturn(href, `${window.location.pathname}${window.location.search}`);
+    },
+    [rowHref, carryReturn]
+  );
+
   /* -------------------------------------------------- keyboard ---------- */
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -817,8 +856,8 @@ export function RecordList<T>({
           if (cursor === null || !paged[cursor]) return;
           e.preventDefault();
           const row = paged[cursor];
-          if (onRowClick) onRowClick(row);
-          else if (rowHref) router.push(rowHref(row));
+          if (onRowClick) { place.remember(rowKey(row)); onRowClick(row); }
+          else if (rowHref) { place.remember(rowKey(row)); const to = linkFor(row); markPush(to); router.push(to); }
           break;
         }
         case "x": {
@@ -850,7 +889,7 @@ export function RecordList<T>({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cursor, paged, rowHref, onRowClick, bulkOn, move, helpOpen, router, rowKey]);
+  }, [cursor, paged, rowHref, onRowClick, bulkOn, move, helpOpen, router, rowKey, linkFor, place]);
 
   let lastGroup: string | null = null;
 
@@ -1100,23 +1139,38 @@ export function RecordList<T>({
                       </li>
                     )}
                     <li
-                      ref={(el) => { rowRefs.current[i] = el; }}
+                      ref={(el) => { rowRefs.current[i] = el; place.attach(el, rowKey(row)); }}
                       aria-current={i === cursor ? "true" : undefined}
                       className={cn(
                         "transition-colors hover:bg-bg-subtle",
                         // The highlight is a left accent edge, not a fill: it has
                         // to read at a glance without fighting the status dots.
-                        i === cursor && "bg-accent-soft/70 shadow-[inset_2px_0_0_0_var(--color-accent)]"
+                        i === cursor && "bg-accent-soft/70 shadow-[inset_2px_0_0_0_var(--color-accent)]",
+                        // "This is the one you just had open" — the same edge in
+                        // a softer wash, fading out on its own after a moment.
+                        place.isMarked(rowKey(row)) && "bg-accent-soft/50 shadow-[inset_2px_0_0_0_var(--color-accent)]"
                       )}
                     >
                       {onRowClick ? (
-                        <div role="button" tabIndex={0} onClick={() => onRowClick(row)}
-                          onKeyDown={(e) => { if (e.key === "Enter") onRowClick(row); }}
+                        /* ⚠️ REMEMBER THE ROW ON THIS BRANCH TOO. The
+                           administrator's task list opens a record with
+                           `onRowClick`, not an href — it has a queue to build
+                           for Prev/Next — so a `rowHref`-only version of this
+                           left every click-driven list with no place to come
+                           back to. The opener still owns the address. */
+                        <div role="button" tabIndex={0}
+                          onClick={() => { place.remember(rowKey(row)); onRowClick(row); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { place.remember(rowKey(row)); onRowClick(row); } }}
                           className="cursor-pointer outline-none focus-visible:bg-bg-subtle">
                           {cells}
                         </div>
                       ) : rowHref ? (
-                        <Link href={rowHref(row)} scroll={false} className="block">
+                        /* ⚠️ NOT `scroll={false}`. That is right for a filter
+                           link, which stays on this list — on a ROW link it
+                           opens the record at whatever offset the list was
+                           scrolled to, so you land halfway down a task you have
+                           not read a word of. */
+                        <Link href={linkFor(row)} onClick={(e) => { place.remember(rowKey(row)); markPush(e.currentTarget.getAttribute("href") ?? ""); }} className="block">
                           {cells}
                         </Link>
                       ) : (

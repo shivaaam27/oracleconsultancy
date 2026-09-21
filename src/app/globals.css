@@ -186,7 +186,17 @@
 
 * { border-color: hsl(var(--border)); }
 
-html, body { height: 100%; }
+/* ⚠️ `html, body { height: 100% }` IS WHAT BREAKS EVERY "GO BACK" IN COS, and it
+   is not obvious. A fixed-height `html` plus the `overflow-x: hidden` below
+   makes `body` the scrolling box, so `document.scrollingElement` (html) never
+   moves: `window.scrollY` reads 0 however far down the page you are. Next's
+   scroll restoration and the browser's own both save and restore THAT number,
+   so both save 0 and restore 0 — every Back landed at the top of the list, on
+   the administrator and in the portal alike. `min-height` keeps the full-height
+   background it was there for and gives the document back its scroll.
+   Measured on /portal/tasks at 1440x900: scrolled 758px, window.scrollY 0. */
+html { height: 100%; }
+body { min-height: 100%; }
 
 /* Pin text scaling to 100% so the layout renders identically across platforms.
    Android Chrome/WebView (the installed PWA + "Add to Home") auto-INFLATES text

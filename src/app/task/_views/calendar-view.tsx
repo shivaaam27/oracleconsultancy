@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { markPush, withReturn } from "@/lib/return-to";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, CalendarClock, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
@@ -181,7 +182,10 @@ export function CalendarView({
   const dueThisMonth = rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length;
 
   function openTask(code: string) {
-    router.push(taskHref(code));
+    // Even the calendar: the month you were looking at is in the address.
+    const to = withReturn(taskHref(code), `${window.location.pathname}${window.location.search}`);
+    markPush(to);
+    router.push(to);
   }
 
   async function reschedule(code: string, day: Date) {
