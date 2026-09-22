@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 // Action behaves exactly as it did.
 import { bustTag } from "@/lib/cache-bust";
 import { redirect } from "next/navigation";
+import { BACK_PARAM, safeReturn, withReturn } from "@/lib/return-to";
 import { sb } from "@/db/supabase";
 import { logChangeSb } from "@/lib/db-helpers";
 import { mutate, type UndoSpec } from "@/lib/mutate";
@@ -299,7 +300,9 @@ export async function updateTask(code: string, formData: FormData) {
     revalidatePath(returnTo);
     redirect(returnTo);
   }
-  redirect(`/task/${finalCode}`);
+  // The code changed, but the list you came from did not — carry it across.
+  const back = returnTo ? safeReturn(new URLSearchParams(returnTo.split("?")[1] ?? "").get(BACK_PARAM)) : null;
+  redirect(withReturn(`/task/${finalCode}`, back));
 }
 
 /**
@@ -404,7 +407,9 @@ export async function createTask(formData: FormData) {
     revalidatePath(returnTo);
     redirect(returnTo);
   }
-  redirect(`/task/${result.result.code}`);
+  // Land on the new task still knowing which list you were on, so its
+  // "‹ Tasks" goes back to that list, filters and all, not a bare one.
+  redirect(withReturn(`/task/${result.result.code}`, str(formData.get(BACK_PARAM))));
 }
 
 /**

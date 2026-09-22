@@ -9,6 +9,7 @@ import { ActionItemField } from "@/components/action-item-field";
 import { PersonPicker, type PickerPerson } from "@/components/person-picker";
 import { PrioritySegment, DeadlineQuickPick, CompanySelectField, RepeatSection } from "@/components/task-form-fields";
 import Link from "next/link";
+import { ReturnField } from "@/components/location-tracker";
 import { Plus, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -159,6 +160,8 @@ export function NewTaskForm({
     return (
       <form action={createTask} className="flex flex-col min-h-0 flex-1">
         {hidden}
+      <ReturnField />
+        <ReturnField />
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-3">
           {fields}
         </div>

@@ -825,12 +825,21 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     >
       {/* Where to land after saving. On the page that is the page itself; the
           legacy drawer goes back to whatever page it was opened over. `tr`
-          is a nonce the record re-fetches on. */}
+          is a nonce the record re-fetches on.
+          ⚠️ ON THE PAGE, KEEP THE REST OF THE ADDRESS. `back` is the filtered
+          list this record was opened from and `tl` is its Prev/Next order; a
+          bare `?tr=` threw both away, so the first "‹ Tasks" after a save
+          landed on the unfiltered list — the owner's "it resets the filter". */}
       <input
         type="hidden"
         name="returnTo"
         value={mode === "page"
-          ? `${taskHref(t.code)}?tr=${Date.now()}`
+          ? (() => {
+              const keep = new URLSearchParams(searchParams.toString());
+              keep.delete("tr");
+              keep.set("tr", String(Date.now()));
+              return `${taskHref(t.code)}?${keep.toString()}`;
+            })()
           : `${pathname}?task=${encodeURIComponent(t.code)}&tr=${Date.now()}`}
       />
 

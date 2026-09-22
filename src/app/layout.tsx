@@ -23,6 +23,7 @@ import { PageTransition } from "@/components/page-transition";
 import { ContextActionsProvider } from "@/components/context-actions";
 import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { LocationTracker } from "@/components/location-tracker";
 import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { DeskSidebar, DESK_RAIL_COOKIE } from "@/components/desk-sidebar";
@@ -154,6 +155,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                 <GlobalDrawers />
               </HideOnPortal>
               <ServiceWorkerRegister />
+              <LocationTracker />
               <IosResume />
               </NavVisibilityProvider>
             </CommandPaletteProvider>
