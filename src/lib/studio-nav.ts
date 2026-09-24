@@ -6,7 +6,7 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
-import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, type LucideIcon } from "lucide-react";
+import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, FolderOpen, type LucideIcon } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
 export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
@@ -65,6 +65,7 @@ export function directorStops(o: { outbox: boolean }): StudioStop[] {
   return [
     { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
     { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
+    { id: "files", label: "Files", href: "/files", group: "Records", icon: FolderOpen },
     { id: "briefings", label: "Briefings", href: "/portal/meetings", group: "Work", icon: Megaphone },
     ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/portal/outbox", group: "Work", icon: Send }] : []),
     { id: "chat", label: "Chat", href: "/portal/chat", group: "People", icon: MessageSquare },

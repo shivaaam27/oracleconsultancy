@@ -112,3 +112,41 @@ export async function purgeExpiredDeleted(): Promise<number> {
   await sb.from("folders").delete().lt("deleted_at", cutoff);
   return data?.length ?? 0;
 }
+
+/* ── A director's view of the library (portal unification, Sept 2026) ───────
+ * View-only (and download): the files of their companies and of the people in
+ * them, in the folders that hold them. Nothing deleted, nothing loose, nothing
+ * of another company. The owner (scope null AND kind owner) sees everything. */
+export async function viewerLibrary(v: import("@/lib/viewer").Viewer, lib: Library): Promise<Library> {
+  if (v.kind === "owner") return lib;
+  const { viewerPeopleIds } = await import("@/lib/viewer-scope");
+  const people = await viewerPeopleIds(v);
+  const scope = v.scope;
+  const fileOk = (f: FileRow) =>
+    !f.deleted && (
+      scope == null
+        ? f.companyId != null || f.personId != null
+        : (f.companyId != null && scope.includes(f.companyId)) || (f.personId != null && !!people?.has(f.personId))
+    );
+  const files = lib.files.filter(fileOk);
+  const live = lib.folders.filter((f) => !f.deletedAt);
+  const byId = new Map(live.map((f) => [f.id, f]));
+  const keep = new Set<number>();
+  const climb = (id: number | null) => { while (id != null && !keep.has(id)) { keep.add(id); id = byId.get(id)?.parentId ?? null; } };
+  for (const f of files) climb(f.folderId);
+  // Their companies' folders show even when empty (a company has a place).
+  for (const f of live) if (f.companyId != null && (scope == null || scope.includes(f.companyId))) climb(f.id);
+  return { folders: live.filter((f) => keep.has(f.id)), files };
+}
+
+/** May this viewer open this one file? The same rule as viewerLibrary. */
+export async function viewerCanSeeDocument(v: import("@/lib/viewer").Viewer, docId: number): Promise<boolean> {
+  if (v.kind === "owner") return true;
+  const { data: d } = await sb.from("documents").select("company_id,person_id,archived").eq("id", docId).maybeSingle();
+  if (!d || d.archived) return false;
+  if (v.scope == null) return d.company_id != null || d.person_id != null;
+  if (d.company_id != null && v.scope.includes(d.company_id as number)) return true;
+  if (d.person_id == null) return false;
+  const { viewerPeopleIds } = await import("@/lib/viewer-scope");
+  return !!(await viewerPeopleIds(v))?.has(d.person_id as number);
+}

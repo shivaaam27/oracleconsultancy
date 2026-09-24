@@ -53,7 +53,12 @@ function readNav(): Nav & { q: string } {
   return { view: v && v in VIEW_TITLE ? v : "all", folder: p.get("f") ? Number(p.get("f")) : null, q: p.get("q") ?? "" };
 }
 
-export function FilesApp({ library, companies, initialOpen, initialCompany, initialPerson }: {
+/** `readOnly`: a director (portal unification, Sept 2026) — browse, preview
+ *  and download their companies' files; change nothing. Every write here is
+ *  owner-only on the server too (guardOwner), so this is the courtesy of not
+ *  offering what would be refused. */
+export function FilesApp({ library, companies, initialOpen, initialCompany, initialPerson, readOnly = false }: {
+  readOnly?: boolean;
   library: Library;
   companies: FilesCompany[];
   initialOpen?: number | null;
@@ -310,8 +315,8 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); setSel(new Set(ids)); return; }
       if (cur == null || nav.view === "deleted") return;
       if (e.key === " " || e.key === "Enter") { e.preventDefault(); setPreview({ id: cur, list: listFiles }); }
-      if (e.key === "F2") { e.preventDefault(); setRenaming(cur); }
-      if ((e.key === "Delete" || e.key === "Backspace") && sel.size) { e.preventDefault(); deleteFiles([...sel]); }
+      if (!readOnly && e.key === "F2") { e.preventDefault(); setRenaming(cur); }
+      if (!readOnly && (e.key === "Delete" || e.key === "Backspace") && sel.size) { e.preventDefault(); deleteFiles([...sel]); }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
@@ -320,6 +325,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
   /* ── drag from the desktop (upload) and onto folders (move) ──────────── */
   useEffect(() => {
     let depth = 0;
+    if (readOnly) return;
     const isFiles = (e: DragEvent) => !dragIds.current && [...(e.dataTransfer?.types ?? [])].includes("Files");
     const enter = (e: DragEvent) => { if (isFiles(e) && nav.view !== "deleted") { depth++; setVeil(true); } };
     const leave = (e: DragEvent) => { if (isFiles(e) && --depth <= 0) { depth = 0; setVeil(false); } };
@@ -333,7 +339,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
     window.addEventListener("dragenter", enter); window.addEventListener("dragleave", leave);
     window.addEventListener("dragover", over); window.addEventListener("drop", drop);
     return () => { window.removeEventListener("dragenter", enter); window.removeEventListener("dragleave", leave); window.removeEventListener("dragover", over); window.removeEventListener("drop", drop); };
-  }, [nav.view, upload]);
+  }, [nav.view, upload, readOnly]);
 
   // The footer's "+ Upload" (studio/shell.tsx) asks for the picker.
   useEffect(() => {
@@ -359,15 +365,19 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
     setMenu({ at, items: [
       ...(!many ? [{ label: "Preview", icon: <Eye size={14} />, kbd: "Space", onSelect: () => setPreview({ id: f.id, list: listFiles }) }] : []),
       { label: many ? `Download ${ids.length} as .zip` : "Download", icon: <Download size={14} />, onSelect: () => void download(ids) },
-      ...(!many ? [{ label: "Rename", icon: <PenLine size={14} />, kbd: "F2", onSelect: () => setRenaming(f.id) }] : []),
-      { label: "Move to…", icon: <FolderInput size={14} />, onSelect: () => moveDialog(ids) },
-      { label: f.starred ? "Unstar" : "Star", icon: <Star size={14} />, onSelect: () => starFiles(ids, !f.starred) },
+      ...(!many && !readOnly ? [{ label: "Rename", icon: <PenLine size={14} />, kbd: "F2", onSelect: () => setRenaming(f.id) }] : []),
+      ...(!readOnly ? [
+        { label: "Move to…", icon: <FolderInput size={14} />, onSelect: () => moveDialog(ids) },
+        { label: f.starred ? "Unstar" : "Star", icon: <Star size={14} />, onSelect: () => starFiles(ids, !f.starred) },
+      ] : []),
       ...(!many ? [{ label: "Copy link", icon: <Link2 size={14} />, onSelect: () => { void navigator.clipboard.writeText(`${location.origin}/files?open=${f.id}`).then(() => toast("Link copied.", { tone: "success" })).catch(() => toast("Couldn't copy the link.", { tone: "danger" })); } }] : []),
-      "-",
-      { label: many ? `Delete ${ids.length}` : "Delete", icon: <Trash2 size={14} />, kbd: "Del", bad: true, onSelect: () => deleteFiles(ids) },
+      ...(!readOnly ? ["-" as const, { label: many ? `Delete ${ids.length}` : "Delete", icon: <Trash2 size={14} />, kbd: "Del", bad: true, onSelect: () => deleteFiles(ids) }] : []),
     ] });
   };
-  const folderMenu = (fo: FolderRow, at: { x: number; y: number }) => setMenu({ at, items: [
+  const folderMenu = (fo: FolderRow, at: { x: number; y: number }) => readOnly ? setMenu({ at, items: [
+    { label: "Open", icon: <Folder size={14} />, onSelect: () => go({ view: "all", folder: fo.id }) },
+    { label: "Download as .zip", icon: <Download size={14} />, onSelect: () => void download([], [fo.id]) },
+  ] }) : setMenu({ at, items: [
     { label: "Open", icon: <Folder size={14} />, onSelect: () => go({ view: "all", folder: fo.id }) },
     { label: "Rename, colour or company", icon: <PenLine size={14} />, onSelect: () => openFolderDialog(fo) },
     { label: "Move to…", icon: <FolderInput size={14} />, onSelect: () => moveDialog([], fo.id) },
@@ -456,8 +466,8 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
                 className={cn("flex h-[30px] items-center gap-1.5 rounded-lg px-2.5 text-xs", mode === m ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)]")}><Icon size={14} />{l}</button>
             ))}
           </div>
-          <button type="button" onClick={() => openFolderDialog(null)} className={BTN}><FolderPlus size={15} />New folder</button>
-          <button type="button" onClick={() => picker.current?.click()} className={BTN_DARK}><Upload size={15} />Upload</button>
+          {!readOnly && <button type="button" onClick={() => openFolderDialog(null)} className={BTN}><FolderPlus size={15} />New folder</button>}
+          {!readOnly && <button type="button" onClick={() => picker.current?.click()} className={BTN_DARK}><Upload size={15} />Upload</button>}
           <input ref={picker} type="file" multiple hidden onChange={(e) => { const l = [...(e.target.files ?? [])]; e.target.value = ""; if (l.length) void upload(l); }} />
         </div>
       </div>
@@ -519,9 +529,9 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         <nav aria-label="Files" className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:rounded-[20px] lg:bg-[var(--st-surface)] lg:p-3 lg:sticky lg:top-3">
           <RailItem on={nav.view === "all" && nav.folder == null && !needle} icon={<Folder size={15} />} label="All files" n={live.length} onClick={() => go({ view: "all", folder: null })} />
           <RailItem on={nav.view === "recent"} icon={<Clock size={15} />} label="Recent" onClick={() => go({ view: "recent", folder: null })} />
-          <RailItem on={nav.view === "starred"} icon={<Star size={15} />} label="Starred" n={live.filter((f) => f.starred).length || undefined} onClick={() => go({ view: "starred", folder: null })} />
+          {!readOnly && <RailItem on={nav.view === "starred"} icon={<Star size={15} />} label="Starred" n={live.filter((f) => f.starred).length || undefined} onClick={() => go({ view: "starred", folder: null })} />}
           <RailItem on={nav.view === "renew"} icon={<CalendarClock size={15} />} label="Needs renewal" n={renewN || undefined} bad={expiredN > 0} onClick={() => go({ view: "renew", folder: null })} />
-          <RailItem on={nav.view === "deleted"} icon={<Trash2 size={15} />} label="Deleted" n={looseDeleted.length + deletedFolders.length || undefined} onClick={() => go({ view: "deleted", folder: null })} />
+          {!readOnly && <RailItem on={nav.view === "deleted"} icon={<Trash2 size={15} />} label="Deleted" n={looseDeleted.length + deletedFolders.length || undefined} onClick={() => go({ view: "deleted", folder: null })} />}
           {topCompanies.length > 0 && <div className="hidden px-2.5 pb-1.5 pt-3 text-[11px] text-[var(--st-muted)] lg:block">Companies</div>}
           <div className="hidden flex-col gap-0.5 lg:flex">
             {topCompanies.map((fo) => {
@@ -566,7 +576,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
               </>
             ) : <span className="px-2 text-[20px] font-semibold tracking-[-0.01em]">{title}</span>}
             <span className="flex-1" />
-            <span className="text-xs text-[var(--st-muted)]">{nav.view === "deleted" ? `Kept ${KEEP_DELETED_DAYS} days, then removed for good` : nav.view === "all" && !needle ? "Drop files anywhere to upload here · drag a file onto a folder to move it" : ""}</span>
+            <span className="text-xs text-[var(--st-muted)]">{nav.view === "deleted" ? `Kept ${KEEP_DELETED_DAYS} days, then removed for good` : nav.view === "all" && !needle ? (readOnly ? "View only · open a file to preview or download it" : "Drop files anywhere to upload here · drag a file onto a folder to move it") : ""}</span>
           </div>
 
 
@@ -629,8 +639,8 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
                 <FileLine key={f.id} f={f} on={sel.has(f.id)} renaming={renaming === f.id} showPath={needle ? (f.folderId ? pathOf(folders, f.folderId).map((x) => x.name).join(" / ") : "All files") : null}
                   onClick={(e) => clickFile(e, f)} onToggle={() => toggle(f.id)} onOpen={() => setPreview({ id: f.id, list: listFiles })}
                   onMenu={(at) => fileMenu(f, at)} onRename={(n) => commitRename(f, n)} onCancelRename={() => setRenaming(null)}
-                  onStartRename={() => setRenaming(f.id)}
-                  onDragStart={() => { dragIds.current = sel.has(f.id) ? [...sel] : [f.id]; }} onDragEnd={() => { dragIds.current = null; setDropOn(null); }} />
+                  onStartRename={() => { if (!readOnly) setRenaming(f.id); }}
+                  onDragStart={() => { if (!readOnly) dragIds.current = sel.has(f.id) ? [...sel] : [f.id]; }} onDragEnd={() => { dragIds.current = null; setDropOn(null); }} />
               ))}
             </div>
           ) : (
@@ -638,7 +648,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
               {listFiles.map((f) => (
                 <FileCard key={f.id} f={f} on={sel.has(f.id)} onClick={(e) => clickFile(e, f)} onToggle={() => toggle(f.id)} onOpen={() => setPreview({ id: f.id, list: listFiles })}
                   onMenu={(at) => fileMenu(f, at)}
-                  onDragStart={() => { dragIds.current = sel.has(f.id) ? [...sel] : [f.id]; }} onDragEnd={() => { dragIds.current = null; setDropOn(null); }} />
+                  onDragStart={() => { if (!readOnly) dragIds.current = sel.has(f.id) ? [...sel] : [f.id]; }} onDragEnd={() => { dragIds.current = null; setDropOn(null); }} />
               ))}
             </div>
           )}
@@ -650,9 +660,9 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         sel.size && nav.view !== "deleted" ? "pointer-events-auto -translate-x-1/2 opacity-100" : "pointer-events-none -translate-x-1/2 translate-y-4 opacity-0")}>
         <span className="mr-1.5 text-[13px] font-medium">{sel.size} selected</span>
         <SelBtn onClick={() => void download([...sel])}><Download size={14} />Download</SelBtn>
-        <SelBtn onClick={() => moveDialog([...sel])}><FolderInput size={14} />Move</SelBtn>
-        <SelBtn onClick={() => { const on = ![...sel].every((id) => files.find((f) => f.id === id)?.starred); starFiles([...sel], on); }}><Star size={14} />Star</SelBtn>
-        <SelBtn bad onClick={() => deleteFiles([...sel])}><Trash2 size={14} />Delete</SelBtn>
+        {!readOnly && <SelBtn onClick={() => moveDialog([...sel])}><FolderInput size={14} />Move</SelBtn>}
+        {!readOnly && <SelBtn onClick={() => { const on = ![...sel].every((id) => files.find((f) => f.id === id)?.starred); starFiles([...sel], on); }}><Star size={14} />Star</SelBtn>}
+        {!readOnly && <SelBtn bad onClick={() => deleteFiles([...sel])}><Trash2 size={14} />Delete</SelBtn>}
         <SelBtn onClick={() => setSel(new Set())} label="Clear selection"><X size={14} /></SelBtn>
       </div>
 
@@ -712,7 +722,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
           onMove={(f) => { setPreview(null); moveDialog([f.id]); }}
           onStar={(f) => starFiles([f.id], !f.starred)}
           onDelete={(f) => { setPreview(null); deleteFiles([f.id]); }}
-          onSaved={() => router.refresh()} review={preview.review} />
+          onSaved={() => router.refresh()} review={preview.review} readOnly={readOnly} />
       )}
     </StudioScope>
   );

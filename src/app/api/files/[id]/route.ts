@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
+import { getViewer } from "@/lib/viewer";
+import { viewerCanSeeDocument } from "@/lib/files";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
 import { extOf } from "@/lib/files-shared";
 
@@ -12,12 +13,15 @@ export const dynamic = "force-dynamic";
  * `?as=html` turns a Word document into readable HTML for the preview (mammoth);
  * the browser can't show a .docx itself.
  *
- * Owner only — and it checks for itself, not only through the admin gate.
+ * The owner, or a director for a file of their companies (view and download
+ * only) — and it checks for itself, not only through the front door.
  * Each call mints a fresh short link, so nothing here outlives five minutes.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminSession())) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const id = Number((await params).id);
+  if (!(await viewerCanSeeDocument(viewer, id))) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const { data: row } = await sb.from("documents").select("title,file_name,storage_path").eq("id", id).maybeSingle();
   if (!row?.storage_path) return NextResponse.json({ error: "No file stored for this." }, { status: 404 });
   const url = new URL(req.url);

@@ -6,7 +6,7 @@
  * its details on the right, editable: expiry, reminder, type, reference,
  * issuer, notes. Nothing downloads to be looked at.
  */
-import { useEffect, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Link2, Loader2, PenLine, FolderInput, Star, Trash2, X, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
 import { FileIcon, ExpiryPill, addedBy, when } from "./file-bits";
 import { displayName, fmtSize, kindOf, type FileRow, type FolderRow, pathOf } from "@/lib/files-shared";
@@ -25,7 +25,9 @@ const DARK_FIELD = { background: "#141517", color: "#F2F2F0", border: "1px solid
 /** `review` = "Check the details" after an upload: each new file is read by
  *  the AI as it comes up, the boxes fill, and NOTHING is saved until the owner
  *  presses Save & next (or Skip). The details panel shows on a phone too. */
-export function FilePreview({ list, startId, folders, onClose, onRename, onMove, onStar, onDelete, onSaved, review = false }: {
+/** `readOnly` — a director: look and download, no changes (see FilesApp). */
+export function FilePreview({ list, startId, folders, onClose, onRename, onMove, onStar, onDelete, onSaved, review = false, readOnly = false }: {
+  readOnly?: boolean;
   list: FileRow[];
   startId: number;
   folders: FolderRow[];
@@ -74,11 +76,11 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
           <div className="truncate text-xs text-[#8E9197]">{review ? <span className="text-[#F2F2F0]">Check the details · </span> : null}{place} · {fmtSize(f.size)} · {i + 1} of {list.length}</div>
         </div>
         <div className="hidden items-center gap-1.5 md:flex">
-          <button type="button" className={BTN} onClick={() => onRename(f)}><PenLine size={14} />Rename</button>
-          <button type="button" className={BTN} onClick={() => onMove(f)}><FolderInput size={14} />Move</button>
+          {!readOnly && <button type="button" className={BTN} onClick={() => onRename(f)}><PenLine size={14} />Rename</button>}
+          {!readOnly && <button type="button" className={BTN} onClick={() => onMove(f)}><FolderInput size={14} />Move</button>}
           <button type="button" className={BTN} onClick={() => { void navigator.clipboard.writeText(`${location.origin}/files?open=${f.id}`).then(() => toast("Link copied — it opens for anyone signed in to COS as the owner.", { tone: "success" })).catch(() => toast("Couldn't copy the link.", { tone: "danger" })); }}><Link2 size={14} />Copy link</button>
-          <button type="button" className={cn(BTN, f.starred && "text-[#F5B94E]")} onClick={() => onStar(f)} aria-label={f.starred ? "Unstar" : "Star"}><Star size={14} fill={f.starred ? "currentColor" : "none"} /></button>
-          <button type="button" className={cn(BTN, "text-[#F07BBE]")} onClick={() => onDelete(f)} aria-label="Delete"><Trash2 size={14} /></button>
+          {!readOnly && <button type="button" className={cn(BTN, f.starred && "text-[#F5B94E]")} onClick={() => onStar(f)} aria-label={f.starred ? "Unstar" : "Star"}><Star size={14} fill={f.starred ? "currentColor" : "none"} /></button>}
+          {!readOnly && <button type="button" className={cn(BTN, "text-[#F07BBE]")} onClick={() => onDelete(f)} aria-label="Delete"><Trash2 size={14} /></button>}
         </div>
         <a href={`${src}?dl=1`} className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-3 text-[13px] font-semibold text-[#111214] hover:opacity-90"><Download size={14} />Download</a>
         <button type="button" className={BTN} onClick={onClose} aria-label="Close"><X size={15} /></button>
@@ -105,7 +107,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
             </>
           )}
         </div>
-        <Details key={f.id} f={f} trail={trail} review={review} last={i >= list.length - 1}
+        <Details key={f.id} f={f} trail={trail} review={review} readOnly={readOnly} last={i >= list.length - 1}
           autoRead={review && !readIds.has(f.id)} onRead={() => readIds.add(f.id)}
           onSaved={(v) => { setSaved((m) => ({ ...m, [f.id]: { ...m[f.id], ...v } })); onSaved(); }}
           onNext={() => (i >= list.length - 1 ? onClose() : setI(i + 1))} />
@@ -140,7 +142,8 @@ function Empty({ text, action }: { text: string; action?: React.ReactNode }) {
   );
 }
 
-function Details({ f, trail, onSaved, review = false, last = false, autoRead = false, onRead, onNext }: {
+function Details({ f, trail, onSaved, review = false, readOnly = false, last = false, autoRead = false, onRead, onNext }: {
+  readOnly?: boolean;
   f: FileRow; trail: string; onSaved: (v: Partial<FileRow>) => void;
   review?: boolean; last?: boolean; autoRead?: boolean; onRead?: () => void; onNext?: () => void;
 }) {
@@ -219,6 +222,14 @@ function Details({ f, trail, onSaved, review = false, last = false, autoRead = f
         {f.expiryDate && <><span className="text-[#8E9197]">Status</span><span><ExpiryPill f={f} /></span></>}
       </div>
       <div className="h-px shrink-0 bg-[#26282C]" />
+      {readOnly ? (
+        <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
+          {([["Expires", f.expiryDate], ["Issued", f.issueDate], ["Type", f.docType], ["Reference", f.referenceNo], ["Issued by", f.issuer], ["Notes", f.notes]] as const)
+            .filter(([, val]) => val)
+            .map(([k, val]) => <Fragment key={k}><span className="text-[#8E9197]">{k}</span><span className="whitespace-pre-wrap break-words">{val}</span></Fragment>)}
+        </div>
+      ) : (
+      <>
       <div className="grid grid-cols-2 gap-3">
         <label><span className={L}>Expires</span><input type="date" style={DARK_FIELD} className={FIELD} value={d.expiryDate} onChange={(e) => set({ expiryDate: e.target.value })} /></label>
         <label><span className={L}>Remind (days before)</span><input type="number" min={0} max={365} style={DARK_FIELD} className={FIELD} value={d.reminderLeadDays} onChange={(e) => set({ reminderLeadDays: Number(e.target.value) })} /></label>
@@ -244,6 +255,8 @@ function Details({ f, trail, onSaved, review = false, last = false, autoRead = f
         {f.hasFile && <button type="button" disabled={reading} onClick={() => void read()} className={BTN} title="The AI reads the file and fills the empty boxes — nothing is saved until you press Save">{reading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{reading ? "Reading…" : "Read it for me"}</button>}
         {f.expiryDate && <button type="button" disabled={saving} onClick={renew} className={BTN}><CalendarClock size={14} />Make a renewal task</button>}
       </div>
+      </>
+      )}
       {f.companyId && (
         <a href={`/companies/${f.companyId}`} className="inline-flex items-center gap-1.5 text-xs text-[#A3A6AB] hover:text-[#F2F2F0]"><ExternalLink size={12} />{f.companyName}</a>
       )}

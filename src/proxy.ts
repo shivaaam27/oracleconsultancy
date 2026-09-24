@@ -162,6 +162,8 @@ const DIRECTOR_PATHS: RegExp[] = [
   /^\/task\/new$/,                         // a new task
   /^\/task\/[A-Za-z0-9]+-\d+$/,             // a task
   /^\/api\/task-detail$/,                  // the task's data (checks scope itself)
+  /^\/files$/,                             // their companies' files, view-only
+  /^\/api\/files\/(\d+|zip)$/,              // open / download one, or a .zip (scope checked)
 ];
 
 async function validPortalToken(token: string | undefined): Promise<boolean> {
