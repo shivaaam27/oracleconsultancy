@@ -305,14 +305,6 @@ export function NotificationBell({
                 items={items}
                 onClose={() => setOpen(false)}
                 onOpen={openGroup}
-                onReply={async (g) => {
-                  await markGroupRead(g);
-                  setOpen(false);
-                  if (!g.lead.taskCode) return;
-                  const dest = withReturn(taskHref(g.lead.taskCode, { tab: "conversation" }), `${window.location.pathname}${window.location.search}`);
-                  markPush(dest);
-                  router.push(dest);
-                }}
                 onRead={markGroupRead}
                 onDismiss={dismissGroup}
                 onReadAll={markAllRead}

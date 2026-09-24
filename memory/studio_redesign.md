@@ -234,3 +234,21 @@ screens are untouched — HideOnPortal).
 - The Browser pane returns **blank screenshots when the pane is hidden** — check
   `tabs_context`; read the page text instead, or ask the owner to show the pane.
 - The admin side needs the owner's sign-in on localhost too; ask, never type it.
+
+## Search and notifications follow the theme; reply from a notification (24 Sept 2026)
+
+- **`.st-sheet` is the theme-following sheet** (`globals.css`): `--sh-bg/fg/sub/muted/
+  field/field-line/card/hover/line/chip-line/on-bg/on-fg/pink-*` with a light set and a
+  `.dark .st-sheet` set, plus `.st-sheet-dots`. The Ask/search palette and the
+  notifications panel use it — they were fixed dark before. **The quick-add card and the
+  Go-to panel are still fixed dark** (not asked yet).
+- **Search results (Studio only, Desk unchanged)**: a chip per kind found, with counts
+  (All · Tasks · People · Documents …). "All" shows each group capped to its best 4
+  (documents 3) with "Show all N →", laid out two to a row (`.st-results-grid`, groups
+  marked `data-half`); a chip shows one kind in full. Answers, Create and the page lists
+  appear only under All. Typing again resets to All. Group titles are quiet
+  sentence-case, not uppercase bands; the top match is a plain card, not teal.
+- **Notifications: Open / Mark read / Dismiss are real** (`/api/notifications`
+  `read`/`dismiss`). **Reply now posts in place**: `replyToTaskByCode()` in
+  `task/actions.ts` → `addTaskUpdateCore` (admin-gated), so it lands on the task's
+  conversation like any update. Enter posts, Shift+Enter new line, Esc cancels.

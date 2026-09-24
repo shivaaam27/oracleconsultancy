@@ -1419,3 +1419,22 @@ export async function studioNewTaskOptions(): Promise<{
     departments: [...new Set((ds ?? []).map((d) => d.name as string))],
   };
 }
+
+/**
+ * Reply to a task from the notifications panel (Studio): the update is posted
+ * through `addTaskUpdateCore`, the same writer as the task's own composer, so
+ * it lands on the task's conversation, notifies the team and can be undone.
+ */
+export async function replyToTaskByCode(code: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
+  const text = body.trim();
+  if (!text) return { ok: false, error: "Write something first." };
+  const t = await findTaskByCode(code);
+  if (!t) return { ok: false, error: `Couldn't find ${code}.` };
+  const res = await addTaskUpdateCore({ taskId: t.id, taskCode: t.code, body: text, createdBy: "web-ui" });
+  if (!res.ok) return { ok: false, error: res.error };
+  revalidatePath(`/task/${t.code}`);
+  revalidatePath("/");
+  bustTag("tasks"); invalidateAllTasks();
+  return { ok: true };
+}

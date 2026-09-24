@@ -1875,3 +1875,70 @@ body:has(main .studio) > * [data-field-label] {
   background-size: 14px 14px;
 }
 
+
+/* ---------- Studio sheets that follow the theme ----------
+   Search (Ask ORI) and Notifications rise from the footer. They were fixed
+   dark; the owner asked for them to follow light and dark like everything
+   else (24 Sept 2026). `--sh-*` is the sheet's own palette; the Desk tokens
+   are set too, so the palette's and the bell's Desk controls follow. */
+.st-sheet {
+  --sh-bg: #FFFFFF;
+  --sh-dots: rgba(17, 18, 20, 0.07);
+  --sh-fg: #111214;
+  --sh-sub: #55585E;
+  --sh-muted: #8E9197;
+  --sh-field: #F3F3F1;
+  --sh-field-line: #E4E4E0;
+  --sh-card: #F7F7F5;
+  --sh-hover: #F0F0EC;
+  --sh-line: #ECECE8;
+  --sh-chip-line: #E4E4E0;
+  --sh-on-bg: #111214;
+  --sh-on-fg: #FFFFFF;
+  --sh-pink-bg: #FCE7F3;
+  --sh-pink-fg: #C2327F;
+  --bg: 60 7% 95%; --bg-elev: 0 0% 100%; --bg-subtle: 60 8% 96.5%; --bg-muted: 60 5% 91%;
+  --fg: 220 8% 7%; --fg-muted: 220 4% 35%; --fg-subtle: 220 4% 57%;
+  --border: 60 7% 90%; --border-strong: 60 4% 80%;
+  --accent: 220 8% 7%; --accent-fg: 0 0% 100%; --accent-soft: 60 7% 94%; --accent-ring: 220 6% 40%;
+  color: var(--sh-fg);
+  background-color: var(--sh-bg);
+  font-family: var(--font-geist), var(--font-sans);
+}
+.dark .st-sheet {
+  --sh-bg: #141517;
+  --sh-dots: rgba(255, 255, 255, 0.10);
+  --sh-fg: #F2F2F0;
+  --sh-sub: #A3A6AB;
+  --sh-muted: #8E9197;
+  --sh-field: #1F2023;
+  --sh-field-line: #3A3D42;
+  --sh-card: #1A1B1E;
+  --sh-hover: #26282C;
+  --sh-line: #26282C;
+  --sh-chip-line: #2E3035;
+  --sh-on-bg: #F2F2F0;
+  --sh-on-fg: #111214;
+  --sh-pink-bg: #3A1D2E;
+  --sh-pink-fg: #F07BBE;
+  --bg: 220 6% 6%; --bg-elev: 225 8% 12%; --bg-subtle: 225 7% 14%; --bg-muted: 225 6% 18%;
+  --fg: 60 7% 94%; --fg-muted: 220 4% 65%; --fg-subtle: 220 4% 57%;
+  --border: 225 7% 20%; --border-strong: 225 6% 26%;
+  --accent: 60 7% 94%; --accent-fg: 220 8% 7%; --accent-soft: 225 6% 20%; --accent-ring: 220 4% 65%;
+}
+.st-sheet-dots { background-image: radial-gradient(var(--sh-dots) 1px, transparent 1.4px); background-size: 14px 14px; }
+
+/* Studio search: group titles are quiet sentence-case labels, not banded
+   uppercase strips; in the "All" view the groups sit two to a row so a search
+   fits without scrolling (tasks and each record kind take half; answers, the
+   top match and the page list take the full width). */
+.st-sheet [cmdk-group-heading] {
+  text-transform: none; letter-spacing: 0; background: none;
+  font-size: 12px; font-weight: 500; color: var(--sh-muted); padding: 10px 8px 4px;
+}
+.st-sheet [cmdk-item][aria-selected="true"] { background: var(--sh-hover); }
+@media (min-width: 640px) {
+  .st-results-grid [cmdk-list-sizer] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; align-items: start; }
+  .st-results-grid [cmdk-list-sizer] > * { grid-column: 1 / -1; }
+  .st-results-grid [cmdk-list-sizer] > [data-half] { grid-column: auto; }
+}

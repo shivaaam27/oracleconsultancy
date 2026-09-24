@@ -198,6 +198,9 @@ export function CommandPaletteProvider({
   // records (each flagged lifecycle:"history"). Default OFF keeps everyday
   // search to live records only.
   const [includeHistory, setIncludeHistory] = useState(false);
+  /* Studio: "all" shows every group capped to its best few, side by side; a
+     type shows that one group in full. Typing something new goes back to all. */
+  const [studioType, setStudioType] = useState<string>("all");
   const [recents, setRecents] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   // "Today" pulse — the estate's most recent notable events, shown in the empty
@@ -448,6 +451,7 @@ export function CommandPaletteProvider({
   }, [isOpen]);
 
   const trimmed = query.trim();
+  useEffect(() => { setStudioType("all"); }, [trimmed]);
   const routeToAction =
     looksLikeAgentCommand(trimmed) || looksLikeCommand(trimmed) || isDeterministicQuery(trimmed);
 
@@ -787,7 +791,7 @@ export function CommandPaletteProvider({
               className={cn(
                 "relative w-full overflow-hidden flex flex-col",
                 studio
-                  ? "st-on-dark st-palette rounded-3xl text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.45)] [font-family:var(--font-geist),var(--font-sans)]"
+                  ? "st-sheet st-sheet-dots rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.45)] [font-family:var(--font-geist),var(--font-sans)]"
                   : "glass rounded-2xl shadow-lg",
                 studio
                   ? mode === "chat" ? "max-w-3xl h-[72vh] max-h-[720px]" : "max-w-[1080px]"
@@ -824,8 +828,8 @@ export function CommandPaletteProvider({
                 />
               ) : (
                 <Command shouldFilter={true} loop onValueChange={setActiveValue}>
-                  <div className={cn("flex items-center gap-2.5", studio ? "m-4 mb-2 h-14 rounded-2xl border border-[#3A3D42] bg-[#1F2023] pl-4 pr-2" : "px-4 py-3.5 border-b border-border")}>
-                    {studio ? <Sparkles size={18} className="shrink-0 text-[#F2F2F0]" /> : <Search size={16} className="text-fg-subtle shrink-0" />}
+                  <div className={cn("flex items-center gap-2.5", studio ? "m-4 mb-2 h-14 rounded-2xl border border-[var(--sh-field-line)] bg-[var(--sh-field)] pl-4 pr-2" : "px-4 py-3.5 border-b border-border")}>
+                    {studio ? <Sparkles size={18} className="shrink-0 text-[var(--sh-fg)]" /> : <Search size={16} className="text-fg-subtle shrink-0" />}
                     <Command.Input
                       autoFocus
                       value={query}
@@ -845,7 +849,7 @@ export function CommandPaletteProvider({
                       className={cn("flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle", studio ? "text-[18px] tracking-[-0.01em]" : "text-[15px]")}
                     />
                     {studio && (
-                      <span className="hidden shrink-0 rounded-lg bg-[#26282C] px-2.5 py-1 text-[11px] text-[#C9CBCF] sm:inline">
+                      <span className="hidden shrink-0 rounded-lg bg-[var(--sh-hover)] px-2.5 py-1 text-[11px] text-[var(--sh-sub)] sm:inline">
                         {!trimmed ? "Search · Ask · Do" : /\?\s*$|^(who|what|when|why|how|which|is|are|do|does|did|can|should)\b/i.test(trimmed) ? "Asking ORI" : /^(remind|create|add|draft|send|move|mark|complete|close|assign)\b/i.test(trimmed) ? "Doing it" : "Searching"}
                       </span>
                     )}
@@ -868,39 +872,68 @@ export function CommandPaletteProvider({
                       ESC
                     </kbd>
                   </div>
+                  {studio && trimmed && (() => {
+                    /* Studio: what was found, by kind — a chip each, with its count.
+                       Picking one shows only that; "All" shows the best of each. */
+                    const counts: [string, string, number][] = [["all", "All", 0]];
+                    if (items.length) counts.push(["tasks", "Tasks", items.length]);
+                    for (const t of TYPE_ORDER) {
+                      const n = results.filter((r) => r.type === t).length;
+                      if (n && TYPE_META[t]) counts.push([t, TYPE_META[t].label, n]);
+                    }
+                    if (counts.length <= 2) return null;
+                    return (
+                      <div className="mx-4 mb-1 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+                        {counts.map(([k, l, n]) => (
+                          <button key={k} type="button" onClick={() => setStudioType(k)}
+                            className={cn("h-[30px] shrink-0 whitespace-nowrap rounded-[9px] border px-2.5 text-xs transition-colors",
+                              studioType === k ? "border-[var(--sh-on-bg)] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]")}>
+                            {l}{k !== "all" && <span className="ml-1.5 opacity-60">{n}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <div className={cn("flex min-h-0", studio && !trimmed && "flex-col gap-4 px-4 pb-2 lg:flex-row")}>
                   {studio && !trimmed && (
                     /* Studio's empty state (mockup board Ask): questions to start from.
                        Each one goes straight to ORI, the same path as typing it. */
                     <div className="min-w-0 lg:flex-[1.5]">
-                      <div className="mb-2.5 text-xs text-[#6E7177]">Try asking</div>
+                      <div className="mb-2.5 text-xs text-[var(--sh-muted)]">Try asking</div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {STUDIO_PROMPTS.map(([q, hint]) => (
                           <button key={q} type="button" onClick={() => submitPrompt(q)}
-                            className="flex gap-2.5 rounded-[14px] border border-[#26282C] bg-[#1A1B1E] px-3.5 py-3 text-left transition-colors hover:border-[#3A3D42]">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#26282C] text-[#C9CBCF]"><Sparkles size={13} /></span>
-                            <span className="min-w-0"><span className="block text-[13px] font-medium text-[#F2F2F0]">{q}</span><span className="mt-0.5 block text-[11px] text-[#8E9197]">{hint}</span></span>
+                            className="flex gap-2.5 rounded-[14px] border border-[var(--sh-line)] bg-[var(--sh-card)] px-3.5 py-3 text-left transition-colors hover:border-[var(--sh-field-line)]">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--sh-hover)] text-[var(--sh-sub)]"><Sparkles size={13} /></span>
+                            <span className="min-w-0"><span className="block text-[13px] font-medium text-[var(--sh-fg)]">{q}</span><span className="mt-0.5 block text-[11px] text-[var(--sh-muted)]">{hint}</span></span>
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
-                  <Command.List className={cn("min-w-0 overflow-y-auto p-1.5 scroll-fade-y slim-scroll", studio && !trimmed ? "max-h-[360px] lg:flex-1 lg:p-0" : "flex-1 max-h-[460px]")}>
+                  <Command.List className={cn(
+                    "min-w-0 overflow-y-auto p-1.5 scroll-fade-y slim-scroll",
+                    studio && !trimmed ? "max-h-[360px] lg:flex-1 lg:p-0" : "flex-1 max-h-[460px]",
+                    studio && trimmed && "px-3 lg:max-h-[min(560px,calc(100dvh-280px))]",
+                    studio && trimmed && studioType === "all" && "st-results-grid",
+                  )}>
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
 
                     {/* Entity hero — the strongly-matched company/person you meant,
                         front and centre with quick-links to its records. */}
-                    {heroResult && (
+                    {heroResult && (!studio || studioType === "all" || studioType === heroResult.type) && (
                       <Command.Group className="[&_[cmdk-group-heading]]:hidden">
                         <MagneticItem
                           value={`${query} __r_${heroResult.type}_${heroResult.id} ${heroResult.title} ${heroResult.subtitle}`}
                           onMouseEnter={() => setActiveValue(`__r_${heroResult.type}_${heroResult.id}`)}
                           onSelect={() => go(heroResult.href)}
-                          className="group/hero mb-1 flex items-center gap-3 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2.5 cursor-pointer aria-selected:border-[#2dd4bf]/50"
+                          className={studio
+                            ? "group/hero mb-1 flex items-center gap-3 rounded-2xl border border-[var(--sh-line)] bg-[var(--sh-card)] px-3.5 py-3 cursor-pointer aria-selected:border-[var(--sh-field-line)]"
+                            : "group/hero mb-1 flex items-center gap-3 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2.5 cursor-pointer aria-selected:border-[#2dd4bf]/50"}
                         >
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: "linear-gradient(135deg,#2dd4bf,#16a34a)" }}>
+                          <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", studio ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "text-white")} style={studio ? undefined : { background: "linear-gradient(135deg,#2dd4bf,#16a34a)" }}>
                             {heroResult.type === "company" ? <Building2 size={19} /> : <User size={19} />}
                           </span>
                           <span className="min-w-0 flex-1">
@@ -943,7 +976,7 @@ export function CommandPaletteProvider({
                     {/* Smart answer — instant natural-language LIST answer, no AI
                         ("who's on leave", "expiring documents", "MES overdue tasks",
                         "how many staff"). Rendered as a card straight from the index. */}
-                    {smartAnswer && trimmed.length >= 2 && (
+                    {smartAnswer && trimmed.length >= 2 && (!studio || studioType === "all") && (
                       <Command.Group
                         heading="Answer"
                         className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
@@ -998,7 +1031,7 @@ export function CommandPaletteProvider({
 
                     {/* Direct answer — instant "it just knows" value for an
                         entity+attribute lookup (e.g. "Gangadhar passport"). */}
-                    {directAnswer && trimmed.length >= 2 && (
+                    {directAnswer && trimmed.length >= 2 && (!studio || studioType === "all") && (
                       <Command.Group
                         heading="Answer"
                         className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
@@ -1260,12 +1293,13 @@ export function CommandPaletteProvider({
                     )}
 
                     {/* Tasks (from server search) */}
-                    {items.length > 0 && (
+                    {items.length > 0 && (!studio || !trimmed || studioType === "all" || studioType === "tasks") && (
                       <Command.Group
+                        data-half=""
                         heading={trimmed ? "Tasks" : "Recent tasks"}
                         className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
-                        {items.map((it) => (
+                        {(studio && trimmed && studioType === "all" ? items.slice(0, 4) : items).map((it) => (
                           <SearchTaskRow
                             key={it.code}
                             item={it}
@@ -1273,11 +1307,18 @@ export function CommandPaletteProvider({
                             onClose={() => setIsOpen(false)}
                           />
                         ))}
+                        {studio && trimmed && studioType === "all" && items.length > 4 && (
+                          <Command.Item value={`${query} __more_tasks`} onSelect={() => setStudioType("tasks")}
+                            className="mx-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs text-[var(--sh-sub)] aria-selected:bg-bg-muted">
+                            Show all {items.length} tasks →
+                          </Command.Item>
+                        )}
                       </Command.Group>
                     )}
 
                     {/* Deep index — people, companies, documents, letters, meetings, vendors, assets */}
                     {results.length > 0 && TYPE_ORDER.map((type) => {
+                      if (studio && studioType !== "all" && studioType !== type) return null;
                       const group = results.filter((r) => r.type === type && !(heroResult && r.id === heroResult.id));
                       if (group.length === 0) return null;
                       const meta = TYPE_META[type];
@@ -1293,10 +1334,11 @@ export function CommandPaletteProvider({
                       return (
                         <Command.Group
                           key={type}
+                          data-half=""
                           heading={heading}
                           className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:bg-bg-subtle/60 [&_[cmdk-group-heading]]:rounded-lg [&_[cmdk-group-heading]]:mb-0.5"
                         >
-                          {group.map((r) => {
+                          {(studio && studioType === "all" ? group.slice(0, isDoc ? 3 : 4) : group).map((r) => {
                             // Per-document file-type icon (PDF/photo/Excel/slide);
                             // other types keep their single entity icon.
                             const rowIcon = isDoc ? fileIconFor(r.fileName) : { Icon, tint: meta.tint };
@@ -1356,6 +1398,12 @@ export function CommandPaletteProvider({
                             </MagneticItem>
                             );
                           })}
+                          {studio && studioType === "all" && group.length > (isDoc ? 3 : 4) && (
+                            <Command.Item value={`${query} __more_${type}`} onSelect={() => setStudioType(type)}
+                              className="mx-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs text-[var(--sh-sub)] aria-selected:bg-bg-muted">
+                              Show all {group.length} {meta.label.toLowerCase()} →
+                            </Command.Item>
+                          )}
                         </Command.Group>
                       );
                     })}
@@ -1363,6 +1411,7 @@ export function CommandPaletteProvider({
                     {/* Create — the same list the sidebar's New menu offers, so
                         keyboard and mouse can raise exactly the same things.
                         Both read `creatables()`; neither holds its own array. */}
+                    {(!studio || !trimmed || studioType === "all") && (
                     <Command.Group
                       heading="Create"
                       className="[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
@@ -1381,19 +1430,20 @@ export function CommandPaletteProvider({
                         </Command.Item>
                       ))}
                     </Command.Group>
+                    )}
 
                     {/* Pinned */}
-                    {pinnedRoutes.length > 0 && (
+                    {pinnedRoutes.length > 0 && (!studio || !trimmed || studioType === "all") && (
                       <RouteGroup heading="Pinned" routes={pinnedRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
 
                     {/* Recents */}
-                    {recentRoutes.length > 0 && (
+                    {recentRoutes.length > 0 && (!studio || !trimmed || studioType === "all") && (
                       <RouteGroup heading="Recent" routes={recentRoutes} pins={pins} onGo={go} onToggle={toggle} icon={<Clock size={11} />} />
                     )}
 
                     {/* All other pages */}
-                    {otherRoutes.length > 0 && (
+                    {otherRoutes.length > 0 && (!studio || !trimmed || studioType === "all") && (
                       <RouteGroup heading="Pages" routes={otherRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
 
