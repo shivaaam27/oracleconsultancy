@@ -1036,7 +1036,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     // (status, priority, deadline, waiting on) changes in place; the rest open
     // the full form.
     const field = (label: string, value: React.ReactNode, opts?: { hint?: React.ReactNode; onClick?: () => void; top?: boolean }) => (
-      <div className={cn("grid grid-cols-[104px_minmax(0,1fr)] gap-3 border-b border-[var(--st-line-soft)] py-2.5 last:border-b-0", opts?.top ? "items-start" : "items-center")}>
+      <div className={cn("grid grid-cols-[88px_minmax(0,1fr)] gap-2.5 xl:grid-cols-[104px_minmax(0,1fr)] xl:gap-3 border-b border-[var(--st-line-soft)] py-2.5 last:border-b-0", opts?.top ? "items-start" : "items-center")}>
         <span className="text-[13px] text-[var(--st-muted)]">{label}</span>
         {opts?.onClick ? (
           <button type="button" onClick={opts.onClick} title={`Change the ${label.toLowerCase()}`} className="-mx-1.5 min-w-0 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-colors hover:bg-[var(--st-page)]">
@@ -1110,9 +1110,9 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
           ) : <p className="text-xs text-[var(--st-muted)]">Nobody is on this task yet.</p>}
           <button type="button" onClick={edit} className={cn(stBtn.ghost, "mt-3 h-9 w-full justify-center text-xs")}>{t.assignees.length ? "Add someone" : "Assign someone"}</button>
           {t.assignees.length > 0 && !done && (
-            <div className="mt-2 flex gap-1.5">
-              <button type="button" onClick={() => remindAbout("task")} disabled={reminding} className={cn(stBtn.dark, "h-9 flex-1 justify-center text-xs")}>Remind about this task</button>
-              <button type="button" onClick={() => remindAbout("all")} disabled={reminding} className={cn(stBtn.ghost, "h-9 text-xs")} title={`Remind ${getGivenName(t.assignees[0])} about every open task`}>All their tasks</button>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => remindAbout("task")} disabled={reminding} className={cn(stBtn.dark, "h-9 flex-1 basis-[128px] justify-center px-2 text-xs")}>Remind about this task</button>
+              <button type="button" onClick={() => remindAbout("all")} disabled={reminding} className={cn(stBtn.ghost, "h-9 flex-1 basis-[88px] justify-center px-2 text-xs")} title={`Remind ${getGivenName(t.assignees[0])} about every open task`}>All their tasks</button>
             </div>
           )}
         </div>
@@ -1120,14 +1120,14 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
           <div className="mb-3 text-[15px] font-semibold">Share</div>
           <div className="flex flex-col gap-1.5">
             <button type="button" onClick={copyLink} className={cn(stBtn.ghost, "h-9 w-full justify-start text-xs")}><LinkIcon size={12} />Copy link</button>
-            <DraftEmailButton taskId={t.id} />
+            <DraftEmailButton taskId={t.id} buttonClassName={cn(stBtn.ghost, "h-9 w-full justify-start text-xs")} />
           </div>
         </div>
-        <div className={panel}><SimilarTasks query={t.actionItem} excludeId={t.id} /></div>
+        <SimilarTasks query={t.actionItem} excludeId={t.id} variant="studio" className={panel} />
       </div>
     );
     const centre = (
-      <div className={cn(panel, "min-w-0 px-5 pb-5 pt-2")}>
+      <div className={cn(panel, "flex min-w-0 flex-col px-5 pb-5 pt-2 lg:min-h-[calc(100dvh-260px)]")}>
         {activeTab === "edit" ? (
           <div className="pt-3">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -1158,7 +1158,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
             {activeTab === "history" ? historyContent
               : activeTab === "notes" ? <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} />
               : (
-                <>
+                <div className="flex flex-1 flex-col">
                   <PortalConversation
                     variant="studio"
                     taskId={t.id}
@@ -1180,7 +1180,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
                     canAck={false}
                     onPosted={() => setRefreshKey((k) => k + 1)}
                   />
-                </>
+                </div>
               )}
           </>
         )}
@@ -1242,10 +1242,13 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
-          <div className="order-2 lg:order-1">{details}</div>
-          <div className="order-1 lg:order-2">{centre}</div>
-          <div className="order-3 lg:col-span-2 xl:col-span-1">{rail}</div>
+        {/* Three columns from lg, as the mockup's Expanded board — Details ·
+            conversation · People/Share/Similar. The side columns start slim
+            and widen with the screen; below lg they stack, conversation first. */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)_240px] xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+          <div className="order-2 min-w-0 lg:order-1">{details}</div>
+          <div className="order-1 min-w-0 lg:order-2">{centre}</div>
+          <div className="order-3 min-w-0">{rail}</div>
         </div>
         {repeatSheet}
       </StudioScope>

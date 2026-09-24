@@ -14,7 +14,11 @@ type SimilarTask = {
   latestUpdate: string | null;
 };
 
-export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: number }) {
+export function SimilarTasks({ query, excludeId, variant, className }: {
+  query: string; excludeId?: number;
+  /** "studio" = the Studio record's plain "Similar tasks" list (mockup, Expanded board). */
+  variant?: "studio"; className?: string;
+}) {
   const [tasks, setTasks] = useState<SimilarTask[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +48,26 @@ export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: 
 
   if (!query.trim() || query.trim().length < 6) return null;
   if (!loading && tasks.length === 0) return null;
+
+  if (variant === "studio") {
+    return (
+      <div className={className}>
+        <div className="mb-2.5 flex items-center gap-2 text-[15px] font-semibold">
+          Similar tasks{loading && <Loader2 size={12} className="animate-spin text-[var(--st-muted)]" />}
+        </div>
+        <div className="flex flex-col gap-2.5">
+          {tasks.slice(0, 4).map((t) => (
+            <TaskDrawerLink key={t.id} code={t.code} className="group/item block min-w-0 text-left">
+              <span className="block truncate text-[13px] group-hover/item:underline">{t.actionItem}</span>
+              <span className="st-mono block truncate text-[11px] text-[var(--st-muted)]">
+                {t.code}{t.companyName ? ` · ${t.companyName}` : ""}{["Completed", "Closed"].includes(t.status) && t.resolvedInDays !== null ? ` · done in ${t.resolvedInDays}d` : ""}
+              </span>
+            </TaskDrawerLink>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <details className="group glass elevated rounded-2xl overflow-hidden">

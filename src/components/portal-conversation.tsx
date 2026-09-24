@@ -400,7 +400,7 @@ export function PortalConversation(props: Props) {
     const day = (label: string) => <div className="pt-1 text-center text-[11px] uppercase tracking-[0.08em] text-[var(--st-muted)]">{label}</div>;
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4">
         {pinned.map((m) => (
           <div key={m.id} className="rounded-xl bg-[var(--st-page)] px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]">
@@ -419,7 +419,7 @@ export function PortalConversation(props: Props) {
           </div>
         ))}
 
-        <section className="flex min-h-[200px] flex-col gap-2.5">
+        <section className="flex min-h-[200px] flex-1 flex-col gap-2.5">
           {older.length > 0 && (
             <details>
               <summary className="cursor-pointer list-none py-1 text-center text-[11px] text-[var(--st-muted)] hover:text-[var(--st-ink)]">

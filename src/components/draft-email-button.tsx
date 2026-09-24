@@ -15,7 +15,12 @@ type Draft = {
   taskCode: string;
 };
 
-export function DraftEmailButton({ taskId }: { taskId: number }) {
+export function DraftEmailButton({ taskId, buttonClassName }: {
+  taskId: number;
+  /** Also draw a visible button (the Studio record's Share panel). Without it
+   *  the draft is offered only as a page action, as before. */
+  buttonClassName?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [subject, setSubject] = useState("");
@@ -84,6 +89,12 @@ export function DraftEmailButton({ taskId }: { taskId: number }) {
 
   return (
     <>
+      {buttonClassName && (
+        <button type="button" onClick={() => { if (!loading) generate(); }} disabled={loading} className={buttonClassName}>
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+          {loading ? "Drafting…" : "Draft an email"}
+        </button>
+      )}
       {(draft || error) && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setDraft(null); setError(null); }}>
           <div className="bg-bg border border-border rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-auto" onClick={e => e.stopPropagation()}>
