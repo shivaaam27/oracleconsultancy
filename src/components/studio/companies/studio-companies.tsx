@@ -34,6 +34,9 @@ import { createSite, renameSite, mergeSites, deleteSite, createRole, renameRole,
 
 export type HubCompany = { id: number; name: string; prefix: string; staff: number; open: number; late: number; done: number };
 export type StudioCompaniesData = {
+  /** A director: their companies to open — no Add company, and not the
+   *  owner's reference lists (departments, sites, roles). */
+  readOnly?: boolean;
   companies: HubCompany[];
   departments: DepartmentAdminRow[];
   sites: SiteAdminRow[];
@@ -94,7 +97,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
 
   const tabs = (
     <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist">
-      {TABS.map((t) => (
+      {(data.readOnly ? (["companies"] as Tab[]) : TABS).map((t) => (
         <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
           className={cn("flex h-[30px] items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs transition-colors",
             tab === t ? "bg-[var(--st-surface)] font-medium text-[var(--st-ink)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
@@ -106,7 +109,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
 
   return (
     <StudioScope className="flex flex-col gap-5">
-      <StudioHeader title="Companies" right={<>{tabs}<button type="button" onClick={addCompany} className={stBtn.dark}><Plus size={14} strokeWidth={2.4} />Add company</button></>} />
+      <StudioHeader title="Companies" right={data.readOnly ? undefined : <>{tabs}<button type="button" onClick={addCompany} className={stBtn.dark}><Plus size={14} strokeWidth={2.4} />Add company</button></>} />
 
       {tab === "companies" && (
         <>
@@ -184,28 +187,28 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                 </Link>
               );
             })}
-            <button type="button" onClick={addCompany}
+            {!data.readOnly && <button type="button" onClick={addCompany}
               className="flex min-h-[132px] flex-col items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-[var(--st-dash)] text-[13px] text-[var(--st-sub)] transition-colors hover:bg-[var(--st-surface)]">
               <Plus size={18} strokeWidth={2} />Add a company
               <span className="text-[11px] text-[var(--st-muted)]">name · task-code prefix · colour</span>
-            </button>
+            </button>}
           </div>
         </>
       )}
 
-      {tab === "departments" && (
+      {!data.readOnly && tab === "departments" && (
         <StudioReference noun="department" addTitle="Add a department"
           note="Rename or merge moves everyone and every task across. Deleting leaves them with no department. Heads are set per company on its Org tab."
           items={data.departments.map((d) => ({ id: d.id, name: d.name, meta: [`${d.peopleCount} ${d.peopleCount === 1 ? "person" : "people"}`, `${d.companyCount} ${d.companyCount === 1 ? "company" : "companies"}`, `${d.taskCount} ${d.taskCount === 1 ? "task" : "tasks"}`].join(" · ") }))}
           onCreate={createDepartment} onRename={renameDepartment} onMerge={mergeDepartments} onDelete={deleteDepartment} />
       )}
-      {tab === "sites" && (
+      {!data.readOnly && tab === "sites" && (
         <StudioReference noun="site" addTitle="Add a site"
           note="Sites are where staff work or live — not company branches. Merging re-points everyone based or living there; deleting sets them to no site."
           items={data.sites.map((s) => ({ id: s.id, name: s.name, meta: `${s.workCount} work · ${s.residenceCount} living here` }))}
           onCreate={createSite} onRename={renameSite} onMerge={mergeSites} onDelete={deleteSite} />
       )}
-      {tab === "roles" && (
+      {!data.readOnly && tab === "roles" && (
         <StudioReference noun="job title" addTitle="Add a job title"
           note="Renaming a title updates everyone who holds it. Merge folds two titles into one. Deleting keeps each person's current title text."
           items={data.roles.map((r) => ({ id: r.id, name: r.name, meta: `${r.peopleCount} ${r.peopleCount === 1 ? "person" : "people"}` }))}

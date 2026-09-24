@@ -83,7 +83,35 @@ new caps → 3 managers → 4 staff → 5 retire the portal twins one by one.
   command deck, signals…), the `@modal` new-task pop-up. ~9k lines.
 - Footer has **Sign out** (owner → adminLogout, director → portalLogout).
 
+## Built — 25 Sept 2026 (later): the rest of a director's day, VIEW-ONLY
+Files, People, Companies and Calendar — each page checks `getViewer()`, scopes
+its data to the director's companies, and takes a `readOnly` flag that hides
+every write (and every write is `guardOwner` on the server anyway).
+- **Files**: `viewerLibrary` / `viewerCanSeeDocument` (lib/files.ts) — their
+  companies' files and their people's papers; preview, download, .zip.
+- **People**: their companies' active people; **private details (national ID,
+  passport, address, DOB, emergency contact, notes) are BLANKED on the server
+  before the page is built**, not hidden; workload counts only their
+  companies' tasks (`getAllPeopleWithWorkload({ taskScope })`). Person tabs:
+  Overview, Tasks, Files, History (no Journey, Equipment, Notes, Edit, facts).
+- **Companies**: their companies; no Add company, no Departments/Sites/Roles.
+  Company page: Notes tab gone (owner's notes), Profile locked
+  (`<fieldset disabled>`), no facts/governance panels, documents → "Open
+  <company>'s files", Timeline without update/audit menus or "Recently
+  removed", Org without pickers, no AI briefing. Tasks tab = full task powers.
+- **Calendar**: events of their companies or that invite them; overlays =
+  their task deadlines + renewals + holidays (no leave/birthdays/probation,
+  no announcements); an event opens read-only (fieldset disabled, share links
+  kept, no invite/drafts/delete/papers). The page's opportunistic writes
+  (advanceDueMeetingTasks / postMeetingFollowups) do NOT run for a director.
+- ⚠️ **A director's page must not call an owner-only action on load** — the
+  guard throws and Next shows the red issue badge. Found twice (event papers):
+  gate such effects on `readOnly`. Sweep: fetch each director page and grep
+  for "Only the administrator".
+- Footer "What needs you now" (owner and director, scoped) and **Sign out**.
+- Tested live as Pulin Manek (portfolio director). A COMPANY-SCOPED director
+  has not been walked through live yet — the scope code paths are the same.
+
 ## Next
-Companies / People / Files / Calendar for directors, VIEW-ONLY (+ download):
-viewer-aware pages and APIs, then add each to `DIRECTOR_PATHS` and the
-director footer. Then managers, then staff.
+Managers, then staff (the owner will define their slice). Open for directors:
+governance/facts read-only, event papers read-only, search (⌘K) scoped.

@@ -165,6 +165,8 @@ const DIRECTOR_PATHS: RegExp[] = [
   /^\/files$/,                             // their companies' files, view-only
   /^\/api\/files\/(\d+|zip)$/,              // open / download one, or a .zip (scope checked)
   /^\/people(\/\d+)?$/,                     // their companies' people, view-only
+  /^\/companies(\/\d+)?$/,                  // their companies, view-only (tasks: full)
+  /^\/calendar$/,                          // their companies' events, view-only
 ];
 
 async function validPortalToken(token: string | undefined): Promise<boolean> {

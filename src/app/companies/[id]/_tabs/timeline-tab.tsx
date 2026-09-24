@@ -35,9 +35,12 @@ import { Pencil } from "lucide-react";
 const ITEM_LIMIT = 200;
 
 export async function TimelineTab({
+  readOnly = false,
   companyTasks,
   companyId,
 }: {
+  /** A director: the history to read — correcting it is the owner's. */
+  readOnly?: boolean;
   companyTasks: TaskRow[];
   companyId: number;
   filterParam?: string | undefined;
@@ -168,16 +171,19 @@ export async function TimelineTab({
               code={code}
               title={code === "—" ? "Bulk changes" : (titleByCode.get(code) ?? null)}
               items={byTask.get(code)!}
+              readOnly={readOnly}
             />
           ))}
         </div>
       )}
 
-      <RemovedSection
-        updates={(delUpdRes.data ?? []) as RemovedUpdate[]}
-        audits={(delAudRes.data ?? []) as RemovedAudit[]}
-        codeById={codeById}
-      />
+      {!readOnly && (
+        <RemovedSection
+          updates={(delUpdRes.data ?? []) as RemovedUpdate[]}
+          audits={(delAudRes.data ?? []) as RemovedAudit[]}
+          codeById={codeById}
+        />
+      )}
     </div>
   );
 }
@@ -303,10 +309,12 @@ function TaskThread({
   code,
   title,
   items,
+  readOnly = false,
 }: {
   code: string;
   title: string | null;
   items: TimelineItem[];
+  readOnly?: boolean;
 }) {
   return (
     <details className="group glass elevated rounded-2xl overflow-hidden" open>
@@ -329,7 +337,7 @@ function TaskThread({
           <div className="absolute left-1 top-1.5 bottom-1.5 w-px bg-border" />
           <div className="space-y-2.5">
             {items.map((it) => (
-              <EventRow key={`${it.kind}-${it.id}`} item={it} />
+              <EventRow key={`${it.kind}-${it.id}`} item={it} readOnly={readOnly} />
             ))}
           </div>
         </div>
@@ -339,7 +347,7 @@ function TaskThread({
 }
 
 /** A single event inside a task thread — no repeated code/title, just content + time. */
-function EventRow({ item }: { item: TimelineItem }) {
+function EventRow({ item, readOnly = false }: { item: TimelineItem; readOnly?: boolean }) {
   const dot =
     item.kind === "update"
       ? "bg-accent"
@@ -368,7 +376,7 @@ function EventRow({ item }: { item: TimelineItem }) {
             <span className="text-xs uppercase tracking-wider text-fg-muted">Update</span>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
-              <UpdateMenu updateId={item.id} body={item.body} pinned={false} showPin={false} />
+              {!readOnly && <UpdateMenu updateId={item.id} body={item.body} pinned={false} showPin={false} />}
             </div>
           </div>
           <p className="text-sm leading-relaxed mt-1"><CodeLinkedText text={item.body} /></p>
@@ -404,7 +412,7 @@ function EventRow({ item }: { item: TimelineItem }) {
                 <span className="font-medium text-fg">{item.field || item.entryType}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
-                  <AuditMenu entryId={item.id} currentReason={item.changeReason} />
+                  {!readOnly && <AuditMenu entryId={item.id} currentReason={item.changeReason} />}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">

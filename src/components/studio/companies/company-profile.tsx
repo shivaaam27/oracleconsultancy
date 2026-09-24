@@ -52,7 +52,7 @@ function Field({ label, name, value, type = "text", placeholder, hint, span }: {
   );
 }
 
-export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, profile, relationships, facts, governance, documents }: {
+export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, profile, relationships, facts, governance, documents, readOnly = false }: {
   companyId: number;
   companyName: string;
   accent: string | null;
@@ -62,6 +62,8 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
   facts: ReactNode;
   governance: ReactNode;
   documents: ReactNode;
+  /** A director: the profile to read — fields locked, no save, no photo. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -95,10 +97,11 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <form onSubmit={onSubmit} onChange={() => setDirty(true)} className="flex min-w-0 flex-col gap-4">
-          <Card title="Official details" right={saveBtn}>
+          <fieldset disabled={readOnly} className="contents">
+          <Card title="Official details" right={readOnly ? undefined : saveBtn}>
             <div className="mt-3 flex items-center gap-4">
               <CompanyAvatar name={companyName} accent={accent} logoUrl={preview} size={56} iconSize={22} />
-              <div className="flex flex-col gap-1.5">
+              {!readOnly && <div className="flex flex-col gap-1.5">
                 <input ref={fileRef} type="file" name="logo" accept="image/*" className="hidden" id="st-company-logo"
                   onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; setPreview(URL.createObjectURL(f)); setRemoveLogo(false); setDirty(true); }} />
                 <div className="flex gap-1.5">
@@ -111,7 +114,7 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
                   )}
                 </div>
                 <span className="text-[11px] text-[var(--st-muted)]">Square PNG or JPG. Shows across COS and on letters.</span>
-              </div>
+              </div>}
             </div>
             <div className="mt-4 grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">
               <label className="min-w-0 sm:col-span-2" title="The short name shown everywhere — lists, reports, tasks">
@@ -138,10 +141,11 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
               <Field label="Their title" name="signatoryTitle" value={profile.signatoryTitle} placeholder="e.g. Director" />
             </div>
           </Card>
+          </fieldset>
         </form>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <Card title="People in filings" right={<Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1 hover:text-[var(--st-ink)]"><Network size={12} />All connections</Link>}>
+          <Card title="People in filings" right={readOnly ? undefined : <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1 hover:text-[var(--st-ink)]"><Network size={12} />All connections</Link>}>
             <p className="mt-0.5 text-xs text-[var(--st-muted)]">Read from its filed documents — directors, shareholders, the secretary.</p>
             <div className="mt-2 flex flex-col">
               {relationships.length === 0 && <div className="py-3 text-[13px] text-[var(--st-muted)]">Nobody is named in its filings yet.</div>}
@@ -157,10 +161,10 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
               ))}
             </div>
           </Card>
-          <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{governance}</section>
+          {governance && <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{governance}</section>}
         </div>
 
-        <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4 lg:col-span-2 xl:col-span-1">{facts}</section>
+        {facts && <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4 lg:col-span-2 xl:col-span-1">{facts}</section>}
       </div>
 
       <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{documents}</section>

@@ -5,6 +5,8 @@ import { listOverlayItems } from "@/lib/calendar-overlays";
 import { listEventCategories } from "@/lib/event-categories";
 import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
+import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/viewer";
 import { listAnnouncements, receiptStats, isLive, isScheduled } from "@/lib/announcements";
 import { CalendarBoard, type CalendarEventView, type BriefAnnouncement } from "./calendar-board";
 
@@ -19,25 +21,44 @@ function shiftKey(days: number): string {
 }
 
 export default async function CalendarPage() {
+  // The owner, or a director — who reads the events of their companies and
+  // the ones they are invited to (lib/viewer.ts).
+  const viewer = await getViewer();
+  if (!viewer) redirect("/portal");
+  const director = viewer.kind === "director" ? viewer : null;
   // Opportunistic: advance meetings whose start has passed to In Progress, and
   // prompt for the outcome on meetings that have ended (throttled, best-effort).
-  void advanceDueMeetingTasks().catch(() => {});
-  void postMeetingFollowups().catch(() => {});
+  // The owner's visit only — a director's look must not move anything.
+  if (!director) {
+    void advanceDueMeetingTasks().catch(() => {});
+    void postMeetingFollowups().catch(() => {});
+  }
 
   // Overlay window: ~1 month back to ~13 months ahead, so paging the calendar
   // rarely needs a refetch.
   const overlayFrom = shiftKey(-31);
   const overlayTo = shiftKey(400);
 
-  const [events, overlays, categories, announcementsRaw, { data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
+  const [eventsAll, overlaysAll, categories, announcementsRaw, { data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
     listCalendarEvents(),
     listOverlayItems(overlayFrom, overlayTo),
     listEventCategories(),
-    listAnnouncements(),
+    director ? Promise.resolve([] as Awaited<ReturnType<typeof listAnnouncements>>) : listAnnouncements(),
     sb.from("people").select("id,name,email").eq("active", true).order("name"),
     sb.from("companies").select("id,name,accent_color").order("name"),
   ]);
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+  // A director: their companies' events and any they are invited to; of the
+  // overlays, their companies' task deadlines and renewals, and holidays —
+  // not staff leave, birthdays or probation (HR's), nor the owner's notices.
+  const scope = viewer.scope;
+  const inScope = (cid: number | null | undefined) => scope == null || (cid != null && scope.includes(cid));
+  const events = director
+    ? eventsAll.filter((e) => inScope(e.companyId) || e.attendees.some((a) => a.personId === director.person.id))
+    : eventsAll;
+  const overlays = director
+    ? overlaysAll.filter((o) => o.kind === "holiday" || ((o.kind === "task" || o.kind === "renewal") && inScope(o.companyId)))
+    : overlaysAll;
 
   // Announcements with live receipt stats (seen / ack / audience total) for the
   // Announcements tab + the "haven't acknowledged" KPI.
@@ -53,7 +74,9 @@ export default async function CalendarPage() {
     .filter((a) => a.live && a.requireAck)
     .reduce((n, a) => n + Math.max(0, a.stats.total - a.stats.ack), 0);
 
-  const people = (peopleRaw ?? []).map((p) => ({
+  // The guest picker's list (names + emails) is for adding people — a
+  // director adds nobody, so it is not sent.
+  const people = (director ? [] : peopleRaw ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
     email: (p.email as string) ?? null,
@@ -108,6 +131,7 @@ export default async function CalendarPage() {
         companies={companies}
         categories={categories}
         announcements={announcements}
+        readOnly={!!director}
         counts={counts}
 
       />

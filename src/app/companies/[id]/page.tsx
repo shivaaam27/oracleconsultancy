@@ -24,7 +24,9 @@ import { listVendors } from "@/lib/vendors";
 import type { VendorRow } from "@/lib/vendors-shared";
 import { sb } from "@/db/supabase";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { getViewer, viewerCoversCompany } from "@/lib/viewer";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StudioCompany, type StudioCompanyData } from "@/components/studio/companies/studio-company";
 import { StudioCompanyProfile } from "@/components/studio/companies/company-profile";
@@ -45,7 +47,15 @@ export default async function CompanyPage({
 }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
-  const tab = parseCompanyTab(sp.tab);
+  // The owner, or a director for one of their companies — view-only, apart
+  // from its tasks, where a director has the owner's powers (lib/viewer.ts).
+  const viewer = await getViewer();
+  if (!viewer) redirect("/portal");
+  if (!viewerCoversCompany(viewer, companyId)) notFound();
+  const director = viewer.kind === "director";
+  const asked = parseCompanyTab(sp.tab);
+  // The Notes tab is the owner's notes — not a director's to read.
+  const tab = director && asked === "notes" ? "overview" : asked;
   const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl] =
     await Promise.all([
       getAllTasks(),
@@ -146,7 +156,7 @@ export default async function CompanyPage({
       .filter((p) => p.active)
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
     const pickerPeople = allPeople.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
-    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads, pickerPeople };
+    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads, pickerPeople: director ? [] : pickerPeople };
   }
 
   // Studio (Settings → New look → Companies): mockup board Company.
@@ -223,9 +233,20 @@ export default async function CompanyPage({
           sectorRegulated: false,
         }}
         relationships={relationships as Awaited<ReturnType<typeof getCompanyRelationships>>}
-        facts={<FactsPanel entityType="company" entityId={companyId} defaultOpen />}
-        governance={<GovernancePanel companyId={companyId} />}
-        documents={<CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
+        readOnly={director}
+        // Facts and governance (shareholding, signatories, resolutions) are the
+        // owner's records; a director's copy of them is a later decision.
+        facts={director ? null : <FactsPanel entityType="company" entityId={companyId} defaultOpen />}
+        governance={director ? null : <GovernancePanel companyId={companyId} />}
+        documents={director ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="m-0 text-[15px] font-semibold">Files</h2>
+              <p className="mt-0.5 text-xs text-[var(--st-muted)]">{companyDocs.length} on file — open, preview or download them in Files.</p>
+            </div>
+            <Link href={`/files?co=${companyId}`} className="inline-flex h-8 items-center rounded-[9px] border border-[var(--st-line)] px-3 text-xs hover:bg-[var(--st-page)]">Open {name}&apos;s files</Link>
+          </div>
+        ) : <CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
       />
     ) : tab === "tasks" ? (
       (tf === "done" ? completedRows : openRows).length === 0 ? (
@@ -245,23 +266,24 @@ export default async function CompanyPage({
         <LinkedNotesList notes={await notesLinkedTo("company", companyId)} emptyHint={`Write @${name} in any note and it will appear here.`} about={{ entity: "company", id: companyId, label: name }} />
       </section>
     ) : tab === "timeline" ? (
-      <section className={card}><TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} /></section>
+      <section className={card}><TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} readOnly={director} /></section>
     ) : tab === "org" && orgTab ? (
       <section className={card}>
         <ErrorBoundary label="company-org">
           <OrgChart
             companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
             trees={{ [companyId]: orgTab.tree }} extras={orgTab.extras} associatedByCompany={{ [companyId]: orgTab.associated }}
-            deptHeads={orgTab.deptHeads} pickerPeople={orgTab.pickerPeople} initialCompanyId={companyId} showSwitcher={false} showEveryone={false}
+            deptHeads={orgTab.deptHeads} pickerPeople={director ? undefined : orgTab.pickerPeople} initialCompanyId={companyId} showSwitcher={false} showEveryone={false} readOnly={director}
           />
         </ErrorBoundary>
       </section>
     ) : null;
   return (
     <>
-      <CompanyActions companyId={companyId} companyName={name} />
+      {!director && <CompanyActions companyId={companyId} companyName={name} />}
       {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
       <StudioCompany data={{
+        readOnly: director,
         id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
         open: openRows.length, late: overdueCount, people: teamCount, tab, overview, tf, doneCount: completedRows.length,
         chips: {

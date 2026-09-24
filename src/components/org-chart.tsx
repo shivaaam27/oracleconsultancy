@@ -323,7 +323,7 @@ function initialCollapsed(tree: CompanyTree): Set<number> {
   return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
 }
 
-function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople, headIds }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[]; headIds?: Set<number> }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople, headIds, readOnly = false }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[]; headIds?: Set<number>; readOnly?: boolean }) {
   const router = useRouter();
   const [, startHead] = useTransition();
   const saveHead = (departmentId: number, headPersonId: number | null) => {
@@ -552,7 +552,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                   <span className="font-semibold text-sm">{dept}</span>
                   <span className="text-fg-subtle text-xs tabular">· {members.length}</span>
-                  {companyId != null && deptId != null && (
+                  {!readOnly && companyId != null && deptId != null && (
                     <span className="inline-flex items-center gap-1 ml-auto text-xs text-fg-muted print-hidden">
                       Head
                       <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="text-xs">
@@ -646,7 +646,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)` }} />
                     <span className="font-medium">{dept}</span>
                     <span className="text-fg-subtle tabular">· {members.length}</span>
-                    {companyId != null && deptId != null && (
+                    {!readOnly && companyId != null && deptId != null && (
                       <span className="inline-flex items-center gap-1 ml-1 print-hidden">
                         <span className="text-fg-subtle">· Head</span>
                         <Select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)}
@@ -780,7 +780,7 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, portfolioTree, flowPeople, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, pickerPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, portfolioTree, flowPeople, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, pickerPeople, initialCompanyId, showSwitcher = true, showEveryone = true, readOnly = false,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
@@ -791,6 +791,8 @@ export function OrgChart({
   associatedByCompany?: Record<number, AssociatedPerson[]>;
   deptHeads?: Record<string, number>;
   pickerPeople?: PickPerson[];
+  /** A director: the chart to read — no manager or department-head pickers. */
+  readOnly?: boolean;
   initialCompanyId?: number;
   showSwitcher?: boolean;
   showEveryone?: boolean;
@@ -823,7 +825,7 @@ export function OrgChart({
       ) : view === "portfolio" && portfolioTree ? (
         <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio pickerPeople={pickerPeople} headIds={headIds} />
       ) : typeof view === "number" && trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} pickerPeople={pickerPeople} headIds={headIds} />
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} pickerPeople={pickerPeople} headIds={headIds} readOnly={readOnly} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}

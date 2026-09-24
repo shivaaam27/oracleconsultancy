@@ -6,20 +6,31 @@ import { getDepartmentsAdmin } from "@/lib/departments";
 import { getSitesAdmin } from "@/lib/sites";
 import { getRolesAdmin } from "@/lib/roles";
 import { StudioCompanies } from "@/components/studio/companies/studio-companies";
+import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
 
 export default async function CompaniesPage() {
+  // The owner, or a director — who sees their own companies to open, and
+  // none of the owner's reference lists (lib/viewer.ts).
+  const viewer = await getViewer();
+  if (!viewer) redirect("/portal");
+  const director = viewer.kind === "director";
+  const none = <T,>(v: T) => Promise.resolve(v);
   const [rows, departments, sites, roles, allCompanies, personCompanies] = await Promise.all([
-    getAllTasks(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin(),
+    getAllTasks(),
+    director ? none([] as Awaited<ReturnType<typeof getDepartmentsAdmin>>) : getDepartmentsAdmin(),
+    director ? none([] as Awaited<ReturnType<typeof getSitesAdmin>>) : getSitesAdmin(),
+    director ? none([] as Awaited<ReturnType<typeof getRolesAdmin>>) : getRolesAdmin(),
     sb.from("companies").select("id,name,accent_color,code_prefix").eq("active", true).order("name"),
     getPersonCompaniesMap(),
   ]);
   // Each task counts once, under the company it is filed under (see
   // company-kpis.ts for why not its people's companies). Every active company
   // gets a card, so a task-less one still shows.
-  const companyList = (allCompanies.data ?? []).map((c) => ({
+  const companyList = (allCompanies.data ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number)).map((c) => ({
     id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null,
   }));
   const companies = computeCompanyKpisForCompanies(rows, companyList);
@@ -49,7 +60,7 @@ export default async function CompaniesPage() {
         id: c.id, name: c.name, prefix: prefixById.get(c.id) || c.name.slice(0, 2).toUpperCase(),
         staff: staffByCompany.get(c.id) ?? 0, open: c.open, late: c.overdue, done: doneByCompany.get(c.id) ?? 0,
       })),
-      departments, sites, roles,
+      departments, sites, roles, readOnly: director,
     }} />
   );
 }

@@ -32,6 +32,8 @@ import { STANDING, standing } from "./studio-companies";
 export type CompanyTabKey = "overview" | "profile" | "tasks" | "notes" | "timeline" | "org";
 
 export type StudioCompanyData = {
+  /** A director: view-only (no notes, no briefing, no owner-only links). */
+  readOnly?: boolean;
   id: number;
   name: string;
   prefix: string;
@@ -98,7 +100,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
         </span>
       </div>
       <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !(data.readOnly && t.id === "notes")).map((t) => (
           <Link key={t.id} role="tab" aria-selected={data.tab === t.id} href={t.id === "overview" ? `/companies/${data.id}` : `/companies/${data.id}?tab=${t.id}`} scroll={false}
             className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", data.tab === t.id ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
             {t.label}{t.id === "tasks" && data.open > 0 && <span className="text-xs text-[#8E9197]">{data.open}</span>}
@@ -181,7 +183,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               ))}
             </div>
           </Card>
-          <Card title="Equipment & suppliers" className="shrink-0" right={<Link href="/hrms/assets" className="text-[var(--st-ink)] hover:underline">Open →</Link>}>
+          <Card title="Equipment & suppliers" className="shrink-0" right={data.readOnly ? undefined : <Link href="/hrms/assets" className="text-[var(--st-ink)] hover:underline">Open →</Link>}>
             {o.equipment.assets + o.equipment.vendors === 0 ? (
               <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">No equipment or suppliers are filed against {shortName(data.name)} yet.</p>
             ) : (
@@ -204,7 +206,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
         </div>
 
         <div className={COL}>
-          <Briefing companyId={data.id} />
+          {!data.readOnly && <Briefing companyId={data.id} />}
           <Card title="People" className={GROW} right={data.people > 0 && <Link href={`/people?co=${data.id}`} className="text-[var(--st-ink)] hover:underline">All {data.people} →</Link>}>
             <div className={cn("mt-2 flex flex-col gap-1", LIST)}>
               {o.staff.length === 0 && <div className="py-3 text-[13px] text-[var(--st-muted)]">Nobody has {shortName(data.name)} as their main company yet.</div>}
@@ -227,14 +229,14 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
             <div className="mt-2.5 flex items-center gap-4">
               <Ring value={docPct} size={84} stroke={9} track="var(--st-line-soft)" color={o.documents.expired ? "var(--st-ok)" : "var(--st-ok)"} label={valid} sub="valid" />
               <p className="text-[13px] leading-normal text-[var(--st-sub)]">
-                {o.documents.total === 0 ? <>Nothing filed yet. <Link href={`/files?co=${data.id}`} className="text-[var(--st-ink)] underline">Add the first file</Link>.</>
+                {o.documents.total === 0 ? <>Nothing filed yet.{!data.readOnly && <> <Link href={`/files?co=${data.id}`} className="text-[var(--st-ink)] underline">Add the first file</Link></>}.</>
                   : o.documents.expired > 0 ? <><span className="text-[var(--st-late-text)]">{o.documents.expired} expired</span>{o.documents.expiring > 0 && <>, <span className="text-[var(--st-soon-text)]">{o.documents.expiring} expiring</span></>} — renew them from the library, or open a renewal task.</>
                     : o.documents.expiring > 0 ? <><span className="text-[var(--st-soon-text)]">{o.documents.expiring} expiring soon</span> — the rest are in date.</>
                       : "Everything on file is in date."}
               </p>
             </div>
           </Card>
-          <Card title="Governance" className={GROW} texture="st-tex-paper-rings" right={<Link href={`/companies/${data.id}?tab=profile`} className="hover:text-[var(--st-ink)]">Profile tab</Link>}>
+          <Card title="Governance" className={GROW} texture="st-tex-paper-rings" right={data.readOnly ? undefined : <Link href={`/companies/${data.id}?tab=profile`} className="hover:text-[var(--st-ink)]">Profile tab</Link>}>
             <div className="mt-1.5">
               {([
                 ["Cap table", o.governance.capTable, "holder", "Add holders and shares"],

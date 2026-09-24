@@ -186,7 +186,11 @@ export function CalendarBoard({
   companies,
   categories,
   announcements = [],
+  readOnly = false,
 }: {
+  /** A director (portal unification): the calendar to read — no new events,
+   *  no categories, and an event opens to look at, not to change. */
+  readOnly?: boolean;
   events: CalendarEventView[];
   overlays?: OverlayItem[];
   people: Person[];
@@ -197,9 +201,9 @@ export function CalendarBoard({
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
-  useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: () => openNew(), primary: true, tone: "accent" }], []);
+  useContextActions("calendar", readOnly ? [] : [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: () => openNew(), primary: true, tone: "accent" }], [readOnly]);
   // /calendar?new=1 — the global New menu's "Event".
-  useCreateParam("1", () => openNew());
+  useCreateParam("1", () => { if (!readOnly) openNew(); });
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   // The view and the filters are the URL (the rule every list follows now), so
   // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
@@ -294,7 +298,7 @@ export function CalendarBoard({
 
   // A slot clicked on the Week/Day grid starts the new event at that time.
   const [seed, setSeed] = useState<{ date: string; time: string } | null>(null);
-  function openNew(at?: { date: string; time: string }) { setEditing(null); setSeed(at ?? null); setFormOpen(true); }
+  function openNew(at?: { date: string; time: string }) { if (readOnly) return; setEditing(null); setSeed(at ?? null); setFormOpen(true); }
   function openEdit(e: CalendarEventView) { setEditing(e); setFormOpen(true); }
 
   const filtered = useMemo(() => {
@@ -470,10 +474,12 @@ export function CalendarBoard({
                   <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className={menuItem}>
                     <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
                   </button>
+                  {!readOnly && <>
                   <div className="my-1 h-px bg-[var(--st-line)]" />
                   <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className={menuItem}>
                     <Pencil size={14} /><span className="flex-1">Manage categories</span>
                   </button>
+                  </>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
@@ -502,13 +508,13 @@ export function CalendarBoard({
                 <button type="button" onClick={() => { goToday(); setPickedKey(todayKeyGlobal); }} className="h-7 rounded-lg bg-[var(--st-page)] px-2.5 text-xs hover:bg-[var(--st-seg)]">Today</button>
               </div>
             )}
-            <button type="button" onClick={() => openNew()} className={stBtn.dark}><Plus size={15} />New event</button>
+            {!readOnly && <button type="button" onClick={() => openNew()} className={stBtn.dark}><Plus size={15} />New event</button>}
           </>
         }
       />
 
       {formOpen && (
-        <EventForm seed={seed} people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+        <EventForm readOnly={readOnly} seed={seed} people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
       )}
       {manageCatsOpen && (
         <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
@@ -600,7 +606,7 @@ export function CalendarBoard({
             )}
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--st-muted)]">
               <span>{live[0]?.requireAck ? `${live[0].stats.ack} / ${live[0].stats.total} acknowledged` : live.length > 1 ? `+${live.length - 1} more live` : ""}</span>
-              <Link href="/announcements" className="text-[var(--st-on-card)] hover:underline">Manage →</Link>
+              {!readOnly && <Link href="/announcements" className="text-[var(--st-on-card)] hover:underline">Manage →</Link>}
             </div>
           </StudioCard>
         </aside>
@@ -1735,7 +1741,9 @@ function EventForm({
   allEvents,
   onClose,
   seed = null,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   /** A new event started from a grid slot: its day and hour. */
   seed?: { date: string; time: string } | null;
   people: Person[];
@@ -1819,14 +1827,15 @@ function EventForm({
   // is attached rather than looking empty until something new is dropped.
   const editingId = editing?.id ?? null;
   useEffect(() => {
-    if (!editingId) return;
+    // A director's read-only view shows no papers box (owner-only for now).
+    if (!editingId || readOnly) return;
     let live = true;
     void listEventDocumentsAction(editingId).then((docs) => {
       if (!live) return;
       setAttachments(docs.map((d) => ({ id: d.id, title: d.title, fileName: d.fileName, share: d.sendWithInvite })));
     });
     return () => { live = false; };
-  }, [editingId]);
+  }, [editingId, readOnly]);
 
   /**
    * Apply what a document said. Deliberately additive: it fills BLANKS and
@@ -1993,32 +2002,33 @@ function EventForm({
           <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]">
             {editing ? (
               <>
-                {acts.emailCount > 0 && (
+                {!readOnly && acts.emailCount > 0 && (
                   <button type="button" onClick={acts.sendInvite} disabled={acts.pending} className={ACT} title={`Email the invitation to ${acts.emailCount} guest${acts.emailCount === 1 ? "" : "s"}`}>
                     <Send size={13} />{acts.isPast ? "Send again" : "Send invite"}
                   </button>
                 )}
                 {editing.meetLink
                   ? <a href={editing.meetLink} target="_blank" rel="noreferrer" className={ACT}><Link2 size={13} />Meet link</a>
-                  : !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
+                  : !readOnly && !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
                 <a href={editing.icsPath} className={ACT}><Download size={13} />.ics</a>
                 <a href={editing.googleUrl} target="_blank" rel="noreferrer" className={ACT}><Globe size={13} />Google</a>
                 <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy link</button>
                 <button type="button" onClick={acts.shareWhatsApp} className={ACT}><MessageCircle size={13} />WhatsApp</button>
-                {acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
-                {acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}
-                {acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
+                {!readOnly && acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
+                {!readOnly && acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}
+                {!readOnly && acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
               </>
             ) : (
               <span className="self-center truncate px-1 text-xs text-[#8E9197]">New event — the invite, the links and sharing appear here once it is saved.</span>
             )}
           </div>
-          {editing && (
+          {editing && !readOnly && (
             <button type="button" onClick={acts.remove} disabled={acts.pending}
               className="h-[30px] shrink-0 rounded-lg border border-[#4A2A3C] px-2.5 text-xs text-[#F07BBE] transition-colors hover:bg-[#2A1622]">Delete…</button>
           )}
         </div>
 
+        <fieldset disabled={readOnly} className="contents">
         {/* ── Body: what, when, who, where on the left; papers, alarms, repeats on the right. */}
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 gap-y-4 overflow-y-auto px-[26px] py-[22px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-4">
@@ -2126,8 +2136,8 @@ function EventForm({
           <div className="flex min-w-0 flex-col gap-3.5">
             {readBanner && <StudioReadCard prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
 
-            <EventAttachments studio eventId={editing?.id ?? null} companyId={companyIds[0] ?? editing?.companyId ?? null}
-              value={attachments} onChange={setAttachments} onPrefill={applyPrefill} allowLibrary />
+            {!readOnly && <EventAttachments studio eventId={editing?.id ?? null} companyId={companyIds[0] ?? editing?.companyId ?? null}
+              value={attachments} onChange={setAttachments} onPrefill={applyPrefill} allowLibrary />}
 
             <div className="flex flex-col gap-1.5">
               <span className={LBL}><span>Remind me</span></span>
@@ -2208,6 +2218,7 @@ function EventForm({
         </div>
 
         {/* ── Footer: does it clash? then Cancel / Save. */}
+        </fieldset>
         <div className="flex shrink-0 items-center gap-2 border-t border-[var(--st-line-soft)] px-[26px] py-3.5">
           <span className={cn("min-w-0 flex-1 truncate text-xs", conflicts.length ? "text-[var(--st-soon-text)]" : "text-[var(--st-muted)]")}>
             {!startDate
@@ -2218,10 +2229,10 @@ function EventForm({
                   ? `Clashes with ${conflicts.slice(0, 2).map((c) => c.title).join(", ")}${conflicts.length > 2 ? ` and ${conflicts.length - 2} more` : ""} on ${shortDay}.`
                   : `No clash with anything else on ${shortDay}.`}
           </span>
-          <button type="button" onClick={onClose} className="flex h-[38px] items-center rounded-[10px] border border-[var(--st-line)] px-4 text-[13px] hover:bg-[var(--st-page)]">Cancel</button>
-          <button type="submit" disabled={pending} className="flex h-[38px] items-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-[18px] text-[13px] font-semibold text-[var(--st-surface)] transition-opacity hover:opacity-90 disabled:opacity-60">
+          <button type="button" onClick={onClose} className="flex h-[38px] items-center rounded-[10px] border border-[var(--st-line)] px-4 text-[13px] hover:bg-[var(--st-page)]">{readOnly ? "Close" : "Cancel"}</button>
+          {!readOnly && <button type="submit" disabled={pending} className="flex h-[38px] items-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-[18px] text-[13px] font-semibold text-[var(--st-surface)] transition-opacity hover:opacity-90 disabled:opacity-60">
             {pending && <Loader2 size={14} className="animate-spin" />}{editing ? "Save changes" : "Create event"}
-          </button>
+          </button>}
         </div>
       </form>
       {acts.dialogs}

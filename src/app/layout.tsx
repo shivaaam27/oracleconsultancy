@@ -114,7 +114,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           rule was lost the same way and is set inline for the same reason. */}
       <body style={{ scrollbarGutter: "stable" }}>
         <AppSplash />
-        <ActivityPinger />
+        {!asDirector && <ActivityPinger />}
         <ThemeProvider>
           <MotionConfig reducedMotion="user">
           <ToastProvider>
@@ -122,7 +122,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Suspense>
             <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio disabled={asDirector}>
               <NavVisibilityProvider value={{ commandCentrePaused }}>
-              <RecentsTracker />
+              {!asDirector && <RecentsTracker />}
               <ContextActionsProvider>
                 {/* Bottom padding clears the floating bottom pill on mobile/tablet.
                     From xl up the pill moves to the vertical SidePill on the left, so
