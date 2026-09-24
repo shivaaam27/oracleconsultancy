@@ -142,6 +142,13 @@ export async function removeRecipientSubscription(endpoint: string): Promise<voi
  *  prunes dead endpoints. No-op if push isn't configured. */
 export async function sendToRecipient(recipient: string, payload: PushPayload): Promise<number> {
   if (!configurePush()) return 0;
+  // A person who has left gets nothing — chat snippets included (audit 24 Sept
+  // 2026). Deactivating also unsubscribes their devices; this covers the rest.
+  const pm = /^person:(\d+)$/.exec(recipient);
+  if (pm) {
+    const { data: who } = await sb.from("people").select("active").eq("id", Number(pm[1])).maybeSingle();
+    if (!who?.active) return 0;
+  }
   const { data } = await sb
     .from("push_subscriptions")
     .select("endpoint,p256dh,auth")

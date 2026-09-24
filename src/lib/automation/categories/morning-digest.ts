@@ -18,18 +18,31 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
       import("@/lib/calendar"),
     ]);
 
-  const start = new Date(now); start.setHours(0, 0, 0, 0);
-  const end = new Date(now); end.setHours(23, 59, 59, 999);
-  const tomorrow = new Date(start); tomorrow.setDate(start.getDate() + 1);
+  // "Today" is Dar es Salaam's day (UTC+3), not the server's — setHours on the
+  // (UTC) server made today run from 03:00 to 03:00 EAT (audit 24 Sept 2026).
+  const dar = new Date(now.getTime() + 3 * 3_600_000);
+  const start = new Date(Date.UTC(dar.getUTCFullYear(), dar.getUTCMonth(), dar.getUTCDate()) - 3 * 3_600_000);
+  const tomorrow = new Date(start.getTime() + 86_400_000);
+  const end = new Date(tomorrow.getTime() - 1);
   const TZ = "Africa/Nairobi";
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
-  const [rows, docs, dueReminders, events] = await Promise.all([
+  const [rows, docs, dueReminders, allEvents] = await Promise.all([
     ctx.tasks(),
     listDocuments(),
     ownerReminderTodosDueBy(end),
-    listCalendarEvents({ from: start.toISOString(), to: tomorrow.toISOString() }),
+    // Every event, then today's occurrences: a repeating meeting that started
+    // weeks ago was missed, and a cancelled one was listed.
+    listCalendarEvents(),
   ]);
+  const { expandRecurrence } = await import("@/lib/ics");
+  const events = allEvents
+    .filter((e) => e.status !== "cancelled")
+    .flatMap((e) => expandRecurrence({
+      start: new Date(e.startAt), recurrence: e.recurrence, until: e.recurrenceUntil ? new Date(e.recurrenceUntil) : null,
+      windowStart: start.getTime(), windowEnd: end.getTime(), excluded: e.excludedDates, maxOccurrences: 400,
+    }).map((d) => ({ ...e, startAt: d.toISOString() })))
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
   const overdue = rows.filter((r) => r.flag === "overdue" || r.flag === "escalate-now");
   const dueToday = rows.filter((r) => isOpen(r.status) && r.deadline && r.deadline >= start && r.deadline <= end);
   const renewals = docs.filter((d) => !d.archived && isReminderDueToday(d));

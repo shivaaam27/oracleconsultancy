@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getGivenName } from "@/lib/names";
 import {
   createCalendarEvent,
   updateCalendarEvent,
@@ -863,7 +864,8 @@ export async function previewEventInviteAction(
 }
 
 function firstName(name: string | undefined): string {
-  return (name ?? "").trim().split(/\s+/)[0] ?? "";
+  // The given name, not the first word — "Mr Jitesh Solanki" was greeted "Hi Mr".
+  return getGivenName((name ?? "").trim());
 }
 
 type DraftResult = { ok: true; count: number } | { ok: false; error: string };

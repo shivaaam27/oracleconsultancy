@@ -6,7 +6,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
 import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
-import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
 import { getAiKey } from "@/lib/settings";
@@ -101,6 +101,14 @@ function parseAssociations(formData: FormData): Array<{ companyId: number; relat
   } catch {
     return [];
   }
+}
+
+/** Names are how tasks are assigned ("Name1, Name2"), so a comma or " & " inside
+ *  one person's name split into two phantom people (audit 24 Sept 2026). Checked
+ *  live first: no existing name has either. */
+function personNameProblem(name: string): string | null {
+  if (/,|\s&\s/.test(name)) return "A name can't contain a comma or \" & \" — they separate people when tasks are assigned. Write it without them (e.g. \"Doe Jane\").";
+  return null;
 }
 
 /** Replace a person's company associations with the supplied set. */
@@ -443,9 +451,13 @@ ${trimmed.slice(0, 6000)}`;
 export async function createPerson(formData: FormData): Promise<ActionResult> {
   const name = s(formData, "name");
   if (!name) return { ok: false, error: "Name is required." };
+  const nameProblem = personNameProblem(name);
+  if (nameProblem) return { ok: false, error: nameProblem };
 
-  // Duplicate-name guard (the column is unique in schema, but a friendly message wins)
-  const { data: existing } = await sb.from("people").select("id").eq("name", name).maybeSingle();
+  // Duplicate-name guard — CASE-INSENSITIVE, like every lookup by name in COS:
+  // "john smith" beside "John Smith" made each name lookup find two people and
+  // fail (audit 24 Sept 2026). The column is unique, but only case-sensitively.
+  const { data: existing } = await sb.from("people").select("id").ilike("name", escapeLike(name)).limit(1).maybeSingle();
   if (existing) return { ok: false, error: `A person named "${name}" already exists.` };
 
   const email = s(formData, "email");
@@ -510,9 +522,11 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
 export async function updatePerson(id: number, formData: FormData): Promise<ActionResult> {
   const name = s(formData, "name");
   if (!name) return { ok: false, error: "Name is required." };
+  const nameProblem = personNameProblem(name);
+  if (nameProblem) return { ok: false, error: nameProblem };
 
-  // Guard against renaming onto an existing person
-  const { data: dup } = await sb.from("people").select("id").eq("name", name).neq("id", id).maybeSingle();
+  // Guard against renaming onto an existing person (case-insensitive, as above)
+  const { data: dup } = await sb.from("people").select("id").ilike("name", escapeLike(name)).neq("id", id).limit(1).maybeSingle();
   if (dup) return { ok: false, error: `A person named "${name}" already exists.` };
 
   const managerId = n(formData, "managerId");
@@ -530,6 +544,19 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
       ok: false,
       error: `${who} already reports to this person, so making them the manager would create a reporting loop. Change one of the reporting lines first.`,
     };
+  }
+
+  // …and the same for every "also reports to", BEFORE anything is written. It
+  // used to be checked after the person row, companies and scope were saved, so
+  // the owner saw "would create a loop" for an edit that had half-happened
+  // (audit 24 Sept 2026). syncReportingLines still re-checks as a backstop.
+  for (const mid of parseSecondaryManagers(formData)) {
+    if (mid === id || mid === safeManagerId) continue;
+    if (await primaryChainReaches(mid, id)) {
+      const { data: mgr } = await sb.from("people").select("name").eq("id", mid).maybeSingle();
+      const who = (mgr?.name as string | null) ?? "That manager";
+      return { ok: false, error: `${who} already reports to this person, so adding them under "Also reports to" would create a loop. Nothing was saved.` };
+    }
   }
 
   // A person cannot be related to themselves.
@@ -758,6 +785,7 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   }
 
   await logPersonEvent(id, nextActive ? "restored" : "archived");
+  if (!nextActive) await closeLeaverAccess(id);
   // Cross-process cascade: offboarding just returned all the person's assets, so
   // tick the "Return equipment" offboarding step (logged + undoable). Guarded.
   if (!nextActive) {
@@ -791,6 +819,9 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
 async function vacateLeadershipRolesTx(tx: Tx, personId: number): Promise<number[]> {
   await tx.update(departmentHeads).set({ headPersonId: null }).where(eq(departmentHeads.headPersonId, personId));
   await tx.delete(reportingLines).where(eq(reportingLines.managerId, personId));
+  // …and their OWN dotted lines ("also reports to"): left behind, an archived
+  // person stayed in a manager's portal team and in ORI's live audiences.
+  await tx.delete(reportingLines).where(eq(reportingLines.personId, personId));
   const reports = await tx
     .update(people)
     .set({ managerId: null })
@@ -827,6 +858,7 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
   }
 
   await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
+  if (!active) await Promise.all(clean.map((pid) => closeLeaverAccess(pid)));
   await Promise.all(
     [...orphanedByPerson].map(([pid, reports]) =>
       reports.length === 0
@@ -844,6 +876,21 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
 
   invalidate();
   return { ok: true };
+}
+
+/**
+ * A leaver stops being reachable (audit 24 Sept 2026). Deactivating kept their
+ * portal password, role and passkeys — restoring them silently handed all of it
+ * back — and their phones kept getting pushes, chat snippets included. Now:
+ * portal access is revoked through the one door (a restore needs a fresh grant),
+ * and their devices are unsubscribed. Best-effort, after the archive commits.
+ */
+async function closeLeaverAccess(personId: number): Promise<void> {
+  try {
+    const { data } = await sb.from("people").select("portal_password_hash").eq("id", personId).maybeSingle();
+    if (data?.portal_password_hash) await revokePortalAccessCore(personId);
+  } catch { /* reported by the core */ }
+  try { await sb.from("push_subscriptions").delete().eq("recipient", `person:${personId}`); } catch { /* best-effort */ }
 }
 
 /* ----------------------------------------------------------------------
@@ -976,6 +1023,18 @@ export async function bulkSetPeopleField(
   // Moving people's main company: a director who sees "only their companies"
   // must follow the move (snapshot first, then write, then re-sync).
   const followed = field === "company" ? await Promise.all(targets.map((pid) => directorFollowsCompanies(pid))) : [];
+  // Moving company re-issues the staff ID — keep the old one traceable, the same
+  // as updatePerson does (the bulk path forgot, audit 24 Sept 2026).
+  if (field === "company") {
+    const { data: befores } = await sb.from("people").select("id,company_id,previous_staff_ids").in("id", targets);
+    for (const b of befores ?? []) {
+      if (b.company_id == null || b.company_id === patch.company_id) continue;
+      const oldId = await staffIdFor(b.id as number);
+      if (!oldId) continue;
+      const existing = (b.previous_staff_ids as string | null) ?? "";
+      await sb.from("people").update({ previous_staff_ids: existing ? `${existing},${oldId}` : oldId }).eq("id", b.id as number);
+    }
+  }
   const { error } = await sb.from("people").update(patch).in("id", targets);
   if (error) return { ok: false, error: error.message };
   if (field === "company") await Promise.all(targets.map((pid, i) => refreshDirectorScope(pid, followed[i])));
@@ -1254,6 +1313,11 @@ export async function deletePersonForever(id: number, typedName: string): Promis
       await tx.execute(sqlRaw`update tasks set created_by_person_id = null where created_by_person_id = ${id}`);
       await tx.execute(sqlRaw`update tasks set blocked_on_person_id = null where blocked_on_person_id = ${id}`);
       await tx.execute(sqlRaw`update department_heads set head_person_id = null where head_person_id = ${id}`);
+      // Their text-keyed traces — no foreign key reaches these, so nothing
+      // cascades: devices (pushes to a deleted person), chat memberships (they
+      // showed as a raw "person:<id>") and their bell.
+      await tx.execute(sqlRaw`delete from push_subscriptions where recipient = ${`person:${id}`}`);
+      await tx.execute(sqlRaw`delete from chat_participants where participant = ${`person:${id}`}`);
       await tx.delete(people).where(eq(people.id, id));
     });
   } catch (e) {

@@ -7,6 +7,7 @@
 // Kept server-only (imports `sb`); never import this from a client component.
 
 import { sb } from "@/db/supabase";
+import { directorScopeOf } from "@/lib/portal-permissions";
 
 const uniq = (ids: (number | null | undefined)[]): number[] =>
   Array.from(new Set(ids.filter((n): n is number => typeof n === "number")));
@@ -38,16 +39,20 @@ export async function managersOf(personId: number): Promise<number[]> {
  *  (director_company_id NULL → sees all companies). */
 export async function directorsOfCompany(companyId: number): Promise<number[]> {
   try {
+    // The scope is the director_companies join table (every company they cover),
+    // read through the one reader — the legacy column holds only the FIRST, so a
+    // director scoped to TG and VI got no alerts about VI (audit 24 Sept 2026).
     const { data } = await sb
       .from("people")
-      .select("id,director_company_id")
+      .select("id,director_company_id,director_companies(company_id)")
       .eq("active", true)
-      .eq("portal_role", "director");
-    const rows = (data ?? []) as { id: number; director_company_id: number | null }[];
+      .eq("portal_role", "director")
+      .not("portal_password_hash", "is", null);
+    const rows = (data ?? []) as Parameters<typeof directorScopeOf>[0][] & { id: number }[];
     return uniq(
       rows
-        .filter((r) => r.director_company_id == null || r.director_company_id === companyId)
-        .map((r) => r.id),
+        .filter((r) => { const scope = directorScopeOf(r); return scope.length === 0 || scope.includes(companyId); })
+        .map((r) => (r as { id: number }).id),
     );
   } catch {
     return [];

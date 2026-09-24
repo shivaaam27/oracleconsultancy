@@ -6,6 +6,13 @@ import { sb } from "@/db/supabase";
 import { sendEmail } from "@/lib/email/send";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** A draft's recipients: one address, or several separated by commas / semicolons
+ *  (a director's group email is stored as "a@x, b@y" — it failed the single-
+ *  address check and could never be sent, audit 24 Sept 2026). */
+function recipientsOf(raw: string | null | undefined): string[] {
+  const list = (raw ?? "").split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+  return list.length && list.every((a) => EMAIL_RE.test(a)) ? list : [];
+}
 
 function htmlBody(text: string): string {
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -29,15 +36,17 @@ export async function sendDraftEmail(
 ): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-email" | "not-email" }> {
   const { data: row, error } = await sb
     .from("outbox")
-    .select("channel,recipient_contact,subject,body")
+    .select("channel,recipient_contact,subject,body,status")
     .eq("id", id)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!row) return { ok: false, error: "Draft not found." };
   if (row.channel !== "EMAIL") return { ok: false, reason: "not-email", error: "This draft isn't an email." };
+  // Sent once: a double-click or a stale tab must not send it again.
+  if (row.status !== "Draft") return { ok: false, error: "This one has already been sent." };
 
-  const to = (row.recipient_contact as string | null)?.trim() ?? "";
-  if (!EMAIL_RE.test(to))
+  const to = recipientsOf(row.recipient_contact as string | null);
+  if (!to.length)
     return { ok: false, reason: "no-email", error: "No valid email address on this draft." };
 
   const body = (row.body as string) ?? "";
@@ -74,7 +83,7 @@ export async function sendAllEmailDrafts(): Promise<{ sent: number; failed: numb
   if (error) return { sent: 0, failed: 0, notConfigured: false };
 
   const ids = (data ?? [])
-    .filter((r) => EMAIL_RE.test(((r.recipient_contact as string | null) ?? "").trim()))
+    .filter((r) => recipientsOf(r.recipient_contact as string | null).length > 0)
     .map((r) => r.id as number);
 
   let sent = 0;

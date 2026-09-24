@@ -96,8 +96,9 @@ async function claimDailySignal(key: string, now: Date): Promise<boolean> {
 
 type Contact = { name: string; email: string | null; whatsapp: string | null; managerId: number | null };
 async function personContact(id: number): Promise<Contact | null> {
-  const { data } = await sb.from("people").select("name,email,whatsapp,phone,manager_id").eq("id", id).maybeSingle();
-  if (!data) return null;
+  const { data } = await sb.from("people").select("name,email,whatsapp,phone,manager_id,active").eq("id", id).maybeSingle();
+  // Somebody who has left is not a contact for a nudge any more.
+  if (!data || (data as { active?: boolean }).active === false) return null;
   const r = data as Record<string, unknown>;
   return {
     name: (r.name as string) ?? "",
@@ -711,8 +712,16 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
               // Every copy points back at the rule it came from (migration 0166),
               // which is what lets the list mark it and the record change it.
               await sb.from("tasks").update({ recurring_rule_id: raw.id as number }).eq("id", task.id);
-              const aIds = Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [];
+              // Only people still here: an archived leaver was handed a fresh copy
+              // every cycle, and a deleted one failed the foreign key silently,
+              // leaving the copy with nobody on it (audit 24 Sept 2026).
+              const wanted = Array.isArray(cfg.assigneePersonIds) ? (cfg.assigneePersonIds as number[]) : [];
+              const { data: stillHere } = wanted.length ? await sb.from("people").select("id").in("id", wanted).eq("active", true) : { data: [] as { id: number }[] };
+              const aIds = (stillHere ?? []).map((r) => r.id as number);
               for (const pid of aIds) await sb.from("task_assignees").upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
+              if (wanted.length && aIds.length < wanted.length) {
+                await recordEvent("recurring.assignee.gone", aIds.length ? "ok" : "error", { ruleId: raw.id, taskCode: task.code, dropped: wanted.filter((w) => !aIds.includes(w)) });
+              }
               // Attribute the audit entry to whoever owns the standing rule (portal
               // rules stamp "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>";
               // the AI chat path stamps "ai-command"; the Administrator builder "web-ui").
@@ -986,10 +995,10 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
             const ctx = await escalationContext(taskId, now);
             const escBody = `No update was posted in time, so ORI escalated this to you.${ctx}`;
             if (typeof toId === "number") {
-              await createNotification({ recipient: personRecipient(toId), kind: "assigned", taskId, taskCode: code, title: `Escalated: ${code}`, body: escBody, actor: "ORI" });
+              await createNotification({ recipient: personRecipient(toId), kind: "assigned", taskId, taskCode: code, title: `Escalated: ${code}`, body: escBody, actor: "ORI", urgent: true });
               await externalNotify(rule.config, [toId], `Escalated: ${code}`, escBody);
             }
-            await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI escalated ${code}`, body: `No update in the set window.${ctx}`, actor: "ORI" });
+            await createNotification({ recipient: "admin", kind: "assigned", taskId, taskCode: code, title: `ORI escalated ${code}`, body: `No update in the set window.${ctx}`, actor: "ORI", urgent: true });
           } else if (rule.kind === "auto_close_stale") {
             // Close the stale task. Reversible: we log it to the audit trail with the
             // prior status so the owner can reopen; never a hard delete.

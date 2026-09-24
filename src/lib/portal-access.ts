@@ -118,6 +118,9 @@ export async function revokePortalAccess(personId: number): Promise<PortalAccess
     .eq("id", personId);
   if (error) return { ok: false, error: error.message };
   await writeDirectorScope(personId, []);
+  // Their passkeys go too — left in place, a later re-grant brought old
+  // devices back to life without anyone choosing to.
+  await sb.from("webauthn_credentials").delete().eq("person_id", personId);
   await recordEvent("portal.access.revoked", "ok", { personId });
   return { ok: true };
 }

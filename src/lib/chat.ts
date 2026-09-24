@@ -585,6 +585,14 @@ async function createChatNotification(input: {
       actor: input.actor,
       created_at: new Date().toISOString(),
     });
+    // Quiet hours hold the BUZZ (the unread row above is already written, so
+    // nothing is lost) — chat pushed straight through them, including the daily
+    // task reminder and event reminders fired by the tick overnight (audit 24
+    // Sept 2026). A direct @mention still gets through, like a phone's VIPs.
+    if (input.kind !== "chat_mention") {
+      const { isQuietHoursNow } = await import("./settings");
+      if (await isQuietHoursNow()) return;
+    }
     const { sendToRecipient } = await import("./push");
     const base = input.recipient === ADMIN ? "/chat" : "/portal/chat";
     // The recipient's total unread (incl. this one) so the SW badges the installed

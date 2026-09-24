@@ -50,12 +50,18 @@ export const renewalsCategory: CategoryDef = {
         "",
         "Review in Documents.",
       ].join("\n");
-      const r = await ctx.sendToOwner(
-        `Renewals due — ${candidates.length} document${candidates.length === 1 ? "" : "s"}`,
-        text,
-        "automation-renewals",
-      );
-      prepared = r.prepared;
+      // A DRAFT — "prepare" means the owner reviews it. It used to go through
+      // sendToOwner, which emails whenever email is set up (audit 24 Sept 2026).
+      const { sb } = await import("@/db/supabase");
+      const { getEmailConfig } = await import("@/lib/settings");
+      const owner = (await getEmailConfig())?.fromAddress ?? null;
+      await sb.from("outbox").insert({
+        channel: "EMAIL", recipient_name: "Owner", recipient_contact: owner,
+        subject: `Renewals due — ${candidates.length} document${candidates.length === 1 ? "" : "s"}`,
+        body: text, message_type: "AUTOMATION", status: "Draft",
+        source: "automation-renewals", created_at: new Date().toISOString(),
+      });
+      prepared = 1;
     }
 
     return { prepared, sent, skipped: 0 };

@@ -13,13 +13,13 @@ describe("renderEmail", () => {
   it("names the sending office in the masthead", () => {
     const html = renderEmail({ title: "x", blocks: [], office: "director" });
     // office appears in the masthead next to the org name AND in the footer
-    expect(html.split("Director's Office").length - 1).toBeGreaterThanOrEqual(2);
+    expect(html.split("Director&#39;s Office").length - 1).toBeGreaterThanOrEqual(2);
   });
 
   it("signs off with the office, not a job title, defaulting to admin", () => {
     expect(renderEmail({ title: "x", blocks: [] })).toContain("Admin Office");
     expect(renderEmail({ title: "x", blocks: [], office: "compliance" })).toContain("Admin Compliance Office");
-    expect(renderEmail({ title: "x", blocks: [], office: "director" })).toContain("Director's Office");
+    expect(renderEmail({ title: "x", blocks: [], office: "director" })).toContain("Director&#39;s Office");
     expect(renderEmail({ title: "x", blocks: [] })).toContain("Oracle Consultancy Limited");
     expect(renderEmail({ title: "x", blocks: [] })).not.toContain("Chief of Staff");
   });

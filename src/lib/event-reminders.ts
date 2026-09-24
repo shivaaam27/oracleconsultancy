@@ -21,6 +21,7 @@
 // ledger in `settings`.
 
 import { sb } from "@/db/supabase";
+import { canAutoSend } from "@/lib/guardrails";
 import { getAppSettings } from "@/lib/settings";
 import { postSystemMessage } from "@/lib/chat";
 import { sendEmail } from "@/lib/email/send";
@@ -265,6 +266,10 @@ export async function runEventReminders(opts?: { now?: Date }): Promise<EventRem
               attached: false,
             })),
           });
+          // An automatic send, so it passes the same guardrail as every other one:
+          // the master pause and the outreach pause stopped everything EXCEPT
+          // these (audit 24 Sept 2026).
+          if (!(await canAutoSend("email"))) continue;
           const r = await sendEmail({ to: a.email!, subject: mail.subject, html: mail.html, text: mail.text });
           if (r.ok) emailed += 1;
         } catch { /* best-effort per guest */ }

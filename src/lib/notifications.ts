@@ -1,5 +1,6 @@
 import "server-only";
 import { sb } from "@/db/supabase";
+import { escapeLike } from "@/lib/db-helpers";
 import { sendToRecipient, queueDigestItem, isCritical } from "./push";
 import { isQuietHoursNow, getAppSettings } from "./settings";
 import { NOTIF_RETENTION_DAYS, recurringKey, recurringTitleMatch } from "./notification-view";
@@ -45,7 +46,9 @@ export async function recipientForCreatedBy(by: string | null): Promise<string |
           ? by.slice(7)
           : null;
   if (!name) return null;
-  const { data } = await sb.from("people").select("id").ilike("name", name).maybeSingle();
+  // Escaped (a name with % or _ matched other people) and active-only (a
+  // leaver's old stamp must not notify a newcomer with the same name).
+  const { data } = await sb.from("people").select("id").ilike("name", escapeLike(name)).eq("active", true).limit(1).maybeSingle();
   return data ? personRecipient(data.id as number) : null;
 }
 
@@ -82,6 +85,10 @@ export async function createNotification(input: {
   title: string;
   body?: string | null;
   actor?: string | null;
+  /** Buzz now even in quiet hours / digest mode. The kind list below never
+   *  matched a real kind (they are "assigned", "update"…), so NOTHING was ever
+   *  urgent — an ORI escalation waited until morning (audit 24 Sept 2026). */
+  urgent?: boolean;
 }): Promise<void> {
   try {
     // Recurring items (the daily task reminder, ORI's daily digests) replace
@@ -134,7 +141,7 @@ export async function createNotification(input: {
     //  - else, during quiet hours OR when the digest is on, HOLD the buzz and
     //    let the consolidated cron flush it as one batched push.
     // Default (no quiet hours, digest off) → push immediately as before.
-    const critical = isCritical(input.kind);
+    const critical = input.urgent === true || isCritical(input.kind);
     let deferred = false;
     if (!critical) {
       const { notifyDigest } = await getAppSettings();

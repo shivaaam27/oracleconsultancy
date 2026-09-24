@@ -2,7 +2,7 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import type { ToolDef } from "@/lib/ori/tools";
-import { str, resolveCompany, resolvePerson } from "@/lib/ori/tools";
+import { str, resolveCompany, resolvePerson, resolvePersonStrict } from "@/lib/ori/tools";
 
 /* ORI people / HR / org domain tools.
  *
@@ -113,9 +113,13 @@ export const PEOPLE_TOOLS: ToolDef[] = [
     },
     async run(args) {
       const who = str(args.person);
-      const person = await resolvePerson(who);
-      if (!person) return { ok: false, message: `Couldn't find an active person matching "${who}".` };
       const active = str(args.active).toLowerCase() === "true";
+      // Restoring looks among people who have LEFT (the active-only resolver
+      // could never find them), and archiving never guesses: "Ali" used to
+      // archive whichever of Ali / Alison came back first (audit 24 Sept 2026).
+      const found = await resolvePersonStrict(who, active ? "inactive" : "active");
+      if ("error" in found) return { ok: false, message: found.error };
+      const person = found;
       const res = await setPeopleActive([person.id], active);
       if (!res.ok) return { ok: false, message: res.error };
       return {

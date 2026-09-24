@@ -285,7 +285,7 @@ export function buildTaskReminderDoc(
 
   return {
     preheader: `You have ${tasks.length} open task${tasks.length === 1 ? "" : "s"}${overdueCount ? ` — ${overdueCount} overdue` : ""}.`,
-    title: "Your tasks",
+    title: tasks.length === 1 ? "Your task" : "Your tasks",
     subtitle: `Hi ${first} — a quick reminder of where things stand`,
     blocks,
     cta: { label: "Open your tasks", url: `${appBaseUrl()}/portal` },
@@ -314,7 +314,10 @@ export async function generateDrafts(): Promise<OutboxDraft[]> {
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const { data: peopleRaw, error: pErr } = await sb
     .from("people")
-    .select("id,name,email,phone,whatsapp,preferred_channel,notes,snoozed_until");
+    .select("id,name,email,phone,whatsapp,preferred_channel,notes,snoozed_until")
+    // Nobody who has left is reminded (audit 24 Sept 2026) — an archived leaver
+    // was getting a "tasks need attention" chat + push every morning.
+    .eq("active", true);
   if (pErr) throw new Error(pErr.message);
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,

@@ -19,7 +19,7 @@ export const overdueCategory: CategoryDef = {
       const byPerson = new Map<number, typeof cands>();
       for (const t of cands) for (const pid of t.assigneeIds) { const l = byPerson.get(pid) ?? []; l.push(t); byPerson.set(pid, l); }
       const ids = [...byPerson.keys()];
-      const { data: ppl } = ids.length ? await sb.from("people").select("id,name,email").in("id", ids) : { data: [] as any[] };
+      const { data: ppl } = ids.length ? await sb.from("people").select("id,name,email").in("id", ids).eq("active", true) : { data: [] as any[] };
       const emailById = new Map((ppl ?? []).map((p: any) => [p.id as number, { name: p.name as string, email: (p.email as string | null) ?? null }]));
 
       // Cooldown: don't re-email anyone chased (any channel) within the window —

@@ -112,7 +112,8 @@ const DOT: Record<EmailTone, string> = {
 const FONT = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Quotes too: this also fills attributes (alt="…", href="…").
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function sectionLabel(label: string): string {
@@ -183,7 +184,7 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
   const blocks = doc.blocks.map(renderBlock).join("");
 
   const cta = doc.cta
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 4px"><tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${C.teal};border-radius:13px"><a href="${doc.cta.url}" style="display:inline-block;color:${C.white};font-size:14px;font-weight:600;text-decoration:none;padding:13px 30px;font-family:${FONT}">${esc(doc.cta.label)} &rarr;</a></td></tr></table></td></tr></table>`
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 4px"><tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${C.teal};border-radius:13px"><a href="${esc(doc.cta.url)}" style="display:inline-block;color:${C.white};font-size:14px;font-weight:600;text-decoration:none;padding:13px 30px;font-family:${FONT}">${esc(doc.cta.label)} &rarr;</a></td></tr></table></td></tr></table>`
     : "";
   const isCommand = doc.office === "command";
   const bold = (s: string) => `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(s)}</div>`;

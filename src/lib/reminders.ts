@@ -45,10 +45,11 @@ export async function sendTaskReminderEmail(opts: {
 }): Promise<SendReminderResult> {
   const { data: person } = await sb
     .from("people")
-    .select("id,name,email")
+    .select("id,name,email,active")
     .eq("id", opts.personId)
     .maybeSingle();
   if (!person) return { ok: false, reason: "not-found", error: "Person not found." };
+  if (person.active === false) return { ok: false, reason: "not-found", error: `${person.name} has left — reminders are off for them.` };
 
   const email = ((person.email as string | null) ?? "").trim();
   if (!email) return { ok: false, reason: "no-email" };
@@ -68,7 +69,7 @@ export async function sendTaskReminderEmail(opts: {
     note,
   });
   const text = (note ? `${note}\n\n` : "") + buildEmailMessage(name, rows);
-  const subject = "Your Outstanding Tasks";
+  const subject = rows.length === 1 ? `Your task: ${rows[0].actionItem}` : "Your Outstanding Tasks";
 
   const res = await sendEmail({
     to: email, subject, text, html: renderEmail(doc),

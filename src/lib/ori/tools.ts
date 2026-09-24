@@ -77,6 +77,21 @@ export async function resolvePerson(name: string): Promise<{ id: number; name: s
   return data ? { id: data.id as number, name: data.name as string } : null;
 }
 
+/** A person for an action that must not guess: an exact name wins; a partial
+ *  match is used only when it is the ONLY one. `pool` picks who to look among. */
+export async function resolvePersonStrict(name: string, pool: "active" | "inactive"): Promise<{ id: number; name: string } | { error: string }> {
+  const token = str(name);
+  if (!token) return { error: "Say who." };
+  const q = () => sb.from("people").select("id,name").eq("active", pool === "active");
+  const { data: exact } = await q().ilike("name", escapeLike(token)).limit(2);
+  if ((exact ?? []).length === 1) return { id: exact![0].id as number, name: exact![0].name as string };
+  const { data: part } = await q().ilike("name", `%${escapeLike(token)}%`).limit(6);
+  const rows = (exact ?? []).length > 1 ? exact! : part ?? [];
+  if (rows.length === 1) return { id: rows[0].id as number, name: rows[0].name as string };
+  if (rows.length === 0) return { error: `Couldn't find ${pool === "active" ? "anyone still here" : "anyone who has left"} called "${token}".` };
+  return { error: `"${token}" matches ${rows.map((r) => r.name).join(", ")} — which one?` };
+}
+
 export async function resolveTask(code: string): Promise<{ id: number; code: string; company_id: number; status: string } | null> {
   const token = str(code);
   if (!token) return null;
