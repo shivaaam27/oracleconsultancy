@@ -27,6 +27,7 @@ import { listAnnouncements } from "@/lib/announcements";
 import { isLive } from "@/lib/announcements-shared";
 import { StudioHome, type StudioHomeData, type HomeItem } from "@/components/studio/home/studio-home";
 import { HomeActions } from "./home-actions";
+import type { Viewer } from "@/lib/viewer";
 
 const DAY = 86_400_000;
 const QUIET_MS = 7 * DAY;
@@ -38,18 +39,29 @@ function greeting(hourEat: number) {
   return hourEat < 12 ? "Good morning" : hourEat < 17 ? "Good afternoon" : "Good evening";
 }
 
-export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
+/**
+ * A DIRECTOR gets this same Home (portal unification, Sept 2026) — "the same
+ * home, cut down": the figures come from THEIR companies' tasks only, and what
+ * is the owner's alone stays out — Run the day, Controls held, What ORI did,
+ * the diary and the team register, and links to pages a director cannot open
+ * yet. Those are not even fetched for them, so none of it travels in the page.
+ */
+export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRow[]; viewer: Viewer }) {
+  const director = viewer.kind === "director" ? viewer : null;
+  const scope = viewer.scope;
+  const rows = scope ? allRows.filter((r) => scope.includes(r.companyId)) : allRows;
   const soon30 = new Date(Date.now() + 30 * DAY).toISOString();
   const nowIso = new Date().toISOString();
-  const [settings, nowData, approvals, autonomy, automation, companiesRes, activity, emailCfg, dirRow, docCountRes, soonDocs, expiredDocs] = await Promise.all([
+  const none = <T,>(v: T) => Promise.resolve(v);
+  const [settings, nowData, approvals, autonomy, automation, companiesRes, activityAll, emailCfg, dirRow, docCountRes, soonDocs, expiredDocs] = await Promise.all([
     getAppSettings(),
-    gatherCockpitNow(),
-    listApprovals(),
-    listCockpitActivity(8),
+    director ? none({ events: [], headcount: 0, onLeaveToday: 0, pendingLeave: 0, birthdays: [] } as unknown as Awaited<ReturnType<typeof gatherCockpitNow>>) : gatherCockpitNow(),
+    director ? none([] as Awaited<ReturnType<typeof listApprovals>>) : listApprovals(),
+    director ? none([] as Awaited<ReturnType<typeof listCockpitActivity>>) : listCockpitActivity(8),
     getAutomationConfig(),
     sb.from("companies").select("id,name"),
-    listRecentActivity(10),
-    getEmailConfig(),
+    listRecentActivity(director ? 40 : 10),
+    director ? none(null) : getEmailConfig(),
     sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle(),
     sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false),
     // What is ABOUT to expire, soonest first — then what expired most recently.
@@ -58,10 +70,13 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
     sb.from("documents").select("id,title,expiry_date,company_id,category", { count: "exact" }).eq("archived", false).lt("expiry_date", nowIso).order("expiry_date", { ascending: false }).limit(6),
   ]);
   const docRows = [...(soonDocs.data ?? []), ...(expiredDocs.data ?? [])];
+  // A director's activity is their companies' activity.
+  const codesInView = new Set(rows.map((r) => r.code));
+  const activity = director ? activityAll.filter((a) => codesInView.has(a.code)).slice(0, 10) : activityAll;
   // What staff are seeing right now — carried in the hero, not a banner above
   // it (the old Home's "Live announcements" strip).
   let live: { title: string }[] = [];
-  try { live = (await listAnnouncements(false)).filter((a) => isLive(a, new Date())); } catch { /* decoration */ }
+  if (!director) try { live = (await listAnnouncements(false)).filter((a) => isLive(a, new Date())); } catch { /* decoration */ }
 
   const nowMs = Date.now();
   const today = eatDay(nowMs);
@@ -136,7 +151,7 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
   const clean = (n: string) => n.replace(/^(Mr|Mrs|Ms|Miss|Dr|Chef)\.?\s+/i, "");
 
   /* ---------- card 3: companies & the day ---------- */
-  const companyNames = new Map((companiesRes.data ?? []).map((c) => [c.id as number, c.name as string]));
+  const companyNames = new Map((companiesRes.data ?? []).filter((c) => !scope || scope.includes(c.id as number)).map((c) => [c.id as number, c.name as string]));
   const byCo = new Map<number, { name: string; open: number; late: number; soon: number }>();
   for (const r of open) {
     const e = byCo.get(r.companyId) ?? { name: companyNames.get(r.companyId) ?? r.companyName, open: 0, late: 0, soon: 0 };
@@ -150,7 +165,7 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
   const lateTone = (n: number) => (n > 0 ? "#C2327F" : undefined);
 
   const data: StudioHomeData = {
-    greeting: `${greeting(eatNow.getUTCHours())}, ${getGivenName(settings.operatorName || "Chief")} · ${eatNow.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}`,
+    greeting: `${greeting(eatNow.getUTCHours())}, ${getGivenName(director ? director.name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, "") : settings.operatorName || "Chief")} · ${eatNow.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}`,
     openCount: open.length,
     announcements: live.length ? { count: live.length, first: live[0].title } : null,
     late: counts.late,
@@ -253,6 +268,25 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
     ],
   };
 
+  if (director) {
+    // Cut down: only what a director can act on and open. The owner's levers
+    // and the pages not yet shared with directors (People, Files, Calendar,
+    // Companies, Activity, Approvals, HR) come out; the rest is unchanged.
+    const OPEN = (href: string | undefined) => !href || href.startsWith("/?") || href === "/" || href.startsWith("/task/") || href.startsWith("/portal/");
+    const OWNER_ONLY = new Set(["Run the day", "Controls held", "What ORI did", "Team today", "Files"]);
+    data.cards = data.cards.map((col) =>
+      col
+        .filter((c) => !OWNER_ONLY.has(c.title))
+        .map((c) => {
+          const out = { ...c } as typeof c & { href?: string; more?: { label: string; href: string } };
+          if (out.href === "/people") out.href = "/portal/directory";
+          if (!OPEN(out.href)) delete out.href;
+          if (out.more && !OPEN(out.more.href)) delete out.more;
+          return out;
+        }),
+    );
+    return <StudioHome data={data} />;
+  }
   return (
     <>
       <HomeActions />

@@ -1,6 +1,8 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner, guardViewer, fromBrowser, trusted, type Viewer } from "@/lib/viewer";
+import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/viewer-scope";
+import type { CapabilityKey } from "@/lib/portal-permissions";
 import { revalidatePath } from "next/cache";
 // bustTag, NEVER updateTag, anywhere in this file. Half of these actions are
 // also called from /api/mcp - a route handler, where updateTag throws, and it
@@ -170,6 +172,40 @@ async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: str
  *  task — mirrors the portal's portalRemindTask. The greeting uses the given name
  *  (honorific stripped), and the WhatsApp link carries the single-task text, not
  *  the all-tasks preview card. */
+
+/* ── Who is acting (portal unification, Sept 2026) ─────────────────────────
+ * These actions serve the owner AND a director on the same screens. A director
+ * may do what the owner does to a task, but only to tasks in their companies,
+ * only with the matching permission switched on for directors (Settings →
+ * Portals), and never by creating a person. Everything they change is stamped
+ * as them ("portal-dir:<Name>"), not as the owner. See lib/viewer.ts. */
+
+/** Resolve the acting viewer for a task given by id or code. */
+async function taskActor(ref: { taskId?: number | null; code?: string | null }, cap?: CapabilityKey): Promise<Viewer> {
+  let taskId = ref.taskId ?? null;
+  if (taskId == null && ref.code && fromBrowser()) {
+    const { data } = await sb.from("tasks").select("id").eq("code", ref.code).maybeSingle();
+    const hit = data ?? (await sb.from("tasks").select("id").eq("legacy_code", ref.code).maybeSingle()).data;
+    if (!hit) throw new Error("Task not found.");
+    taskId = hit.id as number;
+  }
+  const v = await guardViewer({ taskId });
+  needCap(v, cap);
+  return v;
+}
+
+/** Resolve the acting viewer for an update (by its id). */
+async function updateActor(updateId: number): Promise<Viewer> {
+  if (!fromBrowser()) return guardViewer();
+  const { data } = await sb.from("task_updates").select("task_id").eq("id", updateId).maybeSingle();
+  if (!data) throw new Error("Update not found.");
+  return guardViewer({ taskId: data.task_id as number });
+}
+
+
+
+
+
 export async function adminRemindTask(
   taskId: number,
   allTasks = false,
@@ -177,7 +213,7 @@ export async function adminRemindTask(
   | { ok: true; link: string | null; name: string; channel: string; contactMissing: boolean }
   | { ok: false; error: string }
 > {
-  await guardOwner();
+  await taskActor({ taskId }, "messageOnTasks");
   const { data: t } = await sb
     .from("tasks")
     .select("id,code,action_item,owner_id,company_id")
@@ -251,8 +287,10 @@ export async function adminRemindTask(
  * that clear a deadline or a comment. Do not "tidy" these into optional spreads.
  */
 export async function updateTask(code: string, formData: FormData) {
-  await guardOwner();
+  const v = await taskActor({ code });
   const companyIdField = formData.has("companyId") ? parseInt(String(formData.get("companyId")), 10) : NaN;
+  if (Number.isFinite(companyIdField)) needCompany(v, companyIdField);
+  const who = await assigneesFor(v, splitNames(str(formData.get("accountable"))));
 
   const result = await updateTaskCore(code, {
     companyId: Number.isFinite(companyIdField) ? companyIdField : undefined,
@@ -274,15 +312,16 @@ export async function updateTask(code: string, formData: FormData) {
     // CLEARED the task's latest update on EVERY save — found 2 Sept 2026 when
     // a no-change save on ME-020 wrote "Latest Update: <text> → (blank)".
     latestUpdate: formData.has("latestUpdate") ? str(formData.get("latestUpdate")) : undefined,
-    // By NAME: the owner typing somebody new means it.
-    assigneeNames: splitNames(str(formData.get("accountable"))),
+    // By NAME: the owner typing somebody new means it (a director: existing
+    // people in their companies only — see assigneesFor).
+    ...who,
     // The two switches on the record's Edit tab. Sent as "on"/"off" by
     // FormSwitch; absent from any form that does not carry them, in which
     // case the core leaves both alone.
     accountability: formData.has("leadMode") ? (formData.get("leadMode") === "on" ? "lead" : "shared") : undefined,
     requiresAttachment: formData.has("requiresAttachment") ? formData.get("requiresAttachment") === "on" : undefined,
     changeReason: str(formData.get("changeReason")),
-    createdBy: "web-ui",
+    createdBy: stampOf(v),
   });
 
   if (!result.ok) throw new Error(result.error);
@@ -317,10 +356,12 @@ export async function updateTask(code: string, formData: FormData) {
  * has: the FormData, the undo cookie and the redirect.
  */
 export async function createTask(formData: FormData) {
-  await guardOwner();
+  const v = await guardViewer();
+  needCap(v, "createTasks");
   const companyId = parseInt(String(formData.get("companyId")), 10);
   const actionItem = str(formData.get("actionItem"));
   if (!companyId || !actionItem) throw new Error("Company and Action Item are required");
+  needCompany(v, companyId);
 
   const departmentName = str(formData.get("department"));
   const status = str(formData.get("status")) || "Not Started";
@@ -388,14 +429,15 @@ export async function createTask(formData: FormData) {
     meetingDate,
     comments,
     latestUpdate,
-    // The web form is the owner typing: an unknown name is a new person, on purpose.
-    assigneeNames: splitNames(accountableRaw),
+    // The web form is the owner typing: an unknown name is a new person, on
+    // purpose. A director: existing people in their companies only.
+    ...(await assigneesFor(v, splitNames(accountableRaw))),
     accountability,
     requiresAttachment,
     repeat: willRepeat
       ? { cadence: repeatCadence, weekdays: repeatWeekdays, dayOfMonth: repeatDayOfMonth, todaysCopyMade: true }
       : null,
-    createdBy: "web-ui",
+    createdBy: stampOf(v),
   });
 
   if (!result.ok) throw new Error(result.error);
@@ -444,11 +486,11 @@ async function purgeTaskHistory(taskId: number, code: string) {
  * are the browser's half.
  */
 export async function addTaskUpdate(taskId: number, taskCode: string, body: string, newStatus?: string) {
-  await guardOwner();
+  const v = await taskActor({ taskId });
   const trimmed = body.trim();
   if (!trimmed) return;
 
-  const result = await addTaskUpdateCore({ taskId, taskCode, body: trimmed, newStatus, createdBy: "web-ui" });
+  const result = await addTaskUpdateCore({ taskId, taskCode, body: trimmed, newStatus, createdBy: stampOf(v) });
 
   if (!result.ok) throw new Error(result.error);
   if (result.undoToken) await setUndoCookie(result.undoToken, "Update added.");
@@ -467,7 +509,6 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
  * ---------------------------------------------------------------------- */
 
 export async function adminAddUpdate(formData: FormData): Promise<void> {
-  await guardOwner();
   const taskId = Number(formData.get("taskId"));
   const taskCode = String(formData.get("code") ?? "");
   const body = String(formData.get("body") ?? "").trim();
@@ -476,6 +517,8 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
   const fileEntry = formData.get("attachment");
   const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
   if (!Number.isFinite(taskId) || (!body && !file)) return;
+  const v = await taskActor({ taskId });
+  const by = stampOf(v);
 
   const { data: t } = await sb
     .from("tasks")
@@ -499,12 +542,14 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   let attachmentDocumentId: number | null = null;
   if (file) {
-    const r = await ingestAttachmentDocument({
+    // Filing the attachment is an owner-only helper; the check above is what
+    // lets this caller attach to THIS task, so it runs as the server.
+    const r = await trusted(() => ingestAttachmentDocument({
       file,
-      createdBy: "web-ui",
+      createdBy: by,
       contextCompanyId: t.company_id as number | null,
       taskId,
-    });
+    }));
     attachmentDocumentId = r.documentId;
   }
 
@@ -516,7 +561,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
       task_id: taskId,
       body: messageBody,
       created_at: now,
-      created_by: "web-ui",
+      created_by: by,
       parent_update_id: parentUpdateId,
       attachment_document_id: attachmentDocumentId,
     })
@@ -564,7 +609,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
       new_value: newStatus,
       change_reason: body || null,
       created_at: now,
-      created_by: "web-ui",
+      created_by: by,
     });
   }
   await sb.from("tasks").update(patch).eq("id", taskId);
@@ -579,9 +624,9 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 }
 
 export async function adminTogglePin(formData: FormData): Promise<void> {
-  await guardOwner();
   const updateId = Number(formData.get("updateId"));
   if (!Number.isFinite(updateId)) return;
+  await updateActor(updateId);
   const { data: u } = await sb.from("task_updates").select("task_id,pinned_at").eq("id", updateId).maybeSingle();
   const wasPinned = Boolean(u?.pinned_at);
   const res = await toggleUpdatePin(updateId);
@@ -656,7 +701,7 @@ export async function editTaskUpdate(
   reason?: string,
   by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
+  by = stampOf(await updateActor(updateId), by);
   const trimmed = newBody.trim();
   if (!trimmed) return { ok: false, error: "Body cannot be empty." };
 
@@ -706,7 +751,7 @@ export async function deleteTaskUpdate(
   reason?: string,
   by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
+  by = stampOf(await updateActor(updateId), by);
   const u = await loadUpdate(updateId);
   if (!u) return { ok: true }; // already gone
   if (u.deleted_at) return { ok: true }; // already removed
@@ -746,10 +791,10 @@ export async function deleteTaskUpdate(
  *  keeps the original text and audits the change; `deleteTaskUpdate` is a soft
  *  delete that `restoreTaskUpdate` can undo. Field names match PortalConversation. */
 export async function adminEditUpdate(formData: FormData): Promise<void> {
-  await guardOwner();
   // A server action is reachable by POST from any page that imports it, so the
-  // administrator gate is checked here, not assumed from the proxy.
-  if (!(await isAdminSession())) throw new Error("Sign in as the administrator first.");
+  // gate is checked here, not assumed from the proxy: editTaskUpdate resolves
+  // who is acting and whether this update's task is theirs to touch.
+  await guardViewer();
   const updateId = Number(formData.get("updateId"));
   const body = String(formData.get("body") ?? "");
   if (!Number.isFinite(updateId) || updateId <= 0) return;
@@ -758,8 +803,7 @@ export async function adminEditUpdate(formData: FormData): Promise<void> {
 }
 
 export async function adminDeleteUpdate(formData: FormData): Promise<void> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Sign in as the administrator first.");
+  await guardViewer();
   const updateId = Number(formData.get("updateId"));
   if (!Number.isFinite(updateId) || updateId <= 0) return;
   const res = await deleteTaskUpdate(updateId, "Taken down by the administrator", "web-ui");
@@ -767,7 +811,7 @@ export async function adminDeleteUpdate(formData: FormData): Promise<void> {
 }
 
 export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
+  by = stampOf(await updateActor(updateId), by);
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   const t = await findTaskMeta(u.task_id);
@@ -791,7 +835,7 @@ export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promis
 }
 
 export async function toggleUpdatePin(updateId: number, by = "web-ui"): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
-  await guardOwner();
+  by = stampOf(await updateActor(updateId), by);
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   if (u.deleted_at) return { ok: false, error: "Update is deleted." };
@@ -855,12 +899,24 @@ export async function bulkUpdateTasks(
   action: BulkAction,
   createdBy = "web-ui",
 ): Promise<BulkResult> {
-  await guardOwner();
+  const v = await guardViewer();
+  needCap(v, "bulkTaskActions");
+  createdBy = stampOf(v, createdBy);
+  // A director's bulk touches only tasks in their companies: anything else in
+  // the list is refused by name, never silently applied.
+  let outside: Set<string> = new Set();
+  if (v.kind === "director" && v.scope != null && Array.isArray(codes) && codes.length) {
+    const { data: rows } = await sb.from("tasks").select("code,company_id").in("code", codes);
+    const inScope = new Set((rows ?? []).filter((r) => v.scope!.includes((r.company_id as number | null) ?? -1)).map((r) => r.code as string));
+    outside = new Set(codes.filter((c) => !inScope.has(c)));
+    codes = codes.filter((c) => inScope.has(c));
+    if (!codes.length) return { ok: false, applied: 0, skipped: 0, errors: [...outside].map((code) => ({ code, error: "Not in your companies" })) };
+  }
   if (!Array.isArray(codes) || codes.length === 0) {
     return { ok: false, applied: 0, skipped: 0, errors: [{ code: "-", error: "No tasks selected" }] };
   }
 
-  const errors: { code: string; error: string }[] = [];
+  const errors: { code: string; error: string }[] = [...outside].map((code) => ({ code, error: "Not in your companies" }));
   let applied = 0;
   let skipped = 0;
   // Bulk delete: every deleted task's snapshot, so ONE Undo restores them all.
@@ -1008,7 +1064,8 @@ export async function inlineUpdateTask(
   field: "status" | "priority" | "deadline" | "category" | "escalation",
   value: string | null
 ): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
-  await guardOwner();
+  const v = await taskActor({ code });
+  const by = stampOf(v);
   const result = await mutate({
     kind: "task.update",
     run: async () => {
@@ -1056,7 +1113,7 @@ export async function inlineUpdateTask(
         if ((value || "No") === "Yes") patch.status = "Escalated";
       }
 
-      await logChangeSb(t.id, t.code, t.company_id, fieldLabel, oldVal, newVal, null);
+      await logChangeSb(t.id, t.code, t.company_id, fieldLabel, oldVal, newVal, null, by);
       await sb.from("tasks").update(patch).eq("id", t.id);
       if (typeof patch.status === "string") await fireTaskCascade(t.id, t.status as string, patch.status);
 
@@ -1108,7 +1165,7 @@ export async function setTaskArchived(
   archived: boolean,
   createdBy = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
+  createdBy = stampOf(await taskActor({ code }, "manageAnyTask"), createdBy);
   const { data: t, error } = await sb.from("tasks").select("id,company_id").eq("code", code).maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!t) return { ok: false, error: "Task not found" };
@@ -1133,7 +1190,7 @@ export async function setTaskArchived(
  *  setting the cookie as well made `UndoBanner` fire a SECOND one — on the next
  *  full page load, up to a minute later, on whatever page that happened to be. */
 export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
-  await guardOwner();
+  await taskActor({ code }, "manageAnyTask");
   const result = await mutate({
     kind: "task.delete",
     run: async () => {
@@ -1167,7 +1224,8 @@ export async function copyTaskToCompany(
   code: string,
   companyId: number,
 ): Promise<{ ok: true; code: string; taskId: number } | { ok: false; error: string }> {
-  await guardOwner();
+  const v = await taskActor({ code }, "crossCompanyTasks");
+  needCompany(v, companyId);
   const t = await findTaskByCode(code);
   if (!t) return { ok: false, error: "Task not found." };
   if (t.company_id === companyId) return { ok: false, error: "The task is already in that company." };
@@ -1192,7 +1250,7 @@ export async function copyTaskToCompany(
     assigneeIds,
     status: "Not Started",
     latestUpdate: `Copied from ${code}`,
-    createdBy: "web-ui",
+    createdBy: stampOf(v),
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
@@ -1211,7 +1269,7 @@ async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {
 
 /** Switch a task between "shared" and "lead" overdue-blame modes. */
 export async function setTaskAccountability(taskId: number, mode: "shared" | "lead") {
-  await guardOwner();
+  await taskActor({ taskId });
   // ⚠️ The column only. `updateTaskCore` is the door that ALSO re-points the
   // accountable role and tasks.owner_id — reach for that when the assignees may
   // move with the mode.
@@ -1223,7 +1281,7 @@ export async function setTaskAccountability(taskId: number, mode: "shared" | "le
 
 /** Raise a documented blocker — overdue is SUSPENDED for everyone until cleared. */
 export async function setTaskBlocker(taskId: number, personId: number, reason: string, by = "web-ui") {
-  await guardOwner();
+  by = stampOf(await taskActor({ taskId }), by);
   const r = (reason || "").trim();
   if (!r) return { ok: false as const, error: "A reason is required to raise a blocker." };
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
@@ -1238,7 +1296,7 @@ export async function setTaskBlocker(taskId: number, personId: number, reason: s
 
 /** Clear the blocker — the task is live again and overdue blame resumes. */
 export async function clearTaskBlocker(taskId: number, note?: string, by = "web-ui") {
-  await guardOwner();
+  by = stampOf(await taskActor({ taskId }), by);
   await sb.from("tasks").update({
     blocked_on_person_id: null, blocked_reason: null, blocked_since: null, status: "In Progress",
   }).eq("id", taskId);
@@ -1250,7 +1308,7 @@ export async function clearTaskBlocker(taskId: number, note?: string, by = "web-
 
 /** Toggle a person's "my part is done" flag — spares them this task's overdue blame. */
 export async function toggleMyPartDone(taskId: number, personId: number, done: boolean, by = "web-ui") {
-  await guardOwner();
+  by = stampOf(await taskActor({ taskId }), by);
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
   await sb.from("task_assignees")
     .update({ part_done_at: done ? new Date().toISOString() : null })
@@ -1301,13 +1359,21 @@ export async function patchTaskField(
     assigneeNames?: string[];
   },
 ): Promise<{ ok: boolean; error?: string; code?: string; undoToken?: string }> {
-  await guardOwner();
-  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
-  const { meetingDate, ...rest } = patch;
+  let v: Viewer;
+  try {
+    v = await taskActor({ code });
+    if (patch.companyId !== undefined) needCompany(v, patch.companyId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Not allowed." };
+  }
+  const { meetingDate, assigneeNames, ...rest } = patch;
+  let who: { assigneeNames?: string[]; assigneeIds?: number[] };
+  try { who = await assigneesFor(v, assigneeNames); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Not allowed." }; }
   const result = await updateTaskCore(code, {
     ...rest,
+    ...who,
     ...(meetingDate !== undefined ? { meetingDate: meetingDate ? parseDate(meetingDate) : null } : {}),
-    createdBy: "web-ui",
+    createdBy: stampOf(v),
   });
   if (!result.ok) return { ok: false, error: result.error };
   const finalCode = result.result.code;
@@ -1357,8 +1423,19 @@ export async function createTaskStudio(input: StudioNewTask): Promise<
   | { ok: true; ruleOnly: true }
   | { ok: false; error: string }
 > {
-  await guardOwner();
-  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
+  let v: Viewer;
+  let who: { assigneeNames?: string[]; assigneeIds?: number[] };
+  try {
+    v = await guardViewer();
+    needCap(v, "createTasks");
+    if (input.companyId) needCompany(v, input.companyId);
+    for (const cid of input.alsoCompanyIds ?? []) needCompany(v, cid);
+    if (input.repeat) needCap(v, "recurringTasks");
+    who = await assigneesFor(v, input.assigneeNames);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Not allowed." };
+  }
+  const by = stampOf(v);
   const actionItem = (input.actionItem ?? "").trim();
   if (!input.companyId) return { ok: false, error: "Pick a company first — it sets the task code." };
   if (!actionItem) return { ok: false, error: "Say what needs doing first." };
@@ -1370,14 +1447,15 @@ export async function createTaskStudio(input: StudioNewTask): Promise<
   const willRepeat = !!r && (r.cadence === "monthly" || r.weekdays.length > 0);
 
   if (willRepeat && !shouldCreateTodaysCopy({ cadence: r!.cadence, weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth }, !!r!.alsoToday)) {
-    const assigneePersonIds: number[] = [];
-    for (const n of names) assigneePersonIds.push(await getOrCreatePersonSb(n, input.companyId));
-    const saved = await saveRuleOnly({
+    const assigneePersonIds: number[] = who.assigneeIds ? [...who.assigneeIds] : [];
+    if (!who.assigneeIds) for (const n of names) assigneePersonIds.push(await getOrCreatePersonSb(n, input.companyId));
+    // The repeat rule is an owner-only helper; the checks above cleared this caller.
+    const saved = await trusted(() => saveRuleOnly({
       title: actionItem, companyId: input.companyId, cadence: r!.cadence,
       weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth,
       priority, status: status === "Completed" || status === "Closed" ? "Not Started" : status,
       description: input.comments ?? "", assigneePersonIds,
-    });
+    }));
     if (!saved.ok) return { ok: false, error: saved.error ?? "Couldn't save the repeat rule." };
     revalidatePath("/"); revalidatePath("/task", "layout"); bustTag("tasks"); invalidateAllTasks();
     return { ok: true, ruleOnly: true };
@@ -1394,18 +1472,18 @@ export async function createTaskStudio(input: StudioNewTask): Promise<
     deadline: input.deadline ? parseDate(input.deadline) : null,
     meetingDate: input.meetingDate ? parseDate(input.meetingDate) : null,
     comments: input.comments?.trim() || null,
-    assigneeNames: names,
+    ...(who.assigneeIds ? { assigneeIds: who.assigneeIds } : { assigneeNames: names }),
     accountability: input.accountability === "lead" ? "lead" : "shared",
     requiresAttachment: !!input.requiresAttachment,
     repeat: willRepeat ? { cadence: r!.cadence, weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth, todaysCopyMade: true } : null,
-    createdBy: "web-ui",
+    createdBy: by,
   });
   if (!result.ok) return { ok: false, error: result.error };
   const { code, taskId } = result.result;
 
   const instructions = input.instructions?.trim();
   if (instructions) {
-    const up = await addTaskUpdateCore({ taskId, taskCode: code, body: instructions, createdBy: "web-ui" });
+    const up = await addTaskUpdateCore({ taskId, taskCode: code, body: instructions, createdBy: by });
     if (up.ok && input.pinInstructions) {
       const pin = await toggleUpdatePin(up.result.taskUpdateId);
       if (pin.ok) await notifyPinned(taskId, code, "Management", null);
@@ -1432,16 +1510,20 @@ export async function studioNewTaskOptions(): Promise<{
   people: { id: number; name: string }[];
   departments: string[];
 }> {
-  await guardOwner();
-  if (!(await isAdminSession())) return { companies: [], people: [], departments: [] };
-  const [{ data: cs }, { data: ps }, { data: ds }] = await Promise.all([
+  let v: Viewer;
+  try { v = await guardViewer(); } catch { return { companies: [], people: [], departments: [] }; }
+  const [{ data: cs }, { data: ps }, { data: ds }, { data: links }] = await Promise.all([
     sb.from("companies").select("id,name,code_prefix").order("name"),
-    sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
     sb.from("departments").select("name").order("name"),
+    v.scope != null ? sb.from("person_companies").select("person_id").in("company_id", v.scope) : Promise.resolve({ data: [] as { person_id: number }[] }),
   ]);
+  // A director picks from their own companies and the people in them.
+  const inScope = (cid: number | null) => v.scope == null || (cid != null && v.scope.includes(cid));
+  const linked = new Set((links ?? []).map((l) => l.person_id as number));
   return {
-    companies: (cs ?? []).map((c) => ({ id: c.id as number, name: c.name as string, prefix: (c.code_prefix as string | null) ?? null })),
-    people: (ps ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+    companies: (cs ?? []).filter((c) => inScope(c.id as number)).map((c) => ({ id: c.id as number, name: c.name as string, prefix: (c.code_prefix as string | null) ?? null })),
+    people: (ps ?? []).filter((p) => inScope((p.company_id as number | null) ?? null) || linked.has(p.id as number)).map((p) => ({ id: p.id as number, name: p.name as string })),
     departments: [...new Set((ds ?? []).map((d) => d.name as string))],
   };
 }
@@ -1452,13 +1534,13 @@ export async function studioNewTaskOptions(): Promise<{
  * it lands on the task's conversation, notifies the team and can be undone.
  */
 export async function replyToTaskByCode(code: string, body: string): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
-  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
+  let v: Viewer;
+  try { v = await taskActor({ code }); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Not allowed." }; }
   const text = body.trim();
   if (!text) return { ok: false, error: "Write something first." };
   const t = await findTaskByCode(code);
   if (!t) return { ok: false, error: `Couldn't find ${code}.` };
-  const res = await addTaskUpdateCore({ taskId: t.id, taskCode: t.code, body: text, createdBy: "web-ui" });
+  const res = await addTaskUpdateCore({ taskId: t.id, taskCode: t.code, body: text, createdBy: stampOf(v) });
   if (!res.ok) return { ok: false, error: res.error };
   revalidatePath(`/task/${t.code}`);
   revalidatePath("/");

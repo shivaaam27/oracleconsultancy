@@ -37,6 +37,7 @@ import { AppSplash } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
 import { isStudioOn } from "@/lib/studio";
+import { getViewer } from "@/lib/viewer";
 import { StudioShellServer } from "@/components/studio/shell-server";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -88,6 +89,9 @@ export default async function RootLayout({ children, modal }: { children: React.
   // paint. Without this the gutter arrived an effect late and content began life
   // underneath the rail — see the note in `portal-sidebar.tsx`.
   const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
+  // A director on the shared screens (lib/viewer.ts): the everything-search and
+  // the owner's record drawers stay off for them.
+  const asDirector = (await getViewer())?.kind === "director";
   return (
     <html lang="en-GB" data-voice-lang={voiceLanguage || undefined} data-studio-pages={studioPages || undefined} className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
       <head>
@@ -122,7 +126,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <ToastProvider>
             <UndoBanner />
             <Suspense>
-            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio={studioShell}>
+            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio={studioShell} disabled={asDirector}>
               <NavVisibilityProvider value={{ commandCentrePaused }}>
               <RecentsTracker />
               <ContextActionsProvider>
@@ -164,9 +168,11 @@ export default async function RootLayout({ children, modal }: { children: React.
                   </Suspense>
                 </HideOnPortal>
               </ContextActionsProvider>
-              <HideOnPortal>
-                <GlobalDrawers />
-              </HideOnPortal>
+              {!asDirector && (
+                <HideOnPortal>
+                  <GlobalDrawers />
+                </HideOnPortal>
+              )}
               <ServiceWorkerRegister />
               <LocationTracker />
               <IosResume />

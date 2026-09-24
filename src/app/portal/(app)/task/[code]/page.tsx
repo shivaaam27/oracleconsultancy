@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { usesStudio } from "@/lib/viewer";
 import { CalendarDays, Crown, MessageCircle, MessageSquare, Users } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { sb } from "@/db/supabase";
@@ -55,6 +56,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const { code } = await params;
+  // A director on the shared screens (Settings → General → New look → Directors)
+  // uses the SAME page as the owner — this portal copy hands over (lib/viewer.ts).
+  if (await usesStudio(me)) redirect(`/task/${encodeURIComponent(decodeURIComponent(code))}`);
   const isManager = me.portalRole === "manager";
   const isManagement = isManager || me.portalRole === "director" || me.portalRole === "hr";
 

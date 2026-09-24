@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { usesStudio } from "@/lib/viewer";
 import { Hero, HeroMetrics } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -33,6 +34,9 @@ export const metadata = { title: "Tasks — Oracle Consultancy" };
 export default async function PortalTasksPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director on the shared screens (Settings → General → New look → Directors)
+  // uses the SAME page as the owner — this portal copy hands over (lib/viewer.ts).
+  if (await usesStudio(me)) redirect("/?tab=tasks");
   // The Tasks tab is owner-configurable per role (Settings → Portals). By default
   // staff have no Tasks page (tasks live on Home) — bounce anyone without the tab.
   if (!me.caps.navTasks) redirect("/portal");

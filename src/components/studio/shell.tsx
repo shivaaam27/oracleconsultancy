@@ -18,8 +18,8 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, Home, Plus, Search, Settings as SettingsIcon, X } from "lucide-react";
-import { studioStops, stopIndexFor, type StudioStop } from "@/lib/studio-nav";
+import { ChevronLeft, ChevronRight, ChevronUp, Home, Plus, Search, Settings as SettingsIcon, UserRound, X } from "lucide-react";
+import { studioStops, stopIndexFor, directorStops, directorStopIndex, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { StudioQuickAdd } from "./quick-add";
@@ -33,7 +33,12 @@ export type StudioFootNote = { label: string; text: string; href?: string } | nu
 const FOOT_BTN =
   "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#2A2C30] bg-transparent text-xs text-[#A3A6AB] transition-colors hover:border-[#3A3D42] hover:text-[#F2F2F0]";
 
-export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) {
+/** A director on the shared screens (lib/viewer.ts): their own pages in the
+ *  footer, their profile instead of Settings, no everything-search, and "+ New"
+ *  makes a task (the one thing they create here). */
+export type ShellDirector = { name: string; outbox: boolean; createTasks: boolean };
+
+export function StudioShell({ nextDeadline, director = null }: { nextDeadline: StudioFootNote; director?: ShellDirector | null }) {
   const pathname = usePathname() || "/";
   const params = useSearchParams();
   const router = useRouter();
@@ -59,11 +64,21 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
     return () => window.removeEventListener(FOOT_NOTE_EVENT, on);
   }, []);
 
-  const stops = useMemo(() => studioStops().filter((s) => !isHiddenNavHref(s.href, vis)), [vis]);
+  const directorOutbox = director?.outbox ?? false;
+  const isDirector = !!director;
+  const stops = useMemo(
+    () => (isDirector ? directorStops({ outbox: directorOutbox }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
+    [vis, isDirector, directorOutbox],
+  );
   const tab = params.get("tab");
-  const here = studioStops()[stopIndexFor(pathname, tab)];
-  let i = stops.findIndex((s) => s.id === here?.id);
-  if (i < 0) i = 0;
+  let i: number;
+  if (director) {
+    i = directorStopIndex(stops, pathname, tab);
+  } else {
+    const here = studioStops()[stopIndexFor(pathname, tab)];
+    i = stops.findIndex((s) => s.id === here?.id);
+    if (i < 0) i = 0;
+  }
   const current = stops[i];
   const prev = stops[(i - 1 + stops.length) % stops.length];
   const next = stops[(i + 1) % stops.length];
@@ -148,7 +163,9 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const recordCode = /^\/task\/([A-Za-z0-9]+-\d+)$/.exec(pathname)?.[1];
   const note: StudioFootNote = recordCode
     ? { label: "You are in", text: `Tasks › ${recordCode}` }
-    : pageNote && pageNote.path === pathname ? pageNote.note : nextDeadline;
+    : pageNote && pageNote.path === pathname ? pageNote.note
+    : director ? { label: "Signed in as", text: `${director.name} · Director` }
+    : nextDeadline;
 
   // Chat is a full-screen app on a phone; the footer steps aside there, as the
   // pill did.
@@ -227,6 +244,16 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
                 <ChevronRight size={13} strokeWidth={2.2} />
               </Link>
             </div>
+            {director ? (
+              <Link
+                href="/portal/profile"
+                aria-label="Your profile"
+                className="flex h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#8E9197] transition-colors hover:text-white md:px-0"
+              >
+                <UserRound size={16} strokeWidth={2} />
+                <span className="hidden lg:inline">Profile</span>
+              </Link>
+            ) : (
             <Link
               href="/settings"
               aria-label="Settings"
@@ -235,12 +262,13 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
               <SettingsIcon size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Settings</span>
             </Link>
+            )}
           </nav>
 
           {/* Right: search everything · notifications · + New */}
           <div className="col-start-3 flex items-center justify-end gap-2">
             {/* Ask ORI or search — the palette (mockup board Ask). */}
-            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2 sm:inline-flex")}>
+            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2", !director && "sm:inline-flex")}>
               <Search size={14} />
               <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
               <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#8E9197]">⌘K</span>
@@ -253,18 +281,23 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
               triggerClassName="relative inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
             />
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}
+            {(!director || director.createTasks) && (
             <button
               type="button"
-              // On Files Management "+" is Upload — it opens the file picker
-              // for the folder you are in, rather than a card.
-              onClick={() => { if (onFiles) { window.dispatchEvent(new Event("files:upload")); return; } setQuickTab(undefined); setQuick(true); }}
+              onClick={() => {
+                // A director makes tasks only: straight to the new-task page.
+                if (director) { const q = params.toString(); router.push(`/task/new?returnTo=${encodeURIComponent(q ? `${pathname}?${q}` : pathname)}`); return; }
+                if (onFiles) { window.dispatchEvent(new Event("files:upload")); return; }
+                setQuickTab(undefined); setQuick(true);
+              }}
               aria-haspopup="dialog"
               aria-expanded={quick}
               aria-label="Create something new"
               className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:px-3.5"
             >
-              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">{onFiles ? "Upload" : `New ${newWord}`}</span>
+              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">{director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
             </button>
+            )}
           </div>
         </div>
       </footer>

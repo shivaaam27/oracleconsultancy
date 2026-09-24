@@ -6,6 +6,7 @@ import { TasksSection } from "./_hub/tasks-section";
 import { StudioHomeServer } from "./_hub/studio-home";
 import { getAppSettings } from "@/lib/settings";
 import { isStudioOn } from "@/lib/studio";
+import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,10 @@ type Sp = {
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
+  // The owner, or a director on the shared screens (lib/viewer.ts). The front
+  // door lets a signed-in director reach "/", so the page decides.
+  const viewer = await getViewer();
+  if (!viewer) redirect("/portal");
 
   // Companies now live in the sidebar / dedicated index — no hub tab.
   if (sp.tab === "companies") redirect("/companies");
@@ -57,7 +62,8 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
   // COS Home — the calm landing page.
   // Studio (Settings → New look → Home): the widget home, mockup board Home.
   const { studioPages } = await getAppSettings();
-  if (isStudioOn(studioPages, "home")) return <StudioHomeServer rows={await getAllTasks()} />;
+  // A director always gets the Studio Home, cut down to their companies.
+  if (isStudioOn(studioPages, "home") || viewer.kind === "director") return <StudioHomeServer rows={await getAllTasks()} viewer={viewer} />;
 
   const [rows, todos] = await Promise.all([getAllTasks(), listTodos()]);
   return <CosHome rows={rows} todos={todos} />;

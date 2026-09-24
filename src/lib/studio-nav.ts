@@ -6,7 +6,7 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
-import { Home, ListChecks, type LucideIcon } from "lucide-react";
+import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, type LucideIcon } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
 export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
@@ -54,4 +54,28 @@ export function studioNeighbours(pathname: string, tab?: string | null) {
     prev: stops[(i - 1 + stops.length) % stops.length],
     next: stops[(i + 1) % stops.length],
   };
+}
+
+/* ── A director's footer (portal unification, Sept 2026) ────────────────────
+ * The same footer, with the pages a director has: the shared Home and Tasks,
+ * then their portal pages (which keep the portal's own layout until each is
+ * rebuilt on the shared screens). ⚠️ Every href here must be a page the front
+ * door lets a director reach — src/proxy.ts DIRECTOR_PATHS, or /portal/…. */
+export function directorStops(o: { outbox: boolean }): StudioStop[] {
+  return [
+    { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
+    { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
+    { id: "briefings", label: "Briefings", href: "/portal/meetings", group: "Work", icon: Megaphone },
+    ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/portal/outbox", group: "Work", icon: Send }] : []),
+    { id: "chat", label: "Chat", href: "/portal/chat", group: "People", icon: MessageSquare },
+    { id: "directory", label: "Directory", href: "/portal/directory", group: "People", icon: Users },
+  ];
+}
+
+/** Which of a director's stops an address belongs to. */
+export function directorStopIndex(stops: StudioStop[], pathname: string, tab?: string | null): number {
+  if (pathname === "/") return tab === "tasks" ? 1 : 0;
+  if (pathname.startsWith("/task/")) return 1;
+  const i = stops.findIndex((s) => s.href !== "/" && !s.href.startsWith("/?") && (pathname === s.href || pathname.startsWith(s.href + "/")));
+  return i >= 0 ? i : 0;
 }

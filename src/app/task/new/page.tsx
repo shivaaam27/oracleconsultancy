@@ -6,20 +6,30 @@ import { getAppSettings } from "@/lib/settings";
 import { isStudioOn } from "@/lib/studio";
 import { safeReturn } from "@/lib/return-to";
 import { StudioNewTaskPage } from "@/components/studio/tasks/new-task";
+import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage({ searchParams }: { searchParams: Promise<{ companyId?: string; returnTo?: string; title?: string; deadline?: string; assignees?: string; priority?: string; instructions?: string }> }) {
   const sp = await searchParams;
+  // The owner, or a director allowed to create tasks (lib/viewer.ts): they pick
+  // from their own companies and the people in them.
+  const viewer = await getViewer();
+  if (!viewer || (viewer.kind === "director" && !viewer.person.caps.createTasks)) redirect("/portal");
   const { studioPages } = await getAppSettings();
-  const [{ data: rows }, { data: ppl }, { data: depts }] = await Promise.all([
+  const [{ data: rowsRaw }, { data: pplRaw }, { data: depts }, inScope] = await Promise.all([
     sb.from("companies").select("id,name,code_prefix").order("name"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
     sb.from("departments").select("name").order("name"),
+    viewerPeopleIds(viewer),
   ]);
+  const rows = (rowsRaw ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number));
+  const ppl = (pplRaw ?? []).filter((p) => !inScope || inScope.has(p.id as number));
   const departments = (depts ?? []).map((d) => d.name as string);
-  const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const people = (ppl ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const companies = rows.map((c) => ({ id: c.id as number, name: c.name as string }));
+  const people = ppl.map((p) => ({ id: p.id as number, name: p.name as string }));
   const presetCompany = sp.companyId ? parseInt(sp.companyId, 10) : companies[0]?.id;
 
   /* Studio (New look → Tasks): the new task is the record page itself, as an

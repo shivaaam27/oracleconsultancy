@@ -34,6 +34,7 @@ import { actionAsyncStorage } from "next/dist/server/app-render/action-async-sto
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson, companyScope, personCanSeeTask, type PortalPerson } from "@/lib/portal-auth";
 import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
 
 export type Viewer =
   | { kind: "owner"; person: null; scope: null; actor: "web-ui"; name: string }
@@ -55,8 +56,10 @@ export function parseStudioRoles(raw: string | null | undefined): Set<string> {
 /** Is this portal person one of the roles that uses the Studio screens? */
 export async function usesStudio(p: PortalPerson | null): Promise<boolean> {
   if (!p) return false;
-  const { studioRoles } = await getAppSettings();
-  return p.portalRole === "director" && parseStudioRoles(studioRoles).has("director");
+  const { studioRoles, studioPages } = await getAppSettings();
+  // The shared screens ARE the Studio screens: with the owner's Studio Tasks
+  // page switched off there is nothing for a director to share.
+  return p.portalRole === "director" && parseStudioRoles(studioRoles).has("director") && isStudioOn(studioPages, "tasks");
 }
 
 /** Who is looking at this request. Owner first: an owner who is ALSO signed in

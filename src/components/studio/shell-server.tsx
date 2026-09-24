@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { isAdminSession } from "@/lib/admin-auth";
+import { getViewer } from "@/lib/viewer";
 import { taskHref } from "@/lib/task-href";
 import { StudioShell, type StudioFootNote } from "./shell";
 
@@ -12,7 +13,14 @@ export async function StudioShellServer() {
   // hides it on the client (HideOnPortal) — so without this check the owner's
   // next task title rode along in the page data of the staff portal and of the
   // public /e/ and /r/ links (portal audit, 25 Sept 2026).
-  if (!(await isAdminSession())) return <StudioShell nextDeadline={null} />;
+  if (!(await isAdminSession())) {
+    // A director on the shared screens gets their own footer (lib/viewer.ts).
+    const v = await getViewer();
+    if (v?.kind === "director") {
+      return <StudioShell nextDeadline={null} director={{ name: v.name, outbox: !!v.person.caps.navOutbox, createTasks: !!v.person.caps.createTasks }} />;
+    }
+    return <StudioShell nextDeadline={null} />;
+  }
   try {
     const todayEat = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" });
     const { data } = await sb

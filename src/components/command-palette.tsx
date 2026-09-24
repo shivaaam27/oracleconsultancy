@@ -163,10 +163,15 @@ export function CommandPaletteProvider({
   operatorName,
   voiceLanguage,
   studio = false,
+  disabled = false,
 }: {
   children: React.ReactNode;
   operatorName?: string;
   voiceLanguage?: string;
+  /** Off for a director on the shared screens: this palette searches and asks
+   *  across EVERYTHING (the owner's reach). They get it back once search is
+   *  scoped to their companies. */
+  disabled?: boolean;
   /** Studio footer on (mockup board Ask): the same palette — search, ORI,
    *  commands, preview — drawn as the dark sheet that rises from the footer,
    *  with "Try asking" cards when the box is empty. */
@@ -215,7 +220,7 @@ export function CommandPaletteProvider({
   const currentView = useCurrentView();
   const pageContext = derivePageContext(pathname, searchParams);
   // The staff portal and sign-in screens must not expose admin-wide search.
-  const onPortal = pathname.startsWith("/portal") || pathname === "/login";
+  const onPortal = disabled || pathname.startsWith("/portal") || pathname === "/login";
 
   const threadRef = useRef<Msg[]>([]);
   threadRef.current = thread;
@@ -747,9 +752,10 @@ export function CommandPaletteProvider({
   return (
     <CommandCtx.Provider
       value={{
-        open: () => setIsOpen(true),
+        open: () => { if (!onPortal) setIsOpen(true); },
         close: () => setIsOpen(false),
         ask: (q: string) => {
+          if (onPortal) return;
           setIsOpen(true);
           setTimeout(() => submitPrompt(q), 30);
         },

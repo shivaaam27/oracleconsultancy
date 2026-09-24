@@ -7,7 +7,7 @@ const { actionAsyncStorage } = await import("next/dist/server/app-render/action-
 vi.mock("server-only", () => ({}));
 const state = { admin: false, portal: null as null | { id: number; name: string; portalRole: string; directorCompanyIds: number[] } };
 vi.mock("@/lib/admin-auth", () => ({ isAdminSession: async () => state.admin }));
-vi.mock("@/lib/settings", () => ({ getAppSettings: async () => ({ studioRoles: "director" }) }));
+vi.mock("@/lib/settings", () => ({ getAppSettings: async () => ({ studioRoles: "director", studioPages: "tasks" }) }));
 vi.mock("@/lib/portal-auth", () => ({
   getPortalPerson: async () => state.portal,
   companyScope: async () => [7],
@@ -54,5 +54,7 @@ describe("action guards", () => {
     expect(v.kind).toBe("director");
     expect(v.actor).toBe("portal-dir:Dir");
     await expect(asAction(() => guardViewer({ taskId: 2 }))).rejects.toThrow(/companies/);
+    state.portal = { id: 5, name: "Staff", portalRole: "staff", directorCompanyIds: [] };
+    await expect(asAction(() => guardViewer({ taskId: 1 }))).rejects.toThrow(/Sign in/);
   });
 });

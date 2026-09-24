@@ -276,11 +276,13 @@ export function TableView({
       csv: (r) => (r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : ""),
       render: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} studio /></Stop>,
     },
-    {
+    // ☆ is the owner's own bookmark — no column at all for a director
+    // (studioStars is left undefined for them).
+    ...(studioStars ? [{
       key: "star", label: "", width: "28px",
-      csv: (r) => (studioStars?.has(r.id) ? "★" : ""),
-      render: (r) => <StudioStar taskId={r.id} starred={!!studioStars?.has(r.id)} />,
-    },
+      csv: (r: TaskRow) => (studioStars.has(r.id) ? "★" : ""),
+      render: (r: TaskRow) => <StudioStar taskId={r.id} starred={studioStars.has(r.id)} />,
+    }] : []),
   ];
 
   const peekActions = (r: TaskRow): PeekAction[] => [

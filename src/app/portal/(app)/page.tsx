@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { usesStudio } from "@/lib/viewer";
 import { ListTodo, Users, MessageSquareText, Video } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
@@ -37,6 +38,9 @@ function attDot(status: keyof typeof ATTENDANCE_TONE): keyof typeof TONE {
 export default async function PortalHome() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director on the shared screens (Settings → General → New look → Directors)
+  // uses the SAME page as the owner — this portal copy hands over (lib/viewer.ts).
+  if (await usesStudio(me)) redirect("/");
   // Directors AND managers are board-first — send them to their operator board
   // (scoped to their companies). Their team tools live on the board too, so the
   // Home surface is for staff + HR only (avoids the duplicate task list managers

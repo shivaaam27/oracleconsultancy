@@ -202,6 +202,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     studioPages: fd.has("__studio")
       ? serializeStudioPages(STUDIO_PAGES.filter((p) => p.ready && fd.get(`studio_${p.id}`) === "on").map((p) => p.id))
       : undefined,
+    // Which portal roles use the Studio screens (lib/viewer.ts) — directors first.
+    studioRoles: fd.has("__studio") ? (fd.get("studio_role_director") === "on" ? "director" : "") : undefined,
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

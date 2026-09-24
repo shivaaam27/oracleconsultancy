@@ -1,5 +1,6 @@
 import { Suspense, cache, type ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { usesStudio } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { Panel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
@@ -30,6 +31,9 @@ const boardBrief = cache((companyIds: number[] | null) => getBrief(new Date(), "
 export default async function DirectorBoard({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director on the shared screens (Settings → General → New look → Directors)
+  // uses the SAME page as the owner — this portal copy hands over (lib/viewer.ts).
+  if (await usesStudio(me)) redirect("/");
   // Board is for the operator roles — directors AND managers (each scoped to their
   // companies). Staff + HR land on Home instead.
   if (me.portalRole !== "director" && me.portalRole !== "manager") redirect("/portal");

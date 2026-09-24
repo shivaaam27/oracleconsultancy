@@ -149,6 +149,34 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
   return res;
 }
 
+/* ── Directors on the shared screens (portal unification, Sept 2026) ─────────
+ * COS is one system: a director uses the SAME pages as the owner, limited to
+ * their companies. So a request with no owner session but a GENUINE portal
+ * session (signature and expiry verified here, like the owner's) may reach
+ * these paths — and ONLY these. Each page and API on the list checks for itself
+ * who is asking (lib/viewer.ts) and sends anyone else to /portal; every other
+ * administrator route stays owner-only at this door. ⚠️ Add a path here only
+ * once its page, its API and every action it can call are viewer-aware. */
+const DIRECTOR_PATHS: RegExp[] = [
+  /^\/$/,                                  // Home and Tasks (/?tab=tasks)
+  /^\/task\/new$/,                         // a new task
+  /^\/task\/[A-Za-z0-9]+-\d+$/,             // a task
+  /^\/api\/task-detail$/,                  // the task's data (checks scope itself)
+];
+
+async function validPortalToken(token: string | undefined): Promise<boolean> {
+  if (!token) return false;
+  const segs = token.split(".");
+  let payload: string, exp: string, sig: string;
+  if (segs.length === 4) { payload = `${segs[0]}.${segs[1]}.${segs[2]}`; exp = segs[1]; sig = segs[3]; }
+  else if (segs.length === 3) { payload = `${segs[0]}.${segs[1]}`; exp = segs[1]; sig = segs[2]; }
+  else return false;
+  if (!(Number(exp) > Date.now())) return false;
+  // Same HMAC and secret as src/lib/portal-auth.ts. If this runtime cannot
+  // reproduce the signature, the answer is NO — the door stays shut, never open.
+  return (await signAdmin(payload)) === sig;
+}
+
 export async function proxy(req: NextRequest) {
   // Portal routes carry their own auth — never gate them; just slide the session
   // forward so an installed PWA stays signed in across launches.
@@ -182,6 +210,10 @@ export async function proxy(req: NextRequest) {
       /* leave the cookie as-is */
     }
     return res;
+  }
+  // No owner session — but a signed-in DIRECTOR may use the shared screens.
+  if (DIRECTOR_PATHS.some((re) => re.test(req.nextUrl.pathname)) && (await validPortalToken(req.cookies.get("cos_portal")?.value))) {
+    return refreshPortalSession(req);
   }
   // No valid ADMIN session. A signed-in STAFF member (has a cos_portal cookie)
   // landing on an admin route is almost always the installed app reopening at its

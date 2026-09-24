@@ -246,7 +246,7 @@ export default async function SettingsPage({
               it is built (`ready` in src/lib/studio.ts); until then it is listed
               with the phase it arrives in, so the plan is visible here too. */}
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="studioPages" />
+            <input type="hidden" name="__keys" value="studioPages,studioRoles" />
             <input type="hidden" name="__section" value="general" />
             <input type="hidden" name="__studio" value="1" />
             <SettingsCard id="studio" icon={<Sparkles size={15} />} title="New look" desc="Switch each page to the new design on its own — and back." keywords="studio new look redesign design cards beta switch pages theme">
@@ -254,6 +254,11 @@ export default async function SettingsPage({
                 {STUDIO_PAGES.filter((p) => p.ready).map((p) => (
                   <FormSwitch key={p.id} name={`studio_${p.id}`} defaultChecked={studioOn.has(p.id)} label={p.label} hint={`Phase ${p.phase}`} />
                 ))}
+                {/* Portal unification: directors use these same screens —
+                    Home and Tasks — over their own companies (lib/viewer.ts). */}
+                <div className="border-t border-border/60 pt-2">
+                  <FormSwitch name="studio_role_director" defaultChecked={s.studioRoles.split(",").includes("director")} label="Directors use these screens" hint="Home and Tasks as you see them, limited to each director’s companies. Needs Tasks switched on above." />
+                </div>
                 {STUDIO_PAGES.some((p) => !p.ready) && (
                   <div className="rounded-md border border-border px-3 py-2 text-xs text-fg-muted">
                     <span className="font-medium text-fg">Coming next: </span>

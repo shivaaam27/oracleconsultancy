@@ -1,6 +1,7 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner, guardViewer } from "@/lib/viewer";
+import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { parseCapture, type ParsedCapture } from "@/lib/smart-parse";
@@ -98,12 +99,18 @@ export async function createCaptureTask(input: {
    */
   createdBy?: string;
 }): Promise<{ ok: boolean; code?: string; error?: string }> {
-  await guardOwner();
+  // The owner, or a director adding to one of their own companies — with
+  // existing people only (viewer-scope.ts), stamped as themselves.
   const actionItem = input.actionItem.trim();
   if (!input.companyId || !actionItem) {
     return { ok: false, error: "Company and action item are required." };
   }
   try {
+    const v = await guardViewer();
+    needCap(v, "createTasks");
+    needCompany(v, input.companyId);
+    const names = (input.assignees || "").split(/,|\s+&\s+/).map((x) => x.trim()).filter(Boolean);
+    const who = await assigneesFor(v, names);
     // ⚠️ THE ONE DOOR. This used to insert the task itself, so a task added
     // from the quick-add row or the board never notified its assignees, had
     // no undo token and wrote its own audit row. Same core as the full form
@@ -117,11 +124,8 @@ export async function createCaptureTask(input: {
       category: input.category ?? null,
       comments: input.comments ?? null,
       deadline: input.deadline ? new Date(input.deadline) : null,
-      assigneeNames: (input.assignees || "")
-        .split(/,|\s+&\s+/)
-        .map((x) => x.trim())
-        .filter(Boolean),
-      createdBy: input.createdBy ?? "capture",
+      ...who,
+      createdBy: stampOf(v, input.createdBy ?? "capture"),
     });
     if (!res.ok) return { ok: false, error: res.error };
     const { taskId, code } = res.result;

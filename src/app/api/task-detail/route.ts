@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTasks } from "@/lib/queries";
 import { sb } from "@/db/supabase";
-import { recordTaskView } from "@/lib/portal-auth";
+import { recordTaskView, personCanSeeTask } from "@/lib/portal-auth";
+import { getViewer, type Viewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
 import { STATUSES } from "@/lib/constants";
 import type { ConvoMessage, ConvoEvent } from "@/components/portal-conversation";
 import { taskRecurrence } from "@/app/task/recurring-actions";
@@ -9,6 +11,17 @@ import { taskRecurrence } from "@/app/task/recurring-actions";
 export const dynamic = "force-dynamic";
 
 /** Map a stored `created_by` discriminator to a display author (admin view). */
+/** Who wrote an update, as the person LOOKING sees it: to the owner their own
+ *  words are "You"; to a director the owner is "Administrator" and the
+ *  director's own words are "You". */
+function authorFor(viewer: Viewer, by: string | null): { name: string; management: boolean; me: boolean } {
+  if (viewer.kind === "director") {
+    if (by === "web-ui") return { name: "Administrator", management: true, me: false };
+    if (by === viewer.actor) return { name: "You", management: true, me: true };
+  }
+  return adminAuthorOf(by);
+}
+
 function adminAuthorOf(by: string | null): { name: string; management: boolean; me: boolean } {
   if (!by) return { name: "System", management: false, me: false };
   if (by === "web-ui") return { name: "You", management: true, me: true };
@@ -23,6 +36,11 @@ function adminAuthorOf(by: string | null): { name: string; management: boolean; 
 }
 
 export async function GET(req: NextRequest) {
+  // ⚠️ The front door lets a DIRECTOR reach this route too (src/proxy.ts), so it
+  // checks who is asking itself: the owner, or a director for a task in their
+  // companies. Anyone else gets nothing.
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
   const code = req.nextUrl.searchParams.get("code");
   if (!code) return NextResponse.json({ error: "Missing code" }, { status: 400 });
 
@@ -35,7 +53,14 @@ export async function GET(req: NextRequest) {
   // the task's unread dot clears. NOT on a peek: the Tasks page reads the task
   // under the pointer ahead of time (lib/task-detail-cache.ts), and a task that
   // was only hovered over has not been read.
-  if (req.nextUrl.searchParams.get("peek") !== "1") await recordTaskView(task.id, "admin");
+  if (viewer.kind === "director" && !(await personCanSeeTask(viewer.person, task.id))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  // A peek (read-ahead) never marks a task read; a real open marks it read for
+  // whoever is looking — the owner as "admin", a director as themselves.
+  if (req.nextUrl.searchParams.get("peek") !== "1") {
+    await recordTaskView(task.id, viewer.kind === "director" ? `person:${viewer.person.id}` : "admin");
+  }
 
   const [{ data: updateRaw }, { data: auditRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }, { data: deptRaw }] =
     await Promise.all([
@@ -106,12 +131,12 @@ export async function GET(req: NextRequest) {
   const updBodyById = new Map(updates.map((u) => [u.id as number, u.body as string]));
 
   const convoMessages: ConvoMessage[] = updates.map((u) => {
-    const a = adminAuthorOf(u.created_by as string | null);
+    const a = authorFor(viewer, u.created_by as string | null);
     const pid = u.parent_update_id as number | null;
     const parent =
       pid && updBodyById.has(pid)
         ? {
-            authorName: adminAuthorOf((updates.find((x) => x.id === pid)?.created_by as string | null) ?? null).name,
+            authorName: authorFor(viewer, (updates.find((x) => x.id === pid)?.created_by as string | null) ?? null).name,
             snippet: updBodyById.get(pid)!.slice(0, 80),
           }
         : null;
@@ -153,6 +178,7 @@ export async function GET(req: NextRequest) {
       return { id: `a${a.id}`, at: a.created_at as string, text };
     });
 
+  const inScopePeople = await viewerPeopleIds(viewer);
   return NextResponse.json({
     task,
     updates,
@@ -164,11 +190,11 @@ export async function GET(req: NextRequest) {
     seenLabel,
     latestId: latestUpd ? (latestUpd.id as number) : null,
     statusOptions: STATUSES.filter((s) => s !== task.status),
-    people: (pplRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+    people: (pplRaw ?? []).filter((p) => !inScopePeople || inScopePeople.has(p.id as number)).map((p) => ({ id: p.id as number, name: p.name as string })),
     // The standing rule this task came from (null = does not repeat), so the
     // record can say so and change it — migration 0166.
     recurrence: await taskRecurrence(task.id),
-    companies: (compRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })),
+    companies: (compRaw ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number)).map((c) => ({ id: c.id as number, name: c.name as string })),
     departments: (deptRaw ?? []).map((d) => d.name as string),
   });
 }

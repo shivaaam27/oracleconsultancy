@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { sb } from "@/db/supabase";
 import { getSavedViewsFor } from "@/lib/saved-views";
+import { getViewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
@@ -138,13 +140,18 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     .from("automation_rules").select("id", { count: "exact", head: true })
     .eq("kind", "recurring_task").eq("active", true)
     .then((r) => r.count ?? 0);
-  // Hub Tasks tab is always global — no scope filtering. The scope cookie
-  // applies to /task (standalone) but the hub shows all companies by design.
-  const [all, savedViews, taskSources, adminViews, peopleRows, autoEvents, logoMap, companiesRes] = await Promise.all([
+  // WHO IS LOOKING (portal unification, Sept 2026). The owner sees every
+  // company; a director sees the same page over THEIR companies only (a
+  // portfolio director = all), with their own read marks, and none of the
+  // owner's personal things (starred tasks, saved views). See lib/viewer.ts.
+  const viewer = await getViewer();
+  const director = viewer?.kind === "director" ? viewer : null;
+  const scope = viewer?.scope ?? null;
+  const [allRaw, savedViews, taskSources, adminViews, peopleRows, autoEvents, logoMap, companiesRes, peopleInScope] = await Promise.all([
     showArchived ? getArchivedTasks() : getAllTasks(),
-    getSavedViewsFor("task"),
+    director ? Promise.resolve([]) : getSavedViewsFor("task"),
     getTaskSources(),
-    sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
+    sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", director ? `person:${director.person.id}` : "admin"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
     // Which tasks the automation layer created (renewals / commitment notices) —
     // the marker for the separate lane. Tolerates the table not existing yet.
@@ -153,9 +160,15 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     // The full company roster — so grouping by company can list EVERY company,
     // even ones with no open tasks (owner's ask), with real logos/accents.
     sb.from("companies").select("id,name,accent_color").order("name"),
+    viewer ? viewerPeopleIds(viewer) : Promise.resolve(null),
   ]);
-  const allCompanyRows = (companiesRes.data ?? []).map((c) => ({ id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null }));
-  const people = (peopleRows.data ?? []).map((p) => ({ id: p.id as number, name: p.name as string })).filter((p) => p.name);
+  const all = scope ? allRaw.filter((r) => scope.includes(r.companyId)) : allRaw;
+  const allCompanyRows = (companiesRes.data ?? [])
+    .filter((c) => !scope || scope.includes(c.id as number))
+    .map((c) => ({ id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null }));
+  const people = (peopleRows.data ?? [])
+    .filter((p) => !peopleInScope || peopleInScope.has(p.id as number))
+    .map((p) => ({ id: p.id as number, name: p.name as string })).filter((p) => p.name);
   const peopleNames = [...new Set(people.map((p) => p.name))];
 
   // Unread = activity since the owner last opened the task (powered by the
@@ -549,7 +562,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   if (isStudioOn(studioPages, "tasks")) {
     // ☆ Starred tasks lead the list (the owner's own bookmarks). Not while the
     // list is grouped — a starred row would open a second copy of its group.
-    const stars = new Set(starredTasks.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
+    // Stars are the OWNER's bookmarks (one global setting) — a director neither
+    // sees nor sets them.
+    const stars = director ? new Set<number>() : new Set(starredTasks.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
     if (stars.size > 0 && !groupBy) {
       rows = [...rows.filter((r) => stars.has(r.id)), ...rows.filter((r) => !stars.has(r.id))];
     }
@@ -662,7 +677,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         title={kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "Tasks"}
         view={view}
         queryWithoutView={queryWithoutView(sp)}
-        recurringCount={await recurringRulesCount}
+        recurringCount={director ? 0 : await recurringRulesCount}
         company={sp.company ?? null}
         companyOptions={companyOptions}
         personLabel={person?.name ?? null}
@@ -670,7 +685,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         personOptions={personOptions}
         filterSections={filterSections}
         activeFilterCount={activeFilterCount}
-        savedViews={
+        savedViews={director ? null :
           <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} basePath="/" extraQuery="tab=tasks" listKey="task" />
         }
         strip={strip}
@@ -719,7 +734,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
                     sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
                     total={base.length}
                     studioPulse={pulse}
-                    studioStars={stars}
+                    studioStars={director ? undefined : stars}
                     studioLead={quickAddNode}
                   />
                 )}
