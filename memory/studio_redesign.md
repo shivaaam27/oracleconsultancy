@@ -486,3 +486,45 @@ duplication … the portal should not be affected."
   below xl instead of wrapping.
 - **Still to do:** Settings' access list keeps its own director company picker
   → replace with the same all/own choice in the Settings pass.
+
+## Wiring audit — people, portals, notifications, emails (24 Sept 2026, commit 197a0745)
+
+Asked for while doing People: "check… how everyone is connected with their tasks,
+notifications, portals". What was wrong and is now fixed:
+- **Leavers were still reachable.** Archiving a person left their portal password,
+  role, passkeys and phone subscriptions; they kept getting Outbox reminders, task/
+  overdue emails, ORI nudges, recurring-task copies and pushes (chat snippets
+  included). Now every one of those filters `active`, `sendToRecipient` refuses an
+  inactive `person:<id>`, and archiving calls `closeLeaverAccess` (revoke through
+  `portal-access.ts`, which now also deletes passkeys; unsubscribe devices).
+  ⚠️ **A restored person needs portal access granted again** — on purpose.
+- **Director alerts read only the legacy `director_company_id`** (the FIRST company).
+  `directorsOfCompany` now uses `directorScopeOf` over `director_companies`.
+- ORI archive/restore guessed between similar names and could never find a leaver to
+  restore → `resolvePersonStrict(name, pool)`.
+- Renewals in "prepare" mode SENT (via `sendToOwner`) → it writes a Draft.
+- Outbox: group drafts ("a@x, b@y") could never send → `recipientsOf()`; an already-
+  sent draft is refused.
+- Event reminder emails skipped `canAutoSend("email")` → gated.
+- "Hi Mr" greetings → `getGivenName`. One task reads "Your task".
+- Email HTML now escapes quotes and the button href (`layout.test.ts` expects `&#39;`).
+- Chat pushes respect quiet hours (mentions excepted); escalations are `urgent`.
+- Morning digest: EAT day bounds, recurring events expanded, cancelled ones skipped.
+
+**Left for decisions (told the owner):** authorship matched by name not id;
+`scheduled_for` drafts never fire; `/api/cron/reminders` is daily not 15-min; held
+quiet-hour pushes can stick; leave cover drops co-assignees; reminders go to
+assignees, never the owner; staff IDs shift when the list changes; Amal's scope
+(TG) differs from his companies (TG + VI).
+
+## Email design mockup (24 Sept 2026)
+
+`design/studio-mockup/email/reminder.html`, published privately at
+https://claude.ai/artifact/WfQuVLYMPATNBgwii1adQ2 . The task reminder in the Studio
+look. **Owner's rule: no dark colours in an email** (no dark header band, no black
+button — one blue button #1C7ED6), **but it must follow the device**: the real email
+carries its own dark set inside `@media (prefers-color-scheme: dark)` plus
+`<meta name="color-scheme" content="light dark">`. Proposed additions (marked "New"):
+task codes + every row links to its task; a "due this week" count. To be built in the
+shared `renderEmail` (`src/lib/email/layout.ts`) when the Outbox is done, so every
+email takes the same shell. Awaiting his verdict.

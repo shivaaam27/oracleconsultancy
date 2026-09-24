@@ -1,0 +1,257 @@
+<title>Reminder Email</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ---- the page (follows the viewer's theme) -------------------------- */
+  :root {
+    --pg: #F3F3F1; --surface: #FFFFFF; --ink: #111214; --sub: #55585E; --muted: #8E9197;
+    --line: #E4E4E0; --seg: #E9E9E5; --seg-on: #FFFFFF; --note: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --pg: #0E0F10; --surface: #17181A; --ink: #EDEDEA; --sub: #B4B6BA; --muted: #8E9197;
+      --line: #2A2C2F; --seg: #1E1F22; --seg-on: #2E3034; --note: #17181A;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --pg: #0E0F10; --surface: #17181A; --ink: #EDEDEA; --sub: #B4B6BA; --muted: #8E9197;
+    --line: #2A2C2F; --seg: #1E1F22; --seg-on: #2E3034; --note: #17181A;
+  }
+  body { background: var(--pg); color: var(--ink); font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+  h1 { margin: 0; font-size: clamp(36px, 6vw, 56px); font-weight: 500; letter-spacing: -0.035em; line-height: 0.95; }
+  .lede { margin: 10px 0 0; color: var(--sub); max-width: 62ch; line-height: 1.5; text-wrap: pretty; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--seg); }
+  .seg button { font: inherit; font-size: 12px; font-weight: 500; height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--sub); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--seg-on); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .seg button:focus-visible { outline: 2px solid #2490EF; outline-offset: 1px; }
+  .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); gap: 22px; align-items: start; }
+  .board { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .board-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .board-h b { font-weight: 600; }
+  .board-h span { color: var(--muted); font-size: 12px; }
+  /* the client window around each email */
+  .client { border-radius: 14px; border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
+  .client-top { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 3px; font-size: 12px; color: var(--sub); }
+  .client-top .subj { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+  .client-top .mono { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: var(--muted); }
+  .stage { overflow-x: auto; }
+  .stage.phone { display: flex; justify-content: center; padding: 16px 0; background: var(--pg); }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+  .rule { background: var(--note); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+  .rule b { font-size: 13px; font-weight: 600; }
+  .rule p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--sub); }
+  .tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; background: #E8F2FD; color: #1664B0; justify-self: start; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag { background: #16283B; color: #8CC2F5; } }
+  :root[data-theme="dark"] .tag { background: #16283B; color: #8CC2F5; }
+
+  /* ---- the email itself ------------------------------------------------
+     These are the email's OWN colours. In the real message the dark set sits
+     inside @media (prefers-color-scheme: dark); here `.is-dark` stands in for
+     "this device is in dark mode" so both can be seen at once. No dark fills
+     anywhere in the light version — not the header, not the button. */
+  .mail {
+    --m-canvas: #F3F3F1; --m-card: #FFFFFF; --m-ink: #111214; --m-sub: #55585E; --m-muted: #8E9197;
+    --m-line: #ECECE8; --m-tile: #F7F7F5;
+    --m-late: #E0479E; --m-late-text: #B3246C; --m-late-wash: #FCEAF3;
+    --m-soon: #F5A524; --m-soon-text: #8F5A00; --m-soon-wash: #FDF2DE;
+    --m-ok: #19C37D; --m-calm-text: #55585E; --m-calm-wash: #F1F1EE;
+    --m-btn: #1C7ED6; --m-btn-text: #FFFFFF; --m-link: #1C7ED6;
+    --m-mark: #E8F2FD; --m-mark-text: #1664B0;
+    background: var(--m-canvas); color: var(--m-ink);
+    font-family: 'Geist', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    padding: 28px 16px 32px; width: 100%; box-sizing: border-box;
+  }
+  .mail.is-dark {
+    --m-canvas: #161719; --m-card: #1F2022; --m-ink: #EDEDEA; --m-sub: #B4B6BA; --m-muted: #8E9197;
+    --m-line: #2C2E31; --m-tile: #25272A;
+    --m-late-text: #F59AC8; --m-late-wash: #3A1E2D;
+    --m-soon-text: #F5C46E; --m-soon-wash: #3A2D15;
+    --m-calm-text: #B4B6BA; --m-calm-wash: #2A2C2F;
+    --m-btn: #2A8BE3; --m-btn-text: #FFFFFF; --m-link: #6FB3F2;
+    --m-mark: #16283B; --m-mark-text: #8CC2F5;
+  }
+  .m-card { max-width: 600px; margin: 0 auto; background: var(--m-card); border-radius: 16px; border: 1px solid var(--m-line); overflow: hidden; }
+  .m-in { padding: 28px 32px; }
+  .m-mast { display: flex; align-items: center; gap: 10px; padding: 18px 32px; border-bottom: 1px solid var(--m-line); }
+  .m-logo { width: 30px; height: 30px; border-radius: 8px; background: var(--m-mark); color: var(--m-mark-text); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; flex-shrink: 0; }
+  .m-org { font-size: 13px; font-weight: 600; line-height: 1.2; }
+  .m-office { font-size: 12px; color: var(--m-muted); line-height: 1.2; }
+  .m-date { margin-left: auto; font-size: 12px; color: var(--m-muted); white-space: nowrap; }
+  .m-title { margin: 0; font-size: 34px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.05; }
+  .m-hi { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--m-sub); }
+  .m-stats { display: flex; gap: 10px; margin-top: 22px; }
+  .m-stat { flex: 1; background: var(--m-tile); border-radius: 12px; padding: 14px 16px 12px; }
+  .m-num { font-size: 34px; font-weight: 500; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .m-lab { margin-top: 6px; font-size: 12px; color: var(--m-muted); display: flex; align-items: center; gap: 6px; }
+  .m-dot { width: 7px; height: 7px; border-radius: 4px; display: inline-block; flex-shrink: 0; }
+  .m-group { margin-top: 26px; }
+  .m-gh { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--m-muted); padding-bottom: 8px; border-bottom: 1px solid var(--m-line); }
+  .m-gh b { font-size: 13px; font-weight: 600; color: var(--m-ink); }
+  .m-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--m-line); }
+  .m-row:last-child { border-bottom: 0; }
+  .m-row .m-dot { margin-top: 7px; }
+  .m-body { flex: 1; min-width: 0; }
+  .m-task { font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--m-ink); text-decoration: none; }
+  .m-meta { margin-top: 3px; font-size: 12px; color: var(--m-muted); line-height: 1.4; }
+  .m-meta .code { font-family: 'Geist Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
+  .m-pill { flex-shrink: 0; display: inline-block; height: 22px; line-height: 22px; padding: 0 9px; border-radius: 7px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .m-pill.late { background: var(--m-late-wash); color: var(--m-late-text); }
+  .m-pill.soon { background: var(--m-soon-wash); color: var(--m-soon-text); }
+  .m-pill.calm { background: var(--m-calm-wash); color: var(--m-calm-text); }
+  .m-cta { margin-top: 26px; }
+  .m-btn { display: inline-block; background: var(--m-btn); color: var(--m-btn-text); text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 22px; border-radius: 11px; }
+  .m-note { margin: 18px 0 0; font-size: 13px; line-height: 1.55; color: var(--m-sub); }
+  .m-sign { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--m-line); font-size: 13px; line-height: 1.5; }
+  .m-sign .who { font-weight: 600; }
+  .m-sign .muted { color: var(--m-muted); }
+  .m-fine { max-width: 600px; margin: 14px auto 0; text-align: center; font-size: 11px; line-height: 1.5; color: var(--m-muted); padding: 0 16px; }
+  .m-fine a { color: var(--m-link); text-decoration: none; }
+
+  /* phone width: the same email, re-flowed */
+  .mail.is-phone { width: 375px; padding: 12px 0 20px; }
+  .is-phone .m-card { border-radius: 0; border-left: 0; border-right: 0; }
+  .is-phone .m-in { padding: 22px 20px; }
+  .is-phone .m-mast { padding: 14px 20px; }
+  .is-phone .m-title { font-size: 28px; }
+  .is-phone .m-num { font-size: 28px; }
+  .is-phone .m-stat { padding: 12px 12px 10px; }
+  .is-phone .m-btn { display: block; text-align: center; }
+  .is-phone .m-date { display: none; }
+
+  @media (prefers-reduced-motion: no-preference) { .mail { transition: opacity .18s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Reminder email</h1>
+      <p class="lede">The task reminder, in the Studio look. The design itself carries no dark colours. When a phone or laptop is set to dark mode, the email switches to its own dark set rather than being inverted by the mail app. Example data.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="How many tasks">
+        <button type="button" id="v-many" aria-pressed="true">Several tasks</button>
+        <button type="button" id="v-one" aria-pressed="false">One task</button>
+      </div>
+      <div class="seg" role="group" aria-label="Screen">
+        <button type="button" id="w-desk" aria-pressed="true">Desktop</button>
+        <button type="button" id="w-phone" aria-pressed="false">Phone</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="boards">
+    <section class="board">
+      <div class="board-h"><b>Light</b><span>how most people see it</span></div>
+      <div class="client">
+        <div class="client-top" id="top-light"></div>
+        <div class="stage" id="stage-light"></div>
+      </div>
+    </section>
+    <section class="board">
+      <div class="board-h"><b>Dark</b><span>when the device is in dark mode</span></div>
+      <div class="client">
+        <div class="client-top" id="top-dark"></div>
+        <div class="stage" id="stage-dark"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="rules">
+    <div class="rule"><b>No dark fills</b><p>No black header band and no black button. The white page, a light grey canvas and one blue button — so a mail app that forces its own dark mode has nothing heavy to flip.</p></div>
+    <div class="rule"><b>Follows the device</b><p>Apple Mail, iPhone and Outlook for Mac read the email's own dark set. Gmail and Outlook on the web darken it themselves — a light design with no dark blocks survives that cleanly.</p></div>
+    <div class="rule"><b>Worst first</b><p>Overdue rows lead each company, then soonest due. The pink pill says how late; amber means due within three days; everything else shows its priority quietly.</p></div>
+    <div class="rule"><span class="tag">New</span><b>Every row is a door</b><p>Each task shows its code and opens that task in the portal. Today the rows are plain text and only the button at the bottom goes anywhere.</p></div>
+    <div class="rule"><span class="tag">New</span><b>A “due this week” count</b><p>Beside open and overdue. One task reads “Your task” with its title in the subject line (already fixed).</p></div>
+    <div class="rule"><b>One layout for every email</b><p>Masthead, title, figures, grouped rows, one button, sign-off. The renewals, overdue and event emails take the same shell next — built once in the shared email layout.</p></div>
+  </div>
+</div>
+
+<script>
+  const MANY = {
+    subject: "Your Outstanding Tasks", who: "Jitesh Solanki", first: "Jitesh",
+    stats: [[5, "open", null], [2, "overdue", "late"], [1, "due this week", "soon"]],
+    groups: [
+      { company: "PES Ltd", tasks: [
+        { code: "PE-041", title: "Chase TRA for the tax clearance certificate", meta: "due Fri 19 Sep", pill: ["5 days late", "late"] },
+        { code: "PE-038", title: "Send the signed supply contract back to the vendor", meta: "due Mon 22 Sep", pill: ["2 days late", "late"] },
+        { code: "PE-044", title: "Book the fire extinguisher service for the warehouse", meta: "due Fri 26 Sep", pill: ["Due Friday", "soon"] },
+      ]},
+      { company: "Terra Green Ltd", tasks: [
+        { code: "TG-017", title: "Collect three quotes for the office printer", meta: "due Wed 8 Oct", pill: ["Medium", "calm"] },
+        { code: "TG-019", title: "Update the site register for the new staff house", meta: "due Tue 14 Oct", pill: ["Low", "calm"] },
+      ]},
+    ],
+  };
+  const ONE = {
+    subject: "Your task: Chase TRA for the tax clearance certificate", who: "Jitesh Solanki", first: "Jitesh",
+    stats: [[1, "open", null], [1, "overdue", "late"], [0, "due this week", "soon"]],
+    groups: [{ company: "PES Ltd", tasks: [MANY.groups[0].tasks[0]] }],
+  };
+  const DOT = { late: "var(--m-late)", soon: "var(--m-soon)", calm: "var(--m-muted)", null: "var(--m-ok)" };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function email(d, dark, phone) {
+    const one = d.groups.length === 1 && d.groups[0].tasks.length === 1;
+    const stats = d.stats.map(([n, l, tone]) =>
+      `<div class="m-stat"><div class="m-num" style="color:${tone === "late" && n ? "var(--m-late-text)" : "var(--m-ink)"}">${n}</div><div class="m-lab">${tone ? `<span class="m-dot" style="background:${DOT[tone]}"></span>` : ""}${esc(l)}</div></div>`).join("");
+    const groups = d.groups.map((g) => `
+      <div class="m-group">
+        <div class="m-gh"><b>${esc(g.company)}</b><span>${g.tasks.length} task${g.tasks.length === 1 ? "" : "s"}</span></div>
+        ${g.tasks.map((t) => `
+          <div class="m-row">
+            <span class="m-dot" style="background:${DOT[t.pill[1]]}"></span>
+            <div class="m-body">
+              <a class="m-task" href="#${t.code}">${esc(t.title)}</a>
+              <div class="m-meta"><span class="code">${t.code}</span> · ${esc(t.meta)}</div>
+            </div>
+            <span class="m-pill ${t.pill[1]}">${esc(t.pill[0])}</span>
+          </div>`).join("")}
+      </div>`).join("");
+    return `
+      <div class="mail${dark ? " is-dark" : ""}${phone ? " is-phone" : ""}">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">${one ? "Your task" : "Your tasks"}</h2>
+            <p class="m-hi">Hi ${esc(d.first)} — a quick reminder of where things stand.</p>
+            <div class="m-stats">${stats}</div>
+            ${groups}
+            <div class="m-cta"><a class="m-btn" href="#portal">${one ? "Open the task" : "Open your tasks"}</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div>`;
+  }
+  function top(d) {
+    return `<div class="subj">${esc(d.subject)}</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → ${esc(d.who)}</div>`;
+  }
+  let data = MANY, phone = false;
+  function render() {
+    for (const [id, dark] of [["light", false], ["dark", true]]) {
+      document.getElementById("top-" + id).innerHTML = top(data);
+      const st = document.getElementById("stage-" + id);
+      st.classList.toggle("phone", phone);
+      st.innerHTML = email(data, dark, phone);
+    }
+  }
+  function seg(a, b, on) { a.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-pressed", String(!on)); }
+  const $ = (id) => document.getElementById(id);
+  $("v-many").onclick = () => { data = MANY; seg($("v-many"), $("v-one"), true); render(); };
+  $("v-one").onclick = () => { data = ONE; seg($("v-many"), $("v-one"), false); render(); };
+  $("w-desk").onclick = () => { phone = false; seg($("w-desk"), $("w-phone"), true); render(); };
+  $("w-phone").onclick = () => { phone = true; seg($("w-desk"), $("w-phone"), false); render(); };
+  document.addEventListener("click", (e) => { const a = e.target.closest(".mail a"); if (a) e.preventDefault(); });
+  render();
+</script>
