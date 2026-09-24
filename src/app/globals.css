@@ -1954,3 +1954,11 @@ body:has(main .studio) > * [data-field-label] {
 .st-sbar { background: linear-gradient(90deg, transparent, var(--sh-sub), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: st-sbar 900ms ease-in-out infinite; }
 @keyframes st-sbar { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 @media (prefers-reduced-motion: reduce) { .st-sbar, .st-slist [cmdk-list-sizer] { animation: none; } }
+
+/* Studio Calendar (mockup gen/p_calendar.py): a day tile with something on it,
+   a day outside the month, and that day's grey date. Chips carry their light
+   tint and a dark mix as variables; the class picks by theme. */
+.studio { --st-cal-busy: #FAFAF8; --st-cal-out: #FBFBFA; --st-cal-num-out: #C4C5C9; }
+.dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; }
+.st-cal-chip { background: var(--chip-l); color: var(--st-ink); }
+.dark .st-cal-chip { background: var(--chip-d); }

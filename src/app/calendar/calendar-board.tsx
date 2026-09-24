@@ -31,6 +31,7 @@ import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
 import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
+import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { hasElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
@@ -240,6 +241,12 @@ export function CalendarBoard({
   // the grid. Both persist across visits, like the other filters.
   const [meetingsOnly, setMeetingsOnly] = useState(false);
   const [collapseRecurring, setCollapseRecurring] = useState(false);
+  // Studio: the day picked in the month grid (the left card shows it — mockup
+  // board Calendar), the Events layer switch, and the lower grid sized to fit.
+  const [pickedKey, setPickedKey] = useState<string>(todayKeyGlobal);
+  const [hideEvents, setHideEvents] = useState(false);
+  const studioGrid = useRef<HTMLDivElement>(null);
+  useFitFrame(studioGrid, { enabled: studio, minimum: 460 });
   const hydrated = useRef(false);
 
   // Restore the operator's last calendar view + filters (once, on mount). Reading
@@ -401,22 +408,32 @@ export function CalendarBoard({
 
 
   if (studio) {
-    // ---- Studio (mockup board Calendar) ---------------------------------
-    const todayEvs = byDay.get(todayKeyGlobal) ?? [];
-    const todayOvs = overlayByDay.get(todayKeyGlobal) ?? [];
+    // ---- Studio (mockup board Calendar, design/studio-mockup/gen/p_calendar.py) ----
+    // Every size and colour below is the board's own; read that file before
+    // changing one. The Events layer hides events the way the others hide theirs.
+    const evByDay = hideEvents ? new Map<string, CalendarEventView[]>() : byDay;
+    const pickedDate = new Date(`${pickedKey}T12:00:00+03:00`);
+    const pickEvs = evByDay.get(pickedKey) ?? [];
+    const pickOvs = overlayByDay.get(pickedKey) ?? [];
+    const pickItems = pickEvs.length + pickOvs.length;
+    const dayName = (d: Date) => d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" });
     const base = new Date(); base.setHours(12, 0, 0, 0);
     const next7 = Array.from({ length: 7 }, (_, i) => {
       const d = addDays(base, i); const k = keyOfDate(d);
-      return { d, k, n: (byDay.get(k)?.length ?? 0) + (overlayByDay.get(k)?.length ?? 0) };
+      return { d, k, ev: evByDay.get(k)?.length ?? 0, other: overlayByDay.get(k)?.length ?? 0 };
     });
-    const next7Total = next7.reduce((a, x) => a + x.n, 0);
-    const peak = Math.max(1, ...next7.map((x) => x.n));
+    const next7Total = next7.reduce((a, x) => a + x.ev + x.other, 0);
+    // 18px a thing, as drawn — scaled down only when the busiest day would
+    // outgrow the 96px the bars have under their labels.
+    const perThing = Math.min(18, 96 / Math.max(1, ...next7.map((x) => x.ev + x.other)));
     const live = announcements.filter((a) => a.live);
     const companyLabel = companyFilter === "all" ? "Companies" : companies.find((c) => String(c.id) === companyFilter)?.name ?? "Companies";
     const typeLabel = categoryFilter === "all" ? "Types" : categoryFilter === "none" ? "Uncategorised" : categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Types";
     const periodShort = view === "agenda" ? "Upcoming" : view === "month" ? cursor.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" }) : periodLabel;
+    const pick = (d: Date) => { setPickedKey(keyOfDate(d)); setCursor(d); };
+    const menuItem = "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]";
     return (
-      <StudioScope className="space-y-5">
+      <StudioScope className="flex flex-col gap-5">
         <StudioHeader
           title="Calendar"
           left={
@@ -438,30 +455,30 @@ export function CalendarBoard({
                   <DropdownMenu.Content align="start" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
                     <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Search</div>
                     <div className="px-1.5 pb-1.5">
-                      <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Events, people, companies…"
+                      <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder="Events, people, companies…"
                         style={{ background: "var(--st-page)", border: "1px solid var(--st-line)", color: "var(--st-ink)", boxShadow: "none" }}
                         className="bare-field h-8 w-full rounded-lg px-2.5 text-[13px] outline-none" />
                     </div>
                     <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Source</div>
                     {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((x) => (
-                      <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                      <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className={menuItem}>
                         <span className="flex-1">{x.l}</span>{sourceFilter === x.v && <Check size={14} />}
                       </button>
                     ))}
                     <div className="my-1 h-px bg-[var(--st-line)]" />
                     {figures.needInvites > 0 && (
-                      <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                      <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className={menuItem}>
                         <Bell size={14} /><span className="flex-1">Need invites ({figures.needInvites})</span>{needInvitesOnly && <Check size={14} />}
                       </button>
                     )}
-                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className={menuItem}>
                       <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} />}
                     </button>
-                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className={menuItem}>
                       <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
                     </button>
                     <div className="my-1 h-px bg-[var(--st-line)]" />
-                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className={menuItem}>
                       <Pencil size={14} /><span className="flex-1">Manage categories</span>
                     </button>
                   </DropdownMenu.Content>
@@ -478,21 +495,21 @@ export function CalendarBoard({
               <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
                 {views.map((v) => (
                   <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
-                    className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs capitalize transition-colors",
-                      view === v ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                    className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs font-medium capitalize transition-colors",
+                      view === v ? "bg-[var(--st-surface)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
                     {v}
                   </button>
                 ))}
               </div>
               {view !== "agenda" && (
                 <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
-                  <button type="button" onClick={() => step(-1)} aria-label="Previous" className="grid h-7 w-7 place-items-center rounded-lg text-[var(--st-sub)] hover:bg-[var(--st-page)]"><ChevronLeft size={14} /></button>
-                  <span className="min-w-[8.5rem] text-center text-[13px] font-medium">{periodShort}</span>
-                  <button type="button" onClick={() => step(1)} aria-label="Next" className="grid h-7 w-7 place-items-center rounded-lg text-[var(--st-sub)] hover:bg-[var(--st-page)]"><ChevronRight size={14} /></button>
-                  <button type="button" onClick={goToday} className="h-7 rounded-lg border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]">Today</button>
+                  <button type="button" onClick={() => step(-1)} aria-label="Previous" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronLeft size={13} strokeWidth={2.2} /></button>
+                  <span className="px-1.5 text-[13px] font-medium">{periodShort}</span>
+                  <button type="button" onClick={() => step(1)} aria-label="Next" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronRight size={13} strokeWidth={2.2} /></button>
+                  <button type="button" onClick={() => { goToday(); setPickedKey(todayKeyGlobal); }} className="h-7 rounded-lg bg-[var(--st-page)] px-2.5 text-xs hover:bg-[var(--st-seg)]">Today</button>
                 </div>
               )}
-              <button type="button" onClick={openNew} className={stBtn.dark}><Plus size={14} />New event</button>
+              <button type="button" onClick={openNew} className={stBtn.dark}><Plus size={15} />New event</button>
             </>
           }
         />
@@ -513,54 +530,68 @@ export function CalendarBoard({
           </HrmsDialog>
         )}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
+          {/* The picked day — today until you pick another in the grid. */}
           <StudioCard className="min-h-[170px]">
             <CardHead
-              label={`Today · ${new Date().toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}`}
-              right={<span className="text-[var(--st-on-card-muted)]">{todayEvs.length + todayOvs.length} {todayEvs.length + todayOvs.length === 1 ? "thing" : "things"}</span>}
+              label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
+              right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}</span>}
             />
-            {todayEvs.length + todayOvs.length === 0 ? (
-              <div className="m-auto text-sm text-[var(--st-on-card-muted)]">Nothing on today.</div>
-            ) : (
-              <ul className="mt-auto flex flex-col gap-1.5 pt-3">
-                {todayEvs.slice(0, 3).map((e) => (
-                  <li key={occKey(e)}>
-                    <button type="button" onClick={() => openEdit(e)} className={cn("flex w-full items-center gap-3 rounded-[12px] bg-[var(--st-card-2)] px-3 py-2 text-left transition-colors hover:bg-[var(--st-card-3)]", hasElapsed(e, Date.now()) && "opacity-60")}>
-                      <span className="st-mono w-[68px] shrink-0 rounded-md border border-[var(--st-card-line)] px-1.5 py-0.5 text-center text-[11px] text-[var(--st-on-card-muted)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--st-on-card)" }} />
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{e.title}</span>
-                      <span className="text-[11px] text-[var(--st-on-card-muted)]">{isHappeningNow(e, Date.now()) ? "On now" : hasElapsed(e, Date.now()) ? "Finished" : "Event"}</span>
-                    </button>
-                  </li>
-                ))}
-                {todayOvs.slice(0, Math.max(0, 3 - Math.min(3, todayEvs.length))).map((o) => (
-                  <li key={o.id} className="flex items-center gap-3 rounded-[12px] bg-[var(--st-card-2)] px-3 py-2">
-                    <span className="st-mono w-[68px] shrink-0 rounded-md border border-[var(--st-card-line)] px-1.5 py-0.5 text-center text-[11px] text-[var(--st-on-card-muted)]">All day</span>
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STUDIO_LAYER[o.kind] }} />
-                    {o.href ? <a href={o.href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">{o.title}</a> : <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{o.title}</span>}
-                    <span className="text-[11px] text-[var(--st-on-card-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
-                  </li>
-                ))}
-                {todayEvs.length + todayOvs.length > 3 && (
-                  <li><button type="button" onClick={() => { goToday(); setView("day"); }} className="px-1 text-xs text-[var(--st-on-card-muted)] hover:text-[var(--st-on-card)]">+{todayEvs.length + todayOvs.length - 3} more today →</button></li>
-                )}
-              </ul>
-            )}
+            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-end gap-1.5">
+              {pickItems === 0 ? (
+                <div className="text-sm text-[var(--st-muted)]">Nothing on this day. Press “New event” to plan something.</div>
+              ) : (
+                <>
+                  {pickEvs.slice(0, 3).map((e) => {
+                    const done = hasElapsed(e, Date.now());
+                    return (
+                      <button key={occKey(e)} type="button" onClick={() => openEdit(e)}
+                        className={cn("st-pop grid grid-cols-[58px_10px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2 text-left transition-colors hover:bg-[var(--st-card-3)]", done && "opacity-60")}>
+                        <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
+                        <span className="h-2 w-2 rounded-full bg-[var(--st-on-card)]" />
+                        <span className="truncate text-[13px]">{e.title}</span>
+                        <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{isHappeningNow(e, Date.now()) ? "On now" : done ? "Finished" : "Event"}</span>
+                      </button>
+                    );
+                  })}
+                  {pickOvs.slice(0, Math.max(0, 3 - pickEvs.length)).map((o) => {
+                    const row = (
+                      <>
+                        <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{o.kind === "task" ? "Due" : "All day"}</span>
+                        <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
+                        <span className="truncate text-[13px]">{o.title}</span>
+                        <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+                      </>
+                    );
+                    const cls = "st-pop grid grid-cols-[58px_10px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2";
+                    return o.href
+                      ? <a key={o.id} href={o.href} className={cn(cls, "transition-colors hover:bg-[var(--st-card-3)]")}>{row}</a>
+                      : <div key={o.id} className={cls}>{row}</div>;
+                  })}
+                </>
+              )}
+            </div>
           </StudioCard>
 
           <StudioCard texture="rings" className="min-h-[170px]">
-            <CardHead label="Next 7 days" right={<span className="text-[var(--st-on-card-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
-            <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-3">
+            <CardHead label="Next 7 days" right={<span className="text-xs text-[var(--st-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
+            <div className="grid flex-1 grid-cols-[170px_minmax(0,1fr)] items-end gap-x-6">
               <div>
-                <BigNumber value={next7Total} size={64} />
-                <div className="mt-1 text-[13px]">{next7Total === 1 ? "thing" : "things"} coming up</div>
-                <div className="mt-1 text-xs text-[var(--st-on-card-muted)]">{figures.today} today · {figures.needInvites} need invites</div>
+                <BigNumber value={next7Total} />
+                <div className="mt-2.5 text-[13px] text-[#C9CBCF]">{next7Total === 1 ? "thing" : "things"} coming up</div>
+                <div className="mt-1.5 flex gap-3 text-xs text-[var(--st-muted)]"><span>{figures.today} today</span><span>{figures.needInvites} need invites</span></div>
               </div>
-              <div className="flex items-end gap-2" aria-label="Things each day, the next seven days">
+              <div className="grid h-[110px] grid-cols-7 items-end gap-2" aria-label="Things each day, the next seven days">
                 {next7.map((x, i) => (
-                  <button key={x.k} type="button" onClick={() => { setCursor(x.d); setView("day"); }} className="flex w-9 flex-col items-center gap-1.5" title={`${x.n} on ${x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}`}>
-                    <span className="st-rise block w-full rounded-md" style={{ height: x.n ? Math.max(10, Math.round((x.n / peak) * 60)) : 4, background: i === 0 ? "var(--st-on-card)" : x.n ? "var(--st-late)" : "var(--st-card-line)" }} />
-                    <span className={cn("text-[11px]", i === 0 ? "font-semibold text-[var(--st-on-card)]" : "text-[var(--st-on-card-muted)]")}>{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}</span>
+                  <button key={x.k} type="button" onClick={() => pick(x.d)} className="flex h-full flex-col items-center justify-end gap-[5px]"
+                    title={`${x.ev + x.other} on ${x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}`}>
+                    {/* Events (white) at the foot, everything else (pink) above. */}
+                    <span className="flex w-full max-w-[30px] flex-col-reverse gap-0.5">
+                      {x.ev > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-on-card)]" style={{ height: x.ev * perThing }} />}
+                      {x.other > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-late)]" style={{ height: x.other * perThing }} />}
+                      {x.ev + x.other === 0 && <span className="block h-1 rounded-[4px] bg-[#2A2C30]" />}
+                    </span>
+                    <span className={cn("text-[11px]", i === 0 ? "text-[var(--st-on-card)]" : "text-[var(--st-muted)]")}>{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}</span>
                   </button>
                 ))}
               </div>
@@ -568,58 +599,57 @@ export function CalendarBoard({
           </StudioCard>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="min-w-0 rounded-[20px] bg-[var(--st-surface)] p-3 sm:p-4">
+        <div ref={studioGrid} className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_232px]">
+          <div className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:min-h-0">
             {view === "agenda" ? (
-              <HousedAgenda events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)} overlayByDay={overlayByDay} onEdit={openEdit} />
+              <StudioAgenda evByDay={evByDay} overlayByDay={overlayByDay} onEdit={openEdit} />
             ) : view === "month" ? (
-              <MonthView studio cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+              <MonthView studio cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} pickedKey={pickedKey} onPick={pick}
+                onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} />
             ) : view === "week" ? (
-              <WeekView studio cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+              <div className="min-h-0 flex-1 overflow-y-auto p-2.5"><WeekView studio cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} /></div>
             ) : (
-              <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
+              <div className="min-h-0 flex-1 overflow-y-auto p-4"><DayView cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} onEdit={openEdit} /></div>
             )}
           </div>
 
-          <aside className="flex flex-col gap-5">
-            <div className="rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
-              <div className="mb-2 text-[15px] font-semibold">Layers</div>
-              <div className="flex flex-col">
-                <span className="flex items-center gap-2.5 py-1 text-[13px]"><span className="h-3 w-3 rounded-[4px]" style={{ background: "var(--st-ink)" }} />Events</span>
-                {availableLayers.map((k) => {
-                  const on = enabledLayers.has(k) && !meetingsOnly;
+          <aside className="flex min-h-0 flex-col gap-3.5">
+            <div className="rounded-[20px] bg-[var(--st-surface)] px-4 pb-3 pt-4">
+              <div className="flex min-h-[26px] items-center text-[15px] font-semibold">Layers</div>
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                {([["events", "Events", "var(--st-ink)"] as const, ...STUDIO_LAYER_ORDER.map((k) => [k, k === "commitment" ? "Lease / insurance notice" : OVERLAY_LABELS[k], STUDIO_LAYER[k].c] as const)]).map(([k, label, c]) => {
+                  const on = k === "events" ? !hideEvents : enabledLayers.has(k as OverlayKind) && !meetingsOnly;
                   return (
-                    <button key={k} type="button" onClick={() => toggleLayer(k)} disabled={meetingsOnly} aria-pressed={on}
-                      className={cn("flex items-center gap-2.5 rounded-md py-1 text-left text-[13px] transition-opacity", on ? "" : "opacity-40 hover:opacity-70")}>
-                      <span className="h-3 w-3 rounded-[4px]" style={{ background: STUDIO_LAYER[k] }} />{OVERLAY_LABELS[k]}
+                    <button key={k} type="button" aria-pressed={on}
+                      onClick={() => (k === "events" ? setHideEvents((v) => !v) : toggleLayer(k as OverlayKind))}
+                      disabled={k !== "events" && meetingsOnly}
+                      className={cn("flex h-6 items-center gap-2.5 rounded-md px-1 text-left text-xs transition-colors", on ? "text-[var(--st-ink)]" : "text-[#A3A6AB]")}>
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] border-[1.5px]" style={{ borderColor: c, background: on ? c : "transparent" }} />
+                      {label}
                     </button>
                   );
                 })}
               </div>
-              {meetingsOnly && <div className="mt-2 text-[11px] text-[var(--st-muted)]">Meetings only is on — layers are hidden.</div>}
+              {meetingsOnly && <div className="mt-1.5 px-1 text-[11px] text-[var(--st-muted)]">Meetings only is on (More) — the layers are hidden.</div>}
             </div>
 
-            <StudioCard className="!px-5 !py-4">
+            <StudioCard texture="dots" className="!p-4">
               <div className="text-xs text-[var(--st-on-card-muted)]">{live.length ? "Live announcement" : "Announcements"}</div>
               {live.length === 0 ? (
-                <div className="mt-1.5 text-[13px] text-[var(--st-on-card-muted)]">Nothing live right now.</div>
+                <div className="mt-1.5 text-sm leading-[1.35] text-[var(--st-muted)]">Nothing live right now.</div>
               ) : (
-                (() => {
-                  const a = live[0];
-                  const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
-                  return (
-                    <>
-                      <div className="mt-1.5 line-clamp-2 text-[14px] font-medium leading-snug">{a.title}</div>
-                      {a.requireAck && (
-                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--st-card-line)]"><span className="block h-full rounded-full bg-[var(--st-ok)]" style={{ width: `${pct}%` }} /></div>
-                      )}
-                    </>
-                  );
-                })()
+                <>
+                  <div className="mt-1.5 line-clamp-3 text-sm leading-[1.35]">{live[0].title}</div>
+                  {live[0].requireAck && (
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-[3px] bg-[var(--st-card-line)]">
+                      <span className="block h-full bg-[var(--st-ok)]" style={{ width: `${live[0].stats.total ? Math.round((live[0].stats.ack / live[0].stats.total) * 1000) / 10 : 0}%` }} />
+                    </div>
+                  )}
+                </>
               )}
-              <div className="mt-2 flex items-center justify-between text-xs text-[var(--st-on-card-muted)]">
+              <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--st-muted)]">
                 <span>{live[0]?.requireAck ? `${live[0].stats.ack} / ${live[0].stats.total} acknowledged` : live.length > 1 ? `+${live.length - 1} more live` : ""}</span>
-                <Link href="/announcements" className="font-medium text-[var(--st-on-card)] hover:underline">Manage →</Link>
+                <Link href="/announcements" className="text-[var(--st-on-card)] hover:underline">Manage →</Link>
               </div>
             </StudioCard>
           </aside>
@@ -860,9 +890,12 @@ function DaySheet({
 
 /* ------------------------------ Month view ---------------------------- */
 function MonthView({
-  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false,
+  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false, pickedKey, onPick,
 }: {
   studio?: boolean;
+  /** Studio: the picked day (ringed) and what picking one does. */
+  pickedKey?: string;
+  onPick?: (d: Date) => void;
   cursor: Date;
   byDay: Map<string, CalendarEventView[]>;
   overlayByDay: Map<string, OverlayItem[]>;
@@ -896,37 +929,46 @@ function MonthView({
   return (
     <>
       {studio && (
-        /* Studio (mockup board Calendar): each day is its own soft tile, the
-           date top-left, today a black disc; chips are small tinted pills. */
-        <div className="hidden sm:block">
-          <div className="grid grid-cols-7 gap-1.5 pb-1.5">
-            {dows.map((d) => <div key={d} className="px-1 text-[11px] uppercase tracking-[0.06em] text-[var(--st-muted)]">{d}</div>)}
+        /* Studio (mockup board Calendar): six rows that FILL the card, a tile a
+           day. Click picks a day (ringed; the card above follows it); double-
+           click opens it. Today is the black disc. Only the date of a day
+           outside the month greys — its tile stays a tile. */
+        <div className="hidden min-h-0 flex-1 flex-col sm:flex">
+          <div className="grid grid-cols-7 px-2.5 pt-2.5 text-[11px] uppercase tracking-[0.04em] text-[var(--st-muted)]">
+            {dows.map((d) => <span key={d} className="px-2">{d}</span>)}
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid min-h-[420px] flex-1 grid-cols-7 gap-1 px-2.5 pb-2.5 pt-1.5 lg:min-h-0" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
             {cells.map((cell, i) => {
               const k = keyOfDate(cell);
               const evs = byDay.get(k) ?? [];
               const ovs = overlayByDay.get(k) ?? [];
               const inMonth = cell.getMonth() === cursor.getMonth();
               const isToday = k === todayKeyGlobal;
+              const picked = k === pickedKey;
               const chips = [
                 ...evs.map((e) => <StudioEventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
                 ...ovs.map((o) => <StudioOverlayChip key={o.id} item={o} />),
               ];
               return (
-                <div key={i} role="button" tabIndex={0}
-                  onClick={() => onPickDay(cell)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPickDay(cell); } }}
+                <div key={i} role="button" tabIndex={0} aria-pressed={picked}
+                  onClick={() => (onPick ? onPick(cell) : onPickDay(cell))}
+                  onDoubleClick={() => onPickDay(cell)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (onPick) onPick(cell); else onPickDay(cell); } }}
+                  title="Click to pick · double-click to open the day"
                   aria-label={cell.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
-                  className={cn("min-h-[92px] min-w-0 cursor-pointer rounded-[12px] p-1.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--st-ink)]",
-                    isToday ? "bg-[var(--st-surface)] ring-1 ring-[var(--st-ink)]" : chips.length ? "bg-[var(--st-page)] hover:bg-[var(--st-seg)]" : "hover:bg-[var(--st-page)]",
-                    !inMonth && "opacity-45")}>
-                  <div className="mb-1 flex items-center justify-between px-0.5">
-                    <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs tabular-nums",
-                      isToday ? "bg-[var(--st-ink)] font-semibold text-[var(--st-page)]" : "")}>{cell.getDate()}</span>
+                  className="flex min-h-0 min-w-0 cursor-pointer flex-col gap-[3px] overflow-hidden rounded-[10px] border-[1.5px] px-1.5 py-[5px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--st-muted)]"
+                  style={{
+                    borderColor: picked ? "var(--st-ink)" : "transparent",
+                    background: !inMonth ? "var(--st-cal-out)" : chips.length ? "var(--st-cal-busy)" : "var(--st-surface)",
+                  }}>
+                  <span className="flex shrink-0 items-center justify-between">
+                    <span className={cn("flex h-[22px] w-[22px] items-center justify-center rounded-full text-xs tabular-nums",
+                      isToday ? "bg-[var(--st-ink)] font-semibold text-[var(--st-surface)]" : inMonth ? "" : "text-[var(--st-cal-num-out)]")}>
+                      {cell.getDate()}
+                    </span>
                     {chips.length > 2 && <span className="text-[10px] text-[var(--st-muted)]">+{chips.length - 2}</span>}
-                  </div>
-                  <div className="space-y-1">{chips.slice(0, 2)}</div>
+                  </span>
+                  {chips.slice(0, 2)}
                 </div>
               );
             })}
@@ -1037,33 +1079,106 @@ function MonthView({
   );
 }
 
-/* Studio's month chips: a small pill on the day tile, a dot in the company or
-   layer colour, the time, the title. Same click targets as the Desk chips. */
-const STUDIO_LAYER: Record<OverlayKind, string> = {
-  task: "#E0479E", renewal: "#8B5CF6", birthday: "#F5A524", leave: "#2490EF", holiday: "#14B8A6",
-  anniversary: "#F97316", probation: "#8E9197", commitment: "#A16207", pipeline: "#19C37D",
+/* Studio's layer colours and tints — the mockup's own (gen/p_calendar.py `L`).
+   A chip is its tint with a dot in its colour; an event is grey with a black dot.
+   Dark mode mixes the colour into the dark surface instead (`.st-cal-chip`). */
+const STUDIO_LAYER: Record<OverlayKind, { c: string; tint: string }> = {
+  task: { c: "#E0479E", tint: "#FDEBF4" },
+  renewal: { c: "#8B5CF6", tint: "#F1ECFE" },
+  birthday: { c: "#F5A524", tint: "#FEF3E0" },
+  leave: { c: "#2490EF", tint: "#E6F2FD" },
+  holiday: { c: "#19C37D", tint: "#E4F7EE" },
+  anniversary: { c: "#F0703A", tint: "#FDEEE6" },
+  probation: { c: "#5B5E63", tint: "#EEEEEA" },
+  commitment: { c: "#B7700A", tint: "#FBF1DF" },
+  pipeline: { c: "#0E9F8A", tint: "#E0F4F1" },
 };
+/** The legend's order, as the mockup lists it. */
+const STUDIO_LAYER_ORDER: OverlayKind[] = ["task", "renewal", "birthday", "leave", "holiday", "anniversary", "probation", "commitment", "pipeline"];
+const chipVars = (c: string, tint: string) =>
+  ({ "--chip-l": tint, "--chip-d": `color-mix(in srgb, ${c} 22%, #17181B)` }) as React.CSSProperties;
+const ST_CHIP = "st-cal-chip flex h-[18px] w-full min-w-0 shrink-0 items-center gap-[5px] rounded-[5px] px-[5px] text-left text-[10.5px] leading-none";
+
 function StudioEventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => void }) {
   return (
     <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} title={event.title}
-      className="flex w-full min-w-0 items-center gap-1 rounded-md bg-[var(--st-surface)] px-1.5 py-[3px] text-left text-[11px] leading-tight shadow-[0_0_0_1px_var(--st-line)] transition-colors hover:shadow-[0_0_0_1px_var(--st-ink)]">
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: event.companyAccent || "var(--st-ink)" }} />
-      {!event.allDay && <span className="shrink-0 tabular-nums text-[var(--st-muted)]">{fmtTime(event.startAt)}</span>}
-      <span className="truncate">{event.title}</span>
+      className={cn(ST_CHIP, "hover:brightness-95")} style={{ "--chip-l": "#F3F3F1", "--chip-d": "#26282C" } as React.CSSProperties}>
+      <span className="h-[5px] w-[5px] shrink-0 rounded-full bg-[var(--st-ink)]" />
+      <span className="truncate">{event.allDay ? "" : `${fmtTime(event.startAt)} `}{event.title}</span>
     </button>
   );
 }
 function StudioOverlayChip({ item }: { item: OverlayItem }) {
-  const c = STUDIO_LAYER[item.kind];
-  const cls = "flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-[3px] text-left text-[11px] leading-tight";
-  const style = { background: `color-mix(in srgb, ${c} 13%, transparent)` };
-  const inner = <><span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c }} /><span className="truncate">{item.title}</span></>;
+  const { c, tint } = STUDIO_LAYER[item.kind];
+  const inner = <><span className="h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: c }} /><span className="truncate">{item.title}</span></>;
   return item.href
-    ? <a href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cls} style={style}>{inner}</a>
-    : <div title={item.title} className={cls} style={style}>{inner}</div>;
+    ? <a href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cn(ST_CHIP, "hover:brightness-95")} style={chipVars(c, tint)}>{inner}</a>
+    : <span title={item.title} className={ST_CHIP} style={chipVars(c, tint)}>{inner}</span>;
 }
 function ChevronDownIcon() {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>;
+}
+
+/** Studio's Agenda (mockup board Calendar, view "Agenda"): every coming day that
+ *  has anything, as a heading and rows — time, dot, title, kind, Open. */
+function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
+  evByDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onEdit: (e: CalendarEventView) => void;
+}) {
+  const [nowMs] = useState(() => Date.now());
+  const days = useMemo(() => {
+    const out: { d: Date; k: string; evs: CalendarEventView[]; ovs: OverlayItem[] }[] = [];
+    const base = new Date(); base.setHours(12, 0, 0, 0);
+    for (let i = 0; i < 62 && out.length < 30; i++) {
+      const d = addDays(base, i); const k = keyOfDate(d);
+      const evs = evByDay.get(k) ?? []; const ovs = overlayByDay.get(k) ?? [];
+      if (evs.length + ovs.length) out.push({ d, k, evs, ovs });
+    }
+    return out;
+  }, [evByDay, overlayByDay]);
+  if (days.length === 0) return <div className="m-auto p-8 text-sm text-[var(--st-muted)]">Nothing in the next two months. Press “New event” to plan something.</div>;
+  const ROW = "grid grid-cols-[64px_10px_minmax(0,1fr)_auto_auto] items-center gap-x-3 rounded-[12px] border border-[var(--st-line-soft)] px-3.5 py-2.5";
+  const OPEN = "flex h-7 items-center rounded-lg border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]";
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5 py-4">
+      {days.map(({ d, k, evs, ovs }) => {
+        const n = evs.length + ovs.length;
+        const today = k === todayKeyGlobal;
+        return (
+          <div key={k}>
+            <div className="mb-2 flex items-baseline gap-2.5">
+              <span className="text-[15px] font-semibold">{d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>
+              <span className={cn("text-xs", today ? "text-[var(--st-ok-text)]" : "text-[var(--st-muted)]")}>{today ? "Today · " : ""}{n} {n === 1 ? "thing" : "things"}</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {evs.map((e) => {
+                const done = hasElapsed(e, nowMs);
+                return (
+                  <div key={occKey(e)} className={cn(ROW, done && "opacity-60")}>
+                    <span className="st-mono text-xs text-[var(--st-sub)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
+                    <span className="h-2 w-2 rounded-full bg-[var(--st-ink)]" />
+                    <span className="truncate text-[13px]">{e.title}</span>
+                    <span className="text-[11px] text-[var(--st-muted)]">{isHappeningNow(e, nowMs) ? "On now" : done ? "Finished" : "Event"}</span>
+                    <button type="button" onClick={() => onEdit(e)} className={OPEN}>Open</button>
+                  </div>
+                );
+              })}
+              {ovs.map((o) => (
+                <div key={o.id} className={ROW}>
+                  <span className="st-mono text-xs text-[var(--st-sub)]">{o.kind === "task" ? "Due" : "All day"}</span>
+                  <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
+                  <span className="truncate text-[13px]">{o.title}</span>
+                  <span className="text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+                  {o.href ? <a href={o.href} className={OPEN}>Open</a> : <span />}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /* ------------------------------ Week view ----------------------------- */
@@ -1088,12 +1203,12 @@ function WeekView({
           const ovs = overlayByDay.get(k) ?? [];
           const isToday = k === todayKeyGlobal;
           return (
-            <div key={i} className={cn("min-w-0 rounded-[12px] p-1.5", isToday ? "bg-[var(--st-surface)] ring-1 ring-[var(--st-ink)]" : "bg-[var(--st-page)]")}>
+            <div key={i} className={cn("min-w-0 rounded-[10px] border-[1.5px] p-1.5", isToday ? "border-[var(--st-ink)]" : "border-transparent", evs.length + ovs.length ? "bg-[var(--st-cal-busy)]" : "bg-[var(--st-surface)]")}>
               <button type="button" onClick={() => onPickDay(d)} className="mb-1.5 flex w-full items-center gap-1.5 px-0.5 text-left">
                 <span className="text-[11px] uppercase tracking-[0.06em] text-[var(--st-muted)]">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
-                <span className={cn("ml-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs tabular-nums", isToday && "bg-[var(--st-ink)] font-semibold text-[var(--st-page)]")}>{d.getDate()}</span>
+                <span className={cn("ml-auto inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full text-xs tabular-nums", isToday && "bg-[var(--st-ink)] font-semibold text-[var(--st-surface)]")}>{d.getDate()}</span>
               </button>
-              <div className="space-y-1 sm:min-h-[180px]">
+              <div className="space-y-[3px] sm:min-h-[180px]">
                 {evs.length === 0 && ovs.length === 0
                   ? <div className="px-1 text-[11px] text-[var(--st-muted)]">—</div>
                   : <>

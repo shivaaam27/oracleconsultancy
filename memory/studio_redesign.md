@@ -318,3 +318,30 @@ acts as search of the whole system but smarter without opening so many things".
 - Rail: Layers legend (Events + each layer, click toggles) and the live
   announcement (dark card, ack bar, Manage →). The Events/Announcements tab is
   gone in Studio — Announcements gets its own Studio page.
+
+### Calendar, second pass — checked against the mockup section by section (24 Sept 2026)
+
+The owner: "check the calendar mockup again section by section … be slow".
+**Compare at the mockup's own size**: the boards are 1440×900 — set the tab to
+1440×900 (resize_window) and read `design/studio-mockup/gen/p_*.py` for the
+exact numbers, rather than eyeballing an 800px screenshot. Fixed:
+- The page FITS the frame (useFitFrame on the lower grid); the month's six rows
+  share the height (`repeat(6, minmax(0,1fr))`), no page scroll from `lg`.
+- **Click a day PICKS it** (1.5px ink ring) and the left card shows that day
+  ("Today · …" only when it is today); double-click opens the Day view. Clicking
+  used to jump straight to Day.
+- Left card rows: plain mono time, 8px dot (white for events, layer colour
+  otherwise), normal-weight title, kind on the right; rows sit at the foot of a
+  196px card; its own empty line.
+- Next 7 days: 76px number; bars STACK — events white at the foot, the rest pink
+  above, 18px a thing (scaled only if a day would overflow).
+- Tiles: #FAFAF8 when busy, white when empty, #FBFBFA outside the month, where
+  only the date greys. Chips 18px, 10.5px text, the mockup's tint per layer;
+  events grey with a black dot (not the company colour). `--st-cal-*` tokens and
+  `.st-cal-chip` (light tint / dark colour-mix) in globals.css.
+- Agenda has the mockup's own layout (`StudioAgenda`): day heading, green
+  "Today · N things", rows with mono time · dot · title · kind · Open.
+- Layers: all ten in the mockup's order incl. **Events** (hides events), 14px
+  squares with a coloured border — filled when on, hollow and grey when off.
+  Rail 232px, 14px gaps. Announcement card dotted, title not bold.
+- Header: Today is a grey fill inside the date box, not a bordered button.
