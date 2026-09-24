@@ -184,7 +184,25 @@
   --shadow-pill: var(--shadow-pill);
 }
 
-* { border-color: hsl(var(--border)); }
+/* ⚠️ THIS RULE IS UNLAYERED, SO IT BEATS EVERY TAILWIND BORDER-COLOUR UTILITY
+   (utilities live in @layer utilities, and any unlayered rule wins over any
+   layered one, whatever the specificity). Across Desk that means
+   `border-accent/30`, `border-[#…]` etc. quietly draw this grey instead —
+   the look everyone is used to, so it is left as it is for Desk.
+   Studio surfaces are EXCLUDED: its dark cards and footer ask for dark
+   borders, and this rule painted them light — the "white borders" the owner
+   saw on the update items, the footer buttons and the composer. Studio gets
+   its own default below, inside @layer base, so its utilities win. */
+*:not(.studio, .studio *, [data-studio-foot], [data-studio-foot] *, [data-studio-goto], [data-studio-goto] *) {
+  border-color: hsl(var(--border));
+}
+@layer base {
+  .studio, .studio *,
+  [data-studio-foot], [data-studio-foot] *,
+  [data-studio-goto], [data-studio-goto] * { border-color: var(--st-line, #E4E4E0); }
+  [data-studio-foot], [data-studio-foot] *,
+  [data-studio-goto], [data-studio-goto] * { border-color: #2A2C30; }
+}
 
 /* ⚠️ `html, body { height: 100% }` IS WHAT BREAKS EVERY "GO BACK" IN COS, and it
    is not obvious. A fixed-height `html` plus the `overflow-x: hidden` below

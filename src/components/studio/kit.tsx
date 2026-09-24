@@ -182,5 +182,5 @@ export const stBtn = {
   /** Light button on a dark card (“Complete”). */
   onCard: "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-[var(--st-on-card)] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90",
   /** Outline button on a dark card (“Escalate”). */
-  onCardGhost: "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[var(--st-card-line)] px-3 text-xs text-[var(--st-on-card)] transition-colors hover:bg-[var(--st-card-2)]",
+  onCardGhost: "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#34363B] px-3 text-xs text-[var(--st-on-card)] transition-colors hover:bg-[var(--st-card-2)]",
 } as const;

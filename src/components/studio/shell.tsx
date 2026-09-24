@@ -94,14 +94,14 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
           </div>
 
           {/* Centre: Home · ‹ page › · Settings */}
-          <nav aria-label="Pages" className="col-start-1 flex items-center gap-1 text-[13px] md:col-start-auto md:gap-[22px]">
+          <nav aria-label="Pages" className="col-start-1 flex items-center gap-1 text-[13px] md:col-start-auto md:gap-3 lg:gap-[22px]">
             <Link
               href="/"
               aria-label="Home"
               className={cn("flex h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white md:px-0", onHome ? "text-white" : "text-[#8E9197]")}
             >
               <Home size={16} strokeWidth={2} />
-              <span className="hidden md:inline">Home</span>
+              <span className="hidden lg:inline">Home</span>
             </Link>
             <div className="flex items-center gap-1 rounded-xl border border-[#2A2C30] bg-[#1C1D20] p-[3px]">
               <Link
@@ -138,7 +138,7 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
               className={cn("flex h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white md:px-0", onSettings ? "text-white" : "text-[#8E9197]")}
             >
               <SettingsIcon size={16} strokeWidth={2} />
-              <span className="hidden md:inline">Settings</span>
+              <span className="hidden lg:inline">Settings</span>
             </Link>
           </nav>
 
@@ -211,7 +211,7 @@ function GoToPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
+    <div data-studio-goto className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       <div
         className="st-tex-dots st-pop absolute inset-x-3 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] mx-auto flex max-h-[calc(100dvh-100px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-4 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:p-5"

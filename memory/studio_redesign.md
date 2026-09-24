@@ -120,6 +120,18 @@ screens are untouched — HideOnPortal).
   once, under its filed company. Independent of the redesign — can go to master alone.
 
 ## Traps met so far
+- ⚠️ **"WHITE BORDERS" = globals.css's `* { border-color: hsl(var(--border)) }`.**
+  It is UNLAYERED, so it beats every Tailwind border-colour utility (they live
+  in @layer utilities) — across all of COS, `border-[#…]`/`border-accent/30`
+  quietly draw Desk grey. Studio surfaces (`.studio`, `[data-studio-foot]`,
+  `[data-studio-goto]`) are now excluded from it and get a layered default
+  instead. Left alone for Desk on purpose (changing it re-colours every page).
+  A Studio pop-over portalled to <body> must carry `studio` or one of those
+  attributes, or its borders go grey.
+- ⚠️ **The dev server sometimes misses a file edit** (seen after a production
+  build in the same session): the served CSS stayed old even after a restart.
+  Check the served stylesheet for your new selector before believing a visual;
+  a fresh append to the file woke the watcher.
 - ⚠️ **`position: sticky` never worked anywhere in COS** until Phase 1:
   `overflow-x: hidden` on `body` makes body a scroll box that never scrolls, so
   sticky stuck to body, not the screen. Now `overflow-x: clip` (globals.css).
