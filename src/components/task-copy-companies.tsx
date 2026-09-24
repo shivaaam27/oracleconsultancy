@@ -33,8 +33,12 @@ const PORTAL_COPY: CopyActions = {
 };
 
 export function TaskCopyToCompanies({
-  taskId, currentCompanyId, currentCompanyName, companies, actions = PORTAL_COPY,
+  taskId, currentCompanyId, currentCompanyName, companies, actions = PORTAL_COPY, triggerLabel, triggerClassName,
 }: {
+  /** Studio's band: the button says what it DOES ("Copy to other companies")
+   *  and wears the band's own button look. The menu is unchanged. */
+  triggerLabel?: string;
+  triggerClassName?: string;
   taskId: number;
   currentCompanyId: number | null;
   currentCompanyName: string;
@@ -102,7 +106,9 @@ export function TaskCopyToCompanies({
     }
   }
 
-  const summary = copyCount === 0 ? currentCompanyName : `${currentCompanyName} +${copyCount}`;
+  const summary = triggerLabel
+    ? (copyCount === 0 ? triggerLabel : `${triggerLabel} · ${copyCount} made`)
+    : copyCount === 0 ? currentCompanyName : `${currentCompanyName} +${copyCount}`;
 
   return (
     <div className="relative">
@@ -110,13 +116,13 @@ export function TaskCopyToCompanies({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-2.5 text-sm transition-colors hover:bg-bg-muted")}
+        className={triggerClassName ?? cn(fieldShell, "flex w-full items-center justify-between gap-2 px-2.5 text-sm transition-colors hover:bg-bg-muted")}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <Building2 size={14} className="shrink-0 text-fg-muted" />
-          <span className="truncate text-fg">{summary}</span>
+          {!triggerLabel && <Building2 size={14} className="shrink-0 text-fg-muted" />}
+          <span className={cn("truncate", !triggerLabel && "text-fg")}>{summary}</span>
         </span>
-        <ChevronDown size={14} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />
+        {!triggerLabel && <ChevronDown size={14} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />}
       </button>
 
       {open && anchor && typeof document !== "undefined" && createPortal(

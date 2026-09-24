@@ -120,10 +120,30 @@ export function CreateMenu({ collapsed = false, variant = "rail" }: {
         </div>
       )}
 
-      {open && (
+      {open && (footer ? (
+        /* Studio: the same white card as every Studio pick-list. */
+        <div role="menu" className="studio st-pop absolute bottom-full right-0 z-50 mb-2 w-[220px] rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1 text-[var(--st-ink)] shadow-[0_16px_40px_rgba(17,18,20,0.22)]">
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Create something</p>
+          {items.map((c) => {
+            const Icon = ICONS[c.id] ?? Plus;
+            return (
+              <Link
+                key={c.id}
+                href={c.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] hover:bg-[var(--st-page)]"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--st-page)]"><Icon size={13} /></span>
+                <span className="truncate">{c.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
         <div
           role="menu"
-          className={cn("glass-menu absolute z-50 min-w-[186px] rounded-md p-1", footer ? "bottom-full right-0 mb-2" : "left-0 mt-1")}
+          className={cn("glass-menu absolute z-50 min-w-[186px] rounded-md p-1", "left-0 mt-1")}
         >
           <p className="px-2 py-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
             Create
@@ -144,7 +164,7 @@ export function CreateMenu({ collapsed = false, variant = "rail" }: {
             );
           })}
         </div>
-      )}
+      ))}
     </div>
   );
 }

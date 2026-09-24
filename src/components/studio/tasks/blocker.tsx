@@ -82,15 +82,16 @@ export function StudioBlocker({
     );
   }
   return (
-    <form action={raise} className="space-y-2">
+    <form action={raise} className="min-w-0 space-y-2" onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
       <SelectField name="personId" defaultValue="" placeholder="Who is it waiting on?" options={people.map((p) => ({ value: String(p.id), label: p.name }))} />
       <label className="block">
         <span className="sr-only">Why</span>
-        <input name="reason" required placeholder="Why — e.g. awaiting the signed resolution" className={FIELD} />
+        <textarea name="reason" required rows={2} placeholder="Why — e.g. awaiting the signed resolution" className={cn(FIELD, "h-auto resize-none py-1.5 leading-snug")} />
       </label>
-      <div className="flex gap-2">
-        <button type="submit" disabled={busy} className={cn(stBtn.dark, "h-8 text-xs")}>{busy && <Loader2 size={12} className="animate-spin" />}Mark as waiting</button>
-        <button type="button" onClick={() => setOpen(false)} className="h-8 px-2 text-xs text-[var(--st-muted)]">Cancel</button>
+      <p className="text-[11px] leading-snug text-[var(--st-muted)]">Overdue pauses until it is cleared.</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button type="submit" disabled={busy} className={cn(stBtn.dark, "h-8 px-3 text-xs")}>{busy && <Loader2 size={12} className="animate-spin" />}Mark as waiting</button>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Cancel</button>
       </div>
     </form>
   );

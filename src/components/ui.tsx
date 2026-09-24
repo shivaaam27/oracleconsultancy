@@ -825,7 +825,7 @@ export function EmptyState({
 
 export function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <label className="block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-1.5">
+    <label data-field-label className="block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted mb-1.5">
       {children}
     </label>
   );

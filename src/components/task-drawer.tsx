@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { StudioScope, stBtn } from "./studio/kit";
 import { StudioStatusCell, StudioPriorityCell } from "./studio/tasks/cells";
+import { StudioDetails } from "./studio/tasks/details";
+import { DateInput } from "./date-input";
+import { useFitFrame } from "./studio/use-fit-frame";
 import { avatarTint, initials as studioInitials } from "./studio/tasks/task-words";
 import { StudioBlocker } from "./studio/tasks/blocker";
 import { DeadlineEditor } from "./deadline-editor";
@@ -123,7 +126,7 @@ function Field({ label, hint, children, className }: { label: string; hint?: str
      up whatever the labels do (the same rule every CocoZuri form follows). */
   return (
     <div className={cn("flex h-full min-w-0 flex-col justify-end", className)}>
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</label>
+      <label data-field-label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</label>
       {children}
       {hint && <p className="mt-1 text-xs leading-snug text-fg-subtle">{hint}</p>}
     </div>
@@ -194,6 +197,10 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   const [posting, setPosting] = useState(false);
   const [reminding, setReminding] = useState(false);
   const [remindScope, setRemindScope] = useState<"task" | "all">("task");
+  // Studio record: the three columns fill the frame and scroll inside
+  // themselves — the page itself does not scroll (from lg up).
+  const studioGridRef = useRef<HTMLDivElement>(null);
+  useFitFrame(studioGridRef, { enabled: mode === "page" && !!studio && !!data, deps: [data?.task.code] });
   // Decision-strip re-date popover (inline date input, no Edit-tab trip).
   const [redating, setRedating] = useState(false);
   const [newDate, setNewDate] = useState("");
@@ -868,10 +875,10 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
               <SelectField name="priority" defaultValue={t.priority} options={PRIORITIES.map((s) => ({ value: s, label: s }))} />
             </Field>
             <Field label="Deadline">
-              <input name="deadline" type="date" defaultValue={dateInput(t.deadline)} className={FIELD} />
+              <DateInput name="deadline" defaultValue={dateInput(t.deadline)} />
             </Field>
             <Field label="Meeting date">
-              <input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} className={FIELD} />
+              <DateInput name="meetingDate" defaultValue={dateInput(t.meetingDate)} />
             </Field>
             <Field label="Risk">
               <SelectField name="risk" defaultValue={t.risk || ""} placeholder="—" options={[{ value: "", label: "—" }, ...RISKS.map((s) => ({ value: s, label: s }))]} />
@@ -1029,66 +1036,19 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     ];
     const panel = "rounded-[18px] bg-[var(--st-surface)] p-5";
     const edit = () => setActiveTab("edit");
-    const notSet = <span className="text-[var(--st-muted)]">Not set</span>;
-    const dateWords = (d: Date | string | null | undefined) =>
-      d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
-    // One row of the Details panel: label | value. A value with its own editor
-    // (status, priority, deadline, waiting on) changes in place; the rest open
-    // the full form.
-    const field = (label: string, value: React.ReactNode, opts?: { hint?: React.ReactNode; onClick?: () => void; top?: boolean }) => (
-      <div className={cn("grid grid-cols-[88px_minmax(0,1fr)] gap-2.5 xl:grid-cols-[104px_minmax(0,1fr)] xl:gap-3 border-b border-[var(--st-line-soft)] py-2.5 last:border-b-0", opts?.top ? "items-start" : "items-center")}>
-        <span className="text-[13px] text-[var(--st-muted)]">{label}</span>
-        {opts?.onClick ? (
-          <button type="button" onClick={opts.onClick} title={`Change the ${label.toLowerCase()}`} className="-mx-1.5 min-w-0 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-colors hover:bg-[var(--st-page)]">
-            <span className="block truncate">{value}</span>
-            {opts.hint && <span className="block text-[11px] text-[var(--st-muted)]">{opts.hint}</span>}
-          </button>
-        ) : (
-          <div className="min-w-0 text-[13px]">
-            {value}
-            {opts?.hint && <div className="text-[11px] text-[var(--st-muted)]">{opts.hint}</div>}
-          </div>
-        )}
-      </div>
-    );
-    const late = typeof t.daysToDeadline === "number" && t.daysToDeadline < 0 ? Math.abs(t.daysToDeadline) : 0;
     const details = (
       <div className={cn(panel, "min-w-0")}>
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <div className="text-[15px] font-semibold">Details</div>
-          <span className="text-[11px] text-[var(--st-muted)]">Click any value to change it</span>
-        </div>
-        {field("Company", t.companyName, { hint: "Changing it issues a new task code", onClick: edit })}
-        {field("Accountable", t.assignees.length ? t.assignees.join(", ") : notSet, { onClick: edit })}
-        {field("Status", <StudioStatusCell code={t.code} status={t.status} />)}
-        {field("Priority", <StudioPriorityCell code={t.code} priority={t.priority} />)}
-        {field("Deadline", <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} studio="date" />, { hint: late ? `${late} ${late === 1 ? "day" : "days"} late` : undefined })}
-        {field("Waiting on", <StudioBlocker taskId={t.id} closed={done} blockedOnPersonId={t.blockedOnPersonId} blockedReason={t.blockedReason} people={data.people} onChanged={refresh} />, { top: true })}
-        {field("Meeting date", dateWords(t.meetingDate) ?? notSet, { onClick: edit })}
-        {field("Risk", t.risk || notSet, { onClick: edit })}
-        {field("Escalation", t.escalation === "Yes" ? <span className="text-[var(--st-late-text)]">Escalated</span> : notSet, { onClick: edit })}
-        {field("Department", t.department || notSet, { onClick: edit })}
-        {field("Category", t.category || notSet, { onClick: edit })}
-        {field("About", t.comments?.trim() ? <span className="line-clamp-4 whitespace-pre-wrap break-words">{t.comments}</span> : <span className="text-[var(--st-muted)]">Add a description</span>, { onClick: edit, top: true })}
-        <div className="mb-1 mt-5 text-[15px] font-semibold">Rules</div>
-        {[
-          { label: "First person is the lead", hint: "Only the lead has to finish it", on: t.accountability === "lead" },
-          { label: "Needs a file to complete", hint: "Staff can’t close it without attaching proof", on: !!t.requiresAttachment },
-        ].map((r) => (
-          <button key={r.label} type="button" onClick={edit} title="Change it in the full form" className="flex w-full items-center gap-3 py-2 text-left">
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px]">{r.label}</span>
-              <span className="block text-[11px] text-[var(--st-muted)]">{r.hint}</span>
-            </span>
-            <span aria-hidden className={cn("relative h-5 w-[34px] shrink-0 rounded-full transition-colors", r.on ? "bg-[var(--st-ink)]" : "bg-[#D6D6D2]")}>
-              <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left]", r.on ? "left-4" : "left-0.5")} />
-            </span>
-          </button>
-        ))}
-        <button type="button" onClick={() => setRepeatOpen(true)} className={cn(stBtn.ghost, "mt-3 h-9 w-full justify-center text-xs")}>
-          <Repeat size={13} />{data.recurrence ? `Repeats — ${scheduleLabel(data.recurrence)}` : "Make it repeat…"}
-        </button>
-        <button type="button" onClick={edit} className="mt-2 w-full text-center text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Edit every field at once</button>
+        <StudioDetails
+          task={t}
+          done={done}
+          companies={data.companies}
+          people={data.people}
+          departments={data.departments}
+          recurrenceLabel={data.recurrence ? scheduleLabel(data.recurrence) : null}
+          onChanged={refresh}
+          onOpenRepeat={() => setRepeatOpen(true)}
+          onOpenForm={edit}
+        />
       </div>
     );
     const rail = (
@@ -1127,9 +1087,9 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
       </div>
     );
     const centre = (
-      <div className={cn(panel, "flex min-w-0 flex-col px-5 pb-5 pt-2 lg:min-h-[calc(100dvh-260px)]")}>
+      <div className={cn(panel, "flex min-w-0 flex-col px-5 pb-5 pt-2 lg:h-full lg:min-h-0")}>
         {activeTab === "edit" ? (
-          <div className="pt-3">
+          <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3 pt-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-[15px] font-semibold">Edit every field</div>
               <button type="button" onClick={() => setActiveTab("conversation")} className="text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Back to the conversation</button>
@@ -1138,7 +1098,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
           </div>
         ) : (
           <>
-            <div className="mb-4 flex gap-5 border-b border-[var(--st-line-soft)]" role="tablist" aria-label="Task sections">
+            <div className="mb-4 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist" aria-label="Task sections">
               {studioTabs.map((x) => {
                 const on = activeTab === x.id || (x.id === "conversation" && activeTab === "overview");
                 return (
@@ -1155,10 +1115,10 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
                 );
               })}
             </div>
-            {activeTab === "history" ? historyContent
-              : activeTab === "notes" ? <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} />
+            {activeTab === "history" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3">{historyContent}</div>
+              : activeTab === "notes" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3"><LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} /></div>
               : (
-                <div className="flex flex-1 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col">
                   <PortalConversation
                     variant="studio"
                     taskId={t.id}
@@ -1211,9 +1171,15 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
               <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} className={stBtn.onCardGhost}>Escalate</button>
             )}
             {data.companies.length > 1 && !t.archived && (
-              <span className="rounded-[9px] bg-[var(--st-on-card)] text-[#111214]">
-                <TaskCopyToCompanies taskId={t.id} currentCompanyId={t.companyId} currentCompanyName={t.companyName} companies={data.companies} actions={copyActions} />
-              </span>
+              <TaskCopyToCompanies
+                taskId={t.id}
+                currentCompanyId={t.companyId}
+                currentCompanyName={t.companyName}
+                companies={data.companies}
+                actions={copyActions}
+                triggerLabel="Copy to other companies"
+                triggerClassName={stBtn.onCardGhost}
+              />
             )}
             <button type="button" onClick={toggleArchived} disabled={archiving} className={stBtn.onCardGhost}>
               {t.archived ? "Restore" : "Archive"}
@@ -1245,10 +1211,10 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
         {/* Three columns from lg, as the mockup's Expanded board — Details ·
             conversation · People/Share/Similar. The side columns start slim
             and widen with the screen; below lg they stack, conversation first. */}
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)_240px] xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
-          <div className="order-2 min-w-0 lg:order-1">{details}</div>
-          <div className="order-1 min-w-0 lg:order-2">{centre}</div>
-          <div className="order-3 min-w-0">{rail}</div>
+        <div ref={studioGridRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)_240px] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+          <div className="st-scroll order-2 min-w-0 rounded-[18px] lg:order-1 lg:min-h-0 lg:overflow-y-auto">{details}</div>
+          <div className="order-1 min-w-0 lg:order-2 lg:min-h-0">{centre}</div>
+          <div className="st-scroll order-3 min-w-0 rounded-[18px] lg:min-h-0 lg:overflow-y-auto">{rail}</div>
         </div>
         {repeatSheet}
       </StudioScope>

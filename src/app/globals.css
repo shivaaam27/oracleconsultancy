@@ -1761,3 +1761,75 @@ html body:has([data-studio-frame]) [data-savebar] { bottom: calc(var(--page-foot
   --text-sm: 13px;   --text-sm--line-height: 1.4;
   --text-base: 14px; --text-base--line-height: 1.5;
 }
+
+/* ---------- Studio: Desk controls wear Studio's colours ----------
+   A Studio page still uses Desk's kit underneath — FluidSelect, SelectField,
+   the date input, Combobox, the person picker, the copy-to-companies menu, the
+   create menu, the deadline pop-over. Rather than fork each one, the Desk
+   TOKENS are redefined inside Studio surfaces: warm greys, ink instead of the
+   blue accent, softer corners, Geist. Every kit component follows for free.
+   Pop-ups portal to <body>, outside `.studio`, so the same set applies to
+   body's own children WHILE a Studio page is showing (`body:has(main .studio)`)
+   — and to the footer, whose menus open from it. Desk pages are untouched. */
+.studio,
+[data-studio-foot],
+[data-studio-goto],
+body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script) {
+  --bg:         60 7% 95%;     /* #F3F3F1 */
+  --bg-elev:    0 0% 100%;
+  --bg-subtle:  60 8% 96.5%;
+  --bg-muted:   60 5% 89%;     /* #E6E6E2 */
+  --fg:         220 8% 7%;     /* #111214 */
+  --fg-muted:   220 4% 35%;    /* #55585E */
+  --fg-subtle:  220 4% 57%;    /* #8E9197 */
+  --border:        60 7% 88%;  /* #E4E4E0 */
+  --border-strong: 60 4% 80%;
+  --accent:       220 8% 7%;   /* ink, not blue */
+  --accent-hover: 220 6% 22%;
+  --accent-fg:    0 0% 100%;
+  --accent-soft:  60 7% 93%;
+  --accent-ring:  220 6% 40%;
+  --info:         208 86% 54%;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --shadow-md: 0 0 0 1px hsl(var(--border)), 0 16px 40px -12px rgb(17 18 20 / 0.18);
+  --shadow-lg: 0 0 0 1px hsl(var(--border)), 0 24px 60px -16px rgb(17 18 20 / 0.25);
+}
+body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script),
+[data-studio-foot] .glass-menu { font-family: var(--font-geist), var(--font-sans); }
+html.dark .studio,
+html.dark [data-studio-foot],
+html.dark [data-studio-goto],
+html.dark body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script) {
+  --bg:         220 6% 6%;     /* #0E0F10 */
+  --bg-elev:    225 8% 10%;    /* #17181B */
+  --bg-subtle:  225 7% 12%;
+  --bg-muted:   225 6% 15%;
+  --fg:         60 7% 94%;     /* #F2F2F0 */
+  --fg-muted:   220 4% 65%;
+  --fg-subtle:  220 4% 57%;
+  --border:        225 7% 18%; /* #2A2C30 */
+  --border-strong: 225 6% 24%;
+  --accent:       60 7% 94%;   /* light ink on dark */
+  --accent-hover: 60 5% 84%;
+  --accent-fg:    220 8% 7%;
+  --accent-soft:  225 6% 16%;
+  --accent-ring:  220 4% 65%;
+}
+
+/* Studio's inner scroll areas: a thin, quiet scrollbar that does not shout. */
+.st-scroll { scrollbar-width: thin; scrollbar-color: #D6D6D2 transparent; }
+.dark .st-scroll { scrollbar-color: #34363B transparent; }
+
+/* Studio: a form label is a quiet sentence, not Desk's small capitals. */
+.studio [data-field-label],
+body:has(main .studio) > * [data-field-label] {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6E7177;
+}

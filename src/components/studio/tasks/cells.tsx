@@ -38,27 +38,74 @@ function StudioFieldMenu({
   tone: "light" | "dark"; suffix?: string; showDot?: boolean; className?: string;
 }) {
   const { save, pending } = useInlineField(code, field, field === "status" ? "Status" : "Priority");
+  return (
+    <StudioChoiceMenu
+      value={value}
+      options={options.map((o) => ({ value: o, label: o, dot: dots[o] }))}
+      onPick={(v) => { if (v !== value) save(v); }}
+      tone={tone}
+      suffix={suffix}
+      showDot={showDot}
+      pending={pending}
+      title={field === "status" ? "Change the status" : "Change the priority"}
+      className={className}
+    />
+  );
+}
+
+export type ChoiceOption = { value: string; label: string; dot?: string; muted?: boolean };
+
+/**
+ * The one Studio pick-list: a trigger (a dot and a word, or a dark band chip)
+ * and a card of choices portalled to <body> and kept on screen. Every
+ * in-place choice on a Studio page is this — status, priority, risk,
+ * category, company — so they all look and behave the same.
+ */
+export function StudioChoiceMenu({
+  value, options, onPick, tone = "light", suffix, showDot = true, pending, title, className, empty = "Not set", width = 220,
+}: {
+  value: string | null;
+  options: ChoiceOption[];
+  onPick: (value: string) => void;
+  tone?: "light" | "dark";
+  suffix?: string;
+  showDot?: boolean;
+  pending?: boolean;
+  title?: string;
+  className?: string;
+  /** Shown when there is no value. */
+  empty?: string;
+  width?: number;
+}) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxH: number } | null>(null);
+  const current = options.find((o) => o.value === value);
 
   useLayoutEffect(() => {
     if (!open || !btn.current) return;
     const r = btn.current.getBoundingClientRect();
-    const h = 8 + options.length * 32;
-    const below = r.bottom + 6 + h < window.innerHeight - 72;
-    setPos({ left: Math.max(8, Math.min(r.left - 6, window.innerWidth - 220)), top: below ? r.bottom + 6 : r.top - 6 - h });
-  }, [open, options.length]);
+    const want = 8 + options.length * 32;
+    const roomBelow = window.innerHeight - 80 - r.bottom;
+    const roomAbove = r.top - 16;
+    const below = roomBelow >= Math.min(want, 240) || roomBelow >= roomAbove;
+    const maxH = Math.max(120, Math.min(want, below ? roomBelow : roomAbove));
+    setPos({
+      left: Math.max(8, Math.min(r.left - 6, window.innerWidth - width - 8)),
+      top: below ? r.bottom + 6 : r.top - 6 - maxH,
+      maxH,
+    });
+  }, [open, options.length, width]);
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => { if (!menu.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
-    const scroll = () => setOpen(false);
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); } };
+    const scroll = (e: Event) => { if (!menu.current?.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", key);
+    document.addEventListener("keydown", key, true);
     window.addEventListener("scroll", scroll, { capture: true });
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", key); window.removeEventListener("scroll", scroll, { capture: true }); };
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", key, true); window.removeEventListener("scroll", scroll, { capture: true }); };
   }, [open]);
 
   return (
@@ -68,7 +115,7 @@ function StudioFieldMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title={field === "status" ? "Change the status" : "Change the priority"}
+        title={title}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "inline-flex max-w-full items-center gap-[7px] whitespace-nowrap transition-colors",
@@ -79,27 +126,31 @@ function StudioFieldMenu({
           className,
         )}
       >
-        {showDot && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dots[value] ?? "#B9BBBF" }} />}
-        <span className="truncate">{value}{suffix}</span>
+        {showDot && current?.dot && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: current.dot }} />}
+        {current ? <span className="truncate">{current.label}{suffix}</span> : <span className="truncate text-[var(--st-muted)]">{empty}</span>}
       </button>
       {open && pos && createPortal(
         <div
           ref={menu}
           role="menu"
-          style={{ left: pos.left, top: pos.top }}
-          className="studio st-pop fixed z-[140] w-[210px] rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1 shadow-[0_16px_40px_rgba(17,18,20,0.16)]"
+          style={{ left: pos.left, top: pos.top, width, maxHeight: pos.maxH }}
+          className="studio st-pop fixed z-[140] overflow-y-auto rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1 shadow-[0_16px_40px_rgba(17,18,20,0.16)]"
         >
-          {options.map((s) => (
+          {options.map((o) => (
             <button
-              key={s}
+              key={o.value}
               type="button"
               role="menuitem"
-              onClick={() => { setOpen(false); if (s !== value) save(s); }}
-              className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-[var(--st-page)]", s === value && "font-medium")}
+              onClick={() => { setOpen(false); onPick(o.value); }}
+              className={cn(
+                "flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-[var(--st-page)]",
+                o.value === value && "font-medium",
+                o.muted && "text-[var(--st-muted)]",
+              )}
             >
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dots[s] }} />
-              <span className="flex-1">{s}</span>
-              {s === value && <Check size={13} />}
+              {o.dot && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.dot }} />}
+              <span className="min-w-0 flex-1 truncate">{o.label}</span>
+              {o.value === value && <Check size={13} className="shrink-0" />}
             </button>
           ))}
         </div>,

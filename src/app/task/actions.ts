@@ -1253,3 +1253,43 @@ export async function toggleTaskStar(taskId: number): Promise<{ ok: boolean; sta
   revalidatePath("/");
   return { ok: true, starred };
 }
+
+/**
+ * Studio record — change ONE field in place, from the Details panel.
+ *
+ * A PATCH through `updateTaskCore`, like MCP's writes: `undefined` leaves a
+ * field alone, `null` clears it — so editing the risk can never wipe the
+ * deadline. Every field is audited and undoable exactly as on the full form.
+ * Moving the company re-issues the code; the caller is told the new one.
+ */
+export async function patchTaskField(
+  code: string,
+  patch: {
+    companyId?: number;
+    actionItem?: string;
+    departmentName?: string | null;
+    risk?: string | null;
+    escalation?: "Yes" | "No";
+    category?: string | null;
+    meetingDate?: string | null;
+    comments?: string | null;
+    requiresAttachment?: boolean;
+    accountability?: "shared" | "lead";
+    assigneeNames?: string[];
+  },
+): Promise<{ ok: boolean; error?: string; code?: string; undoToken?: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
+  const { meetingDate, ...rest } = patch;
+  const result = await updateTaskCore(code, {
+    ...rest,
+    ...(meetingDate !== undefined ? { meetingDate: meetingDate ? parseDate(meetingDate) : null } : {}),
+    createdBy: "web-ui",
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  const finalCode = result.result.code;
+  revalidatePath(`/task/${code}`);
+  if (finalCode !== code) revalidatePath(`/task/${finalCode}`);
+  revalidatePath("/");
+  bustTag("tasks"); invalidateAllTasks();
+  return { ok: true, code: finalCode, undoToken: result.undoToken };
+}

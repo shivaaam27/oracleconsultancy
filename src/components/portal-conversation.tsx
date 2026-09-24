@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pencil, Pin, PinOff, Send, Trash2, X } from "lucide-react";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 import { CaretTextarea, Select } from "./ui";
@@ -109,6 +109,14 @@ export function PortalConversation(props: Props) {
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Studio: the thread scrolls inside itself, newest at the foot — open it
+  // at the newest, and follow a new post down.
+  const threadRef = useRef<HTMLElement>(null);
+  const newest = messages[0]?.id ?? 0;
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [newest, events.length]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function clearFile() {
@@ -400,7 +408,7 @@ export function PortalConversation(props: Props) {
     const day = (label: string) => <div className="pt-1 text-center text-[11px] uppercase tracking-[0.08em] text-[var(--st-muted)]">{label}</div>;
 
     return (
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         {pinned.map((m) => (
           <div key={m.id} className="rounded-xl bg-[var(--st-page)] px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]">
@@ -419,7 +427,7 @@ export function PortalConversation(props: Props) {
           </div>
         ))}
 
-        <section className="flex min-h-[200px] flex-1 flex-col gap-2.5">
+        <section ref={threadRef} className="st-scroll -mr-3 flex min-h-[200px] flex-1 flex-col gap-2.5 overflow-y-auto pr-3 lg:min-h-0">
           {older.length > 0 && (
             <details>
               <summary className="cursor-pointer list-none py-1 text-center text-[11px] text-[var(--st-muted)] hover:text-[var(--st-ink)]">
@@ -437,7 +445,7 @@ export function PortalConversation(props: Props) {
         </section>
 
         {!closed && (
-          <div className="flex flex-col gap-2 border-t border-[var(--st-line-soft)] pt-3">
+          <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--st-line-soft)] pt-3">
             <div className="flex flex-wrap gap-1.5">
               {STARTERS.map(([label, text]) => (
                 <button
