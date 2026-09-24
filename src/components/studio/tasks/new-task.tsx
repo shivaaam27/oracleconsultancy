@@ -221,11 +221,11 @@ export function Toggle({ on, onClick, label }: { on: boolean; onClick: () => voi
 
 /* ------------------------------------------------ the "+ New" task tab -- */
 
-/* The card is DARK, like everything else that opens from the footer (the
-   Go-to panel) and like the picked-task card on Tasks: dark chips, a light
-   primary. Desk controls inside it (the people picker, the calendar) wear the
-   dark token set via `.st-on-dark` in globals.css. */
-const DCHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[#2E3035] bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#26282C] hover:border-[#3A3D42]";
+/* The card follows the theme like every sheet that opens from the footer (the
+   Go-to panel, search, notifications): its colours are the `--sh-*` set on
+   `.st-sheet`, which also re-points Desk's tokens, so the people picker and the
+   calendar inside it follow the same light or dark. */
+const DCHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-2.5 text-xs text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] hover:border-[var(--sh-field-line)]";
 
 export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmit }: {
   options: Options | null;
@@ -279,8 +279,8 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         placeholder="What needs doing?"
         aria-label="What needs doing?"
         /* Inline: the unlayered `input` rule in globals.css beats utilities. */
-        style={{ color: "#F2F2F0", background: "transparent", border: 0, boxShadow: "none" }}
-        className="bare-field w-full px-0 py-1 text-[26px] tracking-[-0.02em] outline-none placeholder:text-[#5B5E63]"
+        style={{ color: "var(--sh-fg)", background: "transparent", border: 0, boxShadow: "none" }}
+        className="bare-field w-full px-0 py-1 text-[26px] tracking-[-0.02em] outline-none placeholder:text-[var(--sh-muted)]"
       />
       <div className="flex flex-wrap gap-1.5">
         <StudioChoiceMenu
@@ -288,11 +288,11 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
           options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
           onPick={(v) => set({ companyId: Number(v), also: d.also.filter((x) => x !== Number(v)) })}
           prefix="Company" empty="pick one" showDot={false} width={260}
-          className={cn(DCHIP, "st-dark-chip", !company && "border-[#8E9197]")}
+          className={cn(DCHIP, "st-dark-chip", !company && "border-[var(--sh-muted)]")}
         />
         <button type="button" onClick={() => setWho((v) => !v)} aria-expanded={who} className={cn(DCHIP, "inline-flex items-center gap-1.5")}>
-          <span className="text-[#A3A6AB]">Who</span>
-          {d.people.length ? <span className="max-w-[12rem] truncate font-medium">{d.people.join(", ")}</span> : <span className="text-[#8E9197]">nobody yet</span>}
+          <span className="text-[var(--sh-sub)]">Who</span>
+          {d.people.length ? <span className="max-w-[12rem] truncate font-medium">{d.people.join(", ")}</span> : <span className="text-[var(--sh-muted)]">nobody yet</span>}
         </button>
         <DatePopover
           value={d.deadline}
@@ -317,9 +317,9 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         />
       </div>
       {who && (
-        <div className="st-on-dark rounded-xl border border-[#2E3035] bg-[#1A1B1E] p-2.5">
+        <div className="rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-card)] p-2.5">
           <PersonPicker key={pickerKey} people={options?.people ?? []} defaultNames={d.people} name="__quick_people" onChange={(csv) => set({ people: csv.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="Search people, or type a new name…" />
-          <div className="mt-2 flex justify-end"><button type="button" onClick={() => { setWho(false); setPickerKey((k) => k + 1); }} className="text-xs text-[#C9CBCF] hover:text-white">Done</button></div>
+          <div className="mt-2 flex justify-end"><button type="button" onClick={() => { setWho(false); setPickerKey((k) => k + 1); }} className="text-xs text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">Done</button></div>
         </div>
       )}
       <textarea
@@ -327,10 +327,10 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         onChange={(e) => set({ instructions: e.target.value })}
         rows={2}
         placeholder="Instructions for the team — they arrive as the first update (optional)"
-        style={{ color: "#E6E6E3", background: "#1F2023", border: "1px solid #2E3035", boxShadow: "none" }}
-        className="bare-field w-full resize-none rounded-xl px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[#6E7177]"
+        style={{ color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none" }}
+        className="bare-field w-full resize-none rounded-xl px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[var(--sh-muted)]"
       />
-      <p className="-mt-1.5 text-right text-[11px] text-[#6E7177]">Enter creates · Ctrl+Enter creates and starts another · Shift+Enter opens the full task</p>
+      <p className="-mt-1.5 text-right text-[11px] text-[var(--sh-muted)]">Enter creates · Ctrl+Enter creates and starts another · Shift+Enter opens the full task</p>
     </div>
   );
 }

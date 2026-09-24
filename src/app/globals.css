@@ -201,7 +201,7 @@
   [data-studio-foot], [data-studio-foot] *,
   [data-studio-goto], [data-studio-goto] * { border-color: var(--st-line, #E4E4E0); }
   [data-studio-foot], [data-studio-foot] *,
-  [data-studio-goto], [data-studio-goto] * { border-color: #2A2C30; }
+  [data-studio-goto], [data-studio-goto] * { border-color: var(--sh-line, #2A2C30); }
 }
 
 /* ⚠️ `html, body { height: 100% }` IS WHAT BREAKS EVERY "GO BACK" IN COS, and it
@@ -1837,11 +1837,11 @@ body:has(main .studio) > * [data-field-label] {
 /* A Desk control used as a chip on Studio's dark band (the new task's
    deadline): its inner label carries Desk's ink colour — lift it. */
 .studio .st-dark-chip span,
-.studio .st-dark-chip svg { color: #F2F2F0; }
+.studio .st-dark-chip svg { color: var(--sh-fg, #F2F2F0); }
 
 
 /* The quick card's chips: the chosen value bright, the label before it quiet. */
-.studio .st-dark-chip .st-prefix { color: #8E9197; }
+.studio .st-dark-chip .st-prefix { color: var(--sh-muted, #8E9197); }
 
 /* Desk controls placed on a Studio DARK surface (the "+ New" card): the dark
    token set, so the people picker's box and menu read light-on-dark. */
@@ -1928,17 +1928,29 @@ body:has(main .studio) > * [data-field-label] {
 }
 .st-sheet-dots { background-image: radial-gradient(var(--sh-dots) 1px, transparent 1.4px); background-size: 14px 14px; }
 
-/* Studio search: group titles are quiet sentence-case labels, not banded
-   uppercase strips; in the "All" view the groups sit two to a row so a search
-   fits without scrolling (tasks and each record kind take half; answers, the
-   top match and the page list take the full width). */
+/* Studio search (`studio/search.tsx`): one quiet list. Group titles are small
+   sentence-case labels, a row is an icon tile + title + one line + a muted tag,
+   and the selected row is a soft fill — nothing is banded, badged or tinted. */
 .st-sheet [cmdk-group-heading] {
   text-transform: none; letter-spacing: 0; background: none;
-  font-size: 12px; font-weight: 500; color: var(--sh-muted); padding: 10px 8px 4px;
+  font-size: 11px; font-weight: 500; color: var(--sh-muted); padding: 10px 10px 4px;
 }
-.st-sheet [cmdk-item][aria-selected="true"] { background: var(--sh-hover); }
-@media (min-width: 640px) {
-  .st-results-grid [cmdk-list-sizer] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; align-items: start; }
-  .st-results-grid [cmdk-list-sizer] > * { grid-column: 1 / -1; }
-  .st-results-grid [cmdk-list-sizer] > [data-half] { grid-column: auto; }
+.st-srow {
+  display: flex; align-items: center; gap: 12px; min-height: 44px;
+  padding: 6px 10px; border-radius: 12px; cursor: pointer;
+  transition: background-color 120ms ease;
 }
+.st-srow[aria-selected="true"] { background: var(--sh-hover); }
+.st-sicon {
+  display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 9px; border: 1px solid var(--sh-line); background: var(--sh-card); color: var(--sh-sub);
+}
+.st-sicon-on { background: var(--sh-on-bg); color: var(--sh-on-fg); border-color: transparent; }
+.st-stag { flex-shrink: 0; font-size: 11px; color: var(--sh-muted); white-space: nowrap; }
+.st-sanswer { border: 1px solid var(--sh-line); background: var(--sh-card); margin-bottom: 4px; min-height: 56px; }
+.st-sanswer[aria-selected="true"] { border-color: var(--sh-field-line); }
+.st-slist [cmdk-list-sizer] { animation: st-sfade 140ms ease-out; }
+@keyframes st-sfade { from { opacity: .6; } to { opacity: 1; } }
+.st-sbar { background: linear-gradient(90deg, transparent, var(--sh-sub), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: st-sbar 900ms ease-in-out infinite; }
+@keyframes st-sbar { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .st-sbar, .st-slist [cmdk-list-sizer] { animation: none; } }

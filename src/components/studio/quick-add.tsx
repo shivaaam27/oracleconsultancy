@@ -85,18 +85,18 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Create something">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       {/* Dark and dotted, like the Go-to panel — both open from the footer. */}
-      <div style={{ color: "#F2F2F0" }} className="studio st-tex-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(720px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-5 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] sm:right-6">
+      <div className="studio st-sheet st-sheet-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(720px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[var(--sh-bg)] p-5 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] sm:right-6">
         <div className="flex items-center gap-2.5">
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist">
             {items.map((c) => (
               <button key={c.id} type="button" role="tab" aria-selected={tab === c.id} onClick={() => setTab(c.id)}
                 className={cn("h-8 shrink-0 whitespace-nowrap rounded-[10px] px-3 text-xs transition-colors",
-                  tab === c.id ? "bg-[#F2F2F0] font-medium text-[#111214]" : "border border-[#2E3035] text-[#A3A6AB] hover:text-white")}>
+                  tab === c.id ? "bg-[var(--sh-on-bg)] font-medium text-[var(--sh-on-fg)]" : "border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]")}>
                 {c.label}
               </button>
             ))}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#2E3035] text-[#C9CBCF] hover:text-white"><X size={13} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><X size={13} /></button>
         </div>
 
         {/* The task pane stays MOUNTED while another tab is showing, so a
@@ -105,47 +105,47 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
           {options ? (
             <QuickTaskPane options={options} defaultCompanyId={defaultCompanyId} onDone={(again) => { if (!again) onClose(); }} registerSubmit={register} />
           ) : (
-            <div className="flex h-40 items-center justify-center text-[#8E9197]"><Loader2 size={16} className="animate-spin" /></div>
+            <div className="flex h-40 items-center justify-center text-[var(--sh-muted)]"><Loader2 size={16} className="animate-spin" /></div>
           )}
         </div>
         {tab !== "task" && (
-          <div className="flex min-h-[150px] flex-col justify-center gap-1.5 rounded-2xl border border-[#26282C] bg-[#1A1B1E] px-5 py-5">
+          <div className="flex min-h-[150px] flex-col justify-center gap-1.5 rounded-2xl border border-[var(--sh-line)] bg-[var(--sh-card)] px-5 py-5">
             <div className="text-[18px] font-medium tracking-[-0.01em]">New {current?.label.toLowerCase()}</div>
-            <p className="max-w-[460px] text-[13px] leading-relaxed text-[#A3A6AB]">
+            <p className="max-w-[460px] text-[13px] leading-relaxed text-[var(--sh-sub)]">
               {later?.what} Its quick card here comes with the {later?.phase} redesign — for now the full form does the job.
             </p>
           </div>
         )}
 
         {pageCreate && (
-          <div className="flex items-center gap-2 text-xs text-[#8E9197]">
+          <div className="flex items-center gap-2 text-xs text-[var(--sh-muted)]">
             On this page:
             {pageCreate.href ? (
-              <Link href={pageCreate.href} onClick={onClose} className="font-medium text-[#F2F2F0] hover:underline">{pageCreate.label}</Link>
+              <Link href={pageCreate.href} onClick={onClose} className="font-medium text-[var(--sh-fg)] hover:underline">{pageCreate.label}</Link>
             ) : (
-              <button type="button" onClick={() => { onClose(); pageCreate.onClick?.(); }} className="font-medium text-[#F2F2F0] hover:underline">{pageCreate.label}</button>
+              <button type="button" onClick={() => { onClose(); pageCreate.onClick?.(); }} className="font-medium text-[var(--sh-fg)] hover:underline">{pageCreate.label}</button>
             )}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[#26282C] pt-3">
+        <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[var(--sh-line)] pt-3">
           {tab === "task" ? (
             <>
               <button type="button" onClick={() => { const href = sub?.full() ?? "/task/new"; onClose(); router.push(href); }}
-                className="inline-flex h-9 items-center gap-1.5 px-1 text-[13px] text-[#A3A6AB] hover:text-white">
+                className="inline-flex h-9 items-center gap-1.5 px-1 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
                 Open as a full task<Maximize2 size={12} />
               </button>
               <button type="button" disabled={!options || sub?.busy} onClick={() => sub?.fn(true)}
-                className="inline-flex h-9 items-center rounded-[10px] border border-[#34363B] px-3.5 text-[13px] text-[#E6E6E3] hover:bg-[#1F2023] disabled:opacity-50">
+                className="inline-flex h-9 items-center rounded-[10px] border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] disabled:opacity-50">
                 Create and add another
               </button>
               <button type="button" disabled={!options || sub?.busy} onClick={() => sub?.fn(false)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-4 text-[13px] font-semibold text-[#111214] hover:opacity-90 disabled:opacity-50">
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90 disabled:opacity-50">
                 {sub?.busy && <Loader2 size={13} className="animate-spin" />}Create task
               </button>
             </>
           ) : current ? (
-            <Link href={current.href} onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-4 text-[13px] font-semibold text-[#111214] hover:opacity-90">Continue to the form<ArrowRight size={13} /></Link>
+            <Link href={current.href} onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90">Continue to the form<ArrowRight size={13} /></Link>
           ) : null}
         </div>
       </div>

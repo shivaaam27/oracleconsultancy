@@ -230,10 +230,10 @@ function GoToPanel({
     <div data-studio-goto className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       <div
-        className="st-tex-dots st-pop absolute inset-x-3 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] mx-auto flex max-h-[calc(100dvh-100px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-4 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:p-5"
+        className="st-sheet st-sheet-dots st-pop absolute inset-x-3 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] mx-auto flex max-h-[calc(100dvh-100px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-3xl bg-[var(--sh-bg)] p-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:p-5"
       >
         <div className="flex flex-wrap items-center gap-2.5">
-          <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[#2E3035] bg-[#1F2023] px-3.5 text-[#8E9197]">
+          <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)]">
             <Search size={16} />
             <span className="sr-only">Find a page</span>
             <input
@@ -242,16 +242,16 @@ function GoToPanel({
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && shown[0]) onGo(shown[0].href); }}
               placeholder="Go to a page — type a few letters"
-              className="bare-field w-full border-0 bg-transparent text-sm text-[#F2F2F0] outline-none placeholder:text-[#8E9197]"
+              className="bare-field w-full border-0 bg-transparent text-sm text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]"
             />
           </label>
-          <button type="button" onClick={() => onGo(prev.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[#2E3035] px-3.5 text-[13px] text-[#C9CBCF] hover:text-white">
+          <button type="button" onClick={() => onGo(prev.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
             <ChevronLeft size={13} strokeWidth={2.2} />{prev.label}
           </button>
-          <button type="button" onClick={() => onGo(next.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[#2E3035] px-3.5 text-[13px] text-[#C9CBCF] hover:text-white">
+          <button type="button" onClick={() => onGo(next.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
             {next.label}<ChevronRight size={13} strokeWidth={2.2} />
           </button>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2E3035] text-[#C9CBCF] hover:text-white">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
             <X size={15} />
           </button>
         </div>
@@ -259,7 +259,7 @@ function GoToPanel({
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {groups.map((g) => (
             <div key={g.label} className="flex min-w-0 flex-col gap-2">
-              <div className="px-1 text-[11px] uppercase tracking-[0.08em] text-[#6E7177]">{g.label}</div>
+              <div className="px-1 text-[11px] uppercase tracking-[0.08em] text-[var(--sh-muted)]">{g.label}</div>
               {g.items.map((s) => {
                 const on = s.id === current.id;
                 const Icon = s.icon;
@@ -271,10 +271,10 @@ function GoToPanel({
                     aria-current={on ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors",
-                      on ? "bg-[#F2F2F0] text-[#111214]" : "border border-[#26282C] bg-[#1A1B1E] text-[#F2F2F0] hover:border-[#3A3D42]",
+                      on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border border-[var(--sh-line)] bg-[var(--sh-card)] text-[var(--sh-fg)] hover:border-[var(--sh-field-line)]",
                     )}
                   >
-                    <span className={cn("flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]", on ? "bg-[#E6E6E2]" : "bg-[#26282C]")}>
+                    <span className={cn("flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]", on ? "bg-[var(--sh-hover)]" : "bg-[var(--sh-hover)]")}>
                       <Icon size={15} />
                     </span>
                     <span className="min-w-0 truncate text-[13px] font-medium">{s.label}</span>
@@ -283,14 +283,14 @@ function GoToPanel({
               })}
             </div>
           ))}
-          {groups.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[#8E9197]">No page called “{q}”.</div>}
+          {groups.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8E9197]">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--sh-muted)]">
           <span>‹ and › in the footer step through the pages in this order</span>
           <span className="flex items-center gap-3">
-            <button type="button" onClick={onSearch} className="text-[#C9CBCF] hover:text-white">⌘K searches every record</button>
-            <span className="[&_button]:text-[#C9CBCF]"><ThemeToggle /></span>
+            <button type="button" onClick={onSearch} className="text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">⌘K searches every record</button>
+            <span className="[&_button]:text-[var(--sh-sub)]"><ThemeToggle /></span>
           </span>
         </div>
       </div>

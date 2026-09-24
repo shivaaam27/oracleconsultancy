@@ -252,3 +252,28 @@ screens are untouched — HideOnPortal).
   `read`/`dismiss`). **Reply now posts in place**: `replyToTaskByCode()` in
   `task/actions.ts` → `addTaskUpdateCore` (admin-gated), so it lands on the task's
   conversation like any update. Enter posts, Shift+Enter new line, Esc cancels.
+
+## Search stripped down; every footer sheet follows the theme (24 Sept 2026)
+
+The owner: search "is getting complicated and a lot … strip it down so search
+acts as search of the whole system but smarter without opening so many things".
+- **Studio search is its own component now**: `src/components/studio/search.tsx`
+  (`StudioSearch`). It only RENDERS — the one `/api/search` call, recent pages
+  and the ORI hand-off stay in `CommandPaletteProvider`, which renders it when
+  `studio` is set. The Desk palette is untouched (its Studio branches removed).
+- Empty: 4 recent tasks, 4 recent/pinned pages, 3 ORI questions. Typing: ONE
+  ranked list of 8 (a strong person/company match leads, then pages named, then
+  tasks and records by score; max 4 of a kind), a quiet row of kinds with counts
+  (Tab / Shift+Tab steps through them), and "Ask ORI" last — FIRST when the text
+  reads as a question or instruction. No preview pane, hero card, match badges,
+  history switch, Create group or page directory.
+- `cmdk` runs with `shouldFilter={false}`: the server already filtered, and
+  cmdk's own filter was hiding task rows whose title didn't contain the words
+  (a task found by its assignee) — the empty "Tasks" group in his screenshot.
+- A hairline runs under the box while the server looks (`searching` state in
+  the provider); the last results stay put so nothing jumps.
+- Studio skips the Desk-only extras on open: the GSAP stagger, `/api/pulse`,
+  `/api/ai-usage` and the per-hover `/api/entity-glance`.
+- **Quick add ("+ New") and the Go-to panel follow the theme too** (`.st-sheet`).
+  `.st-dark-chip` reads `var(--sh-fg, #F2F2F0)`, so it still works on the new
+  task page's dark band, which is a PAGE element and stays dark on purpose.
