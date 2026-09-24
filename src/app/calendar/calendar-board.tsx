@@ -253,7 +253,15 @@ export function CalendarBoard({
   // Studio: the day picked in the month grid (the left card shows it — mockup
   // board Calendar), the Events layer switch, and the lower grid sized to fit.
   const pickedKey = dayParam || todayKeyGlobal;
-  const setPickedKey = (k: string) => url.set({ day: k === todayKeyGlobal ? "" : k });
+  // Written with history.replaceState, not url.set: a router navigation re-read
+  // the whole (dynamic) calendar from the server on every click of a day.
+  // Next keeps useSearchParams in step with replaceState, so dayParam follows.
+  const setPickedKey = (k: string) => {
+    const q = new URLSearchParams(window.location.search);
+    if (k === todayKeyGlobal) q.delete("day"); else q.set("day", k);
+    const qs = q.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  };
   const [hideEvents, setHideEvents] = useState(false);
   const studioGrid = useRef<HTMLDivElement>(null);
   useFitFrame(studioGrid, { enabled: studio, minimum: 460 });

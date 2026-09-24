@@ -30,7 +30,7 @@ export const STUDIO_PAGES: StudioPage[] = [
   { id: "announcements", label: "Announcements", phase: 4, ready: false },
   { id: "outbox", label: "Outbox", phase: 4, ready: false },
   { id: "notes", label: "Notes", phase: 4, ready: false },
-  { id: "people", label: "People", phase: 5, ready: false },
+  { id: "people", label: "People", phase: 5, ready: true },
   { id: "companies", label: "Companies", phase: 5, ready: false },
   { id: "documents", label: "Documents", phase: 5, ready: false },
   { id: "assets", label: "Assets & Vendors", phase: 5, ready: false },

@@ -18,7 +18,13 @@ import { personDeleteImpact, deletePersonForever, type PersonDeleteImpact } from
  *   2. spells out what survives and what is destroyed,
  *   3. requires the person's exact name to be typed.
  */
-export function DeletePersonDialog({ personId, personName }: { personId: number; personName: string }) {
+export function DeletePersonDialog({ personId, personName, label, triggerClassName }: {
+  personId: number;
+  personName: string;
+  /** The trigger's words and look — the Studio danger zone draws it as a button. */
+  label?: string;
+  triggerClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [impact, setImpact] = useState<PersonDeleteImpact | null>(null);
   const [typed, setTyped] = useState("");
@@ -69,9 +75,9 @@ export function DeletePersonDialog({ personId, personName }: { personId: number;
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-sm text-fg-subtle transition-colors hover:text-danger"
+        className={triggerClassName ?? "inline-flex items-center gap-1.5 text-sm text-fg-subtle transition-colors hover:text-danger"}
       >
-        <Trash2 size={12} /> Delete permanently
+        {!triggerClassName && <Trash2 size={12} />} {label ?? "Delete permanently"}
       </button>
 
       <HrmsDialog open={open} onOpenChange={setOpen} width={520} title={`Delete ${personName}?`}>

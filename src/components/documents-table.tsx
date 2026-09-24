@@ -151,11 +151,12 @@ export function DocumentsTable({
       const supersede = searchParams.get("supersede");
       if (supersede && /^\d+$/.test(supersede)) setPrefillSupersedeId(parseInt(supersede, 10));
       // Remember where we came from so cancel/save returns there (e.g.
-      // from=person:42 → /people?person=42, from=company:3 → /companies/3).
+      // from=person:42 → /people/42 (the person's page, on its Documents tab —
+      // it used to reopen the old drawer), from=company:3 → /companies/3).
       const from = searchParams.get("from");
       if (from) {
         const m = /^(person|company):(\d+)$/.exec(from);
-        if (m) setReturnTo(m[1] === "person" ? `/people?person=${m[2]}` : `/companies/${m[2]}`);
+        if (m) setReturnTo(m[1] === "person" ? `/people/${m[2]}?tab=documents` : `/companies/${m[2]}`);
       }
       setCreateOpen(true);
       // Strip only the one-shot prefill params. The filter params (company,

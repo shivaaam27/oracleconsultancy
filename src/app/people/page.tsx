@@ -4,6 +4,9 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { sb } from "@/db/supabase";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { StudioPeople } from "@/components/studio/people/studio-people";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +16,14 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap] = await Promise.all([
+  const [people, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap, settings] = await Promise.all([
     getAllPeopleWithWorkload(),
     sb.from("companies").select("id,name,accent_color").order("name"),
     sb.from("departments").select("name").order("name"),
     sb.from("sites").select("name").eq("active", true).order("name"),
     sb.from("job_titles").select("name").eq("active", true).order("name"),
     getCompanyLogoMap(),
+    getAppSettings(),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
@@ -64,6 +68,11 @@ export default async function PeoplePage({
   const siteCount = new Set(
     people.flatMap((p) => [p.workSiteName, p.residenceName].filter(Boolean) as string[])
   ).size;
+
+  // Studio (Settings → New look → People): mockup board People.
+  if (isStudioOn(settings.studioPages, "people")) {
+    return <StudioPeople people={people} companies={companies.map((c) => ({ id: c.id, name: c.name }))} hints={directoryHints} />;
+  }
 
   return (
     <div className="space-y-4">

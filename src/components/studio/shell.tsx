@@ -40,6 +40,14 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const { open: openPalette } = useCommandPalette();
   const [goTo, setGoTo] = useState(false);
   const [quick, setQuick] = useState(false);
+  const [quickTab, setQuickTab] = useState<string | undefined>(undefined);
+  // A page can open the card on its own tab ("Add person" on People):
+  // window.dispatchEvent(new CustomEvent("studio:new", { detail: { tab: "person" } })).
+  useEffect(() => {
+    const onNew = (e: Event) => { setQuickTab((e as CustomEvent<{ tab?: string }>).detail?.tab); setQuick(true); };
+    window.addEventListener("studio:new", onNew);
+    return () => window.removeEventListener("studio:new", onNew);
+  }, []);
 
   const stops = useMemo(() => studioStops().filter((s) => !isHiddenNavHref(s.href, vis)), [vis]);
   const tab = params.get("tab");
@@ -169,7 +177,7 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}
             <button
               type="button"
-              onClick={() => setQuick(true)}
+              onClick={() => { setQuickTab(undefined); setQuick(true); }}
               aria-haspopup="dialog"
               aria-expanded={quick}
               aria-label="Create something new"
@@ -181,7 +189,7 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
         </div>
       </footer>
 
-      {quick && <StudioQuickAdd onClose={() => setQuick(false)} />}
+      {quick && <StudioQuickAdd initialTab={quickTab} onClose={() => setQuick(false)} />}
 
       {goTo && (
         <GoToPanel

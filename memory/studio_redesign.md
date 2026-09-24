@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages (Recurring ✅ Calendar ✅) ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages (Recurring ✅ Calendar ✅) · 5 Records (People ✅) ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -400,3 +400,45 @@ gen/p_event.py).
   ⚠️ The tooltip is NOT `.studio` (its unlayered ink colour beat the text
   utilities — titles vanished dark-on-dark) and is placed with `bottom`, not
   `translateY(-100%)` — `st-pop` animates transform and wiped the offset.
+
+## Phase 5 — People, built 24 Sept 2026 (boards People + Person)
+
+- `/people` → `StudioPeople` (`src/components/studio/people/studio-people.tsx`)
+  when the `people` switch is on. Same `PersonRow`s, same rules (overloaded =
+  5+ open, probation ending ≤ 30 days, the Attention score), same actions.
+  Header menus / mode / group / chip / q go through `useUrlFilters` (co, type,
+  loc, mode, group, chip, q). Click a card = pick it into the right card (Email,
+  WhatsApp, Call, Chat, Remind); double-click or ⤢ opens the page; ON A PHONE a
+  click opens the page (the card above is out of sight). Attention mode = the
+  worst-first queue (Message, Snooze, Skip). **Select** = bulk: company,
+  manager, portal level, deactivate/restore (bulkSetPeopleField etc.).
+  From lg the people area FITS the frame and scrolls in itself, with the search
+  bar floating over its foot (useFitFrame); below lg the bar is sticky ABOVE the
+  footer (bottom = 64px + safe area) — `bottom-3` put it behind the footer.
+- `/people/<id>` → `StudioPerson`. Band (← People, staff ID, Email · WhatsApp ·
+  Call · Chat · New task · Add document · Remind about open work · ⋯ = pack,
+  copy contact, snooze, deactivate), name, pills, tabs **Overview · Tasks ·
+  Documents · Journey · Equipment · Notes · History · Edit**. Overview = the
+  board (tiles, open tasks, tracked facts | role & companies, contact + personal
+  | portal access, direct reports with their load, journey & equipment, danger
+  zone); from xl the three columns fit the frame and scroll in themselves.
+  The other tabs reuse the old drawer's components as they are:
+  JourneyChecklist + PersonProbation, PersonAssets, LinkedNotesTab, the events
+  timeline, PersonForm. Portal "Change level / Reset password" open
+  PersonPortalAccess in a StudioSheet (director scopes live there); Revoke asks
+  twice. "Record a fact" opens FactsPanel; "Send a pack" PersonPackPanel.
+- ⚠️ **TABS ARE history.replaceState, NOT A ROUTER NAVIGATION.** The page is
+  dynamic, so `useUrlFilters`/router.replace re-read the whole person from the
+  database on every tab click (seconds). Same fix applied to the Calendar's
+  picked day. Next keeps useSearchParams in step with replaceState.
+- **Remind about open work** = `useRemindPerson` (`studio/people/remind.ts`):
+  saves a de-duplicated Outbox draft via createPersonPackDraftAction, never sends.
+- **Add person** = the "+ New" card's Person tab (`QuickPersonPane`): name, type,
+  company, reports to, job title, phone (+ same on WhatsApp), email →
+  `createPerson` (onboarding starts itself for a hire) → their page. The People
+  header button opens that card via `window` event **`studio:new` {tab}**,
+  which the shell listens for; `/people?new=1` does the same.
+- Fixed on the way: "Add document" from a person returned to the old drawer
+  (`/people?person=`) — now `/people/<id>?tab=documents`. `DeletePersonDialog`
+  takes `label`/`triggerClassName`.
+- Tokens added: `--st-bad-line`, `--st-bad-wash` (the "Revoke"/"Delete…" pink).

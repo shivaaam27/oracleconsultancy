@@ -1958,8 +1958,8 @@ body:has(main .studio) > * [data-field-label] {
 /* Studio Calendar (mockup gen/p_calendar.py): a day tile with something on it,
    a day outside the month, and that day's grey date. Chips carry their light
    tint and a dark mix as variables; the class picks by theme. */
-.studio { --st-cal-busy: #FAFAF8; --st-cal-out: #FBFBFA; --st-cal-num-out: #C4C5C9; --st-label: #6E7177; --st-dash: #CFCFCA; --st-scrim: rgba(243,243,241,0.82); --st-track-off: #D6D6D2; }
-.dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; --st-label: #8E9197; --st-dash: #4A4C52; --st-scrim: rgba(14,15,16,0.82); --st-track-off: #3A3D42; }
+.studio { --st-cal-busy: #FAFAF8; --st-cal-out: #FBFBFA; --st-cal-num-out: #C4C5C9; --st-label: #6E7177; --st-dash: #CFCFCA; --st-scrim: rgba(243,243,241,0.82); --st-track-off: #D6D6D2; --st-bad-line: #F5C6DF; --st-bad-wash: #FDEBF4; }
+.dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; --st-label: #8E9197; --st-dash: #4A4C52; --st-scrim: rgba(14,15,16,0.82); --st-track-off: #3A3D42; --st-bad-line: #4A2A3C; --st-bad-wash: #2A1622; }
 .st-cal-chip { background: var(--chip-l); color: var(--st-ink); }
 .dark .st-cal-chip { background: var(--chip-d); }
 /* A list that scrolls inside a dark Studio card: a thin dark thumb. */
