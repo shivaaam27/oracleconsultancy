@@ -116,3 +116,26 @@ app logos). The hover tile behind a folder is a soft grey rounded square.
 raising the cap is the owner's call. `app/documents/actions.ts` exports have no
 owner check — MCP and ORI call them without an admin session, so they need a
 caller-aware guard, not a blanket one.
+
+## 24 Sept 2026 (evening) — the two cards, spacing, "Check the details"
+- **The two dark cards** (owner: every page opens with them, "there must be
+  continuity") replace the Taskello trio: left = scope · size · files · expired /
+  due soon / loose · PDF / pictures / Word / folders; right ("Needs renewal",
+  rings) = the four soonest expired/due files, click → preview. **Inside a folder
+  they speak for that folder** (PES Ltd: 65 files, 4 due). Kit pieces only
+  (`StudioCardRow lg:h-[210px]`, `StudioCard tone="dark"`, `CardHead`, `BigNumber`).
+- ⚠️ **The big gap the owner saw was `html body:has([data-studio-frame]) main
+  { padding: 40px… }` hitting the work area, which was a SECOND `<main>`.** It is a
+  `div` now. **Never put a `<main>` inside a Studio page** — the rule pads it 40px
+  on every side, and a nested main is invalid HTML anyway. The path row now sits
+  level with the rail's first item (both at the same top, 34px).
+- **"Check the details"** — the AI screening step. After an upload the tray offers
+  it (spinner until the new rows arrive); the preview opens over just those files
+  in `review` mode: each is read as it comes up, boxes fill (only empty ones),
+  **nothing saves until Save & next**; Skip / Finish move on. The details panel
+  shows on a phone in this mode. Tested live with throwaway .txt files: only the
+  one saved was written; all four then removed from the table and storage.
+  ⚠️ Two traps found doing it: compute the fill from a **ref of the current
+  values, not inside a setState updater** (the updater runs later — count came out
+  0 and the boxes were never marked unsaved); and guard the auto-read with a ref,
+  because dev runs effects twice and each run is a paid AI call.

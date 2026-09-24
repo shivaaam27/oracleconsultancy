@@ -6,7 +6,7 @@
  * its details on the right, editable: expiry, reminder, type, reference,
  * issuer, notes. Nothing downloads to be looked at.
  */
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Link2, Loader2, PenLine, FolderInput, Star, Trash2, X, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
 import { FileIcon, ExpiryPill, addedBy, when } from "./file-bits";
 import { displayName, fmtSize, kindOf, type FileRow, type FolderRow, pathOf } from "@/lib/files-shared";
@@ -22,7 +22,10 @@ const FIELD = "h-9 w-full rounded-[10px] px-3 text-[13px] outline-none [color-sc
    this dark viewer dark (found on the first live look). */
 const DARK_FIELD = { background: "#141517", color: "#F2F2F0", border: "1px solid #2E3035", boxShadow: "none" } as const;
 
-export function FilePreview({ list, startId, folders, onClose, onRename, onMove, onStar, onDelete, onSaved }: {
+/** `review` = "Check the details" after an upload: each new file is read by
+ *  the AI as it comes up, the boxes fill, and NOTHING is saved until the owner
+ *  presses Save & next (or Skip). The details panel shows on a phone too. */
+export function FilePreview({ list, startId, folders, onClose, onRename, onMove, onStar, onDelete, onSaved, review = false }: {
   list: FileRow[];
   startId: number;
   folders: FolderRow[];
@@ -32,9 +35,15 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
   onStar: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
   onSaved: () => void;
+  review?: boolean;
 }) {
   const [i, setI] = useState(() => Math.max(0, list.findIndex((f) => f.id === startId)));
-  const f = list[Math.min(i, list.length - 1)];
+  // What was saved here, laid over the list — the list is a snapshot, and
+  // stepping back to a file must show what was just saved, not what it was.
+  const [saved, setSaved] = useState<Record<number, Partial<FileRow>>>({});
+  const [readIds] = useState(() => new Set<number>());
+  const base = list[Math.min(i, list.length - 1)];
+  const f = base ? { ...base, ...saved[base.id] } : base;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,7 +71,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
         <FileIcon ext={f.ext} size={26} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{displayName(f)}</div>
-          <div className="truncate text-xs text-[#8E9197]">{place} · {fmtSize(f.size)} · {i + 1} of {list.length}</div>
+          <div className="truncate text-xs text-[#8E9197]">{review ? <span className="text-[#F2F2F0]">Check the details · </span> : null}{place} · {fmtSize(f.size)} · {i + 1} of {list.length}</div>
         </div>
         <div className="hidden items-center gap-1.5 md:flex">
           <button type="button" className={BTN} onClick={() => onRename(f)}><PenLine size={14} />Rename</button>
@@ -75,7 +84,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
         <button type="button" className={BTN} onClick={onClose} aria-label="Close"><X size={15} /></button>
       </div>
 
-      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={cn("grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-1", review && "grid-rows-[minmax(0,38%)_minmax(0,1fr)]")}>
         <div className="relative flex min-h-0 items-center justify-center p-4 sm:px-16 sm:py-6">
           {!f.hasFile ? (
             <Empty text="No file is stored for this one — only its details." />
@@ -96,7 +105,10 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
             </>
           )}
         </div>
-        <Details key={f.id} f={f} trail={trail} onSaved={onSaved} />
+        <Details key={f.id} f={f} trail={trail} review={review} last={i >= list.length - 1}
+          autoRead={review && !readIds.has(f.id)} onRead={() => readIds.add(f.id)}
+          onSaved={(v) => { setSaved((m) => ({ ...m, [f.id]: { ...m[f.id], ...v } })); onSaved(); }}
+          onNext={() => (i >= list.length - 1 ? onClose() : setI(i + 1))} />
       </div>
     </div>
   );
@@ -128,44 +140,76 @@ function Empty({ text, action }: { text: string; action?: React.ReactNode }) {
   );
 }
 
-function Details({ f, trail, onSaved }: { f: FileRow; trail: string; onSaved: () => void }) {
+function Details({ f, trail, onSaved, review = false, last = false, autoRead = false, onRead, onNext }: {
+  f: FileRow; trail: string; onSaved: (v: Partial<FileRow>) => void;
+  review?: boolean; last?: boolean; autoRead?: boolean; onRead?: () => void; onNext?: () => void;
+}) {
   const { toast } = useToast();
   const [d, setD] = useState({ expiryDate: f.expiryDate ?? "", issueDate: f.issueDate ?? "", reminderLeadDays: f.reminderLeadDays, docType: f.docType ?? "", referenceNo: f.referenceNo ?? "", issuer: f.issuer ?? "", notes: f.notes ?? "" });
+  const dRef = useRef(d);
+  dRef.current = d;
   const [dirty, setDirty] = useState(false);
   const [saving, start] = useTransition();
   const set = (p: Partial<typeof d>) => { setD((x) => ({ ...x, ...p })); setDirty(true); };
-  const save = () => start(async () => {
-    const r = await saveFileDetailsAction(f.id, { ...d, expiryDate: d.expiryDate || null, issueDate: d.issueDate || null, docType: d.docType || null, referenceNo: d.referenceNo || null, issuer: d.issuer || null, notes: d.notes || null });
+  const save = (andNext = false) => start(async () => {
+    if (!dirty) { if (andNext) onNext?.(); return; }
+    const v = { ...d, expiryDate: d.expiryDate || null, issueDate: d.issueDate || null, docType: d.docType || null, referenceNo: d.referenceNo || null, issuer: d.issuer || null, notes: d.notes || null };
+    const r = await saveFileDetailsAction(f.id, v);
     if (!r.ok) { toast(r.error, { tone: "danger" }); return; }
-    toast("Details saved.", { tone: "success" }); setDirty(false); onSaved();
+    if (!andNext) toast("Details saved.", { tone: "success" });
+    setDirty(false); onSaved(v);
+    if (andNext) onNext?.();
   });
   // Read it for me: the AI suggests, the boxes fill, nothing is saved until
   // the owner presses Save. Only empty boxes are filled — never over his typing.
   const [reading, setReading] = useState(false);
+  const [readNote, setReadNote] = useState<string | null>(null);
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const read = async () => {
-    setReading(true);
+    setReading(true); setReadNote(null); onRead?.();
     const r = await readFileDetailsAction(f.id).catch(() => ({ ok: false, fields: {}, note: "Couldn't reach the reader." }) as Awaited<ReturnType<typeof readFileDetailsAction>>);
+    // Moved on to the next file while this one was being read — say nothing.
+    if (!live.current) return;
     setReading(false);
     const got = r.fields ?? {};
+    // Only EMPTY boxes — whatever is already there, or he typed while it was
+    // reading, stays. Read from the ref: `d` here is the value from before the
+    // wait. (Computing this inside a setState updater looked neater and was
+    // wrong — React runs the updater later, so the count came out 0 and the
+    // filled boxes were never marked unsaved.)
+    const cur = dRef.current;
     const fill: Partial<typeof d> = {};
-    if (!d.expiryDate && got.expiryDate) fill.expiryDate = got.expiryDate;
-    if (!d.issueDate && got.issueDate) fill.issueDate = got.issueDate;
-    if (!d.docType && got.docType) fill.docType = got.docType;
-    if (!d.referenceNo && got.referenceNo) fill.referenceNo = got.referenceNo;
-    if (!d.issuer && got.issuer) fill.issuer = got.issuer;
-    if (!d.notes && got.notes) fill.notes = got.notes;
+    if (!cur.expiryDate && got.expiryDate) fill.expiryDate = got.expiryDate;
+    if (!cur.issueDate && got.issueDate) fill.issueDate = got.issueDate;
+    if (!cur.docType && got.docType) fill.docType = got.docType;
+    if (!cur.referenceNo && got.referenceNo) fill.referenceNo = got.referenceNo;
+    if (!cur.issuer && got.issuer) fill.issuer = got.issuer;
+    if (!cur.notes && got.notes) fill.notes = got.notes;
     const n = Object.keys(fill).length;
     if (n) set(fill);
-    toast(n ? `Filled ${n} ${n === 1 ? "box" : "boxes"} — check them, then Save.` : r.note || "Nothing new to fill in.", { tone: n ? "success" : "default" });
+    const msg = n ? `Filled ${n} ${n === 1 ? "box" : "boxes"} — check them, then Save.` : r.note || "Nothing new to fill in.";
+    if (review) setReadNote(msg); else toast(msg, { tone: n ? "success" : "default" });
   };
+  // Once, as the file comes up. The ref (not the effect) is the guard: React
+  // runs an effect twice in development, and each run is a paid AI call.
+  const started = useRef(false);
+  useEffect(() => { if (autoRead && f.hasFile && !started.current) { started.current = true; void read(); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const renew = () => start(async () => {
     const r = await renewDocumentAction(f.id);
     toast(r.ok ? "Renewal task raised — due on the expiry date." : r.error, { tone: r.ok ? "success" : "danger" });
-    if (r.ok) onSaved();
+    if (r.ok) onSaved({});
   });
   const L = "mb-1 block text-xs text-[#8E9197]";
   return (
-    <aside className="hidden min-h-0 flex-col gap-4 overflow-y-auto border-l border-[#26282C] p-5 lg:flex">
+    <aside className={cn("min-h-0 flex-col gap-4 overflow-y-auto border-[#26282C] p-5 lg:flex lg:border-l", review ? "flex border-t lg:border-t-0" : "hidden")}>
+      {review && (
+        <div className="flex items-center gap-2 rounded-[10px] border border-[#2E3035] bg-[#141517] px-3 py-2.5 text-[13px]">
+          {reading ? <Loader2 size={14} className="shrink-0 animate-spin text-[#8E9197]" /> : <Sparkles size={14} className="shrink-0 text-[#9DB4FF]" />}
+          <span className={reading ? "text-[#A3A6AB]" : ""}>{reading ? "Reading the file…" : readNote ?? "Check the boxes, then Save & next."}</span>
+        </div>
+      )}
       <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
         <span className="text-[#8E9197]">Company</span><span className="truncate">{f.companyName ?? "—"}</span>
         <span className="text-[#8E9197]">Person</span><span className="truncate">{f.personName ?? "—"}</span>
@@ -185,9 +229,18 @@ function Details({ f, trail, onSaved }: { f: FileRow; trail: string; onSaved: ()
         <label className="col-span-2"><span className={L}>Notes</span><textarea rows={3} style={DARK_FIELD} className={cn(FIELD, "h-auto py-2")} value={d.notes} onChange={(e) => set({ notes: e.target.value })} /></label>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={!dirty || saving} onClick={save} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-3.5 text-[13px] font-semibold text-[#111214] disabled:opacity-35">
-          {saving && <Loader2 size={13} className="animate-spin" />}{dirty ? "Save details" : "Saved"}
-        </button>
+        {review ? (
+          <>
+            <button type="button" disabled={saving} onClick={() => save(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-3.5 text-[13px] font-semibold text-[#111214] disabled:opacity-35">
+              {saving && <Loader2 size={13} className="animate-spin" />}{last ? "Save & finish" : "Save & next"}
+            </button>
+            <button type="button" disabled={saving} onClick={onNext} className={BTN}>{last ? "Finish" : "Skip"}</button>
+          </>
+        ) : (
+          <button type="button" disabled={!dirty || saving} onClick={() => save()} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-3.5 text-[13px] font-semibold text-[#111214] disabled:opacity-35">
+            {saving && <Loader2 size={13} className="animate-spin" />}{dirty ? "Save details" : "Saved"}
+          </button>
+        )}
         {f.hasFile && <button type="button" disabled={reading} onClick={() => void read()} className={BTN} title="The AI reads the file and fills the empty boxes — nothing is saved until you press Save">{reading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{reading ? "Reading…" : "Read it for me"}</button>}
         {f.expiryDate && <button type="button" disabled={saving} onClick={renew} className={BTN}><CalendarClock size={14} />Make a renewal task</button>}
       </div>

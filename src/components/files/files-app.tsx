@@ -16,8 +16,9 @@ import { useRouter } from "next/navigation";
 import {
   Search, List as ListIcon, LayoutGrid, FolderPlus, Upload, Folder, Clock, Star, CalendarClock, Trash2, Eye, Download, MoreHorizontal,
   PenLine, FolderInput, Link2, RotateCcw, Check, X, Loader2, ChevronUp, ChevronDown, Users,
+  Sparkles,
 } from "lucide-react";
-import { StudioScope } from "@/components/studio/kit";
+import { StudioScope, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
 import { useStudioFootNote } from "@/components/studio/foot-note";
 import { useToast } from "@/components/toast";
 import { FolderIcon, type FolderBadge } from "./folder-icon";
@@ -37,7 +38,7 @@ export type FilesCompany = { id: number; name: string; prefix: string; tile: str
 type View = "all" | "recent" | "starred" | "renew" | "deleted";
 type Nav = { view: View; folder: number | null };
 type SortKey = "name" | "place" | "who" | "expiry" | "size" | "modified";
-type Upload = { key: string; name: string; pct: number; state: "up" | "done" | "error"; error?: string };
+type Upload = { key: string; name: string; pct: number; state: "up" | "done" | "error"; error?: string; id?: number };
 
 const MAX_BYTES = MAX_UPLOAD_BYTES;
 const ALLOWED = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif", "image/gif", "image/tiff", "image/bmp", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "text/csv", "application/zip"]);
@@ -96,7 +97,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
   const [sel, setSel] = useState<Set<number>>(new Set());
   const anchor = useRef<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
-  const [preview, setPreview] = useState<{ id: number; list: FileRow[] } | null>(null);
+  const [preview, setPreview] = useState<{ id: number; list: FileRow[]; review?: boolean } | null>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[]; extra?: ReactNode } | null>(null);
   const [dialog, setDialog] = useState<ReactNode>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -282,7 +283,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
       if (!ok) { set(it.key, { state: "error", error: "Upload failed — check the connection" }); continue; }
       const r = await fileUploadAction({ path: t.path, name: f.name, size: f.size, folderId: target });
       if (!r.ok) { set(it.key, { state: "error", error: r.error }); continue; }
-      set(it.key, { pct: 100, state: "done" }); done++;
+      set(it.key, { pct: 100, state: "done", id: r.id }); done++;
     }
     if (done) router.refresh();
   }, [nav, router]);
@@ -397,6 +398,17 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
     return [];
   };
   const trail = nav.view === "all" && nav.folder != null ? pathOf(folders, nav.folder) : [];
+  const scopeFolder = nav.view === "all" && hereFolder && !hereFolder.deletedAt ? hereFolder : null;
+  const scopeIds = scopeFolder ? descendantIds(liveFolders, scopeFolder.id) : null;
+  const scopeFiles = scopeIds ? live.filter((f) => f.folderId != null && scopeIds.has(f.folderId)) : live;
+  const scopeName = scopeFolder ? trail.map((f) => f.name).join(" / ") : "All files";
+  const scopeSize = scopeFiles.reduce((n, f) => n + (f.size ?? 0), 0);
+  const scopeKinds = { pdf: 0, image: 0, word: 0 };
+  for (const f of scopeFiles) { const k = kindOf(f.ext); if (k === "pdf" || k === "image" || k === "word") scopeKinds[k]++; }
+  const scopeFolderCount = liveFolders.filter((f) => f.parentId === (scopeFolder?.id ?? null)).length;
+  const scopeDue = scopeFiles.filter((f) => f.status === "expired" || f.status === "soon").sort((a, b) => (a.expiryDate ?? "").localeCompare(b.expiryDate ?? ""));
+  const scopeExpired = scopeDue.filter((f) => f.status === "expired").length;
+  const scopeSoon = scopeDue.length - scopeExpired;
   const topCompanies = liveFolders.filter((f) => f.parentId == null && f.companyId != null);
   const staffTop = liveFolders.find((f) => f.parentId == null && f.name === "Staff papers");
   const totalSize = live.reduce((n, f) => n + (f.size ?? 0), 0);
@@ -450,6 +462,58 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         </div>
       </div>
 
+      {/* The two dark cards every Studio page opens with (owner, 24 Sept 2026:
+          "all the pages have these two cards… there must be continuity") —
+          built from the same kit as Companies' Portfolio + Most at risk.
+          Inside a folder they speak for that folder. */}
+      <StudioCardRow className="lg:h-[210px]">
+        <StudioCard tone="dark">
+          <CardHead label={scopeName} right={`${fmtSize(scopeSize)} stored`} />
+          <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-4 pt-4">
+            <div>
+              <BigNumber value={scopeFiles.length} unit={scopeFiles.length === 1 ? "file" : "files"} />
+              <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--st-on-card-muted)]">
+                <button type="button" onClick={() => go({ view: "renew", folder: null })} className="text-[#F07BBE] hover:underline">{scopeExpired} expired</button>
+                <button type="button" onClick={() => go({ view: "renew", folder: null })} className="text-[#F5B94E] hover:underline">{scopeSoon} due soon</button>
+                {!scopeFolder && <span>{live.filter((f) => f.folderId == null).length} loose</span>}
+              </div>
+            </div>
+            <span className="flex-1" />
+            <div className="flex items-end gap-[18px]">
+              {([[scopeKinds.pdf, "PDF", "#F07BBE"], [scopeKinds.image, "pictures", "#7CC0FF"], [scopeKinds.word, "Word", "#9DB4FF"], [scopeFolderCount, "folders", "#8E9197"]] as const).map(([v, l, c]) => (
+                <div key={l} className="text-center">
+                  <div className="text-[30px] leading-none tracking-[-0.03em] tabular-nums">{v}</div>
+                  <div className="mt-1.5 whitespace-nowrap text-[11px]" style={{ color: c }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </StudioCard>
+        <StudioCard tone="dark" texture="rings">
+          <CardHead label="Needs renewal" right={`soonest first · ${scopeDue.length} due${scopeFolder ? ` in ${scopeFolder.name}` : ""}`} />
+          <div className="mt-auto flex flex-col gap-2.5 pt-4">
+            {scopeDue.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">Nothing here is expired or due for renewal.</div>}
+            {scopeDue.slice(0, 4).map((f) => {
+              const days = f.expiryDate ? Math.round((new Date(`${f.expiryDate}T00:00:00`).getTime() - Date.now()) / 86_400_000) : 0;
+              const late = f.status === "expired";
+              const w = late ? 100 : Math.max(8, Math.min(100, Math.round((1 - days / Math.max(1, f.reminderLeadDays)) * 100)));
+              return (
+                <button key={f.id} type="button" onClick={() => setPreview({ id: f.id, list: scopeDue })}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1.5 text-left text-[13px] hover:opacity-90 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_130px]">
+                  <span className="truncate">{f.title}<span className="ml-1.5 text-xs text-[var(--st-on-card-muted)]">{f.companyName ?? f.personName ?? ""}</span></span>
+                  <span className="order-last col-span-2 h-2 overflow-hidden rounded bg-[var(--st-card-3)] sm:order-none sm:col-span-1">
+                    <span className="block h-full rounded" style={{ width: `${w}%`, background: late ? "var(--st-late)" : "var(--st-soon)" }} />
+                  </span>
+                  <span className="whitespace-nowrap text-right text-xs text-[var(--st-on-card-muted)]">
+                    {late ? `expired ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ago` : days === 0 ? "expires today" : `renew in ${days} ${days === 1 ? "day" : "days"}`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </StudioCard>
+      </StudioCardRow>
+
       <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[232px_minmax(0,1fr)]">
         {/* the rail */}
         <nav aria-label="Files" className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:rounded-[20px] lg:bg-[var(--st-surface)] lg:p-3 lg:sticky lg:top-3">
@@ -486,17 +550,17 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         </nav>
 
         {/* the work */}
-        <main className="flex min-w-0 flex-col gap-[18px]">
-          <div className="flex min-h-9 flex-wrap items-center gap-1 text-[13px]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-h-[34px] flex-wrap items-center gap-1 text-[13px] lg:mt-3">
             {nav.view === "all" && !needle ? (
               <>
-                <button type="button" onClick={() => go({ view: "all", folder: null })} className={cn("rounded-lg px-2 py-1.5 hover:bg-[var(--st-hover,var(--st-page))]", trail.length ? "text-[var(--st-sub)]" : "px-2 text-[20px] font-semibold tracking-[-0.01em]")}>All files</button>
+                <button type="button" onClick={() => go({ view: "all", folder: null })} className={cn("rounded-lg px-2 py-1.5 hover:bg-[var(--st-hover,var(--st-page))]", trail.length ? "text-[var(--st-sub)]" : "px-2 py-0.5 text-[20px] font-semibold tracking-[-0.01em]")}>All files</button>
                 {trail.map((fo, i) => (
                   <span key={fo.id} className="flex items-center gap-1">
                     <span className="text-[var(--st-muted)]">/</span>
                     <button type="button" onClick={() => go({ view: "all", folder: fo.id })}
                       onDragOver={(e) => { if (dragIds.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (dragIds.current) { moveFiles(dragIds.current, fo.id); dragIds.current = null; } }}
-                      className={cn("rounded-lg px-2 py-1.5 hover:bg-[var(--st-page)]", i === trail.length - 1 ? "text-[20px] font-semibold tracking-[-0.01em]" : "text-[var(--st-sub)]")}>{fo.name}</button>
+                      className={cn("rounded-lg px-2 py-1.5 hover:bg-[var(--st-page)]", i === trail.length - 1 ? "py-0.5 text-[20px] font-semibold tracking-[-0.01em]" : "text-[var(--st-sub)]")}>{fo.name}</button>
                   </span>
                 ))}
               </>
@@ -505,13 +569,6 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
             <span className="text-xs text-[var(--st-muted)]">{nav.view === "deleted" ? `Kept ${KEEP_DELETED_DAYS} days, then removed for good` : nav.view === "all" && !needle ? "Drop files anywhere to upload here · drag a file onto a folder to move it" : ""}</span>
           </div>
 
-          {nav.view === "all" && nav.folder == null && !needle && (
-            <div className="-mx-1 flex snap-x gap-3.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 [&>*]:min-w-[260px] [&>*]:snap-start md:[&>*]:min-w-0">
-              <SummaryCard title="Company files" sub={`Across ${topCompanies.length} companies`} big={String(live.filter((f) => f.companyId != null).length)} unit="Files" right={`${topCompanies.length} folders`} art="linear-gradient(120deg,#1B6FD8,#50B1FD 45%,#9ED6FF)" tag={<>Filed by<br />company</>} onClick={() => topCompanies[0] && go({ view: "all", folder: topCompanies[0].id })} />
-              <SummaryCard title="Needs renewal" sub="Expired or due soon" big={String(renewN).padStart(2, "0")} unit="Due" right={`${expiredN} expired`} art="linear-gradient(120deg,#C2327F,#F5733D 45%,#FFB36B)" tag={<>Renew<br />on time</>} onClick={() => go({ view: "renew", folder: null })} />
-              <SummaryCard title="Staff papers" sub="Passports & work permits" big={String(staffTop ? countIn.get(staffTop.id) ?? 0 : 0)} unit="Files" right={`${staffTop ? liveFolders.filter((f) => f.parentId === staffTop.id).length : 0} people`} art="linear-gradient(120deg,#6B46C1,#9F7AEA 45%,#E9D8FD)" tag="People" onClick={() => staffTop && go({ view: "all", folder: staffTop.id })} />
-            </div>
-          )}
 
           {nav.view === "deleted" && deletedFolders.length > 0 && !needle && (
             <>
@@ -585,7 +642,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
               ))}
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       {/* selection bar */}
@@ -616,6 +673,21 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
             {uploads.some((u) => u.state === "up") ? `Uploading ${uploads.filter((u) => u.state === "up").length} of ${uploads.length}` : `${uploads.filter((u) => u.state === "done").length} uploaded`}
             <button type="button" onClick={() => setUploads([])} className={IB} aria-label="Close"><X size={14} /></button>
           </div>
+          {(() => {
+            // After an upload: the AI reads each new file and fills its details
+            // for the owner to check — nothing is saved until he presses Save.
+            const ids = uploads.filter((u) => u.state === "done" && u.id != null).map((u) => u.id!);
+            const ready = files.filter((f) => ids.includes(f.id) && !f.deleted);
+            if (uploads.some((u) => u.state === "up") || !ids.length) return null;
+            return (
+              <button type="button" disabled={ready.length < ids.length}
+                onClick={() => { setPreview({ id: ready[0].id, list: ids.map((id) => ready.find((f) => f.id === id)!).filter(Boolean), review: true }); setUploads([]); }}
+                className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-3 py-2 text-[13px] font-semibold text-[var(--st-surface)] hover:opacity-90 disabled:opacity-40">
+                {ready.length < ids.length ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                Check the details{ids.length > 1 ? ` of ${ids.length} files` : ""}
+              </button>
+            );
+          })()}
           <div className="st-scroll flex max-h-[260px] flex-col overflow-y-auto">
             {uploads.map((u) => (
               <div key={u.key} className="flex items-center gap-2.5 py-1.5">
@@ -640,7 +712,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
           onMove={(f) => { setPreview(null); moveDialog([f.id]); }}
           onStar={(f) => starFiles([f.id], !f.starred)}
           onDelete={(f) => { setPreview(null); deleteFiles([f.id]); }}
-          onSaved={() => router.refresh()} />
+          onSaved={() => router.refresh()} review={preview.review} />
       )}
     </StudioScope>
   );
@@ -662,30 +734,10 @@ function RailItem({ on, icon, label, n, bad, onClick }: { on: boolean; icon: Rea
 
 function SecHead({ title, meta }: { title: string; meta?: string }) {
   return (
-    <div className="flex items-center justify-between gap-2.5">
+    <div className="mt-2 flex items-center justify-between gap-2.5">
       <h2 className="m-0 text-[15px] font-semibold">{title}</h2>
       {meta && <span className="text-xs text-[var(--st-muted)]">{meta}</span>}
     </div>
-  );
-}
-
-/** The "Taskello" card: a coloured blurred band, a dark panel cut like a folder tab over it. */
-function SummaryCard({ title, sub, big, unit, right, art, tag, onClick }: { title: string; sub: string; big: string; unit: string; right: string; art: string; tag: ReactNode; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="relative min-h-[184px] overflow-hidden rounded-[22px] border-4 border-[#141517] bg-[#141517] text-left text-[#F2F2F0] transition-transform duration-300 [transition-timing-function:cubic-bezier(.34,1.4,.64,1)] hover:-translate-y-[3px]">
-      <span className="absolute inset-x-0 top-0 h-[92px] rounded-t-[18px]" style={{ background: art }} />
-      <span className="absolute inset-x-0 top-0 h-[92px] bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.35),transparent_40%)] mix-blend-overlay" />
-      <span className="absolute right-4 top-3.5 text-right text-[13px] font-semibold leading-tight [text-shadow:0_1px_8px_rgba(0,0,0,0.35)]">{tag}</span>
-      <svg aria-hidden className="absolute inset-x-0 bottom-0 top-[52px] h-[calc(100%-52px)] w-full" viewBox="0 0 300 140" preserveAspectRatio="none"><path d="M0 22C0 10 10 0 22 0H150C158 0 163 3 168 9L178 20C183 26 190 30 198 30H300V140H0Z" fill="#141517" /></svg>
-      <span className="relative flex h-full min-h-[176px] flex-col px-[18px] pb-4 pt-[70px]">
-        <span className="text-[15px] font-semibold">{title}</span>
-        <span className="mt-0.5 text-[13px] text-[#A3A6AB]">{sub}</span>
-        <span className="mt-auto flex items-baseline justify-between pt-4">
-          <span className="text-[34px] font-medium tracking-[-0.03em]">{big}<small className="ml-1 text-sm font-normal text-[#C9CBCF]">{unit}</small></span>
-          <span className="text-[13px] font-semibold">{right}</span>
-        </span>
-      </span>
-    </button>
   );
 }
 
