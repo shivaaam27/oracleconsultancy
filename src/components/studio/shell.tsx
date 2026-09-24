@@ -26,6 +26,7 @@ import { StudioQuickAdd } from "./quick-add";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
+import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
 
 export type StudioFootNote = { label: string; text: string; href?: string } | null;
 
@@ -47,6 +48,15 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
     const onNew = (e: Event) => { setQuickTab((e as CustomEvent<{ tab?: string }>).detail?.tab); setQuick(true); };
     window.addEventListener("studio:new", onNew);
     return () => window.removeEventListener("studio:new", onNew);
+  }, []);
+
+  // A page's own footer line (useStudioFootNote), if it set one for this path.
+  const [pageNote, setPageNote] = useState<PageFootNote>(null);
+  useEffect(() => {
+    setPageNote(window.__studioFootNote ?? null);
+    const on = (e: Event) => setPageNote((e as CustomEvent<PageFootNote>).detail);
+    window.addEventListener(FOOT_NOTE_EVENT, on);
+    return () => window.removeEventListener(FOOT_NOTE_EVENT, on);
   }, []);
 
   const stops = useMemo(() => studioStops().filter((s) => !isHiddenNavHref(s.href, vis)), [vis]);
@@ -76,7 +86,7 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const recordCode = /^\/task\/([A-Za-z0-9]+-\d+)$/.exec(pathname)?.[1];
   const note: StudioFootNote = recordCode
     ? { label: "You are in", text: `Tasks › ${recordCode}` }
-    : nextDeadline;
+    : pageNote && pageNote.path === pathname ? pageNote.note : nextDeadline;
 
   // Chat is a full-screen app on a phone; the footer steps aside there, as the
   // pill did.

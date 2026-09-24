@@ -256,10 +256,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   voiceLanguage: "en-GB",
   voiceDictionary: [
     "Oracle Consultancy",
-    "Dar Spices",
-    "Cocozuri Chocolat",
+    "DSC Ltd",
+    "Furaha Innovation Ltd",
     "Terra Green",
-    "Oracle Consultancy",
     "PES Ltd",
     "MES Ltd",
     "Pamoja Plus",

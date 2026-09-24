@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { people, sites, jobTitles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
 import { reindexEntity } from "@/lib/index-hooks";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -30,7 +31,8 @@ function revalidate() {
 /** Add a new portfolio company. Needs a name + a 2-letter task-code prefix
  *  (e.g. "DS" → DS-001). `code` mirrors the prefix and must be unique.
  *  Indexes it for search. */
-export async function createCompany(name: string, prefix: string, accentColor?: string): Promise<Result> {
+export async function createCompany(name: string, prefix: string, accentColor?: string): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const cleanName = name.trim();
   const cleanPrefix = prefix.trim().toUpperCase();
   if (!cleanName) return { ok: false, error: "Enter a company name." };
@@ -61,13 +63,14 @@ export async function createCompany(name: string, prefix: string, accentColor?: 
   const id = data.id as number;
   void reindexEntity("company", id); // best-effort search indexing
   revalidate();
-  return { ok: true };
+  return { ok: true, id };
 }
 
 /* ------------------------------------------------------------------ */
 /* Sites / locations                                                  */
 /* ------------------------------------------------------------------ */
 export async function createSite(name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a site name." };
   const { data: existing } = await sb.from("sites").select("id").ilike("name", clean).maybeSingle();
@@ -79,6 +82,7 @@ export async function createSite(name: string): Promise<Result> {
 }
 
 export async function renameSite(id: number, name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a site name." };
   const { data: clash } = await sb.from("sites").select("id").ilike("name", clean).maybeSingle();
@@ -91,6 +95,7 @@ export async function renameSite(id: number, name: string): Promise<Result> {
 
 /** Merge one site into another: re-point people's work-site and residence, then delete the source. */
 export async function mergeSites(fromId: number, intoId: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different sites." };
   // One atomic transaction: either every person is re-pointed AND the old site is
   // removed, or nothing changes — no half-merged state if a step fails.
@@ -109,6 +114,7 @@ export async function mergeSites(fromId: number, intoId: number): Promise<Result
 
 /** Delete a site; anyone based/living there is set to "no site". */
 export async function deleteSite(id: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     await db.transaction(async (tx) => {
       await tx.update(people).set({ workSiteId: null }).where(eq(people.workSiteId, id));
@@ -126,6 +132,7 @@ export async function deleteSite(id: number): Promise<Result> {
 /* Roles / job titles  (people.role is free text — rename re-points it) */
 /* ------------------------------------------------------------------ */
 export async function createRole(name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a job title." };
   const { data: existing } = await sb.from("job_titles").select("id").ilike("name", clean).maybeSingle();
@@ -138,6 +145,7 @@ export async function createRole(name: string): Promise<Result> {
 
 /** Rename a job title AND re-point every person whose role text matches the old name. */
 export async function renameRole(id: number, name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a job title." };
   const { data: current } = await sb.from("job_titles").select("name").eq("id", id).maybeSingle();
@@ -158,6 +166,7 @@ export async function renameRole(id: number, name: string): Promise<Result> {
 
 /** Merge one job title into another: re-point people's role text, then delete the source title. */
 export async function mergeRoles(fromId: number, intoId: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different job titles." };
   const [{ data: from }, { data: into }] = await Promise.all([
     sb.from("job_titles").select("name").eq("id", fromId).maybeSingle(),
@@ -179,6 +188,7 @@ export async function mergeRoles(fromId: number, intoId: number): Promise<Result
 
 /** Remove a job title from the managed list (people keep their current role text). */
 export async function deleteRole(id: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const { error } = await sb.from("job_titles").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidate();

@@ -34,6 +34,10 @@ import { getCompanyLogoUrl } from "@/lib/company-brand";
 import { CompanyAvatar } from "@/components/company-avatar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { getStaffIdMap } from "@/lib/staff-id";
+import { StudioCompany, type StudioCompanyData } from "@/components/studio/companies/studio-company";
 import {
   ExternalLink,
   ChevronRight,
@@ -61,7 +65,7 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl] =
+  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl, settings] =
     await Promise.all([
       getAllTasks(),
       listDocuments(),
@@ -74,6 +78,7 @@ export default async function CompanyPage({
       sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,role,company_id").eq("active", true).order("name"),
       getCompanyLogoUrl(companyId),
+      getAppSettings(),
     ]);
   const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
   const peopleList = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
@@ -167,6 +172,207 @@ export default async function CompanyPage({
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
     const pickerPeople = allPeople.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
     orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads, pickerPeople };
+  }
+
+  const otherTabs = (
+    <>
+      {tab === "profile" && (
+        <div className="space-y-3.5">
+          <CompanyRelationships relationships={relationships} />
+          <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60">
+            <Network size={13} /> Explore all connections
+          </Link>
+          <CompanyProfile
+            companyId={companyId}
+            companyName={name}
+            accent={accent}
+            logoUrl={logoUrl}
+            profile={{
+              filePrefix: (companyRaw?.file_prefix as string | null) ?? null,
+              legalName: (companyRaw?.legal_name as string | null) ?? null,
+              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
+              tin: (companyRaw?.tin as string | null) ?? null,
+              vrn: (companyRaw?.vrn as string | null) ?? null,
+              incorporationDate: companyRaw?.incorporation_date
+                ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10)
+                : null,
+              address: (companyRaw?.address as string | null) ?? null,
+              phone: (companyRaw?.phone as string | null) ?? null,
+              email: (companyRaw?.email as string | null) ?? null,
+              signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
+              signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
+              sectorRegulated: !!(companyRaw?.sector_regulated as boolean | null),
+            }}
+          />
+          {/* CompanyKeyDocuments removed: the statutory numbers/expiries it showed
+              are the Statutory checklist's job (they were displayed three times on
+              this tab). The checklist below is the single home for them. */}
+          <CompanyDocuments
+            companyId={companyId}
+            companyName={name}
+            documents={companyDocs}
+            staffGroups={staffGroups}
+            companies={companiesList}
+            people={peopleList}
+            stageByDoc={stageByDoc}
+          />
+        </div>
+      )}
+
+      {tab === "tasks" && (
+        <>
+          <CompanyKpiStrip rows={rows} companyName={name} />
+          <div className="flex items-center justify-between pt-1">
+            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+              Open tasks
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
+                {openRows.length}
+              </span>
+            </h2>
+            <Link
+              href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
+              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
+            >
+              <ExternalLink size={12} /> Open in hub Tasks
+            </Link>
+          </div>
+          {openRows.length === 0 ? (
+            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
+          ) : (
+            <SelectionProvider>
+              <BulkBar />
+              <TableView rows={openRows} hideCompany />
+            </SelectionProvider>
+          )}
+
+          {/* Completed & closed fold in under Tasks rather than a separate tab. */}
+          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
+            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
+              <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
+              Completed &amp; closed
+              <span className="text-xs text-fg-subtle font-normal tabular">{completedRows.length}</span>
+            </summary>
+            <div className="px-2 pb-2">
+              {completedRows.length === 0 ? (
+                <div className="text-sm text-fg-muted px-2 py-6 text-center">
+                  Nothing completed yet. Finished tasks move here automatically.
+                </div>
+              ) : (
+                <SelectionProvider>
+                  <BulkBar />
+                  <TableView rows={completedRows} hideCompany />
+                </SelectionProvider>
+              )}
+            </div>
+          </details>
+        </>
+      )}
+
+      {/* Notes that mention this company (Phase 3 of the notes plan). A server
+          read, so there is no fetch and no spinner — the page already knows.
+          Owner-only, like every note: this page is behind the admin gate and has
+          no portal twin. */}
+      {tab === "notes" && (
+        <LinkedNotesList
+          notes={await notesLinkedTo("company", companyId)}
+          emptyHint={`Write @${name} in any note and it will appear here.`}
+          about={{ entity: "company", id: companyId, label: name }}
+        />
+      )}
+
+      {tab === "timeline" && (
+        <TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} />
+      )}
+
+      {tab === "org" && orgTab && (
+        <ErrorBoundary label="company-org">
+        <OrgChart
+          companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
+          trees={{ [companyId]: orgTab.tree }}
+          extras={orgTab.extras}
+          associatedByCompany={{ [companyId]: orgTab.associated }}
+          deptHeads={orgTab.deptHeads}
+          pickerPeople={orgTab.pickerPeople}
+          initialCompanyId={companyId}
+          showSwitcher={false}
+          showEveryone={false}
+        />
+        </ErrorBoundary>
+      )}
+    </>
+  );
+
+  // Studio (Settings → New look → Companies): mockup board Company.
+  if (isStudioOn(settings.studioPages, "companies")) {
+    let overview: StudioCompanyData["overview"] = null;
+    if (tab === "overview") {
+      const [capT, sigT, resT, factT, staffIds] = await Promise.all([
+        sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        getStaffIdMap(),
+      ]);
+      const docStatus = companyDocs.map((d) => deriveDocStatus(d));
+      const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
+      // Worst first: late, then by deadline, undated last.
+      const ordered = [...openRows].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
+      const eat = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "Africa/Nairobi" }).replace(",", "");
+      const primary = (peopleRaw ?? []).filter((p) => (p.company_id as number | null) === companyId);
+      // Directors and heads first, then by name.
+      const rank = (role: string | null) => (/director|ceo|chair/i.test(role ?? "") ? 0 : /head|manager|cfo|coo/i.test(role ?? "") ? 1 : 2);
+      const assets = overviewExtras?.assets ?? [];
+      const vendors = overviewExtras?.vendors ?? [];
+      overview = {
+        documents: {
+          total: companyDocs.length,
+          expired: docStatus.filter((x) => x === "Expired").length,
+          expiring: docStatus.filter((x) => x === "Expiring").length,
+        },
+        chips: {
+          overdue: overdueCount,
+          dueSoon: openRows.filter((r) => r.flag === "due-soon").length,
+          stalled: openRows.filter((r) => r.flag === "stalled").length,
+          noDeadline: openRows.filter((r) => !r.deadline).length,
+          noOwner: openRows.filter((r) => r.assignees.length === 0).length,
+        },
+        tasks: ordered.map((r) => {
+          const days = r.deadline ? Math.floor((r.deadline.getTime() - Date.now()) / 86_400_000) : null;
+          return {
+            code: r.code, title: r.actionItem,
+            when: !r.deadline ? "no date" : isLate(r) ? `${Math.max(1, -Math.ceil((r.deadline.getTime() - Date.now()) / 86_400_000))}d late` : eat(r.deadline),
+            tone: !r.deadline ? "none" as const : isLate(r) ? "late" as const : days != null && days <= 6 ? "soon" as const : "plain" as const,
+          };
+        }),
+        staff: primary
+          .map((p) => ({ id: p.id as number, name: p.name as string, role: (p.role as string | null) ?? null, staffId: staffIds.get(p.id as number) ?? null }))
+          .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name)),
+        alsoCount: Math.max(0, teamCount - primary.length),
+        equipment: {
+          assets: assets.length, vendors: vendors.length,
+          expiredContracts: vendors.filter((v) => v.expiredCount > 0).length,
+          items: [
+            ...vendors.filter((v) => v.expiredCount > 0).map((v) => ({ name: v.name, sub: "contract expired", bad: true })),
+            ...assets.map((a) => ({ name: a.name, sub: a.custodianName ?? a.assignedToName ?? a.location ?? "Unassigned" })),
+            ...vendors.filter((v) => v.expiredCount === 0).map((v) => ({ name: v.name, sub: v.category ?? "Supplier" })),
+          ],
+        },
+        governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
+      };
+    }
+    const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
+    return (
+      <>
+        <CompanyActions companyId={companyId} companyName={name} />
+        {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
+        <StudioCompany data={{
+          id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
+          open: openRows.length, late: overdueCount, people: teamCount, tab, overview,
+        }}>
+          {otherTabs}
+        </StudioCompany>
+      </>
+    );
   }
 
   return (
@@ -368,129 +574,7 @@ export default async function CompanyPage({
         </>
       )}
 
-      {tab === "profile" && (
-        <div className="space-y-3.5">
-          <CompanyRelationships relationships={relationships} />
-          <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60">
-            <Network size={13} /> Explore all connections
-          </Link>
-          <CompanyProfile
-            companyId={companyId}
-            companyName={name}
-            accent={accent}
-            logoUrl={logoUrl}
-            profile={{
-              filePrefix: (companyRaw?.file_prefix as string | null) ?? null,
-              legalName: (companyRaw?.legal_name as string | null) ?? null,
-              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
-              tin: (companyRaw?.tin as string | null) ?? null,
-              vrn: (companyRaw?.vrn as string | null) ?? null,
-              incorporationDate: companyRaw?.incorporation_date
-                ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10)
-                : null,
-              address: (companyRaw?.address as string | null) ?? null,
-              phone: (companyRaw?.phone as string | null) ?? null,
-              email: (companyRaw?.email as string | null) ?? null,
-              signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
-              signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
-              sectorRegulated: !!(companyRaw?.sector_regulated as boolean | null),
-            }}
-          />
-          {/* CompanyKeyDocuments removed: the statutory numbers/expiries it showed
-              are the Statutory checklist's job (they were displayed three times on
-              this tab). The checklist below is the single home for them. */}
-          <CompanyDocuments
-            companyId={companyId}
-            companyName={name}
-            documents={companyDocs}
-            staffGroups={staffGroups}
-            companies={companiesList}
-            people={peopleList}
-            stageByDoc={stageByDoc}
-          />
-        </div>
-      )}
-
-      {tab === "tasks" && (
-        <>
-          <CompanyKpiStrip rows={rows} companyName={name} />
-          <div className="flex items-center justify-between pt-1">
-            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Open tasks
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
-                {openRows.length}
-              </span>
-            </h2>
-            <Link
-              href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
-              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-            >
-              <ExternalLink size={12} /> Open in hub Tasks
-            </Link>
-          </div>
-          {openRows.length === 0 ? (
-            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
-          ) : (
-            <SelectionProvider>
-              <BulkBar />
-              <TableView rows={openRows} hideCompany />
-            </SelectionProvider>
-          )}
-
-          {/* Completed & closed fold in under Tasks rather than a separate tab. */}
-          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
-            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
-              <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
-              Completed &amp; closed
-              <span className="text-xs text-fg-subtle font-normal tabular">{completedRows.length}</span>
-            </summary>
-            <div className="px-2 pb-2">
-              {completedRows.length === 0 ? (
-                <div className="text-sm text-fg-muted px-2 py-6 text-center">
-                  Nothing completed yet. Finished tasks move here automatically.
-                </div>
-              ) : (
-                <SelectionProvider>
-                  <BulkBar />
-                  <TableView rows={completedRows} hideCompany />
-                </SelectionProvider>
-              )}
-            </div>
-          </details>
-        </>
-      )}
-
-      {/* Notes that mention this company (Phase 3 of the notes plan). A server
-          read, so there is no fetch and no spinner — the page already knows.
-          Owner-only, like every note: this page is behind the admin gate and has
-          no portal twin. */}
-      {tab === "notes" && (
-        <LinkedNotesList
-          notes={await notesLinkedTo("company", companyId)}
-          emptyHint={`Write @${name} in any note and it will appear here.`}
-          about={{ entity: "company", id: companyId, label: name }}
-        />
-      )}
-
-      {tab === "timeline" && (
-        <TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} />
-      )}
-
-      {tab === "org" && orgTab && (
-        <ErrorBoundary label="company-org">
-        <OrgChart
-          companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
-          trees={{ [companyId]: orgTab.tree }}
-          extras={orgTab.extras}
-          associatedByCompany={{ [companyId]: orgTab.associated }}
-          deptHeads={orgTab.deptHeads}
-          pickerPeople={orgTab.pickerPeople}
-          initialCompanyId={companyId}
-          showSwitcher={false}
-          showEveryone={false}
-        />
-        </ErrorBoundary>
-      )}
+      {otherTabs}
     </div>
   );
 }

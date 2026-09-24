@@ -585,3 +585,29 @@ devices (deliberate in portal-auth.ts after installed-app sign-outs; revoking
 does); Google Disconnect doesn't revoke at Google; the voice dictionary still
 lists the old names "Dar Spices" and "Cocozuri Chocolat"; the Claude-access
 card's long paragraph.
+
+## Phase 5 — Companies, built 24 Sept 2026 (boards Companies + Company)
+
+`studio/companies/studio-companies.tsx` (hub) and `studio-company.tsx` (one
+company); the page switch is `companies` (switched on live).
+- **One standing rule** (`standing()` / `STANDING`, exported from the hub):
+  nothing open → Nothing open; late/open > ½ → At risk; any late → Watch; else
+  On track. Tile, portfolio counts, "Most at risk" and the footer all use it.
+  "Done" on a tile is done THIS MONTH (closedDate ≥ month start, as signals.ts),
+  so the tiles add up to the portfolio card.
+- Hub tabs Departments/Sites/Roles are `StudioReference` over the SAME actions
+  (create/rename/merge/delete). Tab via replaceState (`?tab=sites`).
+- "Add company" (header, dashed tile, footer "+ New") opens the "+ New" card's
+  new **Company** tab (`quick-company.tsx` → `createCompany`, which now returns
+  the id so it opens the new company).
+- Company page: band + Overview (tiles · open tasks with chips · equipment &
+  suppliers · ORI briefing (/api/company-summary) · people with staff IDs ·
+  documents ring · governance counts). Other tabs keep their bodies inside a
+  white card — the page builds `otherTabs` once for both looks.
+- **Footer line per page:** `useStudioFootNote()` (`studio/foot-note.ts`) —
+  "Needs you most · MES Ltd …" on the hub, "Company · Furaha … · CC" on a
+  company. Tied to the path, so it never lingers on the next page.
+- Company, site, role, department and company-profile actions now check for the
+  owner themselves (they had no check at all).
+- Voice dictionary default and live value: DSC Ltd / Furaha Innovation Ltd
+  replace Dar Spices / Cocozuri Chocolat.

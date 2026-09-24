@@ -14,6 +14,9 @@ import { getRolesAdmin } from "@/lib/roles";
 import { CompaniesHubTabs } from "@/components/companies-hub-tabs";
 import { AddCompanyCard } from "@/components/add-company-card";
 import { AlertOctagon, CheckCircle2, Clock, ChevronRight, Users } from "lucide-react";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { StudioCompanies } from "@/components/studio/companies/studio-companies";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +32,11 @@ export default async function CompaniesPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [rows, logoMap, departments, sites, roles, allCompanies, personCompanies] = await Promise.all([
+  const [rows, logoMap, departments, sites, roles, allCompanies, personCompanies, settings] = await Promise.all([
     getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin(),
-    sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
+    sb.from("companies").select("id,name,accent_color,code_prefix").eq("active", true).order("name"),
     getPersonCompaniesMap(),
+    getAppSettings(),
   ]);
   // Each task counts once, under the company it is filed under (see
   // company-kpis.ts for why not its people's companies). Every active company
@@ -50,6 +54,30 @@ export default async function CompaniesPage({
   // Portfolio totals come from the same rows, so they equal the sum of the cards.
   const g = computeGlobalKpis(rows);
   const totals = { open: g.open, overdue: g.overdue, completed: g.completed };
+
+  // Studio (Settings → New look → Companies): mockup board Companies.
+  if (isStudioOn(settings.studioPages, "companies")) {
+    // "Done" on a tile is done THIS MONTH, so the tiles add up to the
+    // portfolio card's "done this month" (same rule as signals.ts).
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const doneByCompany = new Map<number, number>();
+    for (const r of rows) {
+      if ((r.status === "Completed" || r.status === "Closed") && r.closedDate && r.closedDate.getTime() >= monthStart) {
+        doneByCompany.set(r.companyId, (doneByCompany.get(r.companyId) ?? 0) + 1);
+      }
+    }
+    const prefixById = new Map((allCompanies.data ?? []).map((c) => [c.id as number, ((c.code_prefix as string | null) ?? "").toUpperCase()]));
+    return (
+      <StudioCompanies data={{
+        companies: companies.map((c) => ({
+          id: c.id, name: c.name, prefix: prefixById.get(c.id) || c.name.slice(0, 2).toUpperCase(),
+          staff: staffByCompany.get(c.id) ?? 0, open: c.open, late: c.overdue, done: doneByCompany.get(c.id) ?? 0,
+        })),
+        departments, sites, roles,
+      }} />
+    );
+  }
   return (
     <div className="space-y-5">
       <HrmsCrumbs from={from} />

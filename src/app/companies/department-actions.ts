@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { people, tasks, departments, departmentHeads } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -25,6 +26,7 @@ function revalidateRepoint() {
 
 /** Create a new department (no-op if the name already exists). */
 export async function createDepartment(name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a department name." };
   const { data: existing } = await sb.from("departments").select("id").ilike("name", clean).maybeSingle();
@@ -37,6 +39,7 @@ export async function createDepartment(name: string): Promise<Result> {
 
 /** Rename a department. */
 export async function renameDepartment(id: number, name: string): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a department name." };
   const { data: clash } = await sb.from("departments").select("id").ilike("name", clean).maybeSingle();
@@ -54,6 +57,7 @@ export async function renameDepartment(id: number, name: string): Promise<Result
  * target keeps its head).
  */
 export async function mergeDepartments(fromId: number, intoId: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different departments." };
 
   // One atomic transaction: re-point people + tasks + heads and remove the source,
@@ -93,6 +97,7 @@ export async function mergeDepartments(fromId: number, intoId: number): Promise<
  * department"; its per-company heads are removed.
  */
 export async function deleteDepartment(id: number): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     await db.transaction(async (tx) => {
       await tx.update(people).set({ departmentId: null }).where(eq(people.departmentId, id));

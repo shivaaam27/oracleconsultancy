@@ -20,6 +20,7 @@ import { useRegisteredActions } from "@/components/context-actions";
 import { studioNewTaskOptions } from "@/app/task/actions";
 import { QuickTaskPane, type Options } from "./tasks/new-task";
 import { QuickPersonPane } from "./people/quick-person";
+import { QuickCompanyPane } from "./companies/quick-company";
 import { cn } from "@/lib/cn";
 
 const LATER: Record<string, { phase: string; what: string }> = {
@@ -27,7 +28,6 @@ const LATER: Record<string, { phase: string; what: string }> = {
   event: { phase: "Phase 4", what: "The event form handles guests, invitations and papers that travel." },
   announcement: { phase: "Phase 4", what: "The composer sets who sees it and whether they must confirm." },
   document: { phase: "Phase 5", what: "Drop the file there — it is read and the fields fill in for you to check." },
-  company: { phase: "Phase 5", what: "The company form sets the name and the two-letter task code." },
 };
 
 /** The tab that fits the page you are on. */
@@ -50,6 +50,7 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
   const [options, setOptions] = useState<Options | null>(null);
   const submitRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const personRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
+  const companyRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const [, force] = useState(0);
   const { actions } = useRegisteredActions();
 
@@ -73,6 +74,11 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
   const register = useCallback((fn: (again: boolean) => void, busy: boolean, full: () => string) => {
     const was = submitRef.current?.busy;
     submitRef.current = { fn, busy, full };
+    if (was !== busy) force((n) => n + 1);
+  }, []);
+  const registerCompany = useCallback((fn: (again: boolean) => void, busy: boolean, full: () => string) => {
+    const was = companyRef.current?.busy;
+    companyRef.current = { fn, busy, full };
     if (was !== busy) force((n) => n + 1);
   }, []);
   const registerPerson = useCallback((fn: (again: boolean) => void, busy: boolean, full: () => string) => {
@@ -121,7 +127,8 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
             <div className="flex h-40 items-center justify-center text-[var(--sh-muted)]"><Loader2 size={16} className="animate-spin" /></div>
           )}
         </div>
-        {tab !== "task" && tab !== "person" && (
+        {tab === "company" && <QuickCompanyPane onDone={(again) => { if (!again) onClose(); }} registerSubmit={registerCompany} />}
+        {tab !== "task" && tab !== "person" && tab !== "company" && (
           <div className="flex min-h-[150px] flex-col justify-center gap-1.5 rounded-2xl border border-[var(--sh-line)] bg-[var(--sh-card)] px-5 py-5">
             <div className="text-[18px] font-medium tracking-[-0.01em]">New {current?.label.toLowerCase()}</div>
             <p className="max-w-[460px] text-[13px] leading-relaxed text-[var(--sh-sub)]">
@@ -166,6 +173,17 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
               <button type="button" disabled={!options || personRef.current?.busy} onClick={() => personRef.current?.fn(false)}
                 className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90 disabled:opacity-50">
                 {personRef.current?.busy && <Loader2 size={13} className="animate-spin" />}Create person
+              </button>
+            </>
+          ) : tab === "company" ? (
+            <>
+              <button type="button" disabled={companyRef.current?.busy} onClick={() => companyRef.current?.fn(true)}
+                className="inline-flex h-9 items-center rounded-[10px] border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] disabled:opacity-50">
+                Create and add another
+              </button>
+              <button type="button" disabled={companyRef.current?.busy} onClick={() => companyRef.current?.fn(false)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90 disabled:opacity-50">
+                {companyRef.current?.busy && <Loader2 size={13} className="animate-spin" />}Create company
               </button>
             </>
           ) : current ? (

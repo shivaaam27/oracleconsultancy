@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
 import { reindexEntity } from "@/lib/index-hooks";
@@ -21,6 +22,7 @@ function safeName(name: string): string {
  * company branding fields used across the app.
  */
 export async function saveCompanyProfileAction(companyId: number, fd: FormData): Promise<Result> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const incDate = str(fd, "incorporationDate");
   const patch: Record<string, unknown> = {
     // Brand file prefix for document naming (DarSpices, PES…). Strip spaces/punct
@@ -105,6 +107,7 @@ export async function enrichCompanyProfile(
   companyId: number,
   fields: CompanyProfileFields
 ): Promise<{ ok: true; filled: string[] } | { ok: false; error: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     const { data: company, error: readErr } = await sb
       .from("companies")
