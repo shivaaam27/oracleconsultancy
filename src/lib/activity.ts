@@ -27,6 +27,9 @@ function resolveAuthor(by: string | null): { author: string; management: boolean
   if (by.startsWith("portal-mgr:")) return { author: by.slice(11), management: true, isOri: false };
   if (by.startsWith("portal-hr:")) return { author: by.slice(10), management: true, isOri: false };
   if (by.startsWith("portal:")) return { author: by.slice(7), management: false, isOri: false };
+  // Written through Claude (MCP): "mcp:Owner" is the owner, else the staff name.
+  if (by === "mcp:Owner") return { author: "You", management: false, isOri: false };
+  if (by.startsWith("mcp:")) return { author: by.slice(4), management: false, isOri: false };
   return { author: "Management", management: true, isOri: false };
 }
 

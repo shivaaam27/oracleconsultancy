@@ -6,8 +6,8 @@ Branch **`studiotask`** (not pushed; deploys are master-only). Started 24 Sept 2
 The owner showed two screenshots of the Superpower health app and asked for COS
 to look and work like them: a big title, two equal summary cards (dark, with
 textures, rings and arcs), then full-width rows or the record. On Tasks the right
-card is the **update card**: unread summary until a row is clicked, then that
-task's latest update and a box to post straight away; ↗ opens the full task.
+card is the **update card**: the unread updates, three at a time with ‹ ›. A
+click on a row (or an update) opens the **side panel** — see below.
 
 **The mockup is the specification.** Source in `design/studio-mockup/` (README
 there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
@@ -51,10 +51,21 @@ It turns on BOTH the list (`/?tab=tasks`) and the record (`/task/CODE`).
   (`src/components/studio/tasks/`) around the SAME body components. Board,
   Calendar, Timeline and Cards are unchanged inside the new frame.
 - Top: two equal cards — `InsightsCard` (3 slides: Overview / By company / By
-  person, every number a link) and `UpdateCard` (idle = unread + today's fresh
-  three; picked = summary, latest update, quick post, Complete/Escalate/Remind,
-  ⤢ to the full record). Picking is `StudioPickProvider` state — it does NOT
-  change the URL; Esc clears it.
+  person, every number a link) and `UpdateCard` (every UNREAD update, newest
+  first, three per page with ‹ › and "1 of N" like the card beside it; the
+  latest three when nothing is unread). Picking is `StudioPickProvider` state —
+  it does NOT change the URL; Esc clears it.
+- **A picked task opens `TaskPanel` (task-panel.tsx), NOT the card** (owner,
+  25 Sept 2026). The card used to turn into the picked task, but it sits at the
+  top of the page, so a row picked further down had its updates off-screen.
+  The panel is fixed on the right (400px), not a modal — the list stays live,
+  another row swaps it, ×/Esc/same row closes it. From `xl` the page makes room
+  (`:has([data-task-panel]) main { padding-right: 440px }` in globals.css);
+  below that it floats; on a phone it is a sheet above the footer. It loads the
+  whole conversation from `/api/task-detail`, which stamps the owner's view —
+  so opening a task there marks it read, and the panel refreshes once so the
+  row's dot and the card agree. ⚠️ A row's TITLE and LATEST-UPDATE cells are
+  links to the full task; only the rest of the row picks.
 - Rows: `RecordList variant="studio"` (looks only — same columns engine,
   sorting, bulk, export) + `activeKey`. The task table gains a 7-day pulse and
   latest-update column in Studio only; its filter rail moves into the

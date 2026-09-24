@@ -1712,6 +1712,12 @@ html body:has([data-studio-frame]) main {
   html body:has([data-studio-frame]) { --page-top: 12px; }
   html body:has([data-studio-frame]) main { padding: 40px 40px calc(64px + 96px + env(safe-area-inset-bottom)); }
 }
+/* The Tasks side panel (components/studio/tasks/task-panel.tsx): from xl up
+   the page makes room for it, so it sits BESIDE the list and never covers a
+   row. Below xl it floats over the list; on a phone it is a sheet. */
+@media (min-width: 1280px) {
+  html body:has([data-studio-frame]):has([data-task-panel]) main { padding-right: 440px; }
+}
 .studio-frame {
   position: fixed;
   z-index: 40;

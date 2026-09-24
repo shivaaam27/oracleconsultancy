@@ -16,6 +16,9 @@ function adminAuthorOf(by: string | null): { name: string; management: boolean; 
   if (by === "meeting-mode") return { name: "Meeting", management: true, me: false };
   if (by.startsWith("portal-mgr:")) return { name: by.slice(11), management: true, me: false };
   if (by.startsWith("portal:")) return { name: by.slice(7), management: false, me: false };
+  // Written through Claude (MCP): "mcp:Owner" is the owner, else the staff name.
+  if (by === "mcp:Owner") return { name: "You", management: true, me: true };
+  if (by.startsWith("mcp:")) return { name: by.slice(4), management: false, me: false };
   return { name: by, management: true, me: false };
 }
 

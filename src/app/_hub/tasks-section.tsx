@@ -621,9 +621,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         .map(({ p, n }) => ({ name: p.name.replace(/^(Mr|Mrs|Ms|Chef)\s+/, ""), open: n, late: lateByPerson.get(p.id) ?? 0, href: buildHref(sp, { who: String(p.id), whoMode: undefined }) })),
     };
     const withNews = openAll.filter((r) => r.latestActivity);
-    const fresh = [...withNews]
-      .sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO))
-      .slice(0, 3);
+    // The Updates card: every UNREAD update, newest first, three to a page (the
+    // owner steps through with ‹ ›). With nothing unread it shows the latest
+    // three instead, so the card is never an empty box.
+    const newest = [...withNews].sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO));
+    const unreadNews = newest.filter((r) => r.unread);
+    const fresh = unreadNews.length ? unreadNews.slice(0, 60) : newest.slice(0, 3);
     const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
 
     // The Filters panel: every filter the old page offers, grouped.

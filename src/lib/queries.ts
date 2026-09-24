@@ -148,6 +148,8 @@ function resolveUpdateAuthor(by: string | null): string {
   if (by.startsWith("portal-mgr:")) return by.slice(11);
   if (by.startsWith("portal-hr:")) return by.slice(10);
   if (by.startsWith("portal:")) return by.slice(7);
+  // Written through Claude (MCP): "mcp:Owner" is the owner, else the staff name.
+  if (by.startsWith("mcp:")) return by === "mcp:Owner" ? "You" : by.slice(4);
   return "Management";
 }
 

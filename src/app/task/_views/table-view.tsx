@@ -328,8 +328,8 @@ export function TableView({
           subRowAlways
           selectionSlot={(r) => <SelectCheckbox code={r.code} />}
           lead={studio ? studioLead : undefined}
-          /* Studio has no hover icons on a row — the update card beside the list
-             carries Complete / Escalate / Remind for the picked task. */
+          /* Studio has no hover icons on a row — the side panel a click opens
+             (studio/tasks/task-panel.tsx) carries Complete / Escalate / Remind. */
           rowActions={studio ? undefined : (r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}
           /* Stage 3: the columns, their order, widths, labels and sortability
              come from ENTITY_VIEWS.task in lib/entity-view.ts. Only the three

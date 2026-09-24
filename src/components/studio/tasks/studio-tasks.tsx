@@ -16,6 +16,7 @@ import { StudioScope, StudioHeader } from "@/components/studio/kit";
 import { StudioPickProvider } from "./pick";
 import { InsightsCard, type InsightsData } from "./insights-card";
 import { UpdateCard } from "./update-card";
+import { TaskPanel } from "./task-panel";
 import { StudioMenu, FiltersButton, StudioSearchBar, StudioIdentity, type FilterSection } from "./controls";
 import { VIEW_MODES, type ViewMode } from "@/app/task/_views/view-switcher";
 import { cn } from "@/lib/cn";
@@ -105,7 +106,7 @@ export function StudioTasks(p: StudioTasksProps) {
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <InsightsCard data={p.insights} />
-          <UpdateCard rows={p.tableRows} fresh={p.fresh} unreadCount={p.unreadCount} postedToday={p.updatedToday} />
+          <UpdateCard fresh={p.fresh} unreadCount={p.unreadCount} postedToday={p.updatedToday} />
         </div>
 
         {p.quickAdd}
@@ -117,6 +118,7 @@ export function StudioTasks(p: StudioTasksProps) {
           lenses={p.lenses}
           companyMenu={<StudioMenu label="Filter by company" options={p.companyOptions} searchable up plus />}
         />
+        <TaskPanel rows={p.tableRows} extra={p.fresh} />
       </StudioPickProvider>
     </StudioScope>
   );

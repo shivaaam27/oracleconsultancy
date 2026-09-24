@@ -21,6 +21,9 @@ export function portalUpdateAuthor(by: string | null, viewerName: string): strin
   else if (by.startsWith("portal-mgr:")) name = by.slice(11);
   else if (by.startsWith("portal-hr:")) name = by.slice(10);
   else if (by.startsWith("portal:")) name = by.slice(7);
+  // Through Claude: a staff member's own key carries their name; the owner's
+  // ("mcp:Owner") falls through to "Administrator" below, as web-ui does.
+  else if (by.startsWith("mcp:") && by !== "mcp:Owner") name = by.slice(4);
 
   if (name) {
     if (name.trim().toLowerCase() === viewerName.trim().toLowerCase()) return "You";
