@@ -123,7 +123,12 @@ const BTN_DARK = "inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(-
 const BTN_BAD = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-bad-line)] px-2.5 text-xs text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-bad-wash)]";
 const BAND_BTN = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#2E3035] px-[11px] text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] aria-disabled:pointer-events-none aria-disabled:opacity-40";
 
-export function StudioPerson({ data, backHref }: { data: StudioPersonData; backHref: string }) {
+/** `readOnly` — a director (portal unification, Sept 2026): the person as a
+ *  record to read. Their tasks, files and history; none of the owner's
+ *  levers (edit, portal access, facts, journey, equipment, snooze, delete) and
+ *  not the owner's notes or the private details (ID, passport, address). Every
+ *  one of those writes is owner-only on the server as well. */
+export function StudioPerson({ data, backHref, readOnly = false }: { data: StudioPersonData; backHref: string; readOnly?: boolean }) {
   const { person: p, workload } = data;
   const router = useRouter();
   const { toast } = useToast();
@@ -148,7 +153,8 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
       window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
     },
   };
-  const tab: Tab = (TABS as readonly string[]).includes(url.values.tab) ? (url.values.tab as Tab) : "overview";
+  const tabs: readonly Tab[] = readOnly ? TABS.filter((t) => t === "overview" || t === "tasks" || t === "documents" || t === "history") : TABS;
+  const tab: Tab = (tabs as readonly string[]).includes(url.values.tab) ? (url.values.tab as Tab) : "overview";
   const [sheet, setSheet] = useState<null | "facts" | "pack">(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
@@ -206,24 +212,25 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
           <a href={p.whatsapp ? waHref(p.whatsapp) : undefined} target="_blank" rel="noreferrer" aria-disabled={!p.whatsapp} title={p.whatsapp ?? "No WhatsApp on file"} className={BAND_BTN}><MessageCircle size={13} />WhatsApp</a>
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>
-          <Link href={`/chat?dm=${p.id}`} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>
+          {!readOnly && <Link href={`/chat?dm=${p.id}`} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>}
           <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>
-          <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>
+          {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
         </div>
-        <button type="button" disabled={!open.length || reminding}
+        {!readOnly && <button type="button" disabled={!open.length || reminding}
           onClick={() => remind(p, overdueFirst.map((t) => ({ code: t.code, actionItem: t.title })))}
           title={open.length ? "Saves a reminder in the Outbox for you to send" : "No open tasks"}
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90 disabled:opacity-40">
           {reminding ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}Remind about open work
-        </button>
+        </button>}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button type="button" aria-label="More" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[#2E3035] text-[#E6E6E3] hover:bg-[#1F2023]"><MoreHorizontal size={14} /></button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
-              <MenuItem onSelect={() => setSheet("pack")} icon={<PackageCheck size={14} />}>Send a pack…</MenuItem>
+              {!readOnly && <MenuItem onSelect={() => setSheet("pack")} icon={<PackageCheck size={14} />}>Send a pack…</MenuItem>}
               {contact && <MenuItem onSelect={() => { void navigator.clipboard.writeText(contact).then(() => toast(`Copied ${contact}`, { tone: "success" })); }} icon={<Copy size={14} />}>Copy contact</MenuItem>}
+              {!readOnly && <>
               <div className="my-1 h-px bg-[var(--st-line)]" />
               {snoozed
                 ? <MenuItem onSelect={() => act(() => snoozePerson(p.id, null), "Snooze lifted.")} icon={<Clock size={14} />}>Lift the snooze</MenuItem>
@@ -232,6 +239,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
                     <MenuItem onSelect={() => act(() => snoozePerson(p.id, new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)), "Snoozed for a week.")} icon={<Clock size={14} />}>Snooze for a week</MenuItem>
                   </>}
               <MenuItem onSelect={() => act(() => togglePersonActive(p.id), p.active ? "Deactivated — their leaving checklist has started." : "Restored.")} icon={p.active ? <UserMinus size={14} /> : <UserCheck size={14} />}>{p.active ? "Deactivate…" : "Restore"}</MenuItem>
+              </>}
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
@@ -244,7 +252,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <div className="mt-1.5 truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
         </div>
         <div className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
               className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", tab === t ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
               {TAB_LABEL[t]}
@@ -294,6 +302,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           </div>
         </Card>
 
+        {!readOnly && (
         <section className="st-tex-paper-rings flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4">
           <div className="min-w-0 flex-1">
             <h2 className="m-0 text-[15px] font-semibold">Tracked facts</h2>
@@ -302,10 +311,11 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <button type="button" onClick={() => setSheet("facts")} className={BTN_DARK}>Record a fact</button>
           <button type="button" onClick={() => setTab("documents")} className={BTN}>Files</button>
         </section>
+        )}
       </div>
 
       <div className={COL}>
-        <Card title="Role & companies" className="shrink-0" right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
+        <Card title="Role & companies" className="shrink-0" right={readOnly ? undefined : <button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
           <Facts>
             <F k="Job title" v={p.role} />
             <F k="Type" v={PERSON_TYPE_LABELS[p.personType]} />
@@ -318,7 +328,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
             {p.probationEndDate && <F k="Probation ends" v={fmt(p.probationEndDate)} />}
           </Facts>
         </Card>
-        <Card title="Contact" className={GROW} right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
+        <Card title="Contact" className={GROW} right={readOnly ? undefined : <button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
           <div className="st-scroll xl:min-h-0 xl:overflow-y-auto">
             <Facts>
               <F k="Email" v={p.email && <a href={`mailto:${p.email}`} className={LINK}>{p.email}</a>} />
@@ -328,6 +338,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
               <F k="Works at" v={p.workSite} />
               <F k="Lives at" v={p.residence} />
             </Facts>
+            {!readOnly && <>
             <button type="button" onClick={() => setPersonalOpen((v) => !v)} aria-expanded={personalOpen} className="mt-3 flex w-full items-center justify-between border-t border-[var(--st-line-soft)] pt-2.5 text-left text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">
               <span>Personal — birthday, ID, passport, emergency</span><ChevronDown size={12} className={cn("transition-transform", personalOpen && "rotate-180")} />
             </button>
@@ -345,6 +356,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
                 </Facts>
               </div>
             )}
+            </>}
           </div>
         </Card>
       </div>
@@ -356,6 +368,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
               ? <>{SCOPE_SENTENCE(data.portalScope[portalRole])}{" "}{data.portal.lastLoginAt ? `Last signed in ${fmt(data.portal.lastLoginAt)}.` : "Has never signed in."}</>
               : "No portal login — they can't see or update their tasks themselves."}
           </p>
+          {!readOnly && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {data.portal.enabled ? (
               <>
@@ -369,6 +382,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
               <button type="button" onClick={() => goPortal()} className={BTN_DARK}>Give portal access</button>
             )}
           </div>
+          )}
         </Card>
 
         {data.reports.length > 0 && (
@@ -388,6 +402,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           </Card>
         )}
 
+        {!readOnly && (
         <section className={cn("st-tex-paper-dots flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4", data.reports.length === 0 && "xl:flex-1 xl:items-start")}>
           <div className="min-w-0 flex-1">
             <h2 className="m-0 text-[15px] font-semibold">Journey & equipment</h2>
@@ -396,7 +411,9 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <button type="button" onClick={() => url.set({ tab: "journey", jk: p.active ? "onboarding" : "offboarding" })} className={BTN_DARK}>{p.active ? "Onboarding" : "Leaving"}</button>
           <button type="button" onClick={() => setTab("equipment")} className={BTN}>Equipment</button>
         </section>
+        )}
 
+        {!readOnly && (
         <section className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-3.5">
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold">Danger zone</div>
@@ -405,6 +422,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <button type="button" disabled={busy} onClick={() => act(() => togglePersonActive(p.id), p.active ? "Deactivated — their leaving checklist has started." : "Restored.")} className={BTN}>{p.active ? "Deactivate" : "Restore"}</button>
           <DeletePersonDialog personId={p.id} personName={p.name} label="Delete…" triggerClassName={BTN_BAD} />
         </section>
+        )}
       </div>
     </div>
   );
@@ -444,7 +462,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
   /* ── Documents ─────────────────────────────────────────────────────────── */
   const docTone = (s: string) => (s === "Expired" ? "var(--st-late-text)" : s === "Expiring" || s === "Due soon" ? "var(--st-soon-text)" : "var(--st-sub)");
   const docsTab = (
-    <Card title={`Files · ${data.documents.length}`} right={<Link href={addDocHref} className={BTN_DARK}><Plus size={12} />Add a file</Link>}>
+    <Card title={`Files · ${data.documents.length}`} right={readOnly ? undefined : <Link href={addDocHref} className={BTN_DARK}><Plus size={12} />Add a file</Link>}>
       <div className="mt-2 flex flex-col">
         {data.documents.length === 0 && <div className="py-8 text-center text-[13px] text-[var(--st-muted)]">Nothing filed against {shortName(p.name)} yet.</div>}
         {data.documents.map((d) => (

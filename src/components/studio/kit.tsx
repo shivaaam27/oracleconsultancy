@@ -184,3 +184,19 @@ export const stBtn = {
   /** Outline button on a dark card (“Escalate”). */
   onCardGhost: "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#34363B] px-3 text-xs text-[var(--st-on-card)] transition-colors hover:bg-[var(--st-card-2)]",
 } as const;
+
+/**
+ * WHERE A FLOATING SEARCH / FILTER BAR SITS — one place, for every page.
+ * 12px above the footer on a desk; clear of the footer below that. The owner
+ * has had to point out a gap under a page's bar twice (People, 25 Sept 2026)
+ * because each page positioned its own. Use these; never hand-write a bottom.
+ *  - `sticky`: a bar in the page's flow (Tasks).
+ *  - `fixedLg`: add it where the bar lives inside a panel that stops short of
+ *    the footer (People): from lg the bar is placed against the window.
+ */
+export const stFloatBar = {
+  // 64px footer + 12px — at every width below lg (the old md:5.5rem was the
+  // retired pill's height, and left a 24px gap on a tablet).
+  sticky: "pointer-events-none sticky bottom-[calc(64px+12px+env(safe-area-inset-bottom))] z-30 flex justify-center lg:bottom-3",
+  fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(64px+env(safe-area-inset-bottom)+12px)] lg:mt-0",
+} as const;

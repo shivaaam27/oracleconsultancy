@@ -17,7 +17,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, MessagesSquare, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2 } from "lucide-react";
-import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, Ring, stBtn } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
 import { avatarTint, initials } from "@/components/studio/tasks/task-words";
@@ -85,7 +85,10 @@ function Avatar({ name, size = 38 }: { name: string; size?: number }) {
  *  create card — mockup boards QuickAdd and CreateEdit). */
 const openAdd = () => window.dispatchEvent(new CustomEvent("studio:new", { detail: { tab: "person" } }));
 
-export function StudioPeople({ people, companies, hints = {} }: {
+/** `readOnly` — a director: browse and open people; add, snooze, remind and
+ *  bulk changes are the owner's (and refused on the server anyway). */
+export function StudioPeople({ people, companies, hints = {}, readOnly = false }: {
+  readOnly?: boolean;
   people: PersonRow[];
   companies: Company[];
   hints?: Hints;
@@ -103,9 +106,10 @@ export function StudioPeople({ people, companies, hints = {} }: {
   const { remind, pending: reminding } = useRemindPerson();
   const area = useRef<HTMLDivElement>(null);
   useFitFrame(area, { minimum: 360 });
-  const wideRings = useMediaQuery("(min-width: 1280px)");
+  // Ring size by CSS (both drawn, one shown), not by a media hook: the hook
+  // reads the window, the server has none, and the first paint mismatched.
   // /people?new=1 — the old New menu's "Person", and any link that meant "add one".
-  useCreateParam("1", openAdd);
+  useCreateParam("1", () => { if (!readOnly) openAdd(); });
 
   const openPerson = (id: number) => {
     const to = withReturn(`/people/${id}`, `${window.location.pathname}${window.location.search}`);
@@ -242,7 +246,7 @@ export function StudioPeople({ people, companies, hints = {} }: {
             </div>
             <StudioMenu label="Group" sub={`· ${GROUPS.find(([k]) => k === f.values.group)?.[1] ?? "Company"}`}
               options={GROUPS.map(([k, l]) => ({ key: k, label: l, href: f.hrefFor({ group: k }), active: f.values.group === k }))} />
-            <button type="button" onClick={openAdd} className={stBtn.dark}><Plus size={15} />Add person</button>
+            {!readOnly && <button type="button" onClick={openAdd} className={stBtn.dark}><Plus size={15} />Add person</button>}
           </>
         }
       />
@@ -261,10 +265,12 @@ export function StudioPeople({ people, companies, hints = {} }: {
             </div>
             <span className="flex-1" />
             <button type="button" onClick={() => f.set({ chip: "portal", mode: "browse" })} title="Show who is on the portal">
-              <Ring value={active ? (counts.portal / active) * 100 : 0} size={wideRings ? 116 : 92} stroke={wideRings ? 12 : 10} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" />
+              <span className="hidden xl:contents"><Ring value={active ? (counts.portal / active) * 100 : 0} size={116} stroke={12} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" /></span>
+              <span className="contents xl:hidden"><Ring value={active ? (counts.portal / active) * 100 : 0} size={92} stroke={10} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" /></span>
             </button>
             <button type="button" onClick={() => f.set({ chip: "overloaded", mode: "browse" })} title="Show who is overloaded">
-              <Ring value={active ? (counts.overloaded / active) * 100 : 0} size={wideRings ? 116 : 92} stroke={wideRings ? 12 : 10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" />
+              <span className="hidden xl:contents"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={116} stroke={12} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
+              <span className="contents xl:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={92} stroke={10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
             </button>
           </div>
         </StudioCard>
@@ -297,10 +303,10 @@ export function StudioPeople({ people, companies, hints = {} }: {
                 {selP.email && <a href={`mailto:${selP.email}`} aria-label="Email" title={selP.email} className={ICON_BTN}><Mail size={14} /></a>}
                 {selP.whatsapp && <a href={waHref(selP.whatsapp)} target="_blank" rel="noreferrer" aria-label="WhatsApp" title="WhatsApp" className={ICON_BTN}><MessageCircle size={14} /></a>}
                 {(selP.phone || selP.whatsapp) && <a href={`tel:${selP.phone ?? selP.whatsapp}`} aria-label="Call" title="Call" className={ICON_BTN}><Phone size={14} /></a>}
-                <Link href={`/chat?dm=${selP.id}`} aria-label="Chat" title="Chat" className={ICON_BTN}><MessagesSquare size={14} /></Link>
-                <button type="button" disabled={!selP.workload.open || reminding} onClick={() => remind(selP, selP.topTasks)}
+                {!readOnly && <Link href={`/chat?dm=${selP.id}`} aria-label="Chat" title="Chat" className={ICON_BTN}><MessagesSquare size={14} /></Link>}
+                {!readOnly && <button type="button" disabled={!selP.workload.open || reminding} onClick={() => remind(selP, selP.topTasks)}
                   title={selP.workload.open ? "Saves a reminder in the Outbox for you to send" : "No open tasks"}
-                  className={cn(stBtn.onCard, "h-8 rounded-[9px] disabled:opacity-50")}>{reminding && <Loader2 size={12} className="animate-spin" />}Remind about open work</button>
+                  className={cn(stBtn.onCard, "h-8 rounded-[9px] disabled:opacity-50")}>{reminding && <Loader2 size={12} className="animate-spin" />}Remind about open work</button>}
               </div>
             </div>
           ) : (
@@ -345,7 +351,7 @@ export function StudioPeople({ people, companies, hints = {} }: {
                 {p.whatsapp
                   ? <a href={waHref(p.whatsapp, reminderText(p))} target="_blank" rel="noreferrer" className={stBtn.ghost}><MessageCircle size={14} />Message</a>
                   : <button type="button" onClick={() => openPerson(p.id)} className={stBtn.ghost}><ArrowUpRight size={14} />Add contact</button>}
-                <button type="button" onClick={() => snooze(p)} disabled={busy} className={stBtn.ghost}><Clock size={14} />Snooze</button>
+                {!readOnly && <button type="button" onClick={() => snooze(p)} disabled={busy} className={stBtn.ghost}><Clock size={14} />Snooze</button>}
                 <button type="button" onClick={() => setSkipped((s) => new Set(s).add(p.id))} className={stBtn.ghost}><SkipForward size={14} />Skip</button>
               </div>
             </div>
@@ -417,7 +423,7 @@ export function StudioPeople({ people, companies, hints = {} }: {
            Below lg it rides above the footer; from lg it sits on the area. */}
       {/* The cards fade out under the bar instead of peeking out, cut, below it. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden h-24 bg-gradient-to-b from-transparent to-[var(--st-page)] lg:block" />
-      <div className="pointer-events-none sticky bottom-[calc(64px+env(safe-area-inset-bottom)+14px)] z-30 -mt-20 flex justify-center lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0">
+      <div className={cn(stFloatBar.sticky, "-mt-20", stFloatBar.fixedLg)}>
         {selecting ? (
           <div className="pointer-events-auto flex w-full max-w-[1100px] flex-wrap items-center gap-2 rounded-2xl bg-[var(--st-card)] p-2 pl-4 text-[var(--st-on-card)] shadow-[0_10px_28px_rgba(17,18,20,0.25)] sm:h-14 sm:flex-nowrap sm:py-0">
             <span className="text-[13px] font-medium">{ids.length ? pickedLabel : "Tick people to change them together"}</span>
@@ -462,9 +468,9 @@ export function StudioPeople({ people, companies, hints = {} }: {
                   </button>
                 );
               })}
-              <button type="button" onClick={() => setSelecting(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]" title="Tick several people and change them together">
+              {!readOnly && <button type="button" onClick={() => setSelecting(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]" title="Tick several people and change them together">
                 <CheckSquare size={14} />Select
-              </button>
+              </button>}
             </div>
           </div>
         )}

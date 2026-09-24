@@ -3,6 +3,20 @@ import { getPersonDetail } from "@/lib/people-queries";
 import { getAllTasks } from "@/lib/queries";
 import { safeReturn } from "@/lib/return-to";
 import { StudioPerson } from "@/components/studio/people/studio-person";
+import { getViewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { viewerCanSeeDocument } from "@/lib/files";
+
+/** The owner, or a director for someone in their companies (view-only). */
+async function personForViewer(personId: number) {
+  const viewer = await getViewer();
+  if (!viewer) return null;
+  if (viewer.kind === "director") {
+    const ok = await viewerPeopleIds(viewer);
+    if (ok && !ok.has(personId)) return null;
+  }
+  return viewer;
+}
 
 /**
  * A person at their own URL — /people/<id>.
@@ -22,6 +36,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!(await personForViewer(Number(id)))) return { title: "Person · COS" };
   const detail = await getPersonDetail(Number(id)).catch(() => null);
   return { title: detail ? `${detail.person.name} · People` : "Person · COS" };
 }
@@ -31,11 +46,27 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const { back } = await searchParams;
   const personId = Number(id);
   if (!Number.isFinite(personId)) notFound();
+  // A director sees people in their companies, read-only — and only what a
+  // colleague may: their companies' tasks and files, none of the private
+  // details (below they are blanked before anything is sent to the browser).
+  const viewer = await personForViewer(personId);
+  if (!viewer) notFound();
+  const director = viewer.kind === "director";
 
   const detail = await getPersonDetail(personId);
   if (!detail) notFound();
 
-  const p = detail.person;
+  const inScope = (cid: number | null | undefined) => viewer.scope == null || (cid != null && viewer.scope.includes(cid));
+  if (director) {
+    detail.assignedTasks = detail.assignedTasks.filter((t) => inScope(t.companyId));
+    const seen = await Promise.all(detail.documents.map((d) => viewerCanSeeDocument(viewer, d.id)));
+    detail.documents = detail.documents.filter((_, i) => seen[i]);
+    const peopleOk = await viewerPeopleIds(viewer);
+    if (peopleOk) detail.directReports = detail.directReports.filter((r) => peopleOk.has(r.id));
+  }
+  const p = director
+    ? { ...detail.person, nationalId: null, passportNo: null, address: null, dateOfBirth: null, emergencyContactName: null, emergencyContactPhone: null, notes: null }
+    : detail.person;
   const openTasks = detail.assignedTasks.filter((t) => t.status !== "Completed" && t.status !== "Closed");
   const docs = detail.documents;
 
@@ -51,6 +82,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const iso = (d: Date | null) => (d ? d.toISOString() : null);
   return (
     <StudioPerson
+      readOnly={director}
       backHref={safeReturn(back) ?? "/people"}
       data={{
         person: {
@@ -92,7 +124,8 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           personType: p.personType, relatedPersonId: p.relatedPersonId, workSite: p.workSiteName, residence: p.residenceName,
           associations: p.associations,
         },
-        lookups: { companies: detail.companies, peopleList: detail.peopleList, departments: detail.departments, sites: detail.sites, roles: detail.roles },
+        // The edit form's pick lists — the owner's alone.
+        lookups: director ? { companies: [], peopleList: [], departments: [], sites: [], roles: [] } : { companies: detail.companies, peopleList: detail.peopleList, departments: detail.departments, sites: detail.sites, roles: detail.roles },
       }}
     />
   );

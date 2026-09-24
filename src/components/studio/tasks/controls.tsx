@@ -16,7 +16,7 @@ import { ChevronDown, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
 import { adminRemindTask } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
-import { Dot, stBtn } from "@/components/studio/kit";
+import { Dot, stBtn, stFloatBar } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------ picker ---- */
@@ -226,7 +226,7 @@ export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q:
   return (
     // Below lg the old floating nav pill (z-40) owns the foot of the screen,
     // so the bar rides just above it rather than behind it.
-    <div data-sticky-foot className="pointer-events-none sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 mt-3 flex justify-center md:bottom-[5.5rem] lg:bottom-3">
+    <div data-sticky-foot className={cn(stFloatBar.sticky, "mt-3")}>
       <div className="pointer-events-auto flex w-full max-w-[860px] flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:flex-nowrap sm:py-0">
         <label className="flex min-w-[180px] flex-1 items-center gap-2 text-[var(--st-muted)]">
           <Search size={15} />

@@ -678,3 +678,11 @@ company); the page switch is `companies` (switched on live).
   no `isAdminSession` check of their own (MCP calls bulk server-side); no portal
   page imports them today, so the proxy gate covers them. A caller-aware guard
   is the fix, as with `app/documents/actions.ts`.
+
+⚠️ **A FLOATING SEARCH / FILTER BAR SITS 12px ABOVE THE FOOTER — USE
+`stFloatBar` (studio/kit.tsx), NEVER A HAND-WRITTEN `bottom-…`.** The owner has
+pointed at a gap under a page's bar twice (People, 25 Sept 2026: 33px, and 24px
+on a tablet from a leftover `md:bottom-[5.5rem]` sized for the retired pill).
+`stFloatBar.sticky` for a bar in the page's flow; add `stFloatBar.fixedLg` when
+the bar lives inside a panel that stops short of the footer. Measure it
+(footer top − bar bottom = 12) at 1440 and ~1000 before calling a page done.

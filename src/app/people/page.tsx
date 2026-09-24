@@ -2,17 +2,33 @@ import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { sb } from "@/db/supabase";
 import { StudioPeople } from "@/components/studio/people/studio-people";
+import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function PeoplePage() {
-  const [people, { data: companiesRaw }, logoMap] = await Promise.all([
-    getAllPeopleWithWorkload(),
+  // The owner, or a director — who sees the people of their companies,
+  // read-only, without anyone's private details (lib/viewer.ts).
+  const viewer = await getViewer();
+  if (!viewer) redirect("/portal");
+  const director = viewer.kind === "director";
+  const [peopleAll, { data: companiesAll }, logoMap, inScope] = await Promise.all([
+    getAllPeopleWithWorkload({ taskScope: viewer.scope }),
     sb.from("companies").select("id,name,accent_color").order("name"),
     getCompanyLogoMap(),
+    viewerPeopleIds(viewer),
   ]);
+  const companiesRaw = (companiesAll ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number));
+  // Blanked, not hidden: what a director may not see never reaches the page.
+  const people = director
+    ? peopleAll
+        .filter((p) => p.active && (!inScope || inScope.has(p.id)))
+        .map((p) => ({ ...p, nationalId: null, passportNo: null, address: null, dateOfBirth: null, emergencyContactName: null, emergencyContactPhone: null, notes: null }))
+    : peopleAll;
 
-  const companies = (companiesRaw ?? []).map((c) => ({
+  const companies = companiesRaw.map((c) => ({
     id: c.id as number,
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
@@ -49,5 +65,5 @@ export default async function PeoplePage() {
 
 
   // Studio (Settings → New look → People): mockup board People.
-  return <StudioPeople people={people} companies={companies.map((c) => ({ id: c.id, name: c.name }))} hints={directoryHints} />;
+  return <StudioPeople people={people} companies={companies.map((c) => ({ id: c.id, name: c.name }))} hints={directoryHints} readOnly={director} />;
 }

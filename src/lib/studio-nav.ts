@@ -65,6 +65,7 @@ export function directorStops(o: { outbox: boolean }): StudioStop[] {
   return [
     { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
     { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
+    { id: "people", label: "People", href: "/people", group: "Records", icon: Users },
     { id: "files", label: "Files", href: "/files", group: "Records", icon: FolderOpen },
     { id: "briefings", label: "Briefings", href: "/portal/meetings", group: "Work", icon: Megaphone },
     ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/portal/outbox", group: "Work", icon: Send }] : []),

@@ -165,8 +165,10 @@ export function computeWorkload(person: Person, tasks: TaskRow[]): PersonWorkloa
   };
 }
 
-export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
-  const [{ data: rawPeople }, { data: rawCompanies }, { data: rawAssoc }, tasks] = await Promise.all([
+/** `taskScope` — count only these companies' tasks (a director's view, where
+ *  another company's work is not theirs to see). null/absent = every task. */
+export async function getAllPeopleWithWorkload(opts?: { taskScope?: number[] | null }): Promise<PersonRow[]> {
+  const [{ data: rawPeople }, { data: rawCompanies }, { data: rawAssoc }, tasksAll] = await Promise.all([
     sb
       .from("people")
       .select(
@@ -176,6 +178,8 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb.from("person_companies").select("person_id,company_id,relationship"),
     getAllTasks(),
   ]);
+  const scope = opts?.taskScope;
+  const tasks = scope ? tasksAll.filter((t) => scope.includes(t.companyId)) : tasksAll;
 
   const { data: rawReporting } = await sb.from("reporting_lines").select("person_id,manager_id");
   const sMap = await siteNameMap();
