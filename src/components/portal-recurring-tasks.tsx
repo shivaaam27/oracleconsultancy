@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { Repeat, Plus, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { StudioSheet } from "@/components/studio/sheet";
 import { FluidSelect } from "@/components/fluid-select";
 import { Combobox } from "@/components/combobox";
 import { useToast } from "@/components/toast";
@@ -98,8 +99,11 @@ export function scheduleLabel(r: Pick<RecurringTaskRule, "cadence" | "weekdays" 
  *  ("Make this repeat" / "Change how it repeats"). Owns its draft; resets to
  *  `initial` every time it opens, so a cancelled edit leaves nothing behind. */
 export function RecurringTaskSheet({
-  open, onClose, editing, initial, companies, people, busy, onSave,
+  open, onClose, editing, initial, companies, people, busy, onSave, studio = false,
 }: {
+  /** On a Studio page: the Studio sheet (theme-following, from the footer)
+   *  instead of the Desk bottom sheet. Same form, same save. */
+  studio?: boolean;
   open: boolean;
   onClose: () => void;
   editing: boolean;
@@ -130,8 +134,9 @@ export function RecurringTaskSheet({
     });
   }
 
+  const Sheet = studio ? StudioSheet : BottomSheet;
   return (
-    <BottomSheet
+    <Sheet
       open={open}
       onClose={onClose}
       title={editing ? "Edit recurring task" : "New recurring task"}
@@ -141,10 +146,12 @@ export function RecurringTaskSheet({
           type="button"
           disabled={!canSubmit || busy}
           onClick={submit}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition-transform active:scale-[0.99] disabled:opacity-50"
+          className={studio
+            ? "ml-auto flex h-9 items-center justify-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90 disabled:opacity-50"
+            : "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition-transform active:scale-[0.99] disabled:opacity-50"}
         >
           {busy ? <Loader2 size={15} className="animate-spin" /> : <Repeat size={15} />}
-          {busy ? "Saving…" : "Save"}
+          {busy ? "Saving…" : editing ? "Save changes" : "Save rule"}
         </button>
       }
     >
@@ -225,7 +232,7 @@ export function RecurringTaskSheet({
           <textarea value={d.description} onChange={(e) => set({ description: e.target.value })} rows={2} placeholder="Becomes the task's comments" className={inputCls} />
         </div>
       </div>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

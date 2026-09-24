@@ -173,3 +173,26 @@ export function shouldCreateTodaysCopy(
 ): boolean {
   return occursToday(r, now) || alsoToday;
 }
+
+/** The next days (Dar es Salaam calendar dates, "yyyy-mm-dd") this rule will
+ *  create a task, soonest first. Today counts only while today's copy has not
+ *  been made — `lastFiredAt` at or after today's 09:00 means it has. Built on
+ *  `occursToday`, so a date shown here is a date the job will actually act on.
+ *  A paused rule has none. */
+export function nextOccurrences(
+  r: { cadence: "weekly" | "monthly"; weekdays: number[]; dayOfMonth: number | null; paused?: boolean; lastFiredAt?: string | null },
+  count = 3,
+  now: Date = new Date(),
+): string[] {
+  if (r.paused) return [];
+  if (r.cadence === "weekly" && r.weekdays.length === 0) return [];
+  const sched = { cadence: r.cadence, weekdays: r.weekdays, dayOfMonth: r.dayOfMonth ?? 1 };
+  const firedToday = !!r.lastFiredAt && new Date(r.lastFiredAt).getTime() >= todaysOccurrenceInstant(now);
+  const out: string[] = [];
+  for (let i = 0; i < 400 && out.length < count; i++) {
+    const day = new Date(now.getTime() + i * 86_400_000);
+    if (i === 0 && firedToday) continue;
+    if (occursToday(sched, day)) out.push(new Date(day.getTime() + 3 * 3_600_000).toISOString().slice(0, 10));
+  }
+  return out;
+}

@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages (Recurring ✅) ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -277,3 +277,24 @@ acts as search of the whole system but smarter without opening so many things".
 - **Quick add ("+ New") and the Go-to panel follow the theme too** (`.st-sheet`).
   `.st-dark-chip` reads `var(--sh-fg, #F2F2F0)`, so it still works on the new
   task page's dark band, which is a PAGE element and stays dark on purpose.
+
+## Phase 4 — Recurring, built 24 Sept 2026
+
+- `/task/recurring` renders `StudioRecurring` (`src/components/studio/recurring/`)
+  when the `recurring` switch is on. Restyled, not rewired: the same four actions
+  in `task/recurring-actions.ts`, the same `RecurringTaskSheet`.
+- Cards: **This week** (rule count, "All live"/"N switched off", a bar per day
+  Mon–Sun of how many live rules make a task that day, today in white) and
+  **Next up** (soonest runs; one title on one day across companies folds into
+  "× N companies"). Click a row → the right card becomes that rule (Edit,
+  Switch off, Remove — the phone's only Remove, as the row's bin hides below sm).
+- **`nextOccurrences()`** in `lib/recurring-task-rules.ts` (tested) is built on
+  `occursToday`, the function the job itself asks, and skips today once
+  `lastFiredAt` is at/after today's 09:00 — so the page can't promise a day the
+  job won't act on. The list sorts by it; switched-off rules sink.
+- Company and All/Weekly/Monthly go through `useUrlFilters` (`company`, `repeats`).
+- Remove asks twice (the bin turns red: "press again").
+- **`StudioSheet`** (`src/components/studio/sheet.tsx`) is THE pop-up for a form
+  on a Studio page — the quick-add card's look (`.st-sheet`, from the footer,
+  Esc/click-outside). `RecurringTaskSheet` takes `studio` to use it; the portal
+  keeps BottomSheet. Reuse it for Announcements/Events/Outbox forms.
