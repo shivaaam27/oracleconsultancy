@@ -1,5 +1,6 @@
 "use server";
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner, guardViewer, type Viewer } from "@/lib/viewer";
+import { needCap, viewerPeopleIds } from "@/lib/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox/gen";
 import { mutate } from "@/lib/mutate";
@@ -113,7 +114,13 @@ export async function sendReminderEmail(
   personId: number,
   note?: string,
 ): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
-  await guardOwner();
+  const v = await guardViewer();
+  // A director sends as themselves, through the portal's own path: their
+  // permission, their companies, their sign-off and the owner's outreach pause.
+  if (v.kind === "director") {
+    const { portalSendReminderEmail } = await import("@/app/portal/actions");
+    return portalSendReminderEmail(personId, undefined, note);
+  }
   const { sendTaskReminderEmail } = await import("@/lib/reminders");
   const res = await sendTaskReminderEmail({
     personId,
@@ -130,8 +137,10 @@ export async function sendReminderEmail(
 
 export async function recordSent(
   formData: FormData
-): Promise<{ ok: boolean; reason?: "duplicate" | "error"; undoToken?: string }> {
-  await guardOwner();
+): Promise<{ ok: boolean; reason?: "duplicate" | "error"; undoToken?: string; error?: string }> {
+  const v = await guardViewer();
+  const refusal = await directorMayRecord(v, formData);
+  if (refusal) return { ok: false, reason: "error", error: refusal };
   const channel = String(formData.get("channel") || "");
   const name = String(formData.get("name") || "");
   const codes = JSON.parse(String(formData.get("taskCodes") || "[]")) as string[];
@@ -162,7 +171,31 @@ export async function recordSent(
 
   if (!result.ok) return { ok: false, reason: "error" };
   if (result.result.duplicate) return { ok: false, reason: "duplicate" };
-  return { ok: true, undoToken: result.undoToken };
+  // Undo runs through the owner's undo route; a director's "done" stands.
+  return { ok: true, undoToken: v.kind === "owner" ? result.undoToken : undefined };
+}
+
+/** A director may mark a reminder done only for a person in their companies,
+ *  about tasks in their companies, with the permission to message — and not
+ *  while the owner has paused portal outreach. Null = allowed. */
+async function directorMayRecord(v: Viewer, formData: FormData): Promise<string | null> {
+  if (v.kind !== "director") return null;
+  try { needCap(v, "messageOnTasks"); } catch (e) { return (e as Error).message; }
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return "Outreach is paused by the administrator.";
+  if (v.scope == null) return null;
+  const name = String(formData.get("name") || "").trim().toLowerCase();
+  let codes: string[] = [];
+  try { codes = JSON.parse(String(formData.get("taskCodes") || "[]")); } catch { return "Something went wrong."; }
+  const [{ data: ppl }, allowed, { data: tasks }] = await Promise.all([
+    sb.from("people").select("id,name").eq("active", true),
+    viewerPeopleIds(v),
+    codes.length ? sb.from("tasks").select("code,company_id").in("code", codes) : Promise.resolve({ data: [] as { code: string; company_id: number }[] }),
+  ]);
+  const person = (ppl ?? []).find((p) => (p.name as string).trim().toLowerCase() === name);
+  if (!person || !allowed?.has(person.id as number)) return "That person isn't in your companies.";
+  if ((tasks ?? []).length !== codes.length || (tasks ?? []).some((t) => !v.scope!.includes(t.company_id as number))) return "Those tasks aren't all in your companies.";
+  return null;
 }
 
 function endOfToday(): Date {

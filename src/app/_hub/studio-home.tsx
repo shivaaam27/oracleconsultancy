@@ -270,16 +270,16 @@ export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRo
 
   if (director) {
     // Cut down: only what a director can act on and open. The owner's levers
-    // and the pages not yet shared with directors (People, Files, Calendar,
-    // Companies, Activity, Approvals, HR) come out; the rest is unchanged.
-    const OPEN = (href: string | undefined) => !href || href.startsWith("/?") || href === "/" || href.startsWith("/task/") || href.startsWith("/portal/");
+    // and the pages not shared with directors (Activity, Approvals, HR) come
+    // out; the shared screens (People, Files, Calendar, Companies, Outbox) stay.
+    const SHARED = /^\/(people|files|calendar|companies|outbox)(\/|\?|$)/;
+    const OPEN = (href: string | undefined) => !href || href.startsWith("/?") || href === "/" || href.startsWith("/task/") || href.startsWith("/portal/") || SHARED.test(href);
     const OWNER_ONLY = new Set(["Run the day", "Controls held", "What ORI did", "Team today", "Files"]);
     data.cards = data.cards.map((col) =>
       col
         .filter((c) => !OWNER_ONLY.has(c.title))
         .map((c) => {
           const out = { ...c } as typeof c & { href?: string; more?: { label: string; href: string } };
-          if (out.href === "/people") out.href = "/portal/directory";
           if (!OPEN(out.href)) delete out.href;
           if (out.more && !OPEN(out.more.href)) delete out.more;
           return out;

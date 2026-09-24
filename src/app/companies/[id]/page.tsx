@@ -234,10 +234,10 @@ export default async function CompanyPage({
         }}
         relationships={relationships as Awaited<ReturnType<typeof getCompanyRelationships>>}
         readOnly={director}
-        // Facts and governance (shareholding, signatories, resolutions) are the
-        // owner's records; a director's copy of them is a later decision.
+        // A director reads their company's governance (shareholders, signatories,
+        // resolutions — owner, 25 Sept 2026); the tracked facts stay the owner's.
         facts={director ? null : <FactsPanel entityType="company" entityId={companyId} defaultOpen />}
-        governance={director ? null : <GovernancePanel companyId={companyId} />}
+        governance={<GovernancePanel companyId={companyId} readOnly={director} />}
         documents={director ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>

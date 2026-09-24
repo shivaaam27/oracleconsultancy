@@ -18,14 +18,14 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Plus, Search, Settings as SettingsIcon, UserRound, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Moon, Plus, Search, Sun, Settings as SettingsIcon, UserRound, X } from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
 import { portalLogout } from "@/app/portal/actions";
 import { studioStops, stopIndexFor, directorStops, directorStopIndex, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { StudioQuickAdd } from "./quick-add";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "next-themes";
 import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
@@ -314,7 +314,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           next={next}
           onClose={() => setGoTo(false)}
           onGo={(href) => { setGoTo(false); router.push(href); }}
-          onSearch={() => { setGoTo(false); openPalette(); }}
+          onSearch={director ? undefined : () => { setGoTo(false); openPalette(); }}
         />
       )}
     </>
@@ -330,10 +330,13 @@ function GoToPanel({
   next: StudioStop;
   onClose: () => void;
   onGo: (href: string) => void;
-  onSearch: () => void;
+  /** Absent for a director — they have no palette. */
+  onSearch?: () => void;
 }) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const [shortcut, setShortcut] = useState("Ctrl K");
+  useEffect(() => { if (/Mac|iPhone|iPad/.test(navigator.platform)) setShortcut("⌘K"); }, []);
   useEffect(() => {
     input.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -397,7 +400,13 @@ function GoToPanel({
                       on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border border-[var(--sh-line)] bg-[var(--sh-card)] text-[var(--sh-fg)] hover:border-[var(--sh-field-line)]",
                     )}
                   >
-                    <span className={cn("flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]", on ? "bg-[var(--sh-hover)]" : "bg-[var(--sh-hover)]")}>
+                    {/* The tile on the selected (inverted) item is a tint of its own
+                        text colour — a light tile there held a white icon in light
+                        mode and a black one in dark, and the icon vanished. */}
+                    <span
+                      className={cn("flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]", !on && "bg-[var(--sh-hover)] text-[var(--sh-sub)]")}
+                      style={on ? { background: "color-mix(in srgb, var(--sh-on-fg) 16%, transparent)", color: "var(--sh-on-fg)" } : undefined}
+                    >
                       <Icon size={15} />
                     </span>
                     <span className="min-w-0 truncate text-[13px] font-medium">{s.label}</span>
@@ -409,15 +418,45 @@ function GoToPanel({
           {groups.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--sh-muted)]">
-          <span>‹ and › in the footer step through the pages in this order</span>
-          <span className="flex items-center gap-3">
-            <button type="button" onClick={onSearch} className="text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">⌘K searches every record</button>
-            <span className="[&_button]:text-[var(--sh-sub)]"><ThemeToggle /></span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--sh-line)] pt-3 text-xs text-[var(--sh-muted)]">
+          <span className="flex items-center gap-1.5">
+            <span className={KEY}><ChevronLeft size={11} strokeWidth={2.4} /></span>
+            <span className={KEY}><ChevronRight size={11} strokeWidth={2.4} /></span>
+            <span className="ml-0.5">in the footer step through these pages in order</span>
+          </span>
+          <span className="flex items-center gap-2">
+            {onSearch && (
+              <button type="button" onClick={onSearch} className="flex h-8 items-center gap-2 rounded-lg border border-[var(--sh-chip-line)] px-2.5 text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
+                <Search size={13} />Search every record<span className={KEY}>{shortcut}</span>
+              </button>
+            )}
+            <ShellThemeButton />
           </span>
         </div>
       </div>
     </div>
+  );
+}
+
+const KEY = "inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-1 text-[10px] font-medium text-[var(--sh-sub)]";
+
+/** Light / dark, drawn for the sheet. The shared ThemeToggle wears the Desk
+ *  tokens (grey on grey here) and reads `theme`, so on "system" it showed the
+ *  moon in a dark room; this reads what is actually on screen. */
+function ShellThemeButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const dark = mounted && resolvedTheme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(dark ? "light" : "dark")}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--sh-chip-line)] px-2.5 text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"
+    >
+      {dark ? <Sun size={13} /> : <Moon size={13} />}{dark ? "Light" : "Dark"}
+    </button>
   );
 }
 

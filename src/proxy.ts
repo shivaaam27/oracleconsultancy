@@ -167,6 +167,7 @@ const DIRECTOR_PATHS: RegExp[] = [
   /^\/people(\/\d+)?$/,                     // their companies' people, view-only
   /^\/companies(\/\d+)?$/,                  // their companies, view-only (tasks: full)
   /^\/calendar$/,                          // their companies' events, view-only
+  /^\/outbox$/,                            // reminders for their companies' people
 ];
 
 async function validPortalToken(token: string | undefined): Promise<boolean> {

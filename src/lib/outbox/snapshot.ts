@@ -30,6 +30,8 @@ export type AutomationSnapshot = {
   dailyCap: number;
   /** Categories that are switched on (mode !== "off"). */
   liveCategories: AutomationCategoryState[];
+  /** Every category, on or off, in settings order (the Studio card lists them all). */
+  allCategories: AutomationCategoryState[];
   /** True when nothing at all is switched on (and not paused). */
   allOff: boolean;
   /** Auto-sent automation emails in the last 7 days, newest first. */
@@ -52,14 +54,13 @@ export async function getAutomationSnapshot(): Promise<AutomationSnapshot> {
     lastRunByCat.set(cat, r.value as string);
   }
 
-  const liveCategories: AutomationCategoryState[] = categories
-    .filter((c) => cfg.categories[c].mode !== "off")
-    .map((c) => ({
-      category: c,
-      label: CATEGORY_LABELS[c],
-      mode: cfg.categories[c].mode,
-      lastRun: lastRunByCat.get(c) ?? null,
-    }));
+  const allCategories: AutomationCategoryState[] = categories.map((c) => ({
+    category: c,
+    label: CATEGORY_LABELS[c],
+    mode: cfg.categories[c].mode,
+    lastRun: lastRunByCat.get(c) ?? null,
+  }));
+  const liveCategories = allCategories.filter((c) => c.mode !== "off");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const { data: sendRows } = await sb
@@ -87,6 +88,7 @@ export async function getAutomationSnapshot(): Promise<AutomationSnapshot> {
     windowEndHour: cfg.windowEndHour,
     dailyCap: cfg.dailyCap,
     liveCategories,
+    allCategories,
     allOff: liveCategories.length === 0,
     recentSends,
   };

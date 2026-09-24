@@ -112,6 +112,29 @@ every write (and every write is `guardOwner` on the server anyway).
 - Tested live as Pulin Manek (portfolio director). A COMPANY-SCOPED director
   has not been walked through live yet — the scope code paths are the same.
 
+## Built — 25 Sept 2026 (evening): Outbox, governance, a shorter footer
+- **Outbox** (`/outbox`, in DIRECTOR_PATHS): the Studio screen, same for both.
+  A director gets reminders for people in their companies, each person's tasks
+  cut to those companies, and a WhatsApp message signed with THEIR name that
+  points the person at the portal (`buildPortalTaskReminder`). No saved drafts,
+  no Skip today (snooze is global), no undo, automation card read-only.
+  Server: `sendReminderEmail` hands a director to `portalSendReminderEmail`;
+  `recordSent` checks `messageOnTasks`, the outreach pause, the person and every
+  task code against their scope (`directorMayRecord`).
+- **Governance** — owner's decision 1, "yes": a director reads their company's
+  cap table, signatories and resolutions (`GovernancePanel readOnly`,
+  `loadCompanyGovernance` = guardViewer + needCompany). Tracked facts stay the
+  owner's.
+- **Briefings and Directory are gone for directors** (owner: People covers the
+  directory, Calendar the meetings). `/portal/meetings` → `/calendar` (or
+  `/portal/announcements` with `?tab=announcements`), `/portal/directory` →
+  `/people`, `/portal/outbox` → `/outbox`. **Announcements is its own stop**
+  (`/portal/announcements`, still the portal page — its Studio restyle is a
+  later phase). Managers and staff keep all three until their turn.
+- Footer order: Home, Tasks, Calendar, Announcements, Outbox, Companies,
+  People, Files, Chat — the same order the Go-to panel groups them in.
+
 ## Next
-Managers, then staff (the owner will define their slice). Open for directors:
-governance/facts read-only, event papers read-only, search (⌘K) scoped.
+**Decision 2 is OWED — remind the owner**: what managers and staff get (scope
+and screens). He said "later, remind me" on 25 Sept 2026. Open for directors:
+event papers read-only, search (⌘K) scoped, Announcements restyled.

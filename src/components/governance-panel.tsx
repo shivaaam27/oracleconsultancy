@@ -20,7 +20,9 @@ const input = "rounded-md border border-border bg-bg px-2 py-1 text-sm outline-n
  * resolutions log — now editable in-app (add/remove), so the board pack stays
  * live and new companies (e.g. V1 Intertrade) can be filled in without the seed.
  */
-export function GovernancePanel({ companyId }: { companyId: number }) {
+/** `readOnly` — a director (owner, 25 Sept 2026): their own companies' cap
+ *  table, signatories and resolutions to read; no add, no remove. */
+export function GovernancePanel({ companyId, readOnly = false }: { companyId: number; readOnly?: boolean }) {
   const [gov, setGov] = useState<CompanyGovernance | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState<"" | "cap" | "sig" | "res">("");
@@ -54,13 +56,13 @@ export function GovernancePanel({ companyId }: { companyId: number }) {
           <span className="ml-auto text-xs normal-case text-fg-subtle">
             {g.capTable.issued != null ? `issued ${num(g.capTable.issued)}` : ""}{g.capTable.authorised ? ` / ${num(g.capTable.authorised)} authorised` : ""}
           </span>
-          <AddToggle on={adding === "cap"} onClick={() => setAdding(adding === "cap" ? "" : "cap")} />
+          {!readOnly && <AddToggle on={adding === "cap"} onClick={() => setAdding(adding === "cap" ? "" : "cap")} />}
         </div>
         {g.capTable.holders.map((h, i) => (
           <div key={i} className="group flex items-center gap-2 text-base">
             <span className="truncate">{h.holder}{h.holderType === "Corporate" ? " (corporate)" : ""}</span>
             <span className="ml-auto tabular text-fg-muted shrink-0">{h.pct != null ? `${h.pct}%` : ""}{h.shares != null ? ` · ${num(h.shares)}` : ""}</span>
-            <DeleteBtn onClick={() => mutate(() => deleteCapHolderAction(h.id, companyId))} />
+            {!readOnly && <DeleteBtn onClick={() => mutate(() => deleteCapHolderAction(h.id, companyId))} />}
           </div>
         ))}
         {adding === "cap" && <CapForm companyId={companyId} onDone={() => { setAdding(""); }} onSaved={refresh} />}
@@ -70,13 +72,13 @@ export function GovernancePanel({ companyId }: { companyId: number }) {
       <div className="space-y-1.5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <PenLine size={12} /> Signatories
-          <AddToggle on={adding === "sig"} onClick={() => setAdding(adding === "sig" ? "" : "sig")} className="ml-auto" />
+          {!readOnly && <AddToggle on={adding === "sig"} onClick={() => setAdding(adding === "sig" ? "" : "sig")} className="ml-auto" />}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {g.signatories.map((sg) => (
             <span key={sg.id} className="group inline-flex items-center gap-1 rounded-full bg-bg-subtle px-2 py-0.5 text-sm">
               {sg.name}{sg.scope ? <span className="text-fg-subtle text-xs">· {sg.scope}</span> : null}
-              <button type="button" onClick={() => mutate(() => deleteSignatoryAction(sg.id, companyId))} className="text-fg-subtle hover:text-danger opacity-0 group-hover:opacity-100"><X size={10} /></button>
+              {!readOnly && <button type="button" onClick={() => mutate(() => deleteSignatoryAction(sg.id, companyId))} className="text-fg-subtle hover:text-danger opacity-0 group-hover:opacity-100"><X size={10} /></button>}
             </span>
           ))}
         </div>
@@ -87,21 +89,21 @@ export function GovernancePanel({ companyId }: { companyId: number }) {
       <div className="space-y-1.5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <ScrollText size={12} /> Resolutions
-          <AddToggle on={adding === "res"} onClick={() => setAdding(adding === "res" ? "" : "res")} className="ml-auto" />
+          {!readOnly && <AddToggle on={adding === "res"} onClick={() => setAdding(adding === "res" ? "" : "res")} className="ml-auto" />}
         </div>
         <ul className="space-y-1">
           {g.resolutions.map((r) => (
             <li key={r.id} className="group flex items-start gap-2 text-sm">
               <span className="tabular text-fg-subtle w-20 shrink-0">{fmtDate(r.date)}</span>
               <span className="min-w-0 flex-1"><span className="text-fg">{r.summary}</span>{r.type ? <span className="text-fg-subtle"> · {r.type}</span> : null}</span>
-              <button type="button" onClick={() => mutate(() => deleteResolutionAction(r.id, companyId))} className="text-fg-subtle hover:text-danger opacity-0 group-hover:opacity-100"><X size={11} /></button>
+              {!readOnly && <button type="button" onClick={() => mutate(() => deleteResolutionAction(r.id, companyId))} className="text-fg-subtle hover:text-danger opacity-0 group-hover:opacity-100"><X size={11} /></button>}
             </li>
           ))}
         </ul>
         {adding === "res" && <ResForm companyId={companyId} onDone={() => setAdding("")} onSaved={refresh} />}
       </div>
 
-      {empty && adding === "" && <p className="text-sm text-fg-subtle">No governance recorded yet — use the + buttons to add the cap table, signatories and resolutions.</p>}
+      {empty && adding === "" && <p className="text-sm text-fg-subtle">{readOnly ? "No governance recorded for this company yet." : "No governance recorded yet — use the + buttons to add the cap table, signatories and resolutions."}</p>}
     </section>
   );
 }

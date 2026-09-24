@@ -1,193 +1,102 @@
-import { generateDrafts } from "@/lib/outbox/gen";
-import { PageHeader } from "@/components/ui";
+import { redirect } from "next/navigation";
+import { generateDrafts, buildPortalTaskReminder } from "@/lib/outbox/gen";
+import { appBaseUrl } from "@/lib/app-url";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox/history";
-import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
-import { Panel, TONE, type Tone } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import { Globe2 } from "lucide-react";
-import { UnsnoozeButton } from "./outbox-card";
-import { OutboxWorkspace } from "./outbox-workspace";
-import { type PendingItem } from "./pending-list";
-import { SentLogDrawer } from "./sent-log-drawer";
-import { AutomationPanel } from "./automation-panel";
 import { getAutomationSnapshot } from "@/lib/outbox/snapshot";
-import { BellOff, ChevronDown } from "lucide-react";
+import { getViewer } from "@/lib/viewer";
+import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { sb } from "@/db/supabase";
+import { StudioOutbox, type SentRow } from "@/components/studio/outbox/studio-outbox";
 
 export const dynamic = "force-dynamic";
 
-export default async function OutboxPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string }>;
-}) {
-  const { from } = await searchParams;
-  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions, automation, todaySent, lastChased] = await Promise.all([
+/**
+ * The Outbox — one screen for the owner and a director (Studio, Sept 2026;
+ * mockup `Outbox`). Reminders are generated live per person from open tasks;
+ * drafts are the saved ones (to-dos, packs, automations); sent is today's log.
+ *
+ * A director sees the same screen for THEIR companies: only people who belong
+ * to one of them, and only those people's tasks inside them (a shared staffer's
+ * other-company work never leaks into the message). Saved drafts, snoozing and
+ * the automation controls stay the owner's — the automation card is shown to
+ * read. Every action re-checks all of this on the server (`outbox/actions.ts`).
+ */
+export default async function OutboxPage() {
+  const v = await getViewer();
+  if (!v) redirect("/login");
+  if (v.kind === "director" && !v.person.caps.navOutbox) redirect("/");
+  const owner = v.kind === "owner";
+
+  const [generated, savedDrafts, sentByName, history, snoozed, automation, todaySent, lastChased, allowedIds] = await Promise.all([
     generateDrafts(),
-    listOutboxDrafts(),
+    owner ? listOutboxDrafts() : Promise.resolve([]),
     todaysSentChannelsByName(),
     historyByDay(7),
-    snoozedToday(),
-    getScopedCompanyId(),
-    getScopeOptions(),
+    owner ? snoozedToday() : Promise.resolve([]),
     getAutomationSnapshot(),
     todaysSentRecords(),
     lastChasedByName(),
+    viewerPeopleIds(v),
   ]);
-  const scopeName = scopedId != null
-    ? scopeOptions.find((o) => o.id === scopedId)?.name ?? null
-    : null;
 
-  // Per-draft sent state across all channels.
-  const annotated: (PendingItem & { alreadySent: boolean })[] = drafts.map((d) => {
-    const channels = (sentByName[d.recipientName.toLowerCase()] || []) as ("WHATSAPP" | "EMAIL" | "SMS")[];
-    return { draft: d, sentChannels: channels, alreadySent: channels.length > 0 };
+  // A scoped director: their people, their companies' tasks.
+  let drafts = generated;
+  let allowedNames: Set<string> | null = null;
+  if (v.kind === "director" && v.scope != null) {
+    const scope = new Set(v.scope);
+    drafts = drafts
+      .filter((d) => d.personId != null && allowedIds?.has(d.personId))
+      .map((d) => ({ ...d, tasks: d.tasks.filter((t) => scope.has(t.companyId)) }))
+      .filter((d) => d.tasks.length > 0);
+    const { data: ppl } = allowedIds?.size
+      ? await sb.from("people").select("name").in("id", [...allowedIds])
+      : { data: [] as { name: string }[] };
+    allowedNames = new Set((ppl ?? []).map((p) => (p.name as string).trim().toLowerCase()));
+  }
+  const mine = (name: string | null | undefined) => !allowedNames || allowedNames.has((name ?? "").trim().toLowerCase());
+
+  // A director's message is theirs: signed with their name and pointing the
+  // person at their portal — the same text the portal's own reminder builds.
+  if (v.kind === "director") {
+    const link = `${appBaseUrl()}/portal`;
+    const from = `${v.name} - Director`;
+    drafts = drafts.map((d) => ({ ...d, messages: { ...d.messages, WHATSAPP: buildPortalTaskReminder(d.recipientName, d.tasks, link, from) } }));
+  }
+
+  const pending = drafts.filter((d) => !(sentByName[d.recipientName.toLowerCase()] || []).length);
+  const doneToday = drafts.length - pending.length;
+
+  const toRow = (h: { id: number; channel: string; recipientName: string | null; recipientContact: string | null; sentAt: string | null }): SentRow => ({
+    id: h.id, channel: h.channel, recipientName: h.recipientName, recipientContact: h.recipientContact, sentAt: h.sentAt,
   });
-
-  const pending = annotated.filter((a) => !a.alreadySent);
-  const doneTodayItems = annotated.filter((a) => a.alreadySent);
-  const totalToday = annotated.length;
-  const sentCount = doneTodayItems.length;
-  const progressPct = totalToday === 0 ? 0 : Math.round((sentCount / totalToday) * 100);
-
-  // Build drawer data from `outbox` history (all channels)
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const yesterdayKey = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
-
-  // "Done today" uses the real sent records (actual `sent_at` timestamps) rather
-  // than synthesising times from live drafts.
-  const todayDoneEntries = todaySent.map((h) => ({
-    id: h.id,
-    channel: h.channel,
-    recipientName: h.recipientName,
-    recipientContact: h.recipientContact,
-    sentAt: h.sentAt,
-  }));
-
-  const yesterdayEntries = (history[yesterdayKey] || []).map((h) => ({
-    id: h.id,
-    channel: h.channel,
-    recipientName: h.recipientName,
-    recipientContact: h.recipientContact,
-    sentAt: h.sentAt,
-  }));
-
-  const olderDayKeys = Object.keys(history).filter((k) => k !== yesterdayKey && k !== todayKey).sort().reverse();
-  const olderBuckets = olderDayKeys.map((k) => ({
-    dayKey: k,
+  const sent = todaySent.filter((h) => mine(h.recipientName)).map(toRow);
+  const log = Object.keys(history).sort().reverse().map((k) => ({
     label: formatDayLabel(k),
-    entries: (history[k] || []).map((h) => ({
-      id: h.id,
-      channel: h.channel,
-      recipientName: h.recipientName,
-      recipientContact: h.recipientContact,
-      sentAt: h.sentAt,
-    })),
-  }));
+    entries: (history[k] || []).filter((h) => mine(h.recipientName)).map(toRow),
+  })).filter((d) => d.entries.length);
 
-  const heroMetrics: { label: string; value: number | string; tone: Tone }[] = [
-    { label: totalToday === 1 ? "to chase" : "to chase", value: pending.length, tone: pending.length ? "accent" : "muted" },
-    { label: "done today", value: sentCount, tone: sentCount ? "success" : "muted" },
-    {
-      label: automation.paused ? "automation paused" : automation.allOff ? "automation off" : "automation on",
-      value: automation.paused ? "—" : automation.allOff ? "—" : automation.liveCategories.length,
-      tone: automation.paused ? "warn" : automation.allOff ? "muted" : "success",
-    },
-  ];
+  const chased = Object.fromEntries(Object.entries(lastChased).filter(([k]) => mine(k)));
 
   return (
-    <div className="space-y-5">
-      <HrmsCrumbs from={from} />
-      <Reveal>
-        <PageHeader
-          title="Outbox"
-          sub="Reminders, drafts and what's gone out — across every company"
-          action={
-            <SentLogDrawer
-              todayDone={todayDoneEntries}
-              yesterday={yesterdayEntries}
-              older={olderBuckets}
-              todayDoneCount={todayDoneEntries.length}
-            />
-          }
-        >
-          <div className="flex flex-wrap items-end gap-x-7 gap-y-3">
-            {heroMetrics.map((m) => (
-              <div key={m.label} className="flex items-baseline gap-1.5">
-                <span className={`text-2xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
-                <span className="text-xs text-fg-muted">{m.label}</span>
-              </div>
-            ))}
-            {totalToday > 0 && (
-              <div className="flex items-center gap-2 ml-auto min-w-[140px] flex-1 sm:flex-none">
-                <div className="flex-1 bg-bg-muted/70 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-accent h-full rounded-full transition-all" style={{ width: `${progressPct}%` }} />
-                </div>
-                <span className="text-xs text-fg-subtle tabular">{progressPct}%</span>
-              </div>
-            )}
-          </div>
-        </PageHeader>
-      </Reveal>
-
-      {scopeName && (
-        <div
-          className="flex items-center gap-2 px-1 text-xs text-fg-muted"
-          title={`You're scoped to ${scopeName}, but the Outbox is intentionally global: reminders are grouped per person across all their tasks, so nobody gets pinged twice on the same day or quietly missed. Each card shows the company breakdown so you can still triage by company.`}
-        >
-          <Globe2 size={12} className="text-warn shrink-0" />
-          <span>
-            Outbox is global — <strong className="text-fg">{scopeName}</strong> scope is ignored.
-            Use the company filter below to triage.
-          </span>
-        </div>
-      )}
-
-      {/* Automation hub — what the engine is set to do + what it sent overnight */}
-      <Reveal delay={0.04}>
-        <AutomationPanel snapshot={automation} />
-      </Reveal>
-
-      {/* Split-view workspace — drafts + reminders + sent in one list/detail surface */}
-      <Reveal delay={0.08}>
-        <OutboxWorkspace
-          reminders={pending.map((a) => a.draft)}
-          drafts={savedDrafts}
-          sent={todayDoneEntries}
-          scopeName={scopeName}
-          lastChased={lastChased}
-        />
-      </Reveal>
-
-      {/* Snoozed */}
-      {snoozed.length > 0 && (
-        <Panel className="overflow-hidden">
-          <details className="group">
-            <summary className="cursor-pointer list-none flex items-center gap-1.5 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted hover:text-fg transition-colors">
-              <BellOff size={12} />
-              Snoozed today
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-warn-soft/70 text-warn text-xs font-semibold tabular normal-case">
-                {snoozed.length}
-              </span>
-              <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
-            </summary>
-            <ul className="divide-y divide-border/60 text-sm border-t border-border/60">
-              {snoozed.map((s) => (
-                <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                  <span className="truncate font-medium">{s.name}</span>
-                  <UnsnoozeButton personId={s.id} name={s.name} />
-                </li>
-              ))}
-            </ul>
-          </details>
-        </Panel>
-      )}
-    </div>
+    <StudioOutbox
+      viewer={owner ? "owner" : "director"}
+      reminders={pending}
+      drafts={savedDrafts}
+      sent={sent}
+      log={log}
+      lastChased={chased}
+      snoozed={snoozed.map((p) => ({ id: p.id, name: p.name }))}
+      doneToday={doneToday}
+      automation={{
+        paused: automation.paused,
+        allOff: automation.allOff,
+        windowStartHour: automation.windowStartHour,
+        windowEndHour: automation.windowEndHour,
+        dailyCap: automation.dailyCap,
+        categories: automation.allCategories.map((c) => ({ label: c.label, mode: c.mode })),
+      }}
+      scopeLabel={owner || v.scope == null ? "Across every company" : v.scope.length === 1 ? "Your company" : `Your ${v.scope.length} companies`}
+    />
   );
 }

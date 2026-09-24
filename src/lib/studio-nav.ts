@@ -66,13 +66,15 @@ export function directorStops(o: { outbox: boolean }): StudioStop[] {
     { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
     { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
     { id: "calendar", label: "Calendar", href: "/calendar", group: "Work", icon: CalendarDays },
+    // Briefings and Directory are gone for a director (owner, 25 Sept 2026):
+    // meetings live in Calendar, contacts in People, and announcements are a
+    // page of their own. Their old addresses redirect.
+    { id: "announcements", label: "Announcements", href: "/portal/announcements", group: "Work", icon: Megaphone },
+    ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/outbox", group: "Work", icon: Send }] : []),
     { id: "companies", label: "Companies", href: "/companies", group: "Records", icon: Building2 },
     { id: "people", label: "People", href: "/people", group: "Records", icon: Users },
     { id: "files", label: "Files", href: "/files", group: "Records", icon: FolderOpen },
-    { id: "briefings", label: "Briefings", href: "/portal/meetings", group: "Work", icon: Megaphone },
-    ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/portal/outbox", group: "Work", icon: Send }] : []),
     { id: "chat", label: "Chat", href: "/portal/chat", group: "People", icon: MessageSquare },
-    { id: "directory", label: "Directory", href: "/portal/directory", group: "People", icon: Users },
   ];
 }
 

@@ -20,6 +20,8 @@ export const metadata = { title: "Outbox — Oracle Consultancy" };
 export default async function PortalOutboxPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director has the shared Outbox, scoped to their companies.
+  if (me.portalRole === "director") redirect("/outbox");
   if (!me.caps.navOutbox) redirect("/portal"); // owner-configurable (Settings → Portals)
 
   const groupWide = seesAllCompanies(me);

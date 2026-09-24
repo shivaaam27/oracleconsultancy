@@ -236,19 +236,22 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               </p>
             </div>
           </Card>
-          <Card title="Governance" className={GROW} texture="st-tex-paper-rings" right={data.readOnly ? undefined : <Link href={`/companies/${data.id}?tab=profile`} className="hover:text-[var(--st-ink)]">Profile tab</Link>}>
+          <Card title="Governance" className={GROW} texture="st-tex-paper-rings" right={<Link href={`/companies/${data.id}?tab=profile`} className="hover:text-[var(--st-ink)]">Profile tab</Link>}>
             <div className="mt-1.5">
               {([
                 ["Cap table", o.governance.capTable, "holder", "Add holders and shares"],
                 ["Signatories", o.governance.signatories, "signatory", "Add who can sign"],
                 ["Resolutions", o.governance.resolutions, "resolution", "Log board resolutions"],
                 ["Tracked facts", o.governance.facts, "fact", "Registration, TIN, VRN…"],
-              ] as const).map(([k, n, noun, empty]) => (
+              ] as const).filter(([k]) => !(data.readOnly && k === "Tracked facts")).map(([k, n, noun, hint]) => {
+                const empty = data.readOnly ? "None recorded" : hint;
+                return (
                 <Link key={k} href={`/companies/${data.id}?tab=profile`} className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]">
                   <span className="text-[var(--st-muted)]">{k}</span>
                   <span className={cn("truncate", n === 0 && "text-[#A3A6AB]")}>{n === 0 ? empty : `${n} ${noun}${n === 1 ? "" : "s"}`}</span>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </Card>
         </div>

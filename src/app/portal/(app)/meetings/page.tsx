@@ -21,6 +21,9 @@ export default async function PortalBriefingsRoute({ searchParams }: { searchPar
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const { tab } = await searchParams;
+  // A director has no Briefings (owner, 25 Sept 2026): meetings are in the
+  // shared Calendar and announcements have a page of their own.
+  if (me.portalRole === "director") redirect(tab === "announcements" ? "/portal/announcements" : "/calendar");
   const initialTab = tab === "announcements" ? "announcements" : "meetings";
 
   const caps = portalCapabilities(me.portalRole);

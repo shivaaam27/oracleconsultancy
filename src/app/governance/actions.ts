@@ -1,6 +1,7 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner, guardViewer } from "@/lib/viewer";
+import { needCompany } from "@/lib/viewer-scope";
 import { revalidatePath } from "next/cache";
 import {
   getCompanyGovernance, type CompanyGovernance,
@@ -10,7 +11,8 @@ import {
 
 /** Load one company's governance (cap table / signatories / resolutions). */
 export async function loadCompanyGovernance(companyId: number): Promise<CompanyGovernance> {
-  await guardOwner();
+  // A director reads their own companies' (owner, 25 Sept 2026); changing it stays the owner's.
+  needCompany(await guardViewer(), companyId);
   return getCompanyGovernance(companyId);
 }
 

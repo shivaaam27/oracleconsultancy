@@ -686,3 +686,23 @@ on a tablet from a leftover `md:bottom-[5.5rem]` sized for the retired pill).
 `stFloatBar.sticky` for a bar in the page's flow; add `stFloatBar.fixedLg` when
 the bar lives inside a panel that stops short of the footer. Measure it
 (footer top − bar bottom = 12) at 1440 and ~1000 before calling a page done.
+
+## Outbox, built 25 Sept 2026 (board `Outbox`)
+`components/studio/outbox/studio-outbox.tsx`, fed by `app/outbox/page.tsx` for
+the owner AND a director (see portal_unification_plan.md). Header seg + Sent
+log + Send all; Today card (to chase, ring = done today) and Automatic sending
+(every category from `snapshot.allCategories`, "held" while paused); a 420px
+list beside the item, fitted to the frame with `useFitFrame`. The six old
+Desk components (workspace, card, drafts list, pending list, sent log drawer,
+automation panel) were deleted. Untouched WhatsApp keeps its `*bold*`; an
+edited message goes as typed.
+
+## Go-to panel fixes (25 Sept 2026, owner's screenshot)
+⚠️ **The selected item is INVERTED, so its icon tile must be a tint of the
+item's own text colour** (`color-mix(var(--sh-on-fg) 16%)`). The old tile was
+`--sh-hover`, light in both themes, holding a white (light mode) or black (dark
+mode) icon — it vanished either way. Foot row: ‹ › drawn as key caps, "Search
+every record" with Ctrl K / ⌘K by platform (hidden for a director, who has no
+palette), and a sheet-styled theme button that reads `resolvedTheme` — the
+shared ThemeToggle wore Desk tokens and showed the moon in a dark room on
+"system".

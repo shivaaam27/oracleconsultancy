@@ -35,6 +35,8 @@ export default async function PortalDirectoryPage({
   const { tab: initialTab } = await searchParams;
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director has People (the shared screen) instead — owner, 25 Sept 2026.
+  if (me.portalRole === "director") redirect("/people");
 
   const groupWide = seesAllCompanies(me);
   // Non-all-companies viewers are scoped to their company set: managers/staff → the
