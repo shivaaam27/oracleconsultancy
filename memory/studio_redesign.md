@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home · 4 Work pages ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -131,6 +131,26 @@ Compared side by side (mockup served locally — launch.json `studio-mockup`,
   utility classes — a light input on a dark surface needs inline style.
 - ⚠️ Use the company's `code_prefix` for "Sets the code" — never the name
   (Furaha Innovation is CC).
+
+### Phase 3 — Home, built 24 Sept 2026
+Switch: Settings → New look → Home. `_hub/studio-home.tsx` (server: every
+figure, from `getAllTasks`, with Tasks' own meaning of late/due soon) +
+`components/studio/home/studio-home.tsx` (layout only). Fits the frame.
+- Hero: a bar per open task (quiet → moving → due soon → late, most late at
+  the far right), height by priority; each bar opens its task (back = Home).
+  Live announcements ride in the hero line (the old banner is gone).
+- Due card: Today (tasks + today's diary) / This week.
+- Three turning cards (‹ ›, dots, swipe, ←/→): Tasks (late · waiting on
+  someone · no updates yet), People (team load gauge · who carries most ·
+  finished this month), Companies & the day (health · where the work is ·
+  Run the day · What ORI did). "Send the Director Brief" asks twice — it
+  reaches people outside COS.
+- NOT carried over (reachable elsewhere): the ask bar (⌘K), the number
+  cards for people/documents (Go to), the activity feed (Activity log),
+  the controls panel (Settings).
+- The "+ New" card went DARK and dotted (owner: the white one "feels not
+  part of the newer design system"); "Keep open" became "Create and add
+  another" (also Ctrl+Enter). QuickAdd board updated to match.
 
 ### Create & edit — the pattern (designed 24 Sept 2026)
 Boards QuickAdd / NewTask / CreateEdit on the canvas (Tasks & Home page).

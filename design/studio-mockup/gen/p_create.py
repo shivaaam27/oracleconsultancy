@@ -22,24 +22,26 @@ behind = header('Tasks', chip('All companies') + chip('Everyone'), seg_static(['
     '<div style="display: flex; flex-direction: column; gap: 8px">' + ghost_row('Cocofix Payment', 'CC-026', 'Furaha Innovation Ltd', 'In Progress', BLUE, '2d late', '#C2327F') + ghost_row('Plan Of Action', 'CC-022', 'Furaha Innovation Ltd', 'In Progress', BLUE, '1d late', '#C2327F') + ghost_row('ERP meeting', 'PE-026', 'PES Ltd', 'In Progress', BLUE, '2d late', '#C2327F') + '</div>'
 
 # ---------- the quick-add card ----------
+# The quick card is DARK and dotted, like the Go-to panel (owner, 24 Sept 2026:
+# the white version "feels not part of the newer design system").
 def qchip(label, icon=None, value=None, strong=False):
-    v = '<span style="color: #111214; font-weight: 500">%s</span>' % value if value else ''
+    v = '<span style="color: #F2F2F0; font-weight: 500">%s</span>' % value if value else ''
     i = '<span style="color: #8E9197; display: flex">%s</span>' % ic(icon, 13) if icon else ''
-    bd = '#111214' if strong else '#E4E4E0'
-    return '<span style="height: 32px; padding: 0 11px; border-radius: 10px; border: 1px solid %s; background: #FFFFFF; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #55585E; white-space: nowrap">%s%s%s</span>' % (bd, i, label, (' ' + v) if v else '')
+    bd = '#8E9197' if strong else '#2E3035'
+    return '<span style="height: 32px; padding: 0 11px; border-radius: 10px; border: 1px solid %s; background: #1F2023; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #8E9197; white-space: nowrap">%s%s%s</span>' % (bd, i, label, (' ' + v) if v else '')
 
 def line(ph, size=20, value=''):
-    col = '#111214' if value else '#A3A6AB'
+    col = '#F2F2F0' if value else '#5B5E63'
     return '<div style="font-size: %dpx; letter-spacing: -0.015em; color: %s; padding: 4px 0">%s</div>' % (size, col, value or ph)
 
 def qfield(label, v, grey=False, hint=''):
-    return field(label, box(v, grey), hint)
+    return field(label, box(v, grey), hint).replace('background: #FFFFFF', 'background: #1F2023').replace('border: 1px solid #E4E4E0', 'border: 1px solid #2E3035').replace('color: #111214', 'color: #F2F2F0').replace('color: #6E7177', 'color: #8E9197')
 
 PANES = {
  'task': line('What needs doing?', 22, 'Chase the TRA refund for September') +
    '<div style="display: flex; flex-wrap: wrap; gap: 6px">' + qchip('Company', 'building', 'DSC Ltd', True) + qchip('Who', 'user', 'Vishal Pragji') + qchip('When', 'cal', 'Fri 2 Oct') + qchip('Priority', 'arrowup', 'High') + qchip('Repeat', 'repeat', 'No') + '</div>' +
-   '<div style="border-radius: 12px; background: #F3F3F1; padding: 10px 12px; font-size: 13px; color: #8E9197; min-height: 54px">Add instructions for the team — they arrive as the first update (optional)</div>',
- 'note': line('Title (optional)', 20) + '<div style="border-radius: 12px; background: #F3F3F1; padding: 10px 12px; font-size: 13px; color: #8E9197; min-height: 96px">Start writing — # tags, @ people, tasks and companies, [[ another note</div>' +
+   '<div style="border-radius: 12px; background: #1F2023; border: 1px solid #2E3035; padding: 10px 12px; font-size: 13px; color: #6E7177; min-height: 54px">Add instructions for the team — they arrive as the first update (optional)</div>',
+ 'note': line('Title (optional)', 20) + '<div style="border-radius: 12px; background: #1F2023; border: 1px solid #2E3035; padding: 10px 12px; font-size: 13px; color: #6E7177; min-height: 96px">Start writing — # tags, @ people, tasks and companies, [[ another note</div>' +
    '<div style="display: flex; gap: 6px">' + qchip('Folder', 'folder', 'Meetings') + qchip('Template', 'doc', 'None') + '</div>',
  'event': line('What is it?', 22, 'Board meeting — DSC Q3') +
    '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px">' + qfield('Starts', 'Thu 1 Oct · 10:00') + qfield('Ends', '11:30') + qfield('Where', 'Office, Dar es Salaam') + '</div>' +
@@ -47,11 +49,11 @@ PANES = {
    '<div style="display: flex; align-items: center; gap: 10px; font-size: 13px">' + toggle(True) + 'Email the invitation to the guests</div>',
  'person': '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">' + qfield('Full name', 'Amina Salim') + qfield('Company', 'Terra Green Ltd') + qfield('Role', 'Accountant') + qfield('Reports to', 'Jitesh Solanki') + qfield('Phone', '+255 7…', True) + qfield('Email', 'name@…', True) + '</div>' +
    '<div style="display: flex; align-items: center; gap: 10px; font-size: 13px">' + toggle(False) + 'Give them a portal login now <span style="color: #8E9197">— can be done later from their record</span></div>',
- 'document': '<div style="border: 1.5px dashed #CFCFCA; border-radius: 14px; height: 92px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #55585E; font-size: 13px">' + ic('upload', 16) + 'Drop a file, or click to choose — it is read and the fields below fill in</div>' +
+ 'document': '<div style="border: 1.5px dashed #3A3D42; border-radius: 14px; height: 92px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #A3A6AB; font-size: 13px">' + ic('upload', 16) + 'Drop a file, or click to choose — it is read and the fields below fill in</div>' +
    '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px">' + qfield('Belongs to', 'PES Ltd') + qfield('Category', 'Licence') + qfield('Expires', '31 Dec 2026') + '</div>',
  'company': '<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px">' + qfield('Name', 'Zanzi Foods Ltd') + qfield('Task code prefix', 'ZF', False, 'two letters') + '</div>' +
    '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">' + qfield('TIN', 'optional', True) + qfield('Registration no.', 'optional', True) + '</div>',
- 'announce': line('Headline', 22, 'Office closed on Monday') + '<div style="border-radius: 12px; background: #F3F3F1; padding: 10px 12px; font-size: 13px; color: #8E9197; min-height: 64px">The message staff will see on the portal</div>' +
+ 'announce': line('Headline', 22, 'Office closed on Monday') + '<div style="border-radius: 12px; background: #1F2023; border: 1px solid #2E3035; padding: 10px 12px; font-size: 13px; color: #6E7177; min-height: 64px">The message staff will see on the portal</div>' +
    '<div style="display: flex; flex-wrap: wrap; gap: 6px">' + qchip('Who sees it', 'users', 'Everyone') + qchip('Publish', 'clock', 'Now') + qchip('Ask them to confirm', 'check', 'Yes') + '</div>',
 }
 ACTION = {'task': 'Create task', 'note': 'Create note', 'event': 'Create event', 'person': 'Add person', 'document': 'File document', 'company': 'Add company', 'announce': 'Publish'}
@@ -59,17 +61,16 @@ FULL = {'task': 'Open as a full task', 'note': 'Open the full note', 'event': 'O
 
 panes = ''.join('<sc-if value="{{is_%s}}" hint-placeholder-val="{{ %s }}"><div style="display: flex; flex-direction: column; gap: 14px; animation: pop 180ms ease-out">%s</div></sc-if>' % (k, 'true' if k == 'task' else 'false', v) for k, v in PANES.items())
 
-sheet = '''<div style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(14,15,16,0.32); z-index: 5"></div>
-<div style="position: absolute; right: 24px; bottom: 16px; width: 700px; background: #FFFFFF; border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.30); z-index: 6; padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 16px; animation: pop 220ms ease-out">
-<div style="display: flex; align-items: center; gap: 10px">''' + seg_dyn('tabs') + '''<span style="flex-grow: 1"></span>
-<button type="button" aria-label="Close" style="width: 32px; height: 32px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; justify-content: center">''' + ic('x', 13, 2.2) + '''</button></div>
+sheet = '''<div style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(14,15,16,0.35); z-index: 5"></div>
+<div style="position: absolute; right: 24px; bottom: 16px; width: 720px; background-color: #141517; ''' + tex('dots') + '''; color: #F2F2F0; border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.40); z-index: 6; padding: 20px; display: flex; flex-direction: column; gap: 16px; animation: pop 220ms ease-out">
+<div style="display: flex; align-items: center; gap: 6px"><sc-for list="{{tabs}}" as="s" hint-placeholder-count="7"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid {{s.bd}}; background: {{s.bg2}}; color: {{s.fg2}}; font-size: 12px; white-space: nowrap">{{s.label}}</button></sc-for><span style="flex-grow: 1"></span>
+<button type="button" aria-label="Close" style="width: 32px; height: 32px; border-radius: 10px; border: 1px solid #2E3035; background: transparent; color: #C9CBCF; display: flex; align-items: center; justify-content: center">''' + ic('x', 13, 2.2) + '''</button></div>
 ''' + panes + '''
-<div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #F0F0EC; padding-top: 12px">
-<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #55585E">''' + toggle(False) + '''Keep open for another</span>
-<span style="font-size: 12px; color: #8E9197">Enter creates · Shift+Enter opens the full one</span>
-<span style="flex-grow: 1"></span>
-<a href="NewTask.dc.html" style="font-size: 13px; color: #55585E; display: flex; align-items: center; gap: 6px">{{full}}''' + ic('expand', 12, 2.2) + '''</a>
-''' + dark_btn('{{action}}', None) + '''
+<div style="text-align: right; font-size: 11px; color: #6E7177; margin-top: -8px">Enter creates · Ctrl+Enter creates and starts another · Shift+Enter opens the full one</div>
+<div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; border-top: 1px solid #26282C; padding-top: 12px">
+<a href="NewTask.dc.html" style="font-size: 13px; color: #A3A6AB; display: flex; align-items: center; gap: 6px">{{full}}''' + ic('expand', 12, 2.2) + '''</a>
+<button type="button" style="height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; font-size: 13px">Create and add another</button>
+<button type="button" style="height: 36px; padding: 0 16px; border-radius: 10px; border: 0; background: #F2F2F0; color: #111214; font-size: 13px; font-weight: 600">{{action}}</button>
 </div>
 </div>'''
 
@@ -80,7 +81,7 @@ class Component extends DCLogic {
     var self = this, t = this.state.t;
     var A = ''' + json.dumps(ACTION) + ''', F = ''' + json.dumps(FULL) + ''';
     var out = { action: A[t], full: F[t],
-      tabs: segs([['task', 'Task'], ['note', 'Note'], ['event', 'Event'], ['person', 'Person'], ['document', 'Document'], ['company', 'Company'], ['announce', 'Announcement']], t, function (k) { self.setState({ t: k }); }) };
+      tabs: segs([['task', 'Task'], ['note', 'Note'], ['event', 'Event'], ['person', 'Person'], ['document', 'Document'], ['company', 'Company'], ['announce', 'Announcement']], t, function (k) { self.setState({ t: k }); }).map(function (x) { x.bg2 = x.on ? '#F2F2F0' : 'transparent'; x.fg2 = x.on ? '#111214' : '#A3A6AB'; x.bd = x.on ? '#F2F2F0' : '#2E3035'; return x; }) };
     ['task', 'note', 'event', 'person', 'document', 'company', 'announce'].forEach(function (k) { out['is_' + k] = k === t; });
     return out;
   }

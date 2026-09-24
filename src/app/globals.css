@@ -1861,3 +1861,8 @@ body:has(main .studio) > * [data-field-label] {
   --accent-ring:  220 4% 65%;
 }
 
+
+/* A gauge's empty track: a green wash on paper, a dark green in dark mode. */
+.studio { --st-track: #EAF7F0; }
+.dark .studio { --st-track: #1D2A23; }
+
