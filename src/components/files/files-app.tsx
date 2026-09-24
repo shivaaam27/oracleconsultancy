@@ -30,6 +30,7 @@ import {
 } from "@/app/files/actions";
 import { descendantIds, displayName, fmtSize, kindOf, pathOf, KEEP_DELETED_DAYS, FOLDER_COLORS, type FileRow, type FolderColor, type FolderRow, type Library } from "@/lib/files-shared";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
+import { MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
 import { cn } from "@/lib/cn";
 
 export type FilesCompany = { id: number; name: string; prefix: string; tile: string; ink: string };
@@ -38,7 +39,7 @@ type Nav = { view: View; folder: number | null };
 type SortKey = "name" | "place" | "who" | "expiry" | "size" | "modified";
 type Upload = { key: string; name: string; pct: number; state: "up" | "done" | "error"; error?: string };
 
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 const ALLOWED = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif", "image/gif", "image/tiff", "image/bmp", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "text/csv", "application/zip"]);
 const VIEW_TITLE: Record<View, string> = { all: "All files", recent: "Recent", starred: "Starred", renew: "Needs renewal", deleted: "Deleted" };
 const BTN = "inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[13px] transition-colors hover:bg-[var(--st-page)]";
@@ -265,7 +266,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
     let done = 0;
     for (const it of items) {
       const f = it.file;
-      if (f.size > MAX_BYTES) { set(it.key, { state: "error", error: "Larger than 20 MB" }); continue; }
+      if (f.size > MAX_BYTES) { set(it.key, { state: "error", error: "Larger than 50 MB" }); continue; }
       if (f.size === 0) { set(it.key, { state: "error", error: "Empty file" }); continue; }
       const t = await uploadTicketAction(f.name);
       if (!t.ok) { set(it.key, { state: "error", error: t.error }); continue; }
@@ -603,7 +604,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         <div className="pointer-events-none fixed inset-[10px_10px_74px] z-[60] flex items-center justify-center rounded-[18px] border-2 border-dashed border-[#2490EF] bg-[rgba(36,144,239,0.08)]">
           <div className="rounded-[18px] bg-[var(--st-surface)] px-6 py-4 text-center shadow-[0_16px_40px_rgba(17,18,20,0.14)]">
             <b className="block text-base font-semibold">Drop to upload to {hereFolder && nav.view === "all" ? hereFolder.name : "All files"}</b>
-            <span className="text-xs text-[var(--st-muted)]">PDF, pictures, Word, Excel — up to 20 MB each</span>
+            <span className="text-xs text-[var(--st-muted)]">PDF, pictures, Word, Excel — up to 50 MB each</span>
           </div>
         </div>
       )}

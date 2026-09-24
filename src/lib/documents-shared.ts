@@ -46,8 +46,8 @@ export function safeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
 }
 
-/** Per-file upload ceiling (20 MB) — shared by the admin, portal and chat paths. */
-export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+/** Per-file upload ceiling (50 MB, raised 24 Sept 2026 — the owner) — shared by Files, the portal and chat. It must match the "documents" storage bucket's file_size_limit (52428800), which refuses anything larger on its own. */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 // Sensible default reminder lead times (days before expiry) by category. Only a
 // starting value for the form — the owner can change it per document.

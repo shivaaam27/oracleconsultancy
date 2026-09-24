@@ -78,7 +78,32 @@
   .crumbs .sep { color: var(--muted); }
   .crumbs .spacer { flex: 1; }
 
-  /* Taskello-style summary cards (root only) */
+  /* The two dark cards every Studio page opens with (mockup kit: dark_card,
+     card_title, big) — Companies: Portfolio + Most at risk; here: the library
+     + what needs renewing. Same height (210px), padding, type and texture. */
+  .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 210px; flex-shrink: 0; }
+  .dcard { background-color: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; min-width: 0; overflow: hidden; position: relative; }
+  .dcard.rings { background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); }
+  .dhead { display: flex; align-items: center; justify-content: space-between; min-height: 26px; font-size: 13px; color: #A3A6AB; flex-shrink: 0; }
+  .dhead span:last-child { font-size: 12px; color: #8E9197; }
+  .dbig { font-size: 76px; line-height: .85; letter-spacing: -.045em; cursor: pointer; }
+  .dbig small { font-size: 18px; color: #8E9197; letter-spacing: 0; margin-left: 10px; }
+  .dstats { display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: #A3A6AB; }
+  .dstats button { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .dstats button:hover { text-decoration: underline; }
+  .dkinds { display: flex; gap: 18px; align-items: flex-end; }
+  .dkinds div { text-align: center; }
+  .dkinds b { display: block; font-size: 30px; font-weight: 400; letter-spacing: -.03em; line-height: 1; }
+  .dkinds span { font-size: 11px; }
+  .drows { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }
+  .drow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 130px; column-gap: 14px; align-items: center; font-size: 13px; border: 0; background: none; color: inherit; padding: 0; text-align: left; cursor: pointer; }
+  .drow:hover .nm { text-decoration: underline; }
+  .drow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drow .nm small { color: #8E9197; margin-left: 6px; font-size: 12px; }
+  .drow .track { height: 8px; border-radius: 4px; background: #26282C; overflow: hidden; }
+  .drow .track i { display: block; height: 100%; }
+  .drow .when { font-size: 12px; color: #8E9197; text-align: right; white-space: nowrap; }
+  /* (retired) Taskello-style summary cards */
   .summ { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .scard { position: relative; border-radius: 22px; overflow: hidden; background: #141517; color: #F2F2F0; min-height: 188px; cursor: pointer; border: 4px solid #141517; transition: transform .25s cubic-bezier(.34,1.4,.64,1); }
   .scard:hover { transform: translateY(-3px); }
@@ -261,7 +286,7 @@
   .toast.on { opacity: 1; transform: translate(-50%, 0); }
   .mockflag { font-size: 11px; color: var(--muted); }
 
-  @media (max-width: 1100px) { .body { grid-template-columns: 1fr; } .rail { position: static; flex-direction: row; flex-wrap: wrap; } .rail .h, .rail .storage, .rail .tree { display: none; } .rail button { width: auto; } .summ { grid-template-columns: 1fr; } .pvmain { grid-template-columns: 1fr; } .info { display: none; } }
+  @media (max-width: 1100px) { .duo { grid-template-columns: 1fr; height: auto; } .dcard { min-height: 190px; } .body { grid-template-columns: 1fr; } .rail { position: static; flex-direction: row; flex-wrap: wrap; } .rail .h, .rail .storage, .rail .tree { display: none; } .rail button { width: auto; } .summ { grid-template-columns: 1fr; } .pvmain { grid-template-columns: 1fr; } .info { display: none; } }
   @media (max-width: 760px) {
     .page { padding: 16px; }
     .thead { display: none; }
@@ -279,8 +304,8 @@
   <div class="page" id="page">
     <div class="head">
       <div>
-        <h1>Files</h1>
-        <div class="sub">197 files · 193 MB · filed by hand, found in a second <span class="mockflag">· design mockup, example data</span></div>
+        <h1>Files Management</h1>
+        <div class="sub">197 files · 174 MB · filed by hand, found in a second <span class="mockflag">· design mockup, example data</span></div>
       </div>
       <div class="tools">
         <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Search every file and folder" aria-label="Search files"><kbd>/</kbd></label>
@@ -293,6 +318,8 @@
         <input type="file" id="picker" multiple hidden>
       </div>
     </div>
+
+    <div class="duo" id="duo"></div>
 
     <div class="body">
       <nav class="rail" aria-label="Files">
@@ -478,13 +505,7 @@ function render() {
     : `<div class="crumbs"><button>${title}</button><span class="spacer"></span>${S.view === "deleted" ? '<span class="mockflag">Kept for 30 days, then removed for good</span>' : ""}</div>`;
   let html = crumbs;
 
-  if (S.view === "all" && S.folder == null && !S.q) {
-    html += `<div class="summ">
-      ${scard("Company files", "Across 7 companies", "161", "Files", "7 Folders", "linear-gradient(120deg,#1B6FD8,#50B1FD 45%,#9ED6FF)", "Filed by<br>company", "go:1")}
-      ${scard("Needs renewal", "Expired or due in 60 days", "07", "Due", "2 expired", "linear-gradient(120deg,#C2327F,#F5733D 45%,#FFB36B)", "Renew<br>on time", "view:renew")}
-      ${scard("Staff papers", "Passports & work permits", "33", "Files", "2 folders", "linear-gradient(120deg,#6B46C1,#9F7AEA 45%,#E9D8FD)", "People", "go:8")}
-    </div>`;
-  }
+  renderDuo();
 
   const subs = S.view === "all" && !S.q ? children(S.folder) : [];
   if (subs.length) {
@@ -508,6 +529,50 @@ function render() {
   renderTree();
   if (S.renaming) { const inp = w.querySelector(`[data-rename="${S.renaming}"]`); if (inp) { inp.focus(); inp.setSelectionRange(0, inp.value.lastIndexOf(".") > 0 ? inp.value.lastIndexOf(".") : inp.value.length); } }
 }
+/* The pair of dark cards. Inside a folder they speak for that folder
+   ("PES Ltd · 65 files"); at the top, for the whole library. */
+function renderDuo() {
+  const inFolder = S.view === "all" && S.folder != null;
+  const here = inFolder ? folders.find((f) => f.id === S.folder) : null;
+  const n = here ? (counts[here.id] ?? 0) : 197;
+  const size = here ? (here.id === 1 ? "58 MB" : here.id === 8 ? "31 MB" : "6 MB") : "174 MB";
+  const scope = here ? path(here.id).map((f) => f.name).join(" / ") : "All files";
+  const kinds = here ? [[Math.round(n * .82), "PDF", "#F07BBE"], [Math.round(n * .13), "pictures", "#7CC0FF"], [Math.max(0, n - Math.round(n * .82) - Math.round(n * .13)), "Word", "#9DB4FF"], [children(here.id).length, "folders", "#8E9197"]]
+    : [[163, "PDF", "#F07BBE"], [26, "pictures", "#7CC0FF"], [8, "Word", "#9DB4FF"], [9, "folders", "#8E9197"]];
+  const due = files.filter((f) => (f.status === "expired" || f.status === "soon") && (!here || path(f.folder ?? 0).some((x) => x.id === here.id)));
+  const rows = [
+    ["Business Licence 2025-26", "PES Ltd", 1, "expired 3 days ago", 3],
+    ["Work permit — Chirag Tanna", "Staff papers", 1, "expired 21 days ago", 15],
+    ["Fire Safety Certificate", "PES Ltd", .55, "renew in 14 days", 4],
+    ["Warehouse Lease — Matongo", "PES Ltd", .2, "renew in 67 days", 6],
+  ];
+  $("#duo").innerHTML = `
+    <div class="dcard">
+      <div class="dhead"><span>${esc(scope)}</span><span>${size} stored</span></div>
+      <div style="flex:1;display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap">
+        <div>
+          <div class="dbig" data-duo="all">${n}<small>files</small></div>
+          <div class="dstats"><button data-duo="renew" style="color:#F07BBE">${here ? Math.min(2, due.length) : 15} expired</button><button data-duo="renew" style="color:#F5B94E">${here ? due.length : 5} due soon</button>${here ? "" : '<button data-duo="loose">3 loose</button>'}</div>
+        </div>
+        <span style="flex:1"></span>
+        <div class="dkinds">${kinds.map(([v, l, c]) => `<div><b>${v}</b><span style="color:${c}">${l}</span></div>`).join("")}</div>
+      </div>
+    </div>
+    <div class="dcard rings">
+      <div class="dhead"><span>Needs renewal</span><span>soonest first · ${here ? rows.filter((r) => r[1] === path(here.id)[0].name).length : 20} due${here ? " in " + esc(path(here.id)[0].name) : ""}</span></div>
+      <div class="drows">${rows.filter((r) => !here || r[1] === path(here.id)[0].name).map(([nm, co, w, when, id]) => `
+        <button class="drow" data-duo-open="${id}"><span class="nm">${esc(nm)}<small>${esc(co)}</small></span>
+          <span class="track"><i style="width:${Math.round(w * 100)}%;background:${w >= 1 ? "#E0479E" : "#F5A524"}"></i></span>
+          <span class="when">${esc(when)}</span></button>`).join("")}</div>
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const d = e.target.closest("[data-duo]");
+  if (d) { const v = d.dataset.duo; if (v === "renew") { S.view = "renew"; S.folder = null; } else { S.view = "all"; S.folder = null; } setRail(); render(); }
+  const o = e.target.closest("[data-duo-open]");
+  if (o) { const f = files.find((x) => x.id === Number(o.dataset.duoOpen) + 100); if (f) { S.view = "renew"; S.folder = null; setRail(); render(); preview(f.id); } }
+});
+
 function scard(t, d, big, unit, right, art, tag, go) {
   return `<div class="scard" data-go="${go}" tabindex="0"><div class="art" style="background:${art}"></div><div class="tag">${tag}</div>
     <svg class="tab" viewBox="0 0 300 140" preserveAspectRatio="none"><path d="M0 22C0 10 10 0 22 0H150C158 0 163 3 168 9L178 20C183 26 190 30 198 30H300V140H0Z" fill="#141517"/></svg>

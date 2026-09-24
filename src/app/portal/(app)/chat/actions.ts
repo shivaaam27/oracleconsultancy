@@ -155,7 +155,7 @@ export async function postMessage(
   const taskCode = (fd.get("taskCode")?.toString() ?? "").trim() || null;
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!body && files.length === 0) return { ok: false, error: "Type a message or attach a file." };
-  if (files.some((f) => f.size > MAX_UPLOAD_BYTES)) return { ok: false, error: "That file is too large (max 20 MB)." };
+  if (files.some((f) => f.size > MAX_UPLOAD_BYTES)) return { ok: false, error: "That file is too large (max 50 MB)." };
 
   // The thread's company (a task thread carries it) scopes the intake document so
   // it lands in the right company's library once sorted.
