@@ -65,7 +65,10 @@ export function JourneyChecklist({
   onChanged,
   onNavigate,
   onSummary,
+  studio = false,
 }: {
+  /** The Studio person page: no collapsible frame, Studio controls. */
+  studio?: boolean;
   personId: number;
   kind: JourneyKind;
   onChanged?: () => void;
@@ -169,6 +172,7 @@ export function JourneyChecklist({
   }
 
   if (loading && !data) {
+    if (studio) return <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--st-muted)]"><Loader2 size={14} className="animate-spin" /> Loading {title.toLowerCase()}…</div>;
     return (
       <div className="glass elevated rounded-2xl p-4 flex items-center gap-2 text-sm text-fg-muted">
         <Loader2 size={15} className="animate-spin" /> Loading {title.toLowerCase()}…
@@ -179,6 +183,21 @@ export function JourneyChecklist({
   const hasJourney = !!data && data.total > 0;
 
   if (!hasJourney) {
+    if (studio) {
+      return (
+        <div className="flex flex-col items-start gap-3 py-2">
+          <p className="m-0 text-[13px] leading-normal text-[var(--st-sub)]">
+            {kind === "onboarding"
+              ? "No onboarding checklist yet. Starting one copies the standard steps — contract, IDs, equipment, portal — and each becomes a to-do you tick off."
+              : "No leaving checklist yet. It starts by itself when somebody is deactivated; start it now to prepare a handover."}
+          </p>
+          <button type="button" onClick={start} disabled={busyId === -1}
+            className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--st-ink)] px-3 text-xs text-[var(--st-surface)] hover:opacity-90 disabled:opacity-50">
+            {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />} Start the {title.toLowerCase()} checklist
+          </button>
+        </div>
+      );
+    }
     // Slim, one-line "not started" card — expands only when steps exist.
     return (
       <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 flex items-center gap-2 px-3.5 py-2.5">
@@ -194,19 +213,13 @@ export function JourneyChecklist({
 
   const done = data!.completed === data!.total;
 
-  return (
-    <CollapsibleSection
-      icon={<Icon size={14} className={done ? "text-success" : undefined} />}
-      title={title}
-      right={<span className="text-xs font-semibold tabular text-fg-muted">{data!.completed}/{data!.total}</span>}
-    >
-      {/* Progress */}
-      <div className="px-3.5 pt-3">
-        <ProgressTrack value={data!.completed} total={data!.total} tone={done ? "success" : "accent"} />
-      </div>
+  // The stepper and its footer — the same for both looks. A plain element, not
+  // a component defined here: one of those would remount on every keystroke.
+  const body = (
+    <>
 
       {/* Vertical stepper */}
-      <div className="p-3">
+      <div className={studio ? "pt-3" : "p-3"}>
         <ol className="relative">
           {data!.steps.map((step, i) => {
             const busy = busyId === step.id;
@@ -226,7 +239,9 @@ export function JourneyChecklist({
                   <button type="button" disabled={busy} onClick={() => toggle(step.id, !step.done)}
                     aria-label={step.done ? "Mark not done" : "Mark done"}
                     className={cn("z-10 h-6 w-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors",
-                      step.done ? "bg-success border-success text-white" : overdue ? "border-danger" : "border-border-strong hover:border-accent")}>
+                      studio
+                        ? step.done ? "border-[var(--st-ok)] bg-[var(--st-ok)] text-white" : overdue ? "border-[var(--st-late)]" : "border-[var(--st-dash)] hover:border-[var(--st-ink)]"
+                        : step.done ? "bg-success border-success text-white" : overdue ? "border-danger" : "border-border-strong hover:border-accent")}>
                     {busy ? <Loader2 size={12} className="animate-spin" /> : step.done ? <Check size={13} strokeWidth={3} /> : <span className={cn("h-1.5 w-1.5 rounded-full", overdue ? "bg-danger" : "bg-transparent")} />}
                   </button>
                   {!last && <span className="w-px flex-1 bg-border min-h-[14px] my-0.5" />}
@@ -234,7 +249,7 @@ export function JourneyChecklist({
                 {/* content */}
                 <div className="min-w-0 flex-1 pb-3">
                   <div className="flex items-start gap-2">
-                    <span className={cn("text-sm flex-1", step.done && "line-through text-fg-subtle")}>{step.label}</span>
+                    <span className={cn(studio ? "text-[13px] flex-1" : "text-sm flex-1", step.done && (studio ? "line-through text-[var(--st-muted)]" : "line-through text-fg-subtle"))}>{step.label}</span>
                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 transition-opacity group-hover/step:opacity-100 focus-within:opacity-100">
                       <button type="button" disabled={busy} onClick={() => setEditingId(step.id)} aria-label="Edit step"
                         className="h-6 w-6 inline-flex items-center justify-center rounded-md text-fg-subtle hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50"><Pencil size={12} /></button>
@@ -258,7 +273,7 @@ export function JourneyChecklist({
       </div>
 
       {/* Footer actions */}
-      <div className="flex items-center justify-between border-t border-border/50 px-3 py-2">
+      <div className={studio ? "flex items-center justify-between border-t border-[var(--st-line-soft)] pt-3" : "flex items-center justify-between border-t border-border/50 px-3 py-2"}>
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => setAdding(true)} disabled={adding}
             className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"><Plus size={12} /> Add step</button>
@@ -270,6 +285,33 @@ export function JourneyChecklist({
           className="inline-flex items-center gap-1 text-xs text-fg-subtle hover:text-danger transition-colors disabled:opacity-50">
           {busyId === -2 ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Remove</button>
       </div>
+    </>
+  );
+
+  if (studio) {
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center gap-3 pb-1">
+          <span className="text-xs text-[var(--st-label)]">{data!.completed} of {data!.total} done</span>
+          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--st-line-soft)]">
+            <span className="block h-full rounded-full transition-all" style={{ width: `${Math.round((data!.completed / Math.max(1, data!.total)) * 100)}%`, background: done ? "var(--st-ok)" : "var(--st-ink)" }} />
+          </span>
+        </div>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <CollapsibleSection
+      icon={<Icon size={14} className={done ? "text-success" : undefined} />}
+      title={title}
+      right={<span className="text-xs font-semibold tabular text-fg-muted">{data!.completed}/{data!.total}</span>}
+    >
+      {/* Progress */}
+      <div className="px-3.5 pt-3">
+        <ProgressTrack value={data!.completed} total={data!.total} tone={done ? "success" : "accent"} />
+      </div>
+      {body}
     </CollapsibleSection>
   );
 }

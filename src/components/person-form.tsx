@@ -22,7 +22,19 @@ import type { ReactNode } from "react";
  * record shows — Identity · Role · Contact · Personal · Links — so reading a
  * person and editing one have identical bones.
  */
-function FormSection({ title, children }: { title: string; children: ReactNode }) {
+function FormSection({ title, children, studio = false, note }: { title: string; children: ReactNode; studio?: boolean; note?: ReactNode }) {
+  if (studio) {
+    // Studio (the person page's Edit tab): a white card, a sentence-case title.
+    return (
+      <section className="rounded-[20px] bg-[var(--st-surface)] px-[22px] py-5">
+        <div className="mb-3 flex min-h-[26px] items-baseline justify-between gap-3">
+          <h2 className="m-0 text-[15px] font-semibold">{title}</h2>
+          {note && <span className="text-xs text-[var(--st-muted)]">{note}</span>}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+      </section>
+    );
+  }
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-bg-elev">
       <div className="border-b border-border bg-bg-subtle px-3 py-2">
@@ -31,6 +43,13 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
       <div className="grid grid-cols-2 gap-2.5 px-3 py-3">{children}</div>
     </section>
   );
+}
+
+/** Studio groups the sections into columns; the Desk form has no wrapper at all
+ *  (a `display: contents` div would swallow the space between its sections). */
+function Col({ studio, order, children }: { studio: boolean; order: string; children: ReactNode }) {
+  if (!studio) return <>{children}</>;
+  return <div className={cn("flex min-w-0 flex-col gap-4", order)}>{children}</div>;
 }
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
@@ -83,7 +102,18 @@ export function PersonForm({
   onComplete,
   onCancel,
   compact = false,
+  studio = false,
+  afterRole,
+  afterSave,
 }: {
+  /** The Studio person page: white cards in two columns, Studio controls. */
+  studio?: boolean;
+  /** Rendered right after "Role & companies" — the Studio page puts Portal access there. */
+  afterRole?: ReactNode;
+  /** Runs after the person is saved and before onComplete — the Studio page
+   *  applies the portal level here, so a Director's "their companies" reach is
+   *  worked out from the companies that were JUST saved. */
+  afterSave?: () => Promise<{ ok: boolean; error?: string } | void>;
   mode: "create" | "edit";
   /** required when mode === "edit" */
   id?: number;
@@ -222,6 +252,10 @@ export function PersonForm({
           ? await createPerson(fd)
           : await updatePerson(id!, fd);
       if (res.ok) {
+        if (afterSave) {
+          const after = await afterSave();
+          if (after && !after.ok) { setError(`Saved — but ${after.error ?? "the portal change failed."}`); return; }
+        }
         onComplete?.(res);
       } else {
         setError(res.error);
@@ -247,17 +281,20 @@ export function PersonForm({
   const managerOptions = withSaved(managerCandidates, defaults?.managerId);
   const relatedOptions = withSaved(managerCandidates, defaults?.relatedPersonId);
 
-  const inputCls = cn(
-    "w-full rounded-lg border border-border bg-bg-subtle/60 text-sm transition-all",
-    compact ? "px-2.5 py-1.5" : "px-3 py-2",
-    "focus:outline-none focus:ring-2 focus:ring-accent/40"
-  );
-  const gap = compact ? "space-y-2.5" : "space-y-4";
+  const inputCls = studio
+    ? "h-9 w-full rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px] transition-colors focus:outline-none"
+    : cn(
+        "w-full rounded-lg border border-border bg-bg-subtle/60 text-sm transition-all",
+        compact ? "px-2.5 py-1.5" : "px-3 py-2",
+        "focus:outline-none focus:ring-2 focus:ring-accent/40"
+      );
+  const gap = studio ? "space-y-4" : compact ? "space-y-2.5" : "space-y-4";
+
 
   return (
     <form ref={formRef} action={action} className={gap}>
       {/* Auto-fill from a pasted message (WhatsApp/email). Fills empty fields only. */}
-      <details className="rounded-xl border border-border bg-bg-subtle/40 p-3">
+      <details className={studio ? "rounded-[20px] bg-[var(--st-surface)] px-[22px] py-3.5" : "rounded-xl border border-border bg-bg-subtle/40 p-3"}>
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
           <Sparkles size={14} className="text-accent" /> Auto-fill from a message
           <span className="ml-auto text-xs font-normal text-fg-subtle">paste &amp; read</span>
@@ -277,8 +314,9 @@ export function PersonForm({
         </div>
       </details>
 
-      <div className="space-y-3">
-        <FormSection title="Identity">
+      <div className={studio ? "grid grid-cols-1 items-start gap-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr]" : "space-y-3"}>
+        <Col studio={studio} order="xl:col-start-1 xl:row-start-1">
+        <FormSection studio={studio} title="Identity">
           <div className="col-span-2">
             <FieldLabel>Name <span className="text-danger">*</span></FieldLabel>
             <input
@@ -339,8 +377,10 @@ export function PersonForm({
           </div>
 
         </FormSection>
+        </Col>
 
-        <FormSection title="Role &amp; companies">
+        <Col studio={studio} order="xl:col-start-1 xl:row-start-2">
+        <FormSection studio={studio} title="Role &amp; companies" note={studio ? "their companies decide what they see on the portal" : undefined}>
           <div>
             <FieldLabel>Role / Job title</FieldLabel>
             <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
@@ -374,7 +414,9 @@ export function PersonForm({
             <FieldLabel>Also works for</FieldLabel>
             <p className="mb-1.5 text-xs text-fg-subtle">
               Other companies they work for or serve — their tasks and records show under each one.
-              If they have a portal sign-in as a <span className="font-medium">Manager</span>, this is also what they can see there.
+              {studio
+                ? <> On the portal a <span className="font-medium">Manager</span> sees everything in these companies, and so does a <span className="font-medium">Director</span> set to &ldquo;their companies&rdquo;.</>
+                : <> If they have a portal sign-in as a <span className="font-medium">Manager</span>, this is also what they can see there.</>}
             </p>
             <div className="space-y-2">
               {associations.length === 0 && (
@@ -505,8 +547,11 @@ export function PersonForm({
             <FieldError message={fieldErrors.probationEndDate} />
           </div>
         </FormSection>
+        {afterRole}
+        </Col>
 
-        <FormSection title="Contact">
+        <Col studio={studio} order="xl:col-start-2 xl:row-start-1 xl:row-span-2">
+        <FormSection studio={studio} title="Contact">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -572,7 +617,7 @@ export function PersonForm({
           </div>
         </FormSection>
 
-        <FormSection title="Personal">
+        <FormSection studio={studio} title="Personal">
           <div>
             <FieldLabel>Date of birth</FieldLabel>
             <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
@@ -613,6 +658,7 @@ export function PersonForm({
             />
           </div>
         </FormSection>
+        </Col>
 
       </div>
 
@@ -623,7 +669,7 @@ export function PersonForm({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 pt-1">
+      <div className={studio ? "sticky bottom-[calc(64px+env(safe-area-inset-bottom)+14px)] z-20 flex items-center justify-end gap-2 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-4 py-2.5 shadow-[0_10px_28px_rgba(17,18,20,0.10)]" : "flex items-center justify-end gap-2 pt-1"}>
         <EnterHint className="mr-auto" verb={mode === "create" ? "create" : "save"} />
         {onCancel && (
           <button

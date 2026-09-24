@@ -121,3 +121,68 @@ export async function revokePortalAccess(personId: number): Promise<PortalAccess
   await recordEvent("portal.access.revoked", "ok", { personId });
   return { ok: true };
 }
+
+/* ---------------------------------------------------------------------------
+ * A director's reach FOLLOWS THEIR COMPANIES (24 Sept 2026, owner: "unify this
+ * … avoid duplication"). There used to be two company lists on a person that
+ * looked alike and meant different things: "Also works for" (person_companies,
+ * which a Manager's scope resolves to) and a Director's scope list set in
+ * Settings. Now a director has ONE choice — every company, or only the
+ * companies they work for — and the list is the person's own companies.
+ *
+ * Storage is unchanged (director_companies + the legacy column, both still
+ * written only by writeDirectorScope), so the portal reads exactly what it read
+ * before. The live data already matched this for every scoped director but one
+ * (measured 24 Sept: Amal's scope is TG while he also works for VI), so a
+ * scope is only ever re-written when it EQUALLED the person's companies — a
+ * scope that differs is left alone and the profile says so.
+ * ------------------------------------------------------------------------- */
+
+/** The companies a person works for: the main company, then every "also works for". */
+export async function companiesOnRecord(personId: number): Promise<number[]> {
+  const [{ data: p }, { data: links }] = await Promise.all([
+    sb.from("people").select("company_id").eq("id", personId).maybeSingle(),
+    sb.from("person_companies").select("company_id").eq("person_id", personId),
+  ]);
+  const ids = [p?.company_id as number | null, ...(links ?? []).map((l) => l.company_id as number)];
+  return [...new Set(ids.filter((n): n is number => Number.isFinite(n) && (n as number) > 0))];
+}
+
+async function currentDirectorScope(personId: number): Promise<{ director: boolean; scope: number[] }> {
+  const [{ data: p }, { data: rows }] = await Promise.all([
+    sb.from("people").select("portal_role,portal_password_hash").eq("id", personId).maybeSingle(),
+    sb.from("director_companies").select("company_id").eq("person_id", personId),
+  ]);
+  const director = Boolean(p?.portal_password_hash) && parsePortalRole(p?.portal_role) === "director";
+  return { director, scope: (rows ?? []).map((r) => r.company_id as number) };
+}
+
+const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
+
+/** Call BEFORE changing someone's companies: does their director reach follow them? */
+export async function directorFollowsCompanies(personId: number): Promise<boolean> {
+  const { director, scope } = await currentDirectorScope(personId);
+  if (!director || scope.length === 0) return false;
+  return sameSet(scope, await companiesOnRecord(personId));
+}
+
+/** Call AFTER changing someone's companies, with what `directorFollowsCompanies`
+ *  said before: a director who saw "only their companies" keeps doing so. */
+export async function refreshDirectorScope(personId: number, followed: boolean): Promise<void> {
+  if (!followed) return;
+  const now = await companiesOnRecord(personId);
+  // Never turn a scoped director into a portfolio-wide one by emptying their companies.
+  if (now.length === 0) return;
+  await writeDirectorScope(personId, now);
+  await recordEvent("portal.scope.followed", "ok", { personId, companies: now });
+}
+
+/** The profile's one choice for a director: every company, or only their own. */
+export async function setDirectorReach(personId: number, reach: "all" | "own"): Promise<PortalAccessResult> {
+  const { director } = await currentDirectorScope(personId);
+  if (!director) return { ok: false, error: "Only a Director's reach can be set this way." };
+  if (reach === "all") return changePortalRole(personId, "director", []);
+  const own = await companiesOnRecord(personId);
+  if (own.length === 0) return { ok: false, error: "They don't work for any company yet — add one under Role & companies first." };
+  return changePortalRole(personId, "director", own);
+}

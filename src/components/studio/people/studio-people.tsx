@@ -32,6 +32,7 @@ import { cn } from "@/lib/cn";
 import { useRemindPerson } from "./remind";
 import { useCreateParam } from "@/lib/use-create-param";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
+import { useMediaQuery } from "@/lib/use-media-query";
 
 type Company = { id: number; name: string };
 type Hints = Record<number, { onLeave: boolean; present: number; absent: number }>;
@@ -102,6 +103,7 @@ export function StudioPeople({ people, companies, hints = {} }: {
   const { remind, pending: reminding } = useRemindPerson();
   const area = useRef<HTMLDivElement>(null);
   useFitFrame(area, { minimum: 360 });
+  const wideRings = useMediaQuery("(min-width: 1280px)");
   // /people?new=1 — the old New menu's "Person", and any link that meant "add one".
   useCreateParam("1", openAdd);
 
@@ -249,7 +251,7 @@ export function StudioPeople({ people, companies, hints = {} }: {
       <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[220px] lg:grid-cols-2">
         <StudioCard className="min-h-[200px]">
           <CardHead label="Directory" right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} companies</span>} />
-          <div className="mt-auto flex flex-wrap items-end gap-7 pt-3">
+          <div className="mt-auto flex flex-wrap items-end gap-5 pt-3 lg:flex-nowrap xl:gap-7">
             <div>
               <BigNumber value={active} unit="active" />
               <div className="mt-3 flex gap-3.5 text-xs text-[var(--st-on-card-muted)]">
@@ -259,10 +261,10 @@ export function StudioPeople({ people, companies, hints = {} }: {
             </div>
             <span className="flex-1" />
             <button type="button" onClick={() => f.set({ chip: "portal", mode: "browse" })} title="Show who is on the portal">
-              <Ring value={active ? (counts.portal / active) * 100 : 0} size={116} stroke={12} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" />
+              <Ring value={active ? (counts.portal / active) * 100 : 0} size={wideRings ? 116 : 92} stroke={wideRings ? 12 : 10} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" />
             </button>
             <button type="button" onClick={() => f.set({ chip: "overloaded", mode: "browse" })} title="Show who is overloaded">
-              <Ring value={active ? (counts.overloaded / active) * 100 : 0} size={116} stroke={12} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" />
+              <Ring value={active ? (counts.overloaded / active) * 100 : 0} size={wideRings ? 116 : 92} stroke={wideRings ? 12 : 10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" />
             </button>
           </div>
         </StudioCard>
@@ -413,7 +415,9 @@ export function StudioPeople({ people, companies, hints = {} }: {
 
       {/* ── The floating foot: search + the chips; Select for changes in bulk.
            Below lg it rides above the footer; from lg it sits on the area. */}
-      <div className="pointer-events-none sticky bottom-[calc(64px+env(safe-area-inset-bottom)+14px)] z-30 -mt-20 flex justify-center lg:absolute lg:inset-x-0 lg:bottom-1 lg:mt-0">
+      {/* The cards fade out under the bar instead of peeking out, cut, below it. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden h-24 bg-gradient-to-b from-transparent to-[var(--st-page)] lg:block" />
+      <div className="pointer-events-none sticky bottom-[calc(64px+env(safe-area-inset-bottom)+14px)] z-30 -mt-20 flex justify-center lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0">
         {selecting ? (
           <div className="pointer-events-auto flex w-full max-w-[1100px] flex-wrap items-center gap-2 rounded-2xl bg-[var(--st-card)] p-2 pl-4 text-[var(--st-on-card)] shadow-[0_10px_28px_rgba(17,18,20,0.25)] sm:h-14 sm:flex-nowrap sm:py-0">
             <span className="text-[13px] font-medium">{ids.length ? pickedLabel : "Tick people to change them together"}</span>

@@ -11,9 +11,7 @@
  * PersonPortalAccess, PersonProbation, PersonPackPanel, DeletePersonDialog,
  * LinkedNotesTab, PersonForm, and the people / pack actions.
  */
-import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -25,9 +23,8 @@ import { StudioScope, stBtn } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
 import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { JourneyChecklist } from "@/components/journey-checklist";
-import { PersonAssets } from "@/components/person-assets";
+import { StudioPersonEquipment } from "./person-equipment";
 import { FactsPanel } from "@/components/facts-panel";
-import { PersonPortalAccess } from "@/components/person-portal-access";
 import { PersonProbation } from "@/components/person-probation";
 import { PersonPackPanel } from "@/components/person-pack-builder";
 import { DeletePersonDialog } from "@/components/delete-person-dialog";
@@ -41,6 +38,7 @@ import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person
 import { togglePersonActive, snoozePerson, revokePortalAccessQuick } from "@/app/people/actions";
 import { taskHref } from "@/lib/task-href";
 import { useRemindPerson } from "./remind";
+import { PortalEditor, applyPortalDraft, draftFrom, type PortalDraft, type PortalNow } from "./portal-editor";
 import { cn } from "@/lib/cn";
 
 export type StudioPersonData = {
@@ -48,7 +46,7 @@ export type StudioPersonData = {
     id: number; name: string; staffId: string | null; active: boolean; role: string | null; personType: PersonType;
     companyId: number | null; companyName: string | null; departmentName: string | null;
     managerId: number | null; managerName: string | null; secondaryManagers: { id: number; name: string | null }[];
-    alsoCompanies: string[]; email: string | null; phone: string | null; whatsapp: string | null; preferredChannel: string | null;
+    alsoCompanies: string[]; companyIds: number[]; email: string | null; phone: string | null; whatsapp: string | null; preferredChannel: string | null;
     startDate: string | null; probationEndDate: string | null; dateOfBirth: string | null; nationality: string | null;
     nationalId: string | null; passportNo: string | null; workSite: string | null; residence: string | null; address: string | null;
     emergencyContactName: string | null; emergencyContactPhone: string | null; notes: string | null; snoozedUntil: string | null;
@@ -108,7 +106,7 @@ function KV({ k, v }: { k: string; v: ReactNode }) {
 }
 const LINK = "hover:underline";
 /** A column of cards; from xl it scrolls inside the fitted grid. */
-const COL = "st-scroll flex min-w-0 flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-1";
+const COL = "flex min-w-0 flex-col gap-4";
 const BTN = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-line)] px-2.5 text-xs transition-colors hover:bg-[var(--st-page)]";
 const BTN_DARK = "inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--st-ink)] px-2.5 text-xs text-[var(--st-surface)] transition-opacity hover:opacity-90";
 const BTN_BAD = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-bad-line)] px-2.5 text-xs text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-bad-wash)]";
@@ -140,14 +138,16 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
     },
   };
   const tab: Tab = (TABS as readonly string[]).includes(url.values.tab) ? (url.values.tab as Tab) : "overview";
-  const [sheet, setSheet] = useState<null | "portal" | "facts" | "pack">(null);
+  const [sheet, setSheet] = useState<null | "facts" | "pack">(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const { remind, pending: reminding } = useRemindPerson();
+  const portalNow: PortalNow = {
+    enabled: data.portal.enabled, role: asPortalRole(data.portal.role), designation: data.portal.designation,
+    lastLoginAt: data.portal.lastLoginAt, directorCompanyIds: data.portal.directorCompanyIds, companyIds: p.companyIds,
+  };
+  const [portalDraft, setPortalDraft] = useState<PortalDraft>(() => draftFrom(portalNow));
   const here = `/people/${p.id}`;
-  const cols = useRef<HTMLDivElement>(null);
-  const wide = useMediaQuery("(min-width: 1280px)");
-  useFitFrame(cols, { enabled: wide && (url.values.tab === "overview" || !url.values.tab), minimum: 480, deps: [url.values.tab] });
 
   const open = data.tasks.filter((t) => !t.done);
   const overdueFirst = useMemo(() => [...open].sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999)), [open]);
@@ -160,6 +160,8 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
   ].filter(Boolean).join(" · ");
   const snoozed = p.snoozedUntil && new Date(p.snoozedUntil) > new Date();
   const setTab = (t: Tab) => url.set({ tab: t });
+  /** Portal access is edited in the profile's Edit tab, beside the companies it depends on. */
+  const goPortal = () => { setTab("edit"); requestAnimationFrame(() => document.getElementById("portal")?.scrollIntoView({ behavior: "smooth", block: "center" })); };
 
   function act(fn: () => Promise<{ ok: boolean; error?: string }>, done: string) {
     start(async () => {
@@ -245,9 +247,9 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
 
   /* ── Overview (the board) ─────────────────────────────────────────────── */
   const overview = (
-    /* From xl the three columns FIT the frame and each scrolls in itself — the
-       board, and what the owner asked of Tasks ("fit the screen, no scrolling"). */
-    <div ref={cols} className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    /* The page scrolls as one — a scrollbar per column was tried and the owner
+       found it annoying (24 Sept 2026). */
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <div className={COL}>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {([
@@ -279,7 +281,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           </div>
         </Card>
 
-        <Card title="Tracked facts" right="with their source" texture="st-tex-paper-rings" className="xl:flex-1">
+        <Card title="Tracked facts" right="with their source" texture="st-tex-paper-rings">
           <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">Contract, passport, bank and other facts — each dated, sourced and kept with its history, never overwritten.</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             <button type="button" onClick={() => setSheet("facts")} className={BTN_DARK}>Record a fact</button>
@@ -338,14 +340,14 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <div className="mt-3 flex flex-wrap gap-1.5">
             {data.portal.enabled ? (
               <>
-                <button type="button" onClick={() => setSheet("portal")} className={BTN}>Change level</button>
-                <button type="button" onClick={() => setSheet("portal")} className={BTN}>Reset password</button>
+                <button type="button" onClick={() => goPortal()} className={BTN}>Change level</button>
+                <button type="button" onClick={() => goPortal()} className={BTN}>Reset password</button>
                 <button type="button" disabled={busy} onBlur={() => setConfirmRevoke(false)}
                   onClick={() => { if (!confirmRevoke) { setConfirmRevoke(true); return; } setConfirmRevoke(false); act(() => revokePortalAccessQuick(p.id), "Portal access revoked."); }}
                   className={cn(BTN_BAD, confirmRevoke && "bg-[var(--st-late)] text-white")}>{confirmRevoke ? "Press again to revoke" : "Revoke"}</button>
               </>
             ) : (
-              <button type="button" onClick={() => setSheet("portal")} className={BTN_DARK}>Give portal access</button>
+              <button type="button" onClick={() => goPortal()} className={BTN_DARK}>Give portal access</button>
             )}
           </div>
         </Card>
@@ -455,7 +457,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           ))}
         </span>
       }>
-        <div className="mt-3"><JourneyChecklist key={url.values.jk} personId={p.id} kind={url.values.jk === "offboarding" ? "offboarding" : "onboarding"} onChanged={() => router.refresh()} /></div>
+        <div className="mt-3"><JourneyChecklist studio key={url.values.jk} personId={p.id} kind={url.values.jk === "offboarding" ? "offboarding" : "onboarding"} onChanged={() => router.refresh()} /></div>
       </Card>
       <Card title="Probation">
         <div className="mt-3"><PersonProbation personId={p.id} probationEndDate={p.probationEndDate} onChanged={() => router.refresh()} /></div>
@@ -464,7 +466,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
   );
   const equipmentTab = (
     <Card title="Equipment" right="signed out to them, or in their care">
-      <div className="mt-3"><PersonAssets personId={p.id} onChanged={() => router.refresh()} /></div>
+      <div className="mt-3"><StudioPersonEquipment personId={p.id} firstName={shortName(p.name).split(" ")[0]} onChanged={() => router.refresh()} /></div>
     </Card>
   );
   const notesTab = (
@@ -496,14 +498,13 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
     </Card>
   );
   const editTab = (
-    <Card title="Edit" right="every field on the record">
-      <div className="mt-3">
-        <PersonForm mode="edit" id={p.id} defaults={data.editDefaults} companies={data.lookups.companies} peopleList={data.lookups.peopleList}
-          departments={data.lookups.departments} sites={data.lookups.sites} roles={data.lookups.roles}
-          onCancel={() => setTab("overview")}
-          onComplete={(res) => { if (!res.ok) return; toast("Saved.", { tone: "success" }); setTab("overview"); router.refresh(); }} />
-      </div>
-    </Card>
+    <PersonForm studio mode="edit" id={p.id} defaults={data.editDefaults} companies={data.lookups.companies} peopleList={data.lookups.peopleList}
+      departments={data.lookups.departments} sites={data.lookups.sites} roles={data.lookups.roles}
+      afterRole={<div id="portal"><PortalEditor now={portalNow} draft={portalDraft} onChange={setPortalDraft} scope={data.portalScope}
+        companyNames={[p.companyName, ...p.alsoCompanies].filter((n): n is string => !!n)} personName={p.name} /></div>}
+      afterSave={() => applyPortalDraft(p.id, portalNow, portalDraft)}
+      onCancel={() => { setPortalDraft(draftFrom(portalNow)); setTab("overview"); }}
+      onComplete={(res) => { if (!res.ok) return; toast("Saved.", { tone: "success" }); setPortalDraft((d) => ({ ...d, password: "" })); setTab("overview"); router.refresh(); }} />
   );
 
   return (
@@ -518,10 +519,6 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
       {tab === "history" && historyTab}
       {tab === "edit" && editTab}
 
-      <StudioSheet open={sheet === "portal"} onClose={() => setSheet(null)} title="Portal access" width={600}>
-        <PersonPortalAccess personId={p.id} portal={data.portal} companies={data.lookups.companies} scope={data.portalScope}
-          onChanged={() => router.refresh()} fmtDate={(d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} />
-      </StudioSheet>
       <StudioSheet open={sheet === "facts"} onClose={() => setSheet(null)} title="Tracked facts" width={680}>
         <FactsPanel entityType="person" entityId={p.id} />
       </StudioSheet>

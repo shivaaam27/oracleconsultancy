@@ -442,3 +442,47 @@ gen/p_event.py).
   (`/people?person=`) — now `/people/<id>?tab=documents`. `DeletePersonDialog`
   takes `label`/`triggerClassName`.
 - Tokens added: `--st-bad-line`, `--st-bad-wash` (the "Revoke"/"Delete…" pink).
+
+### People, second pass — portal access unified into the profile (24 Sept 2026)
+
+The owner: portal level + "which companies" was set in Settings, while "Also
+works for" on the person was a second company list — "mixing things up … unify
+this … whatever is in the portal, put it here in the profile … avoid
+duplication … the portal should not be affected."
+- **Measured first** (live, 24 Sept): of 7 directors, Pulin + Parin see all;
+  Chirag, Daniel, Kishan, Jilna are scoped to EXACTLY main + also-works-for;
+  **Amal is the only mismatch** (works for TG + VI, scope TG only). Managers
+  (Jitesh, Shivam) already resolve to their companies; staff = own work.
+- **A director's reach is now ONE choice** — "Every company" (scope empty) or
+  "Only their companies" (scope = main + also-works-for). Storage unchanged
+  (`director_companies` + legacy column, still only via `writeDirectorScope`),
+  so the portal reads what it always read.
+- `lib/portal-access.ts`: `companiesOnRecord`, `directorFollowsCompanies`
+  (snapshot BEFORE a company change), `refreshDirectorScope` (re-write AFTER,
+  only if it followed — so Amal's differing scope is never silently widened;
+  never empties a scope), `setDirectorReach`. Wired into `updatePerson` and
+  `bulkSetPeopleField("company")` — the only two writers of a person's companies
+  (verified by grep; MCP and portal-auth only READ person_companies).
+- people/actions: `setPortalLevelWithReach`, `grantPortalAccessWithReach` —
+  the company list is worked out on the server from the record, never sent.
+- **Profile Edit tab = `PersonForm studio`** (two columns: Identity + Role &
+  companies + Portal access | Contact + Personal; sticky save bar) with
+  `afterRole` = `PortalEditor` (`studio/people/portal-editor.tsx`) and
+  `afterSave` = `applyPortalDraft` — the portal change applies AFTER the person
+  saves, so "their companies" uses the companies just saved. Level includes "No
+  access" (revoke); a password field grants/resets; the portal title. A
+  "custom" director (Amal) shows a notice and is left alone unless the level or
+  reach is changed on purpose; a password reset hands back the stored scope.
+- The Overview's "Change level / Reset password / Give access" now go to that
+  section; the PersonPortalAccess pop-up is gone from the Studio page.
+- ⚠️ **Never define a component inside a component's render** (did it twice
+  here — `Sec` in PersonForm, `Frame` in JourneyChecklist — caught both):
+  it remounts on every render and inputs lose focus while typing. Use a
+  module-level component or a plain element variable.
+- Also: Studio Equipment (`studio/people/person-equipment.tsx`, same API +
+  actions, Return asks twice), `JourneyChecklist studio`, the person Overview
+  scrolls as a page (inner column scroll removed — "annoying"), the People
+  search bar sits on the foot over a fade, the Directory rings shrink (92px)
+  below xl instead of wrapping.
+- **Still to do:** Settings' access list keeps its own director company picker
+  → replace with the same all/own choice in the Settings pass.

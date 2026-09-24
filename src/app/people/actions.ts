@@ -19,6 +19,9 @@ import {
   changePortalRole,
   revokePortalAccess as revokePortalAccessCore,
   parsePortalRole,
+  companiesOnRecord,
+  directorFollowsCompanies,
+  refreshDirectorScope,
 } from "@/lib/portal-access";
 import { withTx, type Tx } from "@/lib/tx";
 import { people, departmentHeads, reportingLines } from "@/db/schema";
@@ -538,6 +541,10 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const whatsapp = s(formData, "whatsapp");
   const departmentId = await resolveDepartmentId(formData);
 
+  // A director who sees "only their companies" keeps doing so when their
+  // companies change below — snapshot it before anything is written.
+  const directorFollowed = await directorFollowsCompanies(id);
+
   // If the person is moving to a different company, remember their current
   // staff ID so old references (e.g. CZ-E04) stay traceable.
   const newCompanyId = n(formData, "companyId");
@@ -599,6 +606,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   }
 
   await syncAssociations(id, parseAssociations(formData));
+  await refreshDirectorScope(id, directorFollowed);
   const lineRes = await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
   if (!lineRes.ok) return { ok: false, error: lineRes.error };
 
@@ -965,8 +973,12 @@ export async function bulkSetPeopleField(
   }
 
   if (targets.length === 0) return { ok: false, error: "Nothing to update." };
+  // Moving people's main company: a director who sees "only their companies"
+  // must follow the move (snapshot first, then write, then re-sync).
+  const followed = field === "company" ? await Promise.all(targets.map((pid) => directorFollowsCompanies(pid))) : [];
   const { error } = await sb.from("people").update(patch).in("id", targets);
   if (error) return { ok: false, error: error.message };
+  if (field === "company") await Promise.all(targets.map((pid, i) => refreshDirectorScope(pid, followed[i])));
 
   await Promise.all(targets.map((pid) => logPersonFieldChanges(pid, [{ field: label, oldValue: null, newValue: display }])));
   invalidate();
@@ -1029,6 +1041,37 @@ export async function setPortalRoleQuick(
   directorCompanyIds: number[] = [],
 ): Promise<ActionResult> {
   const res = await changePortalRole(personId, parsePortalRole(role), directorCompanyIds);
+  if (!res.ok) return res;
+  invalidate();
+  return { ok: true };
+}
+
+/**
+ * The person profile's portal controls (Studio). A Director's reach is chosen
+ * as "all" companies or "own" — the companies on their record — and the list
+ * is worked out HERE, from the record, never sent from the screen. Everything
+ * still goes through the one door in lib/portal-access.ts.
+ */
+export async function setPortalLevelWithReach(personId: number, role: string, reach: "all" | "own" = "all"): Promise<ActionResult> {
+  const r = parsePortalRole(role);
+  let ids: number[] = [];
+  if (r === "director" && reach === "own") {
+    ids = await companiesOnRecord(personId);
+    if (!ids.length) return { ok: false, error: "They don't work for any company yet — add one under Role & companies first." };
+  }
+  const res = await changePortalRole(personId, r, ids);
+  if (!res.ok) return res;
+  invalidate();
+  return { ok: true };
+}
+export async function grantPortalAccessWithReach(personId: number, role: string, password: string, reach: "all" | "own" = "all"): Promise<ActionResult> {
+  const r = parsePortalRole(role);
+  let ids: number[] = [];
+  if (r === "director" && reach === "own") {
+    ids = await companiesOnRecord(personId);
+    if (!ids.length) return { ok: false, error: "They don't work for any company yet — add one under Role & companies first." };
+  }
+  const res = await grantPortalAccess(personId, r, password, ids);
   if (!res.ok) return res;
   invalidate();
   return { ok: true };

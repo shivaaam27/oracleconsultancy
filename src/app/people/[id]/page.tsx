@@ -67,6 +67,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             companyId: p.companyId, companyName: p.companyName, departmentName: p.departmentName,
             managerId: p.managerId, managerName: p.managerName, secondaryManagers: p.secondaryManagers,
             alsoCompanies: p.associations.filter((a) => a.companyId !== p.companyId).map((a) => a.companyName ?? `#${a.companyId}`),
+            companyIds: [...new Set([p.companyId, ...p.associations.map((a) => a.companyId)].filter((n): n is number => n != null))],
             email: p.email, phone: p.phone, whatsapp: p.whatsapp, preferredChannel: p.preferredChannel,
             startDate: iso(p.startDate), probationEndDate: iso(p.probationEndDate), dateOfBirth: iso(p.dateOfBirth),
             nationality: p.nationality, nationalId: p.nationalId, passportNo: p.passportNo,
