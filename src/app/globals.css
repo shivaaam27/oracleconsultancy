@@ -1833,3 +1833,9 @@ body:has(main .studio) > * [data-field-label] {
   font-weight: 500;
   color: #6E7177;
 }
+
+/* A Desk control used as a chip on Studio's dark band (the new task's
+   deadline): its inner label carries Desk's ink colour — lift it. */
+.studio .st-dark-chip span,
+.studio .st-dark-chip svg { color: #F2F2F0; }
+

@@ -111,7 +111,28 @@ Compared side by side (mockup served locally — launch.json `studio-mockup`,
 - `components/date-input.tsx`: a form date field on DatePopover — use it
   instead of `<input type="date">` anywhere.
 
-### Create & edit — designed, not built (24 Sept 2026)
+### Create — "+ New" and the new task, BUILT (24 Sept 2026)
+- Footer "+ New {word}" opens `studio/quick-add.tsx`: one card, a tab per
+  `creatables()` entry, opening on the tab that fits the page. The Task tab
+  (`QuickTaskPane`) is complete; the other tabs say which phase brings their
+  card and hand on to the existing form. The task pane stays MOUNTED while
+  other tabs show, so a half-typed task survives.
+- `/task/new` with Tasks on = `StudioNewTaskPage` (the record page as a
+  draft, fits the frame). Carried over from the card via the address
+  (title, companyId, assignees, deadline, priority, instructions).
+- ONE writer: `createTaskStudio` → `createTaskCore`, then the instructions as
+  the first update (optionally pinned), then "Also create in" copies. A
+  repeat whose next turn is not today is saved as a rule (as the old form).
+  The toast offers Undo (or "Send the message" when "Tell them now" is on).
+- ⚠️ `@modal/(.)task/new` intercepts EVERY in-app link to /task/new and
+  shows the old form as a modal. With Tasks on it renders `LoadThisPage`,
+  a full load of the same address, which the interception does not catch.
+- ⚠️ globals.css's unlayered `input { color; border; background }` beats
+  utility classes — a light input on a dark surface needs inline style.
+- ⚠️ Use the company's `code_prefix` for "Sets the code" — never the name
+  (Furaha Innovation is CC).
+
+### Create & edit — the pattern (designed 24 Sept 2026)
 Boards QuickAdd / NewTask / CreateEdit on the canvas (Tasks & Home page).
 The pattern: ONE "+ New" card with a tab per record (Task, Note, Event,
 Person, Document, Company, Announcement) asking only the essentials; "Open

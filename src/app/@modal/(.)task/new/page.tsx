@@ -3,6 +3,9 @@ import { sb } from "@/db/supabase";
 import { NewTaskForm } from "@/app/task/new/new-task-form";
 import { RouteModal } from "@/components/route-modal";
 import { Loader2 } from "lucide-react";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { LoadThisPage } from "@/components/load-this-page";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +19,10 @@ type SP = Promise<{ companyId?: string; returnTo?: string; title?: string; deadl
  * streams in via the inner Suspense boundary. A direct visit / refresh falls
  * through to the real /task/new page.
  */
-export default function NewTaskModal({ searchParams }: { searchParams: SP }) {
+export default async function NewTaskModal({ searchParams }: { searchParams: SP }) {
+  // Studio (New look → Tasks): the new task is a full page, not this modal.
+  const { studioPages } = await getAppSettings();
+  if (isStudioOn(studioPages, "tasks")) return <LoadThisPage />;
   return (
     <RouteModal title="New task" subtitle="Create an action item tracked across the portfolio.">
       <Suspense fallback={<div className="flex justify-center py-16"><Loader2 size={22} className="animate-spin text-fg-subtle" /></div>}>

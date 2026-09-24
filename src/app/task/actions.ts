@@ -1293,3 +1293,129 @@ export async function patchTaskField(
   bustTag("tasks"); invalidateAllTasks();
   return { ok: true, code: finalCode, undoToken: result.undoToken };
 }
+
+/* ----------------------------------------------------------------------
+ * Studio — create a task from the "+ New" card or the full draft page.
+ *
+ * ONE path for both, and it is the SAME core the old form uses
+ * (`createTaskCore`), so audit, code allocation, assignees and repeat rules
+ * behave exactly as they always have. On top of the core, in order:
+ *   1. instructions become the first update (addTaskUpdateCore), pinned as
+ *      the current instruction when asked;
+ *   2. "Also create in" makes an independent copy per company
+ *      (copyTaskToCompany — each gets its own code).
+ * ⚠️ A repeating task whose next turn is a FUTURE day is saved as a rule, not
+ * created (owner, 17 Sep 2026) — same rule as `createTask` above.
+ * -------------------------------------------------------------------- */
+export type StudioNewTask = {
+  companyId: number;
+  actionItem: string;
+  assigneeNames?: string[];
+  status?: string;
+  priority?: string;
+  risk?: string | null;
+  category?: string | null;
+  departmentName?: string | null;
+  /** yyyy-mm-dd */
+  deadline?: string | null;
+  meetingDate?: string | null;
+  comments?: string | null;
+  requiresAttachment?: boolean;
+  accountability?: "shared" | "lead";
+  repeat?: { cadence: "weekly" | "monthly"; weekdays: number[]; dayOfMonth: number; alsoToday?: boolean } | null;
+  instructions?: string | null;
+  pinInstructions?: boolean;
+  alsoCompanyIds?: number[];
+};
+
+export async function createTaskStudio(input: StudioNewTask): Promise<
+  | { ok: true; code: string; taskId: number; copies: string[]; undoToken?: string; ruleOnly?: false }
+  | { ok: true; ruleOnly: true }
+  | { ok: false; error: string }
+> {
+  if (!(await isAdminSession())) return { ok: false, error: "Sign in as the administrator first." };
+  const actionItem = (input.actionItem ?? "").trim();
+  if (!input.companyId) return { ok: false, error: "Pick a company first — it sets the task code." };
+  if (!actionItem) return { ok: false, error: "Say what needs doing first." };
+
+  const status = input.status || "Not Started";
+  const priority = input.priority || "Medium";
+  const names = (input.assigneeNames ?? []).map((n) => n.trim()).filter(Boolean);
+  const r = input.repeat;
+  const willRepeat = !!r && (r.cadence === "monthly" || r.weekdays.length > 0);
+
+  if (willRepeat && !shouldCreateTodaysCopy({ cadence: r!.cadence, weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth }, !!r!.alsoToday)) {
+    const assigneePersonIds: number[] = [];
+    for (const n of names) assigneePersonIds.push(await getOrCreatePersonSb(n, input.companyId));
+    const saved = await saveRuleOnly({
+      title: actionItem, companyId: input.companyId, cadence: r!.cadence,
+      weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth,
+      priority, status: status === "Completed" || status === "Closed" ? "Not Started" : status,
+      description: input.comments ?? "", assigneePersonIds,
+    });
+    if (!saved.ok) return { ok: false, error: saved.error ?? "Couldn't save the repeat rule." };
+    revalidatePath("/"); revalidatePath("/task", "layout"); bustTag("tasks"); invalidateAllTasks();
+    return { ok: true, ruleOnly: true };
+  }
+
+  const result = await createTaskCore({
+    companyId: input.companyId,
+    actionItem,
+    departmentName: input.departmentName ?? null,
+    status,
+    priority,
+    risk: input.risk ?? null,
+    category: input.category ?? null,
+    deadline: input.deadline ? parseDate(input.deadline) : null,
+    meetingDate: input.meetingDate ? parseDate(input.meetingDate) : null,
+    comments: input.comments?.trim() || null,
+    assigneeNames: names,
+    accountability: input.accountability === "lead" ? "lead" : "shared",
+    requiresAttachment: !!input.requiresAttachment,
+    repeat: willRepeat ? { cadence: r!.cadence, weekdays: r!.weekdays, dayOfMonth: r!.dayOfMonth, todaysCopyMade: true } : null,
+    createdBy: "web-ui",
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  const { code, taskId } = result.result;
+
+  const instructions = input.instructions?.trim();
+  if (instructions) {
+    const up = await addTaskUpdateCore({ taskId, taskCode: code, body: instructions, createdBy: "web-ui" });
+    if (up.ok && input.pinInstructions) {
+      const pin = await toggleUpdatePin(up.result.taskUpdateId);
+      if (pin.ok) await notifyPinned(taskId, code, "Management", null);
+    }
+  }
+
+  const copies: string[] = [];
+  for (const cid of [...new Set(input.alsoCompanyIds ?? [])]) {
+    if (cid === input.companyId) continue;
+    const c = await copyTaskToCompany(code, cid);
+    if (c.ok) copies.push(c.code);
+  }
+
+  revalidatePath("/registry");
+  revalidatePath("/");
+  bustTag("tasks"); invalidateAllTasks();
+  return { ok: true, code, taskId, copies, undoToken: result.undoToken };
+}
+
+/** What the "+ New" card and the draft page offer — fetched when opened, so
+ *  no page pays for it on every render. */
+export async function studioNewTaskOptions(): Promise<{
+  companies: { id: number; name: string; prefix?: string | null }[];
+  people: { id: number; name: string }[];
+  departments: string[];
+}> {
+  if (!(await isAdminSession())) return { companies: [], people: [], departments: [] };
+  const [{ data: cs }, { data: ps }, { data: ds }] = await Promise.all([
+    sb.from("companies").select("id,name,code_prefix").order("name"),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("departments").select("name").order("name"),
+  ]);
+  return {
+    companies: (cs ?? []).map((c) => ({ id: c.id as number, name: c.name as string, prefix: (c.code_prefix as string | null) ?? null })),
+    people: (ps ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+    departments: [...new Set((ds ?? []).map((d) => d.name as string))],
+  };
+}

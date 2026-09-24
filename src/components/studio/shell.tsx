@@ -18,11 +18,11 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, Home, Search, Settings as SettingsIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, Home, Plus, Search, Settings as SettingsIcon, X } from "lucide-react";
 import { studioStops, stopIndexFor, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
-import { CreateMenu } from "@/components/create-menu";
+import { StudioQuickAdd } from "./quick-add";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
@@ -39,6 +39,7 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const vis = useNavVisibility();
   const { open: openPalette } = useCommandPalette();
   const [goTo, setGoTo] = useState(false);
+  const [quick, setQuick] = useState(false);
 
   const stops = useMemo(() => studioStops().filter((s) => !isHiddenNavHref(s.href, vis)), [vis]);
   const tab = params.get("tab");
@@ -51,8 +52,16 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const onHome = pathname === "/" && tab !== "tasks";
   const onSettings = pathname.startsWith("/settings");
 
-  // Close the panel whenever the page changes.
-  useEffect(() => setGoTo(false), [pathname, tab]);
+  // Close the panels whenever the page changes.
+  useEffect(() => { setGoTo(false); setQuick(false); }, [pathname, tab]);
+  // What "+ New" makes on this page — the card opens on that tab.
+  const newWord = pathname.startsWith("/people") ? "person"
+    : pathname.startsWith("/companies") ? "company"
+    : pathname.startsWith("/documents") ? "document"
+    : pathname.startsWith("/calendar") ? "event"
+    : pathname.startsWith("/notes") ? "note"
+    : pathname.startsWith("/announcements") ? "announcement"
+    : "task";
 
   // The left-hand note: on a task record say where you are; everywhere else,
   // the next thing due.
@@ -153,19 +162,22 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
               lanes
               triggerClassName="relative inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
             />
-            <div className="hidden sm:block">
-              <CreateMenu variant="footer" />
-            </div>
-            <Link
-              href="/task/new"
-              aria-label="New task"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#F2F2F0] text-lg font-semibold leading-none text-[#111214] sm:hidden"
+            {/* "+ New" opens the one create card (mockup board QuickAdd). */}
+            <button
+              type="button"
+              onClick={() => setQuick(true)}
+              aria-haspopup="dialog"
+              aria-expanded={quick}
+              aria-label="Create something new"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:px-3.5"
             >
-              +
-            </Link>
+              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">New {newWord}</span>
+            </button>
           </div>
         </div>
       </footer>
+
+      {quick && <StudioQuickAdd onClose={() => setQuick(false)} />}
 
       {goTo && (
         <GoToPanel

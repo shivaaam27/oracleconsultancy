@@ -7,7 +7,7 @@
  * ⚠️ THEY WRITE THROUGH THE SAME PATHS AS THE OLD CELLS — `useInlineField`
  * (status, with its undo toast) and `toggleTaskStar`. Only the look is new.
  */
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
@@ -62,8 +62,11 @@ export type ChoiceOption = { value: string; label: string; dot?: string; muted?:
  * category, company — so they all look and behave the same.
  */
 export function StudioChoiceMenu({
-  value, options, onPick, tone = "light", suffix, showDot = true, pending, title, className, empty = "Not set", width = 220,
+  value, options, onPick, tone = "light", suffix, showDot = true, pending, title, className, empty = "Not set", width = 220, prefix, icon,
 }: {
+  /** A quiet word before the value — the "+ New" card's chips ("Priority High"). */
+  prefix?: string;
+  icon?: ReactNode;
   value: string | null;
   options: ChoiceOption[];
   onPick: (value: string) => void;
@@ -126,8 +129,10 @@ export function StudioChoiceMenu({
           className,
         )}
       >
+        {icon && <span className="shrink-0 text-[var(--st-muted)]">{icon}</span>}
+        {prefix && <span className="shrink-0 text-[var(--st-sub)]">{prefix}</span>}
         {showDot && current?.dot && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: current.dot }} />}
-        {current ? <span className="truncate">{current.label}{suffix}</span> : <span className="truncate text-[var(--st-muted)]">{empty}</span>}
+        {current ? <span className={cn("truncate", prefix && "font-medium")}>{current.label}{suffix}</span> : <span className="truncate text-[var(--st-muted)]">{empty}</span>}
       </button>
       {open && pos && createPortal(
         <div
