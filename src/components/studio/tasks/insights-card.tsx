@@ -35,7 +35,7 @@ export function InsightsCard({ data }: { data: InsightsData }) {
   const maxP = Math.max(1, ...data.people.map((p) => p.open));
 
   return (
-    <div className="relative flex min-h-0 min-w-0 md:min-h-[244px] flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]">
+    <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 md:min-h-[244px]">
       <CardHead
         label={TITLES[i]}
         right={
@@ -72,7 +72,7 @@ export function InsightsCard({ data }: { data: InsightsData }) {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-1.5 lg:grid-cols-2 lg:gap-2">
+          <div className="hidden grid-cols-4 gap-1.5 sm:grid lg:grid-cols-2 lg:gap-2">
             {data.tiles.map((t) => (
               <Link key={t.label} href={t.href} scroll={false} className="min-w-0 rounded-xl border border-[#2A2C30] bg-[var(--st-card-2)] px-2 py-2 transition-colors hover:border-[#3A3D42] lg:px-3 lg:py-2.5">
                 <div className="text-xl leading-tight tracking-[-0.02em] tabular-nums">{t.n}</div>

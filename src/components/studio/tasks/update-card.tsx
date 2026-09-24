@@ -10,6 +10,7 @@
  * top of the page, so a row picked further down had its updates off-screen.
  * The side panel stays in view wherever you have scrolled.
  */
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
@@ -30,15 +31,15 @@ export function UpdateCard({
 }) {
   const pick = useStudioPick();
   return (
-    <div className="st-tex-rings relative flex min-h-[244px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]">
+    <div className="st-tex-rings relative flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 md:min-h-[244px]">
       <Idle fresh={fresh} unreadCount={unreadCount} postedToday={postedToday} picked={pick?.code ?? null} onPick={(c) => pick?.setCode(c)} />
     </div>
   );
 }
 
-const PER_PAGE = 3;
 
 function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: TaskRow[]; unreadCount: number; postedToday: number; picked: string | null; onPick: (code: string) => void }) {
+  const PER_PAGE = useMediaQuery("(max-width: 639px)") ? 2 : 3;
   const pages = Math.max(1, Math.ceil(fresh.length / PER_PAGE));
   const [page, setPage] = useState(0);
   const at = Math.min(page, pages - 1); // the list can shrink as updates are read
@@ -57,11 +58,15 @@ function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: Task
           </span>
         ) : <span>Click one to read and reply</span>}
       />
-      <div className="mt-3 grid flex-1 grid-cols-1 items-end gap-5 sm:grid-cols-[170px_minmax(0,1fr)]">
-        <div>
-          <div className="text-[76px] leading-[0.85] tracking-[-0.045em] tabular-nums">{unreadCount}</div>
-          <div className="mt-2.5 text-[13px] text-[#C9CBCF]">unread {unreadCount === 1 ? "update" : "updates"}</div>
+      {/* Phone: the number and its words on one line, two updates a page —
+          the card matches its neighbour's height (owner, 25 Sept 2026). */}
+      <div className="mt-2.5 grid flex-1 grid-cols-1 items-end gap-3 sm:mt-3 sm:grid-cols-[170px_minmax(0,1fr)] sm:gap-5">
+        <div className="max-sm:flex max-sm:items-end max-sm:gap-3">
+          <div className="text-[52px] leading-[0.85] tracking-[-0.045em] tabular-nums sm:text-[76px]">{unreadCount}</div>
+          <div>
+          <div className="text-[13px] text-[#C9CBCF] sm:mt-2.5">unread {unreadCount === 1 ? "update" : "updates"}</div>
           <div className="mt-0.5 text-xs text-[var(--st-muted)]">{postedToday === 0 ? "No task updated yet today" : `${postedToday} ${postedToday === 1 ? "task" : "tasks"} updated today`}</div>
+          </div>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           {fresh.length === 0 && <div className="text-[13px] text-[var(--st-muted)]">No updates yet on the open tasks.</div>}

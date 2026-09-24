@@ -103,8 +103,8 @@ export function FiltersButton({ sections, activeCount, extra }: { sections: Filt
   }, [open]);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={stBtn.dark}>
-        <SlidersHorizontal size={15} />Filters
+      <button type="button" onClick={() => setOpen(true)} aria-label="Filters" className={cn(stBtn.dark, "max-sm:h-10 max-sm:w-10 max-sm:justify-center max-sm:px-0")}>
+        <SlidersHorizontal size={15} /><span className="hidden sm:inline">Filters</span>
         {activeCount > 0 && <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-md bg-[#2E3035] px-1 text-[11px] text-white">{activeCount}</span>}
       </button>
       {open && (

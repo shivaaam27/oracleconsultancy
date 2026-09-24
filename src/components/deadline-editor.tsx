@@ -56,7 +56,7 @@ export function DeadlineEditor({
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  const W = 256;
+  const W = 280;
   useEffect(() => {
     if (!open) {
       setPos(null);
@@ -177,28 +177,31 @@ export function DeadlineEditor({
           data-st-menu
           onClick={(e) => e.stopPropagation()}
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: W, transform: pos?.above ? "translateY(-100%)" : undefined, visibility: pos ? "visible" : "hidden" }}
-          className="fixed z-[140] glass glass-menu elevated rounded-2xl p-2.5 shadow-lg"
+          className="studio st-pop fixed z-[140] rounded-[18px] border border-[var(--st-line)] bg-[var(--st-surface)] p-3.5 text-[var(--st-ink)] shadow-[0_16px_40px_rgba(17,18,20,0.16)] max-sm:p-4"
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Set deadline</span>
-            {pending ? <Loader2 size={13} className="animate-spin text-fg-muted" /> : (
-              <button type="button" onClick={() => setOpen(false)} className="text-fg-subtle hover:text-fg"><X size={14} /></button>
+          {/* The Studio look (owner, 25 Sept 2026: "seems old design"); on a
+              phone it is a full-width panel at the foot (data-st-menu) with
+              thumb-sized buttons. */}
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[15px] font-semibold">Deadline</span>
+            {pending ? <Loader2 size={15} className="animate-spin text-[var(--st-muted)]" /> : (
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--st-muted)] hover:bg-[var(--st-page)] hover:text-[var(--st-ink)] max-sm:h-10 max-sm:w-10"><X size={15} /></button>
             )}
           </div>
 
-          {deadline ? (
-            <div className={cn(
-              "mb-2 rounded-xl px-2.5 py-1.5 text-xs ring-1",
-              overdue ? "bg-danger-soft/40 text-danger ring-danger/20" : soon ? "bg-warn-soft/40 text-warn ring-warn/25" : "bg-bg-subtle/60 text-fg-muted ring-border/60",
-            )}>
-              Currently <b>{shortDate(deadline)}</b>
-              {typeof daysToDeadline === "number" && (overdue ? ` — ${Math.abs(daysToDeadline)} days late` : daysToDeadline === 0 ? " — due today" : ` — in ${daysToDeadline} days`)}
-            </div>
-          ) : (
-            <div className="mb-2 rounded-xl bg-bg-subtle/60 px-2.5 py-1.5 text-xs text-fg-muted ring-1 ring-border/60">No deadline set</div>
-          )}
+          <div className={cn(
+            "mb-2.5 rounded-xl px-3 py-2 text-[13px]",
+            overdue ? "bg-[var(--st-bad-wash)] text-[var(--st-late-text)]" : soon ? "bg-[var(--st-warn-wash)] text-[var(--st-soon-text)]" : "bg-[var(--st-page)] text-[var(--st-sub)]",
+          )}>
+            {deadline ? (
+              <>
+                Now <b className="font-semibold">{shortDate(deadline)}</b>
+                {typeof daysToDeadline === "number" && (overdue ? ` · ${Math.abs(daysToDeadline)} days late` : daysToDeadline === 0 ? " · due today" : ` · in ${daysToDeadline} days`)}
+              </>
+            ) : "No deadline set"}
+          </div>
 
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {quick.map((q) => {
               const on = toLocalDate(q.date) === currentYmd;
               return (
@@ -208,25 +211,27 @@ export function DeadlineEditor({
                   disabled={pending}
                   onClick={() => apply(q.date.toISOString(), `${code} due ${shortDate(q.date)}`)}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 ring-1 transition-all disabled:opacity-50",
-                    on ? "bg-accent-soft ring-accent/30" : "bg-bg-subtle/60 ring-border/60 hover:ring-accent/40",
+                    "flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl transition-colors disabled:opacity-50 max-sm:h-[60px]",
+                    on ? "bg-[var(--st-ink)] text-[var(--st-page)]" : "bg-[var(--st-page)] hover:bg-[var(--st-seg)]",
                   )}
                 >
-                  <span className={cn("text-xs font-semibold", on ? "text-accent" : "text-fg")}>{q.label}</span>
-                  <span className="text-xs text-fg-subtle">{shortDate(q.date)}</span>
+                  <span className="text-[13px] font-medium max-sm:text-sm">{q.label}</span>
+                  <span className={cn("text-xs", on ? "opacity-70" : "text-[var(--st-muted)]")}>{shortDate(q.date)}</span>
                 </button>
               );
             })}
           </div>
 
-          <label className="mt-2 flex items-center gap-2 rounded-xl bg-bg-subtle/60 px-2.5 py-1.5 ring-1 ring-border/60">
-            <CalendarDays size={13} className="shrink-0 text-fg-subtle" />
+          <label className="mt-2 flex h-11 items-center gap-2.5 rounded-xl border border-[var(--st-line)] px-3 max-sm:h-12">
+            <CalendarDays size={15} className="shrink-0 text-[var(--st-muted)]" />
+            <span className="sr-only">Pick a date</span>
             <input
               type="date"
               defaultValue={currentYmd}
               disabled={pending}
               onChange={(e) => { if (e.target.value) apply(e.target.value, `${code} deadline set`); }}
-              className="w-full bg-transparent text-xs outline-none"
+              style={{ background: "transparent", border: 0, boxShadow: "none", color: "var(--st-ink)" }}
+              className="bare-field h-full w-full text-[14px] outline-none"
             />
           </label>
 
@@ -235,7 +240,7 @@ export function DeadlineEditor({
               type="button"
               disabled={pending}
               onClick={() => apply(null, `${code} deadline cleared`)}
-              className="mt-1.5 w-full rounded-xl px-2 py-1.5 text-xs text-fg-muted transition-colors hover:bg-danger-soft/50 hover:text-danger disabled:opacity-50"
+              className="mt-1.5 flex h-10 w-full items-center justify-center rounded-xl text-[13px] text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-bad-wash)] disabled:opacity-50"
             >
               Clear deadline
             </button>

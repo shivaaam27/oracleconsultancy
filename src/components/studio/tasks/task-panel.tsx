@@ -43,7 +43,7 @@ const STARTERS: [string, string][] = [
   ["Done, ready to close", "Done, ready to close."],
 ];
 
-const SMALL_BTN = "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[var(--sh-chip-line)] px-2.5 text-xs transition-colors hover:bg-[var(--sh-hover)] disabled:opacity-50";
+const SMALL_BTN = "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-[var(--sh-chip-line)] px-3 text-[13px] sm:h-7 sm:rounded-[8px] sm:px-2.5 sm:text-xs transition-colors hover:bg-[var(--sh-hover)] disabled:opacity-50";
 
 export function TaskPanel({ rows, extra }: { rows: TaskRow[]; extra: TaskRow[] }) {
   const pick = useStudioPick();
@@ -157,7 +157,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
       className={cn(
         "studio st-sheet st-panel-in fixed z-[45] flex flex-col overflow-hidden rounded-3xl border border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
         // Phone and tablet: a sheet above the footer. Desktop: a column on the right.
-        "inset-x-2 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] max-h-[72dvh]",
+        "inset-x-2 bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] max-h-[72dvh]",
         "lg:inset-x-auto lg:right-4 lg:top-4 lg:max-h-none lg:w-[400px]",
         // Growing into the full task: the panel takes the whole frame and its
         // contents step back, then the page arrives in its place.
@@ -180,11 +180,11 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
             }}
             aria-label="Open the whole task"
             title="Open the whole task"
-            className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)] transition-opacity hover:opacity-90"
+            className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)] transition-opacity hover:opacity-90 sm:h-8 sm:w-8"
           >
             <Maximize2 size={13} />
           </Link>
-          <button type="button" onClick={onClose} aria-label="Close" title="Close (Esc)" className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] transition-colors hover:text-[var(--sh-fg)]">
+          <button type="button" onClick={onClose} aria-label="Close" title="Close (Esc)" className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] transition-colors hover:text-[var(--sh-fg)] sm:h-8 sm:w-8">
             <X size={13} />
           </button>
         </div>
@@ -252,7 +252,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
           <form onSubmit={(e) => { e.preventDefault(); post(); }} className="flex flex-col gap-2">
             <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
               {STARTERS.map(([label, text]) => (
-                <button key={label} type="button" onClick={() => setDraft(text)} className="h-[26px] shrink-0 whitespace-nowrap rounded-[7px] border border-[var(--sh-chip-line)] px-2 text-[11px] text-[var(--sh-sub)] transition-colors hover:bg-[var(--sh-hover)]">{label}</button>
+                <button key={label} type="button" onClick={() => setDraft(text)} className="h-9 shrink-0 whitespace-nowrap rounded-[9px] border border-[var(--sh-chip-line)] px-3 text-xs text-[var(--sh-sub)] sm:h-[26px] sm:rounded-[7px] sm:px-2 sm:text-[11px] transition-colors hover:bg-[var(--sh-hover)]">{label}</button>
               ))}
             </div>
             <div className="flex h-10 items-center gap-1.5 rounded-xl border border-[var(--sh-field-line)] bg-[var(--sh-field)] pl-3 pr-1">
@@ -265,7 +265,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
                   className="bare-field w-full border-0 bg-transparent text-[13px] text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]"
                 />
               </label>
-              <button type="submit" disabled={pending || !draft.trim()} className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-[var(--sh-on-bg)] px-3 text-xs font-semibold text-[var(--sh-on-fg)] transition-opacity disabled:opacity-40">
+              <button type="submit" disabled={pending || !draft.trim()} className="inline-flex h-10 items-center gap-1 rounded-lg bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold sm:h-[30px] sm:px-3 sm:text-xs text-[var(--sh-on-fg)] transition-opacity disabled:opacity-40">
                 {pending ? <Loader2 size={12} className="animate-spin" /> : null}Post<ArrowRight size={12} />
               </button>
             </div>

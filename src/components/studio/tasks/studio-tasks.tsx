@@ -86,14 +86,14 @@ export function StudioTasks(p: StudioTasksProps) {
                       aria-label={VIEW_LABEL[m]}
                       title={VIEW_LABEL[m]}
                       className={cn(
-                        "flex h-[30px] items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors",
+                        "flex h-[34px] items-center gap-1.5 rounded-lg px-3 text-xs transition-colors sm:h-[30px] sm:px-2.5",
                         // A phone keeps List and Board; the wide views are for a tablet and up (owner, 25 Sept 2026).
                         m !== "table" && m !== "board" && !active && "hidden sm:flex",
                         active ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]",
                       )}
                     >
                       <Icon size={14} />
-                      <span className={active ? "" : "hidden xl:inline"}>{VIEW_LABEL[m]}</span>
+                      <span className={active ? "hidden sm:inline" : "hidden xl:inline"}>{VIEW_LABEL[m]}</span>
                     </Link>
                   );
                 })}

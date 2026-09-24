@@ -11,7 +11,7 @@
  * Pure CSS scroll-snap; the only script is the dots (which card is showing,
  * and a tap on a dot goes there).
  */
-import { Children, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 export function StudioSwipeRow({ children, className, cols = 2 }: { children: ReactNode; className?: string; cols?: 2 | 3 }) {
@@ -22,22 +22,9 @@ export function StudioSwipeRow({ children, className, cols = 2 }: { children: Re
     const el = track.current;
     if (el && el.clientWidth) setAt(Math.round(el.scrollLeft / el.clientWidth));
   };
-  // Phone: the strip is as tall as the card on show, not the tallest one —
-  // otherwise a short card sits over a gap the size of its neighbour.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const fit = () => {
-      if (window.matchMedia("(min-width: 768px)").matches) { el.style.height = ""; return; }
-      const card = el.children[at] as HTMLElement | undefined;
-      if (card) el.style.height = `${card.offsetHeight}px`;
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    Array.from(el.children).forEach((c) => ro.observe(c));
-    window.addEventListener("resize", fit);
-    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
-  }, [at, count]);
+  // The cards are the SAME height on a phone, as on the desk (owner, 25 Sept
+  // 2026: "they are not of the same size in mobile") — the strip stretches
+  // both to the taller one, so a swipe never changes the page under you.
   const go = (i: number) => {
     const el = track.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
@@ -49,10 +36,10 @@ export function StudioSwipeRow({ children, className, cols = 2 }: { children: Re
         onScroll={onScroll}
         className={cn(
           // phone: a snapping track that runs to the screen's edges
-          "-mx-4 flex items-start snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4 transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "-mx-4 flex items-stretch snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           "[&>*]:w-full [&>*]:shrink-0 [&>*]:snap-center",
           // tablet and up: the grid it always was
-          "md:mx-0 md:grid md:items-stretch md:gap-5 md:overflow-visible md:px-0 md:transition-none md:[&>*]:w-auto",
+          "md:mx-0 md:grid md:items-stretch md:gap-5 md:overflow-visible md:px-0 md:[&>*]:w-auto",
           cols === 3 ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2",
           className,
         )}

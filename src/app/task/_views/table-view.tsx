@@ -310,7 +310,9 @@ export function TableView({
           <PhoneTaskRow
             row={r}
             hideCompany={hideCompany || groupBy === "company"}
-            onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+            // Tap = the quick-update panel (a sheet on a phone), as a click is on
+            // the desk; the panel carries "Open the full task".
+            onOpen={() => rowClick(r)}
             onPointerDown={(e) => onRowPointerDown(r, e)}
             onPointerMove={onRowPointerMove}
             onPointerUp={clearPress}

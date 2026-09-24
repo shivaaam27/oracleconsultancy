@@ -25,16 +25,19 @@ export function StudioScope({ children, className }: { children: ReactNode; clas
 
 export function StudioHeader({ title, left, right, sub }: { title: ReactNode; left?: ReactNode; right?: ReactNode; sub?: ReactNode }) {
   return (
+    // Phone (mockup M_Rules): the title and the page's buttons share the first
+    // line; the filters take the second. The inner wrapper dissolves (contents)
+    // so the three can be ordered.
     <div data-page-header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <h1 className="m-0 whitespace-nowrap text-[40px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">{title}</h1>
+      <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-2 max-sm:contents">
+        <div className="min-w-0 max-sm:order-1">
+          <h1 className="m-0 whitespace-nowrap text-[34px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">{title}</h1>
           {sub && <div className="mt-2 text-[13px] text-[var(--st-muted)]">{sub}</div>}
         </div>
         {/* Phone: the header's filters stay on ONE line and share it (owner, 25 Sept 2026). */}
-        {left && <div className="flex min-w-0 items-center gap-1.5 pb-0.5 max-sm:w-full max-sm:flex-nowrap sm:flex-wrap sm:gap-2">{left}</div>}
+        {left && <div className="flex min-w-0 items-center gap-1.5 pb-0.5 max-sm:order-3 max-sm:w-full max-sm:flex-nowrap sm:flex-wrap sm:gap-2">{left}</div>}
       </div>
-      {right && <div className="flex flex-wrap items-center gap-2.5">{right}</div>}
+      {right && <div className="flex flex-wrap items-center gap-2 max-sm:order-2 sm:gap-2.5">{right}</div>}
     </div>
   );
 }
