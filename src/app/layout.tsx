@@ -89,7 +89,7 @@ export default async function RootLayout({ children, modal }: { children: React.
   // underneath the rail — see the note in `portal-sidebar.tsx`.
   const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
   return (
-    <html lang="en-GB" data-voice-lang={voiceLanguage || undefined} className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
+    <html lang="en-GB" data-voice-lang={voiceLanguage || undefined} data-studio-pages={studioPages || undefined} className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />

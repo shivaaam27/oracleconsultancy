@@ -12,8 +12,6 @@ import {
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  CheckSquare,
-  Square,
   ChevronUp,
   X,
   Loader2,
@@ -33,6 +31,7 @@ import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
 import { callUndo } from "@/components/undo-banner";
 import { useToast } from "@/components/toast";
 import { Button, Select } from "@/components/ui";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type SelectionCtx = {
   /** What a code is, for panels that list the selection (title + current deadline). */
@@ -43,6 +42,8 @@ type SelectionCtx = {
   toggle: (code: string, opts?: { shift?: boolean }) => void;
   selectAll: () => void;
   clear: () => void;
+  /** How many rows are on screen — so "select all" knows when it has become "unselect all". */
+  visibleCount: () => number;
 };
 
 const Ctx = createContext<SelectionCtx | null>(null);
@@ -99,9 +100,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const infoOf = useCallback((code: string) => infoRef.current[code] ?? { title: code, deadline: null }, []);
+  const visibleCount = useCallback(() => orderRef.current.length, []);
   const value = useMemo<SelectionCtx>(
-    () => ({ registerOrder, infoOf, selected, toggle, selectAll, clear }),
-    [registerOrder, infoOf, selected, toggle, selectAll, clear]
+    () => ({ registerOrder, infoOf, selected, toggle, selectAll, clear, visibleCount }),
+    [registerOrder, infoOf, selected, toggle, selectAll, clear, visibleCount]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -122,25 +124,21 @@ export function SelectCheckbox({ code, className }: { code: string; className?: 
   const { selected, toggle } = useSelection();
   const checked = selected.has(code);
   return (
-    <button
-      type="button"
+    <Checkbox
+      size="sm"
+      checked={checked}
+      // The click does the toggling, not onCheckedChange: it carries the Shift
+      // key (range select), and preventDefault stops Radix toggling a second time.
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
         toggle(code, { shift: e.shiftKey });
       }}
-      className={cn(
-        // `tap-target` gives this 16px box a 40px place to be tapped on a phone,
-        // without changing its size or the density anywhere else (globals.css).
-        "tap-target inline-flex items-center justify-center w-4 h-4 rounded transition-colors",
-        checked ? "text-accent" : "text-fg-subtle hover:text-fg",
-        className
-      )}
+      // `tap-target` gives this 16px box a 40px place to be tapped on a phone,
+      // without changing its size or the density anywhere else (globals.css).
+      className={cn("tap-target", className)}
       aria-label={checked ? `Deselect ${code}` : `Select ${code}`}
-      aria-pressed={checked}
-    >
-      {checked ? <CheckSquare size={14} /> : <Square size={14} />}
-    </button>
+    />
   );
 }
 
@@ -157,9 +155,9 @@ const STATUSES = [
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 export function BulkBar() {
-  const { selected, clear, selectAll, infoOf } = useSelection();
+  const { selected, clear, selectAll, infoOf, visibleCount } = useSelection();
   const [pending, start] = useTransition();
-  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update" | "delete" | "deadlines">(null);
+  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update" | "delete" | "deadlines" | "close" | "escalate">(null);
   // Per-task dates for the "Deadlines" panel — seeded from each task's current
   // deadline when the panel opens, so an untouched row changes nothing.
   const [dates, setDates] = useState<Record<string, string>>({});
@@ -172,6 +170,9 @@ export function BulkBar() {
   if (count === 0) return null;
 
   const codes = Array.from(selected);
+  // ⚠️ ONE BUTTON, BOTH WAYS. It used to only ever select, so pressing it again
+  // to let go of 70 tasks did nothing at all (owner, 25 Sept 2026).
+  const allOn = count > 0 && count >= visibleCount();
 
   const run = (action: BulkAction, label: string) => {
     const inverse: BulkAction | null = action.kind === "archive" ? { kind: "restore" } : action.kind === "restore" ? { kind: "archive" } : null;
@@ -256,13 +257,14 @@ export function BulkBar() {
             <X size={15} />
           </button>
           <span className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0 pr-1">
-            <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-accent-fg text-xs font-semibold tabular">{count}</span>
+            <motion.span key={count} initial={{ scale: 0.8, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 520, damping: 26 }} className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-accent-fg text-xs font-semibold tabular">{count}</motion.span>
             <span>selected</span>
           </span>
           <button
-            onClick={selectAll}
-            title="Select all visible"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
+            onClick={allOn ? clear : selectAll}
+            title={allOn ? "Unselect all" : "Select all visible"}
+            aria-label={allOn ? "Unselect all" : "Select all visible"}
+            className={cn("inline-flex items-center justify-center h-7 w-7 rounded-full shrink-0 transition-colors", allOn ? "bg-bg-muted text-fg" : "text-fg-muted hover:text-fg hover:bg-bg-muted")}
           >
             <ListChecks size={14} />
           </button>
@@ -273,8 +275,11 @@ export function BulkBar() {
           <BulkButton icon={CalendarClock} label="Postpone" onClick={() => { setMode(mode === "postpone" ? null : "postpone"); }} active={mode === "postpone"} />
           <BulkButton icon={CalendarDays} label="Deadlines" onClick={openDeadlines} active={mode === "deadlines"} />
           <BulkButton icon={MessageSquarePlus} label="Update" onClick={() => { setMode(mode === "update" ? null : "update"); setValue(""); }} active={mode === "update"} />
-          <BulkButton icon={AlertOctagon} label="Escalate" tone="danger" onClick={() => run({ kind: "escalate" }, "Escalated")} />
-          <BulkButton icon={CheckCheck} label="Close" tone="success" onClick={() => run({ kind: "close" }, "Closed")} />
+          {/* ⚠️ Escalate and Close have NO undo, and this bar can hold every
+              task on the page — so for more than one task they ask first,
+              the way Delete does. One task still goes straight through. */}
+          <BulkButton icon={AlertOctagon} label="Escalate" tone="danger" active={mode === "escalate"} onClick={() => (count > 1 ? setMode(mode === "escalate" ? null : "escalate") : run({ kind: "escalate" }, "Escalated"))} />
+          <BulkButton icon={CheckCheck} label="Close" tone="success" active={mode === "close"} onClick={() => (count > 1 ? setMode(mode === "close" ? null : "close") : run({ kind: "close" }, "Closed"))} />
           <BulkButton icon={Archive} label="Archive" onClick={() => run({ kind: "archive" }, "Archived")} />
           <BulkButton icon={ArchiveRestore} label="Restore" onClick={() => run({ kind: "restore" }, "Restored")} />
           <BulkButton icon={Trash2} label="Delete" tone="danger" onClick={() => setMode(mode === "delete" ? null : "delete")} active={mode === "delete"} />
@@ -309,7 +314,26 @@ export function BulkBar() {
         )}
 
         {/* Inline confirmation panel for actions needing a value */}
-        {mode && mode !== "delete" && mode !== "deadlines" && (
+        {(mode === "close" || mode === "escalate") && (
+          <div className="border-t border-border px-3 py-2.5 flex items-center gap-2 bg-bg-subtle">
+            {mode === "close" ? <CheckCheck size={15} className="text-success shrink-0" /> : <AlertOctagon size={15} className="text-danger shrink-0" />}
+            <span className="flex-1 text-sm min-w-0">
+              {mode === "close" ? `Close all ${count} tasks?` : `Escalate all ${count} tasks?`} This can&apos;t be undone in one step — each would have to be changed back by hand.
+            </span>
+            <Button
+              variant={mode === "close" ? "primary" : "danger"}
+              size="sm"
+              onClick={() => (mode === "close" ? run({ kind: "close" }, "Closed") : run({ kind: "escalate" }, "Escalated"))}
+              disabled={pending}
+              className="shrink-0"
+            >
+              {mode === "close" ? `Close ${count}` : `Escalate ${count}`}
+            </Button>
+            <button onClick={() => setMode(null)} className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0">Cancel</button>
+          </div>
+        )}
+
+        {mode && mode !== "delete" && mode !== "deadlines" && mode !== "close" && mode !== "escalate" && (
           <div className="border-t border-border px-3 py-2 flex items-center gap-2 bg-bg-subtle">
             {mode === "status" && (
               <Select wrapperClassName="flex-1"

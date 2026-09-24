@@ -24,6 +24,7 @@ import { RecordList, type RecordFilter, type RecordColumn } from "@/components/r
 import { buildColumns } from "@/components/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { taskHref } from "@/lib/task-href";
+import { prefetchTaskDetail } from "@/lib/task-detail-cache";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -172,6 +173,15 @@ export function TableView({
     router.refresh();
   }
 
+  /* Read the task under the pointer ahead of time, once the pointer has
+     settled on it (not every row it crosses), so the side panel and the full
+     task draw at once. A peek — it does not mark the task read. */
+  const hoverTimer = useRef<number | null>(null);
+  function rowHover(r: TaskRow) {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => prefetchTaskDetail(r.code), 160);
+  }
+
   /** A click on a row. Studio picks it (a second click lets go); the old page opens it. */
   function rowClick(r: TaskRow) {
     if (longPressed.current) { longPressed.current = false; return; }
@@ -316,6 +326,7 @@ export function TableView({
           rows={rows}
           rowKey={(r) => r.id}
           onRowClick={rowClick}
+          onRowHover={rowHover}
           /* Studio moves the filters into its Filters panel; the rail is the old look. */
           filters={studio ? undefined : filters}
           /* Its own key: the two looks have different columns, so a column hidden

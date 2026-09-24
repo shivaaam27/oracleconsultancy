@@ -1712,6 +1712,29 @@ html body:has([data-studio-frame]) main {
   html body:has([data-studio-frame]) { --page-top: 12px; }
   html body:has([data-studio-frame]) main { padding: 40px 40px calc(64px + 96px + env(safe-area-inset-bottom)); }
 }
+/* The footer's page name slides the way you are stepping (studio/shell.tsx). */
+@keyframes st-slide-l { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes st-slide-r { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.st-slide-l { animation: st-slide-l 160ms ease-out both; }
+.st-slide-r { animation: st-slide-r 160ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .st-slide-l, .st-slide-r { animation: none; } }
+html[data-motion="reduced"] .st-slide-l, html[data-motion="reduced"] .st-slide-r { animation: none; }
+
+/* The Tasks side panel slides in from the right on a desk, rises on a phone. */
+@keyframes st-panel-in-x { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes st-panel-in-y { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.st-panel-in { animation: st-panel-in-y 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (min-width: 1024px) { .st-panel-in { animation-name: st-panel-in-x; } }
+/* "Open the whole task": the panel grows to fill the frame, its contents fade
+   back, and the page lands in its place. */
+/* Only properties that can be animated between: `left: auto` cannot, so a
+   desk panel grows by WIDTH from its right edge, a phone sheet by HEIGHT. */
+.st-panel-grow { max-height: calc(100dvh - 64px - env(safe-area-inset-bottom) - 20px) !important; border-radius: 28px !important; }
+@media (min-width: 1024px) { .st-panel-grow { top: 12px !important; right: 12px !important; width: calc(100vw - 24px) !important; } }
+.st-panel-grow > * { opacity: 0; transition: opacity 140ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .st-panel-in { animation: none; } }
+html[data-motion="reduced"] .st-panel-in { animation: none; }
+
 /* The Tasks side panel (components/studio/tasks/task-panel.tsx): from xl up
    the page makes room for it, so it sits BESIDE the list and never covers a
    row. Below xl it floats over the list; on a phone it is a sheet. */
@@ -1749,8 +1772,10 @@ html body:has([data-studio-frame]) [data-savebar] { bottom: calc(var(--page-foot
 .studio [data-st-tick] { opacity: 0; transition: opacity 120ms; }
 .studio [data-list-row]:hover [data-st-tick],
 .studio [data-st-tick]:has([aria-pressed="true"]),
+.studio [data-st-tick]:has([data-state="checked"]),
 .studio [data-st-tick]:focus-within,
-.studio ul:has([data-st-tick] [aria-pressed="true"]) [data-st-tick] { opacity: 1; }
+.studio ul:has([data-st-tick] [aria-pressed="true"]) [data-st-tick],
+.studio ul:has([data-st-tick] [data-state="checked"]) [data-st-tick] { opacity: 1; }
 
 /* Studio keeps its circles. Desk squares every `rounded-full` (see "Square
    corners"); the Studio mockup's faces, dots and badges are round, and a

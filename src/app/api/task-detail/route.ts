@@ -31,8 +31,11 @@ export async function GET(req: NextRequest) {
   const task = all.find((t) => t.code === code) || all.find((t) => t.legacyCode === code);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Stamp the owner's view so portal users see "Seen by Management".
-  await recordTaskView(task.id, "admin");
+  // Stamp the owner's view so portal users see "Seen by Management" — and so
+  // the task's unread dot clears. NOT on a peek: the Tasks page reads the task
+  // under the pointer ahead of time (lib/task-detail-cache.ts), and a task that
+  // was only hovered over has not been read.
+  if (req.nextUrl.searchParams.get("peek") !== "1") await recordTaskView(task.id, "admin");
 
   const [{ data: updateRaw }, { data: auditRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }, { data: deptRaw }] =
     await Promise.all([

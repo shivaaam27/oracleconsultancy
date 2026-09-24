@@ -565,6 +565,7 @@ export function RecordList<T>({
   rowHref,
   carryReturn = true,
   onRowClick,
+  onRowHover,
   filters,
   toolbar,
   search,
@@ -611,6 +612,9 @@ export function RecordList<T>({
    *  a record of this list (an external link, a download). */
   carryReturn?: boolean;
   onRowClick?: (row: T) => void;
+  /** The pointer has come to rest on a row — a chance to read it ahead, so
+   *  opening it is instant. Called once per row per visit. */
+  onRowHover?: (row: T) => void;
   /** Left rail. Omit for a list with no filters — the rail disappears entirely. */
   filters?: RecordFilter[];
   /** Search box, view switcher, saved views — anything above the table. */
@@ -1190,6 +1194,7 @@ export function RecordList<T>({
                     )}
                     <li
                       ref={(el) => { rowRefs.current[i] = el; place.attach(el, rowKey(row)); }}
+                      onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
                       aria-current={i === cursor ? "true" : undefined}
                       className={cn(
                         studio
@@ -1197,7 +1202,9 @@ export function RecordList<T>({
                               // A card per row. The ring (not a fill) marks the row
                               // the update card is showing, the keyboard cursor and
                               // the row you just came back from.
-                              "rounded-[14px] border-[1.5px] bg-[var(--st-surface)] transition-[border-color,box-shadow]",
+                              "rounded-[14px] border-[1.5px] bg-[var(--st-surface)] transition-[border-color,box-shadow,transform] duration-150 ease-out",
+                              // The row gives a touch under the click — felt, not seen.
+                              "active:scale-[0.996] motion-reduce:active:scale-100",
                               activeKey != null && key === activeKey
                                 ? "border-[var(--st-ink)] shadow-[0_8px_22px_rgba(17,18,20,0.12)]"
                                 : i === cursor

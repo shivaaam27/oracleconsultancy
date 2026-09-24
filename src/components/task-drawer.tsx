@@ -7,6 +7,7 @@ import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { RecordBody, RecordPage, RecordSidebarBlock } from "./record-page";
 import { taskHref } from "@/lib/task-href";
 import { canStepBack, clearPush, returnLabel, safeReturn } from "@/lib/return-to";
+import { cachedTaskDetail, prefetchTaskDetail, storeTaskDetail } from "@/lib/task-detail-cache";
 import { buildSections } from "./entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SectionCard } from "./drawer-kit";
@@ -174,7 +175,11 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   const pathname = usePathname();
   const router = useRouter();
 
-  const code = mode === "page" ? (codeProp ?? null) : searchParams.get("task");
+  // On the page the ADDRESS names the task, not the server prop: stepping to
+  // the next task changes the address in place (see goToCode), with no trip to
+  // the server, so the prop is only right for the task you arrived on.
+  const pathCode = mode === "page" ? /^\/task\/([^/?#]+)/.exec(pathname)?.[1] : undefined;
+  const code = mode === "page" ? (pathCode ? decodeURIComponent(pathCode) : (codeProp ?? null)) : searchParams.get("task");
   const refreshNonce = searchParams.get("tr");
   // Optional ordered code list for Prev/Next triage. Any view can opt a row into
   // step-through by adding `&tl=DS-001,DS-002,…` when it opens the record; absent
@@ -186,7 +191,10 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   const isTaskPage = /^\/task\//.test(pathname);
   const open = mode === "page" ? true : (!!code && !isTaskPage);
 
-  const [data, setData] = useState<DrawerData | null>(null);
+  // Drawn from the copy in memory when there is one — the side panel, the
+  // hovered row or the step before already read it — so the record appears
+  // at once instead of saying "Loading…" (lib/task-detail-cache.ts).
+  const [data, setData] = useState<DrawerData | null>(() => cachedTaskDetail<DrawerData>(code));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -206,6 +214,9 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   const [newDate, setNewDate] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+  // Which task is on screen — so the loader can tell a refresh of this task
+  // from a step to another one.
+  const shownCode = useRef<string | null>(data ? code : null);
 
   // Prev/Next stepping through an ordered code list (if the opener supplied one).
   const seq = useMemo(() => (tlParam ? tlParam.split(",").map((c) => c.trim()).filter(Boolean) : []), [tlParam]);
@@ -217,9 +228,12 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     const params = new URLSearchParams(searchParams.toString());
     params.delete("tr");
     if (mode === "page") {
-      // Stepping through records is a real navigation now — each one is a URL.
+      // Each task is still its own URL — but stepping changes the address IN
+      // PLACE rather than asking the server for a page it has nothing new to say
+      // about (the record reads itself). With the next task read ahead, the
+      // step is instant. Next keeps usePathname and Back in step with it.
       const q = params.toString();
-      router.push(q ? `/task/${encodeURIComponent(next)}?${q}` : `/task/${encodeURIComponent(next)}`);
+      window.history.pushState(null, "", q ? `/task/${encodeURIComponent(next)}?${q}` : `/task/${encodeURIComponent(next)}`);
       return;
     }
     params.set("task", next);
@@ -428,14 +442,29 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     // the PAGE is the record, so it always loads. Before records became pages
     // this read `if (!code || isTaskPage)`, which left the new page empty.
     if (!code || (mode === "drawer" && isTaskPage)) { setData(null); return; }
-    setLoading(true);
+    // A different task: show its copy from memory at once if there is one,
+    // else clear — never leave the LAST task on screen under the new address.
+    // The fetch below always runs, and swaps in the fresh copy when it lands.
+    if (shownCode.current !== code) {
+      shownCode.current = code;
+      const hit = cachedTaskDetail<DrawerData>(code);
+      setData(hit);
+      setLoading(!hit);
+    } else {
+      setLoading(true);
+    }
     setError(false);
+    let live = true;
     fetch(`/api/task-detail?code=${encodeURIComponent(code)}`)
       .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
-      .then((d: DrawerData) => { setData(d); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
+      .then((d: DrawerData) => { storeTaskDetail(code, d); if (live) { setData(d); setLoading(false); } })
+      .catch(() => { if (live) { setError(true); setLoading(false); } });
+    return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, refreshKey, refreshNonce, isTaskPage, mode]);
+
+  // Read the tasks either side ahead of time, so ‹ › is instant.
+  useEffect(() => { prefetchTaskDetail(prevCode); prefetchTaskDetail(nextCode); }, [prevCode, nextCode]);
 
   const t = data?.task;
 

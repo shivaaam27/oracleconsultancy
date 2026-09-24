@@ -650,3 +650,31 @@ company); the page switch is `companies` (switched on live).
   (the Furaha logo would not load).
 - Add company card: live preview tile, aligned prefix + colour row, the name
   field takes focus.
+
+## Tasks: instant, and a little motion (25 Sept 2026)
+- **No loading screens on a task.** `lib/task-detail-cache.ts` keeps recently
+  read tasks in memory; the record draws from it at once and swaps in a fresh
+  read (stale-while-revalidate). Filled by the side panel, the record itself,
+  and read-ahead: the row the pointer rests on (160ms) and the tasks either
+  side of the one open. ⚠️ **Read-ahead passes `peek=1`** — `/api/task-detail`
+  stamps "seen" (clears the unread dot) and a hovered task has not been read.
+  `task/[code]/loading.tsx` draws the record from that memory while the page
+  comes from the server (studio flag read from `<html data-studio-pages>`).
+- **‹ › on a record no longer asks the server**: `goToCode` does
+  `history.pushState` and the record reads its code from the ADDRESS, not the
+  server prop. Measured ~250ms in dev, no "Loading…"; Back still works.
+- **Panel → full task**: ↗ grows the panel to the frame (width on a desk,
+  height on a phone — `left:auto` can't animate), then navigates; the page was
+  prefetched when the panel opened.
+- **Footer pill**: mouse wheel / trackpad steps the page name at once and loads
+  only where the wheel stops (420ms); a sideways swipe on a phone goes one
+  page. Neighbours are prefetched (`<Link prefetch>` + `router.prefetch`).
+- **Tick box**: `components/ui/checkbox.tsx` (Radix, the owner's component,
+  COS tokens, spring tick). ⚠️ It sits in `components/ui/` beside the older
+  `components/ui.tsx` — `@/components/ui` still means the FILE.
+- **Bulk bar**: select-all is now a toggle (it could only ever select, so 70
+  ticked tasks could not be let go). Close and Escalate confirm for >1 task —
+  neither has an Undo. ⚠️ OPEN: `bulkUpdateTasks` and `inlineUpdateTask` have
+  no `isAdminSession` check of their own (MCP calls bulk server-side); no portal
+  page imports them today, so the proxy gate covers them. A caller-aware guard
+  is the fix, as with `app/documents/actions.ts`.

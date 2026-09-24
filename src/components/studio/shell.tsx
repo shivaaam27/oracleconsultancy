@@ -68,6 +68,67 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   const prev = stops[(i - 1 + stops.length) % stops.length];
   const next = stops[(i + 1) % stops.length];
   const onHome = pathname === "/" && tab !== "tasks";
+
+  /* ── Scroll or swipe through the pages (owner, 25 Sept 2026) ─────────────
+     Over the ‹ page › pill a mouse wheel (or a trackpad, either direction)
+     steps the name through the pages AT ONCE, and the page follows when the
+     wheel comes to rest — so flicking past three pages loads only the one you
+     stop on. On a phone a sideways swipe on the pill goes one page.
+     The pages either side are loaded in advance (`prefetch` on the arrows and
+     below), so a step lands without a loading screen. */
+  const [pending, setPending] = useState<number | null>(null);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const shown = pending ?? i;
+  const pill = useRef<HTMLDivElement>(null);
+  const wheel = useRef({ acc: 0, timer: 0 as number | ReturnType<typeof setTimeout>, at: i });
+  wheel.current.at = pending ?? i;
+  useEffect(() => { setPending(null); }, [pathname, tab]);
+  useEffect(() => { router.prefetch(prev.href); router.prefetch(next.href); }, [router, prev.href, next.href]);
+  useEffect(() => {
+    const el = pill.current;
+    if (!el || stops.length < 2) return;
+    const go = (to: number) => { if (to !== i) router.push(stops[to].href); else setPending(null); };
+    const step = (d: 1 | -1) => {
+      const to = (wheel.current.at + d + stops.length) % stops.length;
+      wheel.current.at = to;
+      setDir(d);
+      setPending(to);
+      router.prefetch(stops[to].href);
+      return to;
+    };
+    const onWheel = (e: WheelEvent) => {
+      // The pill takes the wheel: the page underneath must not scroll too.
+      e.preventDefault();
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      wheel.current.acc += e.deltaMode === 1 ? d * 16 : d;
+      if (Math.abs(wheel.current.acc) >= 60) {
+        step(wheel.current.acc > 0 ? 1 : -1);
+        wheel.current.acc = 0;
+      }
+      clearTimeout(wheel.current.timer);
+      wheel.current.timer = setTimeout(() => { wheel.current.acc = 0; go(wheel.current.at); }, 420);
+    };
+    let x0: number | null = null, y0 = 0;
+    const onStart = (e: TouchEvent) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; };
+    const onEnd = (e: TouchEvent) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      // Sideways and deliberate; a tap on the name still opens the menu.
+      if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      e.preventDefault();
+      go(step(dx < 0 ? 1 : -1));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+      clearTimeout(wheel.current.timer);
+    };
+  }, [i, stops, router]);
   const onSettings = pathname.startsWith("/settings");
 
   // Close the panels whenever the page changes.
@@ -131,9 +192,11 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
               <Home size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Home</span>
             </Link>
-            <div className="flex items-center gap-1 rounded-xl border border-[#2A2C30] bg-[#1C1D20] p-[3px]">
+            <div ref={pill} title="Scroll or swipe to move between pages" className="flex touch-pan-y items-center gap-1 rounded-xl border border-[#2A2C30] bg-[#1C1D20] p-[3px]">
               <Link
                 href={prev.href}
+                prefetch
+                onClick={() => { setDir(-1); setPending((i - 1 + stops.length) % stops.length); }}
                 aria-label={`Previous page: ${prev.label}`}
                 title={prev.label}
                 className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white"
@@ -146,13 +209,17 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
                 aria-haspopup="dialog"
                 aria-expanded={goTo}
                 title="Go to any page"
-                className="flex h-7 min-w-[96px] max-w-[46vw] items-center justify-center gap-2 rounded-[9px] bg-[#2A2C30] px-3 font-medium text-white"
+                className="flex h-7 min-w-[96px] max-w-[46vw] items-center justify-center gap-2 overflow-hidden rounded-[9px] bg-[#2A2C30] px-3 font-medium text-white"
               >
-                <span className="truncate">{current.label}</span>
+                {/* The name slides the way you are going, the moment you ask —
+                    before the page has arrived, so the step never feels stuck. */}
+                <span key={shown} className={cn("truncate", shown !== i || pending != null ? (dir > 0 ? "st-slide-l" : "st-slide-r") : undefined)}>{stops[shown]?.label ?? current.label}</span>
                 <ChevronUp size={11} strokeWidth={2.2} className={cn("shrink-0 transition-transform", goTo && "rotate-180")} />
               </button>
               <Link
                 href={next.href}
+                prefetch
+                onClick={() => { setDir(1); setPending((i + 1) % stops.length); }}
                 aria-label={`Next page: ${next.label}`}
                 title={next.label}
                 className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white"

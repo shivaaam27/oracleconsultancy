@@ -29,6 +29,7 @@ import type { ConvoMessage } from "@/components/portal-conversation";
 import { addTaskUpdate, inlineUpdateTask, adminRemindTask } from "@/app/task/actions";
 import { taskHref } from "@/lib/task-href";
 import { withReturn, markPush } from "@/lib/return-to";
+import { cachedTaskDetail, storeTaskDetail } from "@/lib/task-detail-cache";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { Dot } from "@/components/studio/kit";
@@ -59,7 +60,15 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   const [draft, setDraft] = useState("");
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
-  const [msgs, setMsgs] = useState<ConvoMessage[] | null>(null);
+  // Drawn from the copy in memory first (a hovered row was read ahead), then
+  // the fresh read replaces it.
+  const [msgs, setMsgs] = useState<ConvoMessage[] | null>(() => {
+    const hit = cachedTaskDetail<{ convoMessages: ConvoMessage[] }>(task.code);
+    return hit ? [...hit.convoMessages].reverse() : null;
+  });
+  // "Open the whole task": the panel grows to fill the frame, THEN the page
+  // changes — so opening reads as this panel becoming the task, not a jump.
+  const [expanding, setExpanding] = useState(false);
   const [failed, setFailed] = useState(false);
   const [nonce, setNonce] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -75,6 +84,9 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
     fetch(`/api/task-detail?code=${encodeURIComponent(task.code)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: { convoMessages: ConvoMessage[] }) => {
+        // The record page reads the same route: keep the copy, and "open the
+        // whole task" draws at once instead of saying "Loading…".
+        storeTaskDetail(task.code, d);
         if (!live) return;
         setMsgs([...d.convoMessages].reverse()); // oldest first, newest at the foot
         if (wasUnread.current) { wasUnread.current = false; router.refresh(); }
@@ -87,6 +99,18 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   useEffect(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs]);
 
   const expandHref = withReturn(taskHref(task.code, { list: rows.map((r) => r.code) }), `${window.location.pathname}${window.location.search}`);
+  // Ask for the page now, while he reads — so the grow ends on a page that is
+  // already here.
+  useEffect(() => { router.prefetch(expandHref); }, [router, expandHref]);
+
+  function expand() {
+    if (expanding) return;
+    markPush(expandHref);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
+    if (reduced) { router.push(expandHref); return; }
+    setExpanding(true);
+    window.setTimeout(() => router.push(expandHref), 240);
+  }
 
   function post() {
     const body = draft.trim();
@@ -128,12 +152,17 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   return (
     <aside
       data-task-panel
+      data-expanding={expanding || undefined}
       aria-label={`${task.code} — updates`}
       className={cn(
-        "studio st-sheet st-pop fixed z-[45] flex flex-col overflow-hidden rounded-3xl border border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
+        "studio st-sheet st-panel-in fixed z-[45] flex flex-col overflow-hidden rounded-3xl border border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
         // Phone and tablet: a sheet above the footer. Desktop: a column on the right.
         "inset-x-2 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] max-h-[72dvh]",
         "lg:inset-x-auto lg:right-4 lg:top-4 lg:max-h-none lg:w-[400px]",
+        // Growing into the full task: the panel takes the whole frame and its
+        // contents step back, then the page arrives in its place.
+        "transition-[width,right,top,max-height,border-radius] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        expanding && "st-panel-grow",
       )}
     >
       {/* who and what */}
@@ -143,7 +172,12 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
           <span className="min-w-0 flex-1 truncate text-xs text-[var(--sh-muted)]">{task.companyName}</span>
           <Link
             href={expandHref}
-            onClick={(e) => markPush(e.currentTarget.getAttribute("href") ?? "")}
+            onClick={(e) => {
+              // A new tab / window keeps the browser's own behaviour.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              expand();
+            }}
             aria-label="Open the whole task"
             title="Open the whole task"
             className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)] transition-opacity hover:opacity-90"
