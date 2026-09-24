@@ -93,6 +93,33 @@ Compared side by side (mockup served locally — launch.json `studio-mockup`,
 - The list keeps the owner's 2 Sept order (most recently touched first) — the
   mockup's deadline order was only its sample data.
 
+### The task page, third pass (24 Sept 2026, owner's screenshots)
+- Fits the screen: `components/studio/use-fit-frame.ts` sizes the three
+  columns to the room left in the frame; each scrolls inside itself, the
+  page does not. Conversation: thread scrolls, writing box pinned at the foot.
+- Details edit IN PLACE (`studio/tasks/details.tsx`): every value becomes its
+  own control on click. Writes go through `patchTaskField` (actions.ts) →
+  `updateTaskCore` — a PATCH, audited, Undo toast. Moving the company follows
+  the task to its new code. The full form is "Change several fields at once".
+- `StudioChoiceMenu` (cells.tsx) is THE Studio pick-list — status, priority,
+  risk, category, escalation, company all use it.
+- ⚠️ Desk controls inside Studio take Studio's look by REDEFINING DESK'S
+  TOKENS on `.studio`, the footer, the Go-to panel and — while a Studio page
+  is showing — every direct child of <body> (that is where pop-ups portal).
+  Do not fork FluidSelect/DatePopover/Combobox; they follow the tokens.
+- `data-field-label` on Desk form labels lets Studio drop the capitals.
+- `components/date-input.tsx`: a form date field on DatePopover — use it
+  instead of `<input type="date">` anywhere.
+
+### Create & edit — designed, not built (24 Sept 2026)
+Boards QuickAdd / NewTask / CreateEdit on the canvas (Tasks & Home page).
+The pattern: ONE "+ New" card with a tab per record (Task, Note, Event,
+Person, Document, Company, Announcement) asking only the essentials; "Open
+the full …" turns it into the record page itself as an unsaved draft — adding
+and editing are one screen; editing is always in place. Each record type gets
+it in its own phase (Task in 1, Note/Event/Announcement in 4, Person/Company/
+Document/Asset in 5, registers in 6). Awaiting the owner's yes before building.
+
 ### Phase 2 — footer navigation, built 24 Sept 2026
 Switch: Settings → New look → Footer navigation (`nav`). Replaces the desk
 sidebar AND the floating pill, on every admin page (the portal and sign-in

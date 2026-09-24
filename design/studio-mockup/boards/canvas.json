@@ -287,6 +287,33 @@
    "h": 1600,
    "title": "Every page and what it holds",
    "page": "plan"
+  },
+  "QuickAdd.dc.html": {
+   "x": 0,
+   "y": 4260,
+   "w": 1440,
+   "h": 900,
+   "title": "Create — \"+ New\": one quick card, a tab per record",
+   "page": "tasks",
+   "is_interactive": true
+  },
+  "NewTask.dc.html": {
+   "x": 1520,
+   "y": 4260,
+   "w": 1440,
+   "h": 900,
+   "title": "Create — the full new task: the record page as a draft",
+   "page": "tasks",
+   "is_interactive": true
+  },
+  "CreateEdit.dc.html": {
+   "x": 3040,
+   "y": 4260,
+   "w": 1440,
+   "h": 900,
+   "title": "Create & edit — the pattern, and the phase each record gets it",
+   "page": "tasks",
+   "is_interactive": true
   }
  },
  "createdOnFiles": {
@@ -357,6 +384,9 @@
   "GoTo.dc.html",
   "Footer.dc.html",
   "FeatureMap.dc.html",
+  "QuickAdd.dc.html",
+  "NewTask.dc.html",
+  "CreateEdit.dc.html",
   "Recurring.dc.html",
   "Calendar.dc.html",
   "Event.dc.html",
