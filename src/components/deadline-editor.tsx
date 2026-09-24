@@ -174,6 +174,7 @@ export function DeadlineEditor({
       {open && typeof document !== "undefined" && createPortal(
         <div
           ref={popRef}
+          data-st-menu
           onClick={(e) => e.stopPropagation()}
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: W, transform: pos?.above ? "translateY(-100%)" : undefined, visibility: pos ? "visible" : "hidden" }}
           className="fixed z-[140] glass glass-menu elevated rounded-2xl p-2.5 shadow-lg"

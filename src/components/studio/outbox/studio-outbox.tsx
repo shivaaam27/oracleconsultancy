@@ -321,7 +321,7 @@ function CompanyChip({ value, options, onChange }: { value: string | null; optio
         <span className="truncate">{value ?? "All companies"}</span><ChevronDown size={13} className="shrink-0 text-[var(--st-muted)]" />
       </button>
       {open && (
-        <div className="st-pop absolute right-0 top-10 z-30 max-h-[320px] w-[260px] overflow-y-auto rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+        <div data-st-menu className="st-pop absolute right-0 top-10 z-30 max-h-[320px] w-[260px] overflow-y-auto rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
           <button type="button" onClick={() => { onChange(null); setOpen(false); }} className={item}>
             <span>All companies</span>{!value && <Check size={13} />}
           </button>
@@ -603,7 +603,7 @@ function SentLog({ log, onClose }: { log: { label: string; entries: SentRow[] }[
   return (
     <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Sent log">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
-      <div className="studio st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] text-[var(--st-ink)] shadow-[0_30px_80px_rgba(0,0,0,0.3)]">
+      <div className="studio st-pop absolute bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] text-[var(--st-ink)] shadow-[0_30px_80px_rgba(0,0,0,0.3)]">
         <div className="flex items-center justify-between border-b border-[var(--st-line-soft)] px-5 py-4">
           <div>
             <div className="text-[15px] font-semibold">Sent log</div>

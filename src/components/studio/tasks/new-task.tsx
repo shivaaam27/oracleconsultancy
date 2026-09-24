@@ -457,17 +457,17 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
 
         {/* Instructions — the task's first update. */}
         <div className={cn(panel, "st-scroll order-1 flex min-w-0 flex-col px-5 pt-2 lg:order-2 lg:min-h-0 lg:overflow-y-auto")}>
-          <div className="mb-4 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist">
+          <div className="mb-3 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist">
             {([["instructions", "Instructions"], ["attachments", file ? "Attachment · 1" : "Attachment"]] as const).map(([k, l]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
                 className={cn("-mb-px inline-flex h-10 items-center border-b-2 text-[13px]", tab === k ? "border-[var(--st-ink)]" : "border-transparent text-[var(--st-muted)] hover:text-[var(--st-ink)]")}>{l}</button>
             ))}
           </div>
           {tab === "instructions" ? (
-            <div className="flex flex-1 flex-col gap-3">
-              <p className="text-xs text-[var(--st-muted)]">What the team should know. It becomes the first update on the task — pinned as the current instruction if you like.</p>
+            <div className="flex flex-col gap-2.5 lg:flex-1">
+              <p className="m-0 text-xs text-[var(--st-muted)]">Becomes the task’s first update — pin it as the current instruction if you like.</p>
               <textarea value={d.instructions} onChange={(e) => set({ instructions: e.target.value })} placeholder="e.g. Call the TRA office, get the reference and the expected date, and attach the acknowledgement letter."
-                className="bare-field min-h-[220px] w-full flex-1 resize-y rounded-[14px] border-0 bg-[var(--st-page)] px-4 py-3.5 text-[14px] leading-relaxed outline-none placeholder:text-[var(--st-muted)]" />
+                className="bare-field min-h-[104px] w-full resize-y rounded-[14px] lg:min-h-[132px] border-0 bg-[var(--st-page)] px-4 py-3.5 text-[14px] leading-relaxed outline-none placeholder:text-[var(--st-muted)]" />
               <label className="flex items-center gap-2 text-xs text-[var(--st-sub)]">
                 <Toggle on={d.pin} onClick={() => set({ pin: !d.pin })} label="Pin as the current instruction" />Pin as the current instruction
               </label>
@@ -476,13 +476,13 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
             <div className="flex flex-1 flex-col gap-3">
               <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               <button type="button" onClick={() => fileRef.current?.click()}
-                className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-[#CFCFCA] text-[13px] text-[var(--st-sub)] hover:border-[var(--st-muted)]">
+                className="flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-[#CFCFCA] text-[13px] text-[var(--st-sub)] hover:border-[var(--st-muted)]">
                 <Paperclip size={18} />{file ? file.name : "Choose a file to attach — it goes on the first update"}
               </button>
               {file && <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="self-start text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Remove the file</button>}
             </div>
           )}
-          <div className="h-5" />
+          <div className="h-4" />
         </div>
 
         {/* People · also create in · repeat */}

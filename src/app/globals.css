@@ -1703,6 +1703,29 @@ section[data-page-header],
    44px thumb target (Apple HIG 44pt, Material 48dp) — owner, 25 Sept 2026. */
 :root { --foot-h: 72px; }
 @media (min-width: 768px) { :root { --foot-h: 64px; } }
+/* Every dropdown on a phone is a panel along the foot of the screen, full width
+   and never off the edge (owner, 25 Sept 2026: "click on drop down buttons also
+   there is overflow"). Tag a popup with `data-st-menu` and it gets this. The
+   !importants beat the inline top/left each menu computes for the desk, and
+   the transform a menu animates in with. */
+@media (max-width: 639px) {
+  [data-st-menu] {
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    top: auto !important;
+    bottom: calc(var(--foot-h) + env(safe-area-inset-bottom) + 10px) !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+    transform: none !important;
+    z-index: 150 !important;
+    border-radius: 18px !important;
+    box-shadow: 0 -12px 48px rgba(14, 15, 16, 0.28) !important;
+  }
+}
 html body:has([data-studio-frame]) {
   --page-foot: calc(var(--foot-h) + env(safe-area-inset-bottom));
   background: #F3F3F1;

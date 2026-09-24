@@ -31,7 +31,8 @@ export function StudioHeader({ title, left, right, sub }: { title: ReactNode; le
           <h1 className="m-0 whitespace-nowrap text-[40px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">{title}</h1>
           {sub && <div className="mt-2 text-[13px] text-[var(--st-muted)]">{sub}</div>}
         </div>
-        {left && <div className="flex flex-wrap items-center gap-2 pb-0.5">{left}</div>}
+        {/* Phone: the header's filters stay on ONE line and share it (owner, 25 Sept 2026). */}
+        {left && <div className="flex min-w-0 items-center gap-1.5 pb-0.5 max-sm:w-full max-sm:flex-nowrap sm:flex-wrap sm:gap-2">{left}</div>}
       </div>
       {right && <div className="flex flex-wrap items-center gap-2.5">{right}</div>}
     </div>

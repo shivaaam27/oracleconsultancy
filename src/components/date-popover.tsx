@@ -105,6 +105,7 @@ export function DatePopover({
       {open && anchor && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
+          data-st-menu
           className="fixed z-[120] w-[16rem] overflow-hidden rounded-2xl org-pop elevated p-2.5 shadow-lg"
           style={{
             left: Math.min(anchor.left, window.innerWidth - 272),

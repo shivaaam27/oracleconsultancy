@@ -138,6 +138,7 @@ export function StudioChoiceMenu({
         <div
           ref={menu}
           role="menu"
+          data-st-menu
           style={{ left: pos.left, top: pos.top, width, maxHeight: pos.maxH }}
           className="studio st-pop fixed z-[140] overflow-y-auto rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1 shadow-[0_16px_40px_rgba(17,18,20,0.16)]"
         >

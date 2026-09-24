@@ -74,7 +74,7 @@ export function PopMenu({ at, items, onClose, children }: { at: { x: number; y: 
     return () => { document.removeEventListener("mousedown", down); window.removeEventListener("keydown", key, true); };
   }, [at, onClose]);
   return (
-    <div ref={ref} role="menu" style={{ visibility: "hidden", left: at.x, top: at.y }}
+    <div ref={ref} role="menu" data-st-menu style={{ visibility: "hidden", left: at.x, top: at.y }}
       className="st-pop fixed z-[90] min-w-[216px] rounded-[14px] border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] text-[var(--st-ink)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
       {items.map((it, i) => it === "-" ? <div key={i} className="mx-1 my-1 h-px bg-[var(--st-line-soft)]" /> : (
         <button key={i} type="button" role="menuitem" onClick={() => { onClose(); it.onSelect(); }}

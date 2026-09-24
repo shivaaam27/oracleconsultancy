@@ -145,6 +145,7 @@ export function Combobox({
         <ul
           ref={menuRef}
           role="listbox"
+          data-st-menu
           style={menuStyle(pos)}
           className="overflow-auto rounded-md bg-bg-elev ring-1 ring-border shadow-lg py-1"
         >

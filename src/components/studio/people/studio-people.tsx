@@ -253,24 +253,27 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
 
       {/* ── The two cards ─────────────────────────────────────────────────── */}
       <StudioCardRow className="lg:h-[220px]">
-        <StudioCard className="min-h-[200px]">
+        <StudioCard className="md:min-h-[200px]">
           <CardHead label="Directory" right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} companies</span>} />
-          <div className="mt-auto flex flex-wrap items-end gap-5 pt-3 lg:flex-nowrap xl:gap-7">
-            <div>
-              <BigNumber value={active} unit="active" />
-              <div className="mt-3 flex gap-3.5 text-xs text-[var(--st-on-card-muted)]">
+          <div className="mt-auto flex items-end gap-3 pt-3 sm:flex-wrap sm:gap-5 lg:flex-nowrap xl:gap-7">
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <span className="contents sm:hidden"><BigNumber value={active} unit="active" size={52} /></span>
+              <span className="hidden sm:contents"><BigNumber value={active} unit="active" /></span>
+              <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--st-on-card-muted)]">
                 <button type="button" onClick={() => f.set({ chip: "inactive", mode: "browse" })} className="hover:text-[var(--st-on-card)]">{counts.inactive} inactive</button>
                 <button type="button" onClick={() => f.set({ chip: "noPortal", mode: "browse" })} className="hover:text-[var(--st-on-card)]">{counts.noPortal} without a portal login</button>
               </div>
             </div>
-            <span className="flex-1" />
+            <span className="hidden flex-1 sm:block" />
             <button type="button" onClick={() => f.set({ chip: "portal", mode: "browse" })} title="Show who is on the portal">
               <span className="hidden xl:contents"><Ring value={active ? (counts.portal / active) * 100 : 0} size={116} stroke={12} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" /></span>
-              <span className="contents xl:hidden"><Ring value={active ? (counts.portal / active) * 100 : 0} size={92} stroke={10} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" /></span>
+              <span className="hidden sm:contents xl:hidden"><Ring value={active ? (counts.portal / active) * 100 : 0} size={92} stroke={10} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="on the portal" /></span>
+              <span className="contents sm:hidden"><Ring value={active ? (counts.portal / active) * 100 : 0} size={66} stroke={8} color="var(--st-ok)" track="var(--st-card-line)" label={counts.portal} sub="portal" /></span>
             </button>
             <button type="button" onClick={() => f.set({ chip: "overloaded", mode: "browse" })} title="Show who is overloaded">
               <span className="hidden xl:contents"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={116} stroke={12} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
-              <span className="contents xl:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={92} stroke={10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
+              <span className="hidden sm:contents xl:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={92} stroke={10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
+              <span className="contents sm:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={66} stroke={8} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="busy" /></span>
             </button>
           </div>
         </StudioCard>
@@ -374,7 +377,8 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                     <span className="text-xs text-[#A3A6AB]">{g.items.length} {g.items.length === 1 ? "person" : "people"}</span>
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] sm:gap-2.5">
+                {/* Phone (mockup M_People): the group is one white card of rows. */}
+                <div className="grid grid-cols-1 rounded-[18px] bg-[var(--st-surface)] px-1 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] sm:gap-2.5 sm:rounded-none sm:bg-transparent sm:px-0">
                   {g.items.map((p) => {
                     const l = load(p);
                     const on = selecting ? picked.has(p.id) : sel === p.id;
@@ -388,8 +392,10 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                         }}
                         onDoubleClick={() => !selecting && openPerson(p.id)}
                         title={selecting ? undefined : "Click to see them above · double-click to open"}
-                        className={cn("relative flex min-w-0 flex-col gap-2.5 rounded-[16px] border-[1.5px] bg-[var(--st-surface)] p-3 text-left transition-colors sm:p-3.5",
-                          on ? "border-[var(--st-ink)]" : "border-transparent hover:border-[var(--st-line)]", !p.active && "opacity-60")}>
+                        className={cn("relative flex min-w-0 flex-col gap-2.5 bg-[var(--st-surface)] text-left transition-colors",
+                          "border-b border-[var(--st-line-soft)] px-3 py-2.5 last:border-b-0",
+                          "sm:rounded-[16px] sm:border-[1.5px] sm:p-3.5 sm:last:border-b-[1.5px]",
+                          on ? "sm:border-[var(--st-ink)] max-sm:bg-[var(--st-page)]" : "sm:border-transparent sm:hover:border-[var(--st-line)]", !p.active && "opacity-60")}>
                         {selecting && (
                           <span className={cn("absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-[5px] border-[1.5px]",
                             on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-dash)]")}>{on && <Check size={11} strokeWidth={3} />}</span>

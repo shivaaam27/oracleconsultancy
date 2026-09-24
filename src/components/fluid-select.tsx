@@ -186,6 +186,7 @@ export function FluidSelect({
               exit={{ opacity: 0, scale: 0.97, y: -2 }}
               transition={spring}
               role="listbox"
+              data-st-menu
               onKeyDown={onMenuKeyDown}
               style={{
                 position: "fixed",

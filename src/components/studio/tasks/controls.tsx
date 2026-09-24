@@ -42,19 +42,19 @@ export function StudioMenu({ label, sub, options, searchable = false, width = 28
   }, [open]);
   const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   return (
-    <div ref={root} className="relative">
+    <div ref={root} className="relative min-w-0 max-sm:shrink">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={plus ? "flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-[var(--st-page)] px-3 text-xs transition-colors hover:bg-[var(--st-seg)]" : stBtn.chip}
+        className={plus ? "flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-[var(--st-page)] px-3 text-xs transition-colors hover:bg-[var(--st-seg)]" : cn(stBtn.chip, "max-w-full max-sm:h-9 max-sm:gap-1.5 max-sm:px-2.5")}
       >
-        <span className="max-w-[14rem] truncate">{label}</span>
+        <span className="min-w-0 max-w-[14rem] truncate">{label}</span>
         {sub && <span className="text-[var(--st-muted)]">{sub}</span>}
-        {plus ? <Plus size={12} strokeWidth={2.2} /> : <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />}
+        {plus ? <Plus size={12} strokeWidth={2.2} /> : <ChevronDown size={12} className={cn("shrink-0 transition-transform", open && "rotate-180")} />}
       </button>
       {open && (
-        <div className={cn("st-pop absolute left-0 z-40", up ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+6px)]", "overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]")} style={{ width }}>
+        <div data-st-menu className={cn("st-pop absolute left-0 z-40", up ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+6px)]", "overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]")} style={{ width }}>
           {searchable && (
             <label className="flex items-center gap-2 border-b border-[var(--st-line-soft)] px-3 py-2 text-[var(--st-muted)]">
               <Search size={13} />
@@ -69,7 +69,7 @@ export function StudioMenu({ label, sub, options, searchable = false, width = 28
                 href={o.href}
                 scroll={false}
                 onClick={() => setOpen(false)}
-                className={cn("flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-[var(--st-page)]", o.active && "bg-[var(--st-page)] font-medium")}
+                className={cn("flex items-center gap-2 rounded-lg px-2.5 py-3 text-[14px] hover:bg-[var(--st-page)] sm:py-1.5 sm:text-[13px]", o.active && "bg-[var(--st-page)] font-medium")}
               >
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.count != null && <span className="st-mono text-[11px] text-[var(--st-muted)]">{o.count}</span>}
