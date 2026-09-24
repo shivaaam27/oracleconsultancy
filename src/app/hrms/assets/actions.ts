@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import {
   createAsset,
@@ -81,6 +82,7 @@ async function reconcileAssignee(assetId: number, fd: FormData, handoverDate: st
 }
 
 export async function createAssetAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = assetFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -114,6 +116,7 @@ export async function importAssetsAction(
   rows: AssetImportRow[],
   companyId: number | null
 ): Promise<Result> {
+  await guardOwner();
   const clean = rows
     .map((r) => ({ ...r, name: (r.name ?? "").trim() }))
     .filter((r) => r.name.length > 0);
@@ -145,6 +148,7 @@ export async function importAssetsAction(
 }
 
 export async function updateAssetAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = assetFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -160,6 +164,7 @@ export async function updateAssetAction(id: number, fd: FormData): Promise<Resul
 }
 
 export async function assignAssetAction(assetId: number, personId: number, notes?: string | null): Promise<Result> {
+  await guardOwner();
   try {
     await assignAsset(assetId, personId, notes ?? null);
     invalidate();
@@ -174,6 +179,7 @@ export async function assignAssetSharedAction(
   companyId: number | null,
   custodianPersonId: number | null
 ): Promise<Result> {
+  await guardOwner();
   try {
     await assignAssetShared(assetId, { companyId, custodianPersonId });
     invalidate();
@@ -184,6 +190,7 @@ export async function assignAssetSharedAction(
 }
 
 export async function returnAssetAction(assetId: number, notes?: string | null): Promise<Result> {
+  await guardOwner();
   try {
     await returnAsset(assetId, notes ?? null);
     invalidate();
@@ -194,6 +201,7 @@ export async function returnAssetAction(assetId: number, notes?: string | null):
 }
 
 export async function setAssetStatusAction(assetId: number, status: AssetStatus): Promise<Result> {
+  await guardOwner();
   try {
     await setAssetStatus(assetId, status);
     invalidate();
@@ -206,6 +214,7 @@ export async function setAssetStatusAction(assetId: number, status: AssetStatus)
 export async function listArchivedAssetsAction(): Promise<
   { ok: true; rows: AssetRow[] } | { ok: false; error: string }
 > {
+  await guardOwner();
   try {
     return { ok: true, rows: await listArchivedAssets() };
   } catch (e) {
@@ -216,6 +225,7 @@ export async function listArchivedAssetsAction(): Promise<
 export async function listAssetHistoryAction(assetId: number): Promise<
   { ok: true; rows: AssetHistoryRow[] } | { ok: false; error: string }
 > {
+  await guardOwner();
   try {
     return { ok: true, rows: await listAssetHistory(assetId) };
   } catch (e) {
@@ -224,6 +234,7 @@ export async function listAssetHistoryAction(assetId: number): Promise<
 }
 
 export async function archiveAssetAction(assetId: number, archived: boolean): Promise<Result> {
+  await guardOwner();
   try {
     await archiveAsset(assetId, archived);
     invalidate();

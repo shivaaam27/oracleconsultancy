@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { revalidatePath, updateTag } from "next/cache";
 import { wouldCreateReportingCycle } from "@/lib/org-chart";
@@ -25,6 +26,7 @@ async function primaryManagerChain(): Promise<Map<number, number | null>> {
 
 /** Set (or clear) the head of a department within one company. */
 export async function setDepartmentHead(companyId: number, departmentId: number, headPersonId: number | null) {
+  await guardOwner();
   await sb
     .from("department_heads")
     .upsert(
@@ -48,6 +50,7 @@ const CYCLE_MESSAGE = "That would make two people each other's manager.";
  *  drops a cycle at render, which reads as "the app lost my change", so we never
  *  persist it and tell the user why instead. */
 export async function setPersonDirector(personId: number, managerId: number | null): Promise<ReportingResult> {
+  await guardOwner();
   if (managerId === personId) return { ok: true };
   if (managerId != null) {
     const chain = await primaryManagerChain();
@@ -62,6 +65,7 @@ export async function setPersonDirector(personId: number, managerId: number | nu
 
 /** One-tap: add a secondary "also reports to" manager (dotted line). */
 export async function addPersonManager(personId: number, managerId: number): Promise<ReportingResult> {
+  await guardOwner();
   if (managerId === personId) return { ok: true };
   const { data: p } = await sb.from("people").select("manager_id").eq("id", personId).maybeSingle();
   if ((p?.manager_id as number | null) === managerId) return { ok: true }; // already the primary

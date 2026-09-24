@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
 import { people, tasks, departments, departmentHeads } from "@/db/schema";
@@ -26,6 +27,7 @@ function revalidateRepoint() {
 
 /** Create a new department (no-op if the name already exists). */
 export async function createDepartment(name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a department name." };
@@ -39,6 +41,7 @@ export async function createDepartment(name: string): Promise<Result> {
 
 /** Rename a department. */
 export async function renameDepartment(id: number, name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a department name." };
@@ -57,6 +60,7 @@ export async function renameDepartment(id: number, name: string): Promise<Result
  * target keeps its head).
  */
 export async function mergeDepartments(fromId: number, intoId: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different departments." };
 
@@ -97,6 +101,7 @@ export async function mergeDepartments(fromId: number, intoId: number): Promise<
  * department"; its per-company heads are removed.
  */
 export async function deleteDepartment(id: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     await db.transaction(async (tx) => {

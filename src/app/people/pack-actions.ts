@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { getPersonDetail } from "@/lib/people-queries";
@@ -51,6 +52,7 @@ export async function savePersonPackPrefsAction(input: {
   sections: string;
   excluded: string[];
 }): Promise<{ ok: boolean }> {
+  await guardOwner();
   try {
     if (!Number.isFinite(input.personId) || !validPurpose(input.purpose)) return { ok: false };
     await savePackPrefs(input.personId, input.purpose, {
@@ -64,6 +66,7 @@ export async function savePersonPackPrefsAction(input: {
 }
 
 export async function createPersonPackDraftAction(input: PersonPackDraftInput): Promise<PersonPackDraftResult> {
+  await guardOwner();
   try {
     if (!Number.isFinite(input.personId)) return { ok: false, error: "Person not found" };
     if (!validPurpose(input.purpose)) return { ok: false, error: "Pack purpose is not valid" };

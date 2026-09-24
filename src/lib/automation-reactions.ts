@@ -13,6 +13,7 @@ import { setPipelineStage, pipelineForTask, createPipelineFromDocument } from "@
 import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
+import { trusted } from "@/lib/viewer";
 import { recordEvent } from "@/lib/system-events";
 import { reindexEntity } from "@/lib/index-hooks";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
@@ -176,14 +177,14 @@ export async function performAutomationMove(row: MoveRow): Promise<void> {
   switch (row.kind) {
     case "task-complete": {
       const code = await taskCode(row.targetId);
-      if (code) await addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed");
+      if (code) await trusted(() => addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed"));
       return;
     }
     case "pipeline-advance":
       if (row.newValue) await setPipelineStage(row.targetId, row.newValue as PipelineStage);
       return;
     case "onboarding-tick":
-      await toggleTodo(row.targetId, true);
+      await trusted(() => toggleTodo(row.targetId, true));
       return;
   }
 }
@@ -203,14 +204,14 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
       return;
     case "task-complete": {
       const code = await taskCode(row.targetId);
-      if (code) await addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress");
+      if (code) await trusted(() => addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress"));
       return;
     }
     case "pipeline-advance":
       if (row.prevValue) await setPipelineStage(row.targetId, row.prevValue as PipelineStage);
       return;
     case "onboarding-tick":
-      await toggleTodo(row.targetId, false);
+      await trusted(() => toggleTodo(row.targetId, false));
       return;
   }
 }

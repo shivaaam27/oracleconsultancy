@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
 import { sb } from "@/db/supabase";
@@ -22,6 +23,7 @@ function safeName(name: string): string {
  * company branding fields used across the app.
  */
 export async function saveCompanyProfileAction(companyId: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const incDate = str(fd, "incorporationDate");
   const patch: Record<string, unknown> = {
@@ -105,6 +107,7 @@ export async function enrichCompanyProfile(
   companyId: number,
   fields: CompanyProfileFields
 ): Promise<{ ok: true; filled: string[] } | { ok: false; error: string }> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     const { data: company, error: readErr } = await sb

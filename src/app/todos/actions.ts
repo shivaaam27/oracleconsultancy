@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { revalidatePath } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
@@ -47,6 +48,7 @@ function map(row: Row): Todo {
 const SELECT = "id,title,done,important,due_at,remind_at,company_id,person_id,task_id,created_at,completed_at, companies(name), people(name), tasks(code)";
 
 export async function listTodos(): Promise<Todo[]> {
+  await guardOwner();
   // Only ad-hoc personal to-dos here. Onboarding/offboarding journey steps
   // (kind != null) live in the person drawer, not the Workbook list.
   const { data, error } = await sb.from("todos").select(SELECT).is("kind", null).order("created_at", { ascending: false });
@@ -55,6 +57,7 @@ export async function listTodos(): Promise<Todo[]> {
 }
 
 export async function createTodo(input: { title: string; dueAt?: string | null; remindAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean; kind?: string | null }): Promise<Todo> {
+  await guardOwner();
   const { data, error } = await sb.from("todos").insert({
     title: input.title.trim() || "Untitled",
     due_at: input.dueAt ?? null,
@@ -73,6 +76,7 @@ export async function createTodo(input: { title: string; dueAt?: string | null; 
 }
 
 export async function updateTodo(input: { id: number; title?: string; dueAt?: string | null; remindAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean }): Promise<void> {
+  await guardOwner();
   const patch: Record<string, unknown> = {};
   if (input.title !== undefined) patch.title = input.title.trim() || "Untitled";
   if (input.dueAt !== undefined) patch.due_at = input.dueAt;
@@ -88,6 +92,7 @@ export async function updateTodo(input: { id: number; title?: string; dueAt?: st
 }
 
 export async function toggleTodo(id: number, done: boolean): Promise<void> {
+  await guardOwner();
   const { error } = await sb.from("todos").update({ done, completed_at: done ? new Date().toISOString() : null }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/");
@@ -105,6 +110,7 @@ export async function toggleTodo(id: number, done: boolean): Promise<void> {
 }
 
 export async function deleteTodo(id: number): Promise<void> {
+  await guardOwner();
   const { error } = await sb.from("todos").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/");
@@ -117,6 +123,7 @@ export async function deleteTodo(id: number): Promise<void> {
  * ------------------------------------------------------------------ */
 
 export async function createOwnerTodoAction(input: { title: string; remindAt?: string | null }): Promise<{ ok: boolean; error?: string; todo?: Todo }> {
+  await guardOwner();
   const title = input.title?.trim();
   if (!title) return { ok: false, error: "Type what you need to do." };
   if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
@@ -125,11 +132,13 @@ export async function createOwnerTodoAction(input: { title: string; remindAt?: s
 }
 
 export async function toggleOwnerTodoDoneAction(id: number, done: boolean): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   await toggleTodo(id, done);
   return { ok: true };
 }
 
 export async function deleteOwnerTodoAction(id: number): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   await deleteTodo(id);
   return { ok: true };
 }
@@ -140,6 +149,7 @@ export async function deleteOwnerTodoAction(id: number): Promise<{ ok: boolean; 
  * the to-do done so it leaves the open list but stays as a record.
  */
 export async function promoteTodoToTask(todoId: number): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  await guardOwner();
   const { data: t, error } = await sb
     .from("todos")
     .select("id,title,due_at,company_id,person_id,important")
@@ -189,6 +199,7 @@ export type TodoReminderResult =
  * return a deep-link so the operator can also send it in one tap.
  */
 export async function createTodoReminderDraft(todoId: number, channelOverride?: Channel): Promise<TodoReminderResult> {
+  await guardOwner();
   const { data: t, error } = await sb
     .from("todos")
     .select("id,title,due_at, companies(name), people(id,name,whatsapp,email,phone,preferred_channel)")

@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import {
   listFacts,
@@ -27,6 +28,7 @@ export async function loadEntityFacts(
   entityType: FactEntityType,
   entityId: number
 ): Promise<{ current: Fact[]; all: Fact[] }> {
+  await guardOwner();
   const ref = refFor(entityType, entityId);
   const [current, all] = await Promise.all([currentFacts(ref), listFacts(ref)]);
   return { current, all };
@@ -47,6 +49,7 @@ export type RecordFactFormInput = {
 export async function recordFactAction(
   input: RecordFactFormInput
 ): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const field = (input.field ?? "").trim();
   const valueText = (input.valueText ?? "").trim();
   if (!field) return { ok: false, error: "Pick a fact to record." };
@@ -74,6 +77,7 @@ export async function verifyFactAction(
   entityType: FactEntityType,
   entityId: number
 ): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await setFactVerified(id, verified);
   if (ok) revalidateFor(entityType, entityId);
   return { ok };
@@ -84,6 +88,7 @@ export async function deleteFactAction(
   entityType: FactEntityType,
   entityId: number
 ): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await deleteFact(id);
   if (ok) revalidateFor(entityType, entityId);
   return { ok };

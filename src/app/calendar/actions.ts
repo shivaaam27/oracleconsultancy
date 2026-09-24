@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import { getGivenName } from "@/lib/names";
 import {
@@ -219,6 +220,7 @@ export async function createEventAction(
   createdBy?: string,
   opts?: { autoInvite?: boolean },
 ): Promise<Result> {
+  await guardOwner();
   const title = str(fd, "title");
   if (!title) return { ok: false, error: "Give the event a title." };
   const allDay = fd.get("allDay") === "1" || fd.get("allDay") === "on";
@@ -438,6 +440,7 @@ async function ensureGoogleEvent(
  * that same entry rather than inserted as a second event.
  */
 export async function ensureEventMeetLink(id: number): Promise<{ meetLink: string | null }> {
+  await guardOwner();
   const ev = await getCalendarEvent(id);
   if (!ev) return { meetLink: null };
   if (ev.meetLink) return { meetLink: ev.meetLink };
@@ -461,6 +464,7 @@ export async function ensureEventMeetLink(id: number): Promise<{ meetLink: strin
 }
 
 export async function updateEventAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const id = numOrNull(fd, "id");
   if (!id) return { ok: false, error: "Missing event." };
   const title = str(fd, "title");
@@ -688,6 +692,7 @@ async function resolveEventSender(createdBy: string): Promise<EventSender> {
  * calendar invitation embedded so their app still auto-adds it / offers RSVP.
  */
 export async function sendEventInviteAction(id: number): Promise<SendResult> {
+  await guardOwner();
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
 
@@ -824,6 +829,7 @@ export async function previewEventInviteAction(
   id: number,
   kind: EventEmailKind = "invite",
 ): Promise<{ ok: true; subject: string; html: string; recipients: string[] } | { ok: false; error: string }> {
+  await guardOwner();
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
   const { emailFrom, emailFromName } = await getAppSettings();
@@ -876,6 +882,7 @@ type DraftResult = { ok: true; count: number } | { ok: false; error: string };
  * and sends from /outbox. Reuses the Outbox — no auto-send.
  */
 export async function draftEventRemindersAction(id: number): Promise<DraftResult> {
+  await guardOwner();
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
   const recipients = ev.attendees.filter((a) => a.email);
@@ -913,6 +920,7 @@ export async function draftEventRemindersAction(id: number): Promise<DraftResult
 
 /** Create Outbox follow-up drafts after a meeting (one per attendee with email). */
 export async function draftEventFollowupAction(id: number): Promise<DraftResult> {
+  await guardOwner();
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
   const recipients = ev.attendees.filter((a) => a.email);
@@ -1082,6 +1090,7 @@ async function emailUpdateIfSent(ev: CalendarEvent, changed: string[] = []): Pro
 }
 
 export async function deleteEventAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     let googleCancelled = false;
     const ev = await getCalendarEvent(id);
@@ -1113,6 +1122,7 @@ export async function deleteEventAction(id: number): Promise<Result> {
  * cancellation email; the owner's Google copy is removed too.
  */
 export async function cancelEventAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     const ev = await getCalendarEvent(id);
     if (!ev) return { ok: false, error: "Event not found." };
@@ -1143,6 +1153,7 @@ export async function cancelEventAction(id: number): Promise<Result> {
 type RefResult = { ok: true } | { ok: false; error: string };
 
 export async function createEventCategory(name: string): Promise<RefResult> {
+  await guardOwner();
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a category name." };
   const { data: existing } = await sb.from("event_categories").select("id").ilike("name", clean).maybeSingle();
@@ -1154,6 +1165,7 @@ export async function createEventCategory(name: string): Promise<RefResult> {
 }
 
 export async function renameEventCategory(id: number, name: string): Promise<RefResult> {
+  await guardOwner();
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a category name." };
   const { data: clash } = await sb.from("event_categories").select("id").ilike("name", clean).maybeSingle();
@@ -1166,6 +1178,7 @@ export async function renameEventCategory(id: number, name: string): Promise<Ref
 
 /** Merge one category into another: re-point its events, then delete the source. */
 export async function mergeEventCategories(fromId: number, intoId: number): Promise<RefResult> {
+  await guardOwner();
   if (fromId === intoId) return { ok: false, error: "Pick two different categories." };
   try {
     await db.transaction(async (tx) => {
@@ -1181,6 +1194,7 @@ export async function mergeEventCategories(fromId: number, intoId: number): Prom
 
 /** Delete a category; its events become uncategorised (category_id → null). */
 export async function deleteEventCategory(id: number): Promise<RefResult> {
+  await guardOwner();
   // The FK is ON DELETE SET NULL, so events are cleared automatically.
   const { error } = await sb.from("event_categories").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -1247,6 +1261,7 @@ async function emailInstanceCancellation(ev: CalendarEvent, dateKey: string): Pr
 }
 
 export async function skipEventOccurrence(id: number, dateKey: string): Promise<Result> {
+  await guardOwner();
   try {
     const key = (dateKey ?? "").slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return { ok: false, error: "Invalid date." };
@@ -1277,6 +1292,7 @@ export async function skipEventOccurrence(id: number, dateKey: string): Promise<
  *  won't automatically un-cancel a date already retracted in Google — re-send the
  *  invite if you need it back on their side. */
 export async function restoreEventOccurrence(id: number, dateKey: string): Promise<Result> {
+  await guardOwner();
   try {
     const key = (dateKey ?? "").slice(0, 10);
     const ev = await getCalendarEvent(id);

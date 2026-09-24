@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 // The Administrator's door for recurring-task rules — EVERY standing
 // `recurring_task` rule, whoever set it up (the owner's own, a director's, a
 // manager's), with add / edit / switch off / remove. The portal's twin
@@ -27,6 +28,7 @@ function revalidate() {
 
 /** Every live recurring-task rule, newest first. */
 export async function listRecurringTasks(): Promise<RecurringTaskRule[]> {
+  await guardOwner();
   const { data } = await sb
     .from("automation_rules")
     .select("id,company_id,config,active,last_fired_at,created_by")
@@ -74,6 +76,7 @@ async function findRule(id: number): Promise<{ config: RuleConfig | null } | nul
  *  forms when the chosen days are all in the future; the rule itself is the
  *  same one `createRecurringTask` writes. */
 export async function saveRuleOnly(input: RecurringTaskInput, createdBy = "web-ui"): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  await guardOwner();
   const checked = await checkedConfig(input);
   if ("error" in checked) return { ok: false, error: checked.error };
   const { data, error } = await sb.from("automation_rules").insert({
@@ -86,6 +89,7 @@ export async function saveRuleOnly(input: RecurringTaskInput, createdBy = "web-u
 }
 
 export async function createRecurringTask(input: RecurringTaskInput): Promise<Result> {
+  await guardOwner();
   const checked = await checkedConfig(input);
   if ("error" in checked) return { ok: false, error: checked.error };
   const { error } = await sb.from("automation_rules").insert({
@@ -98,6 +102,7 @@ export async function createRecurringTask(input: RecurringTaskInput): Promise<Re
 }
 
 export async function updateRecurringTask(id: number, input: RecurringTaskInput): Promise<Result> {
+  await guardOwner();
   const existing = await findRule(id);
   if (!existing) return { ok: false, error: "That recurring task couldn't be found." };
   const checked = await checkedConfig(input);
@@ -114,6 +119,7 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput)
 
 /** The on/off switch: settings kept, nothing created until switched back on. */
 export async function setRecurringTaskPaused(id: number, paused: boolean): Promise<Result> {
+  await guardOwner();
   const existing = await findRule(id);
   if (!existing) return { ok: false, error: "That recurring task couldn't be found." };
   const cfg = { ...(existing.config ?? {}) };
@@ -128,6 +134,7 @@ export async function setRecurringTaskPaused(id: number, paused: boolean): Promi
 /** The rule a task came from, for its record. Null when it does not repeat, or
  *  when its rule has been stopped. */
 export async function taskRecurrence(taskId: number): Promise<RecurringTaskRule | null> {
+  await guardOwner();
   const { data: t } = await sb.from("tasks").select("recurring_rule_id").eq("id", taskId).maybeSingle();
   const ruleId = t?.recurring_rule_id as number | null | undefined;
   if (!ruleId) return null;
@@ -148,6 +155,7 @@ export async function taskRecurrence(taskId: number): Promise<RecurringTaskRule 
 /** Make a task repeat, or change how it repeats — from its own record. Edits
  *  the rule it already points at, else creates one and links the task. */
 export async function setTaskRecurrence(taskId: number, input: RecurringTaskInput): Promise<Result> {
+  await guardOwner();
   const { data: t } = await sb.from("tasks").select("id,recurring_rule_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const ruleId = t.recurring_rule_id as number | null;
@@ -171,6 +179,7 @@ export async function setTaskRecurrence(taskId: number, input: RecurringTaskInpu
 /** Stop a task repeating: its rule is switched off for good (soft-deleted) and
  *  every occurrence is unlinked, so none of them reads as recurring any more. */
 export async function stopTaskRecurrence(taskId: number): Promise<Result> {
+  await guardOwner();
   const { data: t } = await sb.from("tasks").select("id,recurring_rule_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const ruleId = t.recurring_rule_id as number | null;
@@ -184,6 +193,7 @@ export async function stopTaskRecurrence(taskId: number): Promise<Result> {
 
 /** Soft-delete (active=false) — the same recoverable cancel ORI Automation does. */
 export async function deleteRecurringTask(id: number): Promise<Result> {
+  await guardOwner();
   const existing = await findRule(id);
   if (!existing) return { ok: false, error: "That recurring task couldn't be found." };
   const { error } = await sb.from("automation_rules").update({ active: false }).eq("id", id);

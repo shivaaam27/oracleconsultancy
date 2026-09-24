@@ -1,4 +1,5 @@
 "use server";
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox/gen";
 import { mutate } from "@/lib/mutate";
@@ -34,6 +35,7 @@ function htmlBody(text: string): string {
 export async function sendDraftEmail(
   id: number
 ): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-email" | "not-email" }> {
+  await guardOwner();
   const { data: row, error } = await sb
     .from("outbox")
     .select("channel,recipient_contact,subject,body,status")
@@ -75,6 +77,7 @@ export async function sendDraftEmail(
  * Returns counts so the UI can report "N sent · M failed".
  */
 export async function sendAllEmailDrafts(): Promise<{ sent: number; failed: number; notConfigured: boolean }> {
+  await guardOwner();
   const { data, error } = await sb
     .from("outbox")
     .select("id,recipient_contact")
@@ -110,6 +113,7 @@ export async function sendReminderEmail(
   personId: number,
   note?: string,
 ): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
+  await guardOwner();
   const { sendTaskReminderEmail } = await import("@/lib/reminders");
   const res = await sendTaskReminderEmail({
     personId,
@@ -127,6 +131,7 @@ export async function sendReminderEmail(
 export async function recordSent(
   formData: FormData
 ): Promise<{ ok: boolean; reason?: "duplicate" | "error"; undoToken?: string }> {
+  await guardOwner();
   const channel = String(formData.get("channel") || "");
   const name = String(formData.get("name") || "");
   const codes = JSON.parse(String(formData.get("taskCodes") || "[]")) as string[];
@@ -169,6 +174,7 @@ function endOfToday(): Date {
 export async function snoozePerson(
   personId: number
 ): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
+  await guardOwner();
   const result = await mutate<{ personId: number }>({
     kind: "person.snooze",
     run: async () => {
@@ -202,6 +208,7 @@ export async function snoozePerson(
 }
 
 export async function unsnoozePerson(personId: number): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const { error } = await sb.from("people").update({ snoozed_until: null }).eq("id", personId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/outbox");
@@ -216,6 +223,7 @@ export async function unsnoozePerson(personId: number): Promise<{ ok: boolean; e
 
 /** Mark a saved draft as sent. */
 export async function sendDraft(id: number): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const { error } = await sb.from("outbox").update({ status: "Sent", sent_at: new Date().toISOString() }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/outbox");
@@ -225,6 +233,7 @@ export async function sendDraft(id: number): Promise<{ ok: boolean; error?: stri
 
 /** Edit a draft's body (and email subject). */
 export async function updateDraft(id: number, body: string, subject?: string | null): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const patch: Record<string, unknown> = { body };
   if (subject !== undefined) patch.subject = subject;
   const { error } = await sb.from("outbox").update(patch).eq("id", id);
@@ -235,6 +244,7 @@ export async function updateDraft(id: number, body: string, subject?: string | n
 
 /** Discard a draft. */
 export async function deleteDraft(id: number): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const { error } = await sb.from("outbox").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/outbox");

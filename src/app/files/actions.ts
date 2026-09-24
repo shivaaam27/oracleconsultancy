@@ -1,4 +1,5 @@
 "use server";
+import { guardOwner } from "@/lib/viewer";
 /**
  * Files Management — every change. Each action checks for the owner itself (a
  * server action is reachable from any page that imports it).
@@ -38,6 +39,7 @@ async function allFolders(): Promise<FolderRow[]> {
 /* ── folders ─────────────────────────────────────────────────────────────── */
 
 export async function createFolderAction(input: { name: string; parentId: number | null; color: FolderColor; companyId?: number | null }): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN as { ok: false; error: string };
   const name = cleanName(input.name);
   if (!name) return { ok: false, error: "Give the folder a name." };
@@ -61,6 +63,7 @@ export async function createFolderAction(input: { name: string; parentId: number
 }
 
 export async function updateFolderAction(id: number, patch: { name?: string; color?: FolderColor; companyId?: number | null }): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const up: Record<string, unknown> = {};
   if (patch.name != null) { const n = cleanName(patch.name); if (!n) return { ok: false, error: "A folder needs a name." }; up.name = n; }
@@ -74,6 +77,7 @@ export async function updateFolderAction(id: number, patch: { name?: string; col
 }
 
 export async function moveFolderAction(id: number, parentId: number | null): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const folders = await allFolders();
   if (parentId != null && descendantIds(folders, id).has(parentId)) return { ok: false, error: "A folder can't go inside itself." };
@@ -86,6 +90,7 @@ export async function moveFolderAction(id: number, parentId: number | null): Pro
 /** To Deleted: the folder, everything under it, and every file in them — all
  *  stamped with the SAME moment, which is how Restore knows what went together. */
 export async function deleteFolderAction(id: number): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const ids = [...descendantIds(await allFolders(), id)];
   const at = now();
@@ -98,6 +103,7 @@ export async function deleteFolderAction(id: number): Promise<Res> {
 }
 
 export async function restoreFolderAction(id: number): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const folders = await allFolders();
   const me = folders.find((f) => f.id === id);
@@ -118,6 +124,7 @@ export async function restoreFolderAction(id: number): Promise<Res> {
 /** Move files into a folder (null = the top). A company or person folder files
  *  them under that company / person, so their reminders follow them. */
 export async function moveFilesAction(ids: number[], folderId: number | null): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   if (!ids.length) return { ok: true };
   const o = await folderOwners(folderId);
@@ -134,6 +141,7 @@ export async function moveFilesAction(ids: number[], folderId: number | null): P
 /** Rename. The name is typed with or without its extension; the extension of
  *  the stored file is always kept, so a download still opens. */
 export async function renameFileAction(id: number, name: string): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const { data: row } = await sb.from("documents").select("file_name,storage_path").eq("id", id).maybeSingle();
   const ext = extOf(row?.file_name as string | null) || extOf(row?.storage_path as string | null);
@@ -147,6 +155,7 @@ export async function renameFileAction(id: number, name: string): Promise<Res> {
 }
 
 export async function starFilesAction(ids: number[], starred: boolean): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const { error } = await sb.from("documents").update({ starred }).in("id", ids);
   if (error) return { ok: false, error: error.message };
@@ -155,6 +164,7 @@ export async function starFilesAction(ids: number[], starred: boolean): Promise<
 }
 
 export async function deleteFilesAction(ids: number[]): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const at = now();
   const { error } = await sb.from("documents").update({ archived: true, deleted_at: at, updated_at: at }).in("id", ids);
@@ -165,6 +175,7 @@ export async function deleteFilesAction(ids: number[]): Promise<Res> {
 }
 
 export async function restoreFilesAction(ids: number[]): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const { data: rows } = await sb.from("documents").select("id,folder_id").in("id", ids);
   const { data: dead } = await sb.from("folders").select("id").not("deleted_at", "is", null);
@@ -180,6 +191,7 @@ export async function restoreFilesAction(ids: number[]): Promise<Res> {
 
 /** Delete for good, from Deleted only (a live file must be deleted first). */
 export async function purgeFilesAction(ids: number[]): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const { data } = await sb.from("documents").select("id").in("id", ids).eq("archived", true);
   for (const r of data ?? []) await deleteDocumentForever(r.id as number);
@@ -189,6 +201,7 @@ export async function purgeFilesAction(ids: number[]): Promise<Res> {
 }
 
 export async function purgeFolderAction(id: number): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const folders = await allFolders();
   if (!folders.find((f) => f.id === id)?.deletedAt) return { ok: false, error: "Only a deleted folder can be removed for good." };
@@ -207,6 +220,7 @@ export type UploadTicket = { ok: true; path: string; signedUrl: string } | { ok:
 /** A one-shot URL the browser uploads the bytes to — they never pass through a
  *  server function (Vercel caps those at 4.5 MB). */
 export async function uploadTicketAction(fileName: string): Promise<UploadTicket> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN as { ok: false; error: string };
   const path = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeFileName(fileName || "file")}`;
   const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
@@ -216,6 +230,7 @@ export async function uploadTicketAction(fileName: string): Promise<UploadTicket
 
 /** File an uploaded object into a folder. Named after the file as it was. */
 export async function fileUploadAction(input: { path: string; name: string; size: number; folderId: number | null }): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN as { ok: false; error: string };
   if (!input.path.startsWith("uploads/")) return { ok: false, error: "That upload can't be filed." };
   const o = await folderOwners(input.folderId);
@@ -237,6 +252,7 @@ export async function saveFileDetailsAction(id: number, d: {
   expiryDate: string | null; issueDate: string | null; reminderLeadDays: number; docType: string | null;
   referenceNo: string | null; issuer: string | null; notes: string | null;
 }): Promise<Res> {
+  await guardOwner();
   if (!(await isAdminSession())) return NOT_SIGNED_IN;
   const date = (s: string | null) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`).toISOString() : null);
   const txt = (s: string | null) => (s ?? "").trim() || null;
@@ -256,6 +272,7 @@ export async function saveFileDetailsAction(id: number, d: {
  *  a note). It writes nothing — the preview fills its boxes and the owner saves
  *  (the August rule: intelligence may read and suggest, never file). */
 export async function readFileDetailsAction(id: number): Promise<{ ok: boolean; fields: import("@/lib/doc-read").ReadFields; note?: string; source?: string }> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, fields: {}, note: "Not signed in." };
   const { data: row } = await sb.from("documents").select("title,file_name,storage_path").eq("id", id).maybeSingle();
   if (!row?.storage_path) return { ok: false, fields: {}, note: "No file is stored for this one." };

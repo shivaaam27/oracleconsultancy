@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 // Server actions for Notes — Phase 1 (memory/notes_module_plan.md).
 //
 // Everything here runs behind the owner gate in `src/proxy.ts`; notes are
@@ -38,6 +39,7 @@ export type SaveResult =
  * never — `noteTitle()` falls back to the first line).
  */
 export async function createNote(formData?: FormData): Promise<void> {
+  await guardOwner();
   const folderIdRaw = formData?.get("folderId");
   const folderId = folderIdRaw ? Number(folderIdRaw) : null;
   const { data, error } = await sb
@@ -81,6 +83,7 @@ export async function createNoteAbout(input: {
   code?: string | null;
   label: string;
 }): Promise<void> {
+  await guardOwner();
   const label = (input.label || "").trim().slice(0, 200) || "this";
   const mention = {
     type: "mention",
@@ -136,6 +139,7 @@ export async function saveNoteBody(input: {
   title?: string;
   expectedUpdatedAt: string;
 }): Promise<SaveResult> {
+  await guardOwner();
   const updatedAt = NOW();
   const patch: Record<string, unknown> = {
     body_json: input.bodyJson,
@@ -191,6 +195,7 @@ export async function saveNoteBody(input: {
  * `updated_at` — do not add a second update path. */
 
 export async function togglePinNote(id: number): Promise<{ ok: boolean; pinned: boolean }> {
+  await guardOwner();
   const { data } = await sb.from("notes").select("pinned_at").eq("id", id).maybeSingle();
   const pinned = data?.pinned_at == null;
   const { error } = await sb
@@ -203,6 +208,7 @@ export async function togglePinNote(id: number): Promise<{ ok: boolean; pinned: 
 }
 
 export async function setNoteFolder(id: number, folderId: number | null): Promise<{ ok: boolean }> {
+  await guardOwner();
   const { error } = await sb.from("notes").update({ folder_id: folderId, updated_at: NOW() }).eq("id", id);
   revalidatePath("/notes");
   revalidatePath(`/notes/${id}`);
@@ -213,6 +219,7 @@ export async function setNoteFolder(id: number, folderId: number | null): Promis
  *  history stay, they just leave the shelf. (A real delete can come later, behind
  *  a danger zone, once there is anything worth deleting.) */
 export async function setNoteArchived(id: number, archived: boolean): Promise<{ ok: boolean }> {
+  await guardOwner();
   const { error } = await sb.from("notes").update({ archived, updated_at: NOW() }).eq("id", id);
   // Archiving changes the note's LIFECYCLE (active ↔ history), which the index
   // records — so unlike an ordinary edit this one re-indexes immediately. It is a
@@ -230,6 +237,7 @@ export async function setNoteArchived(id: number, archived: boolean): Promise<{ 
  * Returns how many went.
  */
 export async function tidyEmptyNotes(): Promise<{ ok: boolean; count: number }> {
+  await guardOwner();
   const { data, error } = await sb
     .from("notes")
     .select("id,title,body_text,kind")
@@ -260,6 +268,7 @@ export async function tidyEmptyNotes(): Promise<{ ok: boolean; count: number }> 
  * as an error over someone's writing.
  */
 export async function reindexNote(id: number): Promise<void> {
+  await guardOwner();
   try {
     await reindexEntity("note", id);
   } catch {
@@ -270,6 +279,7 @@ export async function reindexNote(id: number): Promise<void> {
 /* ----------------------------- folders ----------------------------- */
 
 export async function createFolder(name: string): Promise<{ ok: boolean; id?: number }> {
+  await guardOwner();
   const clean = name.trim().slice(0, 80);
   if (!clean) return { ok: false };
   const { data, error } = await sb
@@ -282,6 +292,7 @@ export async function createFolder(name: string): Promise<{ ok: boolean; id?: nu
 }
 
 export async function renameFolder(id: number, name: string): Promise<{ ok: boolean }> {
+  await guardOwner();
   const clean = name.trim().slice(0, 80);
   if (!clean) return { ok: false };
   const { error } = await sb.from("note_folders").update({ name: clean }).eq("id", id);
@@ -292,6 +303,7 @@ export async function renameFolder(id: number, name: string): Promise<{ ok: bool
 /** Deleting a folder never deletes notes — the FK is ON DELETE SET NULL, so its
  *  notes simply become unfiled. */
 export async function deleteFolder(id: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   const { error } = await sb.from("note_folders").delete().eq("id", id);
   revalidatePath("/notes");
   return { ok: !error };
@@ -317,6 +329,7 @@ export async function promoteNoteLine(input: {
   title: string;
   remindAt?: string | null;
 }): Promise<{ ok: true; todoId: number } | { ok: false; error: string }> {
+  await guardOwner();
   const created = await createNoteTodo(input);
   if (!created) return { ok: false, error: "That line is empty." };
   revalidatePath(`/notes/${input.noteId}`);
@@ -331,6 +344,7 @@ export async function remindAboutNote(input: {
   title: string;
   remindAt: string;
 }): Promise<{ ok: true; todoId: number } | { ok: false; error: string }> {
+  await guardOwner();
   const when = new Date(input.remindAt);
   if (Number.isNaN(when.getTime())) return { ok: false, error: "That is not a real date." };
   // A reminder in the past would fire on the very next cron tick, which reads as a
@@ -349,6 +363,7 @@ export async function remindAboutNote(input: {
 }
 
 export async function toggleNoteTodo(id: number, done: boolean, noteId: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await setNoteTodoDone(id, done);
   revalidatePath(`/notes/${noteId}`);
   revalidatePath("/");
@@ -359,6 +374,7 @@ export async function toggleNoteTodo(id: number, done: boolean, noteId: number):
  *  DOES delete, unlike the note itself: an unwanted to-do on the owner's plate is
  *  noise, and it has no history worth keeping. */
 export async function removeNoteTodo(id: number, noteId: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await deleteNoteTodo(id);
   revalidatePath(`/notes/${noteId}`);
   revalidatePath("/");
@@ -369,6 +385,7 @@ export async function removeNoteTodo(id: number, noteId: number): Promise<{ ok: 
  *  ticked. The editor asks on load: an id written into the document can go stale
  *  when the to-do is deleted from the to-do list, which knows nothing about notes. */
 export async function noteTodoStates(ids: number[]): Promise<Record<number, boolean>> {
+  await guardOwner();
   const map = await todoStates(ids);
   return Object.fromEntries(map);
 }
@@ -379,6 +396,7 @@ export async function noteTodoStates(ids: number[]): Promise<Record<number, bool
 
 /** "Save a version" — a deliberate bookmark before you change your mind. */
 export async function saveNoteVersion(noteId: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await snapshotNote(noteId, "manual");
   revalidatePath(`/notes/${noteId}`);
   return { ok };
@@ -396,6 +414,7 @@ export async function restoreNoteVersion(
   noteId: number,
   revisionId: number,
 ): Promise<{ ok: true; updatedAt: string } | { ok: false; error: string }> {
+  await guardOwner();
   const res = await restoreNoteRevision(noteId, revisionId);
   if (res.ok) {
     await reindexNote(noteId);
@@ -408,6 +427,7 @@ export async function restoreNoteVersion(
 /** Turn this note into a template, or back into an ordinary note. Templates are
  *  just notes with `kind='template'` — no new table, no new screen. */
 export async function setNoteIsTemplate(id: number, isTemplate: boolean): Promise<{ ok: boolean }> {
+  await guardOwner();
   const { error } = await sb
     .from("notes")
     .update({ kind: isTemplate ? "template" : "note", updated_at: NOW() })
@@ -424,6 +444,7 @@ export async function applyTemplateToNote(
   noteId: number,
   templateId: number,
 ): Promise<{ ok: true; bodyJson: unknown } | { ok: false; error: string }> {
+  await guardOwner();
   const body = await templateBody(templateId);
   if (!body) return { ok: false, error: "That template is gone." };
   await snapshotNote(noteId, "template");
@@ -453,6 +474,7 @@ const DAILY_TEMPLATE_KEY = "notes.dailyTemplateId";
  * pages already written are untouched, because each took its copy on the day.
  */
 export async function setDailyTemplate(templateId: number | null): Promise<{ ok: boolean }> {
+  await guardOwner();
   if (templateId == null) {
     await sb.from("settings").delete().eq("key", DAILY_TEMPLATE_KEY);
   } else {
@@ -465,6 +487,7 @@ export async function setDailyTemplate(templateId: number | null): Promise<{ ok:
 }
 
 export async function getDailyTemplateId(): Promise<number | null> {
+  await guardOwner();
   const { data } = await sb.from("settings").select("value").eq("key", DAILY_TEMPLATE_KEY).maybeSingle();
   const n = Number((data?.value as string | null) ?? "");
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -478,6 +501,7 @@ export async function getDailyTemplateId(): Promise<number | null> {
  * does. The title is the date written out, so the shelf reads like a diary.
  */
 export async function openTodaysNote(): Promise<void> {
+  await guardOwner();
   // Dar es Salaam is UTC+3 with no daylight saving, so "today" is the date in EAT —
   // not the server's UTC date, which would roll over at 3am local time.
   const eat = new Date(Date.now() + 3 * 60 * 60 * 1000);

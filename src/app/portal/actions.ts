@@ -8,6 +8,7 @@ import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
 import { createDocument, attachUploadedFile } from "@/lib/documents";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
+import { trusted } from "@/lib/viewer";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction, sendEventInviteAction, ensureEventMeetLink } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
@@ -847,7 +848,7 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
   const requestMeet = formData.get("requestMeet") !== "0";
   // autoInvite:false — this portal path sends the invite itself below (honouring
   // the outreach kill switch + Meet fallback), so don't double-send from create.
-  const res = await createEventAction(formData, createdBy, { autoInvite: false });
+  const res = await trusted(() => createEventAction(formData, createdBy, { autoInvite: false }));
   if (!res.ok || !res.id) return res;
 
   // Honour the global kill switch — if outreach is paused, the event is still
@@ -858,7 +859,7 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
     return { ok: true, id: res.id, sendNote: "Event created. Invites are paused by the owner — send them from the calendar when ready." };
   }
 
-  const send = await sendEventInviteAction(res.id);
+  const send = await trusted(() => sendEventInviteAction(res.id!));
   if (send.ok) {
     return { ok: true, id: res.id, meetLink: send.meetLink ?? null, sentCount: send.count, sentVia: send.via };
   }
@@ -866,7 +867,7 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
   // still requested, mint one anyway so an internal meeting has a room —
   // otherwise just surface the gentle note.
   if (requestMeet) {
-    const { meetLink } = await ensureEventMeetLink(res.id);
+    const { meetLink } = await trusted(() => ensureEventMeetLink(res.id!));
     if (meetLink) return { ok: true, id: res.id, meetLink };
   }
   return { ok: true, id: res.id, sendNote: send.error };
@@ -2075,7 +2076,7 @@ export async function portalAddUpdate(formData: FormData) {
   // the brain so it's classified, owned, deduped, dated and searchable.
   let attachmentDocumentId: number | null = null;
   if (file) {
-    const r = await ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId });
+    const r = await trusted(() => ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId }));
     attachmentDocumentId = r.documentId;
   }
 
@@ -2243,7 +2244,7 @@ export async function portalCompleteTask(
 
   let attachmentDocumentId: number | null = null;
   if (file) {
-    const r = await ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId });
+    const r = await trusted(() => ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId }));
     attachmentDocumentId = r.documentId;
   }
 
@@ -2362,7 +2363,7 @@ export async function portalCreateTodo(input: {
   if (!title) return { ok: false, error: "Type what you need to do." };
   if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
   const { createTodo } = await import("@/app/todos/actions");
-  const todo = await createTodo({ title, remindAt: input.remindAt ?? null, personId: me.id, kind: "self" });
+  const todo = await trusted(() => createTodo({ title, remindAt: input.remindAt ?? null, personId: me.id, kind: "self" }));
   // Home + the manager board both show the personal list — refresh both. The
   // reminder cron (api/cron/reminders) pushes to person:<id> once the time passes.
   revalidatePath("/portal");
@@ -2377,7 +2378,7 @@ export async function portalToggleTodoDone(id: number, done: boolean): Promise<{
   const o = await todoOwner(id);
   if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
   const { toggleTodo } = await import("@/app/todos/actions");
-  await toggleTodo(id, done);
+  await trusted(() => toggleTodo(id, done));
   revalidatePath("/portal");
   revalidatePath("/portal/board");
   return { ok: true };
@@ -2390,7 +2391,7 @@ export async function portalDeleteTodo(id: number): Promise<{ ok: boolean; error
   const o = await todoOwner(id);
   if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
   const { deleteTodo } = await import("@/app/todos/actions");
-  await deleteTodo(id);
+  await trusted(() => deleteTodo(id));
   revalidatePath("/portal");
   revalidatePath("/portal/board");
   return { ok: true };
@@ -2408,7 +2409,7 @@ export async function portalUpdateTodo(input: { id: number; title?: string; remi
   if (input.title !== undefined && !title) return { ok: false, error: "Type what you need to do." };
   if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
   const { updateTodo } = await import("@/app/todos/actions");
-  await updateTodo({ id: input.id, ...(input.title !== undefined ? { title } : {}), ...(input.remindAt !== undefined ? { remindAt: input.remindAt } : {}) });
+  await trusted(() => updateTodo({ id: input.id, ...(input.title !== undefined ? { title } : {}), ...(input.remindAt !== undefined ? { remindAt: input.remindAt } : {}) }));
   // Re-arm the push so a new/changed reminder time fires again.
   if (input.remindAt !== undefined) await sb.from("todos").update({ pushed: false }).eq("id", input.id);
   revalidatePath("/portal");

@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner, guardSignedIn } from "@/lib/viewer";
+import { isAdminSession } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { getPortalPerson, directReportIds, isScopedDirector } from "@/lib/portal-auth";
@@ -27,8 +29,11 @@ type Result = { ok: true; id: number } | { ok: false; error: string };
 
 /** Author gate for AI helpers — owner, director or manager only. */
 async function canAuthor(): Promise<boolean> {
+  // ⚠️ The owner must be PROVEN. This read "no portal cookie = the admin", so a
+  // caller with no session at all counted as the owner (portal audit, Sept 2026).
+  if (await isAdminSession()) return true;
   const me = await getPortalPerson();
-  if (!me) return true; // admin (middleware-gated page); no portal cookie
+  if (!me) return false;
   return me.portalRole === "director" || me.portalRole === "manager";
 }
 
@@ -139,6 +144,7 @@ async function notifyAudience(id: number) {
 /* --------------------------- admin (owner) --------------------------- */
 
 export async function saveAnnouncementAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const idRaw = fd.get("id")?.toString();
   const id = idRaw ? Number(idRaw) : null;
   const built = await buildPayload(fd, { createdBy: "web-ui", authorPersonId: null, scope: null });
@@ -179,6 +185,7 @@ export async function saveAnnouncementAction(fd: FormData): Promise<Result> {
 }
 
 export async function publishAnnouncementAction(id: number): Promise<Result> {
+  await guardOwner();
   const a = await getAnnouncement(id);
   if (!a) return { ok: false, error: "Not found." };
   const { error } = await sb
@@ -192,6 +199,7 @@ export async function publishAnnouncementAction(id: number): Promise<Result> {
 }
 
 export async function archiveAnnouncementAction(id: number): Promise<Result> {
+  await guardOwner();
   const { error } = await sb.from("announcements").update({ status: "archived" }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/announcements");
@@ -199,6 +207,7 @@ export async function archiveAnnouncementAction(id: number): Promise<Result> {
 }
 
 export async function deleteAnnouncementAction(id: number): Promise<Result> {
+  await guardOwner();
   const { error } = await sb.from("announcements").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/announcements");
@@ -208,6 +217,7 @@ export async function deleteAnnouncementAction(id: number): Promise<Result> {
 /** Re-notify the people who haven't yet seen/acknowledged a live announcement —
  *  the "Nudge N" action on the Brief's Announcements feed. */
 export async function nudgeAnnouncementAction(id: number): Promise<{ ok: boolean; nudged?: number; error?: string }> {
+  await guardOwner();
   const a = await getAnnouncement(id);
   if (!a) return { ok: false, error: "Not found." };
   const ids = await unseenPersonIds(a);
@@ -285,6 +295,7 @@ export async function portalAcknowledgeAction(id: number): Promise<{ ok: boolean
 }
 
 export async function adminMarkSeenAction(id: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   await markSeenLib(id, "admin");
   return { ok: true };
 }
@@ -301,6 +312,7 @@ export async function portalToggleReactionAction(id: number, emoji: string): Pro
 }
 
 export async function getCommentsAction(id: number): Promise<AnnouncementComment[]> {
+  await guardSignedIn();
   return listComments(id);
 }
 
@@ -332,6 +344,7 @@ export async function portalAddCommentAction(id: number, body: string): Promise<
 
 /** Owner answers a question from the admin noticeboard. */
 export async function adminAddCommentAction(id: number, body: string): Promise<{ ok: boolean; error?: string }> {
+  await guardOwner();
   const text = (body ?? "").trim();
   if (!text) return { ok: false, error: "Write something first." };
   await addComment({ announcementId: id, personId: null, authorName: "Management", body: text, isAnswer: true });

@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { parseCapture, type ParsedCapture } from "@/lib/smart-parse";
@@ -7,6 +8,7 @@ import { createTaskCore } from "@/lib/task-write";
 import { invalidateAllTasks } from "@/lib/queries";
 
 export async function parseRawCapture(raw: string): Promise<ParsedCapture> {
+  await guardOwner();
   const [{ data: cRows }, { data: pRows }] = await Promise.all([
     sb.from("companies").select("id,name,code"),
     sb.from("people").select("id,name"),
@@ -35,6 +37,7 @@ export type ParsedLine = {
  * title. Nothing is created here; the caller previews and confirms.
  */
 export async function parseCaptureLines(lines: string[]): Promise<ParsedLine[]> {
+  await guardOwner();
   const [{ data: cRows }, { data: pRows }] = await Promise.all([
     sb.from("companies").select("id,name,code"),
     sb.from("people").select("id,name").eq("active", true),
@@ -95,6 +98,7 @@ export async function createCaptureTask(input: {
    */
   createdBy?: string;
 }): Promise<{ ok: boolean; code?: string; error?: string }> {
+  await guardOwner();
   const actionItem = input.actionItem.trim();
   if (!input.companyId || !actionItem) {
     return { ok: false, error: "Company and action item are required." };

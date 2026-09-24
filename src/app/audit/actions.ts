@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 
@@ -22,6 +23,7 @@ function invalidate(_taskCode?: string | null, companyId?: number | null) {
  * Edit reason
  * ---------------------------------------------------------------------- */
 export async function editAuditReason(id: number, newReason: string): Promise<ActionResult> {
+  await guardOwner();
   const trimmed = newReason.trim();
   // Empty string clears the reason (back to "NO REASON PROVIDED")
   const value = trimmed.length === 0 ? null : trimmed;
@@ -50,6 +52,7 @@ export async function editAuditReason(id: number, newReason: string): Promise<Ac
  * `corrections` table so timelines can badge the old entry as "Corrected".
  * ---------------------------------------------------------------------- */
 export async function recordCorrection(entryId: number, note: string): Promise<ActionResult> {
+  await guardOwner();
   const trimmed = note.trim();
   if (!trimmed) return { ok: false, error: "Describe what is actually correct." };
 
@@ -96,6 +99,7 @@ export async function recordCorrection(entryId: number, note: string): Promise<A
  * Soft delete / restore
  * ---------------------------------------------------------------------- */
 export async function deleteAuditEntry(id: number): Promise<ActionResult> {
+  await guardOwner();
   const { data: row } = await sb
     .from("audit_log")
     .select("id,task_code,company_id,deleted_at")
@@ -119,6 +123,7 @@ export async function deleteAuditEntry(id: number): Promise<ActionResult> {
 }
 
 export async function restoreAuditEntry(id: number): Promise<ActionResult> {
+  await guardOwner();
   const { data: row } = await sb
     .from("audit_log")
     .select("id,task_code,company_id")

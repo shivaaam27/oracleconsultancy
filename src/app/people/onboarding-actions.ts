@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -22,6 +23,7 @@ function invalidate() {
 }
 
 export async function startJourneyAction(personId: number, kind: JourneyKind): Promise<Result> {
+  await guardOwner();
   try {
     const res = await startJourney(personId, kind);
     invalidate();
@@ -32,6 +34,7 @@ export async function startJourneyAction(personId: number, kind: JourneyKind): P
 }
 
 export async function clearJourneyAction(personId: number, kind: JourneyKind): Promise<Result> {
+  await guardOwner();
   try {
     await clearJourney(personId, kind);
     invalidate();
@@ -43,6 +46,7 @@ export async function clearJourneyAction(personId: number, kind: JourneyKind): P
 
 /** Tick / untick a single journey step (a tagged to-do). */
 export async function toggleJourneyStepAction(id: number, done: boolean): Promise<Result> {
+  await guardOwner();
   const { error } = await sb
     .from("todos")
     .update({ done, completed_at: done ? new Date().toISOString() : null })
@@ -53,6 +57,7 @@ export async function toggleJourneyStepAction(id: number, done: boolean): Promis
 }
 
 export async function addJourneyStepAction(personId: number, kind: JourneyKind, input: StepInput): Promise<Result> {
+  await guardOwner();
   try {
     await addJourneyStep(personId, kind, input);
     invalidate();
@@ -63,6 +68,7 @@ export async function addJourneyStepAction(personId: number, kind: JourneyKind, 
 }
 
 export async function editJourneyStepAction(id: number, input: StepInput): Promise<Result> {
+  await guardOwner();
   try {
     await editJourneyStep(id, input);
     invalidate();
@@ -73,6 +79,7 @@ export async function editJourneyStepAction(id: number, input: StepInput): Promi
 }
 
 export async function deleteJourneyStepAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await deleteJourneyStep(id);
     invalidate();
@@ -83,6 +90,7 @@ export async function deleteJourneyStepAction(id: number): Promise<Result> {
 }
 
 export async function syncJourneyAction(personId: number, kind: JourneyKind): Promise<SyncResult> {
+  await guardOwner();
   try {
     const res = await syncJourneyToTemplate(personId, kind);
     invalidate();

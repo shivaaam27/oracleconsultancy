@@ -238,6 +238,9 @@ export type AppSettings = {
   /** Studio redesign: comma list of page ids switched to the new look
    *  (see src/lib/studio.ts). Blank = every page as it was. */
   studioPages: string;
+  /** Portal roles that use the Studio (administrator) screens instead of the old
+   *  portal, comma-separated — "director" first (Sept 2026). See lib/viewer.ts. */
+  studioRoles: string;
   /** Studio ☆ — task ids the owner starred to the top of the list, comma-separated. */
   starredTasks: string;
 };
@@ -310,6 +313,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   signalDecisionReminderDays: 5,
   signalHealthDigestEnabled: true,
   studioPages: "", // nothing switched on — every page looks as it always has
+  studioRoles: "", // no portal role on the Studio screens yet
   starredTasks: "",
 };
 
@@ -370,6 +374,7 @@ const KEY: Record<keyof AppSettings, string> = {
   signalDecisionReminderDays: "signals.decisionReminder.days",
   signalHealthDigestEnabled: "signals.healthDigest.enabled",
   studioPages: "ui.studioPages",
+  studioRoles: "ui.studioRoles",
   starredTasks: "ui.starredTasks",
 };
 
@@ -455,6 +460,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     signalDecisionReminderDays: toNum(map.get(KEY.signalDecisionReminderDays), d.signalDecisionReminderDays),
     signalHealthDigestEnabled: toBool(map.get(KEY.signalHealthDigestEnabled), d.signalHealthDigestEnabled),
     studioPages: map.get(KEY.studioPages) ?? d.studioPages,
+    studioRoles: map.get(KEY.studioRoles) ?? d.studioRoles,
     starredTasks: map.get(KEY.starredTasks) ?? d.starredTasks,
   };
 });

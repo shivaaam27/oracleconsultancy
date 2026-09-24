@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { AI_FAST } from "@/lib/ai-models";
 import { callAIJson } from "@/lib/ai-json";
 import { revalidatePath, updateTag } from "next/cache";
@@ -375,6 +376,7 @@ function rulePersonFields(text: string): PersonProfileFields {
 export async function extractPersonFields(
   text: string
 ): Promise<{ ok: boolean; fields: PersonProfileFields; source: "ai" | "rules" }> {
+  await guardOwner();
   const trimmed = (text ?? "").toString().trim();
   if (!trimmed) return { ok: false, fields: {}, source: "rules" };
   const apiKey = await getAiKey();
@@ -449,6 +451,7 @@ ${trimmed.slice(0, 6000)}`;
 }
 
 export async function createPerson(formData: FormData): Promise<ActionResult> {
+  await guardOwner();
   const name = s(formData, "name");
   if (!name) return { ok: false, error: "Name is required." };
   const nameProblem = personNameProblem(name);
@@ -520,6 +523,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
  * Update
  * ---------------------------------------------------------------------- */
 export async function updatePerson(id: number, formData: FormData): Promise<ActionResult> {
+  await guardOwner();
   const name = s(formData, "name");
   if (!name) return { ok: false, error: "Name is required." };
   const nameProblem = personNameProblem(name);
@@ -668,6 +672,7 @@ export async function enrichPersonProfile(
   personId: number,
   fields: PersonProfileFields
 ): Promise<{ ok: boolean; filled: string[]; error?: string }> {
+  await guardOwner();
   if (!Number.isFinite(personId)) return { ok: false, filled: [], error: "Invalid person." };
   const { data: current, error: readErr } = await sb
     .from("people")
@@ -756,6 +761,7 @@ export async function enrichPersonProfile(
  * Archive / restore (toggle active)
  * ---------------------------------------------------------------------- */
 export async function togglePersonActive(id: number): Promise<ActionResult> {
+  await guardOwner();
   const { data: current } = await sb.from("people").select("active").eq("id", id).maybeSingle();
   if (!current) return { ok: false, error: "Person not found." };
 
@@ -832,6 +838,7 @@ async function vacateLeadershipRolesTx(tx: Tx, personId: number): Promise<number
 
 /** Bulk activate/deactivate (archive/restore). Soft — never deletes. */
 export async function setPeopleActive(ids: number[], active: boolean): Promise<ActionResult> {
+  await guardOwner();
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
 
@@ -898,6 +905,7 @@ async function closeLeaverAccess(personId: number): Promise<void> {
  * ---------------------------------------------------------------------- */
 /** Set or clear a person's probation end date (clear = "confirmed/passed"). */
 export async function setProbationDateAction(personId: number, dateIso: string | null): Promise<ActionResult> {
+  await guardOwner();
   const { data: before } = await sb.from("people").select("probation_end_date").eq("id", personId).maybeSingle();
   const newVal = dateIso ? new Date(`${dateIso}T00:00:00Z`).toISOString() : null;
   const { error } = await sb.from("people").update({ probation_end_date: newVal }).eq("id", personId);
@@ -933,6 +941,7 @@ export async function setProbationDateAction(personId: number, dateIso: string |
 export async function createProbationReviewTaskAction(
   personId: number
 ): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  await guardOwner();
   const { data: p } = await sb
     .from("people")
     .select("name,company_id,manager_id,probation_end_date")
@@ -976,6 +985,7 @@ export async function bulkSetPeopleField(
   field: "company" | "department" | "manager",
   value: number | string | null
 ): Promise<ActionResult> {
+  await guardOwner();
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
 
@@ -1051,6 +1061,7 @@ export async function bulkSetPeopleField(
  * person as their own manager, nor a duplicate of their primary manager.
  */
 export async function bulkAddSecondaryManager(ids: number[], managerId: number | null): Promise<ActionResult> {
+  await guardOwner();
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
 
@@ -1099,6 +1110,7 @@ export async function setPortalRoleQuick(
   role: string,
   directorCompanyIds: number[] = [],
 ): Promise<ActionResult> {
+  await guardOwner();
   const res = await changePortalRole(personId, parsePortalRole(role), directorCompanyIds);
   if (!res.ok) return res;
   invalidate();
@@ -1112,6 +1124,7 @@ export async function setPortalRoleQuick(
  * still goes through the one door in lib/portal-access.ts.
  */
 export async function setPortalLevelWithReach(personId: number, role: string, reach: "all" | "own" = "all"): Promise<ActionResult> {
+  await guardOwner();
   const r = parsePortalRole(role);
   let ids: number[] = [];
   if (r === "director" && reach === "own") {
@@ -1124,6 +1137,7 @@ export async function setPortalLevelWithReach(personId: number, role: string, re
   return { ok: true };
 }
 export async function grantPortalAccessWithReach(personId: number, role: string, password: string, reach: "all" | "own" = "all"): Promise<ActionResult> {
+  await guardOwner();
   const r = parsePortalRole(role);
   let ids: number[] = [];
   if (r === "director" && reach === "own") {
@@ -1140,6 +1154,7 @@ export async function grantPortalAccessWithReach(personId: number, role: string,
  *  shown instead of the plain role label (e.g. "Group Admin Manager"). Empty
  *  string clears it. Cosmetic today; a hook for per-manager tiers later. */
 export async function setPortalDesignationQuick(personId: number, designation: string): Promise<ActionResult> {
+  await guardOwner();
   if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
   const value = designation.trim().slice(0, 60) || null;
   const { error } = await sb.from("people").update({ portal_designation: value }).eq("id", personId);
@@ -1156,6 +1171,7 @@ export async function enablePortalAccessQuick(
   password: string,
   directorCompanyIds: number[] = [],
 ): Promise<ActionResult> {
+  await guardOwner();
   const res = await grantPortalAccess(personId, parsePortalRole(role), password, directorCompanyIds);
   if (!res.ok) return res;
   invalidate();
@@ -1166,6 +1182,7 @@ export async function enablePortalAccessQuick(
  *  "staff" and clears any director scope so a later re-grant never silently
  *  restores higher powers. */
 export async function revokePortalAccessQuick(personId: number): Promise<ActionResult> {
+  await guardOwner();
   const res = await revokePortalAccessCore(personId);
   if (!res.ok) return res;
   invalidate();
@@ -1177,6 +1194,7 @@ export async function revokePortalAccessQuick(personId: number): Promise<ActionR
  *  set this way is portfolio-wide — scope one to companies on their own record
  *  or in Settings → Portals. */
 export async function bulkSetPortalRole(ids: number[], role: string): Promise<ActionResult & { updated?: number; skipped?: number }> {
+  await guardOwner();
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
   const next = parsePortalRole(role);
@@ -1201,6 +1219,7 @@ export async function bulkSetPortalRole(ids: number[], role: string): Promise<Ac
  * Snooze / unsnooze reminders
  * ---------------------------------------------------------------------- */
 export async function snoozePerson(id: number, untilIso: string | null): Promise<ActionResult> {
+  await guardOwner();
   // untilIso is "YYYY-MM-DD" from a date input, or null to clear
   const value = untilIso ? new Date(untilIso) : null;
   if (untilIso && Number.isNaN(value?.getTime())) {
@@ -1248,6 +1267,7 @@ export type PersonDeleteImpact = {
  * owner the damage BEFORE they confirm, never as part of the delete itself.
  */
 export async function personDeleteImpact(id: number): Promise<PersonDeleteImpact | null> {
+  await guardOwner();
   const { data: p } = await sb.from("people").select("name,active").eq("id", id).maybeSingle();
   if (!p) return null;
 
@@ -1298,6 +1318,7 @@ export async function personDeleteImpact(id: number): Promise<PersonDeleteImpact
  * document library sets for its permanent delete.
  */
 export async function deletePersonForever(id: number, typedName: string): Promise<ActionResult> {
+  await guardOwner();
   const { data: p } = await sb.from("people").select("name").eq("id", id).maybeSingle();
   if (!p) return { ok: false, error: "Person not found." };
 

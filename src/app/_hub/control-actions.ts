@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 // Administrator control levers — the one-tap switches the owner pulls from the
 // home cockpit. Each mirrors a setting that otherwise lives only in /settings, so
 // the operator can hold or release the whole operation without leaving home.
@@ -12,6 +13,7 @@ type ToggleResult = { ok: true } | { ok: false; error: string };
 
 /** Master pause for all email automation (task reminders, renewals, the brief…). */
 export async function setAutomationPausedAction(paused: boolean): Promise<ToggleResult> {
+  await guardOwner();
   try {
     const { saveAutomationConfig } = await import("@/lib/automation");
     await saveAutomationConfig({ paused });
@@ -26,6 +28,7 @@ export async function setAutomationPausedAction(paused: boolean): Promise<Toggle
 /** Governance kill switch: pause/resume all director outreach (messages). Mirrors
  *  setDirectorOutreach in settings/actions.ts — keep the key in lockstep. */
 export async function setDirectorOutreachPausedAction(paused: boolean): Promise<ToggleResult> {
+  await guardOwner();
   try {
     await sb
       .from("settings")
@@ -40,6 +43,7 @@ export async function setDirectorOutreachPausedAction(paused: boolean): Promise<
 
 /** The AI (ORI) master switch — when off, every AI path degrades to manual/rule. */
 export async function setAiEnabledAction(enabled: boolean): Promise<ToggleResult> {
+  await guardOwner();
   try {
     await saveAppSettings({ aiEnabled: enabled });
     revalidatePath("/");
@@ -52,6 +56,7 @@ export async function setAiEnabledAction(enabled: boolean): Promise<ToggleResult
 
 /** Email test mode — when on, all automation email is redirected to the owner. */
 export async function setEmailTestModeAction(on: boolean): Promise<ToggleResult> {
+  await guardOwner();
   try {
     await sb.from("settings").upsert({ key: "email.testMode", value: on ? "1" : "0" }, { onConflict: "key" });
     revalidatePath("/");
@@ -67,6 +72,7 @@ type RunResult = { ok: true; message: string } | { ok: false; error: string };
 /** Fire all enabled automation categories right now (ignores send-window + the
  *  once-a-day guard; still respects the master pause). */
 export async function runAutomationsNowAction(): Promise<RunResult> {
+  await guardOwner();
   try {
     const { runDueAutomations } = await import("@/lib/automation");
     const summary = await runDueAutomations(new Date(), { force: true });
@@ -93,6 +99,7 @@ export async function runAutomationsNowAction(): Promise<RunResult> {
 /** Email the monthly Director Brief to the owner now (drafts to Outbox if email
  *  isn't wired). */
 export async function sendBriefNowAction(): Promise<RunResult> {
+  await guardOwner();
   try {
     const { sendDirectorBriefToOwnerNow } = await import("@/lib/director-brief-send");
     const { sent } = await sendDirectorBriefToOwnerNow();

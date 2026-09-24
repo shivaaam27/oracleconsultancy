@@ -1,5 +1,6 @@
 "use server";
 
+import { guardSignedIn } from "@/lib/viewer";
 // Direct-to-storage uploads (Aug 2026).
 //
 // Files used to travel to the server inside a Next server action — both to be
@@ -29,6 +30,7 @@ export type UploadSlot =
  * not the caller's, so a client can't write anywhere it likes in the bucket.
  */
 export async function createUploadSlotAction(fileName: string): Promise<UploadSlot> {
+  await guardSignedIn();
   try {
     const clean = safeFileName(fileName || "file");
     const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -49,6 +51,7 @@ export async function createUploadSlotAction(fileName: string): Promise<UploadSl
  * the dialog). Best-effort — an orphan in `uploads/` is untidy, not harmful.
  */
 export async function discardUploadAction(path: string): Promise<void> {
+  await guardSignedIn();
   try {
     if (!path.startsWith(`${STAGING}/`)) return; // never touch a filed document
     await sb.storage.from(DOCUMENTS_BUCKET).remove([path]);

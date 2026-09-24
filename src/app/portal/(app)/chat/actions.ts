@@ -5,6 +5,7 @@ import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
 import { safeFileName, MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
+import { trusted } from "@/lib/viewer";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
 import {
@@ -66,6 +67,10 @@ export async function listMyThreads() {
 /** People a staff member can start a chat with: every other active person
  *  (everyone ↔ everyone) plus the owner, surfaced as the "Owner" pseudo-person. */
 export async function listPeople(): Promise<MentionCandidate[]> {
+  // ⚠️ Signed-in people only. This had no check, and the portal is outside the
+  // administrator front door — so anyone could list every active person's name
+  // (portal audit, Sept 2026).
+  if (!(await me())) return [];
   const { data } = await sb.from("people").select("id,name").eq("active", true).order("name");
   return (data ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
 }
@@ -177,7 +182,7 @@ export async function postMessage(
     // document hiccup must never block sending the message.
     let documentId: number | undefined;
     try {
-      const r = await ingestAttachmentDocument({ file, createdBy: stamp, contextCompanyId: threadCompanyId, contextPersonId: m.id, existingStoragePath: path });
+      const r = await trusted(() => ingestAttachmentDocument({ file, createdBy: stamp, contextCompanyId: threadCompanyId, contextPersonId: m.id, existingStoragePath: path }));
       documentId = r.documentId;
     } catch { /* keep the chat message even if the document copy fails */ }
     attachments.push({ name: file.name, path, type: file.type || "", size: file.size, documentId });

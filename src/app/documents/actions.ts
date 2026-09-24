@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 // Server actions for the Documents library — manual filing only (Aug 2026).
 //
 // The owner adds a document, picks its company or person, its category and type,
@@ -101,6 +102,7 @@ function revalidateDocs() {
 /** `createdBy` defaults to the web UI; /api/mcp passes its `mcp:<Name>` stamp so
  *  a document an assistant filed is identifiable in the row it wrote. */
 export async function createDocumentAction(fd: FormData, createdBy?: string): Promise<Result> {
+  await guardOwner();
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -116,6 +118,7 @@ export async function createDocumentAction(fd: FormData, createdBy?: string): Pr
 }
 
 export async function updateDocumentAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -132,6 +135,7 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
 
 /** One document by id — used by the in-place editor dialog. */
 export async function getDocumentRowAction(id: number): Promise<DocumentRow | null> {
+  await guardOwner();
   try {
     return await getDocument(id);
   } catch {
@@ -140,6 +144,7 @@ export async function getDocumentRowAction(id: number): Promise<DocumentRow | nu
 }
 
 export async function renameDocumentAction(id: number, title: string): Promise<Result> {
+  await guardOwner();
   const clean = (title ?? "").trim();
   if (!clean) return { ok: false, error: "A title is required." };
   try {
@@ -152,6 +157,7 @@ export async function renameDocumentAction(id: number, title: string): Promise<R
 }
 
 export async function archiveDocumentAction(id: number, archived: boolean): Promise<Result> {
+  await guardOwner();
   try {
     await setDocumentArchived(id, archived);
     revalidateDocs();
@@ -162,6 +168,7 @@ export async function archiveDocumentAction(id: number, archived: boolean): Prom
 }
 
 export async function removeDocumentFileAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await removeDocumentFile(id);
     revalidateDocs();
@@ -173,6 +180,7 @@ export async function removeDocumentFileAction(id: number): Promise<Result> {
 
 /** A short-lived signed URL for viewing/downloading a document's stored file. */
 export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  await guardOwner();
   try {
     const doc = await getDocument(id);
     if (!doc) return { ok: false, error: "Document not found." };
@@ -212,6 +220,7 @@ async function resolveDeleteIds(scope: DeleteScope): Promise<number[]> {
  * filter); "permanent" removes the row AND its stored file for good.
  */
 export async function deleteDocumentsAction(scope: DeleteScope, mode: DeleteMode): Promise<{ ok: boolean; count: number; error?: string }> {
+  await guardOwner();
   try {
     const ids = await resolveDeleteIds(scope);
     let count = 0;
@@ -239,6 +248,7 @@ export async function deleteDocumentsAction(scope: DeleteScope, mode: DeleteMode
  * arrives, the owner files it and archives the old one.
  */
 export async function renewDocumentAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     const { data: doc, error } = await sb
       .from("documents")
@@ -327,6 +337,7 @@ export async function ingestAttachmentDocument(opts: {
   // object instead of re-uploading — one physical file, two references.
   existingStoragePath?: string | null;
 }): Promise<{ documentId: number; deduped: boolean }> {
+  await guardOwner();
   const { file, createdBy } = opts;
 
   const documentId = await createDocument(

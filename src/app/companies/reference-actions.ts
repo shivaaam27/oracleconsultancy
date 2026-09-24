@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
 import { people, sites, jobTitles } from "@/db/schema";
@@ -32,6 +33,7 @@ function revalidate() {
  *  (e.g. "DS" → DS-001). `code` mirrors the prefix and must be unique.
  *  Indexes it for search. */
 export async function createCompany(name: string, prefix: string, accentColor?: string): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const cleanName = name.trim();
   const cleanPrefix = prefix.trim().toUpperCase();
@@ -70,6 +72,7 @@ export async function createCompany(name: string, prefix: string, accentColor?: 
 /* Sites / locations                                                  */
 /* ------------------------------------------------------------------ */
 export async function createSite(name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a site name." };
@@ -82,6 +85,7 @@ export async function createSite(name: string): Promise<Result> {
 }
 
 export async function renameSite(id: number, name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a site name." };
@@ -95,6 +99,7 @@ export async function renameSite(id: number, name: string): Promise<Result> {
 
 /** Merge one site into another: re-point people's work-site and residence, then delete the source. */
 export async function mergeSites(fromId: number, intoId: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different sites." };
   // One atomic transaction: either every person is re-pointed AND the old site is
@@ -114,6 +119,7 @@ export async function mergeSites(fromId: number, intoId: number): Promise<Result
 
 /** Delete a site; anyone based/living there is set to "no site". */
 export async function deleteSite(id: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   try {
     await db.transaction(async (tx) => {
@@ -132,6 +138,7 @@ export async function deleteSite(id: number): Promise<Result> {
 /* Roles / job titles  (people.role is free text — rename re-points it) */
 /* ------------------------------------------------------------------ */
 export async function createRole(name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a job title." };
@@ -145,6 +152,7 @@ export async function createRole(name: string): Promise<Result> {
 
 /** Rename a job title AND re-point every person whose role text matches the old name. */
 export async function renameRole(id: number, name: string): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Enter a job title." };
@@ -166,6 +174,7 @@ export async function renameRole(id: number, name: string): Promise<Result> {
 
 /** Merge one job title into another: re-point people's role text, then delete the source title. */
 export async function mergeRoles(fromId: number, intoId: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   if (fromId === intoId) return { ok: false, error: "Pick two different job titles." };
   const [{ data: from }, { data: into }] = await Promise.all([
@@ -188,6 +197,7 @@ export async function mergeRoles(fromId: number, intoId: number): Promise<Result
 
 /** Remove a job title from the managed list (people keep their current role text). */
 export async function deleteRole(id: number): Promise<Result> {
+  await guardOwner();
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const { error } = await sb.from("job_titles").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };

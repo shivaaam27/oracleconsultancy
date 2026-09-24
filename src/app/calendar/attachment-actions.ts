@@ -1,5 +1,6 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
 // The door between the event form and the papers attached to an event.
 //
 // Two jobs, kept apart on purpose:
@@ -237,6 +238,7 @@ async function syncAttachmentsToGoogle(eventId: number): Promise<void> {
 }
 
 export async function linkEventDocumentAction(eventId: number, documentId: number): Promise<Ok> {
+  await guardOwner();
   if (!(await isOwner())) return DENIED;
   try {
     await linkEventDocument(eventId, documentId);
@@ -250,6 +252,7 @@ export async function linkEventDocumentAction(eventId: number, documentId: numbe
 
 /** Take a paper off an event. The document itself stays in the library. */
 export async function unlinkEventDocumentAction(eventId: number, documentId: number): Promise<Ok> {
+  await guardOwner();
   if (!(await isOwner())) return DENIED;
   try {
     await unlinkEventDocument(eventId, documentId);
@@ -268,6 +271,7 @@ export async function setEventDocumentShareAction(
   documentId: number,
   share: boolean
 ): Promise<Ok> {
+  await guardOwner();
   if (!(await isOwner())) return DENIED;
   try {
     await setEventDocumentSendFlag(eventId, documentId, share);
@@ -321,6 +325,7 @@ export async function discardEventAttachmentAction(documentId: number): Promise<
 }
 
 export async function listEventDocumentsAction(eventId: number): Promise<EventDocument[]> {
+  await guardOwner();
   if (!(await isOwner())) return [];
   try {
     return await listEventDocuments(eventId);
@@ -334,6 +339,7 @@ export async function listEventDocumentsAction(eventId: number): Promise<EventDo
 export async function searchDocumentsForEventAction(
   companyId?: number | null
 ): Promise<Array<{ id: number; title: string; fileName: string | null }>> {
+  await guardOwner();
   if (!(await isOwner())) return [];
   try {
     const all: DocumentRow[] = await listDocuments();
