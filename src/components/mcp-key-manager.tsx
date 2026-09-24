@@ -13,7 +13,7 @@ import type { McpKeyRow, McpConnectionRow } from "@/app/settings/mcp-actions";
 
 type Props = {
   initial: McpKeyRow[];
-  create: (label: string, personId?: number | null) => Promise<{ ok: true; key: string } | { ok: false; error: string }>;
+  create: (label: string, personId?: number | null) => Promise<{ ok: true; key: string; id: number } | { ok: false; error: string }>;
   revoke: (id: number) => Promise<{ ok: boolean; error?: string }>;
   /** Assistants that signed in themselves (stage 3) rather than being handed a key. */
   connections?: McpConnectionRow[];
@@ -42,7 +42,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
       setLabel("");
       // The list refreshes on the server revalidate; add optimistically so the
       // new key is visible immediately alongside the one-time secret.
-      setKeys((k) => [{ id: -1, label: label.trim() || "Untitled key", personId: null, personName: null, createdAt: new Date().toISOString(), lastUsedAt: null }, ...k]);
+      setKeys((k) => [{ id: r.id, label: label.trim() || "Untitled key", personId: null, personName: null, createdAt: new Date().toISOString(), lastUsedAt: null }, ...k]);
     });
   }
 

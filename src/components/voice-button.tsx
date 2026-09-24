@@ -99,6 +99,16 @@ type Phase = "idle" | "recording" | "transcribing";
  * Every session fully tears down its stream, recorder, recogniser, meter, and
  * timer, and reuses a single AudioContext, so dictation is repeatable.
  */
+/** The dictation language: the one this button was given, else Settings →
+ *  Voice (the root layout puts it on <html data-voice-lang>), else the
+ *  browser's. Only chat used to pass the setting, so choosing Swahili changed
+ *  nothing in task updates or quick capture (audit 24 Sept 2026). */
+function speechLang(explicit?: string): string {
+  if (explicit) return explicit;
+  if (typeof document !== "undefined" && document.documentElement.dataset.voiceLang) return document.documentElement.dataset.voiceLang;
+  return typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB";
+}
+
 export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title, className }: Props) {
   const [available, setAvailable] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -177,7 +187,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     const Ctor = getRecognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
-    rec.lang = cbRef.current.lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
+    rec.lang = speechLang(cbRef.current.lang);
     rec.continuous = true;
     rec.interimResults = true;
     let finalText = "";
@@ -233,7 +243,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
         const fd = new FormData();
         const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm";
         fd.set("audio", blob, `dictation.${ext}`);
-        if (cbRef.current.lang) fd.set("language", cbRef.current.lang);
+        fd.set("language", speechLang(cbRef.current.lang));
         const res = await fetch("/api/transcribe", { method: "POST", body: fd });
         const data = await res.json();
         const text = String(data?.text || "").trim();
@@ -335,7 +345,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     usingFallbackRef.current = true;
     setNote(null);
     const rec = new Ctor();
-    rec.lang = cbRef.current.lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
+    rec.lang = speechLang(cbRef.current.lang);
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {

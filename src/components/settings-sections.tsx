@@ -5,6 +5,7 @@ import * as Lucide from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { SettingsSaveDock } from "@/components/studio/settings-save-dock";
 
 export type SettingsGroup = {
   id: string;
@@ -48,6 +49,7 @@ export function SettingsSections({
   const searching = query.trim().length > 0;
   const [hits, setHits] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const studioRoot = useRef<HTMLDivElement>(null);
 
   // On mount, refine the initial group from the hash / sessionStorage when the
   // server didn't pin one via ?section=.
@@ -71,7 +73,7 @@ export function SettingsSections({
     const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-group]"));
     if (!q) {
       sections.forEach((s) => {
-        s.style.display = s.dataset.group === active ? (studio ? "grid" : "block") : "none";
+        s.style.display = s.dataset.group === active ? "block" : "none";
         s.querySelectorAll<HTMLElement>("[data-card]").forEach((c) => { c.style.display = ""; });
         s.querySelectorAll<HTMLElement>("[data-savebar]").forEach((b) => { b.style.display = ""; });
       });
@@ -89,7 +91,7 @@ export function SettingsSections({
       });
       // Hide save-bars while searching — saving from a filtered view is confusing.
       s.querySelectorAll<HTMLElement>("[data-savebar]").forEach((b) => { b.style.display = "none"; });
-      s.style.display = anyVisible ? (studio ? "grid" : "block") : "none";
+      s.style.display = anyVisible ? "block" : "none";
     });
     setHits(total);
   }, [active, query]);
@@ -102,7 +104,8 @@ export function SettingsSections({
   if (studio) {
     const count = (g: SettingsGroup) => g.cards.length;
     return (
-      <div className="st-settings flex flex-col gap-5">
+      <div ref={studioRoot} className="st-settings flex flex-col gap-5">
+        <SettingsSaveDock root={studioRoot} />
         <div data-page-header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-2">
             <h1 className="m-0 whitespace-nowrap text-[40px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">{studio.title}</h1>

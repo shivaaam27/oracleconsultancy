@@ -528,3 +528,60 @@ carries its own dark set inside `@media (prefers-color-scheme: dark)` plus
 task codes + every row links to its task; a "due this week" count. To be built in the
 shared `renderEmail` (`src/lib/email/layout.ts`) when the Outbox is done, so every
 email takes the same shell. Awaiting his verdict.
+
+## Person page fits the screen; Settings rebuilt as Home-style cards; Settings audit (24 Sept 2026, later)
+
+**Person page** (`studio-person.tsx`): the band is two rows (pills beside the
+staff ID, tabs beside the name). Overview AND Edit fit 1440×900 with no page
+scroll — `useFitFrame` on the grid, enabled from 1280px. Only a LIST scrolls
+(open tasks, direct reports, contact when "Personal" is open), never a column
+(he found a scrolling column annoying). Facts are label-over-value tiles, two to
+a row (`F` / `Facts`). ⚠️ **Never branch RENDERED output on `useMediaQuery`** —
+it reads the window on the first render, the server can't, and a different list
+is a hydration error (the open-tasks slice did exactly that). Use CSS
+(`hidden xl:grid`) for what shows, the hook only for behaviour.
+Edit tab (`person-form.tsx`, `studio` + `fit`): THREE columns — Identity +
+Personal · Role & companies · Contact + Portal. The action bar (Auto-fill,
+Cancel, Save) is at the TOP; help lines become tooltips (`Hint`); "Also works
+for" scrolls inside itself past three rows; "Related to" sits beside Notes. Portal
+editor: short level names ("None", "Reception"), "their N companies" with the
+list in the tooltip. Measured: all three columns 552/552 for Jitesh (8 companies).
+
+**Settings** (`.st-settings` in globals.css): cards FLOW in columns (CSS
+`columns`, masonry) so short cards leave no holes; only `portal` and
+`portal-permissions` span the width. Each form's SaveBar is hidden and ONE dock
+(`studio/settings-save-dock.tsx`) appears only when a form's values differ from
+when the page settled; Save clicks that form's own hidden submit, Discard
+reloads (switches keep React state `form.reset()` can't touch). Desk controls
+are restyled by CSS, not rewritten — `Button` now carries `data-variant`,
+`Switch` carries `data-on`, for exactly this.
+
+**Settings audit — fixed:** every Settings action and every automation WRITE
+checks for the owner itself (`ownerOnly()`); owner identity needs the password;
+new password typed twice; results reopen the right group (they all fell back to
+General, hiding the message); "their companies" with none on record refuses
+instead of meaning "every company"; "keep" reads both scope stores; a reset that
+keeps a higher level says so; the Brief button says whether it emailed or
+drafted; signature-upload failure is reported; permissions store ONLY cells that
+differ from defaults (`diffFromDefaults`; the live row was shrunk 1,600 → 123
+chars, behaviour identical — his only changes are ORI off for portal roles);
+a new Claude key can be revoked at once; the voice dictionary can be emptied;
+dictation language applies to every mic (`<html data-voice-lang>`); a monthly AI
+spend cap field; push test goes to the list real alerts use and the card
+re-registers its device; the 15-min tick moves meeting tasks and flushes the
+digest hourly; "Rebuild task summaries" no longer rewinds `last_updated_at`;
+dismissed renewal suggestions stay dismissed; switching task-create back on
+starts from today; Tax & Legal says when task-create is Off; mode buttons report
+failure; meeting category can be cleared; Install no longer submits the General
+form. **Removed (nothing read them):** Financial year, Location & weather,
+Swipe actions, Higher-quality reading, document auto-filing, the OCR.space key,
+the Design gallery card, and the three retired automation rules + the
+confidence slider (`retired: true` in automation-rules.ts). Migration **0168**
+dropped `cz_events` (the one CocoZuri table 0167 missed; empty; it was the
+"1 table unprotected" on the Security check).
+
+**Left as decisions:** a staff password reset does NOT sign out their other
+devices (deliberate in portal-auth.ts after installed-app sign-outs; revoking
+does); Google Disconnect doesn't revoke at Google; the voice dictionary still
+lists the old names "Dar Spices" and "Cocozuri Chocolat"; the Claude-access
+card's long paragraph.

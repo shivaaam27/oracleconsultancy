@@ -26,7 +26,7 @@ export function NavSettings() {
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-xs text-fg-muted">
-          Pinned buttons, in the order they appear in the bottom bar. Use the arrows to reorder.
+          Your pinned pages, in order — they come first when you search with ⌘K. Use the arrows to reorder.
         </p>
         {pinnedRoutes.length === 0 ? (
           <p className="text-sm text-fg-muted py-2">Nothing pinned. Add a button below.</p>

@@ -3,6 +3,8 @@
 import { STUDIO_PAGES, serializeStudioPages } from "@/lib/studio";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isAdminSession } from "@/lib/admin-auth";
+
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
 import {
@@ -12,11 +14,20 @@ import {
   revokePortalAccess as revokePortalAccessCore,
   parsePortalRole,
 } from "@/lib/portal-access";
-import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
+import { directorScopeOf } from "@/lib/portal-permissions";
+import { saveAppSettings, type AppSettings } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
 import { sendEmail } from "@/lib/email/send";
 import { sendWhatsApp } from "@/lib/whatsapp";
+
+/** Every action here changes the whole system, so each one checks for the
+ *  owner itself. The /settings page sits behind the admin gate, but a server
+ *  action is reachable from any page that imports it — and the gate does not
+ *  see that POST (audit 24 Sept 2026). */
+async function ownerOnly(): Promise<void> {
+  if (!(await isAdminSession())) redirect("/login");
+}
 
 const TEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEST_PHONE_RE = /^\+?[0-9]{7,15}$/;
@@ -29,6 +40,7 @@ const TEST_PHONE_RE = /^\+?[0-9]{7,15}$/;
 export async function sendTestEmail(
   to: string
 ): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-recipients" }> {
+  await ownerOnly();
   const addr = to.trim();
   if (!TEST_EMAIL_RE.test(addr)) return { ok: false, reason: "no-recipients", error: "Enter a valid email address." };
 
@@ -64,6 +76,7 @@ export async function sendTestWhatsApp(
   to: string,
   withCard = false,
 ): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-recipients" }> {
+  await ownerOnly();
   const addr = to.replace(/\s+/g, "");
   if (!TEST_PHONE_RE.test(addr))
     return { ok: false, reason: "no-recipients", error: "Enter a valid number in international form, e.g. +255686450999." };
@@ -106,15 +119,10 @@ function safeName(name: string): string {
 
 /** Disconnect the Google Calendar account (clears the stored refresh token). */
 export async function disconnectGoogleAction(): Promise<void> {
+  await ownerOnly();
   await disconnectGoogle();
   revalidatePath("/settings");
-  redirect("/settings?google=disconnected");
-}
-
-const SWIPE_VALUES: SwipeAction[] = ["none", "complete", "escalate", "snooze", "archive", "delete", "open", "update"];
-function swipe(fd: FormData, key: string): SwipeAction | undefined {
-  const v = fd.get(key) as string | null;
-  return v && SWIPE_VALUES.includes(v as SwipeAction) ? (v as SwipeAction) : undefined;
+  redirect("/settings?section=email&google=disconnected");
 }
 
 function num(fd: FormData, key: string): number | undefined {
@@ -127,6 +135,7 @@ function num(fd: FormData, key: string): number | undefined {
 /** Save the portal role-permissions matrix (Settings → Portals → Roles &
  *  permissions). Stored as one JSON row; merged over defaults at read time. */
 export async function savePortalPermissionsAction(fd: FormData): Promise<void> {
+  await ownerOnly();
   const { savePortalPermissions } = await import("@/lib/portal-permissions-store");
   const raw = String(fd.get("config") ?? "").trim();
   let config: import("@/lib/portal-permissions").PortalPermissionsConfig = {};
@@ -136,7 +145,8 @@ export async function savePortalPermissionsAction(fd: FormData): Promise<void> {
   } catch {
     redirect("/settings?section=portals"); // parse failure — bail without wiping
   }
-  await savePortalPermissions(config);
+  const { diffFromDefaults } = await import("@/lib/portal-permissions");
+  await savePortalPermissions(diffFromDefaults(config));
   revalidatePath("/portal");
   revalidatePath("/portal/board");
   revalidatePath("/settings");
@@ -144,31 +154,20 @@ export async function savePortalPermissionsAction(fd: FormData): Promise<void> {
 }
 
 export async function saveSettings(fd: FormData): Promise<void> {
+  await ownerOnly();
   const patch: Partial<AppSettings> = {
     dueSoonDays: num(fd, "dueSoonDays"),
     stalledDays: num(fd, "stalledDays"),
     agingDays: num(fd, "agingDays"),
-    weatherCity: (fd.get("weatherCity") as string | null)?.trim() || undefined,
-    weatherLat: num(fd, "weatherLat"),
-    weatherLon: num(fd, "weatherLon"),
-    aiEnabled: fd.get("aiEnabled") === "on",
-    aiHighQuality: fd.get("aiHighQuality") === "on",
-    semanticSearch: fd.get("semanticSearch") === "on",
-    documentAutoFile: (() => {
-      const v = String(fd.get("documentAutoFile") ?? "");
-      return v === "high" || v === "off" || v === "all" ? v : undefined;
-    })(),
-    voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
-    voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
-    swipeRightAction: swipe(fd, "swipeRightAction"),
-    swipeLeftAction: swipe(fd, "swipeLeftAction"),
-    // ⚠️ The month the financial year starts. The balance sheet adds everything
-    // earned since it into equity, so a wrong value is a wrong balance sheet.
     // ⚠️ A field must be read HERE as well as listed in the form's `__keys` —
-    // `__keys` only narrows what gets written, it does not add anything. A field
-    // missing from this list is silently ignored, which is exactly how this one
-    // appeared to save and then didn't.
-    ledgerFyStartMonth: num(fd, "ledgerFyStartMonth"),
+    // `__keys` only narrows what gets written, it does not add anything.
+    aiEnabled: fd.get("aiEnabled") === "on",
+    semanticSearch: fd.get("semanticSearch") === "on",
+    aiMonthlySpendCap: (() => { const n = num(fd, "aiMonthlySpendCap"); return n == null ? undefined : Math.max(0, n); })(),
+    voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
+    // "" is a real value — an emptied dictionary must save as empty, not be
+    // skipped (it kept coming back).
+    voiceDictionary: ((fd.get("voiceDictionary") as string | null) ?? "").trim(),
     operatorName: ((fd.get("operatorName") as string | null) ?? "").trim(),
     emailFrom: (fd.get("emailFrom") as string | null)?.trim() || undefined,
     emailFromName: (fd.get("emailFromName") as string | null)?.trim() || undefined,
@@ -180,7 +179,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
       const v = String(fd.get("meetingTaskMode") ?? "");
       return v === "always" || v === "off" || v === "company" ? v : undefined;
     })(),
-    meetingTaskCategory: (fd.get("meetingTaskCategory") as string | null)?.trim() || undefined,
+    // Blank goes back to the default rather than being ignored (it could never be cleared).
+    meetingTaskCategory: fd.has("meetingTaskCategory") ? ((fd.get("meetingTaskCategory") as string | null)?.trim() || "Meetings") : undefined,
     autoAdvanceMeetingTasks: fd.get("autoAdvanceMeetingTasks") === "on",
     meetingTaskGraceMinutes: num(fd, "meetingTaskGraceMinutes"),
     eventAttendeePings: fd.get("eventAttendeePings") === "on",
@@ -226,15 +226,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     patch.geminiApiKey = geminiKeyInput;
   }
 
-  // OCR.space scan-reading key: same write-only-when-typed rule as the Groq key.
-  const ocrKeyInput = ((fd.get("ocrSpaceApiKey") as string | null) ?? "").trim();
-  if (fd.get("remove_ocrSpaceApiKey") === "1") {
-    patch.ocrSpaceApiKey = ""; // clear → fall back to the env var
-  } else if (ocrKeyInput) {
-    patch.ocrSpaceApiKey = ocrKeyInput; // set / rotate
-  }
-
   // Signature image: upload a new file, or clear it when "remove" is ticked.
+  let sigFailed = false;
   const sigImg = fd.get("emailSignatureImage");
   if (sigImg instanceof File && sigImg.size > 0) {
     const path = `email-signature/${Date.now()}-${safeName(sigImg.name)}`;
@@ -243,6 +236,7 @@ export async function saveSettings(fd: FormData): Promise<void> {
       .from(DOCUMENTS_BUCKET)
       .upload(path, buffer, { contentType: sigImg.type || "image/png", upsert: true });
     if (!error) patch.emailSignatureImagePath = path;
+    else sigFailed = true;
   } else if (fd.get("remove_emailSignatureImage") === "1") {
     patch.emailSignatureImagePath = "";
   }
@@ -266,24 +260,27 @@ export async function saveSettings(fd: FormData): Promise<void> {
   revalidatePath("/settings");
   // Reopen the same section after the round-trip so the owner stays in context.
   const section = (fd.get("__section") as string | null)?.trim();
-  redirect(`/settings?saved=1${section ? `&section=${encodeURIComponent(section)}` : ""}`);
+  redirect(`/settings?saved=1${section ? `&section=${encodeURIComponent(section)}` : ""}${sigFailed ? "&note=sig-failed" : ""}`);
 }
 
 /** Enable (or reset the password for) staff-portal access on a person.
  *  Thin wrapper over `grantPortalAccess` — the one door shared with the People
  *  drawer, so both surfaces offer the same roles and write the same scope. */
 export async function setPortalAccess(fd: FormData): Promise<void> {
+  await ownerOnly();
   const personId = Number(fd.get("personId"));
   const password = String(fd.get("password") ?? "");
   const role = parsePortalRole(fd.get("portalRole"));
-  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
+  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=pick");
   if (password.length < 8) redirect("/settings?section=portals&portal=short");
 
   const res = await grantPortalAccess(personId, role, password, await resolveDirectorScope(fd, personId));
   if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
   revalidatePath("/people");
-  redirect("/settings?section=portals&portal=saved");
+  // A password reset never LOWERS a level (roleAfterReset) — say so rather
+  // than report the level that was asked for.
+  redirect(`/settings?section=portals&portal=${res.role && res.role !== role ? "kept-level" : "saved"}`);
 }
 
 /** A Director's reach from a Settings form: `directorReach` = all (every
@@ -294,10 +291,16 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
 async function resolveDirectorScope(fd: FormData, personId: number): Promise<number[]> {
   const reach = String(fd.get("directorReach") ?? "");
   if (reach === "all") return [];
-  if (reach === "own") return companiesOnRecord(personId);
+  if (reach === "own") {
+    // Empty would be read as "every company" — the opposite of what was asked.
+    const own = await companiesOnRecord(personId);
+    if (own.length === 0) redirect("/settings?section=portals&portal=no-companies");
+    return own;
+  }
   if (reach === "keep") {
-    const { data } = await sb.from("director_companies").select("company_id").eq("person_id", personId);
-    return (data ?? []).map((r) => r.company_id as number);
+    // Both places a scope is stored (the join table, and the old single column).
+    const { data } = await sb.from("people").select("director_company_id,director_companies(company_id)").eq("id", personId).maybeSingle();
+    return data ? directorScopeOf(data as Parameters<typeof directorScopeOf>[0]) : [];
   }
   return parseDirectorScope(fd);
 }
@@ -313,6 +316,7 @@ function parseDirectorScope(fd: FormData): number[] {
 /** Change a portal user's access level WITHOUT resetting their password. Only
  *  applies to people who already have access. */
 export async function setPortalRole(fd: FormData): Promise<void> {
+  await ownerOnly();
   const personId = Number(fd.get("personId"));
   const role = parsePortalRole(fd.get("portalRole"));
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
@@ -330,6 +334,7 @@ export async function setPortalRole(fd: FormData): Promise<void> {
  *  category comes from the single source of truth (NATURAL_MODE in the registry
  *  meta), so adding a category never needs a change here. */
 export async function setEmailAutomation(fd: FormData): Promise<void> {
+  await ownerOnly();
   const { saveAutomationConfig, NATURAL_MODE } = await import("@/lib/automation");
   const field = String(fd.get("field") ?? "");
   const on = fd.get("value") === "1";
@@ -342,12 +347,13 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
     await saveAutomationConfig({ categories: { [field]: { mode } } as never });
   }
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  redirect("/settings?saved=1&section=email");
 }
 
 /** Email automation: the numeric "how it behaves" tuning — send window, daily cap,
  *  cooldown, and which weekday the Director Brief goes out. */
 export async function setAutomationTuning(fd: FormData): Promise<void> {
+  await ownerOnly();
   const { saveAutomationConfig } = await import("@/lib/automation");
   const num = (k: string, lo: number, hi: number, dflt: number): number => {
     const v = Number(fd.get(k));
@@ -364,29 +370,33 @@ export async function setAutomationTuning(fd: FormData): Promise<void> {
     briefDay: num("briefDay", 0, 6, 1),
   });
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  redirect("/settings?saved=1&section=email");
 }
 
 /** Run all enabled email-automation categories right now (manual test fire from
  *  the site). Ignores the daily once-only guard + send window. With Test mode on,
  *  everything redirects to the owner's inbox. */
 export async function runEmailAutomationNow(): Promise<void> {
+  await ownerOnly();
   const { runDueAutomations } = await import("@/lib/automation");
   await runDueAutomations(new Date(), { force: true });
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  redirect("/settings?section=email&note=ran");
 }
 
 /** Send the Director Brief to the owner right now (one-off, ignores the schedule). */
 export async function sendDirectorBriefNow(): Promise<void> {
+  await ownerOnly();
   const { sendDirectorBriefToOwnerNow } = await import("@/lib/director-brief-send");
-  await sendDirectorBriefToOwnerNow();
+  const { sent } = await sendDirectorBriefToOwnerNow();
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  // Without a working mailbox it lands in the Outbox as a draft — say which.
+  redirect(`/settings?section=email&note=${sent ? "brief-sent" : "brief-drafted"}`);
 }
 
 /** Governance kill switch: pause/resume all director outreach (messages). */
 export async function setDirectorOutreach(fd: FormData): Promise<void> {
+  await ownerOnly();
   const paused = fd.get("paused") === "1";
   await sb.from("settings").upsert({ key: "director.outreachPaused", value: paused ? "1" : "0" }, { onConflict: "key" });
   revalidatePath("/settings");
@@ -404,6 +414,7 @@ export async function setDirectorOutreach(fd: FormData): Promise<void> {
  * fell due while it was paused (matching the owner's "renders from that day").
  */
 export async function setCommandCentrePause(fd: FormData): Promise<void> {
+  await ownerOnly();
   const paused = fd.get("paused") === "1";
   await saveAppSettings({ commandCentrePaused: paused });
   if (!paused) {
@@ -419,7 +430,7 @@ export async function setCommandCentrePause(fd: FormData): Promise<void> {
   revalidatePath("/settings");
   revalidatePath("/hrms/command-centre");
   revalidatePath("/");
-  redirect("/settings?saved=1");
+  redirect("/settings?saved=1&section=automation");
 }
 
 /** Revoke portal access — the person's session stops working immediately
@@ -429,6 +440,7 @@ export async function setCommandCentrePause(fd: FormData): Promise<void> {
  *  is kept. Also resets the role to "staff" so a later re-grant never silently
  *  restores manager/director powers. */
 export async function revokePortalAccess(fd: FormData): Promise<void> {
+  await ownerOnly();
   const personId = Number(fd.get("personId"));
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
   const res = await revokePortalAccessCore(personId);

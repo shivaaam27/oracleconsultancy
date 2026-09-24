@@ -1965,33 +1965,75 @@ body:has(main .studio) > * [data-field-label] {
 /* A list that scrolls inside a dark Studio card: a thin dark thumb. */
 .st-scroll-dark { scrollbar-width: thin; scrollbar-color: #34363B transparent; }
 
-/* Studio Settings (mockup board Settings): the SAME server-rendered cards and
-   forms, restyled here so no card or save had to change. A group is a grid of
-   white cards three to a row; a form is `display: contents` so its cards join
-   that grid; the per-form Save bar spans the row. The two cards drawn at the
-   top (security check, install) are hidden down in their groups. */
-.st-settings [data-group] { grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 14px; align-items: start; }
-@media (min-width: 768px) { .st-settings [data-group] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .st-settings [data-group] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Studio Settings — second pass (24 Sept 2026): "like Home — cards, minimal".
+   The cards FLOW in columns (masonry), so a short card never leaves a hole
+   beside a tall one; a form is `display: contents` so its cards join the flow.
+   Each form's own Save bar is hidden — one dock appears when something has
+   changed (settings-save-dock.tsx). The Desk controls inside are restyled
+   here rather than rewritten, so every form still posts exactly as before. */
+.st-settings [data-group] { column-gap: 16px; columns: 1; }
+@media (min-width: 768px) { .st-settings [data-group] { columns: 2; } }
+@media (min-width: 1280px) { .st-settings [data-group] { columns: 3; } }
 .st-settings [data-group] > form { display: contents; }
+.st-settings [data-group] [data-savebar] { display: none !important; }
 .st-settings [data-group] [data-card] {
-  margin: 0 !important; border-radius: 18px; padding: 16px 18px; box-shadow: none;
-  background: var(--st-surface); border: 0;
+  display: block; break-inside: avoid; margin: 0 0 16px !important;
+  border-radius: 20px; padding: 20px 22px; box-shadow: none; border: 0;
+  background: var(--st-surface); color: var(--st-ink);
 }
-.st-settings [data-group] [data-card] > div:first-child > span:first-child { display: none; }
-.st-settings [data-group] [data-card] h2 { font-size: 15px; font-weight: 600; }
-.st-settings [data-group] [data-card] h2 + p { font-size: 12px; color: var(--st-label); line-height: 1.45; margin-top: 3px; }
-.st-settings [data-group] [data-savebar] { grid-column: 1 / -1; margin: 0 !important; bottom: calc(64px + env(safe-area-inset-bottom) + 14px); }
+/* The two that need the page's width: every portal login, and the roles grid. */
+.st-settings [data-card="portal"], .st-settings [data-card="portal-permissions"] { column-span: all; }
 .st-settings [data-card="security-check"], .st-settings [data-card="install"] { display: none !important; }
 
-/* The heavy settings cards need room: a list of every portal login, the
-   permissions matrix, the automations and the AI usage tables. */
-@media (min-width: 768px) {
-  .st-settings [data-card="portal"], .st-settings [data-card="portal-permissions"],
-  .st-settings [data-card="automations"], .st-settings [data-card="ai-usage"],
-  .st-settings [data-card="email-automation"], .st-settings [data-card="mcp-keys"] { grid-column: 1 / -1; }
+/* Card head: no icon tile; a Home-style title and one quiet line under it. */
+.st-settings [data-card] > div:first-child > span:first-child { display: none; }
+.st-settings [data-card] h2 { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.25; }
+.st-settings [data-card] h2 + p { font-size: 12px; color: var(--st-muted); line-height: 1.45; margin-top: 4px; }
+.st-settings [data-card] > div:last-child { margin-top: 16px; }
+
+/* Text inside a card uses Studio's greys. */
+.st-settings [data-card] .text-fg-muted, .st-settings [data-card] .text-fg-subtle { color: var(--st-muted); }
+.st-settings [data-card] .text-fg { color: var(--st-ink); }
+.st-settings [data-card] [data-field-label] { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; color: var(--st-label); margin-bottom: 5px; }
+
+/* One control box: 34px, 10px corners, a hairline. */
+.st-settings [data-card] input:is([type="text"], [type="email"], [type="password"], [type="number"], [type="time"], [type="date"], [type="url"], [type="tel"], [type="search"], :not([type])),
+.st-settings [data-card] textarea {
+  border: 1px solid var(--st-line); border-radius: 10px; background: var(--st-surface); color: var(--st-ink);
+  box-shadow: none; font-size: 13px;
 }
-@media (min-width: 1280px) {
-  .st-settings [data-card="portal-permissions"], .st-settings [data-card="automations"],
-  .st-settings [data-card="email-automation"], .st-settings [data-card="mcp-keys"] { grid-column: span 2; }
+.st-settings [data-card] input:is([type="text"], [type="email"], [type="password"], [type="number"], [type="time"], [type="date"], [type="url"], [type="tel"], [type="search"], :not([type])) { height: 34px; }
+.st-settings [data-card] input:focus, .st-settings [data-card] textarea:focus { border-color: var(--st-ink); outline: none; box-shadow: none; }
+
+/* Buttons: primary is the ink button, the rest are white with a hairline. */
+.st-settings [data-card] [data-variant] { border-radius: 10px; box-shadow: none; }
+.st-settings [data-card] [data-variant="primary"] { background: var(--st-ink); color: var(--st-surface); border: 0; }
+.st-settings [data-card] [data-variant="secondary"], .st-settings [data-card] [data-variant="ghost"] { background: var(--st-surface); color: var(--st-ink); border: 1px solid var(--st-line); }
+.st-settings [data-card] [data-variant="danger"] { background: var(--st-surface); color: var(--st-late-text); border: 1px solid var(--st-bad-line); }
+
+.st-settings [data-card] [data-variant] { white-space: nowrap; }
+/* A list of on/off buttons reads as a wall of black: those lists get quiet
+   outline buttons, and only a card's one real action stays ink. */
+.st-settings [data-card="email-automation"] [data-variant="primary"],
+.st-settings [data-card="tax-legal"] [data-variant="primary"] { background: var(--st-surface); color: var(--st-ink); border: 1px solid var(--st-line); }
+/* No box inside a box: an inner bordered panel becomes a row with a hairline. */
+.st-settings [data-card] .rounded-xl.border {
+  border-width: 0 0 1px; border-color: var(--st-line-soft); border-radius: 0; background: transparent; padding: 12px 0;
 }
+.st-settings [data-card] .rounded-xl.border:last-of-type { border-bottom-width: 0; }
+
+/* Switch rows: a plain row with a hairline between, the toggle in ink. */
+.st-settings [data-card] button[role="switch"] {
+  background: transparent; box-shadow: none; border-radius: 0; padding: 10px 0;
+  border-bottom: 1px solid var(--st-line-soft);
+}
+.st-settings [data-card] button[role="switch"]:last-child { border-bottom: 0; }
+.st-settings [data-card] button[role="switch"]:hover { background: transparent; }
+.st-settings [data-card] [data-switch] { background: var(--st-track-off); box-shadow: none; }
+.st-settings [data-card] [data-switch][data-on] { background: var(--st-ink); }
+.st-settings [data-card] [data-switch][data-on] > span { background: var(--st-surface); }
+
+/* Studio person form: sentence-case labels and one control height, so three
+   columns fit one screen (24 Sept 2026). */
+.st-person-form [data-field-label] { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; color: var(--st-label); margin-bottom: 4px; }
+.st-person-form [data-field-label] .text-danger { color: var(--st-late-text); }

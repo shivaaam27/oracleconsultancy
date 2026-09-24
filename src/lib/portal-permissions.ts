@@ -253,3 +253,22 @@ export function resolveMatrix(config: PortalPermissionsConfig | null | undefined
   }
   return { scope, caps };
 }
+
+/** Only the cells that differ from the built-in defaults. The Settings grid posts
+ *  the WHOLE resolved matrix; storing that pinned every cell, so a later change
+ *  to DEFAULT_CAPS / DEFAULT_SCOPE never reached anyone (audit 24 Sept 2026).
+ *  Accepts anything shaped like a config and ignores unknown roles/keys. */
+export function diffFromDefaults(config: PortalPermissionsConfig | null | undefined): PortalPermissionsConfig {
+  const out: PortalPermissionsConfig = {};
+  for (const role of PORTAL_ROLES) {
+    const v = config?.scope?.[role];
+    if (v && v !== DEFAULT_SCOPE[role]) (out.scope ??= {})[role] = v;
+  }
+  for (const k of ALL_CAP_KEYS) {
+    for (const role of PORTAL_ROLES) {
+      const v = config?.caps?.[k]?.[role];
+      if (typeof v === "boolean" && v !== DEFAULT_CAPS[k][role]) ((out.caps ??= {})[k] ??= {})[role] = v;
+    }
+  }
+  return out;
+}

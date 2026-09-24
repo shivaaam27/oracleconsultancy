@@ -65,8 +65,31 @@ async function tick(req: NextRequest) {
     } catch (err) {
       await reportError(err, { route: "cron.tick/event-reminders" });
     }
-    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events });
-    return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events });
+    // Meeting tasks move to In Progress when the meeting starts, and the
+    // "how did it go?" note follows it — both used to wait for the next morning
+    // run or for somebody to open the calendar (audit 24 Sept 2026).
+    let meetings = 0;
+    try {
+      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/meeting-tasks");
+      meetings = (await advanceDueMeetingTasks({ force: true })) + (await postMeetingFollowups({ force: true }));
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/meetings" });
+    }
+    // Routine alerts held for the digest go out once an hour (the first tick of
+    // each hour), and never inside quiet hours — the flush holds itself then.
+    // It used to run only at 08:30, so a quiet window over 08:30 held them for
+    // good and anything else waited until the next morning.
+    let digest = 0;
+    if (new Date().getUTCMinutes() < 15) {
+      try {
+        const { flushRoutineDigests } = await import("@/lib/push");
+        digest = (await flushRoutineDigests()).pushed;
+      } catch (err) {
+        await reportError(err, { route: "cron.tick/digest" });
+      }
+    }
+    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events, meetings, digest });
+    return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events, meetings, digest });
   } catch (err) {
     // Fail-open: report + a soft 200 so a flaky sweep doesn't make the scheduler
     // hammer with retries; the next tick simply tries again.

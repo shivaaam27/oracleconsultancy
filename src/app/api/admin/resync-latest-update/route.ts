@@ -40,24 +40,20 @@ export async function POST() {
     }
   }
 
+  // Only the summary line is re-derived, and only where it has drifted. It used
+  // to rewrite last_updated_at to the last note's time too — which threw away
+  // every later edit and made 55 of 184 tasks look stalled overnight — and it
+  // blanked a summary typed on the form for tasks with no notes (audit 24 Sept
+  // 2026). A task with no notes is left exactly as it is.
+  const { data: current } = await sb.from("tasks").select("id,latest_update");
+  const now = new Map(((current ?? []) as Array<{ id: number; latest_update: string | null }>).map((t) => [t.id, t.latest_update]));
   let updated = 0;
-  let cleared = 0;
+  const cleared = 0;
   for (const t of (tasks ?? []) as Array<{ id: number }>) {
     const latest = latestByTask.get(t.id);
-    if (latest) {
-      const { error } = await sb
-        .from("tasks")
-        .update({ latest_update: latest.body, last_updated_at: latest.created_at })
-        .eq("id", t.id);
-      if (!error) updated++;
-    } else {
-      // No live updates → clear the mirror
-      const { error } = await sb
-        .from("tasks")
-        .update({ latest_update: null })
-        .eq("id", t.id);
-      if (!error) cleared++;
-    }
+    if (!latest || now.get(t.id) === latest.body) continue;
+    const { error } = await sb.from("tasks").update({ latest_update: latest.body }).eq("id", t.id);
+    if (!error) updated++;
   }
 
   return NextResponse.json({ ok: true, scanned: tasks?.length ?? 0, updated, cleared });

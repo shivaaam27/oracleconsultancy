@@ -124,23 +124,32 @@
   .is-phone .m-date { display: none; }
 
   @media (prefers-reduced-motion: no-preference) { .mail { transition: opacity .18s ease; } }
+
+  /* switches without a script: radios + labels */
+  .sr { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+  .seg label { font-size: 12px; font-weight: 500; height: 30px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 8px; color: var(--sub); cursor: pointer; user-select: none; }
+  #v-many:checked ~ header label[for="v-many"], #v-one:checked ~ header label[for="v-one"],
+  #w-desk:checked ~ header label[for="w-desk"], #w-phone:checked ~ header label[for="w-phone"] { background: var(--seg-on); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  #v-many:focus-visible ~ header label[for="v-many"], #v-one:focus-visible ~ header label[for="v-one"],
+  #w-desk:focus-visible ~ header label[for="w-desk"], #w-phone:focus-visible ~ header label[for="w-phone"] { outline: 2px solid #2490EF; outline-offset: 1px; }
+  .variant { display: none; }
+  #v-many:checked ~ #w-desk:checked ~ .boards .k-many-desk,
+  #v-many:checked ~ #w-phone:checked ~ .boards .k-many-phone,
+  #v-one:checked ~ #w-desk:checked ~ .boards .k-one-desk,
+  #v-one:checked ~ #w-phone:checked ~ .boards .k-one-phone { display: block; }
 </style>
 
 <div class="wrap">
+  <input class="sr" type="radio" name="v" id="v-many" checked><input class="sr" type="radio" name="v" id="v-one">
+  <input class="sr" type="radio" name="w" id="w-desk" checked><input class="sr" type="radio" name="w" id="w-phone">
   <header>
     <div>
       <h1>Reminder email</h1>
       <p class="lede">The task reminder, in the Studio look. The design itself carries no dark colours. When a phone or laptop is set to dark mode, the email switches to its own dark set rather than being inverted by the mail app. Example data.</p>
     </div>
     <div class="controls">
-      <div class="seg" role="group" aria-label="How many tasks">
-        <button type="button" id="v-many" aria-pressed="true">Several tasks</button>
-        <button type="button" id="v-one" aria-pressed="false">One task</button>
-      </div>
-      <div class="seg" role="group" aria-label="Screen">
-        <button type="button" id="w-desk" aria-pressed="true">Desktop</button>
-        <button type="button" id="w-phone" aria-pressed="false">Phone</button>
-      </div>
+      <div class="seg" role="group" aria-label="How many tasks"><label for="v-many">Several tasks</label><label for="v-one">One task</label></div>
+      <div class="seg" role="group" aria-label="Screen"><label for="w-desk">Desktop</label><label for="w-phone">Phone</label></div>
     </div>
   </header>
 
@@ -148,16 +157,420 @@
     <section class="board">
       <div class="board-h"><b>Light</b><span>how most people see it</span></div>
       <div class="client">
-        <div class="client-top" id="top-light"></div>
-        <div class="stage" id="stage-light"></div>
+<div class="variant k-many-desk"><div class="client-top"><div class="subj">Your Outstanding Tasks</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage">
+      <div class="mail">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your tasks</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">5</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">2</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>3 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-038">Send the signed supply contract back to the vendor</a>
+              <div class="m-meta"><span class="code">PE-038</span> · due Mon 22 Sep</div>
+            </div>
+            <span class="m-pill late">2 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-soon)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-044">Book the fire extinguisher service for the warehouse</a>
+              <div class="m-meta"><span class="code">PE-044</span> · due Fri 26 Sep</div>
+            </div>
+            <span class="m-pill soon">Due Friday</span>
+          </div>
       </div>
+      <div class="m-group">
+        <div class="m-gh"><b>Terra Green Ltd</b><span>2 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-017">Collect three quotes for the office printer</a>
+              <div class="m-meta"><span class="code">TG-017</span> · due Wed 8 Oct</div>
+            </div>
+            <span class="m-pill calm">Medium</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-019">Update the site register for the new staff house</a>
+              <div class="m-meta"><span class="code">TG-019</span> · due Tue 14 Oct</div>
+            </div>
+            <span class="m-pill calm">Low</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open your tasks</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-many-phone"><div class="client-top"><div class="subj">Your Outstanding Tasks</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage phone">
+      <div class="mail is-phone">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your tasks</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">5</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">2</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>3 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-038">Send the signed supply contract back to the vendor</a>
+              <div class="m-meta"><span class="code">PE-038</span> · due Mon 22 Sep</div>
+            </div>
+            <span class="m-pill late">2 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-soon)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-044">Book the fire extinguisher service for the warehouse</a>
+              <div class="m-meta"><span class="code">PE-044</span> · due Fri 26 Sep</div>
+            </div>
+            <span class="m-pill soon">Due Friday</span>
+          </div>
+      </div>
+      <div class="m-group">
+        <div class="m-gh"><b>Terra Green Ltd</b><span>2 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-017">Collect three quotes for the office printer</a>
+              <div class="m-meta"><span class="code">TG-017</span> · due Wed 8 Oct</div>
+            </div>
+            <span class="m-pill calm">Medium</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-019">Update the site register for the new staff house</a>
+              <div class="m-meta"><span class="code">TG-019</span> · due Tue 14 Oct</div>
+            </div>
+            <span class="m-pill calm">Low</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open your tasks</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-one-desk"><div class="client-top"><div class="subj">Your task: Chase TRA for the tax clearance certificate</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage">
+      <div class="mail">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your task</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">0</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>1 task</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open the task</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-one-phone"><div class="client-top"><div class="subj">Your task: Chase TRA for the tax clearance certificate</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage phone">
+      <div class="mail is-phone">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your task</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">0</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>1 task</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open the task</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+</div>
     </section>
     <section class="board">
       <div class="board-h"><b>Dark</b><span>when the device is in dark mode</span></div>
       <div class="client">
-        <div class="client-top" id="top-dark"></div>
-        <div class="stage" id="stage-dark"></div>
+<div class="variant k-many-desk"><div class="client-top"><div class="subj">Your Outstanding Tasks</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage">
+      <div class="mail is-dark">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your tasks</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">5</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">2</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>3 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-038">Send the signed supply contract back to the vendor</a>
+              <div class="m-meta"><span class="code">PE-038</span> · due Mon 22 Sep</div>
+            </div>
+            <span class="m-pill late">2 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-soon)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-044">Book the fire extinguisher service for the warehouse</a>
+              <div class="m-meta"><span class="code">PE-044</span> · due Fri 26 Sep</div>
+            </div>
+            <span class="m-pill soon">Due Friday</span>
+          </div>
       </div>
+      <div class="m-group">
+        <div class="m-gh"><b>Terra Green Ltd</b><span>2 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-017">Collect three quotes for the office printer</a>
+              <div class="m-meta"><span class="code">TG-017</span> · due Wed 8 Oct</div>
+            </div>
+            <span class="m-pill calm">Medium</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-019">Update the site register for the new staff house</a>
+              <div class="m-meta"><span class="code">TG-019</span> · due Tue 14 Oct</div>
+            </div>
+            <span class="m-pill calm">Low</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open your tasks</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-many-phone"><div class="client-top"><div class="subj">Your Outstanding Tasks</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage phone">
+      <div class="mail is-dark is-phone">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your tasks</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">5</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">2</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>3 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-038">Send the signed supply contract back to the vendor</a>
+              <div class="m-meta"><span class="code">PE-038</span> · due Mon 22 Sep</div>
+            </div>
+            <span class="m-pill late">2 days late</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-soon)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-044">Book the fire extinguisher service for the warehouse</a>
+              <div class="m-meta"><span class="code">PE-044</span> · due Fri 26 Sep</div>
+            </div>
+            <span class="m-pill soon">Due Friday</span>
+          </div>
+      </div>
+      <div class="m-group">
+        <div class="m-gh"><b>Terra Green Ltd</b><span>2 tasks</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-017">Collect three quotes for the office printer</a>
+              <div class="m-meta"><span class="code">TG-017</span> · due Wed 8 Oct</div>
+            </div>
+            <span class="m-pill calm">Medium</span>
+          </div>
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-muted)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#TG-019">Update the site register for the new staff house</a>
+              <div class="m-meta"><span class="code">TG-019</span> · due Tue 14 Oct</div>
+            </div>
+            <span class="m-pill calm">Low</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open your tasks</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-one-desk"><div class="client-top"><div class="subj">Your task: Chase TRA for the tax clearance certificate</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage">
+      <div class="mail is-dark">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your task</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">0</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>1 task</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open the task</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+<div class="variant k-one-phone"><div class="client-top"><div class="subj">Your task: Chase TRA for the tax clearance certificate</div>
+      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → Jitesh Solanki</div></div><div class="stage phone">
+      <div class="mail is-dark is-phone">
+        <div class="m-card">
+          <div class="m-mast">
+            <span class="m-logo">OC</span>
+            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
+            <span class="m-date">Wed 24 Sep</span>
+          </div>
+          <div class="m-in">
+            <h2 class="m-title">Your task</h2>
+            <p class="m-hi">Hi Jitesh — a quick reminder of where things stand.</p>
+            <div class="m-stats"><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">1</div><div class="m-lab">open</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-late-text)">1</div><div class="m-lab"><span class="m-dot" style="background:var(--m-late)"></span>overdue</div></div><div class="m-stat"><div class="m-num" style="color:var(--m-ink)">0</div><div class="m-lab"><span class="m-dot" style="background:var(--m-soon)"></span>due this week</div></div></div>
+            
+      <div class="m-group">
+        <div class="m-gh"><b>PES Ltd</b><span>1 task</span></div>
+        
+          <div class="m-row">
+            <span class="m-dot" style="background:var(--m-late)"></span>
+            <div class="m-body">
+              <a class="m-task" href="#PE-041">Chase TRA for the tax clearance certificate</a>
+              <div class="m-meta"><span class="code">PE-041</span> · due Fri 19 Sep</div>
+            </div>
+            <span class="m-pill late">5 days late</span>
+          </div>
+      </div>
+            <div class="m-cta"><a class="m-btn" href="#portal">Open the task</a></div>
+            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
+            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
+          </div>
+        </div>
+        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
+      </div></div></div>
+</div>
     </section>
   </div>
 
@@ -171,87 +584,3 @@
   </div>
 </div>
 
-<script>
-  const MANY = {
-    subject: "Your Outstanding Tasks", who: "Jitesh Solanki", first: "Jitesh",
-    stats: [[5, "open", null], [2, "overdue", "late"], [1, "due this week", "soon"]],
-    groups: [
-      { company: "PES Ltd", tasks: [
-        { code: "PE-041", title: "Chase TRA for the tax clearance certificate", meta: "due Fri 19 Sep", pill: ["5 days late", "late"] },
-        { code: "PE-038", title: "Send the signed supply contract back to the vendor", meta: "due Mon 22 Sep", pill: ["2 days late", "late"] },
-        { code: "PE-044", title: "Book the fire extinguisher service for the warehouse", meta: "due Fri 26 Sep", pill: ["Due Friday", "soon"] },
-      ]},
-      { company: "Terra Green Ltd", tasks: [
-        { code: "TG-017", title: "Collect three quotes for the office printer", meta: "due Wed 8 Oct", pill: ["Medium", "calm"] },
-        { code: "TG-019", title: "Update the site register for the new staff house", meta: "due Tue 14 Oct", pill: ["Low", "calm"] },
-      ]},
-    ],
-  };
-  const ONE = {
-    subject: "Your task: Chase TRA for the tax clearance certificate", who: "Jitesh Solanki", first: "Jitesh",
-    stats: [[1, "open", null], [1, "overdue", "late"], [0, "due this week", "soon"]],
-    groups: [{ company: "PES Ltd", tasks: [MANY.groups[0].tasks[0]] }],
-  };
-  const DOT = { late: "var(--m-late)", soon: "var(--m-soon)", calm: "var(--m-muted)", null: "var(--m-ok)" };
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  function email(d, dark, phone) {
-    const one = d.groups.length === 1 && d.groups[0].tasks.length === 1;
-    const stats = d.stats.map(([n, l, tone]) =>
-      `<div class="m-stat"><div class="m-num" style="color:${tone === "late" && n ? "var(--m-late-text)" : "var(--m-ink)"}">${n}</div><div class="m-lab">${tone ? `<span class="m-dot" style="background:${DOT[tone]}"></span>` : ""}${esc(l)}</div></div>`).join("");
-    const groups = d.groups.map((g) => `
-      <div class="m-group">
-        <div class="m-gh"><b>${esc(g.company)}</b><span>${g.tasks.length} task${g.tasks.length === 1 ? "" : "s"}</span></div>
-        ${g.tasks.map((t) => `
-          <div class="m-row">
-            <span class="m-dot" style="background:${DOT[t.pill[1]]}"></span>
-            <div class="m-body">
-              <a class="m-task" href="#${t.code}">${esc(t.title)}</a>
-              <div class="m-meta"><span class="code">${t.code}</span> · ${esc(t.meta)}</div>
-            </div>
-            <span class="m-pill ${t.pill[1]}">${esc(t.pill[0])}</span>
-          </div>`).join("")}
-      </div>`).join("");
-    return `
-      <div class="mail${dark ? " is-dark" : ""}${phone ? " is-phone" : ""}">
-        <div class="m-card">
-          <div class="m-mast">
-            <span class="m-logo">OC</span>
-            <div><div class="m-org">Oracle Consultancy</div><div class="m-office">Admin Office</div></div>
-            <span class="m-date">Wed 24 Sep</span>
-          </div>
-          <div class="m-in">
-            <h2 class="m-title">${one ? "Your task" : "Your tasks"}</h2>
-            <p class="m-hi">Hi ${esc(d.first)} — a quick reminder of where things stand.</p>
-            <div class="m-stats">${stats}</div>
-            ${groups}
-            <div class="m-cta"><a class="m-btn" href="#portal">${one ? "Open the task" : "Open your tasks"}</a></div>
-            <p class="m-note">Please update your tasks in the staff portal when you can. Thank you.</p>
-            <div class="m-sign"><div class="who">Admin Office</div><div class="muted">Oracle Consultancy Ltd</div></div>
-          </div>
-        </div>
-        <p class="m-fine">You get this because tasks are assigned to you in COS · <a href="#portal">Staff portal</a></p>
-      </div>`;
-  }
-  function top(d) {
-    return `<div class="subj">${esc(d.subject)}</div>
-      <div>OC Admin Office <span class="mono">&lt;admin@oracle.co.tz&gt;</span> → ${esc(d.who)}</div>`;
-  }
-  let data = MANY, phone = false;
-  function render() {
-    for (const [id, dark] of [["light", false], ["dark", true]]) {
-      document.getElementById("top-" + id).innerHTML = top(data);
-      const st = document.getElementById("stage-" + id);
-      st.classList.toggle("phone", phone);
-      st.innerHTML = email(data, dark, phone);
-    }
-  }
-  function seg(a, b, on) { a.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-pressed", String(!on)); }
-  const $ = (id) => document.getElementById(id);
-  $("v-many").onclick = () => { data = MANY; seg($("v-many"), $("v-one"), true); render(); };
-  $("v-one").onclick = () => { data = ONE; seg($("v-many"), $("v-one"), false); render(); };
-  $("w-desk").onclick = () => { phone = false; seg($("w-desk"), $("w-phone"), true); render(); };
-  $("w-phone").onclick = () => { phone = true; seg($("w-desk"), $("w-phone"), false); render(); };
-  document.addEventListener("click", (e) => { const a = e.target.closest(".mail a"); if (a) e.preventDefault(); });
-  render();
-</script>

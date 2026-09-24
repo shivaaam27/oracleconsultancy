@@ -5,7 +5,7 @@ import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
 import { SettingsSections, type SettingsGroup } from "@/components/settings-sections";
-import { getAppSettings, getEmailConfig, getGeminiKeyPreview, getOcrSpaceKeyPreview, SWIPE_ACTIONS } from "@/lib/settings";
+import { getAppSettings, getEmailConfig, getGeminiKeyPreview } from "@/lib/settings";
 import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
@@ -20,7 +20,7 @@ import { InstallApp } from "@/components/install-app";
 import { getSecurityStatus } from "@/lib/security-status";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
-import { getAutomationRuleStatuses, getRecordsConfidence } from "@/app/automations/actions";
+import { getAutomationRuleStatuses } from "@/app/automations/actions";
 import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
@@ -45,14 +45,23 @@ export const dynamic = "force-dynamic";
 // The Settings page is sectioned: the rail picks a group, only that group's cards
 // show. Order here = rail order. `cards` lets a deep link to #card-id open the
 // group that holds it.
+/** One-line results for buttons that are not a plain save (`?note=`). Each says
+ *  what really happened — a button that fell back to a draft says so. */
+const NOTES: Record<string, { ok: boolean; text: string }> = {
+  "brief-sent": { ok: true, text: "The Director Brief has been emailed to you." },
+  "brief-drafted": { ok: false, text: "Email isn't working, so the Director Brief was saved to the Outbox as a draft instead." },
+  ran: { ok: true, text: "Email automation ran. Anything sent or drafted is in the Outbox." },
+  "sig-failed": { ok: false, text: "Settings saved, but the signature image didn't upload — try it again." },
+};
+
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "ledger", "location", "swipe", "navigation", "studio"] },
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "navigation", "studio"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys"] },
-  { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
+  { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "maintenance"] },
 ];
 
 /** Sticky Save button shared by every per-section settings form. Tagged
@@ -68,7 +77,7 @@ function SaveBar() {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string; section?: string }>;
+  searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string; section?: string; note?: string }>;
 }) {
   const [s, sp, googleStatus, { data: peopleRows }, { data: companyRows }, ownerIdentity] = await Promise.all([
     getAppSettings(),
@@ -90,7 +99,6 @@ export default async function SettingsPage({
   const appUrl = appBaseUrl();
   // Live counts for the Danger-zone confirmation screen.
   const geminiKey = await getGeminiKeyPreview();
-  const ocrKey = await getOcrSpaceKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
     : null;
@@ -112,7 +120,9 @@ export default async function SettingsPage({
   const { data: tmRow } = await sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle();
   const emailTestMode = (tmRow?.value as string | null) === "1";
   const automationStatuses = await getAutomationRuleStatuses();
-  const recordsConfidence = await getRecordsConfidence();
+  // Tax & Legal only creates tasks while the task-create rule is on — the card
+  // used to say "can spawn tasks" regardless (audit 24 Sept 2026).
+  const taskCreateOff = automationStatuses.find((r) => r.kind === "task-create")?.mode === "off";
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
   const studioOn = parseStudioPages(s.studioPages);
   // Studio (Settings → New look → Settings): mockup board Settings. Same cards,
@@ -123,7 +133,7 @@ export default async function SettingsPage({
     title: "Settings",
     note: <span className="flex items-center gap-1.5 text-xs text-[var(--st-ok-text)]"><Check size={13} strokeWidth={2.4} />Each section saves on its own</span>,
     top: (
-      <div className="grid grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:min-h-[196px] lg:grid-cols-2">
         <StudioCard className="min-h-[180px]">
           <CardHead label="Security check" right={<span className="text-xs text-[var(--st-muted)]">reads the live state · changes nothing</span>} />
           <div className="mt-auto grid grid-cols-1 content-end gap-2 pt-3 sm:grid-cols-2">
@@ -164,8 +174,13 @@ export default async function SettingsPage({
         sub="Live controls — changes take effect across the whole system."
       />}
 
-      {(sp.saved || sp.google) && (
+      {(sp.saved || sp.google || sp.note) && (
         <div className="mt-4 space-y-2">
+          {sp.note && NOTES[sp.note] && (
+            <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${NOTES[sp.note].ok ? "border-success/30 bg-success/10 text-success" : "border-warn/30 bg-warn/10 text-warn"}`}>
+              <Check size={14} /> {NOTES[sp.note].text}
+            </div>
+          )}
           {sp.saved && (
             <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
               <Check size={14} /> Settings saved.
@@ -189,7 +204,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── General ───────────────────────── */}
         <section data-group="general" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="operatorName,dueSoonDays,stalledDays,agingDays,weatherCity,weatherLat,weatherLon,swipeRightAction,swipeLeftAction,ledgerFyStartMonth" />
+            <input type="hidden" name="__keys" value="operatorName,dueSoonDays,stalledDays,agingDays" />
             <input type="hidden" name="__section" value="general" />
 
             <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="How ORI greets you." keywords="name operator greeting">
@@ -199,10 +214,6 @@ export default async function SettingsPage({
               </div>
             </SettingsCard>
 
-            <SettingsCard id="install" icon={<MonitorSmartphone size={15} />} title="Install as an app" desc="Put COS in your Start menu, in its own window." keywords="install app pwa desktop windows start menu taskbar standalone icon offline add to home screen">
-              <InstallApp />
-            </SettingsCard>
-
             <SettingsCard id="risk" icon={<SlidersHorizontal size={15} />} title="Risk rules" desc="When a task flags for attention." keywords="due soon stalled aging overdue thresholds colour">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
@@ -210,7 +221,7 @@ export default async function SettingsPage({
                   <Input name="dueSoonDays" type="number" min={0} defaultValue={s.dueSoonDays} />
                 </div>
                 <div>
-                  <FieldLabel>Stalled — blocked over (days)</FieldLabel>
+                  <FieldLabel>Stalled — blocked, and open over (days)</FieldLabel>
                   <Input name="stalledDays" type="number" min={0} defaultValue={s.stalledDays} />
                 </div>
                 <div>
@@ -220,64 +231,12 @@ export default async function SettingsPage({
               </div>
             </SettingsCard>
 
-            <SettingsCard id="ledger" icon={<Scale size={15} />} title="Financial year" desc="When the books start their year. Drives the balance sheet." keywords="ledger accounts financial year fiscal year end balance sheet accounting period">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <FieldLabel>The financial year starts in</FieldLabel>
-                  <Select name="ledgerFyStartMonth" defaultValue={String(s.ledgerFyStartMonth)} className="w-full">
-                    {["January", "February", "March", "April", "May", "June", "July",
-                      "August", "September", "October", "November", "December"].map((m, i) => (
-                      <option key={m} value={String(i + 1)}>{m}</option>
-                    ))}
-                  </Select>
-                </div>
-                <p className="text-sm text-fg-muted sm:pt-5">
-                  {/* ⚠️ Not cosmetic. The balance sheet works out the profit earned since this
-                      month and adds it into equity — that is what makes the two sides agree.
-                      A wrong month puts a whole run of trading in the wrong year. */}
-                  The balance sheet adds everything earned since this month into equity, which is what
-                  makes it balance. If this is wrong, the balance sheet is wrong by whatever was earned
-                  in the months put on the wrong side of it &mdash; so check it with whoever files the returns.
-                </p>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard id="location" icon={<MapPin size={15} />} title="Location & weather" desc="Drives the welcome-screen weather." keywords="city latitude longitude coordinates weather">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-3">
-                  <FieldLabel>City name</FieldLabel>
-                  <Input name="weatherCity" defaultValue={s.weatherCity} placeholder="e.g. Dar es Salaam" />
-                </div>
-                <div>
-                  <FieldLabel>Latitude</FieldLabel>
-                  <Input name="weatherLat" type="number" step="any" defaultValue={s.weatherLat} />
-                </div>
-                <div>
-                  <FieldLabel>Longitude</FieldLabel>
-                  <Input name="weatherLon" type="number" step="any" defaultValue={s.weatherLon} />
-                </div>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard id="swipe" icon={<Hand size={15} />} title="Swipe actions" desc="Left / right swipe on a task row." keywords="swipe gesture complete escalate task row">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <FieldLabel>Swipe right</FieldLabel>
-                  <Select name="swipeRightAction" defaultValue={s.swipeRightAction}>
-                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <FieldLabel>Swipe left</FieldLabel>
-                  <Select name="swipeLeftAction" defaultValue={s.swipeLeftAction}>
-                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                  </Select>
-                </div>
-              </div>
-            </SettingsCard>
-
             <SaveBar />
           </form>
+
+          <SettingsCard id="install" icon={<MonitorSmartphone size={15} />} title="Install as an app" desc="Put COS in your Start menu, in its own window." keywords="install app pwa desktop windows start menu taskbar standalone icon offline add to home screen">
+            <InstallApp />
+          </SettingsCard>
 
           <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin your most-used pages. Saves automatically." keywords="pin nav pages search command menu shortcuts">
             <NavSettings />
@@ -293,7 +252,7 @@ export default async function SettingsPage({
             <SettingsCard id="studio" icon={<Sparkles size={15} />} title="New look" desc="Switch each page to the new design on its own — and back." keywords="studio new look redesign design cards beta switch pages theme">
               <div className="space-y-2">
                 {STUDIO_PAGES.filter((p) => p.ready).map((p) => (
-                  <FormSwitch key={p.id} name={`studio_${p.id}`} defaultChecked={studioOn.has(p.id)} label={p.label} hint={`Phase ${p.phase} · the old page stays one switch away`} />
+                  <FormSwitch key={p.id} name={`studio_${p.id}`} defaultChecked={studioOn.has(p.id)} label={p.label} hint={`Phase ${p.phase}`} />
                 ))}
                 {STUDIO_PAGES.some((p) => !p.ready) && (
                   <div className="rounded-md border border-border px-3 py-2 text-xs text-fg-muted">
@@ -310,34 +269,15 @@ export default async function SettingsPage({
         {/* ───────────────────────── AI & Voice ───────────────────────── */}
         <section data-group="ai" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,documentAutoFile,semanticSearch,geminiApiKey,ocrSpaceApiKey,voiceLanguage,voiceDictionary" />
+            <input type="hidden" name="__keys" value="aiEnabled,semanticSearch,geminiApiKey,aiMonthlySpendCap,voiceLanguage,voiceDictionary" />
             <input type="hidden" name="__section" value="ai" />
 
             <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features." keywords="ai groq ask polish drafting meeting semantic search key model">
               <div className="grid grid-cols-1 gap-2">
                 <FormSwitch name="aiEnabled" defaultChecked={s.aiEnabled} label="Enable AI features" hint="Off runs the whole system manually — nothing breaks." />
-                <FormSwitch name="aiHighQuality" defaultChecked={s.aiHighQuality} label="Higher-quality reading" hint="Stronger model for documents & minutes — more accurate, a little slower." />
                 <FormSwitch name="semanticSearch" defaultChecked={s.semanticSearch} label="Semantic search (ORI)" hint="Find by meaning, not just words. Needs the one-time setup (SEMANTIC_SEARCH.md)." />
               </div>
 
-              {/* How far the document intake may act on its own. Lives here rather
-                  than in code so the owner can tighten or loosen it themselves. */}
-              <div className="mt-1 max-w-xl space-y-2 border-t border-border/60 pt-3.5">
-                <FieldLabel>Filing documents automatically</FieldLabel>
-                <Select name="documentAutoFile" defaultValue={s.documentAutoFile} className="w-full">
-                  <option value="high">File when certain (recommended)</option>
-                  <option value="off">Never file — I confirm everything</option>
-                  <option value="all">File whenever an owner is found</option>
-                </Select>
-                <p className="text-xs text-fg-muted">
-                  <b>File when certain</b> files a document only when the company was proved by something
-                  solid — an ID number read off the page, the folder you dropped it in, or the batch you
-                  uploaded it with — and the scan read cleanly. Anything softer waits in To&nbsp;Sort with the
-                  reason why. <b>Never file</b> sends everything to To&nbsp;Sort, even perfect reads.
-                  <b> Whenever an owner is found</b> also acts on loose name matches — faster, but it will
-                  file to the wrong company sometimes.
-                </p>
-              </div>
 
               {/* Google Gemini is the sole everyday-AI provider (Groq removed). It
                   powers document reading, Ask ORI, dictation polish and minutes. */}
@@ -376,42 +316,14 @@ export default async function SettingsPage({
                 </p>
               </div>
 
-              {/* OCR.space scan-reading key — the cloud safety net that keeps scanned
-                  documents readable when the AI vision model is unavailable. */}
-              <div className="mt-1 max-w-xl space-y-2 border-t border-border/60 pt-3.5">
-                <FieldLabel>Scan-reading key (OCR.space)</FieldLabel>
-                <div className="flex items-center gap-2 text-xs">
-                  {ocrKey.source === "settings" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 font-medium text-success ring-1 ring-success/30">
-                      <Check size={12} /> Key set here · ends &hellip;{ocrKey.last4}
-                    </span>
-                  )}
-                  {ocrKey.source === "env" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/70 px-2.5 py-1 font-medium text-fg-muted ring-1 ring-border">
-                      Using built-in key · ends &hellip;{ocrKey.last4}
-                    </span>
-                  )}
-                  {ocrKey.source === "none" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warn/10 px-2.5 py-1 font-medium text-warn ring-1 ring-warn/30">
-                      No key — scans fall back to the slower built-in reader
-                    </span>
-                  )}
-                </div>
-                <Input
-                  name="ocrSpaceApiKey"
-                  type="password"
-                  autoComplete="off"
-                  placeholder={ocrKey.source === "settings" ? "Enter a new key to rotate it" : "Paste an OCR.space API key"}
-                />
-                {ocrKey.source === "settings" && (
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-danger">
-                    <input type="checkbox" name="remove_ocrSpaceApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here (fall back to the built-in one)
-                  </label>
-                )}
-                <p className="text-xs text-fg-muted">
-                  Reads scanned documents and photos when the AI vision model is unavailable. Free at ocr.space/ocrapi (~25,000 pages/month). Never shown again; blank keeps the current key.
-                </p>
+              {/* The monthly ceiling ai-spend.ts enforces. It was read everywhere and
+                  settable nowhere, so it sat at 0 = no limit (audit 24 Sept 2026). */}
+              <div className="mt-1 max-w-xs space-y-2 border-t border-border/60 pt-3.5">
+                <FieldLabel>Monthly AI spend cap</FieldLabel>
+                <Input name="aiMonthlySpendCap" type="number" min={0} step="any" defaultValue={s.aiMonthlySpendCap} />
+                <p className="text-xs text-fg-muted">AI switches itself off for the rest of the month once this much is spent. 0 means no limit.</p>
               </div>
+
             </SettingsCard>
 
             <SettingsCard id="voice" icon={<Mic2 size={15} />} title="Voice intelligence" desc="Dictation language & trusted words." keywords="voice dictation language swahili hindi gujarati dictionary speech">
@@ -451,7 +363,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── Automation ───────────────────────── */}
         <section data-group="automation" className="space-y-4">
           <SettingsCard id="automations" icon={<Wrench size={15} />} title="Automations" desc="How hands-off the system runs. Auto · Suggest · Off." keywords="automation rules auto suggest reactions hands-off">
-            <AutomationSettings statuses={automationStatuses} recordsConfidence={recordsConfidence} />
+            <AutomationSettings statuses={automationStatuses} />
           </SettingsCard>
 
           <SettingsCard id="meeting-tasks" icon={<CalendarCheck size={15} />} title="Meetings & scheduling" desc="Turn meetings into tasks and tune how they auto-advance and remind." keywords="meeting task schedule calendar event auto in progress reminder ping recurring">
@@ -531,7 +443,9 @@ export default async function SettingsPage({
                 <p className="text-xs text-fg-muted">
                   {s.commandCentrePaused
                     ? "Hidden everywhere and dormant. Resume to start fresh from today."
-                    : "Visible in navigation; recurring obligations can spawn tasks."}
+                    : taskCreateOff
+                      ? "Visible, but no tasks are created — “Create renewal & notice tasks” is Off under Automations."
+                      : "Visible in navigation; obligations that fall due become tasks."}
                 </p>
               </div>
               <input type="hidden" name="paused" value={s.commandCentrePaused ? "0" : "1"} />
@@ -561,6 +475,9 @@ export default async function SettingsPage({
             {sp.portal === "error" && (
               <p className="text-sm text-danger">Couldn&apos;t update portal access — please try again.</p>
             )}
+            {sp.portal === "pick" && <p className="text-sm text-danger">Choose the person first.</p>}
+            {sp.portal === "kept-level" && <p className="text-sm text-warn">Password reset. Their level was kept — a reset never lowers a level; use &ldquo;Change level&rdquo; for that.</p>}
+            {sp.portal === "no-companies" && <p className="text-sm text-danger">They have no company on their record, so &ldquo;their companies&rdquo; would mean every company. Add their company on their profile first — nothing was changed.</p>}
 
             {portalEnabled.length > 0 && (
               <div className="space-y-2">
@@ -887,10 +804,11 @@ export default async function SettingsPage({
             )}
             {sp.owner === "wrong" && <p className="text-sm text-danger">Current password was wrong.</p>}
             {sp.owner === "short" && <p className="text-sm text-danger">New password must be at least 8 characters.</p>}
+            {sp.owner === "mismatch" && <p className="text-sm text-danger">The two new passwords didn&apos;t match — nothing was changed.</p>}
             {sp.owner === "identity" && <p className="text-sm text-danger">Your owner name/email didn&apos;t match. Enter the same one you sign in with.</p>}
             {sp.owner === "identity-saved" && <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Owner identity saved.</p>}
 
-            <form action={adminSaveOwnerIdentity} className="grid grid-cols-1 items-end gap-3 border-b border-border/50 pb-4 sm:grid-cols-[1fr_1fr_auto]">
+            <form action={adminSaveOwnerIdentity} className="grid grid-cols-1 items-end gap-3 border-b border-border/50 pb-4 sm:grid-cols-2">
               <div>
                 <FieldLabel>Owner name</FieldLabel>
                 <Input name="ownerName" defaultValue={ownerIdentity.name ?? ""} placeholder="e.g. Pulin Manek" autoComplete="name" />
@@ -899,15 +817,19 @@ export default async function SettingsPage({
                 <FieldLabel>Owner email</FieldLabel>
                 <Input name="ownerEmail" type="email" defaultValue={ownerIdentity.email ?? ""} placeholder="admin@oracle.co.tz" autoComplete="email" />
               </div>
+              <div>
+                <FieldLabel>Your password</FieldLabel>
+                <Input name="current" type="password" autoComplete="current-password" required />
+              </div>
               <Button type="submit" variant="secondary">Save identity</Button>
-              <p className="-mt-1 text-xs text-fg-subtle sm:col-span-3">
+              <p className="-mt-1 text-xs text-fg-subtle sm:col-span-2">
                 When set, the Administrator sign-in requires this name or email <span className="font-medium">and</span> the password. Leave both blank to sign in with the password alone.
               </p>
             </form>
 
-            <form action={adminChangePassword} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <form action={adminChangePassword} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
               {(ownerIdentity.name || ownerIdentity.email) && (
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-2">
                   <FieldLabel>Your owner name or email</FieldLabel>
                   <Input name="identifier" type="text" autoComplete="username" required placeholder={ownerIdentity.email ?? ownerIdentity.name ?? ""} />
                 </div>
@@ -919,6 +841,10 @@ export default async function SettingsPage({
               <div>
                 <FieldLabel>New password (min 8 characters)</FieldLabel>
                 <Input name="next" type="password" autoComplete="new-password" minLength={8} required />
+              </div>
+              <div>
+                <FieldLabel>New password again</FieldLabel>
+                <Input name="confirm" type="password" autoComplete="new-password" minLength={8} required />
               </div>
               <Button type="submit"><KeyRound size={13} /> Change password</Button>
             </form>
@@ -978,21 +904,15 @@ export default async function SettingsPage({
                     </div>
                   </div>
                 </div>
-                <FormSwitch name="notifyDigest" defaultChecked={s.notifyDigest} label="Batch routine alerts into a digest" hint="Group everyday alerts into a summary. Urgent ones still buzz immediately." />
+                <FormSwitch name="notifyDigest" defaultChecked={s.notifyDigest} label="Batch routine alerts into a digest" hint="Everyday alerts arrive together once an hour (chat messages still come one by one). Urgent ones buzz straight away." />
               </div>
             </SettingsCard>
             <SaveBar />
           </form>
 
           {/* Design */}
-          <SettingsCard id="design" icon={<Palette size={15} />} title="Design" desc="The living Aurora gallery." keywords="design aurora gallery colours glass theme">
-            <Link href="/design" className="btn-rim inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm text-fg transition-colors hover:bg-bg-muted">
-              <Palette size={14} /> Open the design gallery <ArrowRight size={14} className="text-fg-muted" />
-            </Link>
-          </SettingsCard>
-
           {/* Maintenance / advanced */}
-          <SettingsCard id="maintenance" icon={<Wrench size={15} />} title="Maintenance" desc="Rarely needed tidy-up tools. Safe to run." keywords="maintenance rebuild summaries resync advanced tools">
+          <SettingsCard id="maintenance" icon={<Wrench size={15} />} title="Maintenance" desc="Rarely needed tidy-up tools." keywords="maintenance rebuild summaries resync advanced tools">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Rebuild task summaries</p>

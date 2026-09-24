@@ -238,3 +238,16 @@ describe("scopeForRole — only a Director carries companies", () => {
     expect(scopeForRole("director", [])).toEqual([]);
   });
 });
+
+describe("diffFromDefaults", () => {
+  it("keeps only the cells that differ, so defaults still flow", async () => {
+    const { diffFromDefaults, resolveMatrix, DEFAULT_CAPS } = await import("./portal-permissions");
+    const full = resolveMatrix({});
+    expect(diffFromDefaults(full)).toEqual({});
+    const key = Object.keys(DEFAULT_CAPS)[0] as keyof typeof DEFAULT_CAPS;
+    const flipped = { ...full, caps: { ...full.caps, [key]: { ...full.caps[key], staff: !full.caps[key].staff } } };
+    const d = diffFromDefaults(flipped);
+    expect(d.caps?.[key]?.staff).toBe(!DEFAULT_CAPS[key].staff);
+    expect(resolveMatrix(d)).toEqual(flipped);
+  });
+});

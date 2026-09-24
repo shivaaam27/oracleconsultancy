@@ -164,7 +164,7 @@ export function InstallApp({ compact = false }: { compact?: boolean }) {
   if (mode === "ready") {
     return (
       <div className="flex flex-col gap-2">
-        <Button onClick={install} loading={busy} disabled={busy} className="w-fit">
+        <Button type="button" onClick={install} loading={busy} disabled={busy} className="w-fit">
           <Download size={14} /> {busy ? "Installing…" : "Install the app"}
         </Button>
         {!compact && (

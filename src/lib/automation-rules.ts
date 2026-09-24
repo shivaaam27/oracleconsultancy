@@ -15,6 +15,9 @@ export type AutomationRule = {
   // Some rules can't be "suggested" (a created task can't be pre-staged), so they
   // only offer Auto / Off.
   supportsSuggest: boolean;
+  /** Its trigger no longer exists (the document engine was removed in Aug 2026),
+   *  so Settings does not offer it. Kept in the list so old events still read. */
+  retired?: boolean;
 };
 
 export const AUTOMATION_RULES: AutomationRule[] = [
@@ -23,29 +26,31 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     label: "Verify compliance documents",
     description: "When a filed document clearly matches a requirement, mark that requirement verified.",
     supportsSuggest: true,
+    retired: true,
   },
   {
     kind: "task-complete",
     label: "Complete fulfilled tasks",
     description: "When a document fulfils a task it’s linked to, mark the task complete.",
     supportsSuggest: true,
+    retired: true,
   },
   {
     kind: "pipeline-advance",
     label: "Advance applications",
-    description: "Move a permit/visa/licence application forward when its document arrives or its driving task is completed.",
+    description: "Move a permit, visa or licence application forward when the task driving it is completed.",
     supportsSuggest: true,
   },
   {
     kind: "onboarding-tick",
     label: "Tick onboarding & offboarding steps",
-    description: "Tick a journey step when its document is collected, compliance is complete, or equipment is returned.",
+    description: "Tick a joining or leaving step when its task is done, probation is confirmed, or equipment comes back.",
     supportsSuggest: true,
   },
   {
     kind: "task-create",
     label: "Create renewal & notice tasks",
-    description: "Create a task when a document is expiring/expired or a lease/insurance/contract nears its notice date.",
+    description: "Create a task when a document is expiring, a lease, insurance or contract nears its notice date, probation is ending, a Tax & Legal obligation falls due, or an issued document needs collecting.",
     supportsSuggest: true,
   },
   {
@@ -53,6 +58,7 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     label: "Fill records from documents",
     description: "When a document reads cleanly, fill blank profile fields and add facts on their own (every change is logged and can be undone). New shelves are always proposed, never auto-created.",
     supportsSuggest: true,
+    retired: true,
   },
 ];
 

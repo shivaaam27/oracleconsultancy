@@ -11,7 +11,7 @@
  * PersonPortalAccess, PersonProbation, PersonPackPanel, DeletePersonDialog,
  * LinkedNotesTab, PersonForm, and the people / pack actions.
  */
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -40,6 +40,8 @@ import { taskHref } from "@/lib/task-href";
 import { useRemindPerson } from "./remind";
 import { PortalEditor, applyPortalDraft, draftFrom, type PortalDraft, type PortalNow } from "./portal-editor";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { useFitFrame } from "@/components/studio/use-fit-frame";
 
 export type StudioPersonData = {
   person: {
@@ -84,7 +86,7 @@ function due(t: StudioPersonData["tasks"][number]): { text: string; c: string } 
 
 function Card({ title, right, children, className, texture }: { title?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; texture?: string }) {
   return (
-    <section className={cn("flex min-w-0 flex-col rounded-[20px] bg-[var(--st-surface)] px-[22px] py-5", texture, className)}>
+    <section className={cn("flex min-w-0 flex-col rounded-[20px] bg-[var(--st-surface)] px-5 py-4", texture, className)}>
       {title != null && (
         <div className="flex min-h-[26px] shrink-0 items-center justify-between gap-3">
           <h2 className="m-0 text-[15px] font-semibold">{title}</h2>
@@ -95,18 +97,27 @@ function Card({ title, right, children, className, texture }: { title?: ReactNod
     </section>
   );
 }
-function KV({ k, v }: { k: string; v: ReactNode }) {
+/** One fact: a small label over its value. Laid two to a row by `Facts`. */
+function F({ k, v, wide }: { k: string; v: ReactNode; wide?: boolean }) {
   const empty = v == null || v === "";
   return (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0">
-      <span className="text-[var(--st-muted)]">{k}</span>
-      <span className={cn("min-w-0 break-words", empty && "text-[#A3A6AB]")}>{empty ? "Not set" : v}</span>
+    <div className={cn("min-w-0", wide && "col-span-2")}>
+      <div className="text-[11px] text-[var(--st-muted)]">{k}</div>
+      <div className={cn("mt-0.5 truncate text-[13px] leading-snug", empty && "text-[#A3A6AB]")}>{empty ? "Not set" : v}</div>
     </div>
   );
 }
+function Facts({ children }: { children: ReactNode }) {
+  return <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>;
+}
 const LINK = "hover:underline";
-/** A column of cards; from xl it scrolls inside the fitted grid. */
-const COL = "flex min-w-0 flex-col gap-4";
+/** A column of cards. From xl the board fits the screen: one card per column
+ *  takes the room that is left, and only ITS list scrolls — never the page,
+ *  never a whole column (the owner found a scrolling column annoying). */
+const COL = "flex min-h-0 min-w-0 flex-col gap-4";
+/** The card in a column that stretches to fill it, and the list inside it. */
+const GROW = "xl:min-h-0 xl:flex-1";
+const LIST = "st-scroll xl:min-h-0 xl:flex-1 xl:overflow-y-auto";
 const BTN = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-line)] px-2.5 text-xs transition-colors hover:bg-[var(--st-page)]";
 const BTN_DARK = "inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--st-ink)] px-2.5 text-xs text-[var(--st-surface)] transition-opacity hover:opacity-90";
 const BTN_BAD = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-bad-line)] px-2.5 text-xs text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-bad-wash)]";
@@ -148,6 +159,10 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
   };
   const [portalDraft, setPortalDraft] = useState<PortalDraft>(() => draftFrom(portalNow));
   const here = `/people/${p.id}`;
+  // Overview and Edit fit the screen from xl with no page scroll.
+  const fitRef = useRef<HTMLDivElement>(null);
+  const wide = useMediaQuery("(min-width: 1280px)");
+  useFitFrame(fitRef, { enabled: wide && (view.tab === "overview" || view.tab === "edit"), minimum: 480, deps: [view.tab] });
 
   const open = data.tasks.filter((t) => !t.done);
   const overdueFirst = useMemo(() => [...open].sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999)), [open]);
@@ -176,12 +191,16 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
 
   /* ── the band ──────────────────────────────────────────────────────────── */
   const band = (
-    <div className="st-tex-rings flex shrink-0 flex-col gap-3.5 rounded-[20px] bg-[#141517] px-[22px] py-[18px] text-[#F2F2F0]">
+    <div className="st-tex-rings flex shrink-0 flex-col gap-3 rounded-[20px] bg-[#141517] px-[22px] py-4 text-[#F2F2F0]">
       <div className="flex flex-wrap items-center gap-2">
         <Link href={backHref} className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
           <Minimize2 size={13} strokeWidth={2.2} />People
         </Link>
         {p.staffId && <span className="st-mono rounded-md bg-[#26282C] px-2 py-1 text-[11px] text-[#C9CBCF]">{p.staffId}</span>}
+        <BandPill c={p.active ? "#19C37D" : "#8E9197"} bg={p.active ? "#1D2A23" : "#26282C"} fg={p.active ? "#5BE0A5" : "#C9CBCF"}>{p.active ? (snoozed ? "Active · snoozed" : "Active") : "Inactive"}</BandPill>
+        {data.portal.enabled
+          ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
+          : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
         <span className="flex-1" />
         <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
@@ -218,40 +237,31 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
         </DropdownMenu.Root>
       </div>
 
-      <div className="flex flex-wrap items-end gap-[18px]">
-        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
+      <div className="flex flex-wrap items-end gap-x-[18px] gap-y-3">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
         <div className="min-w-0 flex-1">
-          <h1 className="m-0 text-[28px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{p.name}</h1>
-          <div className="mt-2 text-sm text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
+          <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[30px]">{p.name}</h1>
+          <div className="mt-1.5 truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <BandPill c={p.active ? "#19C37D" : "#8E9197"} bg={p.active ? "#1D2A23" : "#26282C"} fg={p.active ? "#5BE0A5" : "#C9CBCF"}>{p.active ? (snoozed ? "Active · snoozed" : "Active") : "Inactive"}</BandPill>
-          {data.portal.enabled
-            ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
-            : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
+        <div className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
+          {TABS.map((t) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+              className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", tab === t ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
+              {TAB_LABEL[t]}
+              {t === "tasks" && open.length > 0 && <span className="text-xs text-[#8E9197]">{open.length}</span>}
+              {t === "documents" && data.documents.length > 0 && <span className="text-xs text-[#8E9197]">{data.documents.length}</span>}
+            </button>
+          ))}
         </div>
-      </div>
-
-      <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-        {TABS.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", tab === t ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
-            {TAB_LABEL[t]}
-            {t === "tasks" && open.length > 0 && <span className="text-xs text-[#8E9197]">{open.length}</span>}
-            {t === "documents" && data.documents.length > 0 && <span className="text-xs text-[#8E9197]">{data.documents.length}</span>}
-          </button>
-        ))}
       </div>
     </div>
   );
 
   /* ── Overview (the board) ─────────────────────────────────────────────── */
   const overview = (
-    /* The page scrolls as one — a scrollbar per column was tried and the owner
-       found it annoying (24 Sept 2026). */
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    <div ref={fitRef} className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <div className={COL}>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-4">
           {([
             [workload.open, "open tasks", "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "open" }); }],
             [workload.overdue, "overdue", workload.overdue ? "var(--st-late-text)" : "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "open" }); }],
@@ -259,20 +269,23 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
             [data.reports.length, "direct reports", "var(--st-ink)", null],
           ] as const).map(([n, l, c, go]) => (
             <button key={l} type="button" onClick={go ?? undefined} disabled={!go}
-              className="rounded-[14px] bg-[var(--st-surface)] p-3.5 text-left transition-colors enabled:hover:bg-[var(--st-cal-busy)] disabled:cursor-default">
+              className="rounded-[16px] bg-[var(--st-surface)] px-3.5 py-3 text-left transition-colors enabled:hover:bg-[var(--st-cal-busy)] disabled:cursor-default">
               <div className="text-[28px] leading-none tracking-[-0.03em] tabular-nums" style={{ color: c }}>{n}</div>
               <div className="mt-1.5 text-xs text-[var(--st-label)]">{l}</div>
             </button>
           ))}
         </div>
 
-        <Card title="Open tasks" right={open.length > 0 && <button type="button" onClick={() => url.set({ tab: "tasks", tf: "open" })} className="text-[var(--st-ink)] hover:underline">All {open.length} →</button>}>
-          <div className="mt-1.5 flex flex-col">
+        <Card title="Open tasks" className={GROW} right={open.length > 0 && <button type="button" onClick={() => url.set({ tab: "tasks", tf: "open" })} className="text-[var(--st-ink)] hover:underline">All {open.length} →</button>}>
+          <div className={cn("mt-1.5 flex flex-col", LIST)}>
             {open.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">Nothing open. {workload.completedThisMonth ? `${workload.completedThisMonth} finished this month.` : ""}</div>}
-            {overdueFirst.slice(0, 5).map((t) => {
+            {overdueFirst.map((t, i) => {
               const d = due(t);
+              // Six below xl; from xl the card is sized to the screen and scrolls.
+              // (CSS, not the media hook: the hook reads the window on the first
+              // render, and a different list on the server is a hydration error.)
               return (
-                <Link key={t.code} href={withReturn(taskHref(t.code), here)} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]">
+                <Link key={t.code} href={withReturn(taskHref(t.code), here)} className={cn(i >= 6 && "hidden xl:grid", "grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]")}>
                   <span className="truncate"><span className="st-mono text-[11px] text-[var(--st-muted)]">{t.code}</span> {t.title}</span>
                   <span className="text-xs" style={{ color: d.c }}>{d.text}</span>
                 </Link>
@@ -281,60 +294,66 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           </div>
         </Card>
 
-        <Card title="Tracked facts" right="with their source" texture="st-tex-paper-rings">
-          <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">Contract, passport, bank and other facts — each dated, sourced and kept with its history, never overwritten.</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => setSheet("facts")} className={BTN_DARK}>Record a fact</button>
-            <button type="button" onClick={() => setTab("documents")} className={BTN}>Documents on file</button>
+        <section className="st-tex-paper-rings flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="m-0 text-[15px] font-semibold">Tracked facts</h2>
+            <div className="mt-0.5 text-xs text-[var(--st-muted)]">Contract, passport, bank — dated, sourced, never overwritten.</div>
           </div>
-        </Card>
+          <button type="button" onClick={() => setSheet("facts")} className={BTN_DARK}>Record a fact</button>
+          <button type="button" onClick={() => setTab("documents")} className={BTN}>Documents</button>
+        </section>
       </div>
 
       <div className={COL}>
-        <Card title="Role & companies" right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
-          <div className="mt-1.5">
-            <KV k="Job title" v={p.role} />
-            <KV k="Type" v={PERSON_TYPE_LABELS[p.personType]} />
-            <KV k="Main company" v={p.companyName && p.companyId ? <Link href={`/companies/${p.companyId}`} className={LINK}>{p.companyName}</Link> : p.companyName} />
-            <KV k="Also works for" v={p.alsoCompanies.length ? <span title={p.alsoCompanies.join(", ")}>{p.alsoCompanies.length > 2 ? `${p.alsoCompanies.length} more companies` : p.alsoCompanies.join(", ")}</span> : "—"} />
-            <KV k="Reports to" v={p.managerName && p.managerId ? <Link href={withReturn(`/people/${p.managerId}`, here)} className={LINK}>{shortName(p.managerName)}</Link> : p.managerName} />
-            <KV k="Also reports to" v={p.secondaryManagers.length ? p.secondaryManagers.map((m, i) => <span key={m.id}>{i > 0 && ", "}<Link href={withReturn(`/people/${m.id}`, here)} className={LINK}>{shortName(m.name ?? "")}</Link></span>) : "—"} />
-            <KV k="Department" v={p.departmentName} />
-            <KV k="Started" v={fmt(p.startDate)} />
-            {p.probationEndDate && <KV k="Probation ends" v={fmt(p.probationEndDate)} />}
-          </div>
+        <Card title="Role & companies" className="shrink-0" right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
+          <Facts>
+            <F k="Job title" v={p.role} />
+            <F k="Type" v={PERSON_TYPE_LABELS[p.personType]} />
+            <F k="Main company" v={p.companyName && p.companyId ? <Link href={`/companies/${p.companyId}`} className={LINK}>{p.companyName}</Link> : p.companyName} />
+            <F k="Also works for" v={p.alsoCompanies.length ? <span title={p.alsoCompanies.join(", ")}>{p.alsoCompanies.length > 1 ? `${p.alsoCompanies.length} companies` : p.alsoCompanies[0]}</span> : "—"} />
+            <F k="Reports to" v={p.managerName && p.managerId ? <Link href={withReturn(`/people/${p.managerId}`, here)} className={LINK}>{shortName(p.managerName)}</Link> : p.managerName} />
+            <F k="Also reports to" v={p.secondaryManagers.length ? p.secondaryManagers.map((m, i) => <span key={m.id}>{i > 0 && ", "}<Link href={withReturn(`/people/${m.id}`, here)} className={LINK}>{shortName(m.name ?? "")}</Link></span>) : "—"} />
+            <F k="Department" v={p.departmentName} />
+            <F k="Started" v={fmt(p.startDate)} />
+            {p.probationEndDate && <F k="Probation ends" v={fmt(p.probationEndDate)} />}
+          </Facts>
         </Card>
-        <Card title="Contact" right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
-          <div className="mt-1.5">
-            <KV k="Email" v={p.email && <a href={`mailto:${p.email}`} className={LINK}>{p.email}</a>} />
-            <KV k="Phone · WhatsApp" v={[p.phone, p.whatsapp && p.whatsapp !== p.phone ? `WA ${p.whatsapp}` : null].filter(Boolean).join(" · ") || null} />
-            <KV k="Prefers" v={p.preferredChannel ? p.preferredChannel.charAt(0) + p.preferredChannel.slice(1).toLowerCase() : null} />
-            <KV k="Works at" v={p.workSite} />
-            <KV k="Lives at" v={p.residence} />
+        <Card title="Contact" className={GROW} right={<button type="button" onClick={() => setTab("edit")} className="hover:text-[var(--st-ink)]">Edit</button>}>
+          <div className="st-scroll xl:min-h-0 xl:overflow-y-auto">
+            <Facts>
+              <F k="Email" v={p.email && <a href={`mailto:${p.email}`} className={LINK}>{p.email}</a>} />
+              <F k="Phone" v={p.phone} />
+              <F k="WhatsApp" v={p.whatsapp && p.whatsapp !== p.phone ? p.whatsapp : p.whatsapp ? "Same as phone" : null} />
+              <F k="Prefers" v={p.preferredChannel ? p.preferredChannel.charAt(0) + p.preferredChannel.slice(1).toLowerCase() : null} />
+              <F k="Works at" v={p.workSite} />
+              <F k="Lives at" v={p.residence} />
+            </Facts>
+            <button type="button" onClick={() => setPersonalOpen((v) => !v)} aria-expanded={personalOpen} className="mt-3 flex w-full items-center justify-between border-t border-[var(--st-line-soft)] pt-2.5 text-left text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">
+              <span>Personal — birthday, ID, passport, emergency</span><ChevronDown size={12} className={cn("transition-transform", personalOpen && "rotate-180")} />
+            </button>
+            {personalOpen && (
+              <div className="st-pop">
+                <Facts>
+                  <F k="Date of birth" v={fmt(p.dateOfBirth)} />
+                  <F k="Nationality" v={p.nationality} />
+                  <F k="National ID" v={p.nationalId} />
+                  <F k="Passport no." v={p.passportNo} />
+                  <F k="Address" wide v={p.address} />
+                  <F k="Emergency" wide v={[p.emergencyContactName, p.emergencyContactPhone].filter(Boolean).join(" · ") || null} />
+                  {p.relatedPersonName && <F k="Related to" v={p.relatedPersonName} />}
+                  {p.notes && <F k="Notes" wide v={<span className="whitespace-pre-wrap">{p.notes}</span>} />}
+                </Facts>
+              </div>
+            )}
           </div>
-          <button type="button" onClick={() => setPersonalOpen((v) => !v)} aria-expanded={personalOpen} className="mt-2.5 flex w-full items-center justify-between text-left text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">
-            <span>Personal — date of birth, ID, passport, emergency contact</span><ChevronDown size={12} className={cn("transition-transform", personalOpen && "rotate-180")} />
-          </button>
-          {personalOpen && (
-            <div className="st-pop mt-1">
-              <KV k="Date of birth" v={fmt(p.dateOfBirth)} />
-              <KV k="Nationality" v={p.nationality} />
-              <KV k="National ID" v={p.nationalId} />
-              <KV k="Passport no." v={p.passportNo} />
-              <KV k="Address" v={p.address} />
-              <KV k="Emergency" v={[p.emergencyContactName, p.emergencyContactPhone].filter(Boolean).join(" · ") || null} />
-              {p.relatedPersonName && <KV k="Related to" v={p.relatedPersonName} />}
-              {p.notes && <KV k="Notes" v={<span className="whitespace-pre-wrap">{p.notes}</span>} />}
-            </div>
-          )}
         </Card>
       </div>
 
       <div className={cn(COL, "lg:col-span-2 xl:col-span-1")}>
-        <Card title="Portal access" right={data.portal.enabled ? ROLE_LABEL[portalRole] : "None"}>
+        <Card title="Portal access" className="shrink-0" right={data.portal.enabled ? ROLE_LABEL[portalRole] : "None"}>
           <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">
             {data.portal.enabled
-              ? <>Signs in at the staff portal. {SCOPE_SENTENCE(data.portalScope[portalRole])}{" "}{data.portal.lastLoginAt ? `Last signed in ${fmt(data.portal.lastLoginAt)}.` : "Has never signed in."}</>
+              ? <>{SCOPE_SENTENCE(data.portalScope[portalRole])}{" "}{data.portal.lastLoginAt ? `Last signed in ${fmt(data.portal.lastLoginAt)}.` : "Has never signed in."}</>
               : "No portal login — they can't see or update their tasks themselves."}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -353,10 +372,10 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
         </Card>
 
         {data.reports.length > 0 && (
-          <Card title="Direct reports" right={data.reports.length}>
-            <div className="mt-2.5 flex flex-col gap-2">
+          <Card title="Direct reports" className={GROW} right={data.reports.length}>
+            <div className={cn("mt-2.5 flex flex-col gap-1", LIST)}>
               {data.reports.map((r) => (
-                <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className="flex items-center gap-2.5 rounded-lg hover:bg-[var(--st-cal-busy)]">
+                <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className="flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#111214]" style={{ background: avatarTint(r.name) }}>{initials(shortName(r.name))}</span>
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{shortName(r.name)}{r.dotted && <span className="text-[var(--st-muted)]"> (also)</span>}</span>
@@ -369,20 +388,19 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           </Card>
         )}
 
-        <Card title="Journey & equipment" texture="st-tex-paper-dots">
-          <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">
-            {p.active ? "Onboarding and leaving checklists, and the equipment signed out to them." : "They have left — their leaving checklist and anything still to be handed back."}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => url.set({ tab: "journey", jk: p.active ? "onboarding" : "offboarding" })} className={BTN_DARK}>{p.active ? "Onboarding" : "Leaving checklist"}</button>
-            <button type="button" onClick={() => setTab("equipment")} className={BTN}>Equipment</button>
+        <section className={cn("st-tex-paper-dots flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4", data.reports.length === 0 && "xl:flex-1 xl:items-start")}>
+          <div className="min-w-0 flex-1">
+            <h2 className="m-0 text-[15px] font-semibold">Journey & equipment</h2>
+            <div className="mt-0.5 text-xs text-[var(--st-muted)]">{p.active ? "Checklists, and what is signed out to them." : "Their leaving checklist, and what is still to come back."}</div>
           </div>
-        </Card>
+          <button type="button" onClick={() => url.set({ tab: "journey", jk: p.active ? "onboarding" : "offboarding" })} className={BTN_DARK}>{p.active ? "Onboarding" : "Leaving"}</button>
+          <button type="button" onClick={() => setTab("equipment")} className={BTN}>Equipment</button>
+        </section>
 
-        <section className="flex flex-wrap items-center gap-2.5 rounded-[20px] bg-[var(--st-surface)] px-[18px] py-3.5">
-          <div className="min-w-[180px] flex-1">
+        <section className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-3.5">
+          <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold">Danger zone</div>
-            <div className="mt-0.5 text-xs text-[var(--st-muted)]">Snooze, deactivate, or delete for good (asks you to type the name).</div>
+            <div className="mt-0.5 text-xs text-[var(--st-muted)]">Deactivate, or delete for good.</div>
           </div>
           <button type="button" disabled={busy} onClick={() => act(() => togglePersonActive(p.id), p.active ? "Deactivated — their leaving checklist has started." : "Restored.")} className={BTN}>{p.active ? "Deactivate" : "Restore"}</button>
           <DeletePersonDialog personId={p.id} personName={p.name} label="Delete…" triggerClassName={BTN_BAD} />
@@ -498,13 +516,15 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
     </Card>
   );
   const editTab = (
-    <PersonForm studio mode="edit" id={p.id} defaults={data.editDefaults} companies={data.lookups.companies} peopleList={data.lookups.peopleList}
+    <div ref={fitRef} className="flex min-h-0 flex-col">
+    <PersonForm studio fit mode="edit" id={p.id} defaults={data.editDefaults} companies={data.lookups.companies} peopleList={data.lookups.peopleList}
       departments={data.lookups.departments} sites={data.lookups.sites} roles={data.lookups.roles}
       afterRole={<div id="portal"><PortalEditor now={portalNow} draft={portalDraft} onChange={setPortalDraft} scope={data.portalScope}
         companyNames={[p.companyName, ...p.alsoCompanies].filter((n): n is string => !!n)} personName={p.name} /></div>}
       afterSave={() => applyPortalDraft(p.id, portalNow, portalDraft)}
       onCancel={() => { setPortalDraft(draftFrom(portalNow)); setTab("overview"); }}
       onComplete={(res) => { if (!res.ok) return; toast("Saved.", { tone: "success" }); setPortalDraft((d) => ({ ...d, password: "" })); setTab("overview"); router.refresh(); }} />
+    </div>
   );
 
   return (

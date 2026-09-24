@@ -48,7 +48,7 @@ export function QuickTaskPopover({
   defaultCompanyId,
   onCreated,
   fullFormHref = "/task/new",
-  voiceLanguage = "en-GB",
+  voiceLanguage,
 }: {
   open: boolean;
   onClose: () => void;

@@ -5,6 +5,7 @@ import {
   bumpAdminSessionGen,
   clearAdminCookie,
   getAdminHash,
+  isAdminSession,
   ownerIdentifierMatches,
   setAdminCookie,
   setAdminPassword,
@@ -51,11 +52,20 @@ export async function adminLogin(_prev: LoginState, fd: FormData): Promise<Login
 
 /** Save the owner name/email used to verify the Administrator sign-in (Settings). */
 export async function adminSaveOwnerIdentity(fd: FormData): Promise<void> {
+  // Owner only, and it asks for the password: the identity is a second factor
+  // at sign-in, so changing it on an unlocked device would lock the owner out
+  // of every other device (audit 24 Sept 2026).
+  if (!(await isAdminSession())) redirect("/login");
+  if (!(await verifyAdminPassword(String(fd.get("current") ?? "")))) redirect(`${OWNER_BACK}&owner=wrong`);
   const name = String(fd.get("ownerName") ?? "").trim() || null;
   const email = String(fd.get("ownerEmail") ?? "").trim() || null;
   await setOwnerIdentity(name, email);
-  redirect("/settings?owner=identity-saved");
+  redirect(`${OWNER_BACK}&owner=identity-saved`);
 }
+
+/** Back to the Security group, where the result is shown (the page otherwise
+ *  opens on General and the message sits in a hidden group). */
+const OWNER_BACK = "/settings?section=security";
 
 export async function adminLogout() {
   await clearAdminCookie();
@@ -66,16 +76,20 @@ export async function adminLogout() {
  *  when an owner identity is configured, the matching name/email too (so a brief
  *  unlocked-device window can't be used to silently take over the password). */
 export async function adminChangePassword(fd: FormData): Promise<void> {
+  if (!(await isAdminSession())) redirect("/login");
   const identifier = String(fd.get("identifier") ?? "");
   const current = String(fd.get("current") ?? "");
   const next = String(fd.get("next") ?? "");
-  if (next.length < 8) redirect("/settings?owner=short");
-  if (!(await ownerIdentifierMatches(identifier))) redirect("/settings?owner=identity");
-  if (!(await verifyAdminPassword(current))) redirect("/settings?owner=wrong");
+  if (next.length < 8) redirect(`${OWNER_BACK}&owner=short`);
+  // Typed twice: a typo here signs out every other device with a password
+  // nobody knows.
+  if (next !== String(fd.get("confirm") ?? "")) redirect(`${OWNER_BACK}&owner=mismatch`);
+  if (!(await ownerIdentifierMatches(identifier))) redirect(`${OWNER_BACK}&owner=identity`);
+  if (!(await verifyAdminPassword(current))) redirect(`${OWNER_BACK}&owner=wrong`);
   await setAdminPassword(next);
   // Sign out every other device (~1 min) but keep this one signed in by
   // issuing a fresh cookie under the new generation.
   await bumpAdminSessionGen();
   await setAdminCookie();
-  redirect("/settings?owner=saved");
+  redirect(`${OWNER_BACK}&owner=saved`);
 }

@@ -316,6 +316,7 @@ export function Button({
     <button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
+      data-variant={variant}
       className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)}
       {...p}
     >
@@ -368,6 +369,7 @@ export function Switch({ on, busy = false, size = "md" }: { on: boolean; busy?: 
     <span
       aria-hidden
       data-switch
+      data-on={on || undefined}
       className={cn(
         "relative inline-flex shrink-0 items-center rounded-full ring-1 transition-colors duration-200",
         d.track,

@@ -85,7 +85,9 @@ export async function applyPortalDraft(personId: number, now: PortalNow, d: Port
   return { ok: true };
 }
 
-const SEG = "flex h-8 items-center rounded-lg px-2.5 text-xs transition-colors";
+const SEG = "flex h-8 flex-auto items-center justify-center whitespace-nowrap rounded-lg px-2 text-xs transition-colors";
+/** Short names so all six fit one row; the full name is the tooltip. */
+const SHORT: Partial<Record<string, string>> = { receptionist: "Reception" };
 
 export function PortalEditor({ now, draft, onChange, scope, companyNames, personName }: {
   now: PortalNow;
@@ -100,7 +102,8 @@ export function PortalEditor({ now, draft, onChange, scope, companyNames, person
   const set = (p: Partial<PortalDraft>) => onChange({ ...draft, ...p });
   const lvl = draft.level;
   const first = personName.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "").split(" ")[0];
-  const theirs = companyNames.length ? companyNames.join(", ") : "no company yet";
+  const theirs = companyNames.length === 0 ? "no company yet" : companyNames.length === 1 ? companyNames[0] : `their ${companyNames.length} companies`;
+  const theirList = companyNames.join(", ");
   const sees = lvl === "none" ? null
     : lvl === "director" ? (draft.reach === "own" ? `Sees ${theirs}.` : draft.reach === "custom" ? null : "Sees every company.")
       : scope[lvl] === "companies" ? `Sees ${theirs}.` : `Sees ${SCOPE_WORDS[scope[lvl]]}.`;
@@ -108,39 +111,39 @@ export function PortalEditor({ now, draft, onChange, scope, companyNames, person
   const granting = !now.enabled && lvl !== "none";
 
   return (
-    <section className="rounded-[20px] bg-[var(--st-surface)] px-[22px] py-5">
-      <div className="mb-3 flex min-h-[26px] items-baseline justify-between gap-3">
+    <section className="shrink-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
+      <div className="mb-2.5 flex min-h-[22px] items-baseline justify-between gap-3">
         <h2 className="m-0 text-[15px] font-semibold">Portal access</h2>
         <span className="text-xs text-[var(--st-muted)]">
           {now.enabled ? (now.lastLoginAt ? `last signed in ${new Date(now.lastLoginAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : "has never signed in") : "no sign-in yet"}
         </span>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         <div>
-          <div className="mb-1.5 text-xs text-[var(--st-label)]">Level</div>
+          <div className="mb-1 text-xs text-[var(--st-label)]">Level</div>
           <div className="flex flex-wrap gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]">
             {(["none", ...PORTAL_ROLES] as const).map((r) => (
-              <button key={r} type="button" aria-pressed={lvl === r} onClick={() => set({ level: r, reach: r === "director" && lvl !== "director" ? reachOf(now) : draft.reach })}
+              <button key={r} type="button" aria-pressed={lvl === r} title={r === "none" ? "No portal access" : ROLE_LABEL[r]} onClick={() => set({ level: r, reach: r === "director" && lvl !== "director" ? reachOf(now) : draft.reach })}
                 className={cn(SEG, lvl === r ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
-                {r === "none" ? "No access" : ROLE_LABEL[r]}
+                {r === "none" ? "None" : SHORT[r] ?? ROLE_LABEL[r]}
               </button>
             ))}
           </div>
-          {sees && <p className="mt-1.5 text-xs text-[var(--st-sub)]">{sees}</p>}
+          {sees && <p className="mt-1.5 truncate text-xs text-[var(--st-sub)]" title={theirList}>{sees}</p>}
           {revoking && <p className="mt-1.5 text-xs text-[var(--st-late-text)]">Saving will stop {first} signing in. Everything they created is kept.</p>}
         </div>
 
         {lvl === "director" && (
           <div>
-            <div className="mb-1.5 text-xs text-[var(--st-label)]">As a director, sees</div>
+            <div className="mb-1 text-xs text-[var(--st-label)]">As a director, sees</div>
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {([["all", "Every company", "The whole portfolio."], ["own", "Only their companies", theirs]] as const).map(([k, l, hint]) => (
                 <button key={k} type="button" aria-pressed={draft.reach === k} onClick={() => set({ reach: k })}
                   className={cn("rounded-[12px] border px-3 py-2.5 text-left transition-colors",
                     draft.reach === k ? "border-[var(--st-ink)] bg-[var(--st-cal-busy)]" : "border-[var(--st-line)] hover:bg-[var(--st-page)]")}>
                   <span className="block text-[13px] font-medium">{l}</span>
-                  <span className="block truncate text-[11px] text-[var(--st-muted)]" title={hint}>{hint}</span>
+                  <span className="block truncate text-[11px] text-[var(--st-muted)]" title={k === "own" ? theirList : hint}>{hint}</span>
                 </button>
               ))}
             </div>
@@ -156,21 +159,21 @@ export function PortalEditor({ now, draft, onChange, scope, companyNames, person
         )}
 
         {lvl !== "none" && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="flex min-w-0 flex-col gap-1.5">
-              <span className="text-xs text-[var(--st-label)]">{granting ? "Password" : "New password"} <span className="text-[var(--st-muted)]">{granting ? "(at least 8)" : "(leave blank to keep)"}</span></span>
+          <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="truncate text-xs text-[var(--st-label)]" title={granting ? "At least 8 characters" : "Leave blank to keep their password"}>{granting ? "Password" : "New password"} <span className="text-[var(--st-muted)]">{granting ? "(8+)" : "(blank keeps it)"}</span></span>
               <span className="relative">
                 <input type={reveal ? "text" : "password"} value={draft.password} onChange={(e) => set({ password: e.target.value })} autoComplete="new-password"
                   placeholder={granting ? "Set their password" : "Only to reset it"}
-                  className="h-9 w-full rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 pr-9 text-[13px] outline-none" />
+                  className="h-8 w-full rounded-[9px] border border-[var(--st-line)] bg-[var(--st-surface)] px-2.5 pr-9 text-[13px] outline-none" />
                 <button type="button" onClick={() => setReveal((v) => !v)} aria-label={reveal ? "Hide password" : "Show password"}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--st-muted)] hover:text-[var(--st-ink)]">{reveal ? <EyeOff size={14} /> : <Eye size={14} />}</button>
               </span>
             </label>
-            <label className="flex min-w-0 flex-col gap-1.5">
-              <span className="text-xs text-[var(--st-label)]">Title on the portal <span className="text-[var(--st-muted)]">(optional)</span></span>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="truncate text-xs text-[var(--st-label)]">Title on the portal <span className="text-[var(--st-muted)]">(optional)</span></span>
               <input value={draft.designation} onChange={(e) => set({ designation: e.target.value })} placeholder={`e.g. ${lvl === "manager" ? "Group Admin Manager" : ROLE_LABEL[lvl]}`}
-                className="h-9 w-full rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px] outline-none" />
+                className="h-8 w-full rounded-[9px] border border-[var(--st-line)] bg-[var(--st-surface)] px-2.5 text-[13px] outline-none" />
             </label>
           </div>
         )}

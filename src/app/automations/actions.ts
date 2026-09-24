@@ -1,6 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isAdminSession } from "@/lib/admin-auth";
+// Every action that CHANGES something checks for the owner itself (audit 24
+// Sept 2026). The read-only lists do not: the morning brief and the notify cron
+// build the cockpit from them, and a cron has no owner session.
 import { sb } from "@/db/supabase";
 import { performAutomationMove, undoAutomationMove, getAutomationMode } from "@/lib/automation-reactions";
 import { runTimeAutomations, createTaskFromSuggestion } from "@/lib/automation-time";
@@ -54,6 +58,8 @@ export type AutomationHistoryItem = AutomationFeedItem & { owner: string | null;
 /** Full automation log (every status), with owner names + optional filters — the
  *  Inbox card's "History" view. Degrades to [] pre-migration. */
 export async function listAutomationHistory(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<AutomationHistoryItem[]> {
+  // Called from the browser (the feed's history panel), so it checks too.
+  if (!(await isAdminSession())) return [];
   try {
     let q = sb
       .from("automation_events")
@@ -100,6 +106,7 @@ async function fetchRow(id: number, status: string): Promise<Row | null> {
 
 /** Apply a pending suggestion — performs the move and marks it applied. */
 export async function applyAutomationSuggestion(id: number): Promise<{ ok: boolean; error?: string }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   const row = await fetchRow(id, "suggested");
   if (!row) return { ok: false, error: "Already handled." };
   try {
@@ -131,6 +138,7 @@ export async function applyAutomationSuggestion(id: number): Promise<{ ok: boole
 
 /** Undo an applied action — reverses the move and marks it undone. */
 export async function undoAutomationEvent(id: number): Promise<{ ok: boolean; error?: string }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   const row = await fetchRow(id, "applied");
   if (!row) return { ok: false, error: "Nothing to undo." };
   try {
@@ -145,6 +153,7 @@ export async function undoAutomationEvent(id: number): Promise<{ ok: boolean; er
 
 /** Dismiss a suggestion without acting on it. */
 export async function dismissAutomationSuggestion(id: number): Promise<{ ok: boolean }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   await sb.from("automation_events").update({ status: "dismissed", acted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/approvals");
   return { ok: true };
@@ -184,6 +193,7 @@ export async function getRecordsConfidence(): Promise<number> {
 }
 
 export async function setRecordsConfidenceAction(pct: number): Promise<{ ok: boolean }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   const v = Math.min(100, Math.max(0, Math.round(pct)));
   await sb.from("settings").upsert({ key: "automation.records.confidence", value: String(v) }, { onConflict: "key" });
   revalidatePath("/settings");
@@ -192,9 +202,19 @@ export async function setRecordsConfidenceAction(pct: number): Promise<{ ok: boo
 
 /** Set a rule's mode (Auto / Suggest / Off). */
 export async function setAutomationModeAction(kind: string, mode: AutomationMode): Promise<{ ok: boolean }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   if (!["auto", "suggest", "off"].includes(mode)) return { ok: false };
-  if (!AUTOMATION_RULES.some((r) => r.kind === kind)) return { ok: false };
-  await sb.from("settings").upsert({ key: `automation.mode.${kind}`, value: mode }, { onConflict: "key" });
+  if (!AUTOMATION_RULES.some((r) => r.kind === kind && !r.retired)) return { ok: false };
+  const before = await getAutomationMode(kind as Parameters<typeof getAutomationMode>[0]);
+  const { error } = await sb.from("settings").upsert({ key: `automation.mode.${kind}`, value: mode }, { onConflict: "key" });
+  if (error) return { ok: false };
+  // Switching task-create back ON starts it from today. Its "only going forward"
+  // date was fixed when it first ran, so turning it on after months off created
+  // a task for everything that fell due while it was off (audit 24 Sept 2026).
+  if (kind === "task-create" && before === "off" && mode !== "off") {
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    await sb.from("settings").upsert({ key: "automation.time.baseline", value: midnight.toISOString() }, { onConflict: "key" });
+  }
   revalidatePath("/settings");
   revalidatePath("/approvals");
   return { ok: true };
@@ -203,6 +223,7 @@ export async function setAutomationModeAction(kind: string, mode: AutomationMode
 /** Run the time-based automations on demand (the daily cron runs them too) —
  *  creates renewal/notice tasks for dates that have passed. Returns the counts. */
 export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; commitments: number; probations: number }> {
+  if (!(await isAdminSession())) throw new Error("Not signed in.");
   try {
     const res = await runTimeAutomations();
     revalidateAll();

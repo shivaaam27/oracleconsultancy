@@ -51,23 +51,24 @@ export async function listMcpKeys(): Promise<McpKeyRow[]> {
 export async function createMcpKey(
   label: string,
   personId?: number | null,
-): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; key: string; id: number } | { ok: false; error: string }> {
   if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
   const clean = (label ?? "").trim();
   if (!clean) return { ok: false, error: "Give the key a name so you can tell them apart." };
 
   try {
     const key = generateKey();
-    const { error } = await sb.from("mcp_keys").insert({
+    const { data: row, error } = await sb.from("mcp_keys").insert({
       label: clean,
       key_hash: hashKey(key),
       person_id: personId ?? null,
       created_at: new Date().toISOString(),
-    });
+    }).select("id").single();
     if (error) return { ok: false, error: error.message };
     await recordEvent("mcp.key-created", "ok", { label: clean, personId: personId ?? null });
     revalidatePath("/settings");
-    return { ok: true, key };
+    // The real id, so the new key can be revoked straight away.
+    return { ok: true, key, id: row.id as number };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not create the key." };
   }

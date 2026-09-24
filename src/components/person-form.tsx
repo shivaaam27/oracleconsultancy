@@ -26,12 +26,12 @@ function FormSection({ title, children, studio = false, note }: { title: string;
   if (studio) {
     // Studio (the person page's Edit tab): a white card, a sentence-case title.
     return (
-      <section className="rounded-[20px] bg-[var(--st-surface)] px-[22px] py-5">
-        <div className="mb-3 flex min-h-[26px] items-baseline justify-between gap-3">
-          <h2 className="m-0 text-[15px] font-semibold">{title}</h2>
-          {note && <span className="text-xs text-[var(--st-muted)]">{note}</span>}
+      <section className="shrink-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
+        <div className="mb-2.5 flex min-h-[22px] items-baseline justify-between gap-3">
+          <h2 className="m-0 whitespace-nowrap text-[15px] font-semibold">{title}</h2>
+          {note && <span className="truncate text-xs text-[var(--st-muted)]">{note}</span>}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+        <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">{children}</div>
       </section>
     );
   }
@@ -47,9 +47,17 @@ function FormSection({ title, children, studio = false, note }: { title: string;
 
 /** Studio groups the sections into columns; the Desk form has no wrapper at all
  *  (a `display: contents` div would swallow the space between its sections). */
-function Col({ studio, order, children }: { studio: boolean; order: string; children: ReactNode }) {
+function Col({ studio, children }: { studio: boolean; children: ReactNode }) {
   if (!studio) return <>{children}</>;
-  return <div className={cn("flex min-w-0 flex-col gap-4", order)}>{children}</div>;
+  // From xl the three columns fit the screen; a column scrolls on its own only
+  // if one person has unusually much (a long list of companies).
+  return <div className="st-scroll flex min-w-0 flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">{children}</div>;
+}
+/** A field's help line — on the Desk form it is printed; in Studio it would push
+ *  the form past one screen, so it becomes the label's tooltip instead. */
+function Hint({ studio, children }: { studio: boolean; children: ReactNode }) {
+  if (studio) return null;
+  return <p className="mt-1 text-xs text-fg-subtle">{children}</p>;
 }
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
@@ -103,12 +111,15 @@ export function PersonForm({
   onCancel,
   compact = false,
   studio = false,
+  fit = false,
   afterRole,
   afterSave,
 }: {
-  /** The Studio person page: white cards in two columns, Studio controls. */
+  /** The Studio person page: white cards in three columns, Studio controls. */
   studio?: boolean;
-  /** Rendered right after "Role & companies" — the Studio page puts Portal access there. */
+  /** Studio from xl: fill the fitted frame (no page scroll). */
+  fit?: boolean;
+  /** Rendered in the third column after Contact — the Studio page puts Portal access there. */
   afterRole?: ReactNode;
   /** Runs after the person is saved and before onComplete — the Studio page
    *  applies the portal level here, so a Director's "their companies" reach is
@@ -282,7 +293,7 @@ export function PersonForm({
   const relatedOptions = withSaved(managerCandidates, defaults?.relatedPersonId);
 
   const inputCls = studio
-    ? "h-9 w-full rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px] transition-colors focus:outline-none"
+    ? "h-8 w-full rounded-[9px] border border-[var(--st-line)] bg-[var(--st-surface)] px-2.5 text-[13px] transition-colors focus:outline-none"
     : cn(
         "w-full rounded-lg border border-border bg-bg-subtle/60 text-sm transition-all",
         compact ? "px-2.5 py-1.5" : "px-3 py-2",
@@ -291,17 +302,15 @@ export function PersonForm({
   const gap = studio ? "space-y-4" : compact ? "space-y-2.5" : "space-y-4";
 
 
-  return (
-    <form ref={formRef} action={action} className={gap}>
-      {/* Auto-fill from a pasted message (WhatsApp/email). Fills empty fields only. */}
-      <details className={studio ? "rounded-[20px] bg-[var(--st-surface)] px-[22px] py-3.5" : "rounded-xl border border-border bg-bg-subtle/40 p-3"}>
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
+  const autofill = (
+    <details className={studio ? "group relative" : "rounded-xl border border-border bg-bg-subtle/40 p-3"}>
+        <summary className={studio ? "flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-[9px] border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]" : "flex cursor-pointer list-none items-center gap-2 text-sm font-medium"}>
           <Sparkles size={14} className="text-accent" /> Auto-fill from a message
-          <span className="ml-auto text-xs font-normal text-fg-subtle">paste &amp; read</span>
+          {!studio && <span className="ml-auto text-xs font-normal text-fg-subtle">paste &amp; read</span>}
         </summary>
-        <div className="mt-2.5 space-y-2">
+        <div className={studio ? "absolute left-0 top-full z-30 mt-2 w-[min(440px,85vw)] space-y-2 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-4 shadow-[0_16px_40px_rgba(17,18,20,0.14)]" : "mt-2.5 space-y-2"}>
           <textarea value={scanText} onChange={(e) => setScanText(e.target.value)} rows={3}
-            className={inputCls} placeholder="Paste what they sent — name, DOB, passport no, address, contacts…" />
+            className={cn(inputCls, studio && "h-auto py-2")} placeholder="Paste what they sent — name, DOB, passport no, address, contacts…" />
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={scanFill} disabled={scanning || !scanText.trim()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
@@ -312,12 +321,73 @@ export function PersonForm({
           <p className="text-xs text-fg-subtle">Fills empty profile fields only — it never overwrites what is already there.</p>
           {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
         </div>
-      </details>
+    </details>
+  );
+  // Related person — e.g. an immigration agent and the expat they help. Studio
+  // shows it in Personal, beside Notes, so Identity is two rows.
+  const relatedField = (
+    <div>
+              <FieldLabel>Related to</FieldLabel>
+              <Select
+                name="relatedPersonId"
+                defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
+              >
+                <option value="">— None</option>
+                {relatedOptions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </div>
+  );
+  const errorLine = (
+    <div className="flex items-start gap-1.5 text-xs text-danger">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+  );
+  const actionBar = (
+    <div className={studio ? "flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-2xl bg-[var(--st-surface)] px-3 py-2" : "flex items-center justify-end gap-2 pt-1"}>
+          {studio && autofill}
+          <EnterHint className={studio ? "mr-auto hidden sm:flex" : "mr-auto"} verb={mode === "create" ? "create" : "save"} />
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={pending}
+              className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
+          <Button
+            type="submit"
+            disabled={pending}
+            size="md"
+          >
+            {pending ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : mode === "create" ? (
+              <UserPlus size={13} />
+            ) : (
+              <Save size={13} />
+            )}
+            {pending ? (mode === "create" ? "Creating…" : "Saving…") : mode === "create" ? "Create person" : "Save changes"}
+          </Button>
+        </div>
+  );
 
-      <div className={studio ? "grid grid-cols-1 items-start gap-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr]" : "space-y-3"}>
-        <Col studio={studio} order="xl:col-start-1 xl:row-start-1">
+  return (
+    <form ref={formRef} action={action} className={studio ? cn("st-person-form flex flex-col gap-3", fit && "h-full min-h-0") : gap}>
+      {/* Auto-fill from a pasted message (WhatsApp/email). Fills empty fields only.
+          In Studio it opens from the action bar at the top, over the form. */}
+      {!studio && autofill}
+      {studio && actionBar}
+      {studio && error && errorLine}
+
+      <div className={studio ? cn("grid grid-cols-1 items-start gap-3 lg:grid-cols-2 xl:grid-cols-3", fit && "xl:min-h-0 xl:flex-1 xl:items-stretch") : "space-y-3"}>
+        <Col studio={studio}>
         <FormSection studio={studio} title="Identity">
-          <div className="col-span-2">
+          <div className={studio ? undefined : "col-span-2"}>
             <FieldLabel>Name <span className="text-danger">*</span></FieldLabel>
             <input
               name="name"
@@ -330,17 +400,20 @@ export function PersonForm({
           </div>
 
           {/* Person type — drives whether this is an employee or an external/expat contact */}
-          <div className="col-span-2">
+          <div className={cn("col-span-2", studio && "order-last")}>
             <FieldLabel>Type</FieldLabel>
             <input type="hidden" name="personType" value={pType} />
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className={studio ? "grid grid-cols-2 gap-1.5 sm:grid-cols-4" : "grid grid-cols-2 gap-1.5"}>
               {PERSON_TYPES.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setPType(t)}
                   title={PERSON_TYPE_HINTS[t]}
-                  className={cn(
+                  className={studio
+                    ? cn("h-8 truncate rounded-[9px] border px-2 text-xs transition-colors",
+                        pType === t ? "border-[var(--st-ink)] bg-[var(--st-ink)] font-medium text-[var(--st-surface)]" : "border-[var(--st-line)] text-[var(--st-sub)] hover:bg-[var(--st-page)]")
+                    : cn(
                     "rounded-md border px-2 py-1.5 text-xs transition-colors text-left",
                     pType === t
                       ? "border-accent bg-accent/10 text-accent font-medium"
@@ -353,34 +426,64 @@ export function PersonForm({
             </div>
           </div>
 
-          <div className="col-span-2">
+          <div className={studio ? undefined : "col-span-2"} title={studio ? "Sets the letter in the staff ID. Leave on Auto to read it from the job title." : undefined}>
             <FieldLabel>Staff ID category</FieldLabel>
             <Select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""}>
               {STAFF_CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </Select>
-            <p className="mt-1 text-xs text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
+            <Hint studio={studio}>Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</Hint>
           </div>
-          {/* Related person — e.g. an immigration agent and the expat they help */}
-          <div>
-            <FieldLabel>Related to</FieldLabel>
-            <Select
-              name="relatedPersonId"
-              defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
-            >
-              <option value="">— None</option>
-              {relatedOptions.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-          </div>
+          {!studio && relatedField}
 
+        </FormSection>
+        <FormSection studio={studio} title="Personal">
+          <div>
+            <FieldLabel>Date of birth</FieldLabel>
+            <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
+              onChange={() => clearFieldError("dateOfBirth")}
+              aria-invalid={!!fieldErrors.dateOfBirth}
+              className={cn(inputCls, fieldErrors.dateOfBirth && invalidFieldClass)} />
+            <FieldError message={fieldErrors.dateOfBirth} />
+          </div>
+          <div>
+            <FieldLabel>Nationality</FieldLabel>
+            <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
+          </div>
+          <div>
+            <FieldLabel>National ID (NIDA)</FieldLabel>
+            <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
+          </div>
+          <div>
+            <FieldLabel>Passport number</FieldLabel>
+            <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
+          </div>
+          <div>
+            <FieldLabel>Emergency contact</FieldLabel>
+            <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
+          </div>
+          <div>
+            <FieldLabel>Emergency phone</FieldLabel>
+            <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
+          </div>
+          {studio && relatedField}
+          <div className={studio ? undefined : "col-span-2"}>
+            <FieldLabel>Notes</FieldLabel>
+            <textarea
+              name="notes"
+              defaultValue={defaults?.notes ?? ""}
+              rows={studio ? 1 : 2}
+              className={cn(inputCls, studio && "h-auto min-h-8 py-1.5")}
+              onKeyDown={submitOnEnterKeyDown}
+              placeholder="Internal notes, escalation preferences, etc."
+            />
+          </div>
         </FormSection>
         </Col>
 
-        <Col studio={studio} order="xl:col-start-1 xl:row-start-2">
-        <FormSection studio={studio} title="Role &amp; companies" note={studio ? "their companies decide what they see on the portal" : undefined}>
+        <Col studio={studio}>
+        <FormSection studio={studio} title="Role &amp; companies" note={studio ? "decides their portal reach" : undefined}>
           <div>
             <FieldLabel>Role / Job title</FieldLabel>
             <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
@@ -397,7 +500,7 @@ export function PersonForm({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>
-            <p className="text-xs text-fg-subtle mt-1">Their home company — it gives them their staff ID. Any others go right below.</p>
+            <Hint studio={studio}>Their home company — it gives them their staff ID. Any others go right below.</Hint>
           </div>
 
           {/* Also works for — additional companies this person belongs to/serves.
@@ -412,13 +515,11 @@ export function PersonForm({
               permissions change. Say so on the screen. */}
           <div className="col-span-2">
             <FieldLabel>Also works for</FieldLabel>
-            <p className="mb-1.5 text-xs text-fg-subtle">
+            {!studio && <p className="mb-1.5 text-xs text-fg-subtle">
               Other companies they work for or serve — their tasks and records show under each one.
-              {studio
-                ? <> On the portal a <span className="font-medium">Manager</span> sees everything in these companies, and so does a <span className="font-medium">Director</span> set to &ldquo;their companies&rdquo;.</>
-                : <> If they have a portal sign-in as a <span className="font-medium">Manager</span>, this is also what they can see there.</>}
-            </p>
-            <div className="space-y-2">
+              {" "}If they have a portal sign-in as a <span className="font-medium">Manager</span>, this is also what they can see there.
+            </p>}
+            <div className={studio ? "st-scroll max-h-[124px] space-y-1.5 overflow-y-auto" : "space-y-2"}>
               {associations.length === 0 && (
                 <p className="text-xs text-fg-subtle italic">None yet.</p>
               )}
@@ -445,19 +546,21 @@ export function PersonForm({
                     onClick={() => removeAssociation(i)}
                     title="Remove"
                     className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                    aria-label="Remove this company"
                   >
                     <X size={14} />
                   </button>
                 </div>
               ))}
-              <button
+              {!studio && <button
                 type="button"
                 onClick={addAssociation}
                 className="tap-target inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
               >
                 <Plus size={13} /> Add company
-              </button>
+              </button>}
             </div>
+            {studio && <button type="button" onClick={addAssociation} className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]"><Plus size={13} /> Add company</button>}
           </div>
 
 
@@ -477,7 +580,7 @@ export function PersonForm({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
-            <p className="text-xs text-fg-subtle mt-1">Their line manager. Dotted-line ones go beside it.</p>
+            <Hint studio={studio}>Their line manager. Dotted-line ones go beside it.</Hint>
           </div>
 
           {/* Also reports to — secondary / dotted-line managers (organogram) */}
@@ -547,10 +650,9 @@ export function PersonForm({
             <FieldError message={fieldErrors.probationEndDate} />
           </div>
         </FormSection>
-        {afterRole}
         </Col>
 
-        <Col studio={studio} order="xl:col-start-2 xl:row-start-1 xl:row-span-2">
+        <Col studio={studio}>
         <FormSection studio={studio} title="Contact">
           <div>
             <FieldLabel>Email</FieldLabel>
@@ -616,86 +718,14 @@ export function PersonForm({
             <input name="address" defaultValue={defaults?.address ?? ""} className={inputCls} placeholder="Residential address" />
           </div>
         </FormSection>
+        {afterRole}
 
-        <FormSection studio={studio} title="Personal">
-          <div>
-            <FieldLabel>Date of birth</FieldLabel>
-            <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
-              onChange={() => clearFieldError("dateOfBirth")}
-              aria-invalid={!!fieldErrors.dateOfBirth}
-              className={cn(inputCls, fieldErrors.dateOfBirth && invalidFieldClass)} />
-            <FieldError message={fieldErrors.dateOfBirth} />
-          </div>
-          <div>
-            <FieldLabel>Nationality</FieldLabel>
-            <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
-          </div>
-          <div>
-            <FieldLabel>National ID (NIDA)</FieldLabel>
-            <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
-          </div>
-          <div>
-            <FieldLabel>Passport number</FieldLabel>
-            <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
-          </div>
-          <div>
-            <FieldLabel>Emergency contact</FieldLabel>
-            <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
-          </div>
-          <div>
-            <FieldLabel>Emergency phone</FieldLabel>
-            <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
-          </div>
-          <div className="col-span-2">
-            <FieldLabel>Notes</FieldLabel>
-            <textarea
-              name="notes"
-              defaultValue={defaults?.notes ?? ""}
-              rows={2}
-              className={inputCls}
-              onKeyDown={submitOnEnterKeyDown}
-              placeholder="Internal notes, escalation preferences, etc."
-            />
-          </div>
-        </FormSection>
         </Col>
 
       </div>
 
-      {error && (
-        <div className="flex items-start gap-1.5 text-xs text-danger">
-          <AlertCircle size={12} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className={studio ? "sticky bottom-[calc(64px+env(safe-area-inset-bottom)+14px)] z-20 flex items-center justify-end gap-2 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-4 py-2.5 shadow-[0_10px_28px_rgba(17,18,20,0.10)]" : "flex items-center justify-end gap-2 pt-1"}>
-        <EnterHint className="mr-auto" verb={mode === "create" ? "create" : "save"} />
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={pending}
-            className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        )}
-        <Button
-          type="submit"
-          disabled={pending}
-          size="md"
-        >
-          {pending ? (
-            <Loader2 size={13} className="animate-spin" />
-          ) : mode === "create" ? (
-            <UserPlus size={13} />
-          ) : (
-            <Save size={13} />
-          )}
-          {pending ? (mode === "create" ? "Creating…" : "Saving…") : mode === "create" ? "Create person" : "Save changes"}
-        </Button>
-      </div>
+      {!studio && error && errorLine}
+      {!studio && actionBar}
     </form>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendToAll, configurePush, getSubscriptions } from "@/lib/push";
+import { sendToRecipient, configurePush } from "@/lib/push";
 import { isAdminSession } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,22 +21,18 @@ export async function POST() {
   if (!configurePush()) {
     return NextResponse.json({ error: "Push not configured (missing VAPID keys)" }, { status: 503 });
   }
-  const subs = await getSubscriptions();
-  if (subs.length === 0) {
-    return NextResponse.json({ error: "No devices subscribed yet" }, { status: 400 });
-  }
-  const res = await sendToAll({
+  // The owner's devices as REAL alerts reach them — the push_subscriptions
+  // table. The test used to go to the old settings list, which still held
+  // devices real alerts never reach, so it said "sent to 4" while the iPhones
+  // got nothing (audit 24 Sept 2026).
+  const sent = await sendToRecipient("admin", {
     title: "Oracle Consultancy test alert",
     body: "Notifications are working. You'll be alerted about overdue and escalated tasks.",
     url: "/",
     tag: "cos-test",
   });
-  // Surface delivery failures so the UI can explain why a device got nothing.
-  if (res.sent === 0 && res.errors.length > 0) {
-    return NextResponse.json(
-      { error: `Delivery failed: ${res.errors.map((e) => `${e.host} (${e.code ?? "?"})`).join(", ")}`, ...res },
-      { status: 502 }
-    );
+  if (sent === 0) {
+    return NextResponse.json({ error: "No device received it. Press \"Turn on here\" on each device you want alerts on." }, { status: 400 });
   }
-  return NextResponse.json({ ok: true, ...res });
+  return NextResponse.json({ ok: true, sent });
 }

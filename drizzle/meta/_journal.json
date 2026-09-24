@@ -1184,6 +1184,13 @@
       "when": 1790011844538,
       "tag": "0167_remove_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1790268511620,
+      "tag": "0168_drop_cz_events",
+      "breakpoints": true
     }
   ]
 }

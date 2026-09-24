@@ -325,7 +325,7 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     for (const { document, status } of candidates) {
       if (!document.companyId) continue; // renewal tasks are company-owned
       if (!document.expiryDate || document.expiryDate < baseline) continue; // forward-only
-      const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").eq("document_id", document.id).in("status", ["suggested", "applied"]).limit(1);
+      const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").eq("document_id", document.id).limit(1); // any status — a DISMISSED suggestion must not come back every morning
       if (ex && ex.length) continue;
       const word = status === "Expired" ? "expired" : "expiring";
       if (suggesting) {

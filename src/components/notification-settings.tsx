@@ -36,6 +36,10 @@ export function NotificationSettings() {
         const reg = await navigator.serviceWorker.getRegistration();
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         setState(sub ? "on" : "off");
+        // Register it again (the save is an upsert). A device the browser thinks
+        // is on may be missing from the list real alerts use — this repairs it
+        // every time the card is opened.
+        if (sub) void fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON() }) }).catch(() => {});
       } catch {
         setState("off");
       }

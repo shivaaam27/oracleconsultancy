@@ -24,7 +24,8 @@ import { asPortalRole, directorScopeOf, roleAfterReset, scopeForRole, type Porta
 
 export { directorScopeOf };
 
-export type PortalAccessResult = { ok: true } | { ok: false; error: string };
+/** `role` on a grant is the level actually saved — a reset never lowers one. */
+export type PortalAccessResult = { ok: true; role?: PortalRoleKey } | { ok: false; error: string };
 
 /** Coerce a form value to a real portal role. Unknown → the least-powerful
  *  role. One implementation, shared with the client screens. */
@@ -78,7 +79,7 @@ export async function grantPortalAccess(
   if (error) return { ok: false, error: error.message };
   await writeDirectorScope(personId, scopeForRole(effectiveRole, directorCompanyIds));
   await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: effectiveRole });
-  return { ok: true };
+  return { ok: true, role: effectiveRole };
 }
 
 /**
