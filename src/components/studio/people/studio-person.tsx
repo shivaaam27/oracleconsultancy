@@ -156,6 +156,9 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
   const tabs: readonly Tab[] = readOnly ? TABS.filter((t) => t === "overview" || t === "tasks" || t === "documents" || t === "history") : TABS;
   const tab: Tab = (tabs as readonly string[]).includes(url.values.tab) ? (url.values.tab as Tab) : "overview";
   const [sheet, setSheet] = useState<null | "facts" | "pack">(null);
+  // Phone: long lists show three, then "Show N more" (as Home).
+  const [allTasks, setAllTasks] = useState(false);
+  const [allReports, setAllReports] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const { remind, pending: reminding } = useRemindPerson();
@@ -264,7 +267,26 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[30px]">{p.name}</h1>
           <div className="mt-1.5 truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
         </div>
-        <div className="-mx-4 flex w-[calc(100%+32px)] items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">{pills}{contacts}</div>
+        {/* Phone (mockup M_Person): big round buttons to reach them, then the labels. */}
+        <div className="flex w-full justify-between gap-2 px-1 sm:hidden">
+          {([
+            ["Call", <Phone key="i" size={18} />, p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : null, false],
+            ["WhatsApp", <MessageCircle key="i" size={18} />, p.whatsapp ? waHref(p.whatsapp) : null, true],
+            ["Email", <Mail key="i" size={18} />, p.email ? `mailto:${p.email}` : null, false],
+            ...(!readOnly ? [["Chat", <MessagesSquare key="i" size={18} />, `/chat?dm=${p.id}`, false] as const] : []),
+            ["New task", <Plus key="i" size={18} />, newTaskHref, false],
+          ] as const).map(([label, icon, href, external]) => (
+            <a key={label} href={href ?? undefined} aria-disabled={!href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined}
+              className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-[11px] text-[#C9CBCF] aria-disabled:pointer-events-none aria-disabled:opacity-35">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#26282C] text-[#F2F2F0]">{icon}</span>
+              <span className="truncate">{label}</span>
+            </a>
+          ))}
+        </div>
+        <div className="-mx-4 flex w-[calc(100%+32px)] items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">
+          {pills}
+          {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
+        </div>
         <div className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
           {tabs.map((t) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
@@ -307,12 +329,22 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
               // (CSS, not the media hook: the hook reads the window on the first
               // render, and a different list on the server is a hydration error.)
               return (
-                <Link key={t.code} href={withReturn(taskHref(t.code), here)} className={cn(i >= 6 && "hidden xl:grid", "grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]")}>
+                <Link key={t.code} href={withReturn(taskHref(t.code), here)} className={cn(
+                  // ⚠️ The hiding classes go LAST: cn() lets a later `grid` cancel
+                  // an earlier `hidden`, which is why six-then-scroll never held.
+                  "grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]",
+                  i >= 6 && (allTasks ? "sm:max-xl:hidden" : "hidden xl:grid"),
+                  i >= 3 && i < 6 && !allTasks && "max-sm:hidden")}>
                   <span className="truncate"><span className="st-mono text-[11px] text-[var(--st-muted)]">{t.code}</span> {t.title}</span>
                   <span className="text-xs" style={{ color: d.c }}>{d.text}</span>
                 </Link>
               );
             })}
+            {!allTasks && open.length > 3 && (
+              <button type="button" onClick={() => setAllTasks(true)} className="mt-1.5 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)] sm:hidden">
+                Show {open.length - 3} more
+              </button>
+            )}
           </div>
         </Card>
 
@@ -402,8 +434,8 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
         {data.reports.length > 0 && (
           <Card title="Direct reports" className={GROW} right={data.reports.length}>
             <div className={cn("mt-2.5 flex flex-col gap-1", LIST)}>
-              {data.reports.map((r) => (
-                <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className="flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]">
+              {data.reports.map((r, i) => (
+                <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className={cn("flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)] sm:min-h-0", i >= 3 && !allReports && "max-sm:hidden")}>
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#111214]" style={{ background: avatarTint(r.name) }}>{initials(shortName(r.name))}</span>
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{shortName(r.name)}{r.dotted && <span className="text-[var(--st-muted)]"> (also)</span>}</span>
@@ -412,6 +444,11 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
                   <span className="shrink-0 text-xs" style={{ color: r.overdue ? "var(--st-late-text)" : "var(--st-sub)" }}>{r.overdue ? `${r.overdue} late` : r.open ? `${r.open} open` : "—"}</span>
                 </Link>
               ))}
+              {!allReports && data.reports.length > 3 && (
+                <button type="button" onClick={() => setAllReports(true)} className="mt-1.5 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)] sm:hidden">
+                  Show {data.reports.length - 3} more
+                </button>
+              )}
             </div>
           </Card>
         )}

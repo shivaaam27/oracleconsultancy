@@ -19,7 +19,8 @@ function bioLabel(): string {
 /** Sits right under the password "Sign in" button. Offers biometric sign-in,
  *  and — on supported devices (e.g. iPhone) — auto-prompts it the moment the
  *  page loads via WebAuthn conditional UI (passkey autofill). */
-export function PasskeyLoginButton() {
+/** `studio` — the Studio sign-in screen: a full-width outline button, 48px. */
+export function PasskeyLoginButton({ studio = false }: { studio?: boolean } = {}) {
   const [supported, setSupported] = useState(false);
   const [label, setLabel] = useState("a passkey");
   const [pending, setPending] = useState(false);
@@ -62,17 +63,19 @@ export function PasskeyLoginButton() {
   }
 
   return (
-    <div className="-mt-1 flex flex-col gap-2">
+    <div className={studio ? "flex flex-col gap-2" : "-mt-1 flex flex-col gap-2"}>
       <button
         type="button"
         onClick={go}
         disabled={pending}
-        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-bg-subtle ring-1 ring-border px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-muted/70 hover:ring-accent/40 disabled:opacity-60"
+        className={studio
+          ? "inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[15px] font-medium text-[var(--st-ink)] transition-colors hover:border-[var(--st-ink)] disabled:opacity-60"
+          : "inline-flex items-center justify-center gap-2 rounded-2xl bg-bg-subtle ring-1 ring-border px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-muted/70 hover:ring-accent/40 disabled:opacity-60"}
       >
-        <ScanFace size={16} className="text-accent" />
+        <ScanFace size={studio ? 18 : 16} className={studio ? "" : "text-accent"} />
         {pending ? "Waiting for your device…" : `Use ${label} instead`}
       </button>
-      {err && <p className="text-center text-xs text-danger">{err}</p>}
+      {err && <p className={studio ? "m-0 text-center text-xs text-[var(--st-late-text)]" : "text-center text-xs text-danger"}>{err}</p>}
     </div>
   );
 }

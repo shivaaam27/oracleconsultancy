@@ -155,6 +155,8 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
   const here = `/companies/${data.id}`;
   const fit = useRef<HTMLDivElement>(null);
   const wide = useMediaQuery("(min-width: 1280px)");
+  const [allTasks, setAllTasks] = useState(false);
+  const [allStaff, setAllStaff] = useState(false);
   useFitFrame(fit, { enabled: wide, minimum: 460 });
   const valid = Math.max(0, o.documents.total - o.documents.expired);
   const docPct = o.documents.total ? Math.round((valid / o.documents.total) * 100) : 0;
@@ -187,11 +189,17 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               {o.tasks.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">Nothing open for {data.name}.</div>}
               {o.tasks.map((t, i) => (
                 <Link key={t.code} href={withReturn(taskHref(t.code), here)}
-                  className={cn(i >= 6 && "hidden xl:grid", "grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]")}>
+                  // ⚠️ Hiding classes LAST — cn() lets a later `grid` cancel `hidden`.
+                  // Phone: three, then "Show N more" (as Home); desk: six, then scroll.
+                  className={cn("grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]",
+                    i >= 6 && (allTasks ? "sm:max-xl:hidden" : "hidden xl:grid"), i >= 3 && i < 6 && !allTasks && "max-sm:hidden")}>
                   <span className="truncate"><span className="st-mono text-[11px] text-[var(--st-muted)]">{t.code}</span> {t.title}</span>
                   <span className="text-xs" style={{ color: TONE[t.tone] }}>{t.when}</span>
                 </Link>
               ))}
+              {!allTasks && o.tasks.length > 3 && (
+                <button type="button" onClick={() => setAllTasks(true)} className="mt-1.5 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)] sm:hidden">Show {o.tasks.length - 3} more</button>
+              )}
             </div>
           </Card>
           <Card title="Equipment & suppliers" className="shrink-0" right={data.readOnly ? undefined : <Link href="/hrms/assets" className="text-[var(--st-ink)] hover:underline">Open →</Link>}>
@@ -222,7 +230,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
             <div className={cn("mt-2 flex flex-col gap-1", LIST)}>
               {o.staff.length === 0 && <div className="py-3 text-[13px] text-[var(--st-muted)]">Nobody has {shortName(data.name)} as their main company yet.</div>}
               {o.staff.map((p, i) => (
-                <Link key={p.id} href={withReturn(`/people/${p.id}`, here)} className={cn(i >= 4 && "hidden xl:flex", "flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]")}>
+                <Link key={p.id} href={withReturn(`/people/${p.id}`, here)} className={cn("flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]", i >= 4 && (allStaff ? "sm:max-xl:hidden" : "hidden xl:flex"), i >= 3 && i < 4 && !allStaff && "max-sm:hidden")}>
                   <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{p.name}</span>
@@ -230,6 +238,9 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
                   </span>
                 </Link>
               ))}
+              {!allStaff && o.staff.length > 3 && (
+                <button type="button" onClick={() => setAllStaff(true)} className="mt-1.5 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)] sm:hidden">Show {o.staff.length - 3} more</button>
+              )}
               {o.alsoCount > 0 && <Link href={`/people?co=${data.id}`} className="shrink-0 pt-1 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">+ {o.alsoCount} who also work for {shortName(data.name).split(" ")[0]}</Link>}
             </div>
           </Card>

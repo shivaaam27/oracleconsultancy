@@ -18,6 +18,7 @@ import {
   ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore, MoreHorizontal, Repeat,
 } from "lucide-react";
 import { StudioScope, stBtn } from "./studio/kit";
+import { StudioOops } from "./studio/oops";
 import { StudioStatusCell, StudioPriorityCell } from "./studio/tasks/cells";
 import { StudioDetails } from "./studio/tasks/details";
 import { DateInput } from "./date-input";
@@ -1048,10 +1049,13 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     }
     if (error || !t || !data) {
       return (
-        <StudioScope className="py-16 text-center">
-          <p className="text-base text-[var(--st-muted)]">Couldn&apos;t load {code}.</p>
-          <button type="button" onClick={() => router.push("/?tab=tasks")} className={cn(stBtn.ghost, "mt-3")}>Back to tasks</button>
-        </StudioScope>
+        <StudioOops
+          kind="404"
+          title={`No task ${code ?? ""}`.trim()}
+          body="It may have been deleted, moved to another company (which gives it a new code), or it isn’t one of yours."
+          home="/?tab=tasks"
+          homeLabel="All tasks"
+        />
       );
     }
     const refresh = () => { setRefreshKey((k) => k + 1); router.refresh(); };

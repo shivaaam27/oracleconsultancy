@@ -231,7 +231,9 @@ export async function proxy(req: NextRequest) {
   // through to /portal/login). This — not cookie eviction — was the "logout".
   const url = req.nextUrl.clone();
   url.search = "";
-  url.pathname = req.cookies.get("cos_portal")?.value ? "/portal" : "/login";
+  // Only a VALID portal token goes to the portal: a stale cookie used to land
+  // on the staff-only sign-in with no Administrator option (owner, 25 Sept 2026).
+  url.pathname = (await validPortalToken(req.cookies.get("cos_portal")?.value)) ? "/portal" : "/login";
   return NextResponse.redirect(url);
 }
 
