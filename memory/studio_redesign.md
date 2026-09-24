@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation · 3 Home · 4 Work pages ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home · 4 Work pages ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -67,6 +67,51 @@ It turns on BOTH the list (`/?tab=tasks`) and the record (`/task/CODE`).
   reuse the existing blocks. Admin can now edit/take down an update
   (`adminEditUpdate` / `adminDeleteUpdate`).
 - Switch off = byte-for-byte the old page: every change is behind `studio`.
+
+### Phase 1, second pass — made to match the mockup (24 Sept 2026)
+The owner put the mockup beside the real page: "does it look the same? no".
+Compared side by side (mockup served locally — launch.json `studio-mockup`,
+`#Main.dc.html`, `#Expanded.dc.html`) and closed every visible gap:
+- Rows: no tick column (the box sits in the left margin, shown on hover/when
+  ticked), status = dot + word (`StudioStatusCell`), tinted round faces,
+  two-line latest update, deadline as coloured words, ☆ on the right. No hover
+  icons. Export/Columns are two small icons at the end of the header row.
+- ☆ is ONE settings row (`ui.starredTasks`, `toggleTaskStar`) — no migration.
+  Starred rows lead the list (not while grouped).
+- Quick-add is the list's first row (`RecordList lead`), a quiet dashed line
+  that opens its chips once you are in it.
+- Bottom bar: search · "Filter by company +" · All / On track / Due soon /
+  Late. "On track" is new (`flag=on-track`: neither late nor due soon).
+  Quiet, Unread and Done moved to the Filters panel, nothing lost.
+- The record: three columns — Details (click a value; status/priority/
+  deadline/waiting-on change in place, the rest open the full form), the
+  conversation (`PortalConversation variant="studio"`: bubbles oldest-first,
+  writing box at the foot with starter phrases; the portal is unchanged), and
+  People / Share / Similar. The Desk decision box is gone in Studio.
+- Studio keeps circles (`.studio .rounded-full`) and its own 12/13/14px type
+  scale whatever the Desk density.
+- The list keeps the owner's 2 Sept order (most recently touched first) — the
+  mockup's deadline order was only its sample data.
+
+### Phase 2 — footer navigation, built 24 Sept 2026
+Switch: Settings → New look → Footer navigation (`nav`). Replaces the desk
+sidebar AND the floating pill, on every admin page (the portal and sign-in
+screens are untouched — HideOnPortal).
+- `components/studio/shell.tsx` + `shell-server.tsx`: the frame, the footer
+  (next deadline · Home · ‹ page › · Settings · ⌘K · bell · + New) and the
+  Go-to panel (every page, grouped, type to filter, Enter goes).
+- ⚠️ THE PANEL IS AN ILLUSION. The document still scrolls; a fixed,
+  click-through ring with a 100vmax dark box-shadow paints everything outside
+  a rounded rectangle. Making `main` a scroll box would break every "back to
+  where you were" in COS (they read window.scrollY).
+- Everything keys off `body:has([data-studio-frame])` in globals.css: page
+  colour, main's padding, `--page-foot` / `--page-top`, and sticky bars
+  (`data-sticky-top`, `data-sticky-foot`, `data-savebar`) clearing the frame.
+- ⚠️ `scrollbar-gutter: stable` is now on `<html>` too: since `overflow-x:
+  clip`, the VIEWPORT scrolls, not body, so the old body-only gutter no longer
+  reserved anything.
+- `CreateMenu variant="footer"` opens upwards; `NotificationBell` takes a
+  `triggerClassName`.
 
 ## Also on this branch
 - `9957091d` — the Companies hub / company page / drawer counted a task under

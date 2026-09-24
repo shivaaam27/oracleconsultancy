@@ -220,6 +220,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   if (sp.priority) rows = rows.filter((r) => r.priority === sp.priority);
   // "recurring" is not a computed flag but a fact on the row (migration 0166).
   if (sp.flag === "recurring") rows = rows.filter((r) => r.recurringRuleId != null);
+  // "On track" (Studio's lens) is not one flag but the absence of the two bad
+  // ones: neither late nor nearly due. Undated tasks count — nothing is late.
+  else if (sp.flag === "on-track") rows = rows.filter((r) => r.flag !== "overdue" && r.flag !== "escalate-now" && r.flag !== "due-soon");
   else if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
   if (sp.status) rows = rows.filter((r) => r.status === sp.status);
   if (sp.noOwner === "1") rows = rows.filter((r) => r.assignees.length === 0);
@@ -542,8 +545,23 @@ export async function TasksSection({ sp }: { sp: Sp }) {
      Everything above is shared: the Studio page gets the SAME rows, counts,
      options and links, and only draws them differently. With the switch off
      this block is skipped and the page below renders exactly as before. */
-  const { studioPages } = await getAppSettings();
+  const { studioPages, starredTasks } = await getAppSettings();
   if (isStudioOn(studioPages, "tasks")) {
+    // ☆ Starred tasks lead the list (the owner's own bookmarks). Not while the
+    // list is grouped — a starred row would open a second copy of its group.
+    const stars = new Set(starredTasks.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
+    if (stars.size > 0 && !groupBy) {
+      rows = [...rows.filter((r) => stars.has(r.id)), ...rows.filter((r) => !stars.has(r.id))];
+    }
+    // The mockup's four lenses. The other chips (Quiet, Unread, Done) stay in
+    // the Filters panel, so nothing the old bar could do is lost.
+    const onTrack = Math.max(0, counts.all - counts.overdue - counts.dueSoon);
+    const studioLenses: FilterChip[] = [
+      chip("all", "All", counts.all, noStatusFilters, {}),
+      chip("ontrack", "On track", onTrack, sp.flag === "on-track", { flag: "on-track" }, "success"),
+      chip("duesoon", "Due soon", counts.dueSoon, sp.flag === "due-soon", { flag: "due-soon" }, "warn"),
+      chip("overdue", "Late", counts.overdue, sp.flag === "overdue", { flag: "overdue" }, "danger"),
+    ];
     // Days are Dar es Salaam days (UTC+3), whatever zone the server runs in.
     const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
     const today = eatDay(Date.now());
@@ -628,6 +646,14 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       (groupBy ? 1 : 0);
 
     const empty = total === 0 && view !== "calendar" && view !== "timeline" && !focusMode;
+    const quickAddNode = (
+      <TaskActions
+        companies={companyList}
+        people={peopleNames}
+        defaultCompanyId={quickDefaultCompanyId}
+        showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
+      />
+    );
     return (
       <StudioTasks
         title={kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "Tasks"}
@@ -653,15 +679,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         updatedToday={updatedToday}
         q={sp.q || ""}
         searchHrefBase={buildHref(sp, { q: undefined })}
-        lenses={chips}
-        quickAdd={
-          <TaskActions
-            companies={companyList}
-            people={peopleNames}
-            defaultCompanyId={quickDefaultCompanyId}
-            showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
-          />
-        }
+        lenses={studioLenses}
+        quickAdd={view === "table" ? null : quickAddNode}
         body={
           <>
             <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
@@ -697,6 +716,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
                     sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
                     total={base.length}
                     studioPulse={pulse}
+                    studioStars={stars}
+                    studioLead={quickAddNode}
                   />
                 )}
               </SelectionProvider>

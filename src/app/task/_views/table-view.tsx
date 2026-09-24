@@ -30,6 +30,8 @@ import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { cn } from "@/lib/cn";
 import { useStudioPick } from "@/components/studio/tasks/pick";
+import { StudioStatusCell, StudioFaces, StudioStar } from "@/components/studio/tasks/cells";
+import { ago } from "@/components/studio/tasks/task-words";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -77,10 +79,14 @@ function groupLabelFor(r: TaskRow, by: GroupBy): string {
 }
 
 export function TableView({
-  rows, hideCompany = false, groupBy = null, filters, sortHrefs, sortedBy, total, studioPulse,
+  rows, hideCompany = false, groupBy = null, filters, sortHrefs, sortedBy, total, studioPulse, studioStars, studioLead,
 }: {
   /** Studio only: updates per day over the last 7 days, oldest first, by code. */
   studioPulse?: Record<string, number[]>;
+  /** Studio ☆ — the task ids the owner has starred. */
+  studioStars?: Set<number>;
+  /** Studio — the quick-add line, drawn as the list's first row. */
+  studioLead?: React.ReactNode;
   rows: TaskRow[];
   hideCompany?: boolean;
   groupBy?: GroupBy;
@@ -216,19 +222,17 @@ export function TableView({
       ),
     },
     {
-      key: "status", label: "Status", width: "150px", ...sortProps("status"),
+      key: "status", label: "Status", width: "128px", ...sortProps("status"),
       csv: (r) => r.status,
-      render: (r) => <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-xs" /></Stop>,
+      render: (r) => <StudioStatusCell code={r.code} status={r.status} />,
     },
     {
-      key: "assignees", label: "Who", width: "96px", ...sortProps("assignees"),
+      key: "assignees", label: "Who", width: "84px", ...sortProps("assignees"),
       csv: (r) => r.assignees.join(", "),
-      render: (r) => r.assignees.length > 0
-        ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
-        : <span className="text-xs text-[var(--st-muted)]">—</span>,
+      render: (r) => <StudioFaces names={r.assignees} />,
     },
     {
-      key: "pulse", label: "Last 7 days", width: "76px", hideBelow: "lg",
+      key: "pulse", label: "Last 7 days", width: "64px", hideBelow: "lg",
       csv: (r) => (studioPulse?.[r.code] ?? []).reduce((a, b) => a + b, 0),
       render: (r) => {
         const days = studioPulse?.[r.code] ?? [0, 0, 0, 0, 0, 0, 0];
@@ -237,7 +241,7 @@ export function TableView({
         return (
           <span className="flex h-5 items-end gap-[3px]" title={`${n} day${n === 1 ? "" : "s"} with an update in the last week`}>
             {days.map((v, i) => (
-              <span key={i} className="w-1.5 rounded-sm" style={{ height: v ? Math.min(18, 8 + v * 5) : 6, background: v ? tone : "var(--st-line)" }} />
+              <span key={i} className="w-1.5 rounded-sm" style={{ height: v ? 18 : 6, background: v ? tone : "var(--st-seg)" }} />
             ))}
           </span>
         );
@@ -246,12 +250,26 @@ export function TableView({
     {
       key: "latest", label: "Latest update", width: "minmax(0,1.6fr)", hideBelow: "md",
       csv: (r) => r.latestActivity?.body ?? "",
-      render: (r) => <TaskUpdateLine task={r} onOpenConversation={() => pick?.setCode(r.code)} />,
+      render: (r) => {
+        const a = r.latestActivity;
+        if (!a) return <span className="text-[13px] text-[#A3A6AB]">No updates yet</span>;
+        return (
+          <div className="min-w-0 leading-[1.35]">
+            <div className="truncate text-[13px] text-[var(--st-sub)]">{a.body}</div>
+            <div className="mt-0.5 truncate text-[11px] text-[#A3A6AB]">{a.author} · {ago(a.atISO)}</div>
+          </div>
+        );
+      },
     },
     {
-      key: "deadline", label: "Deadline", width: "120px", ...sortProps("deadline"),
+      key: "deadline", label: "Deadline", width: "96px", ...sortProps("deadline"),
       csv: (r) => (r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : ""),
-      render: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>,
+      render: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} studio /></Stop>,
+    },
+    {
+      key: "star", label: "", width: "28px",
+      csv: (r) => (studioStars?.has(r.id) ? "★" : ""),
+      render: (r) => <StudioStar taskId={r.id} starred={!!studioStars?.has(r.id)} />,
     },
   ];
 
@@ -309,7 +327,10 @@ export function TableView({
           groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
           subRowAlways
           selectionSlot={(r) => <SelectCheckbox code={r.code} />}
-          rowActions={(r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}
+          lead={studio ? studioLead : undefined}
+          /* Studio has no hover icons on a row — the update card beside the list
+             carries Complete / Escalate / Remind for the picked task. */
+          rowActions={studio ? undefined : (r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}
           /* Stage 3: the columns, their order, widths, labels and sortability
              come from ENTITY_VIEWS.task in lib/entity-view.ts. Only the three
              genuinely INTERACTIVE cells are overridden here — metadata cannot

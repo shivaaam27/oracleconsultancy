@@ -31,7 +31,7 @@ export type FilterChip = {
   count: number;
   href: string;
   active: boolean;
-  tone?: "danger" | "warn" | "info" | "default";
+  tone?: "danger" | "warn" | "info" | "success" | "default";
 };
 
 export type FilterOption = { key: string; label: string; count?: number; href: string; active: boolean };
@@ -267,6 +267,11 @@ function FilterSheet({
 }
 
 const CHIP_TONE: Record<NonNullable<FilterChip["tone"]>, { off: string; on: string }> = {
+  // Only the Studio bar uses "success" ("On track"); the old bar never sees it.
+  success: {
+    off: "bg-success-soft/50 text-success ring-success/25 hover:ring-success/45",
+    on: "bg-success text-white ring-success font-semibold",
+  },
   danger: {
     off: "bg-danger-soft/50 text-danger ring-danger/25 hover:ring-danger/45",
     on: "bg-danger text-white ring-danger font-semibold",

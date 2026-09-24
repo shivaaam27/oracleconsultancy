@@ -10,6 +10,7 @@ import { bustTag } from "@/lib/cache-bust";
 import { redirect } from "next/navigation";
 import { BACK_PARAM, safeReturn, withReturn } from "@/lib/return-to";
 import { sb } from "@/db/supabase";
+import { isAdminSession } from "@/lib/admin-auth";
 import { logChangeSb } from "@/lib/db-helpers";
 import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
@@ -736,6 +737,9 @@ export async function deleteTaskUpdate(
  *  keeps the original text and audits the change; `deleteTaskUpdate` is a soft
  *  delete that `restoreTaskUpdate` can undo. Field names match PortalConversation. */
 export async function adminEditUpdate(formData: FormData): Promise<void> {
+  // A server action is reachable by POST from any page that imports it, so the
+  // administrator gate is checked here, not assumed from the proxy.
+  if (!(await isAdminSession())) throw new Error("Sign in as the administrator first.");
   const updateId = Number(formData.get("updateId"));
   const body = String(formData.get("body") ?? "");
   if (!Number.isFinite(updateId) || updateId <= 0) return;
@@ -744,6 +748,7 @@ export async function adminEditUpdate(formData: FormData): Promise<void> {
 }
 
 export async function adminDeleteUpdate(formData: FormData): Promise<void> {
+  if (!(await isAdminSession())) throw new Error("Sign in as the administrator first.");
   const updateId = Number(formData.get("updateId"));
   if (!Number.isFinite(updateId) || updateId <= 0) return;
   const res = await deleteTaskUpdate(updateId, "Taken down by the administrator", "web-ui");
@@ -1231,4 +1236,20 @@ export async function toggleMyPartDone(taskId: number, personId: number, done: b
   await postTaskUpdate(taskId, done ? `✓ ${p?.name ?? "Someone"} marked their part done` : `↺ ${p?.name ?? "Someone"} reopened their part`, by);
   revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
   return { ok: true as const };
+}
+
+/** Studio ☆ — star a task to the top of the owner's list (or let it go).
+ *  One settings row, no schema: stars are the owner's own bookmarks, not a
+ *  fact about the task, so staff never see them. */
+export async function toggleTaskStar(taskId: number): Promise<{ ok: boolean; starred: boolean }> {
+  if (!(await isAdminSession())) return { ok: false, starred: false };
+  if (!Number.isInteger(taskId) || taskId <= 0) return { ok: false, starred: false };
+  const { data } = await sb.from("settings").select("value").eq("key", "ui.starredTasks").maybeSingle();
+  const ids = new Set(String(data?.value ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
+  const starred = !ids.has(taskId);
+  if (starred) ids.add(taskId); else ids.delete(taskId);
+  const { error } = await sb.from("settings").upsert({ key: "ui.starredTasks", value: [...ids].join(",") }, { onConflict: "key" });
+  if (error) return { ok: false, starred: !starred };
+  revalidatePath("/");
+  return { ok: true, starred };
 }

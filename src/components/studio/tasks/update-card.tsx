@@ -69,7 +69,7 @@ function Idle({ fresh, unreadCount, postedToday, onPick }: { fresh: TaskRow[]; u
         <div>
           <div className="text-[76px] leading-[0.85] tracking-[-0.045em] tabular-nums">{unreadCount}</div>
           <div className="mt-2.5 text-[13px] text-[#C9CBCF]">unread {unreadCount === 1 ? "update" : "updates"}</div>
-          <div className="text-xs text-[var(--st-muted)]">{postedToday} {postedToday === 1 ? "task" : "tasks"} updated today</div>
+          <div className="mt-0.5 text-xs text-[var(--st-muted)]">{postedToday === 0 ? "No task updated yet today" : `${postedToday} ${postedToday === 1 ? "task" : "tasks"} updated today`}</div>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           {fresh.length === 0 && <div className="text-[13px] text-[var(--st-muted)]">No updates yet on the open tasks.</div>}

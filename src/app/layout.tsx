@@ -36,6 +36,8 @@ import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { StudioShellServer } from "@/components/studio/shell-server";
 import { appBaseUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
@@ -79,13 +81,15 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
-  const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
+  const { operatorName, voiceLanguage, commandCentrePaused, studioPages } = await getAppSettings();
+  // Studio Phase 2: the footer navigator replaces the sidebar AND the pill.
+  const studioShell = isStudioOn(studioPages, "nav");
   // The rail's width, from its cookie, so <main>'s gutter is correct in the FIRST
   // paint. Without this the gutter arrived an effect late and content began life
   // underneath the rail — see the note in `portal-sidebar.tsx`.
   const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
   return (
-    <html lang="en-GB" className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html lang="en-GB" className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />
@@ -102,8 +106,11 @@ export default async function RootLayout({ children, modal }: { children: React.
           portal: `main` went 1009 → 1024 → 1009 on a single click. The sidebar
           is `fixed`, so it alone stayed still — which is exactly why it read as
           "the sidebar is moving". It was everything else.
-          ⚠️ **`body`, NOT `html`** — measured: with the gutter on `html` the jump
-          survives (998 → 1014), because the body is the scroll container here.
+          ⚠️ **ON BOTH `html` AND `body`.** It used to be body only, because
+          `overflow-x: hidden` made body a scroll box. Since Studio Phase 1 that
+          is `overflow-x: clip` (so sticky works), body is no longer a scroll
+          box, and the VIEWPORT scrolls — whose gutter is set on `html`. The body
+          one is kept for any browser that ignores `clip` and falls back.
           ⚠️ **INLINE, not `globals.css`** — Tailwind v4's Lightning CSS strips
           `scrollbar-gutter` out of the stylesheet entirely; the `.note-scroller`
           rule was lost the same way and is set inline for the same reason. */}
@@ -130,11 +137,13 @@ export default async function RootLayout({ children, modal }: { children: React.
                     grey down each side of a wide monitor. 1600px is the stop, so
                     a 27" display doesn't stretch rows to absurdity. Records cap
                     themselves narrower for readability — see RecordPage. */}
-                <HideOnPortal>
-                  <Suspense>
-                    <DeskSidebar initialCollapsed={railCollapsed} />
-                  </Suspense>
-                </HideOnPortal>
+                {!studioShell && (
+                  <HideOnPortal>
+                    <Suspense>
+                      <DeskSidebar initialCollapsed={railCollapsed} />
+                    </Suspense>
+                  </HideOnPortal>
+                )}
                 <main
                   style={{ "--desk-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
                   className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12"
@@ -151,7 +160,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                 {modal}
                 <HideOnPortal>
                   <Suspense>
-                    <TopPillServer />
+                    {studioShell ? <StudioShellServer /> : <TopPillServer />}
                   </Suspense>
                 </HideOnPortal>
               </ContextActionsProvider>

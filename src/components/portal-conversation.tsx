@@ -64,7 +64,19 @@ type Props = {
   /** Fired after an add/pin action resolves — the admin drawer uses it to refetch
    *  exactly on completion instead of guessing with a fixed timer. */
   onPosted?: () => void;
+  /** "studio" = the Studio record (design/studio-mockup, Expanded board): chat
+   *  bubbles in time order, the writing box at the FOOT with starter phrases.
+   *  Same actions, same capabilities — only the layout differs. The staff
+   *  portal never passes it, so it is untouched. */
+  variant?: "studio";
 };
+
+const STARTERS: [string, string][] = [
+  ["Still on it", "Still on it — "],
+  ["Waiting on", "Waiting on "],
+  ["Done, ready to close", "Done, ready to close. "],
+  ["Need your decision on", "Need your decision on "],
+];
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -85,6 +97,7 @@ export function PortalConversation(props: Props) {
   const {
     taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
     addAction, pinAction, ackAction, editAction, deleteAction, canPin, canAck, canModerate, composerHint, onPosted,
+    variant,
   } = props;
   // Which message is being edited / confirming deletion (moderation controls).
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -304,6 +317,201 @@ export function PortalConversation(props: Props) {
       {m.pinned && <AckRow m={m} />}
     </div>
   );
+
+  /* ───────────── Studio: bubbles, oldest first, writing box at the foot ───── */
+  if (variant === "studio") {
+    const chrono = [...groups].reverse().map((g) => ({ label: g.label, items: [...g.items].reverse() }));
+    const older = chrono.length > 3 ? chrono.slice(0, chrono.length - 3) : [];
+    const recent = chrono.slice(older.length);
+    const link = "text-[11px] text-[var(--st-muted)] transition-colors hover:text-[var(--st-ink)]";
+    const StudioBubble = ({ m }: { m: ConvoMessage }) => {
+      const mine = m.me || m.management;
+      return (
+        <div className={`group flex flex-col ${mine ? "items-end" : "items-start"}`}>
+          <div className="mb-1 px-1 text-[11px] text-[var(--st-muted)]">{mine && m.me ? "You" : m.authorName} · {time(m.at)}</div>
+          <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${mine ? "rounded-br-md bg-[#111214] text-white" : "rounded-bl-md bg-[var(--st-page)] text-[var(--st-ink)]"}`}>
+            {m.parent && (
+              <div className={`mb-1.5 border-l-2 pl-2 text-[11px] ${mine ? "border-white/30 text-white/70" : "border-[var(--st-line)] text-[var(--st-muted)]"}`}>
+                ↪ {m.parent.authorName}: {m.parent.snippet}{m.parent.snippet.length >= 80 ? "…" : ""}
+              </div>
+            )}
+            {editingId === m.id && editAction ? (
+              <form action={editAction} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="flex min-w-[240px] flex-col gap-2">
+                <input type="hidden" name="updateId" value={m.id} />
+                <input type="hidden" name="code" value={code} />
+                <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-lg bg-white px-2.5 py-1.5 text-[13px] text-[#111214] outline-none" />
+                <div className="flex items-center gap-2">
+                  <button type="submit" className="inline-flex h-7 items-center gap-1 rounded-md bg-white px-2.5 text-xs font-semibold text-[#111214]"><Check size={12} /> Save</button>
+                  <button type="button" onClick={() => setEditingId(null)} className="text-xs opacity-80">Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <p className="whitespace-pre-wrap break-words">
+                {segmentMentions(m.body, team).map((seg, i) =>
+                  seg.mention ? <span key={i} className="font-semibold underline decoration-dotted underline-offset-2">{seg.text}</span> : <span key={i}>{seg.text}</span>,
+                )}
+              </p>
+            )}
+            {m.attachment && (
+              <a href={`/api/portal/attachment?updateId=${m.id}`} target="_blank" rel="noreferrer" className={`mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs ${mine ? "bg-white/10" : "bg-[var(--st-surface)]"}`}>
+                <Paperclip size={12} /><span className="max-w-[14rem] truncate">{m.attachment.name}</span>
+              </a>
+            )}
+          </div>
+          {deletingId === m.id && deleteAction ? (
+            <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-1 flex items-center gap-2 px-1 text-[11px]">
+              <input type="hidden" name="updateId" value={m.id} />
+              <input type="hidden" name="code" value={code} />
+              <span className="text-[var(--st-muted)]">Take this update down? It can be restored.</span>
+              <button type="submit" className="font-semibold text-[var(--st-late-text)]">Take down</button>
+              <button type="button" onClick={() => setDeletingId(null)} className="text-[var(--st-muted)]">Keep</button>
+            </form>
+          ) : (
+            <div className="mt-1 flex items-center gap-2.5 px-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+              {!closed && <button type="button" onClick={() => startReply(m)} className={link}>Reply</button>}
+              {canPin && (
+                <form action={runPin}>
+                  <input type="hidden" name="updateId" value={m.id} />
+                  <input type="hidden" name="code" value={code} />
+                  <button type="submit" className={link}>{m.pinned ? "Unpin" : "Pin as instruction"}</button>
+                </form>
+              )}
+              {!closed && editAction && (m.me || canModerate) && (
+                <button type="button" onClick={() => { setEditingId(m.id); setDeletingId(null); }} className={link}>Correct</button>
+              )}
+              {!closed && deleteAction && (m.me || canModerate) && (
+                <button type="button" onClick={() => { setDeletingId(m.id); setEditingId(null); }} className={link}>Take down</button>
+              )}
+            </div>
+          )}
+          {latestId === m.id && (
+            <div className="mt-0.5 px-1 text-[11px] text-[var(--st-muted)]">
+              {seenLabel.length > 0 ? <>Seen by {seenLabel.join(", ")}</> : "Not yet seen"}
+            </div>
+          )}
+          {m.pinned && canAck && <AckRow m={m} />}
+        </div>
+      );
+    };
+    const StudioEvent = ({ e }: { e: ConvoEvent }) => (
+      <div className="py-0.5 text-center text-[11px] text-[var(--st-muted)]">{e.text} · {time(e.at)}</div>
+    );
+    const item = (it: Item) => (it.kind === "msg" ? <StudioBubble key={`m${it.m.id}`} m={it.m} /> : <StudioEvent key={it.e.id} e={it.e} />);
+    const day = (label: string) => <div className="pt-1 text-center text-[11px] uppercase tracking-[0.08em] text-[var(--st-muted)]">{label}</div>;
+
+    return (
+      <div className="flex flex-col gap-4">
+        {pinned.map((m) => (
+          <div key={m.id} className="rounded-xl bg-[var(--st-page)] px-3.5 py-3">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]">
+              <Pin size={12} /> Current instruction
+              <span className="grow" />
+              {canPin && (
+                <form action={runPin}>
+                  <input type="hidden" name="updateId" value={m.id} />
+                  <input type="hidden" name="code" value={code} />
+                  <button type="submit" title="Unpin" className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><PinOff size={13} /></button>
+                </form>
+              )}
+            </div>
+            <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed">{m.body}</p>
+            <p className="mt-0.5 text-xs text-[var(--st-muted)]">— {m.authorName}, {time(m.at)}</p>
+          </div>
+        ))}
+
+        <section className="flex min-h-[200px] flex-col gap-2.5">
+          {older.length > 0 && (
+            <details>
+              <summary className="cursor-pointer list-none py-1 text-center text-[11px] text-[var(--st-muted)] hover:text-[var(--st-ink)]">
+                Show {older.reduce((n, g) => n + g.items.length, 0)} earlier item{older.reduce((n, g) => n + g.items.length, 0) === 1 ? "" : "s"}
+              </summary>
+              <div className="mt-2 flex flex-col gap-2.5">
+                {older.map((g) => <div key={g.label} className="flex flex-col gap-2.5">{day(g.label)}{g.items.map(item)}</div>)}
+              </div>
+            </details>
+          )}
+          {recent.map((g) => <div key={g.label} className="flex flex-col gap-2.5">{day(g.label)}{g.items.map(item)}</div>)}
+          {groups.length === 0 && pinned.length === 0 && (
+            <p className="py-8 text-center text-[13px] text-[var(--st-muted)]">No updates yet — the first one you post tells everyone on the task.</p>
+          )}
+        </section>
+
+        {!closed && (
+          <div className="flex flex-col gap-2 border-t border-[var(--st-line-soft)] pt-3">
+            <div className="flex flex-wrap gap-1.5">
+              {STARTERS.map(([label, text]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => { const el = taRef.current; if (!el) return; el.value = text; el.focus(); el.setSelectionRange(text.length, text.length); }}
+                  className="h-7 rounded-lg border border-[var(--st-line)] px-2.5 text-xs text-[var(--st-sub)] transition-colors hover:bg-[var(--st-page)]"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {replyTo && (
+              <div className="flex items-center gap-2 rounded-lg bg-[var(--st-page)] px-2.5 py-1.5 text-xs">
+                <CornerUpLeft size={12} />
+                <span className="min-w-0 truncate text-[var(--st-sub)]">Replying to <b className="font-medium text-[var(--st-ink)]">{replyTo.author}</b>: {replyTo.snippet}…</span>
+                <span className="grow" />
+                <button type="button" onClick={() => setReplyTo(null)} aria-label="Stop replying"><X size={13} /></button>
+              </div>
+            )}
+            <form action={runAdd} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); if (taRef.current) taRef.current.value = ""; }, 0)} className="flex flex-col gap-2">
+              <input type="hidden" name="taskId" value={taskId} />
+              <input type="hidden" name="code" value={code} />
+              <input type="hidden" name="parentUpdateId" value={replyTo?.id ?? ""} />
+              <input ref={fileRef} type="file" name="attachment" className="hidden" onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)} />
+              <div className="relative">
+                <textarea
+                  ref={taRef}
+                  name="body"
+                  required={!fileName}
+                  rows={2}
+                  onChange={onComposerChange}
+                  onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
+                  placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention someone"}
+                  className="bare-field w-full resize-y rounded-xl border border-[var(--st-line)] bg-[var(--st-page)] px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[var(--st-muted)] focus:border-[var(--st-muted)]"
+                />
+                {mentionMatches.length > 0 && (
+                  <div className="absolute bottom-full left-2 z-10 mb-1 w-56 overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
+                    {mentionMatches.map((m) => (
+                      <button key={m.id} type="button" onMouseDown={(e) => { e.preventDefault(); pickMention(m.name); }} className="flex w-full items-center px-3 py-2 text-left text-[13px] hover:bg-[var(--st-page)]">{m.name}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {fileName && (
+                <div className="flex items-center gap-2 rounded-lg bg-[var(--st-page)] px-2.5 py-1.5 text-xs">
+                  <Paperclip size={12} /><span className="max-w-[16rem] truncate font-medium">{fileName}</span>
+                  <span className="grow" />
+                  <button type="button" onClick={clearFile} aria-label="Remove the file"><X size={13} /></button>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => fileRef.current?.click()} title="Attach a file or photo" aria-label="Attach a file" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--st-line)] text-[var(--st-sub)] hover:text-[var(--st-ink)]">
+                  <Paperclip size={14} />
+                </button>
+                <VoiceButton onResult={appendDictation} title="Speak your update" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--st-line)] text-[var(--st-sub)] hover:text-[var(--st-ink)]" />
+                <label className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]">
+                  Status
+                  <Select name="newStatus" defaultValue="" className="text-xs">
+                    <option value="">No change</option>
+                    {statusOptions.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </Select>
+                </label>
+                <span className="grow" />
+                <button type="submit" className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#111214] px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90">
+                  {replyTo ? "Reply" : "Post update"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

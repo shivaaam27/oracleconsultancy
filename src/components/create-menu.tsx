@@ -39,7 +39,12 @@ const ICONS: Record<string, LucideIcon> = {
   announcement: Megaphone,
 };
 
-export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
+export function CreateMenu({ collapsed = false, variant = "rail" }: {
+  collapsed?: boolean;
+  /** "footer" = the Studio footer's light button, opening UPWARDS. */
+  variant?: "rail" | "footer";
+}) {
+  const footer = variant === "footer";
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const { actions } = useRegisteredActions();
@@ -68,7 +73,10 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
     };
   }, [open]);
 
-  const skin = "inline-flex items-center gap-2 bg-accent px-2.5 py-1.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90";
+  const skin = footer
+    ? "inline-flex h-9 items-center gap-2 bg-[#F2F2F0] px-3.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90"
+    : "inline-flex items-center gap-2 bg-accent px-2.5 py-1.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90";
+  const round = footer ? ["rounded-l-[10px]", "rounded-r-[10px] border-l border-black/10 px-2"] : ["rounded-l-lg", "rounded-r-lg border-l border-accent-fg/20 px-1.5"];
 
   return (
     <div ref={wrap} className="relative">
@@ -88,12 +96,12 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
       ) : (
         <div className="flex">
           {primary.href ? (
-            <Link href={primary.href} className={cn(skin, "min-w-0 flex-1 rounded-l-lg")}>
+            <Link href={primary.href} className={cn(skin, "min-w-0 flex-1", round[0])}>
               <Plus size={14} className="shrink-0" />
               <span className="truncate">{primary.label}</span>
             </Link>
           ) : (
-            <button type="button" onClick={primary.onClick} className={cn(skin, "min-w-0 flex-1 rounded-l-lg")}>
+            <button type="button" onClick={primary.onClick} className={cn(skin, "min-w-0 flex-1", round[0])}>
               <Plus size={14} className="shrink-0" />
               <span className="truncate">{primary.label}</span>
             </button>
@@ -105,7 +113,7 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
             aria-label="Create something else"
             aria-haspopup="menu"
             aria-expanded={open}
-            className={cn(skin, "rounded-r-lg border-l border-accent-fg/20 px-1.5")}
+            className={cn(skin, round[1])}
           >
             <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
           </button>
@@ -115,7 +123,7 @@ export function CreateMenu({ collapsed = false }: { collapsed?: boolean }) {
       {open && (
         <div
           role="menu"
-          className="glass-menu absolute left-0 z-50 mt-1 min-w-[186px] rounded-md p-1"
+          className={cn("glass-menu absolute z-50 min-w-[186px] rounded-md p-1", footer ? "bottom-full right-0 mb-2" : "left-0 mt-1")}
         >
           <p className="px-2 py-1 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
             Create

@@ -75,10 +75,10 @@ export function StudioBlocker({
   if (closed) return <div className="text-xs text-[var(--st-muted)]">Not waiting on anyone.</div>;
   if (!open) {
     return (
-      <div className="space-y-2">
-        <div className="text-xs leading-relaxed text-[var(--st-muted)]">Nobody. If it is stuck on someone, say who — overdue pauses until it is cleared.</div>
-        <button type="button" onClick={() => setOpen(true)} className={cn(stBtn.ghost, "h-8 text-xs")}>Mark as waiting on someone</button>
-      </div>
+      <button type="button" onClick={() => setOpen(true)} title="Overdue pauses until it is cleared" className="-mx-1.5 block rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-[var(--st-page)]">
+        <span className="block text-[13px] text-[var(--st-muted)]">Nobody</span>
+        <span className="block text-[11px] text-[var(--st-muted)]">Set who or what it is blocked on</span>
+      </button>
     );
   }
   return (

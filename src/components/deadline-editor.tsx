@@ -38,7 +38,11 @@ export function DeadlineEditor({
   deadline,
   daysToDeadline,
   className,
+  studio = false,
 }: {
+  /** Studio list: plain coloured words ("2d late", "Sat 26 Sept"), no icon.
+   *  "dark" = the record's band chip ("22 Sept · 2 days late"). */
+  studio?: boolean | "dark" | "date";
   code: string;
   deadline: Date | null;
   daysToDeadline: number | "done" | null;
@@ -115,6 +119,45 @@ export function DeadlineEditor({
 
   return (
     <>
+      {studio === "dark" ? (
+        <button
+          ref={btnRef}
+          type="button"
+          title="Change the deadline"
+          onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+          className={cn(
+            "inline-flex h-7 items-center whitespace-nowrap rounded-lg bg-[#1F2023] px-2.5 text-xs transition-colors hover:bg-[#2A2C30]",
+            overdue ? "text-[#F07BBE]" : soon ? "text-[#F5B94E]" : deadline ? "text-[#F2F2F0]" : "text-[#A3A6AB]",
+            className,
+          )}
+        >
+          {deadline
+            ? `${deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}${overdue ? ` · ${Math.abs(daysToDeadline as number)} ${Math.abs(daysToDeadline as number) === 1 ? "day" : "days"} late` : daysToDeadline === 0 ? " · today" : ""}`
+            : "No deadline"}
+        </button>
+      ) : studio ? (
+        <button
+          ref={btnRef}
+          type="button"
+          title="Change the deadline"
+          onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+          className={cn(
+            "-mx-1 whitespace-nowrap rounded-md px-1 text-[13px] transition-colors hover:bg-[var(--st-page)]",
+            overdue ? "font-semibold text-[var(--st-late-text)]" : soon ? "text-[var(--st-soon-text)]" : deadline ? "text-[var(--st-ink)]" : "text-[#A3A6AB]",
+            className,
+          )}
+        >
+          {studio === "date" && deadline
+            ? deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+            : overdue
+            ? `${Math.abs(daysToDeadline as number)}d late`
+            : daysToDeadline === 0
+              ? "Today"
+              : deadline
+                ? deadline.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")
+                : "No date"}
+        </button>
+      ) : (
       <button
         ref={btnRef}
         type="button"
@@ -126,6 +169,7 @@ export function DeadlineEditor({
         {soon && typeof daysToDeadline === "number" && <span>· {daysToDeadline}d</span>}
         {daysToDeadline === "done" && <Check size={11} />}
       </button>
+      )}
 
       {open && typeof document !== "undefined" && createPortal(
         <div

@@ -6,20 +6,21 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
+import { Home, ListChecks, type LucideIcon } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
-export type StudioStop = { id: string; label: string; href: string; group: string };
+export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
 
 export function studioStops(): StudioStop[] {
   const m = MODULE_BY_ID.tasks!;
   const stops: StudioStop[] = [
-    { id: "home", label: "Home", href: "/", group: "Work" },
-    { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work" },
+    { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
+    { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
   ];
   for (const g of moduleOwnGroups(m)) {
-    for (const r of g.items) stops.push({ id: r.id, label: r.label, href: r.href, group: g.label });
+    for (const r of g.items) stops.push({ id: r.id, label: r.label, href: r.href, group: g.label, icon: r.icon });
   }
-  for (const r of systemItems()) stops.push({ id: r.id, label: r.label, href: r.href, group: "System" });
+  for (const r of systemItems()) stops.push({ id: r.id, label: r.label, href: r.href, group: "System", icon: r.icon });
   return stops;
 }
 

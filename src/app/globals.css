@@ -1671,3 +1671,75 @@ section[data-page-header],
 .st-draw { animation: st-draw 900ms cubic-bezier(.2,.8,.2,1) both; }
 @media (prefers-reduced-motion: reduce) { .st-pop, .st-rise, .st-draw { animation: none; } }
 :root[data-motion="reduced"] .st-pop, :root[data-motion="reduced"] .st-rise, :root[data-motion="reduced"] .st-draw { animation: none; }
+
+/* ---------- Studio Phase 2: the frame and the footer ----------
+   When the "Footer navigation" switch is on, the layout renders StudioShell
+   instead of the desk sidebar and the floating pill. Everything below keys off
+   the frame element being IN THE PAGE (`body:has([data-studio-frame])`), so the
+   staff portal and the sign-in screens — where HideOnPortal drops the shell —
+   are untouched even though they share this layout.
+   ⚠️ The document still scrolls; the rounded panel is painted by the frame's
+   box-shadow (see studio/shell.tsx for why). */
+:root { --page-foot: 0px; --page-top: 0px; }
+html body:has([data-studio-frame]) {
+  --page-foot: calc(64px + env(safe-area-inset-bottom));
+  background: #F3F3F1;
+}
+html.dark body:has([data-studio-frame]) { background: #121315; }
+html body:has([data-studio-frame]) main {
+  --desk-sidebar: 0px;
+  padding: 28px 20px calc(64px + 96px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  html body:has([data-studio-frame]) { --page-top: 12px; }
+  html body:has([data-studio-frame]) main { padding: 40px 40px calc(64px + 96px + env(safe-area-inset-bottom)); }
+}
+.studio-frame {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  inset: 0 0 calc(64px + env(safe-area-inset-bottom)) 0;
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 0 0 100vmax #0E0F10;
+}
+@media (min-width: 640px) {
+  .studio-frame {
+    inset: 12px 12px calc(64px + env(safe-area-inset-bottom)) 12px;
+    border-radius: 20px;
+  }
+}
+html.dark .studio-frame { box-shadow: 0 0 0 100vmax #050506; }
+html.dark [data-studio-foot] { background: #050506; }
+/* Sticky bars clear the frame's top edge and the footer. */
+html body:has([data-studio-frame]) [data-sticky-top] { top: calc(var(--page-top) + 8px); }
+html body:has([data-studio-frame]) [data-sticky-foot],
+html body:has([data-studio-frame]) [data-savebar] { bottom: calc(var(--page-foot) + 12px); }
+
+/* Studio lists — the mockup's rhythm: 12px rows, quiet sentence-case column names. */
+.studio [data-list-row],
+:root[data-density="compact"] .studio [data-list-row] { padding-top: 12px; padding-bottom: 12px; }
+.studio [data-list-head] { font-size: 12px; text-transform: none; letter-spacing: 0; color: #6E7177; padding-top: 0; }
+.dark .studio [data-list-head] { color: #8E9197; }
+/* The tick-box lives in the row's left margin: shown on hover, when ticked, or
+   whenever anything in the list is ticked (so a bulk pick stays visible). */
+.studio [data-st-tick] { opacity: 0; transition: opacity 120ms; }
+.studio [data-list-row]:hover [data-st-tick],
+.studio [data-st-tick]:has([aria-pressed="true"]),
+.studio [data-st-tick]:focus-within,
+.studio ul:has([data-st-tick] [aria-pressed="true"]) [data-st-tick] { opacity: 1; }
+
+/* Studio keeps its circles. Desk squares every `rounded-full` (see "Square
+   corners"); the Studio mockup's faces, dots and badges are round, and a
+   switched-on page must look like the mockup. Scoped, so Desk is unchanged. */
+.studio .rounded-full,
+[data-studio-foot] .rounded-full { border-radius: 9999px; }
+
+/* Studio's type scale is the mockup's (12 / 13 / 14px), whatever the Desk
+   density — Compact shrinks Desk's text-xs to 10.5px, which on a Studio card
+   made the task names smaller than the mockup draws them. */
+.studio,
+:root[data-density="compact"] .studio {
+  --text-xs: 12px;   --text-xs--line-height: 1.35;
+  --text-sm: 13px;   --text-sm--line-height: 1.4;
+  --text-base: 14px; --text-base--line-height: 1.5;
+}

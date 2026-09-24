@@ -8,11 +8,11 @@
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Archive, Sparkles, Repeat, CheckSquare, LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
+import { Archive, Sparkles, CheckSquare, LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
 import type { RecordFilter } from "@/components/record-list";
-import { StudioScope, StudioHeader, stBtn } from "@/components/studio/kit";
+import { StudioScope, StudioHeader } from "@/components/studio/kit";
 import { StudioPickProvider } from "./pick";
 import { InsightsCard, type InsightsData } from "./insights-card";
 import { UpdateCard } from "./update-card";
@@ -70,9 +70,6 @@ export function StudioTasks(p: StudioTasksProps) {
           }
           right={
             <>
-              <Link href="/task/recurring" className={cn(stBtn.ghost, "h-9")} title="Every standing repeat rule">
-                <Repeat size={14} />{p.recurringCount} recurring
-              </Link>
               <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
                 {VIEW_MODES.map((m) => {
                   const Icon = VIEW_ICON[m];
@@ -114,7 +111,12 @@ export function StudioTasks(p: StudioTasksProps) {
         {p.quickAdd}
         {p.body}
 
-        <StudioSearchBar q={p.q} searchHrefBase={p.searchHrefBase} lenses={p.lenses} />
+        <StudioSearchBar
+          q={p.q}
+          searchHrefBase={p.searchHrefBase}
+          lenses={p.lenses}
+          companyMenu={<StudioMenu label="Filter by company" options={p.companyOptions} searchable up plus />}
+        />
       </StudioPickProvider>
     </StudioScope>
   );

@@ -14,6 +14,7 @@ import { spring } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { getInitials as initials, getGivenName } from "@/lib/names";
 import type { QuickTaskCompany } from "./quick-task-popover";
+import { useStudioPick } from "./studio/tasks/pick";
 
 /* ------------------------------------------------------------------ *
  * InlineAddTask — the quick-add row, built for TEN tasks in a row.
@@ -73,6 +74,25 @@ export function InlineAddTask({
   const [fly, setFly] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [added, setAdded] = useState<string[]>([]);
+
+  /* Studio (design/studio-mockup, Main board): the row rests as ONE quiet
+     dashed line — "What needs doing?" — and only opens out into its chips once
+     you are in it. Detected, not passed: only the Studio page has the pick
+     provider, so the old page is untouched. */
+  const studio = !!useStudioPick();
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [engaged, setEngaged] = useState(false);
+  const open = !studio || engaged || action.trim().length > 0 || pasteOpen;
+  useEffect(() => {
+    if (!studio || !engaged) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Element;
+      if (rowRef.current?.contains(t) || t.closest?.("[data-inline-add-pop]")) return;
+      if (!inputRef.current?.value.trim()) setEngaged(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [studio, engaged]);
 
   // Remembered on this device — a convenience, never the truth. A filter's
   // company always wins over what was stored.
@@ -166,14 +186,23 @@ export function InlineAddTask({
   return (
     <div className="space-y-1.5">
       <div
+        ref={rowRef}
+        onFocusCapture={() => studio && setEngaged(true)}
         className={cn(
-          "group/add relative flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border px-3 py-2 transition-colors sm:flex-nowrap",
-          "border-border bg-bg-elev focus-within:border-accent/50",
+          "group/add relative flex flex-wrap items-center gap-x-2 gap-y-1.5 transition-colors sm:flex-nowrap",
+          studio
+            ? cn("min-h-[46px] rounded-[14px] border px-5 py-1.5", open ? "border-[var(--st-line)] bg-[var(--st-surface)]" : "cursor-text border-dashed border-[#CFCFCA] bg-transparent hover:border-[var(--st-muted)]")
+            : "rounded-lg border border-border bg-bg-elev px-3 py-2 focus-within:border-accent/50",
         )}
+        onClick={() => studio && inputRef.current?.focus()}
       >
-        <span className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent sm:grid">
-          <Plus size={14} />
-        </span>
+        {studio ? (
+          <Plus size={14} strokeWidth={2.2} className="shrink-0 text-[var(--st-sub)]" />
+        ) : (
+          <span className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent sm:grid">
+            <Plus size={14} />
+          </span>
+        )}
 
         <div className="relative min-w-[12rem] flex-1 basis-full sm:basis-auto">
           <input
@@ -190,10 +219,18 @@ export function InlineAddTask({
             className="bare-field peer h-8 w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent"
           />
           <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
-            <span className="caret-blink mr-1.5 inline-block h-[1.15em] w-px shrink-0 bg-accent" />
-            <span className="truncate text-sm text-fg-subtle">
-              What needs doing?<span className="hidden md:inline"> · Enter adds it · Shift+Enter opens the form</span>
-            </span>
+            {studio ? (
+              <span className="truncate text-[13px] text-[var(--st-sub)]">
+                What needs doing?<span className="hidden text-[#A3A6AB] md:inline">&nbsp;&nbsp;Enter adds it · Shift+Enter opens the full form · or paste a list</span>
+              </span>
+            ) : (
+              <>
+                <span className="caret-blink mr-1.5 inline-block h-[1.15em] w-px shrink-0 bg-accent" />
+                <span className="truncate text-sm text-fg-subtle">
+                  What needs doing?<span className="hidden md:inline"> · Enter adds it · Shift+Enter opens the form</span>
+                </span>
+              </>
+            )}
           </span>
           <AnimatePresence>
             {fly && (
@@ -212,7 +249,7 @@ export function InlineAddTask({
         </div>
 
         {/* The sticky chips. Each stays as set until you change it. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <div className={cn("shrink-0 flex-wrap items-center gap-1.5", open ? "flex" : "hidden")}>
           <ChipPicker
             label="Company"
             set={!!company}
@@ -308,7 +345,8 @@ export function InlineAddTask({
           onClick={submit}
           disabled={pending}
           className={cn(
-            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
+            "h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
+            open ? "inline-flex" : "hidden",
             action.trim() ? "bg-accent text-accent-fg hover:opacity-90" : "bg-bg-subtle text-fg-subtle",
           )}
         >
@@ -318,7 +356,7 @@ export function InlineAddTask({
         <button
           type="button"
           onClick={() => setPasteOpen(true)}
-          className="hidden h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg sm:inline-flex"
+          className={cn("hidden h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg", open && "sm:inline-flex")}
           title="Paste several tasks, one per line"
         >
           <ClipboardList size={13} /> Paste a list
@@ -326,7 +364,7 @@ export function InlineAddTask({
         <button
           type="button"
           onClick={openForm}
-          className="hidden h-8 shrink-0 items-center gap-0.5 px-1 text-xs text-fg-subtle transition-colors hover:text-accent sm:inline-flex"
+          className={cn("hidden h-8 shrink-0 items-center gap-0.5 px-1 text-xs text-fg-subtle transition-colors hover:text-accent", open && "sm:inline-flex")}
           title="Open the full task form (Shift+Enter)"
         >
           Full form <ArrowRight size={11} />
@@ -448,6 +486,7 @@ function ChipPicker({
               exit={{ opacity: 0, y: -2 }}
               transition={spring}
               style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width, visibility: pos ? "visible" : "hidden" }}
+              data-inline-add-pop
               className="fixed z-[140] rounded-md border border-border bg-bg-elev shadow-lg"
             >
               {children(() => setOpen(false))}

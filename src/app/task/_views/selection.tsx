@@ -239,7 +239,7 @@ export function BulkBar() {
   };
 
   return (
-    <div className="sticky top-2 z-30 mb-2">
+    <div data-sticky-top className="sticky top-2 z-30 mb-2">
       <motion.div
         initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

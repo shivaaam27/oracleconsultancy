@@ -40,7 +40,7 @@ const PRIORITY_OPTIONS: FluidOption[] = [
   { value: "Low", label: "Low", dot: "hsl(var(--fg-subtle))" },
 ];
 
-function useInlineField(code: string, field: "status" | "priority", label: string) {
+export function useInlineField(code: string, field: "status" | "priority", label: string) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();

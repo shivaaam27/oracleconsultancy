@@ -81,7 +81,10 @@ export function NotificationBell({
   to,
   align = "right",
   lanes: showLanes = false,
+  triggerClassName,
 }: {
+  /** Replaces the trigger's look (the Studio footer draws a larger, dark one). */
+  triggerClassName?: string;
   to: "/portal/task" | "/task";
   align?: "left" | "right";
   /** Split into "Needs you" / "Activity". Administrator only — for portal
@@ -278,7 +281,7 @@ export function NotificationBell({
         onClick={toggle}
         aria-label="Notifications"
         title="Notifications"
-        className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors"
+        className={triggerClassName ?? "relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg transition-colors"}
       >
         <Bell size={16} />
         {count > 0 && (

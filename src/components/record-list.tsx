@@ -394,8 +394,8 @@ function useHiddenColumns(listKey?: string, columns?: { key: string; defaultHidd
  * at 100 would be wrong in a way nobody would notice.
  */
 function ExportButton<T>({
-  rows, columns, name,
-}: { rows: T[]; columns: RecordColumn<T>[]; name: string }) {
+  rows, columns, name, compact = false,
+}: { rows: T[]; columns: RecordColumn<T>[]; name: string; compact?: boolean }) {
   return (
     <button
       type="button"
@@ -406,16 +406,19 @@ function ExportButton<T>({
           columns.map((c) => (c.csv ? c.csv(r) : nodeText(c.render(r)))));
         downloadCsv(listFileName(name), toCsv(headers, body));
       }}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"
+      aria-label={compact ? "Export these rows" : undefined}
+      className={compact
+        ? "inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--st-muted)] transition-colors hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]"
+        : "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"}
     >
-      <Download size={12} /> Export
+      <Download size={compact ? 13 : 12} />{compact ? null : " Export"}
     </button>
   );
 }
 
 function ColumnChooser<T>({
-  columns, hidden, onToggle,
-}: { columns: RecordColumn<T>[]; hidden: string[]; onToggle: (k: string) => void }) {
+  columns, hidden, onToggle, compact = false,
+}: { columns: RecordColumn<T>[]; hidden: string[]; onToggle: (k: string) => void; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <span className="relative">
@@ -423,9 +426,12 @@ function ColumnChooser<T>({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Choose columns"
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"
+        aria-label={compact ? "Choose columns" : undefined}
+        className={compact
+          ? "inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--st-muted)] transition-colors hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]"
+          : "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg"}
       >
-        <Columns3 size={12} /> Columns
+        <Columns3 size={compact ? 13 : 12} />{compact ? null : " Columns"}
       </button>
       {open && (
         <>
@@ -585,6 +591,7 @@ export function RecordList<T>({
   className,
   variant = "desk",
   activeKey,
+  lead,
 }: {
   rows: T[];
   columns: RecordColumn<T>[];
@@ -718,6 +725,9 @@ export function RecordList<T>({
   variant?: "desk" | "studio";
   /** Studio: the row the page is showing elsewhere (the update card) — ringed. */
   activeKey?: string | number | null;
+  /** Studio: a row drawn FIRST in the list, under the column names — the
+   *  mockup puts the quick-add line there. */
+  lead?: ReactNode;
 }) {
   const studio = variant === "studio";
   const { hidden, toggle } = useHiddenColumns(listKey, columns);
@@ -786,7 +796,9 @@ export function RecordList<T>({
   ) : undefined);
   // The first column is the record's identity and is never hidden.
   const visibleColumns = columns.filter((c, i) => i === 0 || !hidden.includes(c.key));
-  const gridStyle = gridFor(visibleColumns, !!tick);
+  // Studio draws the tick-box in the row's left margin, not in a column of its
+  // own (the mockup has no tick column) — so no track is reserved for it.
+  const gridStyle = gridFor(visibleColumns, !!tick && !studio);
 
   /* --------------------------------------------- where you were --------- */
   const pathname = usePathname();
@@ -927,7 +939,7 @@ export function RecordList<T>({
         {/* Below md the rail cannot fit beside the table, so it lies on its side
             above it rather than disappearing. */}
         {filters && filters.length > 0 && <FilterStrip filters={filters} always={filterLayout === "strip"} />}
-        {(toolbar || listKey || search) && (
+        {(toolbar || search || (listKey && !studio)) && (
           <div className="flex flex-wrap items-center gap-2">
             {search && (
               <label className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -954,7 +966,7 @@ export function RecordList<T>({
                 breakpoint anyway (see gridFor), so the chooser would offer a
                 choice the layout has already made — and on a phone the two of
                 them wrapped the toolbar onto a third row. */}
-            {listKey && (
+            {listKey && !studio && (
               <span className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">
                 <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} />
                 <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} />
@@ -1018,12 +1030,18 @@ export function RecordList<T>({
               style={gridStyle}
               className={cn(
                 RL_GRID,
-                "grid items-center gap-x-3 text-xs",
-                studio ? "pb-2 text-[var(--st-muted)]" : "border-b border-border bg-bg-subtle",
+                studio ? "grid items-center gap-x-5 text-xs" : "grid items-center gap-x-3 text-xs",
+                studio ? "relative pb-2" : "border-b border-border bg-bg-subtle",
                 RL_PAD,
               )}
             >
-              {tick && (
+              {studio && listKey && (
+                <span className="absolute right-3 top-0 hidden items-center gap-0.5 sm:flex">
+                  <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} compact />
+                  <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} compact />
+                </span>
+              )}
+              {tick && !studio && (
                 <span>
                   {bulkOn && !selectionSlot && (
                     <button type="button" aria-label="Select all"
@@ -1075,6 +1093,7 @@ export function RecordList<T>({
             </div>
           ) : (
             <ul className={studio ? "flex flex-1 flex-col gap-2" : "flex-1 divide-y divide-border"}>
+              {studio && lead && <li>{lead}</li>}
               {paged.map((row, i) => {
                 const key = rowKey(row);
                 const group = groupOf?.(row) ?? null;
@@ -1087,8 +1106,8 @@ export function RecordList<T>({
                      Setting it on the ROW means a cell inherits the right size
                      for free and can never leak the default again. */
                   <div data-list-row className={cn("group/row relative text-sm", RL_PAD)}>
-                    <div style={gridStyle} className={cn(RL_GRID, "grid items-center gap-x-3")}>
-                      {tick && (
+                    <div style={gridStyle} className={cn(RL_GRID, "grid items-center", studio ? "gap-x-5" : "gap-x-3")}>
+                      {tick && !studio && (
                         <span onClick={(e) => e.stopPropagation()}>{tick(row)}</span>
                       )}
                       {visibleColumns.map((c) => (
@@ -1117,10 +1136,13 @@ export function RecordList<T>({
                         in the flow at the end of this line instead; from md up the
                         same element goes absolute and floats as before.
                         ONE element, positioned two ways — never rendered twice. */}
+                    {tick && studio && (
+                      <span data-st-tick onClick={(e) => e.stopPropagation()} className="absolute left-1 top-1/2 -translate-y-1/2">{tick(row)}</span>
+                    )}
                     {(subRow || rowActions) && (
                       <div className="mt-0.5 flex min-w-0 items-center gap-2">
                         {subRow && (
-                          <div data-subrow={subRowAlways ? "always" : "hover"} className={cn("min-w-0 flex-1", tick && "pl-[2.4rem]")}>
+                          <div data-subrow={subRowAlways ? "always" : "hover"} className={cn("min-w-0 flex-1", tick && !studio && "pl-[2.4rem]")}>
                             {subRow(row)}
                           </div>
                         )}
@@ -1175,7 +1197,7 @@ export function RecordList<T>({
                               // A card per row. The ring (not a fill) marks the row
                               // the update card is showing, the keyboard cursor and
                               // the row you just came back from.
-                              "rounded-[14px] border-[1.5px] bg-[var(--st-surface)] py-1.5 transition-[border-color,box-shadow]",
+                              "rounded-[14px] border-[1.5px] bg-[var(--st-surface)] transition-[border-color,box-shadow]",
                               activeKey != null && key === activeKey
                                 ? "border-[var(--st-ink)] shadow-[0_8px_22px_rgba(17,18,20,0.12)]"
                                 : i === cursor

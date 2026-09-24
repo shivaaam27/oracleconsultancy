@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
 import { adminRemindTask } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
@@ -22,7 +22,13 @@ import { cn } from "@/lib/cn";
 /* ------------------------------------------------------------ picker ---- */
 
 /** A chip in the title bar that opens a short list of links ("All companies ▾"). */
-export function StudioMenu({ label, sub, options, searchable = false, width = 280 }: { label: string; sub?: string; options: FilterOption[]; searchable?: boolean; width?: number }) {
+export function StudioMenu({ label, sub, options, searchable = false, width = 280, up = false, plus = false }: {
+  label: string; sub?: string; options: FilterOption[]; searchable?: boolean; width?: number;
+  /** Open ABOVE the trigger — for the search bar at the foot of the screen. */
+  up?: boolean;
+  /** The search bar's soft "Filter by company +" look instead of a chip. */
+  plus?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -37,13 +43,18 @@ export function StudioMenu({ label, sub, options, searchable = false, width = 28
   const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   return (
     <div ref={root} className="relative">
-      <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className={stBtn.chip}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={plus ? "flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-[var(--st-page)] px-3 text-xs transition-colors hover:bg-[var(--st-seg)]" : stBtn.chip}
+      >
         <span className="max-w-[14rem] truncate">{label}</span>
         {sub && <span className="text-[var(--st-muted)]">{sub}</span>}
-        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+        {plus ? <Plus size={12} strokeWidth={2.2} /> : <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />}
       </button>
       {open && (
-        <div className="st-pop absolute left-0 top-[calc(100%+6px)] z-40 overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]" style={{ width }}>
+        <div className={cn("st-pop absolute left-0 z-40", up ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+6px)]", "overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]")} style={{ width }}>
           {searchable && (
             <label className="flex items-center gap-2 border-b border-[var(--st-line-soft)] px-3 py-2 text-[var(--st-muted)]">
               <Search size={13} />
@@ -192,7 +203,7 @@ const SEARCH_SETTLE_MS = 300;
  * never pushes (or Back walks through your typing); and while someone is typing
  * the box is the truth — the arriving address must not overwrite it.
  */
-export function StudioSearchBar({ q, searchHrefBase, lenses }: { q: string; searchHrefBase: string; lenses: FilterChip[] }) {
+export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q: string; searchHrefBase: string; lenses: FilterChip[]; companyMenu?: ReactNode }) {
   const router = useRouter();
   const [text, setText] = useState(q);
   const typing = useRef(false);
@@ -215,8 +226,8 @@ export function StudioSearchBar({ q, searchHrefBase, lenses }: { q: string; sear
   return (
     // Below lg the old floating nav pill (z-40) owns the foot of the screen,
     // so the bar rides just above it rather than behind it.
-    <div className="pointer-events-none sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 mt-3 flex justify-center md:bottom-[5.5rem] lg:bottom-3">
-      <div className="pointer-events-auto flex w-full max-w-[980px] flex-wrap items-center gap-2 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:flex-nowrap">
+    <div data-sticky-foot className="pointer-events-none sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 mt-3 flex justify-center md:bottom-[5.5rem] lg:bottom-3">
+      <div className="pointer-events-auto flex w-full max-w-[860px] flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:flex-nowrap sm:py-0">
         <label className="flex min-w-[180px] flex-1 items-center gap-2 text-[var(--st-muted)]">
           <Search size={15} />
           <span className="sr-only">Search tasks</span>
@@ -225,10 +236,11 @@ export function StudioSearchBar({ q, searchHrefBase, lenses }: { q: string; sear
             value={text}
             onChange={(e) => { typing.current = true; setText(e.target.value); }}
             onKeyDown={(e) => { if (e.key === "Enter") commit(text); }}
-            placeholder="Search tasks, codes, companies or people"
+            placeholder="Search — a task, a code, a company or a person"
             className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none"
           />
         </label>
+        {companyMenu && <div className="hidden shrink-0 md:block">{companyMenu}</div>}
         <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />
         {/* One row that scrolls sideways — wrapped, the lenses made the bar
             three rows tall on a phone and covered the list. */}
