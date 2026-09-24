@@ -29,10 +29,15 @@ export function SettingsSections({
   groups,
   initial,
   children,
+  studio,
 }: {
   groups: SettingsGroup[];
   initial?: string;
   children: React.ReactNode;
+  /** Studio (mockup board Settings): the title, the search and the two cards
+   *  come from the page; the groups become one row of buttons; the cards sit
+   *  three to a row. Same visibility logic, same forms. */
+  studio?: { title: React.ReactNode; note?: React.ReactNode; top?: React.ReactNode };
 }) {
   const ids = useMemo(() => groups.map((g) => g.id), [groups]);
   const first = ids[0];
@@ -66,7 +71,7 @@ export function SettingsSections({
     const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-group]"));
     if (!q) {
       sections.forEach((s) => {
-        s.style.display = s.dataset.group === active ? "block" : "none";
+        s.style.display = s.dataset.group === active ? (studio ? "grid" : "block") : "none";
         s.querySelectorAll<HTMLElement>("[data-card]").forEach((c) => { c.style.display = ""; });
         s.querySelectorAll<HTMLElement>("[data-savebar]").forEach((b) => { b.style.display = ""; });
       });
@@ -84,7 +89,7 @@ export function SettingsSections({
       });
       // Hide save-bars while searching — saving from a filtered view is confusing.
       s.querySelectorAll<HTMLElement>("[data-savebar]").forEach((b) => { b.style.display = "none"; });
-      s.style.display = anyVisible ? "block" : "none";
+      s.style.display = anyVisible ? (studio ? "grid" : "block") : "none";
     });
     setHits(total);
   }, [active, query]);
@@ -92,6 +97,45 @@ export function SettingsSections({
   function pick(id: string) {
     setQuery("");
     setActive(id);
+  }
+
+  if (studio) {
+    const count = (g: SettingsGroup) => g.cards.length;
+    return (
+      <div className="st-settings flex flex-col gap-5">
+        <div data-page-header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-2">
+            <h1 className="m-0 whitespace-nowrap text-[40px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">{studio.title}</h1>
+            <label className="flex h-[38px] w-full max-w-[420px] items-center gap-2 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[var(--st-muted)] sm:w-[420px]">
+              <Search size={15} />
+              <span className="sr-only">Search settings</span>
+              <input ref={inputRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search settings — e.g. “password”, “WhatsApp”, “quiet hours”"
+                style={{ background: "transparent", border: 0, boxShadow: "none", color: "var(--st-ink)" }}
+                className="bare-field h-full w-full text-[13px] outline-none" />
+              {searching && <button type="button" aria-label="Clear search" onClick={() => { setQuery(""); inputRef.current?.focus(); }} className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={14} /></button>}
+            </label>
+          </div>
+          {studio.note}
+        </div>
+        {studio.top}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {groups.map((g) => {
+            const on = !searching && active === g.id;
+            return (
+              <button key={g.id} type="button" aria-pressed={on} onClick={() => pick(g.id)}
+                className={cn("flex h-[34px] items-center gap-2 rounded-[10px] border px-3.5 text-[13px] transition-colors",
+                  on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
+                {g.label}<span className="text-[11px] opacity-60">{count(g)}</span>
+              </button>
+            );
+          })}
+          <span className="flex-1" />
+          {searching && <span className="text-xs text-[var(--st-muted)]">{hits === 0 ? "No matching settings." : `${hits} setting${hits === 1 ? "" : "s"} found`}</span>}
+        </div>
+        <div className="min-w-0">{children}</div>
+      </div>
+    );
   }
 
   return (

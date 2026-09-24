@@ -40,7 +40,7 @@ export const STUDIO_PAGES: StudioPage[] = [
   { id: "insights", label: "Insights", phase: 7, ready: false },
   { id: "activity", label: "Activity log", phase: 7, ready: false },
   { id: "ori", label: "ORI Automation", phase: 7, ready: false },
-  { id: "settings", label: "Settings", phase: 7, ready: false },
+  { id: "settings", label: "Settings", phase: 7, ready: true },
 ];
 
 const KNOWN = new Map(STUDIO_PAGES.map((p) => [p.id, p]));

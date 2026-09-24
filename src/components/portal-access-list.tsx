@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, ArrowRight } from "lucide-react";
 import { Button, Select } from "@/components/ui";
-import { DirectorScopePicker } from "@/components/director-scope-picker";
+import { DirectorReachSelect, type ReachNow } from "@/components/director-reach-select";
 import { setPortalRole, revokePortalAccess } from "@/app/settings/actions";
 import { PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS, type PortalRoleKey, type ScopeLevel } from "@/lib/portal-permissions";
 
@@ -30,6 +30,8 @@ export type PortalAccessPerson = {
   lastLogin: string | null;
   role: PortalRoleKey;
   directorCompanyIds: number[];
+  /** Main company + "also works for" — what "their companies" means for them. */
+  companyIds: number[];
 };
 
 /** Sentence-case the shared phrase for a heading. */
@@ -40,8 +42,8 @@ const scopeWords = (level: ScopeLevel): string => sentence(SCOPE_WORDS[level]);
 function roleSummary(role: PortalRoleKey, level: ScopeLevel): string {
   if (role === "director") {
     return level === "all"
-      ? "The whole portfolio — unless you scope them to one or more companies below."
-      : `${scopeWords(level)} — unless you scope them to one or more companies below.`;
+      ? "Every company — or only the companies on their record, chosen per director below."
+      : `${scopeWords(level)} — or only the companies on their record, chosen per director below.`;
   }
   if (role === "receptionist") return `${scopeWords(level)}. Cleaning log only — no tasks.`;
   if (role === "manager") return `${scopeWords(level)} — set by "Also works for" on their own record.`;
@@ -50,6 +52,14 @@ function roleSummary(role: PortalRoleKey, level: ScopeLevel): string {
 }
 
 const ORDER: PortalRoleKey[] = ["director", "hr", "manager", "receptionist", "staff"];
+
+/** A director's reach, read from what is stored: every company (no scope),
+ *  their own companies (scope = their record), or a list that differs. */
+function reachOfPerson(p: PortalAccessPerson): ReachNow {
+  if (p.role !== "director" || p.directorCompanyIds.length === 0) return "all";
+  const same = p.directorCompanyIds.length === p.companyIds.length && p.directorCompanyIds.every((c) => p.companyIds.includes(c));
+  return same ? "own" : "custom";
+}
 
 export function PortalAccessList({
   people,
@@ -144,7 +154,7 @@ function AccessRow({
        so Save and Revoke line up down the whole list. */
     <div className="rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border">
       <div className="flex items-baseline justify-between gap-2">
-        <Link href={`/people?person=${person.id}`} className="min-w-0 truncate text-sm font-medium hover:text-accent hover:underline">
+        <Link href={`/people/${person.id}?tab=edit`} title="Open their profile — portal access sits under Role & companies" className="min-w-0 truncate text-sm font-medium hover:text-accent hover:underline">
           {person.name}
         </Link>
         <span className="shrink-0 text-xs text-fg-subtle">
@@ -173,7 +183,9 @@ function AccessRow({
           {/* A company scope is a DIRECTOR thing only — the server ignores it for
               every other role, so showing it there would be a lie on the screen. */}
           {role === "director" ? (
-            <DirectorScopePicker companies={companies} selected={person.directorCompanyIds} className="min-w-0 flex-1" fill />
+            <DirectorReachSelect className="min-w-0 flex-1"
+              current={reachOfPerson(person)}
+              theirs={person.companyIds.map((id) => companies.find((c) => c.id === id)?.name).filter(Boolean).join(", ")} />
           ) : (
             <span className="min-w-0 flex-1 truncate text-xs text-fg-subtle" title="Set by their level, not here">
               {scopeWords(scope[role])}

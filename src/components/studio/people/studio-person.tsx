@@ -523,7 +523,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
         <FactsPanel entityType="person" entityId={p.id} />
       </StudioSheet>
       <StudioSheet open={sheet === "pack"} onClose={() => setSheet(null)} title={`Send ${shortName(p.name)} a pack`} width={680}>
-        <PersonPackPanel personId={p.id} personName={p.name} onBack={() => setSheet(null)} />
+        <PersonPackPanel studio personId={p.id} personName={p.name} onBack={() => setSheet(null)} />
       </StudioSheet>
     </StudioScope>
   );

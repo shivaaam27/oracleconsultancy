@@ -5,9 +5,8 @@ import Link from "next/link";
 import { Shield, ShieldOff, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, Select } from "./ui";
-import { DirectorScopePicker } from "./director-scope-picker";
 import { useToast } from "./toast";
-import { setPortalRoleQuick, enablePortalAccessQuick, revokePortalAccessQuick, setPortalDesignationQuick } from "@/app/people/actions";
+import { setPortalRoleQuick, enablePortalAccessQuick, revokePortalAccessQuick, setPortalDesignationQuick, setPortalLevelWithReach, grantPortalAccessWithReach } from "@/app/people/actions";
 import { PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS, type PortalRoleKey, type ScopeLevel } from "@/lib/portal-permissions";
 
 /* Manage staff-portal access for one person straight from the People drawer.
@@ -49,7 +48,11 @@ export function PersonPortalAccess({
   const current: PortalRoleKey = (PORTAL_ROLES as string[]).includes(portal.role) ? (portal.role as PortalRoleKey) : "staff";
   // The level being chosen right now (not yet saved for a new grant).
   const [role, setRole] = useState<PortalRoleKey>(current);
-  const [scopeIds, setScopeIds] = useState<number[]>(portal.directorCompanyIds);
+  // A director's reach — the same ONE choice as the Studio profile: every
+  // company, or only the companies on their record ("keep" = a stored list,
+  // left exactly as it is). There is no separate company picker any more.
+  const initialReach: "all" | "own" | "keep" = portal.directorCompanyIds.length ? "keep" : "all";
+  const [reach, setReach] = useState<"all" | "own" | "keep">(initialReach);
 
   async function saveDesignation() {
     if (savingDesig || designation.trim() === (portal.designation ?? "").trim()) return;
@@ -69,26 +72,28 @@ export function PersonPortalAccess({
   async function saveRole() {
     if (pending) return;
     setPending(true);
-    const res = await setPortalRoleQuick(personId, role, role === "director" ? scopeIds : []);
+    const res = role === "director" && reach === "keep"
+      ? await setPortalRoleQuick(personId, role, portal.directorCompanyIds)
+      : await setPortalLevelWithReach(personId, role, role === "director" && reach === "own" ? "own" : "all");
     setPending(false);
     if (res.ok) {
       // Match what was actually stored: a non-director carries no scope, so the
       // picker must not still be holding the companies they had as a director.
-      setScopeIds(role === "director" ? scopeIds : []);
+      if (role !== "director") setReach("all");
       toast(`Access level set to ${ROLE_LABEL[role]}.`, { tone: "success" });
       onChanged();
     }
-    else { setRole(current); setScopeIds(portal.directorCompanyIds); toast(res.error, { tone: "danger" }); }
+    else { setRole(current); setReach(initialReach); toast(res.error, { tone: "danger" }); }
   }
 
   const sameIds = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
-  const dirty = role !== current || (role === "director" && !sameIds(scopeIds, portal.directorCompanyIds));
+  const dirty = role !== current || (role === "director" && reach !== initialReach);
 
   async function enable() {
     if (pending) return;
     if (pw.length < 8) { toast("Password must be at least 8 characters.", { tone: "warn" }); return; }
     setPending(true);
-    const res = await enablePortalAccessQuick(personId, role, pw, role === "director" ? scopeIds : []);
+    const res = await grantPortalAccessWithReach(personId, role, pw, role === "director" && reach === "own" ? "own" : "all");
     setPending(false);
     if (res.ok) { toast("Portal access enabled.", { tone: "success" }); setPw(""); setShowEnable(false); onChanged(); }
     else toast(res.error, { tone: "danger" });
@@ -151,7 +156,11 @@ export function PersonPortalAccess({
           ))}
         </Select>
         {role === "director" && (
-          <DirectorScopePicker companies={companies} selected={scopeIds} onChange={setScopeIds} />
+          <Select value={reach} onChange={(e) => setReach(e.target.value as "all" | "own" | "keep")} disabled={pending} aria-label="What this director sees" wrapperClassName="flex-1">
+            <option value="all">Every company</option>
+            <option value="own">Their companies (their record)</option>
+            {portal.directorCompanyIds.length > 0 && <option value="keep">As now ({portal.directorCompanyIds.length} {portal.directorCompanyIds.length === 1 ? "company" : "companies"})</option>}
+          </Select>
         )}
         {withSave && dirty && (
           <Button type="button" size="sm" onClick={saveRole} disabled={pending}>Save</Button>
@@ -159,9 +168,9 @@ export function PersonPortalAccess({
       </div>
       <p className="text-xs text-fg-subtle">
         {role === "director"
-          ? scopeIds.length === 0
-            ? "Sees the whole portfolio. Pick companies to scope them to just those."
-            : `Scoped to ${scopeIds.length} ${scopeIds.length === 1 ? "company" : "companies"}.`
+          ? reach === "all"
+            ? "Sees the whole portfolio."
+            : reach === "own" ? "Sees the companies on their record — Main company and Also works for." : "Keeps the companies they have now."
           : `Sees ${SCOPE_WORDS[scope[role]]}.`}
         {role === "manager" && " Their companies are the ones under “Also works for” on this record."}
       </p>

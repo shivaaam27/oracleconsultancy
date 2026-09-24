@@ -8,6 +8,7 @@ import { recordEvent } from "@/lib/system-events";
 import {
   grantPortalAccess,
   changePortalRole,
+  companiesOnRecord,
   revokePortalAccess as revokePortalAccessCore,
   parsePortalRole,
 } from "@/lib/portal-access";
@@ -278,11 +279,27 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
   if (password.length < 8) redirect("/settings?section=portals&portal=short");
 
-  const res = await grantPortalAccess(personId, role, password, parseDirectorScope(fd));
+  const res = await grantPortalAccess(personId, role, password, await resolveDirectorScope(fd, personId));
   if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
   revalidatePath("/people");
   redirect("/settings?section=portals&portal=saved");
+}
+
+/** A Director's reach from a Settings form: `directorReach` = all (every
+ *  company) | own (the companies on their record, worked out HERE) | keep (the
+ *  stored scope, untouched). The same choice as the person's profile — there is
+ *  no second company list any more. Falls back to the old repeated
+ *  `directorCompanyIds` inputs so an open, pre-change tab still saves. */
+async function resolveDirectorScope(fd: FormData, personId: number): Promise<number[]> {
+  const reach = String(fd.get("directorReach") ?? "");
+  if (reach === "all") return [];
+  if (reach === "own") return companiesOnRecord(personId);
+  if (reach === "keep") {
+    const { data } = await sb.from("director_companies").select("company_id").eq("person_id", personId);
+    return (data ?? []).map((r) => r.company_id as number);
+  }
+  return parseDirectorScope(fd);
 }
 
 /** Parse the chosen director scope companies from the form (repeated
@@ -300,7 +317,7 @@ export async function setPortalRole(fd: FormData): Promise<void> {
   const role = parsePortalRole(fd.get("portalRole"));
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?section=portals&portal=error");
 
-  const res = await changePortalRole(personId, role, parseDirectorScope(fd));
+  const res = await changePortalRole(personId, role, await resolveDirectorScope(fd, personId));
   if (!res.ok) redirect("/settings?section=portals&portal=error");
   revalidatePath("/settings");
   revalidatePath("/people");

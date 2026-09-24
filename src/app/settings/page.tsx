@@ -31,10 +31,11 @@ import { appBaseUrl } from "@/lib/app-url";
 import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
-import { DirectorScopePicker } from "@/components/director-scope-picker";
+import { DirectorReachSelect } from "@/components/director-reach-select";
 import { PortalAccessList } from "@/components/portal-access-list";
 import { FormSwitch } from "@/components/form-switch";
-import { STUDIO_PAGES, parseStudioPages } from "@/lib/studio";
+import { STUDIO_PAGES, parseStudioPages, isStudioOn } from "@/lib/studio";
+import { StudioScope, StudioCard, CardHead } from "@/components/studio/kit";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
@@ -75,7 +76,7 @@ export default async function SettingsPage({
     getGoogleStatus(),
     sb
       .from("people")
-      .select("id,name,portal_password_hash,portal_last_login_at,portal_role,director_company_id,director_companies(company_id)")
+      .select("id,name,company_id,portal_password_hash,portal_last_login_at,portal_role,director_company_id,director_companies(company_id),person_companies(company_id)")
       .eq("active", true)
       .order("name"),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
@@ -101,6 +102,7 @@ export default async function SettingsPage({
     lastLogin: p.portal_last_login_at as string | null,
     role: parsePortalRole(p.portal_role),
     directorCompanyIds: directorScopeOf(p),
+    companyIds: [...new Set([p.company_id as number | null, ...((p.person_companies as { company_id: number }[] | null) ?? []).map((x) => x.company_id)].filter((n): n is number => n != null))],
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -113,14 +115,54 @@ export default async function SettingsPage({
   const recordsConfidence = await getRecordsConfidence();
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
   const studioOn = parseStudioPages(s.studioPages);
+  // Studio (Settings → New look → Settings): mockup board Settings. Same cards,
+  // same forms, same saves — a new frame, and the cards restyled by .st-settings.
+  const studio = isStudioOn(s.studioPages, "settings");
+  const Wrap = studio ? StudioScope : "div";
+  const studioFrame = studio ? {
+    title: "Settings",
+    note: <span className="flex items-center gap-1.5 text-xs text-[var(--st-ok-text)]"><Check size={13} strokeWidth={2.4} />Each section saves on its own</span>,
+    top: (
+      <div className="grid grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
+        <StudioCard className="min-h-[180px]">
+          <CardHead label="Security check" right={<span className="text-xs text-[var(--st-muted)]">reads the live state · changes nothing</span>} />
+          <div className="mt-auto grid grid-cols-1 content-end gap-2 pt-3 sm:grid-cols-2">
+            {securityChecks.map((c) => {
+              const col = c.state === "ok" ? "#19C37D" : c.state === "warn" ? "#F5A524" : "#8E9197";
+              return (
+                <div key={c.id} title={c.fix ?? c.detail} className="rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2.5">
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: col }} />
+                    <span className="truncate">{c.label}</span>
+                    <span className="ml-auto shrink-0 text-[11px]" style={{ color: col }}>{c.state === "ok" ? "Good" : c.state === "warn" ? "Needs you" : "Check"}</span>
+                  </div>
+                  <div className="mt-1 truncate text-[11px] text-[var(--st-muted)]">{c.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+        </StudioCard>
+        <StudioCard texture="rings" className="min-h-[180px]">
+          <CardHead label="Install COS as an app" right={<span className="text-xs text-[var(--st-muted)]">nothing to download</span>} />
+          <div className="mt-auto flex flex-wrap items-end gap-5 pt-3">
+            <div className="min-w-[220px] flex-1">
+              <div className="text-[20px] font-medium leading-tight tracking-[-0.015em]">Its own window, icon and taskbar spot — on Windows, Mac or a phone.</div>
+              <div className="mt-2 text-xs text-[var(--st-muted)]">It opens the live site, so there is nothing to keep up to date.</div>
+            </div>
+            <div className="st-on-dark min-w-0 basis-full text-xs text-[var(--st-on-card-muted)] [&_a]:text-[var(--st-on-card)] [&_b]:text-[var(--st-on-card)]"><InstallApp /></div>
+          </div>
+        </StudioCard>
+      </div>
+    ),
+  } : undefined;
 
   return (
-    <div className="w-full">
-      <HrmsCrumbs />
-      <PageHeader
+    <Wrap className="w-full">
+      {!studio && <HrmsCrumbs />}
+      {!studio && <PageHeader
         title="Settings"
         sub="Live controls — changes take effect across the whole system."
-      />
+      />}
 
       {(sp.saved || sp.google) && (
         <div className="mt-4 space-y-2">
@@ -143,7 +185,7 @@ export default async function SettingsPage({
         </div>
       )}
 
-      <SettingsSections groups={SETTINGS_GROUPS} initial={sp.section}>
+      <SettingsSections groups={SETTINGS_GROUPS} initial={sp.section} studio={studioFrame}>
         {/* ───────────────────────── General ───────────────────────── */}
         <section data-group="general" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
@@ -549,9 +591,9 @@ export default async function SettingsPage({
                 </Select>
               </div>
               <div className="sm:col-span-2 lg:col-span-4">
-                <FieldLabel>Director only — which companies?</FieldLabel>
-                <DirectorScopePicker companies={companies} selected={[]} />
-                <p className="mt-1 text-xs text-fg-subtle">Leave as &ldquo;All companies&rdquo; for a group-wide director. Ignored for every other level — a Manager&apos;s companies come from &ldquo;Also works for&rdquo; on their own record.</p>
+                <FieldLabel>Director only — what they see</FieldLabel>
+                <DirectorReachSelect current="all" forGrant />
+                <p className="mt-1 text-xs text-fg-subtle">Every company, or only the companies on their record (Main company + &ldquo;Also works for&rdquo;). Ignored for every other level. You can set all of this on the person&apos;s own page too.</p>
               </div>
               <div>
                 <RevealPassword name="password" minLength={8} required placeholder="Password (min 8 characters)" />
@@ -961,6 +1003,6 @@ export default async function SettingsPage({
           </SettingsCard>
         </section>
       </SettingsSections>
-    </div>
+    </Wrap>
   );
 }

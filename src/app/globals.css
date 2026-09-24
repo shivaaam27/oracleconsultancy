@@ -1964,3 +1964,34 @@ body:has(main .studio) > * [data-field-label] {
 .dark .st-cal-chip { background: var(--chip-d); }
 /* A list that scrolls inside a dark Studio card: a thin dark thumb. */
 .st-scroll-dark { scrollbar-width: thin; scrollbar-color: #34363B transparent; }
+
+/* Studio Settings (mockup board Settings): the SAME server-rendered cards and
+   forms, restyled here so no card or save had to change. A group is a grid of
+   white cards three to a row; a form is `display: contents` so its cards join
+   that grid; the per-form Save bar spans the row. The two cards drawn at the
+   top (security check, install) are hidden down in their groups. */
+.st-settings [data-group] { grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (min-width: 768px) { .st-settings [data-group] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .st-settings [data-group] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.st-settings [data-group] > form { display: contents; }
+.st-settings [data-group] [data-card] {
+  margin: 0 !important; border-radius: 18px; padding: 16px 18px; box-shadow: none;
+  background: var(--st-surface); border: 0;
+}
+.st-settings [data-group] [data-card] > div:first-child > span:first-child { display: none; }
+.st-settings [data-group] [data-card] h2 { font-size: 15px; font-weight: 600; }
+.st-settings [data-group] [data-card] h2 + p { font-size: 12px; color: var(--st-label); line-height: 1.45; margin-top: 3px; }
+.st-settings [data-group] [data-savebar] { grid-column: 1 / -1; margin: 0 !important; bottom: calc(64px + env(safe-area-inset-bottom) + 14px); }
+.st-settings [data-card="security-check"], .st-settings [data-card="install"] { display: none !important; }
+
+/* The heavy settings cards need room: a list of every portal login, the
+   permissions matrix, the automations and the AI usage tables. */
+@media (min-width: 768px) {
+  .st-settings [data-card="portal"], .st-settings [data-card="portal-permissions"],
+  .st-settings [data-card="automations"], .st-settings [data-card="ai-usage"],
+  .st-settings [data-card="email-automation"], .st-settings [data-card="mcp-keys"] { grid-column: 1 / -1; }
+}
+@media (min-width: 1280px) {
+  .st-settings [data-card="portal-permissions"], .st-settings [data-card="automations"],
+  .st-settings [data-card="email-automation"], .st-settings [data-card="mcp-keys"] { grid-column: span 2; }
+}
