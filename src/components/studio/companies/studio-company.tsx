@@ -59,7 +59,7 @@ const TABS: { id: CompanyTabKey; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "profile", label: "Profile" }, { id: "tasks", label: "Tasks" },
   { id: "notes", label: "Notes" }, { id: "timeline", label: "Timeline" }, { id: "org", label: "Org" },
 ];
-const BAND_BTN = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#2E3035] px-[11px] text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023]";
+const BAND_BTN = "inline-flex h-9 sm:h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#2E3035] px-[11px] text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023]";
 const shortName = (n: string) => n.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "");
 
 export function StudioCompany({ data, children }: { data: StudioCompanyData; children?: ReactNode }) {
@@ -69,41 +69,50 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
   const tasksHref = `/?tab=tasks&company=${encodeURIComponent(data.name)}`;
   useStudioFootNote({ label: "Company", text: `${data.name} · ${data.prefix}` });
 
+  const standingPill = (
+    <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-[9px] px-2.5 text-xs sm:h-7 sm:rounded-lg"
+      style={{ background: s === 2 ? "#3A1D2C" : s === 1 ? "#3A2E14" : s === 0 ? "#1D2A23" : "#26282C", color: s === 2 ? "#F07BBE" : s === 1 ? "#F5B94E" : s === 0 ? "#5BE0A5" : "#C9CBCF" }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.dot }} />
+      {st.label}{data.late > 0 ? ` · ${data.late} late` : ""}
+    </span>
+  );
+  const doors = (
+    <>
+      <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
+      <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
+      <Link href={`/people?co=${data.id}`} className={BAND_BTN}><Users size={13} />Team</Link>
+    </>
+  );
+  // Phone (owner, 25 Sept 2026: "it looks messy"): back · New task; the logo
+  // and the name with ONE line under it; the standing and the doors on one
+  // sliding row; the tabs. The desk keeps its own arrangement.
   const band = (
-    <div className="st-tex-contour flex shrink-0 flex-col gap-3.5 rounded-[20px] bg-[#141517] px-[22px] py-[18px] text-[#F2F2F0]">
+    <div className="st-tex-contour flex shrink-0 flex-col gap-3.5 rounded-[20px] bg-[#141517] px-4 py-4 text-[#F2F2F0] sm:px-[22px] sm:py-[18px]">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/companies" className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
+        <Link href="/companies" className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-medium text-[#111214] sm:h-[30px] sm:rounded-lg sm:px-2.5">
           <Minimize2 size={13} strokeWidth={2.2} />Companies
         </Link>
         <span className="flex-1" />
-        {/* Phone: the doors take a line of their own under the back button. */}
-        <div className="order-last flex w-full max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:order-none sm:w-auto">
-          <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
-          <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
-          <Link href={`/people?co=${data.id}`} className={BAND_BTN}><Users size={13} />Team</Link>
-        </div>
+        <div className="hidden max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:flex">{doors}</div>
         <Link href={`/task/new?companyId=${data.id}&returnTo=${encodeURIComponent(pathname)}`}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
+          className="inline-flex h-9 shrink-0 sm:h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
           <Plus size={13} strokeWidth={2.4} />New task
         </Link>
       </div>
-      <div className="flex flex-wrap items-end gap-x-[18px] gap-y-3">
-        <span className="st-mono flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-semibold sm:h-16 sm:w-16 sm:text-xl"
+      <div className="flex items-center gap-3 sm:flex-wrap sm:items-end sm:gap-x-[18px] sm:gap-y-3">
+        <span className="st-mono flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl text-base font-semibold sm:h-16 sm:w-16 sm:text-xl"
           style={{ background: st.tile, color: st.text }}>{data.prefix}</span>
         <div className="min-w-0 flex-1">
-          <h1 className="m-0 truncate text-[28px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{data.name}</h1>
-          <div className="mt-2 text-xs text-[#A3A6AB] sm:text-sm">Task codes {data.prefix}-… · {data.open} open · {data.people} {data.people === 1 ? "person" : "people"}</div>
+          <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{data.name}</h1>
+          <div className="mt-1.5 truncate text-xs text-[#A3A6AB] sm:mt-2 sm:whitespace-normal sm:text-sm">Task codes {data.prefix}-… · {data.open} open · {data.people} {data.people === 1 ? "person" : "people"}</div>
         </div>
-        <span className="inline-flex h-7 items-center gap-2 rounded-lg px-2.5 text-xs"
-          style={{ background: s === 2 ? "#3A1D2C" : s === 1 ? "#3A2E14" : s === 0 ? "#1D2A23" : "#26282C", color: s === 2 ? "#F07BBE" : s === 1 ? "#F5B94E" : s === 0 ? "#5BE0A5" : "#C9CBCF" }}>
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.dot }} />
-          {st.label}{data.late > 0 ? ` · ${data.late} late` : ""}
-        </span>
+        <span className="hidden sm:contents">{standingPill}</span>
       </div>
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">{standingPill}{doors}</div>
       <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
         {TABS.filter((t) => !(data.readOnly && t.id === "notes")).map((t) => (
           <Link key={t.id} role="tab" aria-selected={data.tab === t.id} href={t.id === "overview" ? `/companies/${data.id}` : `/companies/${data.id}?tab=${t.id}`} scroll={false}
-            className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", data.tab === t.id ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
+            className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors sm:h-8", data.tab === t.id ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
             {t.label}{t.id === "tasks" && data.open > 0 && <span className="text-xs text-[#8E9197]">{data.open}</span>}
           </Link>
         ))}

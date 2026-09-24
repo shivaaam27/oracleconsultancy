@@ -121,7 +121,7 @@ const LIST = "st-scroll xl:min-h-0 xl:flex-1 xl:overflow-y-auto";
 const BTN = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-line)] px-2.5 text-xs transition-colors hover:bg-[var(--st-page)]";
 const BTN_DARK = "inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--st-ink)] px-2.5 text-xs text-[var(--st-surface)] transition-opacity hover:opacity-90";
 const BTN_BAD = "inline-flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--st-bad-line)] px-2.5 text-xs text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-bad-wash)]";
-const BAND_BTN = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#2E3035] px-[11px] text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] aria-disabled:pointer-events-none aria-disabled:opacity-40";
+const BAND_BTN = "inline-flex h-9 sm:h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#2E3035] px-[11px] text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] aria-disabled:pointer-events-none aria-disabled:opacity-40";
 
 /** `readOnly` — a director (portal unification, Sept 2026): the person as a
  *  record to read. Their tasks, files and history; none of the owner's
@@ -196,36 +196,48 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
   const contact = p.whatsapp || p.phone || p.email;
 
   /* ── the band ──────────────────────────────────────────────────────────── */
-  const band = (
-    <div className="st-tex-rings flex shrink-0 flex-col gap-3 rounded-[20px] bg-[#141517] px-[22px] py-4 text-[#F2F2F0]">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href={backHref} className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
-          <Minimize2 size={13} strokeWidth={2.2} />People
-        </Link>
-        {p.staffId && <span className="st-mono rounded-md bg-[#26282C] px-2 py-1 text-[11px] text-[#C9CBCF]">{p.staffId}</span>}
-        <BandPill c={p.active ? "#19C37D" : "#8E9197"} bg={p.active ? "#1D2A23" : "#26282C"} fg={p.active ? "#5BE0A5" : "#C9CBCF"}>{p.active ? (snoozed ? "Active · snoozed" : "Active") : "Inactive"}</BandPill>
-        {data.portal.enabled
-          ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
-          : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
-        <span className="flex-1" />
-        {/* Phone: the contact buttons slide along a line of their own. */}
-        <div className="order-last flex w-full max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:order-none sm:w-auto">
+  const contacts = (
+    <>
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
           <a href={p.whatsapp ? waHref(p.whatsapp) : undefined} target="_blank" rel="noreferrer" aria-disabled={!p.whatsapp} title={p.whatsapp ?? "No WhatsApp on file"} className={BAND_BTN}><MessageCircle size={13} />WhatsApp</a>
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>
           {!readOnly && <Link href={`/chat?dm=${p.id}`} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>}
           <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>
           {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
+    </>
+  );
+  const pills = (
+    <>
+      {p.staffId && <span className="st-mono inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#26282C] px-2.5 text-[11px] text-[#C9CBCF] sm:h-auto sm:rounded-md sm:px-2 sm:py-1">{p.staffId}</span>}
+      <BandPill c={p.active ? "#19C37D" : "#8E9197"} bg={p.active ? "#1D2A23" : "#26282C"} fg={p.active ? "#5BE0A5" : "#C9CBCF"}>{p.active ? (snoozed ? "Active · snoozed" : "Active") : "Inactive"}</BandPill>
+      {data.portal.enabled
+        ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
+        : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
+    </>
+  );
+  // Phone (owner, 25 Sept 2026: the band "looks messy"): back · ⋯ on the first
+  // line, the face and name, then ONE sliding row of the labels and the contact
+  // buttons, then the tabs — the company band's order. The desk is unchanged.
+  const band = (
+    <div className="st-tex-rings flex shrink-0 flex-col gap-3 rounded-[20px] bg-[#141517] px-4 py-4 text-[#F2F2F0] sm:px-[22px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={backHref} className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-medium text-[#111214] sm:h-[30px] sm:rounded-lg sm:px-2.5">
+          <Minimize2 size={13} strokeWidth={2.2} />People
+        </Link>
+        <span className="hidden sm:contents">{pills}</span>
+        <span className="flex-1" />
+        <div className="hidden max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:flex">
+          {contacts}
         </div>
         {!readOnly && <button type="button" disabled={!open.length || reminding}
           onClick={() => remind(p, overdueFirst.map((t) => ({ code: t.code, actionItem: t.title })))}
           title={open.length ? "Saves a reminder in the Outbox for you to send" : "No open tasks"}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90 disabled:opacity-40">
-          {reminding ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}Remind about open work
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90 disabled:opacity-40 sm:h-8">
+          {reminding ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}<span className="sm:hidden">Remind</span><span className="hidden sm:inline">Remind about open work</span>
         </button>}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button type="button" aria-label="More" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[#2E3035] text-[#E6E6E3] hover:bg-[#1F2023]"><MoreHorizontal size={14} /></button>
+            <button type="button" aria-label="More" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] sm:h-8 sm:w-8 border border-[#2E3035] text-[#E6E6E3] hover:bg-[#1F2023]"><MoreHorizontal size={14} /></button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
@@ -246,12 +258,13 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
         </DropdownMenu.Root>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-[18px] gap-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:items-end sm:gap-x-[18px]">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[30px]">{p.name}</h1>
           <div className="mt-1.5 truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
         </div>
+        <div className="-mx-4 flex w-[calc(100%+32px)] items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">{pills}{contacts}</div>
         <div className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
           {tabs.map((t) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
@@ -573,7 +586,7 @@ const SCOPE_SENTENCE = (l: ScopeLevel | undefined) => (l ? `Sees ${SCOPE_WORDS[l
 
 function BandPill({ c, bg, fg, children }: { c: string; bg: string; fg: string; children: ReactNode }) {
   return (
-    <span className="inline-flex h-6 items-center gap-[7px] whitespace-nowrap rounded-lg px-2.5 text-xs" style={{ background: bg, color: fg }}>
+    <span className="inline-flex h-9 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] px-2.5 text-xs sm:h-6 sm:rounded-lg" style={{ background: bg, color: fg }}>
       <span className="h-[7px] w-[7px] rounded-full" style={{ background: c }} />{children}
     </span>
   );
