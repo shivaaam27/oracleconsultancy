@@ -1699,18 +1699,22 @@ section[data-page-header],
    ⚠️ The document still scrolls; the rounded panel is painted by the frame's
    box-shadow (see studio/shell.tsx for why). */
 :root { --page-foot: 0px; --page-top: 0px; }
+/* The Studio footer's height: taller on a phone so every button in it is a
+   44px thumb target (Apple HIG 44pt, Material 48dp) — owner, 25 Sept 2026. */
+:root { --foot-h: 72px; }
+@media (min-width: 768px) { :root { --foot-h: 64px; } }
 html body:has([data-studio-frame]) {
-  --page-foot: calc(64px + env(safe-area-inset-bottom));
+  --page-foot: calc(var(--foot-h) + env(safe-area-inset-bottom));
   background: #F3F3F1;
 }
 html.dark body:has([data-studio-frame]) { background: #121315; }
 html body:has([data-studio-frame]) main {
   --desk-sidebar: 0px;
-  padding: 28px 20px calc(64px + 96px + env(safe-area-inset-bottom));
+  padding: 28px 20px calc(var(--foot-h) + 96px + env(safe-area-inset-bottom));
 }
 @media (min-width: 640px) {
   html body:has([data-studio-frame]) { --page-top: 12px; }
-  html body:has([data-studio-frame]) main { padding: 40px 40px calc(64px + 96px + env(safe-area-inset-bottom)); }
+  html body:has([data-studio-frame]) main { padding: 40px 40px calc(var(--foot-h) + 96px + env(safe-area-inset-bottom)); }
 }
 /* The footer's page name slides the way you are stepping (studio/shell.tsx). */
 @keyframes st-slide-l { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
@@ -1745,13 +1749,13 @@ html[data-motion="reduced"] .st-panel-in { animation: none; }
   position: fixed;
   z-index: 40;
   pointer-events: none;
-  inset: 0 0 calc(64px + env(safe-area-inset-bottom)) 0;
+  inset: 0 0 calc(var(--foot-h) + env(safe-area-inset-bottom)) 0;
   border-radius: 0 0 16px 16px;
   box-shadow: 0 0 0 100vmax #0E0F10;
 }
 @media (min-width: 640px) {
   .studio-frame {
-    inset: 12px 12px calc(64px + env(safe-area-inset-bottom)) 12px;
+    inset: 12px 12px calc(var(--foot-h) + env(safe-area-inset-bottom)) 12px;
     border-radius: 20px;
   }
 }

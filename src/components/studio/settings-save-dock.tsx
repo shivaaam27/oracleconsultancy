@@ -87,7 +87,7 @@ export function SettingsSaveDock({ root }: { root: React.RefObject<HTMLElement |
   return (
     <div aria-live="polite"
       className={cn("pointer-events-none fixed inset-x-0 z-[45] flex justify-center px-4 transition-all duration-200",
-        "bottom-[calc(64px+env(safe-area-inset-bottom)+16px)]",
+        "bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+16px)]",
         show ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0")}>
       {show && (
         <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] py-2 pl-4 pr-2 shadow-[0_14px_36px_rgba(17,18,20,0.16)]">

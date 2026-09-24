@@ -157,7 +157,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
             </StudioCard>
           </StudioCardRow>
 
-          <div ref={grid} className="st-scroll grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 lg:auto-rows-[minmax(132px,1fr)] lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
+          <div ref={grid} className="st-scroll grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 min-[480px]:gap-3 md:grid-cols-3 lg:auto-rows-[minmax(132px,1fr)] lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
             {cos.map((c) => {
               const s = standing(c.open, c.late);
               const st = STANDING[s];
@@ -168,17 +168,24 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                     <span className="st-mono flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-semibold" style={{ background: st.tile, color: st.text }}>{c.prefix}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{c.name}</span>
-                      <span className="flex items-center gap-1.5 text-[11px]" style={{ color: st.text }}>
+                      <span className="flex items-center gap-1.5 text-[11px] max-[479px]:hidden" style={{ color: st.text }}>
                         <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.dot }} />{st.label}
                       </span>
+                      {/* Phone (mockup M_Companies): one row — the figures in a line. */}
+                      <span className="block truncate text-xs text-[var(--st-muted)] min-[480px]:hidden">
+                        {c.open} open{c.late ? <> · <span className="text-[var(--st-late-text)]">{c.late} late</span></> : null} · {c.staff} staff
+                      </span>
+                    </span>
+                    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--st-page)] px-2 text-[11px] min-[480px]:hidden" style={{ color: st.text }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.dot }} />{st.label}
                     </span>
                   </span>
-                  <span className="flex-1" />
-                  <span className="flex h-[5px] overflow-hidden rounded-[3px] bg-[var(--st-line-soft)]" title={`${c.open - c.late} on time · ${c.late} late`}>
+                  <span className="flex-1 max-[479px]:hidden" />
+                  <span className="flex h-[5px] overflow-hidden rounded-[3px] bg-[var(--st-line-soft)] max-[479px]:hidden" title={`${c.open - c.late} on time · ${c.late} late`}>
                     <span style={{ width: `${((c.open - c.late) / maxOpen) * 100}%`, background: "var(--st-ok)" }} />
                     <span style={{ width: `${(c.late / maxOpen) * 100}%`, background: "var(--st-late)" }} />
                   </span>
-                  <span className="grid grid-cols-4 text-[11px] text-[var(--st-muted)]">
+                  <span className="grid grid-cols-4 text-[11px] text-[var(--st-muted)] max-[479px]:hidden">
                     <Stat n={c.staff} l="staff" />
                     <Stat n={c.open} l="open" />
                     <Stat n={c.late} l="late" c={c.late ? "var(--st-late-text)" : undefined} />

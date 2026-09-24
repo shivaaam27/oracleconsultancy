@@ -92,7 +92,7 @@ export function StudioNotificationsPanel({
       aria-label="Notifications"
       /* `st-sheet`: white paper in light mode, the dark dotted card in dark mode
          (owner: "behave with light and dark mode and not a fixed dark mode"). */
-      className="studio st-sheet st-sheet-dots st-pop fixed bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 z-[60] flex max-h-[calc(100dvh-100px)] w-[min(520px,calc(100vw-24px))] flex-col gap-3 rounded-3xl bg-[var(--sh-bg)] px-4 pb-3.5 pt-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.45)] sm:right-6"
+      className="studio st-sheet st-sheet-dots st-pop fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] right-3 z-[60] flex max-h-[calc(100dvh-100px)] w-[min(520px,calc(100vw-24px))] flex-col gap-3 rounded-3xl bg-[var(--sh-bg)] px-4 pb-3.5 pt-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.45)] sm:right-6"
     >
       <div className="flex items-center gap-2.5 px-1">
         <span className="text-[20px] font-medium tracking-[-0.01em]">Notifications</span>

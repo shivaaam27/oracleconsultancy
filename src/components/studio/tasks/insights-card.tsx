@@ -35,7 +35,7 @@ export function InsightsCard({ data }: { data: InsightsData }) {
   const maxP = Math.max(1, ...data.people.map((p) => p.open));
 
   return (
-    <div className="relative flex min-h-[244px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]">
+    <div className="relative flex min-h-0 min-w-0 md:min-h-[244px] flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]">
       <CardHead
         label={TITLES[i]}
         right={
@@ -50,10 +50,10 @@ export function InsightsCard({ data }: { data: InsightsData }) {
       />
 
       {i === 0 && (
-        <div key="o" className="st-pop mt-3 grid flex-1 grid-cols-1 items-end gap-7 sm:grid-cols-[minmax(0,1fr)_200px]">
+        <div key="o" className="st-pop mt-3 grid flex-1 grid-cols-1 items-end gap-4 lg:grid-cols-[minmax(0,1fr)_200px] lg:gap-7">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline gap-2.5">
-              <span className="text-[76px] leading-[0.85] tracking-[-0.045em] tabular-nums">{data.open}</span>
+              <span className="text-[60px] leading-[0.85] tracking-[-0.045em] tabular-nums lg:text-[76px]">{data.open}</span>
               <span className="text-lg text-[var(--st-muted)]">open {data.open === 1 ? "task" : "tasks"}</span>
               <StudioPill onCard dot="var(--st-ok)" className="self-end bg-[#1D2A23] text-[#5BE0A5]">{data.onTrackPct}% on track</StudioPill>
             </div>
@@ -72,11 +72,11 @@ export function InsightsCard({ data }: { data: InsightsData }) {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-4 gap-1.5 lg:grid-cols-2 lg:gap-2">
             {data.tiles.map((t) => (
-              <Link key={t.label} href={t.href} scroll={false} className="rounded-xl border border-[#2A2C30] bg-[var(--st-card-2)] px-3 py-2.5 transition-colors hover:border-[#3A3D42]">
+              <Link key={t.label} href={t.href} scroll={false} className="min-w-0 rounded-xl border border-[#2A2C30] bg-[var(--st-card-2)] px-2 py-2 transition-colors hover:border-[#3A3D42] lg:px-3 lg:py-2.5">
                 <div className="text-xl leading-tight tracking-[-0.02em] tabular-nums">{t.n}</div>
-                <div className="mt-0.5 whitespace-nowrap text-[11px] text-[var(--st-muted)]">{t.label}</div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--st-muted)] lg:whitespace-nowrap">{t.label}</div>
               </Link>
             ))}
           </div>

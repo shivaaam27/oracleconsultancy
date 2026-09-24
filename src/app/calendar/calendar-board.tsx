@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { useUrlFilters } from "@/lib/use-url-filters";
+import { useMediaQuery } from "@/lib/use-media-query";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, 
@@ -27,7 +28,7 @@ import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
-import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { ReturnLink } from "@/components/back-link";
@@ -209,11 +210,14 @@ export function CalendarBoard({
   // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
   // that name is watched globally by CompanyDrawer. Layers and the two noise
   // switches stay device preferences: they are taste, not a view.
-  const url = useUrlFilters({ view: "month", co: "all", type: "all", src: "all", q: "", day: "" }, { debounceKeys: ["q"] });
+  const url = useUrlFilters({ view: "", co: "all", type: "all", src: "all", q: "", day: "" }, { debounceKeys: ["q"] });
   // Studio's picked day lives in the address, so opening a task from the day's
   // list and pressing Back lands on the same day, not on today.
   const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(url.values.day) ? url.values.day : "";
-  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : "month";
+  // A phone opens on Agenda, the desk on Month (mockup M_Calendar) — unless
+  // the address names a view.
+  const phone = useMediaQuery("(max-width: 767px)");
+  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : phone ? "agenda" : "month";
   const setView = (v: ViewMode) => url.set({ view: v });
   const companyFilter = url.values.co;
   const categoryFilter = url.values.type;
@@ -262,7 +266,7 @@ export function CalendarBoard({
         const p = JSON.parse(raw) as Partial<CalendarPrefs>;
         // The last VIEW is remembered, but an address that names one wins —
         // a link to "Month" must open Month whatever was used last.
-        if (!url.dirty && p.view && (["month", "week", "day", "agenda"] as string[]).includes(p.view)) {
+        if (!url.dirty && p.view && (["month", "week", "day", "agenda"] as string[]).includes(p.view) && !window.matchMedia("(max-width: 767px)").matches) {
           url.set({ view: p.view });
         }
         if (Array.isArray(p.disabledLayers)) {
@@ -529,9 +533,9 @@ export function CalendarBoard({
         </HrmsDialog>
       )}
 
-      <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
+      <StudioCardRow className="lg:h-[196px]">
         {/* The picked day — today until you pick another in the grid. */}
-        <StudioCard className="h-[260px] lg:h-auto">
+        <StudioCard className="min-h-[150px] md:h-[260px] lg:h-auto">
           <CardHead
             label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
             right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}{pickItems > 3 && " · scroll for more"}</span>}
@@ -543,7 +547,7 @@ export function CalendarBoard({
 
         <StudioCard texture="rings" className="min-h-[170px]">
           <CardHead label="Next 7 days" right={<span className="text-xs text-[var(--st-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
-          <div className="grid flex-1 grid-cols-[170px_minmax(0,1fr)] items-end gap-x-6">
+          <div className="grid flex-1 grid-cols-[104px_minmax(0,1fr)] items-end gap-x-4 sm:grid-cols-[170px_minmax(0,1fr)] sm:gap-x-6">
             <div>
               <BigNumber value={next7Total} />
               <div className="mt-2.5 text-[13px] text-[#C9CBCF]">{next7Total === 1 ? "thing" : "things"} coming up</div>
@@ -552,7 +556,7 @@ export function CalendarBoard({
             <StudioNext7Bars days={next7} perThing={perThing} pickedKey={pickedKey} evByDay={evByDay} overlayByDay={overlayByDay} onPick={pick} />
           </div>
         </StudioCard>
-      </div>
+      </StudioCardRow>
 
       <div ref={studioGrid} className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_232px]">
         <div className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:min-h-0">
@@ -876,7 +880,7 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
     return out;
   }, [evByDay, overlayByDay]);
   if (days.length === 0) return <div className="m-auto p-8 text-sm text-[var(--st-muted)]">Nothing in the next two months. Press “New event” to plan something.</div>;
-  const ROW = "grid grid-cols-[64px_10px_minmax(0,1fr)_auto_auto] items-center gap-x-3 rounded-[12px] border border-[var(--st-line-soft)] px-3.5 py-2.5";
+  const ROW = "grid grid-cols-[52px_8px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] sm:grid-cols-[64px_10px_minmax(0,1fr)_auto_auto] sm:gap-x-3 border border-[var(--st-line-soft)] px-3.5 py-2.5";
   const OPEN = "flex h-7 items-center rounded-lg border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]";
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5 py-4">
@@ -897,7 +901,7 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
                     <span className="st-mono text-xs text-[var(--st-sub)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
                     <span className="h-2 w-2 rounded-full bg-[var(--st-ink)]" />
                     <span className="truncate text-[13px]">{e.title}</span>
-                    <span className="text-[11px] text-[var(--st-muted)]">{isHappeningNow(e, nowMs) ? "On now" : done ? "Finished" : "Event"}</span>
+                    <span className="hidden text-[11px] text-[var(--st-muted)] sm:inline">{isHappeningNow(e, nowMs) ? "On now" : done ? "Finished" : "Event"}</span>
                     <button type="button" onClick={() => onEdit(e)} className={OPEN}>Open</button>
                   </div>
                 );
@@ -907,7 +911,7 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
                   <span className="st-mono text-xs text-[var(--st-sub)]">{o.kind === "task" ? "Due" : "All day"}</span>
                   <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
                   <span className="truncate text-[13px]">{o.title}</span>
-                  <span className="text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+                  <span className="hidden text-[11px] text-[var(--st-muted)] sm:inline">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
                   {o.href ? <ReturnLink href={o.href} className={OPEN}>Open</ReturnLink> : <span />}
                 </div>
               ))}
@@ -1020,7 +1024,9 @@ function StudioNext7Bars({ days, perThing, pickedKey, evByDay, overlayByDay, onP
                 {n === 0 && <span className="block h-1 rounded-[4px] bg-[#2A2C30]" />}
               </span>
               <span className={cn("text-[11px] transition-colors", i === 0 || picked || hover?.k === x.k ? "text-[var(--st-on-card)]" : "text-[var(--st-muted)]", picked && "underline decoration-[var(--st-on-card-muted)] underline-offset-4")}>
-                {x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}
+                {/* One letter below the desk — three letters ran into each other. */}
+                <span className="lg:hidden">{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "narrow" })}</span>
+                <span className="hidden lg:inline">{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}</span>
               </span>
             </button>
           );

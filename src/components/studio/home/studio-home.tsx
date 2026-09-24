@@ -12,10 +12,10 @@
  * list scrolls inside itself. Below `lg` everything stacks and the page scrolls.
  * The three bottom cards turn with ‹ ›, the dots, a swipe, or ←/→ when focused.
  */
-import { useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, FileText, ListChecks, Loader2, Megaphone, Zap } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, ListChecks, Loader2, Megaphone, Zap } from "lucide-react";
 import { runAutomationsNowAction, sendBriefNowAction, setAutomationPausedAction, setDirectorOutreachPausedAction, setAiEnabledAction, setEmailTestModeAction } from "@/app/_hub/control-actions";
 import { useToast } from "@/components/toast";
 import { StudioScope } from "@/components/studio/kit";
@@ -56,10 +56,10 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
     <StudioScope>
       <div ref={grid} className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:grid-rows-[minmax(250px,0.8fr)_minmax(0,1fr)]">
         {/* ---------- hero ---------- */}
-        <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)] lg:col-span-2">
+        <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 lg:col-span-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--st-on-card-muted)]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--st-on-card-muted)] sm:text-[13px]">
                 {data.greeting}
                 {data.announcements && (
                   <Link href="/announcements" className="inline-flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-lg bg-[#1F2023] px-2 py-0.5 text-xs text-[#E6E6E3] hover:bg-[#26282C]">
@@ -69,18 +69,18 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
                   </Link>
                 )}
               </div>
-              <h1 className="m-0 mt-1.5 text-[26px] font-medium leading-tight tracking-[-0.02em] sm:text-[30px]">
+              <h1 className="m-0 mt-2 text-[24px] font-medium leading-[1.1] tracking-[-0.02em] sm:mt-1.5 sm:text-[30px] sm:leading-tight">
                 Your {data.openCount} open {data.openCount === 1 ? "task" : "tasks"}, at a glance
               </h1>
             </div>
-            <div className="flex shrink-0 gap-6 sm:text-right">
+            <div className="flex shrink-0 gap-[22px] sm:gap-6 sm:text-right">
               <HeroNum n={data.late} label="late" color="#F07BBE" href="/?tab=tasks&flag=overdue" />
               <HeroNum n={data.soon} label="due soon" color="#F5B94E" href="/?tab=tasks&flag=due-soon" />
               <HeroNum n={data.done} label="done this month" color="#5BE0A5" href="/?tab=tasks&done=1" />
             </div>
           </div>
-          <div className="min-h-4 flex-1" />
-          <div className="flex h-[74px] items-end gap-[2px] overflow-hidden sm:gap-[3px]" aria-label="Each bar is one open task, coloured by how it is doing">
+          <div className="min-h-3.5 flex-1 sm:min-h-4" />
+          <div className="flex h-[48px] items-end sm:h-[74px] gap-[2px] overflow-hidden sm:gap-[3px]" aria-label="Each bar is one open task, coloured by how it is doing">
             {data.bars.map((b, i) => (
               <Link
                 key={i}
@@ -88,12 +88,12 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
                 title={b.label}
                 aria-label={b.label}
                 className="st-rise block min-w-[2px] flex-1 rounded-[3px] transition-opacity hover:opacity-70"
-                style={{ height: b.h, maxWidth: b.wide ? 14 : 9, background: BAND[b.band], animationDelay: `${Math.min(i * 10, 700)}ms` }}
+                style={{ height: `${Math.min(100, (b.h / 74) * 100)}%`, maxWidth: b.wide ? 14 : 9, background: BAND[b.band], animationDelay: `${Math.min(i * 10, 700)}ms` }}
               />
             ))}
             {data.bars.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">No open tasks — a clear desk.</div>}
           </div>
-          <div className="mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-1.5 text-xs text-[#C9CBCF]">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] text-[#C9CBCF] sm:mt-3.5 sm:gap-x-[18px] sm:gap-y-1.5 sm:text-xs">
             {data.legend.map((l) => (
               <Link key={l.label} href={l.href} className="flex items-center gap-1.5 hover:text-white">
                 <span className="h-2 w-2 rounded-[2px]" style={{ background: l.color }} />{l.label} · {l.n}
@@ -104,10 +104,13 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
           </div>
         </section>
 
+        {/* ---------- phone: one shape of card, folding (owner, 25 Sept 2026) ---------- */}
+        <PhoneFolds data={data} />
+
         {/* ---------- due ---------- */}
-        <section className="st-tex-rings flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]">
+        <section className="st-tex-rings hidden min-w-0 flex-col md:flex rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[22px] font-medium">{due === "today" ? "Due today" : "Due this week"}</div>
+            <div className="text-[15px] font-medium sm:text-[22px]">{due === "today" ? "Due today" : "Due this week"}</div>
             <div className="flex gap-0.5 rounded-[10px] bg-[#1F2023] p-[3px]">
               {(["today", "week"] as const).map((k) => (
                 <button key={k} type="button" aria-pressed={due === k} onClick={() => setDue(k)}
@@ -118,8 +121,8 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2.5">
-            <span className="text-[88px] leading-[0.95] tracking-[-0.05em] tabular-nums">{d.n}</span>
-            <span className="text-sm text-[var(--st-on-card-muted)]">{d.sub}</span>
+            <span className="text-[48px] leading-[0.9] tracking-[-0.05em] tabular-nums sm:text-[88px] sm:leading-[0.95]">{d.n}</span>
+            <span className="text-[13px] text-[var(--st-on-card-muted)] sm:text-sm">{d.sub}</span>
           </div>
           <div className="min-h-2 flex-1" />
           <div className="st-scroll -mr-2 flex max-h-[128px] flex-col gap-1.5 overflow-y-auto pr-2">
@@ -171,12 +174,12 @@ function TurnCard({ slides }: { slides: HomeSlide[] }) {
       onKeyDown={(e) => { if (e.key === "ArrowRight") go(1); if (e.key === "ArrowLeft") go(-1); }}
       onPointerDown={onDown}
       onPointerUp={onUp}
-      className="flex min-h-[340px] min-w-0 flex-col gap-3 rounded-[18px] bg-[var(--st-surface)] p-5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--st-line)] lg:min-h-0"
+      className="hidden min-h-0 min-w-0 flex-col gap-3 rounded-[18px] bg-[var(--st-surface)] p-5 outline-none md:flex md:min-h-[340px] focus-visible:ring-2 focus-visible:ring-[var(--st-line)] lg:min-h-0"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs text-[var(--st-muted)]">{s.kicker}</div>
-          <h2 className="m-0 mt-0.5 truncate text-[22px] font-medium tracking-[-0.015em]">{s.title}</h2>
+          <h2 className="m-0 mt-0.5 truncate text-[20px] font-medium tracking-[-0.015em] sm:text-[22px]">{s.title}</h2>
           <div className="mt-0.5 truncate text-[13px] text-[var(--st-muted)]">{s.sub}</div>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -203,7 +206,10 @@ function TurnCard({ slides }: { slides: HomeSlide[] }) {
   );
 }
 
-function ListSlide({ s }: { s: Extract<HomeSlide, { kind: "list" }> }) {
+function ListSlide({ s, limit }: { s: Extract<HomeSlide, { kind: "list" }>; limit?: number }) {
+  const [all, setAll] = useState(false);
+  const items = limit && !all ? s.items.slice(0, limit) : s.items;
+  const hidden = s.items.length - items.length;
   if (s.items.length === 0) {
     return (
       <div className="st-tex-paper-dots flex flex-1 items-center justify-center rounded-xl border border-dashed border-[var(--st-line)] p-4">
@@ -213,19 +219,24 @@ function ListSlide({ s }: { s: Extract<HomeSlide, { kind: "list" }> }) {
   }
   return (
     <>
-      <div className="st-scroll -mr-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-2">
-        {s.items.map((it, k) => (
-          <Link key={k} href={it.href} className="flex shrink-0 items-center gap-2.5 rounded-xl border border-[var(--st-line-soft)] px-3 py-2 transition-colors hover:bg-[var(--st-page)]">
+      <div className="st-scroll -mr-2 flex min-h-0 flex-1 flex-col overflow-y-auto pr-2 sm:gap-1.5">
+        {items.map((it, k) => (
+          <Link key={k} href={it.href} className="flex min-h-12 shrink-0 items-center gap-3 border-b border-[var(--st-line-soft)] py-2.5 transition-colors last:border-0 hover:bg-[var(--st-page)] sm:min-h-0 sm:gap-2.5 sm:rounded-xl sm:border sm:px-3 sm:py-2 sm:last:border">
             <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: it.dot }} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px]">{it.title}</span>
-              {it.sub && <span className="block truncate text-[11px] text-[var(--st-muted)]">{it.sub}</span>}
+              <span className="block truncate text-sm font-medium sm:text-[13px] sm:font-normal">{it.title}</span>
+              {it.sub && <span className="block truncate text-xs text-[var(--st-muted)] sm:text-[11px]">{it.sub}</span>}
             </span>
-            <span className="shrink-0 whitespace-nowrap text-[11px]" style={{ color: it.rightColor ?? "var(--st-muted)" }}>{it.right}</span>
+            <span className="shrink-0 whitespace-nowrap text-xs sm:text-[11px]" style={{ color: it.rightColor ?? "var(--st-muted)" }}>{it.right}</span>
           </Link>
         ))}
       </div>
-      {s.more && <Link href={s.more.href} className="mt-2 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">{s.more.label} →</Link>}
+      {hidden > 0 && (
+        <button type="button" onClick={() => setAll(true)} className="mt-1 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)]">
+          Show {hidden} more
+        </button>
+      )}
+      {s.more && hidden === 0 && <Link href={s.more.href} className="mt-2 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">{s.more.label} →</Link>}
     </>
   );
 }
@@ -332,5 +343,101 @@ function ControlsSlide({ s }: { s: Extract<HomeSlide, { kind: "controls" }> }) {
       ))}
       <Link href="/settings" className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Every setting →</Link>
     </div>
+  );
+}
+
+/* ── Phone: every section is the same card — a header you tap to fold it, one
+   line of summary, a count — so Home is a short page of equal cards rather than
+   a long scroll of different ones (owner, 25 Sept 2026). Opened, a list shows
+   three rows and "Show N more". What you leave open is remembered on this
+   device. ────────────────────────────────────────────────────────────────── */
+
+const FOLD_KEY = "studio.home.folds";
+
+function PhoneFolds({ data }: { data: StudioHomeData }) {
+  const [open, setOpen] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    let saved: Record<string, boolean> = {};
+    try { saved = JSON.parse(window.localStorage.getItem(FOLD_KEY) || "{}"); } catch { /* private window */ }
+    setOpen(saved);
+  }, []);
+  const isOpen = (id: string, dflt: boolean) => (open && id in open ? open[id] : dflt);
+  const toggle = (id: string, dflt: boolean) => setOpen((o) => {
+    const cur = o && id in o ? o[id] : dflt;
+    const next = { ...(o ?? {}), [id]: !cur };
+    try { window.localStorage.setItem(FOLD_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const [due, setDue] = useState<"today" | "week">(data.due.today.n > 0 ? "today" : "week");
+  const d = data.due[due];
+  const dueSlide: Extract<HomeSlide, { kind: "list" }> = {
+    kind: "list", kicker: "Diary", title: due === "today" ? "Due today" : "Due this week", sub: d.sub,
+    items: d.items, empty: due === "today" ? "Nothing due today" : "Nothing due this week",
+  };
+  return (
+    <div className="flex flex-col gap-2.5 md:hidden">
+      <Fold id="due" kicker="Diary" title={dueSlide.title} sub={d.sub} count={d.n} open={isOpen("due", true)} onToggle={() => toggle("due", true)}>
+        <div className="mb-2 flex gap-0.5 self-start rounded-[10px] bg-[var(--st-page)] p-[3px]">
+          {(["today", "week"] as const).map((k) => (
+            <button key={k} type="button" aria-pressed={due === k} onClick={() => setDue(k)}
+              className={cn("h-8 rounded-[8px] px-3 text-xs", due === k ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)]")}>
+              {k === "today" ? "Today" : "This week"}
+            </button>
+          ))}
+        </div>
+        <ListSlide key={due} s={dueSlide} limit={3} />
+      </Fold>
+      {data.cards.map((slides, i) => (
+        <PhoneTurnFold key={i} id={`card${i}`} slides={slides} open={isOpen(`card${i}`, i === 0)} onToggle={() => toggle(`card${i}`, i === 0)} />
+      ))}
+    </div>
+  );
+}
+
+function PhoneTurnFold({ id, slides, open, onToggle }: { id: string; slides: HomeSlide[]; open: boolean; onToggle: () => void }) {
+  const [i, setI] = useState(0);
+  const s = slides[i];
+  const go = (dir: number) => setI((x) => (x + dir + slides.length) % slides.length);
+  const count = s.kind === "list" ? s.items.length : undefined;
+  return (
+    <Fold id={id} kicker={s.kicker} title={s.title} sub={s.sub} count={count} open={open} onToggle={onToggle}>
+      {slides.length > 1 && (
+        <div className="mb-1.5 flex items-center justify-between">
+          <div className="flex gap-1.5" aria-hidden>
+            {slides.map((_, k) => <span key={k} className="h-1.5 rounded-full" style={{ width: k === i ? 16 : 6, background: k === i ? "var(--st-ink)" : "var(--st-line)" }} />)}
+          </div>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => go(-1)} aria-label="Previous" className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--st-line)]"><ChevronLeft size={14} /></button>
+            <button type="button" onClick={() => go(1)} aria-label="Next" className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--st-line)]"><ChevronRight size={14} /></button>
+          </div>
+        </div>
+      )}
+      <div key={i} className="st-pop flex flex-col">
+        {s.kind === "list" && <ListSlide s={s} limit={3} />}
+        {s.kind === "gauge" && <div className="flex h-[230px] flex-col"><GaugeSlide s={s} /></div>}
+        {s.kind === "actions" && <ActionsSlide s={s} />}
+        {s.kind === "controls" && <ControlsSlide s={s} />}
+      </div>
+    </Fold>
+  );
+}
+
+function Fold({ id, kicker, title, sub, count, open, onToggle, children }: {
+  id: string; kicker?: string; title: string; sub?: string; count?: number; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[18px] bg-[var(--st-surface)]">
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={`fold-${id}`}
+        className="flex min-h-[64px] w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="min-w-0 flex-1">
+          {kicker && <span className="block text-[11px] text-[var(--st-muted)]">{kicker}</span>}
+          <span className="block truncate text-[17px] font-medium tracking-[-0.01em]">{title}</span>
+          {sub && <span className="block truncate text-xs text-[var(--st-muted)]">{sub}</span>}
+        </span>
+        {count != null && <span className="shrink-0 rounded-lg bg-[var(--st-page)] px-2 py-0.5 text-[13px] tabular-nums">{count}</span>}
+        <ChevronDown size={17} className={cn("shrink-0 text-[var(--st-muted)] transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open && <div id={`fold-${id}`} className="st-pop flex flex-col border-t border-[var(--st-line-soft)] px-4 pb-3 pt-2.5">{children}</div>}
+    </section>
   );
 }

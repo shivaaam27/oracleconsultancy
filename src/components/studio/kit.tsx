@@ -15,6 +15,7 @@
  */
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { StudioSwipeRow } from "./swipe-row";
 
 export type StudioTexture = "rings" | "contour" | "hatch" | "dots" | "paper-dots" | "paper-rings";
 
@@ -37,13 +38,10 @@ export function StudioHeader({ title, left, right, sub }: { title: ReactNode; le
   );
 }
 
-/** Two (or three) equal summary cards under the header. */
+/** Two (or three) equal summary cards under the header. On a phone they are
+ *  ONE card you swipe (swipe-row.tsx); from md they sit side by side. */
 export function StudioCardRow({ children, className, cols = 2 }: { children: ReactNode; className?: string; cols?: 2 | 3 }) {
-  return (
-    <div className={cn("grid grid-cols-1 gap-5", cols === 3 ? "lg:grid-cols-3" : "lg:grid-cols-2", className)}>
-      {children}
-    </div>
-  );
+  return <StudioSwipeRow className={className} cols={cols}>{children}</StudioSwipeRow>;
 }
 
 export function StudioCard({
@@ -197,6 +195,6 @@ export const stBtn = {
 export const stFloatBar = {
   // 64px footer + 12px — at every width below lg (the old md:5.5rem was the
   // retired pill's height, and left a 24px gap on a tablet).
-  sticky: "pointer-events-none sticky bottom-[calc(64px+12px+env(safe-area-inset-bottom))] z-30 flex justify-center lg:bottom-3",
-  fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(64px+env(safe-area-inset-bottom)+12px)] lg:mt-0",
+  sticky: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+env(safe-area-inset-bottom))] z-30 flex justify-center lg:bottom-3",
+  fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+12px)] lg:mt-0",
 } as const;

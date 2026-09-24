@@ -449,7 +449,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
       {/* header */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3" data-page-header>
         <div className="min-w-0">
-          <h1 className="m-0 whitespace-nowrap text-[34px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]">Files Management</h1>
+          <h1 className="m-0 whitespace-nowrap text-[34px] font-medium leading-[0.95] tracking-[-0.035em] sm:text-[56px]"><span className="sm:hidden">Files</span><span className="hidden sm:inline">Files Management</span></h1>
           <div className="mt-2 text-[13px] text-[var(--st-muted)]">{live.length} files · {fmtSize(totalSize)} · filed by hand, found in a second</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

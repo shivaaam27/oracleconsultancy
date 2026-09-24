@@ -6,13 +6,12 @@ import { markPush, withReturn } from "@/lib/return-to";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
-import { SelectCheckbox, OrderRegistrar } from "./selection";
+import { SelectCheckbox, OrderRegistrar, useSelection } from "./selection";
 import { AssigneeAvatars } from "@/components/assignee-avatars";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
-import { TaskCard } from "@/components/task-card";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
@@ -32,7 +31,7 @@ import { inlineUpdateTask } from "@/app/task/actions";
 import { cn } from "@/lib/cn";
 import { useStudioPick } from "@/components/studio/tasks/pick";
 import { StudioStatusCell, StudioFaces, StudioStar } from "@/components/studio/tasks/cells";
-import { ago } from "@/components/studio/tasks/task-words";
+import { ago, deadlineWords } from "@/components/studio/tasks/task-words";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -225,6 +224,7 @@ export function TableView({
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--st-muted)]">
             <span className="st-mono shrink-0 text-[11px] text-[#6E7177]">{r.code}</span>
+            <span className="shrink-0 lg:hidden">· {r.status}</span>
             {!hideCompany && <span className="truncate">{r.companyName}</span>}
             <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
           </div>
@@ -232,7 +232,9 @@ export function TableView({
       ),
     },
     {
-      key: "status", label: "Status", width: "128px", ...sortProps("status"),
+      // A tablet gives the name the room (mockup M_Tasks): the status moves
+      // under the name as words until the desk has space for its own column.
+      key: "status", label: "Status", width: "128px", hideBelow: "lg", ...sortProps("status"),
       csv: (r) => r.status,
       render: (r) => <StudioStatusCell code={r.code} status={r.status} />,
     },
@@ -296,18 +298,19 @@ export function TableView({
     <>
       <OrderRegistrar codes={rows.map((r) => r.code)} info={Object.fromEntries(rows.map((r) => [r.code, { title: r.actionItem, deadline: r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : null }]))} />
 
-      {/* Mobile: one compiled card per task (no horizontal scroll) */}
-      <div className="sm:hidden space-y-2.5">
+      {/* Phone (mockup M_Tasks): one two-line row per task in one white card —
+          status dot, name, code · company, deadline in its colour, who. Press
+          and hold a row to start ticking; the tick boxes show once one is ticked. */}
+      <div className="overflow-hidden rounded-[20px] bg-[var(--st-surface)] sm:hidden">
         {rows.map((r) => (
-          <div key={r.id} className="space-y-2.5">
+          <div key={r.id}>
           {headerAt.has(r.id) && (
-            <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">{headerAt.get(r.id)}</p>
+            <p className="border-b border-[var(--st-line-soft)] bg-[var(--st-page)] px-4 pb-1.5 pt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--st-muted)]">{headerAt.get(r.id)}</p>
           )}
-          <TaskCard
+          <PhoneTaskRow
             row={r}
             hideCompany={hideCompany || groupBy === "company"}
             onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
-            onOpenConversation={() => openTask(r.code, "conversation")}
             onPointerDown={(e) => onRowPointerDown(r, e)}
             onPointerMove={onRowPointerMove}
             onPointerUp={clearPress}
@@ -458,5 +461,50 @@ export function TableView({
         label={snoozeRow ? `Snooze ${snoozeRow.code} until…` : undefined}
       />
     </>
+  );
+}
+
+const DUE_DOT: Record<string, string> = { late: "var(--st-late)", soon: "var(--st-soon)", ok: "var(--st-ok)", none: "#CFCFCA", done: "var(--st-ok)" };
+
+/** A task on a phone: 60px, two lines, the deadline on the right. */
+function PhoneTaskRow({ row: r, hideCompany, onOpen, ...press }: {
+  row: TaskRow;
+  hideCompany: boolean;
+  onOpen: () => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: () => void;
+  onPointerLeave: () => void;
+  onPointerCancel: () => void;
+}) {
+  const { selected } = useSelection();
+  const ticking = selected.size > 0;
+  const due = deadlineWords(r);
+  return (
+    <div
+      {...press}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={onOpen}
+      className={cn("grid cursor-pointer select-none items-center gap-x-3 border-b border-[var(--st-line-soft)] px-4 py-3 last:border-0 active:bg-[var(--st-page)]",
+        ticking ? "grid-cols-[20px_8px_minmax(0,1fr)_auto]" : "grid-cols-[8px_minmax(0,1fr)_auto]",
+        selected.has(r.code) && "bg-[var(--st-page)]")}
+    >
+      {ticking && <span onClick={(e) => e.stopPropagation()}><SelectCheckbox code={r.code} /></span>}
+      <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: DUE_DOT[due.tone] }} />
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          {r.unread && <span title="New activity since you last looked" className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--st-blue)]" />}
+          <span className="truncate">{r.actionItem}</span>
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-[var(--st-muted)]">
+          <span className="[font-family:var(--font-geist-mono),monospace] text-[11px]">{r.code}</span>
+          {!hideCompany && <> · {r.companyName}</>}
+        </span>
+      </span>
+      <span className="flex flex-col items-end gap-1">
+        <span className="whitespace-nowrap text-xs" style={{ color: due.onPage }}>{due.words}</span>
+        {r.assignees.length > 0 && <StudioFaces names={r.assignees} max={2} />}
+      </span>
+    </div>
   );
 }

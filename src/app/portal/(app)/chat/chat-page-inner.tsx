@@ -24,7 +24,7 @@ import {
 
 /* Shared body for /portal/chat and /portal/chat/[threadId]. Staff can DM
  * anyone (including the Owner); managers and directors may create ad-hoc groups. */
-export async function PortalChat({ initialThreadId }: { initialThreadId: number | null }) {
+export async function PortalChat({ initialThreadId, taskBase = "/portal/task" }: { initialThreadId: number | null; taskBase?: "/task" | "/portal/task" }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const [people, settings] = await Promise.all([listPeople(), getAppSettings()]);
@@ -36,7 +36,7 @@ export async function PortalChat({ initialThreadId }: { initialThreadId: number 
       canCreateGroup={me.portalRole === "manager" || me.portalRole === "director"}
       ownerOption
       initialThreadId={initialThreadId}
-      taskBase="/portal/task"
+      taskBase={taskBase}
       voiceLang={settings.voiceLanguage}
       actions={{
         listMyThreads,

@@ -15,7 +15,7 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore, MoreHorizontal, Repeat,
 } from "lucide-react";
 import { StudioScope, stBtn } from "./studio/kit";
 import { StudioStatusCell, StudioPriorityCell } from "./studio/tasks/cells";
@@ -198,6 +198,8 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   const [refreshKey, setRefreshKey] = useState(0);
   const [acting, setActing] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
+  // Phone: the header's other actions live in a sheet (mockup M_Task).
+  const [moreOpen, setMoreOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [posting, setPosting] = useState(false);
@@ -1056,8 +1058,9 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     // The mockup's three tabs (Expanded board). Details are not a tab — they are
     // the left-hand panel, always in view; the full form is still one click away
     // from it ("edit"), and stays the one writer for the fields it owns.
-    const studioTabs: { id: string; label: string; n?: number }[] = [
+    const studioTabs: { id: string; label: string; n?: number; phone?: boolean }[] = [
       { id: "conversation", label: "Conversation", n: convoCount || undefined },
+      { id: "details", label: "Details", phone: true },
       { id: "history", label: "History", n: counts.all || undefined },
       { id: "notes", label: "Notes" },
     ];
@@ -1125,7 +1128,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           </div>
         ) : (
           <>
-            <div className="mb-4 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist" aria-label="Task sections">
+            <div className="mb-4 flex shrink-0 gap-5 overflow-x-auto border-b border-[var(--st-line-soft)] [scrollbar-width:none]" role="tablist" aria-label="Task sections">
               {studioTabs.map((x) => {
                 const on = activeTab === x.id || (x.id === "conversation" && activeTab === "overview");
                 return (
@@ -1135,14 +1138,15 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
                     role="tab"
                     aria-selected={on}
                     onClick={() => setActiveTab(x.id)}
-                    className={cn("-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 text-[13px] transition-colors", on ? "border-[var(--st-ink)] text-[var(--st-ink)]" : "border-transparent text-[var(--st-muted)] hover:text-[var(--st-ink)]")}
+                    className={cn("-mb-px inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 text-[13px] transition-colors", x.phone && "md:hidden", on ? "border-[var(--st-ink)] text-[var(--st-ink)]" : "border-transparent text-[var(--st-muted)] hover:text-[var(--st-ink)]")}
                   >
                     {x.label}{x.n != null && <span className="text-xs text-[var(--st-muted)]">{x.n}</span>}
                   </button>
                 );
               })}
             </div>
-            {activeTab === "history" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3">{historyContent}</div>
+            {activeTab === "details" ? <div className="-mx-5 -mt-2 flex flex-col gap-1">{details}{rail}</div>
+              : activeTab === "history" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3">{historyContent}</div>
               : activeTab === "notes" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3"><LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} /></div>
               : (
                 <div className="flex min-h-0 flex-1 flex-col">
@@ -1177,26 +1181,30 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       <StudioScope className="space-y-4">
         <div className="st-tex-rings flex flex-col gap-3 rounded-[20px] bg-[var(--st-card)] px-5 py-4 text-[var(--st-on-card)]">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => close()} className={cn(stBtn.onCard, "h-8")}>
-              <ChevronLeft size={13} />{backLabel === "Tasks" ? "Back to the list" : `Back to ${backLabel}`}
+            <button type="button" onClick={() => close()} className={cn(stBtn.onCard, "h-9 sm:h-8")}>
+              <ChevronLeft size={13} /><span className="sm:hidden">{backLabel}</span><span className="hidden sm:inline">{backLabel === "Tasks" ? "Back to the list" : `Back to ${backLabel}`}</span>
             </button>
             <span className="st-mono rounded-md bg-[var(--st-card-3)] px-2 py-1 text-[11px] text-[#C9CBCF]">{t.code}</span>
             <CompanyDrawerLink id={t.companyId} className="truncate text-[13px] text-[var(--st-on-card-muted)] hover:text-white">{t.companyName}</CompanyDrawerLink>
             <span className="grow" />
+            <button type="button" onClick={() => setMoreOpen(true)} aria-label="More actions" className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--st-card-line)] text-[#C9CBCF] sm:hidden">
+              <MoreHorizontal size={16} />
+            </button>
             {(prevCode || nextCode) && (
-              <span className="flex items-center gap-1">
+              <span className="hidden items-center gap-1 sm:flex">
                 {seqIdx >= 0 && <span className="mr-1 text-xs text-[var(--st-muted)]">{seqIdx + 1} of {seq.length}</span>}
                 <button type="button" aria-label="Previous task" disabled={!prevCode} onClick={() => prevCode && goToCode(prevCode)} className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--st-card-line)] disabled:opacity-40"><ChevronLeft size={14} /></button>
                 <button type="button" aria-label="Next task" disabled={!nextCode} onClick={() => nextCode && goToCode(nextCode)} className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--st-card-line)] disabled:opacity-40"><ChevronRight size={14} /></button>
                 <span className="mx-1 h-5 w-px bg-[var(--st-card-line)]" aria-hidden />
               </span>
             )}
-            <button type="button" onClick={() => quickAction("complete")} disabled={acting !== null} className={stBtn.onCard}>
+            <button type="button" onClick={() => quickAction("complete")} disabled={acting !== null} className={cn(stBtn.onCard, "hidden sm:inline-flex")}>
               {done ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}{done ? "Reopen" : "Complete"}
             </button>
             {t.escalation !== "Yes" && (
-              <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} className={stBtn.onCardGhost}>Escalate</button>
+              <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} className={cn(stBtn.onCardGhost, "hidden sm:inline-flex")}>Escalate</button>
             )}
+            <span className="hidden flex-wrap items-center gap-2 sm:contents">
             {data.companies.length > 1 && !t.archived && (
               <TaskCopyToCompanies
                 taskId={t.id}
@@ -1212,6 +1220,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
               {t.archived ? "Restore" : "Archive"}
             </button>
             <button type="button" onClick={() => setConfirmDel((v) => !v)} className={cn(stBtn.onCardGhost, "border-[#4A2A3C] text-[#F07BBE]")}>Delete…</button>
+            </span>
           </div>
           {confirmDel && (
             <div className="flex items-center gap-2 rounded-xl bg-[#3A1D2E] px-3 py-2 text-xs">
@@ -1233,15 +1242,58 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
               </button>
             </div>
           </div>
+          <div className="flex gap-2 sm:hidden">
+            <button type="button" onClick={() => quickAction("complete")} disabled={acting !== null} className={cn(stBtn.onCard, "h-10 flex-1 justify-center text-[13px]")}>
+              {done ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}{done ? "Reopen" : "Complete"}
+            </button>
+            {t.escalation !== "Yes" && (
+              <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} className={cn(stBtn.onCardGhost, "h-10 flex-1 justify-center text-[13px]")}>Escalate</button>
+            )}
+          </div>
         </div>
+        {moreOpen && (
+          <div className="fixed inset-0 z-[46] sm:hidden" role="dialog" aria-label="More actions">
+            <button type="button" aria-label="Close" onClick={() => setMoreOpen(false)} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.4)]" />
+            <div className="st-pop absolute inset-x-0 bottom-0 rounded-t-[26px] bg-[var(--st-surface)] px-4 pb-[calc(18px+env(safe-area-inset-bottom))] pt-2 text-[var(--st-ink)]">
+              <span aria-hidden className="mx-auto block h-[5px] w-10 rounded-full bg-[var(--st-line)]" />
+              <div className="truncate px-1 pb-1 pt-3 text-[13px] text-[var(--st-muted)]">{t.actionItem} · {t.code}</div>
+              {(prevCode || nextCode) && (
+                <div className="flex gap-2 py-2">
+                  <button type="button" disabled={!prevCode} onClick={() => { setMoreOpen(false); if (prevCode) goToCode(prevCode); }} className={cn(stBtn.ghost, "h-11 flex-1 justify-center disabled:opacity-40")}><ChevronLeft size={15} />Previous task</button>
+                  <button type="button" disabled={!nextCode} onClick={() => { setMoreOpen(false); if (nextCode) goToCode(nextCode); }} className={cn(stBtn.ghost, "h-11 flex-1 justify-center disabled:opacity-40")}>Next task<ChevronRight size={15} /></button>
+                </div>
+              )}
+              {data.companies.length > 1 && !t.archived && (
+                <TaskCopyToCompanies
+                  taskId={t.id}
+                  currentCompanyId={t.companyId}
+                  currentCompanyName={t.companyName}
+                  companies={data.companies}
+                  actions={copyActions}
+                  triggerLabel="Copy to other companies"
+                  triggerClassName="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]"
+                />
+              )}
+              <button type="button" onClick={() => { setMoreOpen(false); setRepeatOpen(true); }} className="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]">
+                <Repeat size={17} />Repeat…
+              </button>
+              <button type="button" onClick={() => { setMoreOpen(false); void toggleArchived(); }} disabled={archiving} className="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]">
+                {t.archived ? <ArchiveRestore size={17} /> : <Archive size={17} />}{t.archived ? "Restore" : "Archive"}
+              </button>
+              <button type="button" onClick={() => { setMoreOpen(false); setConfirmDel(true); }} className="flex h-[50px] w-full items-center gap-3 text-[15px] text-[var(--st-late-text)]">
+                <Trash2 size={17} />Delete…
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Three columns from lg, as the mockup's Expanded board — Details ·
             conversation · People/Share/Similar. The side columns start slim
             and widen with the screen; below lg they stack, conversation first. */}
-        <div ref={studioGridRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)_240px] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
-          <div className="st-scroll order-2 min-w-0 rounded-[18px] lg:order-1 lg:min-h-0 lg:overflow-y-auto">{details}</div>
-          <div className="order-1 min-w-0 lg:order-2 lg:min-h-0">{centre}</div>
-          <div className="st-scroll order-3 min-w-0 rounded-[18px] lg:min-h-0 lg:overflow-y-auto">{rail}</div>
+        <div ref={studioGridRef} className="grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1fr)_260px] lg:grid-cols-[250px_minmax(0,1fr)_240px] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+          <div className="st-scroll order-2 hidden min-w-0 rounded-[18px] md:block lg:order-1 lg:min-h-0 lg:overflow-y-auto">{details}</div>
+          <div className="order-1 min-w-0 md:row-span-2 lg:order-2 lg:row-span-1 lg:min-h-0">{centre}</div>
+          <div className="st-scroll order-3 hidden min-w-0 rounded-[18px] md:block lg:min-h-0 lg:overflow-y-auto">{rail}</div>
         </div>
         {repeatSheet}
       </StudioScope>

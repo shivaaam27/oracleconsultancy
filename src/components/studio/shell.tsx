@@ -177,35 +177,35 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
       <footer
         data-studio-foot
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[41] h-[calc(64px+env(safe-area-inset-bottom))] bg-[#0E0F10] pb-[env(safe-area-inset-bottom)] text-[#F2F2F0]",
+          "fixed inset-x-0 bottom-0 z-[41] h-[calc(var(--foot-h)+env(safe-area-inset-bottom))] bg-[#0E0F10] pb-[env(safe-area-inset-bottom)] text-[#F2F2F0]",
           "[font-family:var(--font-geist),var(--font-sans)]",
           chat && "max-md:hidden",
         )}
       >
-        <div className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-5">
+        <div className="grid h-[var(--foot-h)] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3.5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-5">
           {/* Left: what needs you now (hidden on a phone — no room). */}
           <div className="hidden min-w-0 md:block">
             <NeedsTicker items={items} />
           </div>
 
           {/* Centre: Home · ‹ page › · Settings */}
-          <nav aria-label="Pages" className="col-start-1 flex items-center gap-1 text-[13px] md:col-start-auto md:gap-3 lg:gap-[22px]">
+          <nav aria-label="Pages" className="flex min-w-0 items-center gap-1.5 text-[13px] md:gap-3 lg:gap-[22px]">
             <Link
               href="/"
               aria-label="Home"
-              className={cn("flex h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white md:px-0", onHome ? "text-white" : "text-[#8E9197]")}
+              className={cn("flex h-11 w-11 shrink-0 items-center justify-center gap-[7px] rounded-[12px] transition-colors hover:text-white md:h-9 md:w-auto md:justify-start md:px-0", onHome ? "text-white" : "text-[#8E9197]")}
             >
               <Home size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Home</span>
             </Link>
-            <div ref={pill} title="Scroll or swipe to move between pages" className="flex touch-pan-y items-center gap-1 rounded-xl border border-[#2A2C30] bg-[#1C1D20] p-[3px]">
+            <div ref={pill} title="Scroll or swipe to move between pages" className="flex touch-pan-y items-center gap-0.5 rounded-[13px] border border-[#2A2C30] bg-[#1C1D20] p-[3px] md:gap-1 md:rounded-xl">
               <Link
                 href={prev.href}
                 prefetch
                 onClick={() => { setDir(-1); setPending((i - 1 + stops.length) % stops.length); }}
                 aria-label={`Previous page: ${prev.label}`}
                 title={prev.label}
-                className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
               >
                 <ChevronLeft size={13} strokeWidth={2.2} />
               </Link>
@@ -215,7 +215,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 aria-haspopup="dialog"
                 aria-expanded={goTo}
                 title="Go to any page"
-                className="flex h-7 min-w-[96px] max-w-[46vw] items-center justify-center gap-2 overflow-hidden rounded-[9px] bg-[#2A2C30] px-3 font-medium text-white"
+                className="flex h-[38px] min-w-[96px] max-w-[40vw] items-center justify-center gap-2 overflow-hidden rounded-[10px] bg-[#2A2C30] px-3 text-[14px] font-medium text-white md:h-7 md:min-w-[96px] md:rounded-[9px] md:text-[13px] md:max-w-[46vw]"
               >
                 {/* The name slides the way you are going, the moment you ask —
                     before the page has arrived, so the step never feels stuck. */}
@@ -228,7 +228,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(1); setPending((i + 1) % stops.length); }}
                 aria-label={`Next page: ${next.label}`}
                 title={next.label}
-                className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
               >
                 <ChevronRight size={13} strokeWidth={2.2} />
               </Link>
@@ -237,7 +237,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               <Link
                 href="/portal/profile"
                 aria-label="Your profile"
-                className="flex h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#8E9197] transition-colors hover:text-white md:px-0"
+                className="hidden h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#8E9197] transition-colors hover:text-white sm:flex md:px-0"
               >
                 <UserRound size={16} strokeWidth={2} />
                 <span className="hidden lg:inline">Profile</span>
@@ -246,7 +246,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
             <Link
               href="/settings"
               aria-label="Settings"
-              className={cn("flex h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white md:px-0", onSettings ? "text-white" : "text-[#8E9197]")}
+              className={cn("hidden h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white sm:flex md:px-0", onSettings ? "text-white" : "text-[#8E9197]")}
             >
               <SettingsIcon size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Settings</span>
@@ -255,7 +255,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           </nav>
 
           {/* Right: search everything · notifications · + New */}
-          <div className="col-start-3 flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 md:col-start-3">
             {/* Ask ORI or search — the palette (mockup board Ask). */}
             <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2", !director && "sm:inline-flex")}>
               <Search size={14} />
@@ -265,7 +265,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
             {/* Sign out — the owner's session, or a director's portal one. It
                 lived only at the foot of Settings, which nobody finds (owner,
                 25 Sept 2026: "how do you expect me to log out"). */}
-            <form action={director ? portalLogout : adminLogout}>
+            <form action={director ? portalLogout : adminLogout} className="hidden sm:block">
               <button
                 type="submit"
                 aria-label="Sign out"
@@ -280,7 +280,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               align="right"
               lanes
               variant="studio"
-              triggerClassName="relative inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
+              triggerClassName="relative inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white sm:h-9 sm:w-9 sm:rounded-[10px]"
             />
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}
             {(!director || director.createTasks) && (
@@ -295,7 +295,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               aria-haspopup="dialog"
               aria-expanded={quick}
               aria-label="Create something new"
-              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:px-3.5"
+              className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[12px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:h-9 sm:rounded-[10px] sm:px-3.5"
             >
               <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">{director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
             </button>
@@ -315,15 +315,21 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           onClose={() => setGoTo(false)}
           onGo={(href) => { setGoTo(false); router.push(href); }}
           onSearch={director ? undefined : () => { setGoTo(false); openPalette(); }}
+          me={director
+            ? { name: director.name, role: "Director", profile: "/portal/profile", profileLabel: "Profile", logout: portalLogout }
+            : { name: "Administrator", role: "Every company", profile: "/settings", profileLabel: "Settings", logout: adminLogout }}
         />
       )}
     </>
   );
 }
 
+type GoToMe = { name: string; role: string; profile: string; profileLabel: string; logout: () => Promise<void> | void };
+
 function GoToPanel({
-  stops, current, prev, next, onClose, onGo, onSearch,
+  stops, current, prev, next, onClose, onGo, onSearch, me,
 }: {
+  me: GoToMe;
   stops: StudioStop[];
   current: StudioStop;
   prev: StudioStop;
@@ -356,8 +362,19 @@ function GoToPanel({
     <div data-studio-goto className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       <div
-        className="st-sheet st-sheet-dots st-pop absolute inset-x-3 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] mx-auto flex max-h-[calc(100dvh-100px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-3xl bg-[var(--sh-bg)] p-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:p-5"
+        className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] sm:rounded-3xl sm:p-5"
       >
+        {/* Phone: the sheet's grabber, then who you are with Profile and Sign
+            out — they left the footer so the footer fits a thumb. */}
+        <span aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-[var(--sh-chip-line)] sm:hidden" />
+        <div className="flex items-center gap-3 border-b border-[var(--sh-line)] pb-3 sm:hidden">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--sh-hover)] text-sm font-semibold">{initialsOf(me.name)}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold">{me.name}</div>
+            <div className="truncate text-xs text-[var(--sh-muted)]">{me.role}</div>
+          </div>
+          <ShellThemeButton />
+        </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)]">
             <Search size={16} />
@@ -371,10 +388,10 @@ function GoToPanel({
               className="bare-field w-full border-0 bg-transparent text-sm text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]"
             />
           </label>
-          <button type="button" onClick={() => onGo(prev.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
+          <button type="button" onClick={() => onGo(prev.href)} className="hidden h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
             <ChevronLeft size={13} strokeWidth={2.2} />{prev.label}
           </button>
-          <button type="button" onClick={() => onGo(next.href)} className="flex h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
+          <button type="button" onClick={() => onGo(next.href)} className="hidden h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
             {next.label}<ChevronRight size={13} strokeWidth={2.2} />
           </button>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
@@ -382,7 +399,33 @@ function GoToPanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:hidden">
+          {shown.map((s) => {
+            const on = s.id === current.id;
+            const Icon = s.icon;
+            return (
+              <Link key={s.id} href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
+                className={cn("flex h-[68px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[14px] px-1 text-xs",
+                  on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)]")}>
+                <Icon size={17} />
+                <span className="w-full truncate text-center">{s.label}</span>
+              </Link>
+            );
+          })}
+          {shown.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
+        </div>
+        <div className="flex gap-2 sm:hidden">
+          <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
+            <UserRound size={15} />{me.profileLabel}
+          </Link>
+          <form action={me.logout} className="flex flex-1">
+            <button type="submit" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm text-[#E0479E]">
+              <LogOut size={15} />Sign out
+            </button>
+          </form>
+        </div>
+
+        <div className="hidden grid-cols-2 gap-4 sm:grid md:grid-cols-4">
           {groups.map((g) => (
             <div key={g.label} className="flex min-w-0 flex-col gap-2">
               <div className="px-1 text-[11px] uppercase tracking-[0.08em] text-[var(--sh-muted)]">{g.label}</div>
@@ -418,7 +461,7 @@ function GoToPanel({
           {groups.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--sh-line)] pt-3 text-xs text-[var(--sh-muted)]">
+        <div className="hidden flex-wrap items-center justify-between gap-2 border-t border-[var(--sh-line)] pt-3 text-xs text-[var(--sh-muted)] sm:flex">
           <span className="flex items-center gap-1.5">
             <span className={KEY}><ChevronLeft size={11} strokeWidth={2.4} /></span>
             <span className={KEY}><ChevronRight size={11} strokeWidth={2.4} /></span>
@@ -436,6 +479,12 @@ function GoToPanel({
       </div>
     </div>
   );
+}
+
+function initialsOf(name: string): string {
+  const clean = name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, "").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
 }
 
 const KEY = "inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-1 text-[10px] font-medium text-[var(--sh-sub)]";

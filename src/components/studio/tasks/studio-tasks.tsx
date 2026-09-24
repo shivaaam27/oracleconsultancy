@@ -12,7 +12,7 @@ import { Archive, Sparkles, CheckSquare, LayoutGrid, LayoutList, Table2, Calenda
 import type { TaskRow } from "@/lib/queries";
 import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
 import type { RecordFilter } from "@/components/record-list";
-import { StudioScope, StudioHeader } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCardRow } from "@/components/studio/kit";
 import { StudioPickProvider } from "./pick";
 import { InsightsCard, type InsightsData } from "./insights-card";
 import { UpdateCard } from "./update-card";
@@ -87,6 +87,8 @@ export function StudioTasks(p: StudioTasksProps) {
                       title={VIEW_LABEL[m]}
                       className={cn(
                         "flex h-[30px] items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors",
+                        // A phone keeps List and Board; the wide views are for a tablet and up (owner, 25 Sept 2026).
+                        m !== "table" && m !== "board" && !active && "hidden sm:flex",
                         active ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]",
                       )}
                     >
@@ -104,10 +106,10 @@ export function StudioTasks(p: StudioTasksProps) {
         {p.strip && <StudioIdentity strip={p.strip} />}
         {p.notes}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <StudioCardRow>
           <InsightsCard data={p.insights} />
           <UpdateCard fresh={p.fresh} unreadCount={p.unreadCount} postedToday={p.updatedToday} />
-        </div>
+        </StudioCardRow>
 
         {p.quickAdd}
         {p.body}

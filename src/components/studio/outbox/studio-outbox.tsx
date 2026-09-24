@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, Copy, History, Loader2, Mail, MessageCircle, Search, Send, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, Copy, History, Loader2, Mail, MessageCircle, Search, Send, X } from "lucide-react";
 import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
 import type { OutboxDraftRow } from "@/lib/outbox/drafts";
 import type { LastChased } from "@/lib/outbox/history";
@@ -25,7 +25,7 @@ import { taskHref } from "@/lib/task-href";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
-import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, Ring, StudioPill, stBtn } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, StudioPill, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { avatarTint, initials, ago, deadlineWords } from "@/components/studio/tasks/task-words";
 import {
@@ -77,6 +77,8 @@ export function StudioOutbox({
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [selKey, setSelKey] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
+  // Phone: the open item covers the screen, with a way back (mockup M_Outbox).
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const [bulk, startBulk] = useTransition();
   const body = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLDivElement>(null);
@@ -134,8 +136,7 @@ export function StudioOutbox({
 
   function pick(key: string) {
     setSelKey(key);
-    // Below lg the detail sits under the list: bring it into view.
-    if (!window.matchMedia("(min-width: 1024px)").matches) requestAnimationFrame(() => detail.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    if (!window.matchMedia("(min-width: 768px)").matches) setPhoneOpen(true);
   }
   function resolve(key: string) {
     const i = shown.findIndex((x) => x.key === key);
@@ -173,7 +174,7 @@ export function StudioOutbox({
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setLogOpen(true)} className={stBtn.ghost}><History size={14} />Sent log</button>
+            <button type="button" onClick={() => setLogOpen(true)} aria-label="Sent log" className={stBtn.ghost}><History size={14} /><span className="hidden sm:inline">Sent log</span></button>
             {owner && emailDrafts > 0 && (
               <button type="button" onClick={sendAll} disabled={bulk} title="Send every email draft now" className={stBtn.dark}>
                 {bulk ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Send all email · {emailDrafts}
@@ -183,8 +184,8 @@ export function StudioOutbox({
         }
       />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <StudioCard className="min-h-[210px]">
+      <StudioCardRow>
+        <StudioCard className="min-h-[170px] md:min-h-[210px]">
           <CardHead label="Today" right={<span className="text-[var(--st-on-card-muted)]">{scopeLabel}</span>} />
           <div className="mt-auto flex items-end gap-7 pt-4">
             <div>
@@ -207,7 +208,7 @@ export function StudioOutbox({
               : automation.allOff ? <StudioPill onCard>Off</StudioPill>
               : <StudioPill onCard dot="var(--st-ok)">On</StudioPill>}
           />
-          <div className="mt-auto grid grid-cols-1 items-end gap-x-6 gap-y-3 pt-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="mt-auto grid grid-cols-1 items-end gap-x-6 gap-y-3 pt-3 lg:grid-cols-[minmax(0,1fr)_180px]">
             <div>
               {automation.categories.map((c) => (
                 <div key={c.label} className="flex items-center justify-between gap-3 border-b border-[#222428] py-[5px] text-xs last:border-0">
@@ -225,11 +226,11 @@ export function StudioOutbox({
             </div>
           </div>
         </StudioCard>
-      </div>
+      </StudioCardRow>
 
-      <div ref={body} className="flex flex-col gap-5 lg:flex-row">
+      <div ref={body} className="flex flex-col gap-5 md:flex-row">
         {/* ── The list */}
-        <div className="flex max-h-[60vh] min-h-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:max-h-none lg:w-[420px] lg:shrink-0">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] md:max-h-[72vh] md:w-[300px] md:shrink-0 lg:max-h-none lg:w-[420px]">
           <div className="flex items-center gap-2 border-b border-[var(--st-line-soft)] px-3.5 py-3">
             <label className="flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-[10px] bg-[var(--st-page)] px-2.5 text-[var(--st-muted)]">
               <Search size={14} /><span className="sr-only">Search</span>
@@ -264,7 +265,17 @@ export function StudioOutbox({
         </div>
 
         {/* ── The item */}
-        <div ref={detail} className="min-h-[420px] min-w-0 flex-1 scroll-mt-4 overflow-y-auto rounded-[20px] bg-[var(--st-surface)] px-[22px] py-5">
+        <div ref={detail} className={cn(
+          "min-w-0 flex-1 overflow-y-auto bg-[var(--st-surface)] px-[22px] py-5 md:min-h-[420px] md:rounded-[20px]",
+          // phone: hidden until an item is picked, then it covers the screen
+          phoneOpen ? "max-md:fixed max-md:inset-0 max-md:z-[46] max-md:pt-0 max-md:pb-0" : "max-md:hidden",
+        )}>
+          {phoneOpen && sel && (
+            <div className="sticky top-0 z-10 -mx-[22px] mb-3 flex items-center justify-between bg-[var(--st-surface)] px-4 pb-2 pt-[calc(12px+env(safe-area-inset-top))] md:hidden">
+              <button type="button" onClick={() => setPhoneOpen(false)} className="flex h-10 items-center gap-1 text-sm text-[var(--st-sub)]"><ChevronLeft size={17} />Outbox</button>
+              <span className="text-xs text-[var(--st-muted)]">{shown.findIndex((x) => x.key === sel.key) + 1} of {shown.length}</span>
+            </div>
+          )}
           {!sel ? (
             <div className="grid h-full place-items-center text-[13px] text-[var(--st-muted)]">Pick someone on the left to see their message.</div>
           ) : sel.kind === "reminder" ? (
@@ -458,9 +469,9 @@ function ReminderDetail({ owner, draft, overdue, chased, onDone }: {
             {contact ? ` · ${contact}` : " · no contact details"}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-lg:w-full">
           {tiles.map(([n, l, c]) => (
-            <div key={l} className="min-w-[70px] rounded-xl bg-[var(--st-page)] px-3 py-2">
+            <div key={l} className="min-w-[70px] rounded-xl bg-[var(--st-page)] px-3 py-2 max-lg:flex-1">
               <div className="text-xl tabular-nums tracking-[-0.02em]" style={{ color: c }}>{n}</div>
               <div className="text-[11px] text-[var(--st-label)]">{l}</div>
             </div>
@@ -468,7 +479,7 @@ function ReminderDetail({ owner, draft, overdue, chased, onDone }: {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="flex min-h-0 flex-col gap-1.5">
           <div className="text-xs text-[var(--st-label)]">In this reminder</div>
           <div className="st-scroll flex min-h-0 flex-col gap-1.5 overflow-y-auto">
@@ -496,11 +507,11 @@ function ReminderDetail({ owner, draft, overdue, chased, onDone }: {
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-[22px] max-md:grid max-md:grid-cols-2 max-md:border-t max-md:border-[var(--st-line)] max-md:bg-[var(--st-surface)] max-md:px-3 max-md:pb-[calc(10px+env(safe-area-inset-bottom))] max-md:pt-2.5 max-md:[&>button]:justify-center">
         {owner && <button type="button" onClick={onSkip} disabled={!!busy || !draft.personId} title="Hide this person until tomorrow" className={BTN}>{spin("skip")}Skip today</button>}
         <button type="button" onClick={onCopyDone} disabled={!!busy} className={BTN}>{spin("copy") || <Copy size={14} />}Copy &amp; done</button>
         <button type="button" onClick={() => run("done", () => markDone(channel, `Marked done for ${draft.recipientName}.`))} disabled={!!busy} className={BTN}>{spin("done")}Mark done</button>
-        <span className="flex-1" />
+        <span className="flex-1 max-md:hidden" />
         {wa && <button type="button" onClick={onWhatsApp} disabled={!!busy} className={draft.email ? BTN : BTN_DARK}>{spin("wa") || <MessageCircle size={15} />}WhatsApp</button>}
         {draft.email && <button type="button" onClick={onEmail} disabled={!!busy} title="Send the branded reminder email, with your line at the top" className={BTN_DARK}>{spin("email") || <Mail size={15} />}Send email</button>}
       </div>
@@ -542,7 +553,7 @@ function DraftDetail({ row, auto, onGone }: { row: OutboxDraftRow; auto: boolean
       )}
       <textarea value={body} onChange={(e) => setBody(e.target.value)} onBlur={save} aria-label="Message"
         className="bare-field st-scroll min-h-[220px] flex-1 resize-none rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 py-3 text-[13px] leading-[1.55] text-[var(--st-ink)] outline-none focus:border-[var(--st-muted)]" />
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-[22px] max-md:border-t max-md:border-[var(--st-line)] max-md:bg-[var(--st-surface)] max-md:px-3 max-md:pb-[calc(10px+env(safe-area-inset-bottom))] max-md:pt-2.5">
         <button type="button" disabled={!!busy} className={cn(BTN, "border-[var(--st-bad-line)] text-[var(--st-late-text)]")}
           onClick={() => run("discard", async () => { const r = await deleteDraft(row.id); if (!r.ok) { toast(r.error || "Couldn't discard.", { tone: "danger" }); return; } toast("Draft discarded.", { duration: 3000 }); onGone(); })}>
           {spin("discard")}Discard

@@ -391,14 +391,16 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
       {/* The band — the same as a task's, with Create where Complete would be. */}
       <div className="st-tex-rings flex flex-col gap-3 rounded-[20px] bg-[var(--st-card)] px-5 py-4 text-[var(--st-on-card)]">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={discard} className={cn(stBtn.onCard, "h-8")}><ChevronLeft size={13} />Back to the list</button>
+          <button type="button" onClick={discard} className={cn(stBtn.onCard, "h-8")}><ChevronLeft size={13} /><span className="sm:hidden">Cancel</span><span className="hidden sm:inline">Back to the list</span></button>
           <span className="st-mono rounded-md bg-[var(--st-card-3)] px-2 py-1 text-[11px] text-[#C9CBCF]">NEW</span>
-          <span className="truncate text-[13px] text-[var(--st-on-card-muted)]">Not saved yet — the code is given when you create it</span>
+          <span className="hidden truncate text-[13px] text-[var(--st-on-card-muted)] sm:inline">Not saved yet — the code is given when you create it</span>
           <span className="grow" />
-          <button type="button" onClick={discard} className={stBtn.onCardGhost}>Discard</button>
-          <button type="button" onClick={() => go(true)} disabled={busy} className={stBtn.onCardGhost}>Create and add another</button>
-          <button type="button" onClick={() => go(false)} disabled={busy} className={stBtn.onCard}>
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}Create task
+          {/* Phone (mockup M_NewTask): Save stays at the top, where the keyboard
+              never covers it; "add another" and Discard follow below. */}
+          <button type="button" onClick={discard} className={cn(stBtn.onCardGhost, "hidden sm:inline-flex")}>Discard</button>
+          <button type="button" onClick={() => go(true)} disabled={busy} className={cn(stBtn.onCardGhost, "hidden sm:inline-flex")}>Create and add another</button>
+          <button type="button" onClick={() => go(false)} disabled={busy} className={cn(stBtn.onCard, "h-9 sm:h-8")}>
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}<span className="sm:hidden">Save</span><span className="hidden sm:inline">Create task</span>
           </button>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -420,6 +422,10 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
             <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} tone="dark" suffix=" priority" showDot={false} />
             <button type="button" onClick={() => setRepeatOpen((v) => !v)} className={cn(bandChip, "inline-flex items-center gap-1.5")}><Repeat size={12} />{repeatWords(d.repeat)}</button>
           </div>
+        </div>
+        <div className="flex gap-2 sm:hidden">
+          <button type="button" onClick={() => go(true)} disabled={busy} className={cn(stBtn.onCardGhost, "h-10 flex-1 justify-center")}>Save and add another</button>
+          <button type="button" onClick={discard} className={cn(stBtn.onCardGhost, "h-10 justify-center")}>Discard</button>
         </div>
       </div>
 

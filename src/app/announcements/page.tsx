@@ -1,4 +1,7 @@
 import { Megaphone } from "lucide-react";
+import { redirect } from "next/navigation";
+import { getViewer } from "@/lib/viewer";
+import { StudioRebuilding } from "@/components/studio/rebuilding";
 import { PageHeader } from "@/components/ui";
 import { sb } from "@/db/supabase";
 import { SectionLabel, TONE, type Tone } from "@/components/surface-kit";
@@ -23,6 +26,10 @@ function fmtDateTime(iso: string | null): string {
 }
 
 export default async function AnnouncementsPage() {
+  const v = await getViewer();
+  if (!v) redirect("/login");
+  // Closed to directors until it is rebuilt (DirectorAnnouncements is the start of it).
+  if (v.kind === "director") return <StudioRebuilding title="Announcements" />;
   const [{ data: companiesRaw }, { data: deptsRaw }, sites, { data: peopleRaw }, roles, announcements] =
     await Promise.all([
       sb.from("companies").select("id,name").order("name"),

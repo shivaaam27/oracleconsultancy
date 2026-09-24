@@ -208,7 +208,8 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
           : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
         <span className="flex-1" />
-        <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        {/* Phone: the contact buttons slide along a line of their own. */}
+        <div className="order-last flex w-full max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:order-none sm:w-auto">
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
           <a href={p.whatsapp ? waHref(p.whatsapp) : undefined} target="_blank" rel="noreferrer" aria-disabled={!p.whatsapp} title={p.whatsapp ?? "No WhatsApp on file"} className={BAND_BTN}><MessageCircle size={13} />WhatsApp</a>
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>

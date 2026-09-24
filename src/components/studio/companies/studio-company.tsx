@@ -76,7 +76,8 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
           <Minimize2 size={13} strokeWidth={2.2} />Companies
         </Link>
         <span className="flex-1" />
-        <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        {/* Phone: the doors take a line of their own under the back button. */}
+        <div className="order-last flex w-full max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:order-none sm:w-auto">
           <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
           <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
           <Link href={`/people?co=${data.id}`} className={BAND_BTN}><Users size={13} />Team</Link>
@@ -91,7 +92,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
           style={{ background: st.tile, color: st.text }}>{data.prefix}</span>
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[28px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{data.name}</h1>
-          <div className="mt-2 text-sm text-[#A3A6AB]">Task codes {data.prefix}-… · {data.open} open · {data.people} {data.people === 1 ? "person" : "people"}</div>
+          <div className="mt-2 text-xs text-[#A3A6AB] sm:text-sm">Task codes {data.prefix}-… · {data.open} open · {data.people} {data.people === 1 ? "person" : "people"}</div>
         </div>
         <span className="inline-flex h-7 items-center gap-2 rounded-lg px-2.5 text-xs"
           style={{ background: s === 2 ? "#3A1D2C" : s === 1 ? "#3A2E14" : s === 0 ? "#1D2A23" : "#26282C", color: s === 2 ? "#F07BBE" : s === 1 ? "#F5B94E" : s === 0 ? "#5BE0A5" : "#C9CBCF" }}>
@@ -159,10 +160,11 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
 
   return (
     <div ref={fit} className="flex flex-col gap-4">
-      <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Phone: the tiles in one sliding row (mockup M_Company). */}
+      <div className="-mx-4 flex shrink-0 gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-2.5 sm:px-0">
         {tiles.map(([n, l, c, href]) => (
-          <Link key={l} href={href} className="rounded-[14px] bg-[var(--st-surface)] px-3.5 py-3 transition-colors hover:bg-[var(--st-cal-busy)]">
-            <div className="text-[28px] leading-none tracking-[-0.03em] tabular-nums" style={{ color: c }}>{n}</div>
+          <Link key={l} href={href} className="min-w-[92px] shrink-0 rounded-[14px] bg-[var(--st-surface)] px-3.5 py-3 transition-colors hover:bg-[var(--st-cal-busy)] sm:min-w-0">
+            <div className="text-[24px] leading-none tracking-[-0.03em] tabular-nums sm:text-[28px]" style={{ color: c }}>{n}</div>
             <div className="mt-1.5 text-xs text-[var(--st-label)]">{l}</div>
           </Link>
         ))}

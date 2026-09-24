@@ -17,7 +17,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, MessagesSquare, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2 } from "lucide-react";
-import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
 import { avatarTint, initials } from "@/components/studio/tasks/task-words";
@@ -252,7 +252,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       />
 
       {/* ── The two cards ─────────────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[220px] lg:grid-cols-2">
+      <StudioCardRow className="lg:h-[220px]">
         <StudioCard className="min-h-[200px]">
           <CardHead label="Directory" right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} companies</span>} />
           <div className="mt-auto flex flex-wrap items-end gap-5 pt-3 lg:flex-nowrap xl:gap-7">
@@ -327,7 +327,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
             </div>
           )}
         </StudioCard>
-      </div>
+      </StudioCardRow>
 
       {/* ── The people, or the queue — from lg it fills the frame and scrolls in
            itself, with the search bar floating over its foot (the board). */}
@@ -374,7 +374,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                     <span className="text-xs text-[#A3A6AB]">{g.items.length} {g.items.length === 1 ? "person" : "people"}</span>
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))]">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] sm:gap-2.5">
                   {g.items.map((p) => {
                     const l = load(p);
                     const on = selecting ? picked.has(p.id) : sel === p.id;
@@ -388,7 +388,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                         }}
                         onDoubleClick={() => !selecting && openPerson(p.id)}
                         title={selecting ? undefined : "Click to see them above · double-click to open"}
-                        className={cn("relative flex min-w-0 flex-col gap-2.5 rounded-[16px] border-[1.5px] bg-[var(--st-surface)] p-3.5 text-left transition-colors",
+                        className={cn("relative flex min-w-0 flex-col gap-2.5 rounded-[16px] border-[1.5px] bg-[var(--st-surface)] p-3 text-left transition-colors sm:p-3.5",
                           on ? "border-[var(--st-ink)]" : "border-transparent hover:border-[var(--st-line)]", !p.active && "opacity-60")}>
                         {selecting && (
                           <span className={cn("absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-[5px] border-[1.5px]",
@@ -400,8 +400,10 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                             <span className="block truncate text-[14px] font-medium">{shortName(p.name)}</span>
                             <span className="block truncate text-xs text-[var(--st-muted)]">{p.role ?? "No job title"}</span>
                           </span>
+                          {/* Phone (mockup M_People): one row, the load on the right. */}
+                          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-xs font-medium sm:hidden" style={{ color: l.c }}>{l.text}</span>
                         </span>
-                        <span className="flex min-w-0 items-center gap-1.5 text-[11px]">
+                        <span className="hidden min-w-0 items-center gap-1.5 text-[11px] sm:flex">
                           {p.staffId && <span className="st-mono shrink-0 rounded-[5px] bg-[var(--st-page)] px-1.5 py-0.5 text-[var(--st-label)]">{p.staffId}</span>}
                           <span className="truncate text-[var(--st-muted)]">{hints[p.id]?.onLeave ? "On leave today" : portalLabel(p)}</span>
                           <span className="flex-1" />

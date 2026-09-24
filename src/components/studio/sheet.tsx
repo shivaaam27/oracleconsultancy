@@ -40,7 +40,7 @@ export function StudioSheet({
       <div
         style={{ width: `min(${width}px, calc(100vw - 24px))` }}
         className={cn(
-          "studio st-sheet st-sheet-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] left-1/2 flex max-h-[calc(100dvh-100px)] -translate-x-1/2 flex-col overflow-hidden rounded-3xl",
+          "studio st-sheet st-sheet-dots st-pop absolute bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] left-1/2 flex max-h-[calc(100dvh-100px)] -translate-x-1/2 flex-col overflow-hidden rounded-3xl",
           "shadow-[0_30px_80px_rgba(0,0,0,0.35)]",
         )}
       >
