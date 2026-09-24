@@ -103,7 +103,7 @@ async function buildPulse(): Promise<PulseItem[]> {
       label: "Document filed",
       detail: [(d.title as string) ?? "", firstName(d, "companies")].filter(Boolean).join(" · ").slice(0, 90),
       when: ago(when),
-      href: "/documents",
+      href: "/files",
       ts: new Date(when).getTime(),
     });
   }

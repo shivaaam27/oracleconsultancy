@@ -239,10 +239,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     },
     {
       key: "documents",
-      label: "Documents",
+      label: "Files",
       count: docCount,
       heartbeat: docCount === 0 ? "nothing filed yet" : "on file",
-      href: "/documents",
+      href: "/files",
       tone: "success",
     },
   ];

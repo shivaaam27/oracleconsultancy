@@ -186,7 +186,7 @@ export default async function PersonPackPage({
   const showWork = selection.openTasks || selection.personalTodos;
   const statBoxes: Array<{ label: string; value: number | string; tone?: "warn" | "success" | "default" | "danger"; icon: React.ReactNode }> = [
     ...(showActions ? [{ label: "Needed", value: selectedActions, tone: (selectedActions ? "warn" : "success") as "warn" | "success", icon: selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} /> }] : []),
-    ...(selection.linkedDocuments ? [{ label: "Documents", value: linkedDocsShown, icon: <FileText size={16} /> }] : []),
+    ...(selection.linkedDocuments ? [{ label: "Files", value: linkedDocsShown, icon: <FileText size={16} /> }] : []),
     ...(showWork ? [{ label: "Work", value: workShown, tone: (workShown ? "warn" : "default") as "warn" | "default", icon: <ClipboardList size={16} /> }] : []),
   ];
   const statGridCols =

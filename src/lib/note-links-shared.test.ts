@@ -106,7 +106,7 @@ describe("linkHref", () => {
   it("routes the other types to their record pages", () => {
     expect(linkHref({ entity: "person", id: 4, code: null })).toBe("/people/4");
     expect(linkHref({ entity: "company", id: 4, code: null })).toBe("/companies/4");
-    expect(linkHref({ entity: "document", id: 4, code: null })).toBe("/documents?doc=4");
+    expect(linkHref({ entity: "document", id: 4, code: null })).toBe("/files?open=4");
     expect(linkHref({ entity: "note", id: 4, code: null })).toBe("/notes/4");
   });
 });

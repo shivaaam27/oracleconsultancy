@@ -359,7 +359,7 @@ export const MCP_TOOLS: McpTool[] = [
 
   {
     name: "list_documents",
-    title: "Documents",
+    title: "Files",
     description:
       "Filed documents — licences, contracts, certificates, permits. Use expiringWithinDays to " +
       "answer 'what needs renewing'; it includes anything ALREADY expired, since those need " +

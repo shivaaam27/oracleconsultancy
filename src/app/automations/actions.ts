@@ -91,7 +91,7 @@ export async function listAutomationHistory(opts: { kind?: string; status?: stri
 
 function revalidateAll() {
   revalidatePath("/approvals");
-  revalidatePath("/documents");
+  revalidatePath("/files");
   revalidatePath("/hrms/pipeline");
   revalidatePath("/");
 }

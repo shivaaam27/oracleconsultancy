@@ -41,7 +41,7 @@ function PersonPreviewBody(data: PersonPreview) {
         </span>
       </div>
       <div className="flex items-baseline justify-between gap-3 text-xs">
-        <span className="text-fg-muted">Documents</span>
+        <span className="text-fg-muted">Files</span>
         <span className="font-semibold tabular">
           {data.documents.length}
           {expiring > 0 && <span className="text-warn"> · {expiring} expiring</span>}

@@ -114,6 +114,16 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "digest", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1e. Files Management: whatever has sat in Deleted for 30 days is removed
+    //     for good, with its stored file (the owner's rule, 24 Sept 2026).
+    try {
+      const { purgeExpiredDeleted } = await import("@/lib/files");
+      const gone = await purgeExpiredDeleted();
+      if (gone > 0) await recordEvent("cron.morning", "ok", { step: "files-purge", gone });
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "files-purge", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 1f. Tidy the bell: drop notifications already READ and older than the
     //     retention window. Nothing ever expired them before, so half of every
     //     bell was over a fortnight old. Unread rows are always kept.

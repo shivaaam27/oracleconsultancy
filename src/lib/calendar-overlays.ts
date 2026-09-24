@@ -95,7 +95,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
       kind: "renewal",
       title: `${d.title as string} expires`,
       dayKey: dayKey(d.expiry_date as string),
-      href: `/documents/${d.id}`,
+      href: `/files?open=${d.id}`,
       companyId: (d.company_id as number) ?? null,
     });
   }

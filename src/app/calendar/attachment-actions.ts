@@ -197,7 +197,7 @@ export async function fileEventAttachmentAction(input: {
       await linkEventDocument(input.eventId, documentId, { createdBy: who.stamp });
     }
 
-    revalidatePath("/documents");
+    revalidatePath("/files");
     if (input.eventId) revalidatePath("/calendar");
     return { ok: true, document: { id: documentId, title, fileName } };
   } catch (e) {
@@ -316,7 +316,7 @@ export async function discardEventAttachmentAction(documentId: number): Promise<
     if (doc.companyId != null || doc.personId != null || doc.vendorId != null) return;
 
     await deleteDocumentForever(documentId);
-    revalidatePath("/documents");
+    revalidatePath("/files");
   } catch { /* tidying up never fails loudly */ }
 }
 

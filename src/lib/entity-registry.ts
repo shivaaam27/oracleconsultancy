@@ -444,7 +444,7 @@ export const ENTITY_DEFS: EntityDef[] = [
     textFor: (r) =>
       join(str(r.title), str(r.doc_type), str(r.issuer), str(r.category), str(r.reference_no), str(r.notes)),
     lifecycleFor: (r) => ((r.archived as boolean) ? "history" : "active"),
-    uiLabel: "Documents",
+    uiLabel: "Files",
     searchOrder: 4,
     trace: { mode: "bespoke" },
     search: {
@@ -457,7 +457,7 @@ export const ENTITY_DEFS: EntityDef[] = [
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
         const person = ctx.one<{ name?: string }>(r.people as never)?.name ?? null;
         const owner = person || company;
-        const href = r.person_id ? `/documents?person=${r.person_id}` : r.company_id ? `/documents?company=${r.company_id}` : `/documents`;
+        const href = r.person_id ? `/files?pe=${r.person_id}` : r.company_id ? `/files?co=${r.company_id}` : `/files`;
         const archived = (r.archived as boolean) === true;
         return {
           type: "document", id: r.id as number,

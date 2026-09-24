@@ -217,13 +217,13 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
             { title: "Everyone", sub: "The people directory", right: String(nowData.headcount), dot: "#2490EF", href: "/people" },
           ],
           empty: "" },
-        { kind: "list", kicker: "Records", title: "Documents", sub: `${docCountRes.count ?? 0} on file · ${soonDocs.count ?? 0} expiring within 30 days · ${expiredDocs.count ?? 0} expired`, more: { label: "The document library", href: "/documents" },
+        { kind: "list", kicker: "Records", title: "Files", sub: `${docCountRes.count ?? 0} on file · ${soonDocs.count ?? 0} expiring within 30 days · ${expiredDocs.count ?? 0} expired`, more: { label: "Files Management", href: "/files" },
           items: docRows.map((d) => {
             const expMs = new Date(d.expiry_date as string).getTime();
             const expired = expMs < nowMs;
             const days = Math.ceil((expMs - nowMs) / DAY);
             const right = expired ? (eatDay(expMs) === today ? "Expired today" : "Expired") : eatDay(expMs) === today ? "Today" : `${days} ${days === 1 ? "day" : "days"}`;
-            return { title: d.title as string, sub: `${companyNames.get(d.company_id as number) ?? "No company"}${d.category ? ` · ${d.category}` : ""}`, right, dot: expired ? "#E0479E" : "#F5A524", rightColor: expired ? "#C2327F" : "#B7700A", href: "/documents" };
+            return { title: d.title as string, sub: `${companyNames.get(d.company_id as number) ?? "No company"}${d.category ? ` · ${d.category}` : ""}`, right, dot: expired ? "#E0479E" : "#F5A524", rightColor: expired ? "#C2327F" : "#B7700A", href: "/files" };
           }),
           empty: "Nothing expires in the next 30 days." },
       ],

@@ -105,7 +105,7 @@ export const DOCUMENT_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Filed "${title}".`,
-        redirect: `/documents`,
+        redirect: `/files`,
         undo: res.id ? { kind: "ori.document.archive", payload: { documentId: res.id, before: false } } : undefined,
       };
     },
@@ -156,7 +156,7 @@ export const DOCUMENT_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Updated "${str(args.title) || doc.title}".`,
-        redirect: `/documents`,
+        redirect: `/files`,
         // ⚠️ needs a sibling-registered handler `ori.document.update` in undo-handlers/ori.ts.
         undo: before ? { kind: "ori.document.update", payload: { documentId: doc.id, before } } : undefined,
       };
@@ -177,7 +177,7 @@ export const DOCUMENT_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: `Archived "${doc.title}".`,
-        redirect: `/documents`,
+        redirect: `/files`,
         undo: { kind: "ori.document.archive", payload: { documentId: doc.id, before: false } },
       };
     },
@@ -199,7 +199,7 @@ export const DOCUMENT_TOOLS: ToolDef[] = [
       return {
         ok: true,
         message: res.code ? `Renewal task ${res.code} ready for "${doc.title}".` : `Renewal ready for "${doc.title}".`,
-        redirect: res.code ? `/task/${res.code}` : `/documents`,
+        redirect: res.code ? `/task/${res.code}` : `/files`,
       };
     },
   },

@@ -90,7 +90,7 @@ async function resolveDocExpiry(q: string): Promise<DirectAnswer | null> {
     value: `${iso} · ${rel}`,
     entity,
     entityType: best.person_id ? "person" : "company",
-    href: best.person_id ? `/documents?person=${best.person_id}` : best.company_id ? `/documents?company=${best.company_id}` : "/documents",
+    href: best.person_id ? `/files?pe=${best.person_id}` : best.company_id ? `/files?co=${best.company_id}` : "/files",
   };
 }
 

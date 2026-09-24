@@ -511,7 +511,7 @@ export async function unifiedSearch(
         if (!existing.fileName && r.file_name) existing.fileName = r.file_name as string;
         existing.score += 6 + rankBoost;
       } else {
-        const href = r.person_id ? `/documents?person=${r.person_id}` : r.company_id ? `/documents?company=${r.company_id}` : "/documents";
+        const href = r.person_id ? `/files?pe=${r.person_id}` : r.company_id ? `/files?co=${r.company_id}` : "/files";
         out.push({
           type: "document", id,
           title: r.title as string,

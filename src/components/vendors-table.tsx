@@ -158,7 +158,7 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
             return (
               <span className="flex items-center gap-1.5">
                 <Link
-                  href={`/documents?newdoc=1&vendor=${v.id}&category=Contract`}
+                  href={`/files`}
                   className="hidden items-center gap-1 rounded-md bg-bg-subtle px-2 py-1 text-xs font-medium ring-1 ring-border hover:bg-bg-muted sm:inline-flex"
                 >
                   <FilePlus size={12} /> Add contract
@@ -174,7 +174,7 @@ export function VendorsTable({ vendors, companies, assetCounts = {}, savedViews 
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={6}
               className="z-[60] min-w-[170px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
-              <MenuItem icon={<FilePlus size={14} />} onSelect={() => { window.location.href = `/documents?newdoc=1&vendor=${v.id}&category=Contract`; }}>Add contract</MenuItem>
+              <MenuItem icon={<FilePlus size={14} />} onSelect={() => { window.location.href = `/files`; }}>Add contract</MenuItem>
               <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(v)}>Edit</MenuItem>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
               <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(v.id, () => archiveVendorAction(v.id), "Vendor archived.")}>Archive</MenuItem>

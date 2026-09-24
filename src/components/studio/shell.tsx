@@ -73,9 +73,10 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
   // Close the panels whenever the page changes.
   useEffect(() => { setGoTo(false); setQuick(false); }, [pathname, tab]);
   // What "+ New" makes on this page — the card opens on that tab.
+  const onFiles = pathname.startsWith("/files");
   const newWord = pathname.startsWith("/people") ? "person"
     : pathname.startsWith("/companies") ? "company"
-    : pathname.startsWith("/documents") ? "document"
+    : pathname.startsWith("/files") ? "document"
     : pathname.startsWith("/calendar") ? "event"
     : pathname.startsWith("/notes") ? "note"
     : pathname.startsWith("/announcements") ? "announcement"
@@ -187,13 +188,15 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}
             <button
               type="button"
-              onClick={() => { setQuickTab(undefined); setQuick(true); }}
+              // On Files Management "+" is Upload — it opens the file picker
+              // for the folder you are in, rather than a card.
+              onClick={() => { if (onFiles) { window.dispatchEvent(new Event("files:upload")); return; } setQuickTab(undefined); setQuick(true); }}
               aria-haspopup="dialog"
               aria-expanded={quick}
               aria-label="Create something new"
               className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:px-3.5"
             >
-              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">New {newWord}</span>
+              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">{onFiles ? "Upload" : `New ${newWord}`}</span>
             </button>
           </div>
         </div>

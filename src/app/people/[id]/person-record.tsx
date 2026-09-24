@@ -159,7 +159,7 @@ export function PersonRecord({
           {[
             { label: "Open tasks", value: workload.open, tone: "" },
             { label: "Overdue", value: workload.overdue, tone: workload.overdue > 0 ? "text-danger" : "" },
-            { label: "Documents", value: workload.documents, tone: "" },
+            { label: "Files", value: workload.documents, tone: "" },
             { label: "Reports", value: workload.reports, tone: "" },
           ].map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-bg-subtle/50 px-2.5 py-2">
@@ -214,7 +214,7 @@ export function PersonRecord({
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "tasks", label: "Tasks", count: tasks.length },
-    { id: "documents", label: "Documents", count: documents.length },
+    { id: "documents", label: "Files", count: documents.length },
     // Notes that mention this person (Phase 3). No count: it would mean loading
     // every linked note to draw a tab nobody has opened.
     { id: "notes", label: "Notes" },
@@ -315,7 +315,7 @@ export function PersonRecord({
               {documents.map((d) => (
                 <li key={d.id} className="border-b border-border last:border-0">
                   <Link
-                    href={`/documents?person=${person.id}`}
+                    href={`/files?pe=${person.id}`}
                     data-list-row
                     className="group flex items-center gap-2 px-3 hover:bg-bg-subtle"
                   >

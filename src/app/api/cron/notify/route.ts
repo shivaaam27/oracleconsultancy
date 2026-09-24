@@ -94,10 +94,10 @@ export async function GET(req: NextRequest) {
     const url = !noTasks
       ? "/?tab=tasks&flag=overdue"
       : !noDocs
-      ? "/documents"
+      ? "/files"
       : approvalsWaiting
       ? "/approvals"
-      : "/documents";
+      : "/files";
     // Owner-only: this is an operations alert, never broadcast to staff devices.
     const sent = await sendToRecipient("admin", {
       title: "Oracle Consultancy — needs attention",

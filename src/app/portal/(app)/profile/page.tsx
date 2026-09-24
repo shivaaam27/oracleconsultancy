@@ -232,7 +232,7 @@ export default async function PortalProfile() {
 
       {!isDirector && (
         <Reveal delay={0.08} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<FileCheck2 size={13} />}>Your documents</SectionLabel>
+          <SectionLabel icon={<FileCheck2 size={13} />}>Your files</SectionLabel>
           <PortalDocuments items={docItems} />
           <p className="px-1 text-xs text-fg-subtle">
             Send anything we ask for. Your administrator files and checks each one.

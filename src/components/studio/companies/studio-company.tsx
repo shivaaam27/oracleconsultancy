@@ -76,7 +76,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
         <span className="flex-1" />
         <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
           <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
-          <Link href={`/documents?company=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
+          <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
           <Link href={`/people?co=${data.id}`} className={BAND_BTN}><Users size={13} />Team</Link>
         </div>
         <Link href={`/task/new?companyId=${data.id}&returnTo=${encodeURIComponent(pathname)}`}
@@ -151,8 +151,8 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
     [data.open, "open tasks", undefined, `/companies/${data.id}?tab=tasks`],
     [data.late, "overdue", data.late ? "var(--st-late-text)" : undefined, `${tasksHref}&flag=overdue`],
     [data.people, "people", undefined, `/people?co=${data.id}`],
-    [o.documents.total, "documents", undefined, `/documents?company=${data.id}`],
-    [o.documents.expired, "documents expired", o.documents.expired ? "var(--st-late-text)" : undefined, `/documents?company=${data.id}`],
+    [o.documents.total, "files", undefined, `/files?co=${data.id}`],
+    [o.documents.expired, "files expired", o.documents.expired ? "var(--st-late-text)" : undefined, `/files?co=${data.id}`],
   ];
 
   return (
@@ -223,11 +223,11 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
         </div>
 
         <div className={cn(COL, "lg:col-span-2 xl:col-span-1")}>
-          <Card title="Documents" className="shrink-0" right={<Link href={`/documents?company=${data.id}`} className="text-[var(--st-ink)] hover:underline">All {o.documents.total} →</Link>}>
+          <Card title="Files" className="shrink-0" right={<Link href={`/files?co=${data.id}`} className="text-[var(--st-ink)] hover:underline">All {o.documents.total} →</Link>}>
             <div className="mt-2.5 flex items-center gap-4">
               <Ring value={docPct} size={84} stroke={9} track="var(--st-line-soft)" color={o.documents.expired ? "var(--st-ok)" : "var(--st-ok)"} label={valid} sub="valid" />
               <p className="text-[13px] leading-normal text-[var(--st-sub)]">
-                {o.documents.total === 0 ? <>Nothing filed yet. <Link href={`/documents?newdoc=1&company=${data.id}`} className="text-[var(--st-ink)] underline">Add the first document</Link>.</>
+                {o.documents.total === 0 ? <>Nothing filed yet. <Link href={`/files?co=${data.id}`} className="text-[var(--st-ink)] underline">Add the first file</Link>.</>
                   : o.documents.expired > 0 ? <><span className="text-[var(--st-late-text)]">{o.documents.expired} expired</span>{o.documents.expiring > 0 && <>, <span className="text-[var(--st-soon-text)]">{o.documents.expiring} expiring</span></>} — renew them from the library, or open a renewal task.</>
                     : o.documents.expiring > 0 ? <><span className="text-[var(--st-soon-text)]">{o.documents.expiring} expiring soon</span> — the rest are in date.</>
                       : "Everything on file is in date."}

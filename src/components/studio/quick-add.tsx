@@ -34,7 +34,7 @@ const LATER: Record<string, { phase: string; what: string }> = {
 function tabFor(pathname: string): string {
   if (pathname.startsWith("/people")) return "person";
   if (pathname.startsWith("/companies")) return "company";
-  if (pathname.startsWith("/documents")) return "document";
+  if (pathname.startsWith("/files")) return "document";
   if (pathname.startsWith("/calendar")) return "event";
   if (pathname.startsWith("/notes")) return "note";
   if (pathname.startsWith("/announcements")) return "announcement";

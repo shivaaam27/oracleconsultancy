@@ -109,7 +109,7 @@ export const NAV_ROUTES: NavRoute[] = [
   // See memory/recruitment_module_plan.md.
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
-  { id: "documents",   href: "/documents",           label: "Documents",           icon: FileText },
+  { id: "documents",   href: "/files",               label: "Files Management",    icon: FileText },
   { id: "notes",       href: "/notes",               label: "Notes",               icon: StickyNote },
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
   { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },

@@ -77,7 +77,7 @@ export async function attachFileToNote(input: {
       );
 
     revalidatePath(`/notes/${input.noteId}`);
-    revalidatePath("/documents");
+    revalidatePath("/files");
     return { ok: true, documentId, fileName };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not attach that file." };

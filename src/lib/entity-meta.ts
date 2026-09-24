@@ -24,7 +24,7 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   company:    { uiLabel: "Companies",    searchOrder: 1 },
   governance: { uiLabel: "Governance",   searchOrder: 2 },
   risk:       { uiLabel: "Risks",        searchOrder: 3 },
-  document:   { uiLabel: "Documents",    searchOrder: 4 },
+  document:   { uiLabel: "Files",    searchOrder: 4 },
   note:       { uiLabel: "Notes",        searchOrder: 5 },
   // The EntityDef landed in Stage 0 of the ops programme, so this took a real
   // position. (searchOrder −1 still means "has a screen, nothing indexed yet".)

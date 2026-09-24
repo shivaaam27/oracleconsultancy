@@ -479,13 +479,13 @@ export default async function CompanyPage({
               href={`/?tab=tasks&view=table&company=${encodeURIComponent(name)}&flag=overdue`}
             />
             <StatTile label="Team" value={teamCount ?? 0} Icon={Users} tone="info" href={`/companies/${companyId}?tab=org`} />
-            <StatTile label="Documents" value={companyDocs.length} Icon={FileText} tone="info" href={`/documents?company=${companyId}`} />
+            <StatTile label="Files" value={companyDocs.length} Icon={FileText} tone="info" href={`/files?co=${companyId}`} />
             <StatTile
               label="Expiring"
               value={attentionDocs.length}
               Icon={FileWarning}
               tone={attentionDocs.length ? "warn" : "muted"}
-              href={`/documents?company=${companyId}`}
+              href={`/files?co=${companyId}`}
             />
           </div>
 
@@ -497,7 +497,7 @@ export default async function CompanyPage({
                   <FileWarning size={13} /> Documents needing attention
                 </h2>
                 <Link
-                  href={`/documents?company=${companyId}`}
+                  href={`/files?co=${companyId}`}
                   className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
                 >
                   <ExternalLink size={12} /> All documents

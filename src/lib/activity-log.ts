@@ -63,11 +63,11 @@ function systemEventSummary(kind: string, d: Record<string, unknown>): { summary
   const s = (v: unknown) => (v == null ? null : String(v));
   switch (kind) {
     case "documents.filed":
-      return { summary: `Filed "${s(d.title) ?? "a document"}"${d.owner ? ` to ${s(d.owner)}` : ""}`, detail: s(d.reason), href: d.docId ? `/documents?doc=${d.docId}` : "/documents" };
+      return { summary: `Filed "${s(d.title) ?? "a document"}"${d.owner ? ` to ${s(d.owner)}` : ""}`, detail: s(d.reason), href: d.docId ? `/files?open=${d.docId}` : "/files" };
     case "documents.quarantine":
       return { summary: `Held "${s(d.title) ?? "a document"}" for review`, detail: s(d.reason), href: "/approvals" };
     case "documents.selfheal":
-      return { summary: `Self-healed documents`, detail: `re-read ${s(d.healedText) ?? 0}, re-owned ${s(d.filedOwner) ?? 0}`, href: "/documents" };
+      return { summary: `Self-healed documents`, detail: `re-read ${s(d.healedText) ?? 0}, re-owned ${s(d.filedOwner) ?? 0}`, href: "/files" };
     case "cron.morning":
       return { summary: `Ran the morning routine`, detail: null };
     case "cron.notify":
@@ -130,7 +130,7 @@ export async function getActivityFeed(opts?: { actor?: Actor | "all"; limit?: nu
   const rows: ActivityRow[] = [];
 
   for (const a of auto.data ?? []) {
-    rows.push({ key: `ae:${a.id}`, actor: "system", actorLabel: "System", summary: (a.status === "undone" ? "Reversed: " : "") + (a.summary as string), detail: (a.detail as string | null) ?? null, when: new Date(a.created_at as string), href: a.document_id ? `/documents?doc=${a.document_id}` : null });
+    rows.push({ key: `ae:${a.id}`, actor: "system", actorLabel: "System", summary: (a.status === "undone" ? "Reversed: " : "") + (a.summary as string), detail: (a.detail as string | null) ?? null, when: new Date(a.created_at as string), href: a.document_id ? `/files?open=${a.document_id}` : null });
   }
   for (const r of audit.data ?? []) {
     const who = classifyActor(r.created_by as string | null);

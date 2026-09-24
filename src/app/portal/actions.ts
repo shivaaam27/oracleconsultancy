@@ -2303,7 +2303,7 @@ export async function portalUploadDocument(
   }
 
   revalidatePath("/portal/profile");
-  revalidatePath("/documents");
+  revalidatePath("/files");
   revalidatePath("/people");
   return { ok: true };
 }

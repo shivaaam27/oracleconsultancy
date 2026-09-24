@@ -791,7 +791,7 @@ export const TOOLS: ToolDef[] = [
       }
       if (Object.keys(patch).length === 0) return { ok: false, message: "Tell me who owns it — a person or a company." };
       await sb.from("documents").update(patch).eq("id", doc.id);
-      return { ok: true, message: `Filed "${doc.title}" to ${owner}.`, redirect: `/documents` };
+      return { ok: true, message: `Filed "${doc.title}" to ${owner}.`, redirect: `/files` };
     },
   },
   {
@@ -809,7 +809,7 @@ export const TOOLS: ToolDef[] = [
       if (!title) return { ok: false, message: "Give the document a new name." };
       const res = await renameDocumentAction(doc.id, title);
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: `Renamed to "${title}".`, redirect: `/documents`, undo: { kind: "ori.document.rename", payload: { documentId: doc.id, before: doc.title } } };
+      return { ok: true, message: `Renamed to "${title}".`, redirect: `/files`, undo: { kind: "ori.document.rename", payload: { documentId: doc.id, before: doc.title } } };
     },
   },
   {
@@ -824,7 +824,7 @@ export const TOOLS: ToolDef[] = [
       if (!doc) return { ok: false, message: `Couldn't find a document matching "${str(args.document)}".` };
       const res = await archiveDocumentAction(doc.id, true);
       if (!res.ok) return { ok: false, message: res.error };
-      return { ok: true, message: `Archived "${doc.title}".`, redirect: `/documents`, undo: { kind: "ori.document.archive", payload: { documentId: doc.id, before: doc.archived } } };
+      return { ok: true, message: `Archived "${doc.title}".`, redirect: `/files`, undo: { kind: "ori.document.archive", payload: { documentId: doc.id, before: doc.archived } } };
     },
   },
   {

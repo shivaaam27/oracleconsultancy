@@ -65,3 +65,54 @@ app logos). The hover tile behind a folder is a soft grey rounded square.
 5. **Finish:** keyboard, phone layout, the old Documents page retired behind
    the Studio switch, MCP `create_document`/`list_documents` taught folders,
    the staff portal's "Your documents" unchanged.
+
+## BUILT — 24 Sept 2026 (all five stages; the owner's answers: filing yes · Deleted 30 days · name "Files Management", no "Documents" anywhere)
+
+- **Migration 0169** (`folders`; `documents.folder_id / deleted_at / starred / file_size`),
+  RLS on, anon revoked (security check passes). Filed on apply: 8 company folders
+  with 44 category folders, "Staff papers" with 12 person folders; 194 filed,
+  3 loose at the top; sizes for all 197 from storage.objects.
+- **Deleted = archived + deleted_at.** Every other reader already skipped archived
+  rows, so a deleted file vanishes from the company page, person page, search and
+  reminders with no change to them. `setDocumentArchived` now stamps/clears
+  `deleted_at`, so Claude's and ORI's "archive" land in Deleted on the same clock.
+  `purgeExpiredDeleted` (lib/files.ts — NOT a server action) runs in the morning
+  cron (step 1e) and removes rows + stored files after 30 days.
+- **Page** `/files` (`components/files/*`): rail · path · summary cards · animated
+  folders (`folder-icon.tsx`, framer-motion, the owner's springs; black flap 0.82
+  not 0.25) · list/grid (grid shows real picture thumbnails) · sort · search ·
+  selection (click / Ctrl / Shift / Ctrl+A) with a floating bar · right-click
+  menus · drag rows onto folders or the path · drop files anywhere to upload
+  (XHR to a signed URL, tray with progress) · F2 rename · Space preview · Delete ·
+  New folder (name, colour, company) · Deleted with Restore / Delete for good.
+  State lives in memory; the address carries `?f=`, `?view=`, and arrival links
+  `?co=` / `?pe=` / `?open=`. ⚠️ **Not `?company=` / `?person=`** — those open the
+  global company/person drawer on any page.
+- **Preview** (`file-preview.tsx`): PDF in the browser's viewer via `/api/files/[id]`
+  (302 to a 5-minute signed URL; `?dl=1` downloads under the owner's name);
+  pictures; Word via mammoth → `srcDoc` (⚠️ not `src` — every COS page carries
+  X-Frame-Options: DENY). Details panel edits expiry, reminder, type, reference,
+  issuer, notes; **"Read it for me"** fills EMPTY boxes from the AI reader and saves
+  nothing; "Make a renewal task". ⚠️ Colours are inline there — the global field
+  rule and `.studio` colour are unlayered CSS and beat utilities.
+- **.zip** `/api/files/zip` (jszip, STORE): several files or whole folders, the
+  folder structure kept from the chosen folder down; ≤400 files.
+- **Every other creator** (Claude, portal, chat/task attachments, event papers)
+  goes through `createDocument`, which now files into the company's folder (and
+  its category folder) or the person's folder — never loose.
+- **"Documents" is gone from the UI**: nav label "Files Management" (id stays
+  `documents` so pinned shortcuts survive), `/documents` and `/documents/[id]`
+  redirect (company→`?co=`, person→`?pe=`, doc→`?open=`), ~37 files relinked,
+  labels renamed (company/person pages, home, palette, portal "Your files",
+  search labels). Retired: documents-workspace, documents-table,
+  bulk-upload-dialog, and the UNAUTHENTICATED `read-actions.ts`.
+- Footer "+" on /files is **Upload** (`files:upload` event).
+- Tested live end to end with a throwaway folder + file (create, upload, rename,
+  delete, restore, delete folder, delete for good) — then verified gone from the
+  table AND storage.
+
+**Open:** the storage bucket caps files at **20 MB** and only listed types
+(PowerPoint isn't) — unlisted types are sent as octet-stream so they still upload;
+raising the cap is the owner's call. `app/documents/actions.ts` exports have no
+owner check — MCP and ORI call them without an admin session, so they need a
+caller-aware guard, not a blanket one.

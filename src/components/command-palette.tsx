@@ -629,11 +629,11 @@ export function CommandPaletteProvider({
   const scopedLinks = (r: SearchResult): Array<{ label: string; icon: LucideIcon; href: string }> => {
     if (r.type === "company") return [
       { label: "Open company", icon: Building2, href: r.href },
-      { label: "Its documents", icon: FileText, href: `/documents?company=${r.id}` },
+      { label: "Its files", icon: FileText, href: `/files?co=${r.id}` },
     ];
     if (r.type === "person") return [
       { label: "Open profile", icon: User, href: r.href },
-      { label: "Their documents", icon: FileText, href: `/documents?person=${r.id}` },
+      { label: "Their files", icon: FileText, href: `/files?pe=${r.id}` },
     ];
     return [];
   };

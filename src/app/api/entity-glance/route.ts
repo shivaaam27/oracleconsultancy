@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       ]);
       add("Open tasks", openTasks);
       add("People", people);
-      add("Documents", docs);
+      add("Files", docs);
     } else if (type === "person") {
       // Open tasks the person is assigned to (via task_assignees → tasks).
       let openTasks: number | null = null;
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         count("people", (q) => q.eq("manager_id", id)),
       ]);
       add("Open tasks", openTasks);
-      add("Documents", docs);
+      add("Files", docs);
       add("Direct reports", reports);
     } else if (type === "task") {
       const [updates, assignees] = await Promise.all([

@@ -60,7 +60,7 @@ export async function buildRadar(): Promise<RadarFinding[]> {
     .select("id", { count: "exact", head: true })
     .eq("archived", false).not("expiry_date", "is", null)
     .gte("expiry_date", nowIso).lte("expiry_date", new Date(now + 30 * DAY).toISOString());
-  if (expiring) findings.push({ label: `${expiring} document${expiring === 1 ? "" : "s"} expiring in 30 days`, detail: "renew before they lapse", tone: "warn", href: "/documents" });
+  if (expiring) findings.push({ label: `${expiring} document${expiring === 1 ? "" : "s"} expiring in 30 days`, detail: "renew before they lapse", tone: "warn", href: "/files" });
 
   // Severity order: danger first, then warn.
   const rank = { danger: 0, warn: 1, muted: 2 } as const;

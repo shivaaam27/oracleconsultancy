@@ -16,7 +16,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const channelIcon: Record<Channel, typeof MessageCircle> = { WHATSAPP: MessageCircle, EMAIL: Mail, SMS: Phone };
 
 const purposeLabels: Record<string, string> = {
-  "document-request": "Documents",
+  "document-request": "Files",
   "expat-onboarding": "Expat onboarding",
   "visa-permit": "Visa / permit",
   "work-permit-renewal": "Work permit renewal",

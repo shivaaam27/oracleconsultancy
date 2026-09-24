@@ -32,7 +32,7 @@ export const STUDIO_PAGES: StudioPage[] = [
   { id: "notes", label: "Notes", phase: 4, ready: false },
   { id: "people", label: "People", phase: 5, ready: true },
   { id: "companies", label: "Companies", phase: 5, ready: true },
-  { id: "documents", label: "Documents", phase: 5, ready: false },
+  { id: "documents", label: "Files Management", phase: 5, ready: true },
   { id: "assets", label: "Assets & Vendors", phase: 5, ready: false },
   { id: "attendance", label: "Attendance", phase: 6, ready: false },
   { id: "supplies", label: "Supplies", phase: 6, ready: false },

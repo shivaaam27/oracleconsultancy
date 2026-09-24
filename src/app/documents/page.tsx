@@ -1,61 +1,16 @@
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import { DocumentsWorkspace } from "./documents-workspace";
-import { listDocuments } from "@/lib/documents";
-import { getCompanyLogoMap } from "@/lib/company-brand";
-import { getSavedViewsFor } from "@/lib/saved-views";
-import { normalizePersonType } from "@/lib/person-types";
-import { sb } from "@/db/supabase";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function DocumentsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string }>;
-}) {
-  const { from } = await searchParams;
-
-  const [documents, { data: companiesRaw }, { data: peopleRaw }, logoMap, savedViews] = await Promise.all([
-    listDocuments({ includeArchived: true }),
-    sb.from("companies").select("id,name,accent_color,aliases").order("name"),
-    sb.from("people").select("id,name,person_type").eq("active", true).order("name"),
-    getCompanyLogoMap(),
-    getSavedViewsFor("document"),
-  ]);
-
-  const companies = (companiesRaw ?? []).map((c) => ({
-    id: c.id as number,
-    name: c.name as string,
-    accentColor: (c.accent_color as string | null) ?? null,
-    aliases: (c.aliases as string[] | null) ?? undefined,
-    logoUrl: logoMap.get(c.id as number) ?? null,
-  }));
-  const people = (peopleRaw ?? []).map((p) => ({
-    id: p.id as number,
-    name: p.name as string,
-    personType: normalizePersonType(p.person_type as string | null),
-  }));
-
-  // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
-  const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");
-  const linkedTasks: Record<number, Array<{ code: string; status: string }>> = {};
-  for (const row of linkRows ?? []) {
-    const docId = row.document_id as number;
-    const t = (row as { tasks?: { code?: string; status?: string } | { code?: string; status?: string }[] }).tasks;
-    const rec = Array.isArray(t) ? t[0] : t;
-    if (rec?.code) (linkedTasks[docId] ||= []).push({ code: rec.code, status: rec.status ?? "" });
-  }
-
-  return (
-    <div className="space-y-4">
-      <HrmsCrumbs from={from} />
-      <DocumentsWorkspace
-        documents={documents}
-        companies={companies}
-        people={people}
-        linkedTasks={linkedTasks}
-        savedViews={savedViews}
-      />
-    </div>
-  );
+/**
+ * "Documents" is now Files Management (24 Sept 2026 — the owner: no Documents
+ * name any more). Every old link still lands in the right place: a company or
+ * person link opens its folder, a single document opens its preview.
+ */
+export default async function DocumentsRedirect({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const q = new URLSearchParams();
+  if (sp.company && /^\d+$/.test(sp.company)) q.set("co", sp.company);
+  if (sp.person && /^\d+$/.test(sp.person)) q.set("pe", sp.person);
+  const one = sp.doc ?? sp.open;
+  if (one && /^\d+$/.test(one)) q.set("open", one);
+  redirect(`/files${q.toString() ? `?${q}` : ""}`);
 }

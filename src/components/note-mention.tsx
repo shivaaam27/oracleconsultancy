@@ -51,7 +51,7 @@ const GROUP_LABELS: Record<LinkType, string> = {
   task: "Tasks",
   person: "People",
   company: "Companies",
-  document: "Documents",
+  document: "Files",
   note: "Notes",
 };
 

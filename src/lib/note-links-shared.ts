@@ -51,7 +51,7 @@ export function linkHref(ref: { entity: LinkType; id: number; code: string | nul
     case "task": return ref.code ? `/task/${encodeURIComponent(ref.code)}` : "/?tab=tasks";
     case "person": return `/people/${ref.id}`;
     case "company": return `/companies/${ref.id}`;
-    case "document": return `/documents?doc=${ref.id}`;
+    case "document": return `/files?open=${ref.id}`;
     case "note": return `/notes/${ref.id}`;
   }
 }

@@ -213,7 +213,7 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     defaultSort: { key: "expiryDate", dir: "asc" },
     // `newdoc=1` already existed for the old Inbox hand-off — reuse it rather
     // than teach the page a second way to mean the same thing.
-    create: { label: "Document", href: "/documents?newdoc=1" },
+    create: { label: "Document", href: "/files" },
   },
 
   vendor: {

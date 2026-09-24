@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, date, jsonb, primaryKey, uniqueIndex, index, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, bigint, numeric, date, jsonb, primaryKey, uniqueIndex, index, foreignKey, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -1148,14 +1148,37 @@ export const documents = pgTable("documents", {
   // documents expiry/compliance engine.
   vendorId: integer("vendor_id").references((): AnyPgColumn => vendors.id, { onDelete: "set null" }),
   archived: boolean("archived").notNull().default(false),
+  // Files Management (migration 0169). A file sits in a folder (null = the top
+  // of All files). Deleted = archived AND deletedAt set: kept 30 days, then
+  // removed with its stored file. Every reader already skips archived rows.
+  folderId: integer("folder_id").references((): AnyPgColumn => folders.id, { onDelete: "set null" }),
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
+  starred: boolean("starred").notNull().default(false),
+  fileSize: bigint("file_size", { mode: "number" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
 }, (t) => [
+  index("documents_folder_idx").on(t.folderId),
   index("documents_company_idx").on(t.companyId),
   index("documents_person_idx").on(t.personId),
   index("documents_vendor_idx").on(t.vendorId),
 ]);
+
+// Files Management folders (migration 0169). A company or person folder stamps
+// its company / person on whatever is filed into it, so expiry reminders and the
+// company and person pages keep finding those files.
+export const folders = pgTable("folders", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  parentId: integer("parent_id").references((): AnyPgColumn => folders.id, { onDelete: "cascade" }),
+  color: text("color").notNull().default("black"),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
+}, (t) => [index("folders_parent_idx").on(t.parentId)]);
 
 // Automation reaction log (V3 "the system moves on its own"). When a document is
 // filed, the reaction layer advances the processes it touches — verifies a matching

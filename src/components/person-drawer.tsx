@@ -388,7 +388,7 @@ export function PersonDrawer() {
   const openDocFile = async (docId: number) => {
     const res = await getDocumentFileLinkAction(docId);
     if (res.ok) window.open(res.url, "_blank", "noopener,noreferrer");
-    else router.push(`/documents?person=${person?.id ?? ""}&from=person:${person?.id ?? ""}`);
+    else router.push(`/files?pe=${person?.id ?? ""}`);
   };
 
   const handleArchiveToggle = async () => {
@@ -568,7 +568,7 @@ export function PersonDrawer() {
       attention.push({ key: `t${t.id}`, icon: <AlertTriangle size={14} className="text-danger" />, label: t.actionItem, sub: `${t.code} · overdue`, onClick: () => openView("tasks") })
     );
     docIssues.slice(0, 4).forEach((d) =>
-      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => { close(); router.push(`/documents?person=${person?.id ?? ""}`); } })
+      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => { close(); router.push(`/files?pe=${person?.id ?? ""}`); } })
     );
     if (person?.active && anniversary)
       attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("profile") });
@@ -756,7 +756,7 @@ export function PersonDrawer() {
             const doc = docFor(kind);
             if (!doc) return undefined;
             return (
-              <Link href={`/documents?person=${person.id}&from=person:${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-accent hover:underline max-w-full">
+              <Link href={`/files?pe=${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-accent hover:underline max-w-full">
                 <FileText size={10} className="shrink-0" /><span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
               </Link>
             );
@@ -824,7 +824,7 @@ export function PersonDrawer() {
 
         {/* Documents */}
         {data.documents.length > 0 && (
-          <CollapsibleSection icon={<FileText size={14} />} title="Documents" count={data.documents.length}>
+          <CollapsibleSection icon={<FileText size={14} />} title="Files" count={data.documents.length}>
             <div className="divide-y divide-border/50">
               {data.documents.slice(0, 10).map((doc) => (
                 <button key={doc.id} type="button" onClick={() => openDocFile(doc.id)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-bg-muted/50 transition-colors">

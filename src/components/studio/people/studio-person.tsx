@@ -67,7 +67,7 @@ export type StudioPersonData = {
 
 const TABS = ["overview", "tasks", "documents", "journey", "equipment", "notes", "history", "edit"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { overview: "Overview", tasks: "Tasks", documents: "Documents", journey: "Journey", equipment: "Equipment", notes: "Notes", history: "History", edit: "Edit" };
+const TAB_LABEL: Record<Tab, string> = { overview: "Overview", tasks: "Tasks", documents: "Files", journey: "Journey", equipment: "Equipment", notes: "Notes", history: "History", edit: "Edit" };
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null);
 const shortName = (n: string) => n.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "");
@@ -186,7 +186,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
     });
   }
   const newTaskHref = `/task/new?${new URLSearchParams({ ...(p.companyId ? { companyId: String(p.companyId) } : {}), assignees: p.name, returnTo: here }).toString()}`;
-  const addDocHref = `/documents?newdoc=1&person=${p.id}&from=person:${p.id}`;
+  const addDocHref = `/files?pe=${p.id}`;
   const contact = p.whatsapp || p.phone || p.email;
 
   /* ── the band ──────────────────────────────────────────────────────────── */
@@ -208,7 +208,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>
           <Link href={`/chat?dm=${p.id}`} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>
           <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>
-          <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add document</Link>
+          <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>
         </div>
         <button type="button" disabled={!open.length || reminding}
           onClick={() => remind(p, overdueFirst.map((t) => ({ code: t.code, actionItem: t.title })))}
@@ -300,7 +300,7 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
             <div className="mt-0.5 text-xs text-[var(--st-muted)]">Contract, passport, bank — dated, sourced, never overwritten.</div>
           </div>
           <button type="button" onClick={() => setSheet("facts")} className={BTN_DARK}>Record a fact</button>
-          <button type="button" onClick={() => setTab("documents")} className={BTN}>Documents</button>
+          <button type="button" onClick={() => setTab("documents")} className={BTN}>Files</button>
         </section>
       </div>
 
@@ -444,11 +444,11 @@ export function StudioPerson({ data, backHref }: { data: StudioPersonData; backH
   /* ── Documents ─────────────────────────────────────────────────────────── */
   const docTone = (s: string) => (s === "Expired" ? "var(--st-late-text)" : s === "Expiring" || s === "Due soon" ? "var(--st-soon-text)" : "var(--st-sub)");
   const docsTab = (
-    <Card title={`Documents · ${data.documents.length}`} right={<Link href={addDocHref} className={BTN_DARK}><Plus size={12} />Add document</Link>}>
+    <Card title={`Files · ${data.documents.length}`} right={<Link href={addDocHref} className={BTN_DARK}><Plus size={12} />Add a file</Link>}>
       <div className="mt-2 flex flex-col">
         {data.documents.length === 0 && <div className="py-8 text-center text-[13px] text-[var(--st-muted)]">Nothing filed against {shortName(p.name)} yet.</div>}
         {data.documents.map((d) => (
-          <Link key={d.id} href={withReturn(`/documents/${d.id}`, `${here}?tab=documents`)}
+          <Link key={d.id} href={withReturn(`/files?open=${d.id}`, `${here}?tab=documents`)}
             className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--st-line-soft)] py-2.5 last:border-0 hover:bg-[var(--st-cal-busy)]">
             <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-[var(--st-page)] text-[var(--st-sub)]"><FileText size={15} /></span>
             <span className="min-w-0">

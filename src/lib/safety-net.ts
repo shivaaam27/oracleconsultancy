@@ -82,7 +82,7 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
       kind: "awaiting-original",
       title: `Awaiting original — ${d.title}`,
       detail: `On file only as a photo/scan${kindNote}. Get the official copy / clean scan.`,
-      href: `/documents?doc=${d.id}`,
+      href: `/files?open=${d.id}`,
     });
   }
 

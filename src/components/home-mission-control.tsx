@@ -105,7 +105,7 @@ export type HomeTodo = {
 
 const groupMeta: Record<QueueGroup, { label: string; icon: typeof ClipboardList }> = {
   task: { label: "Tasks", icon: ClipboardList },
-  document: { label: "Documents", icon: FileWarning },
+  document: { label: "Files", icon: FileWarning },
   people: { label: "People", icon: Users },
   statutory: { label: "Statutory", icon: Landmark },
   draft: { label: "Drafts", icon: Send },
@@ -162,9 +162,9 @@ const METRIC_HREF: Record<string, string> = {
   "Due today": "/?tab=tasks&flag=due-soon",
   "Completed": "/?tab=tasks&status=Completed",
   "Stale": "/?tab=tasks&flag=stalled",
-  "Doc alerts": "/documents",
-  "Compliance": "/documents",
-  "Statutory due": "/documents",
+  "Doc alerts": "/files",
+  "Compliance": "/files",
+  "Statutory due": "/files",
   "Person packs": "/people",
 };
 
@@ -727,7 +727,7 @@ export function HomeMissionControl({
                                   { label: "Expired", value: c.expired, tone: "text-danger" },
                                 ]}
                               />
-                              <Link href={`/documents?company=${c.id}`} className="flex items-center justify-center gap-1 rounded-lg bg-accent/10 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
+                              <Link href={`/files?co=${c.id}`} className="flex items-center justify-center gap-1 rounded-lg bg-accent/10 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
                                 Open documents <ArrowRight size={12} />
                               </Link>
                             </div>

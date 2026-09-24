@@ -373,10 +373,10 @@ export function CompanyDocuments({
 
       <div className="flex justify-end">
         <a
-          href={`/documents?company=${companyId}`}
+          href={`/files?co=${companyId}`}
           className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
         >
-          <ExternalLink size={12} /> Open in Documents centre
+          <ExternalLink size={12} /> Open in Files Management
         </a>
       </div>
 

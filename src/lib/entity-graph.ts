@@ -54,7 +54,7 @@ async function companyGraph(id: number): Promise<EntityGraph | null> {
   const docs = (await listDocuments()).filter((d) => d.companyId === id && !d.archived);
   if (docs.length) {
     const recent = [...docs].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).slice(0, 6);
-    groups.push({ title: `Documents (${docs.length})`, nodes: recent.map((d) => ({ kind: "document", id: `d${d.id}`, label: d.title, sub: d.category, href: `/documents?company=${id}` })) });
+    groups.push({ title: `Files (${docs.length})`, nodes: recent.map((d) => ({ kind: "document", id: `d${d.id}`, label: d.title, sub: d.category, href: `/files?co=${id}` })) });
   }
 
   // Facts (current values).
@@ -96,7 +96,7 @@ async function personGraph(id: number): Promise<EntityGraph | null> {
   const docs = (await listDocuments()).filter((d) => d.personId === id && !d.archived);
   if (docs.length) {
     const recent = [...docs].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).slice(0, 6);
-    groups.push({ title: `Documents (${docs.length})`, nodes: recent.map((d) => ({ kind: "document", id: `d${d.id}`, label: d.title, sub: d.category, href: `/documents?person=${id}` })) });
+    groups.push({ title: `Files (${docs.length})`, nodes: recent.map((d) => ({ kind: "document", id: `d${d.id}`, label: d.title, sub: d.category, href: `/files?pe=${id}` })) });
   }
 
   // Facts.

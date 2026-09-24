@@ -44,7 +44,7 @@ export async function approveRenewalAction(
     const documents = await listDocuments();
     const res = await commitRenewalTaskFor(documentId, documents);
     revalidatePath("/");
-    revalidatePath("/documents");
+    revalidatePath("/files");
     updateTag("tasks");
     return { ok: true, ...res };
   } catch (error) {
@@ -70,7 +70,7 @@ export async function createDocumentRenewalTasksAction(): Promise<{ ok: true; cr
     const documents = await listDocuments();
     const result = await createDocumentRenewalTasks(documents);
     revalidatePath("/");
-    revalidatePath("/documents");
+    revalidatePath("/files");
     updateTag("tasks");
     return { ok: true, ...result };
   } catch (error) {

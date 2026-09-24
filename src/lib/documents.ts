@@ -140,7 +140,33 @@ export async function createDocument(
     .select("id")
     .single();
   if (error) throw new Error(error.message);
+  await fileIntoFolder(data.id as number, input.companyId ?? null, input.personId ?? null, input.category ?? null);
   return data.id as number;
+}
+
+/**
+ * Files Management: a file added anywhere else — Claude, the staff portal, a
+ * chat or task attachment, an event paper — lands in its company's folder (and
+ * that company's category folder when one exists), or its person's folder,
+ * instead of loose at the top. Best-effort: a failure leaves it at the top,
+ * where it is still found.
+ */
+async function fileIntoFolder(id: number, companyId: number | null, personId: number | null, category: string | null): Promise<void> {
+  try {
+    const { data: folders } = await sb.from("folders").select("id,name,parent_id,company_id,person_id").is("deleted_at", null);
+    if (!folders?.length) return;
+    let target: number | null = null;
+    if (companyId != null) {
+      const top = folders.find((f) => f.parent_id == null && f.company_id === companyId);
+      if (top) {
+        const cat = category ? folders.find((f) => f.parent_id === top.id && (f.name as string).toLowerCase() === category.toLowerCase()) : undefined;
+        target = (cat?.id ?? top.id) as number;
+      }
+    } else if (personId != null) {
+      target = (folders.find((f) => f.person_id === personId)?.id as number | undefined) ?? null;
+    }
+    if (target != null) await sb.from("documents").update({ folder_id: target }).eq("id", id);
+  } catch { /* stays at the top */ }
 }
 
 export async function updateDocument(id: number, patch: Partial<DocumentInput>): Promise<void> {
@@ -164,9 +190,13 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
 
 /** Soft-delete via archived flag (matches tasks.archived convention). */
 export async function setDocumentArchived(id: number, archived: boolean): Promise<void> {
+  // Archived IS "Deleted" in Files Management: stamping the moment puts it on
+  // the same 30-day clock as a file deleted there (Claude's and ORI's
+  // "archive" land in Deleted too), and restoring clears it.
+  const at = new Date().toISOString();
   const { error } = await sb
     .from("documents")
-    .update({ archived, updated_at: new Date().toISOString() })
+    .update({ archived, deleted_at: archived ? at : null, updated_at: at })
     .eq("id", id);
   if (error) throw new Error(error.message);
 }

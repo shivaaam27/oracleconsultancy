@@ -146,14 +146,14 @@ async function docExpiryAnswer(q: string): Promise<SmartAnswer | null> {
       sub: (d.doc_type as string | null) ?? null,
       badge: isExpired ? `expired ${-days}d ago` : `in ${days}d`,
       tone: isExpired ? "danger" : days <= 14 ? "warn" : "muted",
-      href: d.person_id ? `/documents?person=${d.person_id}` : d.company_id ? `/documents?company=${d.company_id}` : "/documents",
+      href: d.person_id ? `/files?pe=${d.person_id}` : d.company_id ? `/files?co=${d.company_id}` : "/files",
     });
   }
   if (rows.length === 0) return null;
   const title = wantExpired && !wantExpiring
     ? "Expired documents"
     : `Documents expiring${/month/i.test(q) ? " this month" : /week/i.test(q) ? " this week" : " soon"}`;
-  return { kind: wantExpired && !wantExpiring ? "expired" : "expiry", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/documents" };
+  return { kind: wantExpired && !wantExpiring ? "expired" : "expiry", title, count: rows.length, rows: rows.slice(0, MAX_ROWS), href: "/files" };
 }
 
 /** OVERDUE tasks — past deadline, still open. Optionally scoped to a company. */
@@ -215,7 +215,7 @@ async function countAnswer(q: string): Promise<SmartAnswer | null> {
   };
   if (/compan/i.test(q)) { const n = await head("companies", (qb) => qb.eq("active", true)); return { kind: "count", title: "Active companies", count: n, rows: [], href: "/companies" }; }
   if (/staff|people|employee|team/i.test(q)) { const n = await head("people", (qb) => qb.eq("active", true)); return { kind: "count", title: "Active staff", count: n, rows: [], href: "/people" }; }
-  if (/document|file|paper/i.test(q)) { const n = await head("documents", (qb) => qb.eq("archived", false)); return { kind: "count", title: "Documents on file", count: n, rows: [], href: "/documents" }; }
+  if (/document|file|paper/i.test(q)) { const n = await head("documents", (qb) => qb.eq("archived", false)); return { kind: "count", title: "Documents on file", count: n, rows: [], href: "/files" }; }
   if (/task/i.test(q)) {
     const open = await head("tasks", (qb) => qb.eq("archived", false).not("status", "in", '("Completed","Closed")'));
     return { kind: "count", title: "Open tasks", count: open, rows: [], href: "/?tab=tasks" };

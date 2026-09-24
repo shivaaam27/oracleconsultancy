@@ -106,7 +106,7 @@ export function VendorRecord({
       subtitle={[vendor.category, vendor.location].filter(Boolean).join(" · ") || undefined}
       status={vendor.active ? <Badge tone="success">Active</Badge> : <Badge tone="default">Archived</Badge>}
       actions={
-        <ButtonLink href={`/documents?newdoc=1&vendor=${vendor.id}&category=Contract`} variant="secondary" size="sm">
+        <ButtonLink href={`/files`} variant="secondary" size="sm">
           <FilePlus size={13} /> Add contract
         </ButtonLink>
       }
@@ -128,7 +128,7 @@ export function VendorRecord({
               {documents.map((d) => (
                 <li key={d.id} className="border-b border-border last:border-0">
                   <Link
-                    href={`/documents?q=${encodeURIComponent(d.title)}`}
+                    href={`/files?q=${encodeURIComponent(d.title)}`}
                     data-list-row
                     className="group flex items-center gap-2 px-3 hover:bg-bg-subtle"
                   >

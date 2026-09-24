@@ -135,7 +135,7 @@ export async function enrichCompanyProfile(
 
     // Parity with the person enrich path so the Documents centre + Home reflect
     // the updated company profile without a manual reload.
-    revalidatePath("/documents");
+    revalidatePath("/files");
     revalidatePath("/");
     return { ok: true, filled };
   } catch (e) {

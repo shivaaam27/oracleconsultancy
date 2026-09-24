@@ -92,7 +92,7 @@ registerUndoHandler("ori.event.update", async (raw) => {
 // Document archive — restore to its prior archived flag.
 registerUndoHandler("ori.document.archive", async (raw) => {
   const p = raw as { documentId: number; before: boolean };
-  await sb.from("documents").update({ archived: p.before, updated_at: new Date().toISOString() }).eq("id", p.documentId);
+  await sb.from("documents").update({ archived: p.before, deleted_at: p.before ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", p.documentId);
 });
 
 // Document→task link — drop the link that was just created.

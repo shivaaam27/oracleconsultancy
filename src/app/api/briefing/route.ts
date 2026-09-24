@@ -91,7 +91,7 @@ async function buildChanged(): Promise<BriefingChange[]> {
   }
   for (const d of (docsR.data ?? []) as Record<string, unknown>[]) {
     const when = (d.filed_at as string | null) ?? (d.created_at as string);
-    events.push({ label: "Document filed", detail: [(d.title as string) ?? "", firstName(d, "companies")].filter(Boolean).join(" · ").slice(0, 90), when: ago(when), href: "/documents", ts: new Date(when).getTime() });
+    events.push({ label: "Document filed", detail: [(d.title as string) ?? "", firstName(d, "companies")].filter(Boolean).join(" · ").slice(0, 90), when: ago(when), href: "/files", ts: new Date(when).getTime() });
   }
 
   return events.sort((a, b) => b.ts - a.ts).slice(0, 10).map(({ ts: _ts, ...rest }) => rest);
