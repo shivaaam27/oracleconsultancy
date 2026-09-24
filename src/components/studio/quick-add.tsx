@@ -19,7 +19,6 @@ import { creatables } from "@/lib/entity-view";
 import { useRegisteredActions } from "@/components/context-actions";
 import { studioNewTaskOptions } from "@/app/task/actions";
 import { QuickTaskPane, type Options } from "./tasks/new-task";
-import { stBtn } from "./kit";
 import { cn } from "@/lib/cn";
 
 const LATER: Record<string, { phase: string; what: string }> = {
@@ -49,7 +48,7 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
   const items = creatables();
   const [tab, setTab] = useState(() => tabFor(pathname));
   const [options, setOptions] = useState<Options | null>(null);
-  const submitRef = useRef<{ fn: () => void; busy: boolean; full: () => string } | null>(null);
+  const submitRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const [, force] = useState(0);
   const { actions } = useRegisteredActions();
 
@@ -70,7 +69,7 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const register = useCallback((fn: () => void, busy: boolean, full: () => string) => {
+  const register = useCallback((fn: (again: boolean) => void, busy: boolean, full: () => string) => {
     const was = submitRef.current?.busy;
     submitRef.current = { fn, busy, full };
     if (was !== busy) force((n) => n + 1);
@@ -81,66 +80,72 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
   const later = LATER[tab];
   const current = items.find((c) => c.id === tab);
 
+  const sub = submitRef.current;
   return (
     <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Create something">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.32)]" />
-      <div className="studio st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(700px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[var(--st-surface)] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.30)] sm:right-6">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
+      {/* Dark and dotted, like the Go-to panel — both open from the footer. */}
+      <div className="studio st-tex-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(720px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-5 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] sm:right-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-[11px] bg-[var(--st-seg)] p-[3px] [scrollbar-width:none]" role="tablist">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist">
             {items.map((c) => (
               <button key={c.id} type="button" role="tab" aria-selected={tab === c.id} onClick={() => setTab(c.id)}
-                className={cn("h-[30px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs transition-colors", tab === c.id ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                className={cn("h-8 shrink-0 whitespace-nowrap rounded-[10px] px-3 text-xs transition-colors",
+                  tab === c.id ? "bg-[#F2F2F0] font-medium text-[#111214]" : "border border-[#2E3035] text-[#A3A6AB] hover:text-white")}>
                 {c.label}
               </button>
             ))}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[var(--st-line)] hover:bg-[var(--st-page)]"><X size={13} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#2E3035] text-[#C9CBCF] hover:text-white"><X size={13} /></button>
         </div>
 
         {/* The task pane stays MOUNTED while another tab is showing, so a
             half-typed task survives a look at the other tabs. */}
         <div className={tab === "task" ? "" : "hidden"}>
           {options ? (
-            <QuickTaskPane options={options} defaultCompanyId={defaultCompanyId} onDone={(keep) => { if (!keep) onClose(); }} registerSubmit={register} />
+            <QuickTaskPane options={options} defaultCompanyId={defaultCompanyId} onDone={(again) => { if (!again) onClose(); }} registerSubmit={register} />
           ) : (
-            <div className="flex h-40 items-center justify-center text-[var(--st-muted)]"><Loader2 size={16} className="animate-spin" /></div>
+            <div className="flex h-40 items-center justify-center text-[#8E9197]"><Loader2 size={16} className="animate-spin" /></div>
           )}
         </div>
         {tab !== "task" && (
-          <div className="st-tex-paper-dots flex min-h-[160px] flex-col items-start justify-center gap-3 rounded-2xl border border-dashed border-[var(--st-line)] px-6 py-5">
-            <div className="rounded-xl bg-[var(--st-surface)] px-1 py-0.5">
-              <div className="text-[15px] font-semibold">New {current?.label.toLowerCase()}</div>
-              <p className="mt-1 max-w-[440px] text-[13px] leading-relaxed text-[var(--st-sub)]">
-                {later?.what} Its quick card here comes with the {later?.phase} redesign — for now the full form does the job.
-              </p>
-            </div>
+          <div className="flex min-h-[150px] flex-col justify-center gap-1.5 rounded-2xl border border-[#26282C] bg-[#1A1B1E] px-5 py-5">
+            <div className="text-[18px] font-medium tracking-[-0.01em]">New {current?.label.toLowerCase()}</div>
+            <p className="max-w-[460px] text-[13px] leading-relaxed text-[#A3A6AB]">
+              {later?.what} Its quick card here comes with the {later?.phase} redesign — for now the full form does the job.
+            </p>
           </div>
         )}
 
         {pageCreate && (
-          <div className="flex items-center gap-2 text-xs text-[var(--st-muted)]">
+          <div className="flex items-center gap-2 text-xs text-[#8E9197]">
             On this page:
             {pageCreate.href ? (
-              <Link href={pageCreate.href} onClick={onClose} className="font-medium text-[var(--st-ink)] hover:underline">{pageCreate.label}</Link>
+              <Link href={pageCreate.href} onClick={onClose} className="font-medium text-[#F2F2F0] hover:underline">{pageCreate.label}</Link>
             ) : (
-              <button type="button" onClick={() => { onClose(); pageCreate.onClick?.(); }} className="font-medium text-[var(--st-ink)] hover:underline">{pageCreate.label}</button>
+              <button type="button" onClick={() => { onClose(); pageCreate.onClick?.(); }} className="font-medium text-[#F2F2F0] hover:underline">{pageCreate.label}</button>
             )}
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 border-t border-[var(--st-line-soft)] pt-3">
+        <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[#26282C] pt-3">
           {tab === "task" ? (
             <>
-              <button type="button" onClick={() => { const href = submitRef.current?.full() ?? "/task/new"; onClose(); router.push(href); }}
-                className="inline-flex items-center gap-1.5 text-[13px] text-[var(--st-sub)] hover:text-[var(--st-ink)]">
+              <button type="button" onClick={() => { const href = sub?.full() ?? "/task/new"; onClose(); router.push(href); }}
+                className="inline-flex h-9 items-center gap-1.5 px-1 text-[13px] text-[#A3A6AB] hover:text-white">
                 Open as a full task<Maximize2 size={12} />
               </button>
-              <button type="button" disabled={!options || submitRef.current?.busy} onClick={() => submitRef.current?.fn()} className={stBtn.dark}>
-                {submitRef.current?.busy && <Loader2 size={13} className="animate-spin" />}Create task
+              <button type="button" disabled={!options || sub?.busy} onClick={() => sub?.fn(true)}
+                className="inline-flex h-9 items-center rounded-[10px] border border-[#34363B] px-3.5 text-[13px] text-[#E6E6E3] hover:bg-[#1F2023] disabled:opacity-50">
+                Create and add another
+              </button>
+              <button type="button" disabled={!options || sub?.busy} onClick={() => sub?.fn(false)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-4 text-[13px] font-semibold text-[#111214] hover:opacity-90 disabled:opacity-50">
+                {sub?.busy && <Loader2 size={13} className="animate-spin" />}Create task
               </button>
             </>
           ) : current ? (
-            <Link href={current.href} onClick={onClose} className={stBtn.dark}>Continue to the form<ArrowRight size={13} /></Link>
+            <Link href={current.href} onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F2F2F0] px-4 text-[13px] font-semibold text-[#111214] hover:opacity-90">Continue to the form<ArrowRight size={13} /></Link>
           ) : null}
         </div>
       </div>

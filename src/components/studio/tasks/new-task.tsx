@@ -221,16 +221,22 @@ export function Toggle({ on, onClick, label }: { on: boolean; onClick: () => voi
 
 /* ------------------------------------------------ the "+ New" task tab -- */
 
+/* The card is DARK, like everything else that opens from the footer (the
+   Go-to panel) and like the picked-task card on Tasks: dark chips, a light
+   primary. Desk controls inside it (the people picker, the calendar) wear the
+   dark token set via `.st-on-dark` in globals.css. */
+const DCHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[#2E3035] bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#26282C] hover:border-[#3A3D42]";
+
 export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmit }: {
   options: Options | null;
   defaultCompanyId: number | null;
-  onDone: (keepOpen: boolean) => void;
-  /** Lets the card's footer button submit this pane. */
-  registerSubmit: (fn: () => void, busy: boolean, fullHref: () => string) => void;
+  /** `again` = "Create and add another": the card stays open for the next one. */
+  onDone: (again: boolean) => void;
+  /** Lets the card's footer buttons submit this pane. */
+  registerSubmit: (fn: (again: boolean) => void, busy: boolean, fullHref: () => string) => void;
 }) {
   const [d, setD] = useState<Draft>({ ...EMPTY_DRAFT, companyId: defaultCompanyId });
   const [who, setWho] = useState(false);
-  const [keep, setKeep] = useState(false);
   const [pickerKey, setPickerKey] = useState(0);
   const title = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -240,12 +246,17 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
   useEffect(() => { title.current?.focus(); }, []);
   useEffect(() => { if (defaultCompanyId && !d.companyId) set({ companyId: defaultCompanyId }); }, [defaultCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function submit() {
+  function submit(again: boolean) {
     create(d, null, () => {
       try { if (d.companyId) localStorage.setItem("studio.newTask.company", String(d.companyId)); } catch { /* fine */ }
       router.refresh();
-      if (keep) { setD((x) => ({ ...EMPTY_DRAFT, companyId: x.companyId, people: x.people, priority: x.priority })); title.current?.focus(); }
-      onDone(keep);
+      if (again) {
+        // Same company, people and priority — only the task itself is new.
+        setD((x) => ({ ...EMPTY_DRAFT, companyId: x.companyId, people: x.people, priority: x.priority }));
+        setWho(false);
+        title.current?.focus();
+      }
+      onDone(again);
     });
   }
   const full = () => fullTaskHref(d);
@@ -253,6 +264,7 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
 
   const companies = options?.companies ?? [];
   const company = companies.find((c) => c.id === d.companyId);
+  const base = d.deadline ? new Date(`${d.deadline}T12:00:00`) : new Date();
   return (
     <div className="flex flex-col gap-3.5">
       <input
@@ -261,64 +273,64 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         onChange={(e) => set({ title: e.target.value })}
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); router.push(full()); onDone(false); }
-          else if (e.key === "Enter") { e.preventDefault(); submit(); }
+          else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(true); }
+          else if (e.key === "Enter") { e.preventDefault(); submit(false); }
         }}
         placeholder="What needs doing?"
         aria-label="What needs doing?"
-        className="bare-field w-full border-0 bg-transparent px-0 py-1 text-[22px] tracking-[-0.015em] outline-none placeholder:text-[#A3A6AB]"
+        /* Inline: the unlayered `input` rule in globals.css beats utilities. */
+        style={{ color: "#F2F2F0", background: "transparent", border: 0, boxShadow: "none" }}
+        className="bare-field w-full px-0 py-1 text-[26px] tracking-[-0.02em] outline-none placeholder:text-[#5B5E63]"
       />
       <div className="flex flex-wrap gap-1.5">
         <StudioChoiceMenu
           value={d.companyId ? String(d.companyId) : null}
           options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
           onPick={(v) => set({ companyId: Number(v), also: d.also.filter((x) => x !== Number(v)) })}
-          prefix="Company" empty="— pick one" showDot={false} width={260}
-          className={cn(CHIP, !company && "border-[var(--st-ink)]")}
+          prefix="Company" empty="pick one" showDot={false} width={260}
+          className={cn(DCHIP, "st-dark-chip", !company && "border-[#8E9197]")}
         />
-        <button type="button" onClick={() => setWho((v) => !v)} className={cn(stBtn.ghost, CHIP, "gap-1.5")}>
-          <span className="text-[var(--st-sub)]">Who</span>
-          {d.people.length ? <span className="max-w-[12rem] truncate font-medium">{d.people.join(", ")}</span> : <span className="text-[var(--st-muted)]">— nobody yet</span>}
+        <button type="button" onClick={() => setWho((v) => !v)} aria-expanded={who} className={cn(DCHIP, "inline-flex items-center gap-1.5")}>
+          <span className="text-[#A3A6AB]">Who</span>
+          {d.people.length ? <span className="max-w-[12rem] truncate font-medium">{d.people.join(", ")}</span> : <span className="text-[#8E9197]">nobody yet</span>}
         </button>
         <DatePopover
           value={d.deadline}
           label={d.deadline ? null : "When"}
           onChange={(v) => set({ deadline: v || null })}
           compact
-          triggerClassName={cn(CHIP, "inline-flex items-center gap-1.5")}
+          triggerClassName={cn(DCHIP, "st-dark-chip inline-flex items-center gap-1.5")}
         />
-        <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} prefix="Priority" showDot={false} className={CHIP} width={180} />
+        <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} prefix="Priority" showDot={false} className={cn(DCHIP, "st-dark-chip")} width={180} />
         <StudioChoiceMenu
           value={d.repeat ? (d.repeat.cadence === "monthly" ? "m" : d.repeat.weekdays.join() === "1,2,3,4,5" ? "wd" : "w") : "no"}
           options={[
             { value: "no", label: "No" },
             { value: "wd", label: "Every weekday" },
-            { value: "w", label: `Weekly on ${WEEKDAYS[(d.deadline ? new Date(`${d.deadline}T12:00:00`) : new Date()).getDay()]}` },
-            { value: "m", label: `Monthly on the ${ordinal((d.deadline ? new Date(`${d.deadline}T12:00:00`) : new Date()).getDate())}` },
+            { value: "w", label: `Weekly on ${WEEKDAYS[base.getDay()]}` },
+            { value: "m", label: `Monthly on the ${ordinal(base.getDate())}` },
           ]}
           onPick={(v) => {
-            const base = d.deadline ? new Date(`${d.deadline}T12:00:00`) : new Date();
             set({ repeat: v === "no" ? null : v === "m" ? { cadence: "monthly", weekdays: [], dayOfMonth: base.getDate(), alsoToday: false } : { cadence: "weekly", weekdays: v === "wd" ? [1, 2, 3, 4, 5] : [base.getDay()], dayOfMonth: 1, alsoToday: false } });
           }}
-          prefix="Repeat" showDot={false} className={CHIP} width={220}
+          prefix="Repeat" showDot={false} className={cn(DCHIP, "st-dark-chip")} width={220}
         />
       </div>
       {who && (
-        <div className="rounded-xl bg-[var(--st-page)] p-2.5">
+        <div className="st-on-dark rounded-xl border border-[#2E3035] bg-[#1A1B1E] p-2.5">
           <PersonPicker key={pickerKey} people={options?.people ?? []} defaultNames={d.people} name="__quick_people" onChange={(csv) => set({ people: csv.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="Search people, or type a new name…" />
-          <div className="mt-2 flex justify-end"><button type="button" onClick={() => { setWho(false); setPickerKey((k) => k + 1); }} className="text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Done</button></div>
+          <div className="mt-2 flex justify-end"><button type="button" onClick={() => { setWho(false); setPickerKey((k) => k + 1); }} className="text-xs text-[#C9CBCF] hover:text-white">Done</button></div>
         </div>
       )}
       <textarea
         value={d.instructions}
         onChange={(e) => set({ instructions: e.target.value })}
         rows={2}
-        placeholder="Add instructions for the team — they arrive as the first update (optional)"
-        className="bare-field w-full resize-none rounded-xl border-0 bg-[var(--st-page)] px-3 py-2.5 text-[13px] outline-none placeholder:text-[var(--st-muted)]"
+        placeholder="Instructions for the team — they arrive as the first update (optional)"
+        style={{ color: "#E6E6E3", background: "#1F2023", border: "1px solid #2E3035", boxShadow: "none" }}
+        className="bare-field w-full resize-none rounded-xl px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[#6E7177]"
       />
-      <label className="flex items-center gap-2 text-xs text-[var(--st-sub)]">
-        <Toggle on={keep} onClick={() => setKeep((v) => !v)} label="Keep open for another" />Keep open for another
-        <span className="ml-2 hidden text-[var(--st-muted)] sm:inline">Enter creates · Shift+Enter opens the full one</span>
-      </label>
+      <p className="-mt-1.5 text-right text-[11px] text-[#6E7177]">Enter creates · Ctrl+Enter creates and starts another · Shift+Enter opens the full task</p>
     </div>
   );
 }

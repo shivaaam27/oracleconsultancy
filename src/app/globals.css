@@ -1839,3 +1839,25 @@ body:has(main .studio) > * [data-field-label] {
 .studio .st-dark-chip span,
 .studio .st-dark-chip svg { color: #F2F2F0; }
 
+
+/* The quick card's chips: the chosen value bright, the label before it quiet. */
+.studio .st-dark-chip .st-prefix { color: #8E9197; }
+
+/* Desk controls placed on a Studio DARK surface (the "+ New" card): the dark
+   token set, so the people picker's box and menu read light-on-dark. */
+.st-on-dark {
+  --bg:         220 6% 6%;
+  --bg-elev:    225 8% 12%;
+  --bg-subtle:  225 7% 14%;
+  --bg-muted:   225 6% 18%;
+  --fg:         60 7% 94%;
+  --fg-muted:   220 4% 65%;
+  --fg-subtle:  220 4% 57%;
+  --border:        225 7% 20%;
+  --border-strong: 225 6% 26%;
+  --accent:       60 7% 94%;
+  --accent-fg:    220 8% 7%;
+  --accent-soft:  225 6% 20%;
+  --accent-ring:  220 4% 65%;
+}
+

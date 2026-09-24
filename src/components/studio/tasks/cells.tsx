@@ -130,9 +130,9 @@ export function StudioChoiceMenu({
         )}
       >
         {icon && <span className="shrink-0 text-[var(--st-muted)]">{icon}</span>}
-        {prefix && <span className="shrink-0 text-[var(--st-sub)]">{prefix}</span>}
+        {prefix && <span className="st-prefix shrink-0 text-[var(--st-sub)]">{prefix}</span>}
         {showDot && current?.dot && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: current.dot }} />}
-        {current ? <span className={cn("truncate", prefix && "font-medium")}>{current.label}{suffix}</span> : <span className="truncate text-[var(--st-muted)]">{empty}</span>}
+        {current ? <span className={cn("truncate", prefix && "font-medium")}>{current.label}{suffix}</span> : <span className="st-prefix truncate text-[var(--st-muted)]">{empty}</span>}
       </button>
       {open && pos && createPortal(
         <div
