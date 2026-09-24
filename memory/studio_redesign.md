@@ -380,3 +380,23 @@ gen/p_event.py).
   `--st-track-off` added).
 - Left as is: TimeField shows 12-hour ("2:00 PM"); the mockup prints 24-hour.
   It's the shared field (portal too) — ask before changing.
+
+### Calendar, fourth pass — the day list and the bars (24 Sept 2026)
+
+- The picked-day card lists EVERYTHING (`StudioDayList`), scrolling inside the
+  card (`mt-auto max-h-full overflow-y-auto`: a short list sits at the foot as
+  drawn, a long one caps and scrolls); header says "· scroll for more" past 3.
+  The 23rd has 12. Events by time, then layers in the legend's order.
+- **The picked day is in the address (`?day=yyyy-mm-dd`, blank = today)**, so a
+  row opened from the list and Back lands on the same day and month.
+- Every layer row and chip is a `ReturnLink` (carries `back=`). The overlay hrefs
+  were generic and are fixed at the source, `lib/calendar-overlays.ts`: task →
+  `taskHref(code)` (was the legacy `/?tab=tasks&task=`), renewal →
+  `/documents/<id>`, birthday/anniversary/probation → `/people/<id>`, leave →
+  `/hrms/leave?ym=`, holiday → `?view=holidays`, commitment → `?company=`.
+- Next 7 days bars (`StudioNext7Bars`): hover/focus → a dark card ABOVE the bar
+  (date, counts by kind, first 6 items, "+N more · click to list them all"),
+  others dim, the hovered one lifts; click picks the day.
+  ⚠️ The tooltip is NOT `.studio` (its unlayered ink colour beat the text
+  utilities — titles vanished dark-on-dark) and is placed with `bottom`, not
+  `translateY(-100%)` — `st-pop` animates transform and wiped the offset.

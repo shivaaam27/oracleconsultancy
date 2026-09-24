@@ -1962,3 +1962,5 @@ body:has(main .studio) > * [data-field-label] {
 .dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; --st-label: #8E9197; --st-dash: #4A4C52; --st-scrim: rgba(14,15,16,0.82); --st-track-off: #3A3D42; }
 .st-cal-chip { background: var(--chip-l); color: var(--st-ink); }
 .dark .st-cal-chip { background: var(--chip-d); }
+/* A list that scrolls inside a dark Studio card: a thin dark thumb. */
+.st-scroll-dark { scrollbar-width: thin; scrollbar-color: #34363B transparent; }

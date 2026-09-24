@@ -4,6 +4,7 @@
 // nothing is written. Server-only (uses the service-role client).
 
 import { sb } from "@/db/supabase";
+import { taskHref } from "@/lib/task-href";
 import type { OverlayItem } from "@/lib/calendar-overlays-shared";
 import { noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 
@@ -60,7 +61,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
       kind: "task",
       title: `${code}: ${t.action_item as string}`,
       dayKey: dayKey(t.deadline as string),
-      href: `/?tab=tasks&task=${code}`,
+      href: taskHref(code),
       companyId: (t.company_id as number) ?? null,
     });
   }
@@ -75,7 +76,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     let guard = 0;
     while (k <= end && k <= toKey && guard < 400) {
       if (k >= fromKey) {
-        items.push({ id: `leave-${l.id}-${k}`, kind: "leave", title: `${name} — leave`, dayKey: k, href: "/hrms/leave", companyId: null });
+        items.push({ id: `leave-${l.id}-${k}`, kind: "leave", title: `${name} — leave`, dayKey: k, href: `/hrms/leave?ym=${k.slice(0, 7)}`, companyId: null });
       }
       k = addDaysKey(k, 1);
       guard++;
@@ -84,7 +85,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
 
   // Public holidays.
   for (const h of holRes.data ?? []) {
-    items.push({ id: `hol-${h.id}`, kind: "holiday", title: h.name as string, dayKey: dayKey(h.date as string), href: "/hrms/leave", companyId: null });
+    items.push({ id: `hol-${h.id}`, kind: "holiday", title: h.name as string, dayKey: dayKey(h.date as string), href: "/hrms/leave?view=holidays", companyId: null });
   }
 
   // Document / contract renewals (expiry dates).
@@ -94,7 +95,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
       kind: "renewal",
       title: `${d.title as string} expires`,
       dayKey: dayKey(d.expiry_date as string),
-      href: "/documents",
+      href: `/documents/${d.id}`,
       companyId: (d.company_id as number) ?? null,
     });
   }
@@ -109,7 +110,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
       const md = monthDay(p.date_of_birth as string);
       for (let y = fromYear; y <= toYear; y++) {
         const k = `${y}-${md}`;
-        if (inRange(k, fromKey, toKey)) items.push({ id: `bd-${p.id}-${y}`, kind: "birthday", title: `${name} — birthday`, dayKey: k, href: `/people`, companyId: null });
+        if (inRange(k, fromKey, toKey)) items.push({ id: `bd-${p.id}-${y}`, kind: "birthday", title: `${name} — birthday`, dayKey: k, href: `/people/${p.id}`, companyId: null });
       }
     }
     if (p.start_date) {
@@ -119,12 +120,12 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
         const yrs = y - startYear;
         if (yrs < 1) continue;
         const k = `${y}-${md}`;
-        if (inRange(k, fromKey, toKey)) items.push({ id: `anniv-${p.id}-${y}`, kind: "anniversary", title: `${name} — ${yrs} yr${yrs === 1 ? "" : "s"}`, dayKey: k, href: `/people`, companyId: null });
+        if (inRange(k, fromKey, toKey)) items.push({ id: `anniv-${p.id}-${y}`, kind: "anniversary", title: `${name} — ${yrs} yr${yrs === 1 ? "" : "s"}`, dayKey: k, href: `/people/${p.id}`, companyId: null });
       }
     }
     if (p.probation_end_date) {
       const k = dayKey(p.probation_end_date as string);
-      if (inRange(k, fromKey, toKey)) items.push({ id: `prob-${p.id}`, kind: "probation", title: `${name} — probation ends`, dayKey: k, href: `/people`, companyId: null });
+      if (inRange(k, fromKey, toKey)) items.push({ id: `prob-${p.id}`, kind: "probation", title: `${name} — probation ends`, dayKey: k, href: `/people/${p.id}`, companyId: null });
     }
   }
 
@@ -135,7 +136,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     const k = dayKey(nb);
     if (!inRange(k, fromKey, toKey)) continue;
     const label = KIND_LABEL[(c.kind as CommitmentKind)] ?? "Commitment";
-    items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: "/hrms/commitments", companyId: (c.company_id as number) ?? null });
+    items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: c.company_id ? `/hrms/commitments?company=${c.company_id}` : "/hrms/commitments", companyId: (c.company_id as number) ?? null });
   }
 
   return items;

@@ -33,6 +33,7 @@ import { cn } from "@/lib/cn";
 import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
+import { ReturnLink } from "@/components/back-link";
 import { hasElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
@@ -222,7 +223,10 @@ export function CalendarBoard({
   // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
   // that name is watched globally by CompanyDrawer. Layers and the two noise
   // switches stay device preferences: they are taste, not a view.
-  const url = useUrlFilters({ view: studio ? "month" : "agenda", co: "all", type: "all", src: "all", q: "" }, { debounceKeys: ["q"] });
+  const url = useUrlFilters({ view: studio ? "month" : "agenda", co: "all", type: "all", src: "all", q: "", day: "" }, { debounceKeys: ["q"] });
+  // Studio's picked day lives in the address, so opening a task from the day's
+  // list and pressing Back lands on the same day, not on today.
+  const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(url.values.day) ? url.values.day : "";
   const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : studio ? "month" : "agenda";
   const setView = (v: ViewMode) => url.set({ view: v });
   const companyFilter = url.values.co;
@@ -235,7 +239,11 @@ export function CalendarBoard({
   const setSearch = (v: string) => url.set({ q: v });
   const [needInvitesOnly, setNeedInvitesOnly] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
+  const [cursor, setCursor] = useState<Date>(() => {
+    const d = dayParam ? new Date(`${dayParam}T12:00:00+03:00`) : new Date();
+    d.setHours(12, 0, 0, 0);
+    return d;
+  });
   const [enabledLayers, setEnabledLayers] = useState<Set<OverlayKind>>(() => new Set(OVERLAY_KINDS));
   // "Meetings only" hides every overlay layer at once; "Hide repeats" collapses a
   // recurring series to one chip per period (with a ↻ badge) so it stops filling
@@ -244,7 +252,8 @@ export function CalendarBoard({
   const [collapseRecurring, setCollapseRecurring] = useState(false);
   // Studio: the day picked in the month grid (the left card shows it — mockup
   // board Calendar), the Events layer switch, and the lower grid sized to fit.
-  const [pickedKey, setPickedKey] = useState<string>(todayKeyGlobal);
+  const pickedKey = dayParam || todayKeyGlobal;
+  const setPickedKey = (k: string) => url.set({ day: k === todayKeyGlobal ? "" : k });
   const [hideEvents, setHideEvents] = useState(false);
   const studioGrid = useRef<HTMLDivElement>(null);
   useFitFrame(studioGrid, { enabled: studio, minimum: 460 });
@@ -535,44 +544,13 @@ export function CalendarBoard({
 
         <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
           {/* The picked day — today until you pick another in the grid. */}
-          <StudioCard className="min-h-[170px]">
+          <StudioCard className="h-[260px] lg:h-auto">
             <CardHead
               label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
-              right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}</span>}
+              right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}{pickItems > 3 && " · scroll for more"}</span>}
             />
-            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-end gap-1.5">
-              {pickItems === 0 ? (
-                <div className="text-sm text-[var(--st-muted)]">Nothing on this day. Press “New event” to plan something.</div>
-              ) : (
-                <>
-                  {pickEvs.slice(0, 3).map((e) => {
-                    const done = hasElapsed(e, Date.now());
-                    return (
-                      <button key={occKey(e)} type="button" onClick={() => openEdit(e)}
-                        className={cn("st-pop grid grid-cols-[58px_10px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2 text-left transition-colors hover:bg-[var(--st-card-3)]", done && "opacity-60")}>
-                        <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
-                        <span className="h-2 w-2 rounded-full bg-[var(--st-on-card)]" />
-                        <span className="truncate text-[13px]">{e.title}</span>
-                        <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{isHappeningNow(e, Date.now()) ? "On now" : done ? "Finished" : "Event"}</span>
-                      </button>
-                    );
-                  })}
-                  {pickOvs.slice(0, Math.max(0, 3 - pickEvs.length)).map((o) => {
-                    const row = (
-                      <>
-                        <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{o.kind === "task" ? "Due" : "All day"}</span>
-                        <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
-                        <span className="truncate text-[13px]">{o.title}</span>
-                        <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
-                      </>
-                    );
-                    const cls = "st-pop grid grid-cols-[58px_10px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2";
-                    return o.href
-                      ? <a key={o.id} href={o.href} className={cn(cls, "transition-colors hover:bg-[var(--st-card-3)]")}>{row}</a>
-                      : <div key={o.id} className={cls}>{row}</div>;
-                  })}
-                </>
-              )}
+            <div className="mt-2 flex min-h-0 flex-1 flex-col">
+              <StudioDayList dayKey={pickedKey} evs={pickEvs} ovs={pickOvs} onEdit={openEdit} />
             </div>
           </StudioCard>
 
@@ -584,20 +562,7 @@ export function CalendarBoard({
                 <div className="mt-2.5 text-[13px] text-[#C9CBCF]">{next7Total === 1 ? "thing" : "things"} coming up</div>
                 <div className="mt-1.5 flex gap-3 text-xs text-[var(--st-muted)]"><span>{figures.today} today</span><span>{figures.needInvites} need invites</span></div>
               </div>
-              <div className="grid h-[110px] grid-cols-7 items-end gap-2" aria-label="Things each day, the next seven days">
-                {next7.map((x, i) => (
-                  <button key={x.k} type="button" onClick={() => pick(x.d)} className="flex h-full flex-col items-center justify-end gap-[5px]"
-                    title={`${x.ev + x.other} on ${x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}`}>
-                    {/* Events (white) at the foot, everything else (pink) above. */}
-                    <span className="flex w-full max-w-[30px] flex-col-reverse gap-0.5">
-                      {x.ev > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-on-card)]" style={{ height: x.ev * perThing }} />}
-                      {x.other > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-late)]" style={{ height: x.other * perThing }} />}
-                      {x.ev + x.other === 0 && <span className="block h-1 rounded-[4px] bg-[#2A2C30]" />}
-                    </span>
-                    <span className={cn("text-[11px]", i === 0 ? "text-[var(--st-on-card)]" : "text-[var(--st-muted)]")}>{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}</span>
-                  </button>
-                ))}
-              </div>
+              <StudioNext7Bars days={next7} perThing={perThing} pickedKey={pickedKey} evByDay={evByDay} overlayByDay={overlayByDay} onPick={pick} />
             </div>
           </StudioCard>
         </div>
@@ -1117,7 +1082,7 @@ function StudioOverlayChip({ item }: { item: OverlayItem }) {
   const { c, tint } = STUDIO_LAYER[item.kind];
   const inner = <><span className="h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: c }} /><span className="truncate">{item.title}</span></>;
   return item.href
-    ? <a href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cn(ST_CHIP, "hover:brightness-95")} style={chipVars(c, tint)}>{inner}</a>
+    ? <ReturnLink href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cn(ST_CHIP, "hover:brightness-95")} style={chipVars(c, tint)}>{inner}</ReturnLink>
     : <span title={item.title} className={ST_CHIP} style={chipVars(c, tint)}>{inner}</span>;
 }
 function ChevronDownIcon() {
@@ -1175,7 +1140,7 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
                   <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
                   <span className="truncate text-[13px]">{o.title}</span>
                   <span className="text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
-                  {o.href ? <a href={o.href} className={OPEN}>Open</a> : <span />}
+                  {o.href ? <ReturnLink href={o.href} className={OPEN}>Open</ReturnLink> : <span />}
                 </div>
               ))}
             </div>
@@ -1183,6 +1148,155 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
         );
       })}
     </div>
+  );
+}
+
+/* ---------------- Studio's two cards: the picked day, and the next 7 days ------------ */
+
+/** Everything on the picked day, in a list that scrolls inside the card (owner,
+ *  24 Sept 2026: the 23rd had 12 things and the card showed 3). Events first, by
+ *  time; then the layers in the legend's order. Each row goes where it belongs:
+ *  an event opens its screen, a deadline its task, a renewal its document, a
+ *  birthday its person — carrying the way back to this calendar. */
+function StudioDayList({ dayKey, evs, ovs, onEdit }: {
+  dayKey: string;
+  evs: CalendarEventView[];
+  ovs: OverlayItem[];
+  onEdit: (e: CalendarEventView) => void;
+}) {
+  const order = (k: OverlayKind) => STUDIO_LAYER_ORDER.indexOf(k);
+  const layers = [...ovs].sort((a, b) => order(a.kind) - order(b.kind) || a.title.localeCompare(b.title));
+  const ROW = "grid grid-cols-[58px_10px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-card-line)] bg-[var(--st-card-2)] px-3 py-2 text-left";
+  if (evs.length + ovs.length === 0) {
+    return <div className="mt-auto text-sm text-[var(--st-muted)]">Nothing on this day. Press “New event” to plan something.</div>;
+  }
+  return (
+    // mt-auto sits a short list at the foot of the card, as drawn; max-h-full
+    // caps a long one at the card and lets it scroll.
+    <div key={dayKey} className="st-scroll-dark mt-auto flex max-h-full min-h-0 flex-col gap-1.5 overflow-y-auto pr-1">
+      {evs.map((e) => {
+        const done = hasElapsed(e, Date.now());
+        return (
+          <button key={occKey(e)} type="button" onClick={() => onEdit(e)} className={cn(ROW, "shrink-0 transition-colors hover:bg-[var(--st-card-3)]", done && "opacity-60")}>
+            <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
+            <span className="h-2 w-2 rounded-full bg-[var(--st-on-card)]" />
+            <span className="truncate text-[13px]">{e.title}</span>
+            <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{isHappeningNow(e, Date.now()) ? "On now" : done ? "Finished" : "Event"}</span>
+          </button>
+        );
+      })}
+      {layers.map((o) => {
+        const row = (
+          <>
+            <span className="st-mono text-xs text-[var(--st-on-card-muted)]">{o.kind === "task" ? "Due" : "All day"}</span>
+            <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
+            <span className="truncate text-[13px]" title={o.title}>{o.title}</span>
+            <span className="whitespace-nowrap text-[11px] text-[var(--st-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+          </>
+        );
+        return o.href
+          ? <ReturnLink key={o.id} href={o.href} className={cn(ROW, "shrink-0 transition-colors hover:bg-[var(--st-card-3)]")}>{row}</ReturnLink>
+          : <div key={o.id} className={cn(ROW, "shrink-0")}>{row}</div>;
+      })}
+    </div>
+  );
+}
+
+type Next7Day = { d: Date; k: string; ev: number; other: number };
+
+/** The seven bars. Hover (or focus) one and a card says what that day holds;
+ *  click it and the left card lists every one of them. */
+function StudioNext7Bars({ days, perThing, pickedKey, evByDay, overlayByDay, onPick }: {
+  days: Next7Day[];
+  perThing: number;
+  pickedKey: string;
+  evByDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onPick: (d: Date) => void;
+}) {
+  const [hover, setHover] = useState<{ k: string; x: number; y: number } | null>(null);
+  const show = (k: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setHover({ k, x: r.left + r.width / 2, y: r.top });
+  };
+  const day = hover ? days.find((d) => d.k === hover.k) : null;
+  const evs = day ? evByDay.get(day.k) ?? [] : [];
+  const ovs = day ? overlayByDay.get(day.k) ?? [] : [];
+  const kinds = new Map<string, number>();
+  if (evs.length) kinds.set(evs.length === 1 ? "event" : "events", evs.length);
+  for (const o of ovs) {
+    const label = OVERLAY_LABELS[o.kind].toLowerCase();
+    kinds.set(label, (kinds.get(label) ?? 0) + 1);
+  }
+  const lines = [
+    ...evs.map((e) => ({ key: occKey(e), c: "#F2F2F0", when: e.allDay ? "All day" : fmtTime(e.startAt), title: e.title })),
+    ...ovs.map((o) => ({ key: o.id, c: STUDIO_LAYER[o.kind].c, when: o.kind === "task" ? "Due" : "All day", title: o.title })),
+  ];
+  const TIP_W = 280;
+  return (
+    <>
+      <div className="grid h-[110px] grid-cols-7 items-end gap-2" aria-label="Things each day, the next seven days" onMouseLeave={() => setHover(null)}>
+        {days.map((x, i) => {
+          const n = x.ev + x.other;
+          const dim = hover && hover.k !== x.k;
+          const picked = x.k === pickedKey;
+          return (
+            <button key={x.k} type="button" onClick={() => onPick(x.d)}
+              onMouseEnter={(e) => show(x.k, e.currentTarget)} onFocus={(e) => show(x.k, e.currentTarget)} onBlur={() => setHover(null)}
+              aria-label={`${n} on ${x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })} — show them`}
+              className="group flex h-full min-w-0 flex-col items-center justify-end gap-[5px] outline-none">
+              {/* Events (white) at the foot, everything else (pink) above. */}
+              <span className={cn("flex w-full max-w-[30px] flex-col-reverse gap-0.5 transition-all duration-150 group-hover:-translate-y-0.5 group-focus-visible:-translate-y-0.5", dim && "opacity-40")}>
+                {x.ev > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-on-card)]" style={{ height: x.ev * perThing }} />}
+                {x.other > 0 && <span className="st-rise block rounded-[4px] bg-[var(--st-late)]" style={{ height: x.other * perThing }} />}
+                {n === 0 && <span className="block h-1 rounded-[4px] bg-[#2A2C30]" />}
+              </span>
+              <span className={cn("text-[11px] transition-colors", i === 0 || picked || hover?.k === x.k ? "text-[var(--st-on-card)]" : "text-[var(--st-muted)]", picked && "underline decoration-[var(--st-on-card-muted)] underline-offset-4")}>
+                {x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {hover && day && typeof document !== "undefined" && createPortal(
+        /* ⚠️ Not `.studio`: its unlayered ink colour beats text-[…] utilities and
+           drew the titles dark on dark. ⚠️ Placed by `bottom`, not a translate —
+           st-pop animates `transform`, which wiped the offset and dropped the
+           card BELOW the bar. */
+        <div role="tooltip" className="st-pop pointer-events-none fixed z-[80] rounded-[14px] border border-[#26282C] bg-[#1A1B1E] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)] [font-family:var(--font-geist),var(--font-sans)]"
+          style={{
+            width: TIP_W,
+            color: "#F2F2F0",
+            left: Math.min(Math.max(8, hover.x - TIP_W / 2), window.innerWidth - TIP_W - 8),
+            bottom: window.innerHeight - hover.y + 10,
+          }}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[13px] font-medium">{day.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "short" })}</span>
+            <span className="text-[11px] text-[#8E9197]">{lines.length} {lines.length === 1 ? "thing" : "things"}</span>
+          </div>
+          {kinds.size > 0 && (
+            <div className="mt-1 text-[11px] text-[#A3A6AB]">{[...kinds].map(([l, n]) => `${n} ${n === 1 ? l.replace(/s$/, "") : l}`).join(" · ")}</div>
+          )}
+          {lines.length === 0 ? (
+            <div className="mt-2 text-xs text-[#8E9197]">Nothing on this day.</div>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1">
+              {lines.slice(0, 6).map((l) => (
+                <li key={l.key} className="flex min-w-0 items-center gap-2 text-xs">
+                  <span className="w-[52px] shrink-0 whitespace-nowrap text-[11px] text-[#8E9197] [font-family:var(--font-geist-mono),ui-monospace,monospace]">{l.when}</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: l.c }} />
+                  <span className="truncate">{l.title}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 border-t border-[#26282C] pt-2 text-[11px] text-[#8E9197]">
+            {lines.length > 6 ? `+${lines.length - 6} more · ` : ""}Click to list {lines.length > 1 ? "them all" : "it"} on the left
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
