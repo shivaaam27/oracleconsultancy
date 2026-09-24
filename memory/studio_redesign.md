@@ -345,3 +345,38 @@ exact numbers, rather than eyeballing an 800px screenshot. Fixed:
   squares with a coloured border — filled when on, hollow and grey when off.
   Rail 232px, 14px gaps. Announcement card dotted, title not bold.
 - Header: Today is a grey fill inside the date box, not a bordered button.
+
+### Calendar, third pass — the event screen, Week and Day (24 Sept 2026)
+
+The owner clicked through Agenda/Week/Day and New event: "old design is still
+there … creating a new event is the worst of all" (mockup board **Event**,
+gen/p_event.py).
+- **`EventForm studio`** renders the Event board: a 1120×760 dialog over a
+  paper-dot scrim, a **dark action bar** (‹ Calendar · Send invite · Meet link ·
+  .ics · Google · Copy link · WhatsApp · Preview email · Remind/Follow-up ·
+  Delete…), a 26px title, two columns (When / Guests / Companies+Type /
+  Where+Meeting link+Meet / Notes | read card / Papers / Remind me / Repeats+Until /
+  tick boxes), and a footer that says whether it CLASHES. Same state, same
+  `submit`, same actions — nothing rewired.
+- **`useEventActions(event, onDeleted)`** is the ONE copy of an event's actions
+  and their two dialogs (preview, delete). The Desk agenda row and the Studio
+  dark bar both call it. `event` may be null (a new event): all no-ops.
+- `AttendeePicker studio`, `EventAttachments studio` (row per paper with a Send
+  to guests | Reference only switch, dashed drop zone) and `StudioReadCard`
+  (dark "Read from the ticket" card; `EventPrefill.facts` = Flight·Departs·Route,
+  else What·When·Where, as printed) are the Studio halves.
+- **Week and Day are a time grid** (`StudioTimeGrid`): day heads with the date
+  disc, an all-day strip (2 per day on Week + "+N more"; Day scrolls), hours
+  07–20 stretched to fit, events as blocks side by side when they overlap, a
+  now-line, **click an empty hour → New event at that hour** (`openNew({date,time})`
+  → `EventForm seed`). No mockup exists for these; they follow Month's grammar.
+- ⚠️ **ESCAPE, ONE LAYER AT A TIME.** CompanyMultiSelect and DatePopover closed
+  on Escape without `preventDefault`, so the screen behind closed too. They now
+  claim it, and the Studio event screen and `StudioSheet` listen on WINDOW (after
+  document), so a menu always gets first refusal.
+- ⚠️ **Don't use Tailwind `dark:` for Studio colours** — it didn't follow the
+  `.dark` class here (the scrim stayed light). Use `--st-*` tokens defined under
+  `.studio` / `.dark .studio` (`--st-scrim`, `--st-dash`, `--st-label`,
+  `--st-track-off` added).
+- Left as is: TimeField shows 12-hour ("2:00 PM"); the mockup prints 24-hour.
+  It's the shared field (portal too) — ask before changing.

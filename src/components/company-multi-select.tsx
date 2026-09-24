@@ -29,7 +29,7 @@ export function CompanyMultiSelect({
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } } // claimed: the sheet or dialog around it must not close too
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };

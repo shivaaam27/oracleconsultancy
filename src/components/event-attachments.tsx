@@ -15,7 +15,8 @@
 // to check against the ticket in his hand — and presses Save himself.
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import { Paperclip, X, Loader2, Sparkles, FileText, AlertTriangle, Check } from "lucide-react";
+import { Paperclip, X, Loader2, Sparkles, FileText, AlertTriangle, Check, Upload } from "lucide-react";
+import { zoneLabel, type EventReadFields } from "@/lib/event-read-core";
 import { cn } from "@/lib/cn";
 import { FieldLabel } from "@/components/ui";
 import { DocLinkPicker } from "@/components/doc-link-picker";
@@ -52,6 +53,10 @@ export type EventPrefill = {
   gaps: string[];
   confidence: number | null;
   kind: string;
+  /** Three facts to check against the paper in your hand (Studio's "Read from
+   *  the ticket" card): Flight · Departs · Route for a flight, else What · When
+   *  · Where. As printed — times in their own zone, never converted. */
+  facts?: { label: string; value: string }[];
 };
 
 /**
@@ -62,6 +67,53 @@ export type EventPrefill = {
  * so a misread is caught by glancing at the ticket, not at the airport. What
  * could NOT be read is listed too: a stated gap is honest, a silent blank isn't.
  */
+function factsOf(f: EventReadFields, title: string | null): { label: string; value: string }[] {
+  const time = (local: string | null, tz: string | null) => (local && local.length >= 16 ? `${local.slice(11, 16)}${tz ? ` ${zoneLabel(tz)}` : ""}` : "—");
+  if (f.flight) {
+    const route = [f.flight.from.code ?? f.flight.from.name, f.flight.to.code ?? f.flight.to.name].filter(Boolean).join(" → ");
+    return [
+      { label: "Flight", value: f.flight.flightNo || f.flight.airline || "—" },
+      { label: "Departs", value: time(f.startLocal, f.startTimeZone) },
+      { label: "Route", value: route || "—" },
+    ];
+  }
+  return [
+    { label: "What", value: title || f.title || "—" },
+    { label: "When", value: f.allDay ? (f.startLocal ?? "").slice(0, 10) || "—" : time(f.startLocal, f.startTimeZone) },
+    { label: "Where", value: f.location || "—" },
+  ];
+}
+
+/** Studio's version of the read summary (mockup board Event): a dark card with
+ *  the three facts to check, the time-zone promise, and what it could not read. */
+export function StudioReadCard({ prefill, onDismiss }: { prefill: EventPrefill; onDismiss?: () => void }) {
+  const unsure = prefill.confidence != null && prefill.confidence < 0.75;
+  return (
+    <div className="st-tex-dots flex flex-col gap-2.5 rounded-2xl bg-[#141517] p-4 text-[#F2F2F0]">
+      <div className="flex items-center gap-2 text-xs text-[#A3A6AB]">
+        <Sparkles size={14} />
+        <span className="flex-1">Read from the {prefill.kind === "flight" ? "ticket" : "document"} — check it, then save</span>
+        {onDismiss && <button type="button" onClick={onDismiss} aria-label="Hide" className="rounded-md p-1 hover:bg-white/10"><X size={12} /></button>}
+      </div>
+      {prefill.facts && prefill.facts.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {prefill.facts.map((f) => (
+            <div key={f.label} className="min-w-0 rounded-[10px] bg-[#1F2023] p-2.5">
+              <div className="text-[11px] text-[#8E9197]">{f.label}</div>
+              <div className="mt-0.5 truncate text-base" title={f.value}>{f.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="text-xs leading-[1.45] text-[#8E9197]">
+        Every time is read with its own time zone and shown as printed.{" "}
+        {prefill.gaps.length > 0 ? <>It could not read <span className="text-[#F2F2F0]">{prefill.gaps.join("; ")}</span> — fill that in.</> : "Anything it could not read is left blank for you."}
+        {unsure && <span className="text-[#F5B94E]"> The scan was hard to read, so check every field.</span>}
+      </div>
+    </div>
+  );
+}
+
 export function ReadSummary({ prefill, onDismiss }: { prefill: EventPrefill; onDismiss?: () => void }) {
   const unsure = prefill.confidence != null && prefill.confidence < 0.75;
   return (
@@ -112,7 +164,11 @@ export function EventAttachments({
   onPrefill,
   allowLibrary = false,
   className,
+  studio = false,
 }: {
+  /** The Studio event screen (mockup board Event): a row per paper with a
+   *  Send to guests | Reference only switch, and a dashed drop zone under them. */
+  studio?: boolean;
   /** Null for an event that hasn't been saved yet — files are filed now and
    *  linked by the server when the form submits its `documentIds`. */
   eventId: number | null;
@@ -153,6 +209,7 @@ export function EventAttachments({
       gaps: read.gaps,
       confidence: r.confidence,
       kind: read.fields.kind,
+      facts: factsOf(read.fields, r.title),
     };
   }, []);
 
@@ -271,6 +328,71 @@ export function EventAttachments({
   }
 
   const working = busy ?? reading;
+
+  if (studio) {
+    const seg = "rounded-md px-2 py-1 transition-colors";
+    return (
+      <div className={className}>
+        <div className="mb-1.5 text-xs text-[#6E7177]">Papers that travel with it</div>
+        <div className="flex flex-col gap-1.5"
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); void handleFiles(Array.from(e.dataTransfer.files ?? [])); }}>
+          {value.map((doc) => (
+            <div key={doc.id} className="grid grid-cols-[34px_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-line-soft)] px-2.5 py-2">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-[var(--st-page)] text-[var(--st-sub)]"><FileText size={16} /></span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px]" title={doc.fileName ?? doc.title}>{doc.fileName || doc.title}</span>
+                <span className="block text-[11px] text-[var(--st-muted)]">Filed in Documents</span>
+              </span>
+              <span className="flex gap-0.5 rounded-lg bg-[var(--st-page)] p-0.5 text-[11px]" role="group" aria-label="Who gets this file">
+                <button type="button" aria-pressed={doc.share} onClick={() => { if (!doc.share) toggleShare(doc); }}
+                  title="Sent with the invitation and openable from the calendar entry"
+                  className={cn(seg, doc.share ? "bg-[var(--st-ink)] text-[var(--st-surface)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>Send to guests</button>
+                <button type="button" aria-pressed={!doc.share} onClick={() => { if (doc.share) toggleShare(doc); }}
+                  title="Kept for reference — not sent, not on the public page"
+                  className={cn(seg, !doc.share ? "bg-[var(--st-ink)] text-[var(--st-surface)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>Reference only</button>
+              </span>
+              <button type="button" onClick={() => remove(doc)} aria-label="Remove from this event"
+                title="Remove from this event (the document stays in your library)"
+                className="rounded-md p-1 text-[var(--st-muted)] transition-colors hover:bg-[var(--st-page)] hover:text-[var(--st-ink)]"><X size={13} /></button>
+            </div>
+          ))}
+          <div className={cn("flex min-h-10 flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-[12px] border border-dashed px-3 py-2 text-xs text-[var(--st-sub)] transition-colors",
+            dragOver ? "border-[var(--st-ink)] bg-[var(--st-page)]" : "border-[var(--st-dash)]")}>
+            {working ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" />
+                {reading ? <>Reading {reading} — it fills the event in for you…</> : <>Uploading {busy}…</>}
+              </span>
+            ) : (
+              <>
+                <Upload size={14} />
+                <button type="button" onClick={() => inputRef.current?.click()} className="hover:text-[var(--st-ink)] hover:underline">Drop a file</button>
+                {allowLibrary && (
+                  <>
+                    <span>·</span>
+                    <span onMouseEnter={() => void openLibrary()} onFocus={() => void openLibrary()}>
+                      <DocLinkPicker docs={library ?? []} onPick={linkExisting} label="or pick one already filed" placeholder="Search your documents…"
+                        triggerClassName="h-auto rounded-none bg-transparent px-0 text-xs text-[var(--st-sub)] ring-0 hover:bg-transparent hover:text-[var(--st-ink)] hover:underline [&>svg]:hidden" />
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {note && (
+          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[var(--st-sub)]">
+            <AlertTriangle size={11} className="mt-0.5 shrink-0 text-[var(--st-soon)]" />
+            {note}
+          </p>
+        )}
+        <input ref={inputRef} type="file" multiple className="hidden"
+          onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { X, Check, Mail, MailX, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import type { CalendarAttendee } from "@/lib/calendar";
 
 export type AttendeeOption = { id: number; name: string; email: string | null };
@@ -20,7 +21,10 @@ export function AttendeePicker({
   people,
   value,
   onChange,
+  studio = false,
 }: {
+  /** The Studio event screen: rounded chips with a face, a white box. */
+  studio?: boolean;
   people: AttendeeOption[];
   value: CalendarAttendee[];
   onChange: (next: CalendarAttendee[]) => void;
@@ -81,13 +85,26 @@ export function AttendeePicker({
             // min-h-10 / rounded-xl to match every other field in the event form
             // (see FIELD_SHELL in calendar-board.tsx) — it used to sit 4px
             // shorter than its neighbours, which read as sloppy.
-            "w-full min-h-10 px-2.5 py-1.5 rounded-xl border border-border bg-bg-elev",
-            "flex flex-wrap items-center gap-1.5 cursor-text",
-            "focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/20"
+            "w-full min-h-10 flex flex-wrap items-center gap-1.5 cursor-text",
+            studio
+              ? "rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-2 py-1.5 focus-within:border-[var(--st-ink)]"
+              : "px-2.5 py-1.5 rounded-xl border border-border bg-bg-elev focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/20"
           )}
           onClick={() => inputRef.current?.focus()}
         >
-          {value.map((a) => (
+          {studio && value.map((a) => (
+            <span key={a.personId ?? a.name} title={a.email || "No email on file — won't get an automatic invite"}
+              className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--st-page)] pl-1 pr-1.5 text-xs">
+              <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-[9px] font-semibold text-[#111214]" style={{ background: avatarTint(a.name) }}>{initials(a.name)}</span>
+              {a.name}
+              <span className={cn("h-1.5 w-1.5 rounded-full", a.email ? "bg-[var(--st-ok)]" : "bg-[var(--st-soon)]")} />
+              <button type="button" aria-label={`Remove ${a.name}`} onClick={(e) => { e.stopPropagation(); remove(a.personId); }}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[var(--st-muted)] hover:bg-black/10 hover:text-[var(--st-ink)]">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+          {!studio && value.map((a) => (
             <span
               key={a.personId ?? a.name}
               className={cn(
@@ -109,7 +126,7 @@ export function AttendeePicker({
             </span>
           ))}
           <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
-            {value.length === 0 && <Search size={13} className="text-fg-subtle shrink-0" />}
+            {value.length === 0 && !studio && <Search size={13} className="text-fg-subtle shrink-0" />}
             <input
               ref={inputRef}
               value={query}
@@ -117,7 +134,8 @@ export function AttendeePicker({
               onFocus={() => setOpen(true)}
               onBlur={() => setTimeout(() => setOpen(false), 120)}
               onKeyDown={onKeyDown}
-              placeholder={value.length === 0 ? "Search people to invite…" : ""}
+              placeholder={studio ? "Add someone from COS…" : value.length === 0 ? "Search people to invite…" : ""}
+              style={studio ? { background: "transparent", border: 0, boxShadow: "none", color: "var(--st-ink)" } : undefined}
               className="flex-1 min-w-[80px] bg-transparent outline-none border-none p-0 h-6 text-sm placeholder:text-fg-subtle focus:ring-0"
             />
           </div>

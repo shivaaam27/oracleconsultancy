@@ -9,8 +9,9 @@ import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
-  Megaphone, Plus, Paperclip, Layers as LayersIcon, type LucideIcon,
+  Megaphone, Plus, Paperclip, Layers as LayersIcon, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, type LucideIcon,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea, PageHeader, CONTROL_BOX, Switch } from "@/components/ui";
 import { useCreateParam } from "@/lib/use-create-param";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
@@ -24,7 +25,7 @@ import { isoToLocalInput as sharedIsoToLocalInput, TimeField } from "@/component
 import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { Combobox } from "@/components/combobox";
 import { ReferenceAdmin } from "@/components/reference-admin";
-import { EventAttachments, ReadSummary, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
+import { EventAttachments, ReadSummary, StudioReadCard, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
 import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
@@ -213,7 +214,7 @@ export function CalendarBoard({
   const [tab, setTab] = useState<BriefTab>("events");
   const [formOpen, setFormOpen] = useState(false);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
-  useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
+  useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: () => openNew(), primary: true, tone: "accent" }], []);
   // /calendar?new=1 — the global New menu's "Event".
   useCreateParam("1", () => openNew());
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
@@ -299,7 +300,9 @@ export function CalendarBoard({
     return OVERLAY_KINDS.filter((k) => s.has(k));
   }, [overlays]);
 
-  function openNew() { setEditing(null); setFormOpen(true); }
+  // A slot clicked on the Week/Day grid starts the new event at that time.
+  const [seed, setSeed] = useState<{ date: string; time: string } | null>(null);
+  function openNew(at?: { date: string; time: string }) { setEditing(null); setSeed(at ?? null); setFormOpen(true); }
   function openEdit(e: CalendarEventView) { setEditing(e); setFormOpen(true); }
 
   const filtered = useMemo(() => {
@@ -509,13 +512,13 @@ export function CalendarBoard({
                   <button type="button" onClick={() => { goToday(); setPickedKey(todayKeyGlobal); }} className="h-7 rounded-lg bg-[var(--st-page)] px-2.5 text-xs hover:bg-[var(--st-seg)]">Today</button>
                 </div>
               )}
-              <button type="button" onClick={openNew} className={stBtn.dark}><Plus size={15} />New event</button>
+              <button type="button" onClick={() => openNew()} className={stBtn.dark}><Plus size={15} />New event</button>
             </>
           }
         />
 
         {formOpen && (
-          <EventForm people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+          <EventForm studio seed={seed} people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
         )}
         {manageCatsOpen && (
           <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
@@ -607,9 +610,11 @@ export function CalendarBoard({
               <MonthView studio cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} pickedKey={pickedKey} onPick={pick}
                 onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} />
             ) : view === "week" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto p-2.5"><WeekView studio cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} /></div>
+              <StudioTimeGrid mode="week" days={Array.from({ length: 7 }, (_, i) => addDays(startOfWeekMon(cursor), i))} byDay={evByDay} overlayByDay={overlayByDay}
+                onEdit={openEdit} onPickDay={(d) => { pick(d); setView("day"); }} onNewAt={(k, t) => openNew({ date: k, time: t })} />
             ) : (
-              <div className="min-h-0 flex-1 overflow-y-auto p-4"><DayView cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} onEdit={openEdit} /></div>
+              <StudioTimeGrid mode="day" days={[cursor]} byDay={evByDay} overlayByDay={overlayByDay}
+                onEdit={openEdit} onPickDay={pick} onNewAt={(k, t) => openNew({ date: k, time: t })} />
             )}
           </div>
 
@@ -716,7 +721,7 @@ export function CalendarBoard({
                   className={cn(CONTROL_BOX, "w-full border border-border bg-bg-elev pl-9 pr-3 outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50")} />
               </div>
               {tab === "events" ? (
-                <Button type="button" onClick={openNew} className="w-full sm:w-auto"><Plus size={15} /> New event</Button>
+                <Button type="button" onClick={() => openNew()} className="w-full sm:w-auto"><Plus size={15} /> New event</Button>
               ) : (
                 <Link href="/announcements" className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 sm:w-auto">
                   <Plus size={15} /> New announcement
@@ -1181,6 +1186,180 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
   );
 }
 
+/* ------------------------- Studio time grid (Week / Day) ------------------------
+ * No mockup draws Week or Day, so they follow the Month board's own grammar:
+ * the same tiles, chips, tints and today's disc, laid over hours. One grid for
+ * both — seven columns or one. All-day entries and the layers (deadlines,
+ * renewals…) sit in a strip on top; timed events are blocks at their time, side
+ * by side when they overlap. Click an empty hour to start an event there. */
+const HOUR_PX = { week: 44, day: 56 } as const;
+
+function minutesOf(iso: string): number {
+  const [h, m] = fmtTime(iso).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** Lay out one day's timed events: start/end in minutes, and a lane in a cluster. */
+function layoutDay(evs: CalendarEventView[]) {
+  const items = evs
+    .filter((e) => !e.allDay)
+    .map((e) => {
+      const s = minutesOf(e.startAt);
+      const sameDay = e.endAt && keyOfIso(e.endAt) === keyOfIso(e.startAt);
+      const end = e.endAt ? (sameDay ? minutesOf(e.endAt) : 24 * 60) : s + 60;
+      return { e, s, end: Math.max(end, s + 20), lane: 0, lanes: 1 };
+    })
+    .sort((a, b) => a.s - b.s || b.end - a.end);
+  let cluster: typeof items = [];
+  let clusterEnd = -1;
+  const close = () => { const n = Math.max(1, ...cluster.map((c) => c.lane + 1)); cluster.forEach((c) => (c.lanes = n)); };
+  for (const it of items) {
+    if (it.s >= clusterEnd && cluster.length) { close(); cluster = []; }
+    const used = new Set(cluster.filter((c) => c.end > it.s).map((c) => c.lane));
+    let lane = 0; while (used.has(lane)) lane++;
+    it.lane = lane;
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  if (cluster.length) close();
+  return items;
+}
+
+function StudioTimeGrid({
+  days, byDay, overlayByDay, onEdit, onPickDay, onNewAt, mode,
+}: {
+  days: Date[];
+  byDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onEdit: (e: CalendarEventView) => void;
+  onPickDay: (d: Date) => void;
+  onNewAt: (dateKey: string, time: string) => void;
+  mode: "week" | "day";
+}) {
+  const hourPx = HOUR_PX[mode];
+  const scroller = useRef<HTMLDivElement>(null);
+  const [nowMin, setNowMin] = useState(() => minutesOf(new Date().toISOString()));
+  useEffect(() => { const t = setInterval(() => setNowMin(minutesOf(new Date().toISOString())), 60_000); return () => clearInterval(t); }, []);
+
+  const cols = days.map((d) => {
+    const k = keyOfDate(d);
+    const evs = byDay.get(k) ?? [];
+    return { d, k, timed: layoutDay(evs), allDay: evs.filter((e) => e.allDay), ovs: overlayByDay.get(k) ?? [] };
+  });
+  // 07:00–20:00, stretched to hold anything earlier or later.
+  const firstHour = Math.min(7, ...cols.flatMap((c) => c.timed.map((t) => Math.floor(t.s / 60))));
+  const lastHour = Math.max(20, ...cols.flatMap((c) => c.timed.map((t) => Math.ceil(t.end / 60))));
+  const hours = Array.from({ length: lastHour - firstHour }, (_, i) => firstHour + i);
+  const stripMax = Math.max(0, ...cols.map((c) => c.allDay.length + c.ovs.length));
+
+  // Open on the morning (or the first thing of the day), not at midnight.
+  const firstStart = Math.min(...cols.flatMap((c) => c.timed.map((t) => t.s)), 8 * 60);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = Math.max(0, ((firstStart - firstHour * 60) / 60) * hourPx - 12);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days[0]?.getTime(), mode]);
+
+  const gridCols = `52px repeat(${days.length}, minmax(0, 1fr))`;
+  return (
+    <div className="flex min-h-[520px] flex-1 flex-col lg:min-h-0">
+      {/* Day heads — the date disc as in Month. */}
+      <div className="grid px-2.5 pt-2.5" style={{ gridTemplateColumns: gridCols }}>
+        <span />
+        {cols.map(({ d, k }) => {
+          const today = k === todayKeyGlobal;
+          return (
+            <button key={k} type="button" onClick={() => onPickDay(d)} disabled={mode === "day"}
+              className="flex items-center gap-1.5 px-2 pb-1.5 text-left disabled:cursor-default">
+              <span className="text-[11px] uppercase tracking-[0.04em] text-[var(--st-muted)]">{d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: mode === "day" ? "long" : "short" })}</span>
+              <span className={cn("flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-xs tabular-nums",
+                today && "bg-[var(--st-ink)] font-semibold text-[var(--st-surface)]")}>{d.getDate()}</span>
+              {mode === "day" && <span className="text-xs text-[var(--st-muted)]">{d.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" })}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* All day + the layers. */}
+      {stripMax > 0 && (
+        <div className="grid border-b border-[var(--st-line-soft)] px-2.5 pb-2" style={{ gridTemplateColumns: gridCols }}>
+          <span className="pr-2 pt-0.5 text-right text-[10px] text-[var(--st-muted)]">All day</span>
+          {cols.map((c) => {
+            // As in Month: the first few, then "+N more" — one busy day of
+            // deadlines must not push the hours off the card. Day shows more.
+            const cap = mode === "day" ? Infinity : 2;
+            const chips = [
+              ...c.allDay.map((e) => <StudioEventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
+              ...c.ovs.map((o) => <StudioOverlayChip key={o.id} item={o} />),
+            ];
+            return (
+              <div key={c.k} className={cn("flex min-w-0 flex-col gap-[3px] px-1", mode === "day" && "max-h-[128px] overflow-y-auto")}>
+                {chips.slice(0, cap)}
+                {chips.length > cap && (
+                  <button type="button" onClick={() => onPickDay(c.d)} className="px-1 text-left text-[10px] text-[var(--st-muted)] hover:text-[var(--st-ink)]">+{chips.length - cap} more</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* The hours. */}
+      <div ref={scroller} className="relative min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5">
+        <div className="grid" style={{ gridTemplateColumns: gridCols }}>
+          <div>
+            {hours.map((h) => (
+              <div key={h} className="relative pr-2 text-right text-[10px] tabular-nums text-[var(--st-muted)]" style={{ height: hourPx }}>
+                <span className="relative -top-1.5">{String(h).padStart(2, "0")}:00</span>
+              </div>
+            ))}
+          </div>
+          {cols.map((c) => {
+            const today = c.k === todayKeyGlobal;
+            return (
+              <div key={c.k} className={cn("relative min-w-0 border-l border-[var(--st-line-soft)]", today && "bg-[var(--st-cal-busy)]")}>
+                {hours.map((h) => (
+                  <button key={h} type="button" aria-label={`New event at ${String(h).padStart(2, "0")}:00`}
+                    onClick={() => onNewAt(c.k, `${String(h).padStart(2, "0")}:00`)}
+                    className="group block w-full border-t border-[var(--st-line-soft)] text-left transition-colors hover:bg-[var(--st-page)]" style={{ height: hourPx }}>
+                    <span className="hidden px-1.5 text-[10px] text-[var(--st-muted)] group-hover:inline">+ {String(h).padStart(2, "0")}:00</span>
+                  </button>
+                ))}
+                {c.timed.map(({ e, s, end, lane, lanes }) => {
+                  const top = ((s - firstHour * 60) / 60) * hourPx;
+                  const height = Math.max(20, ((end - s) / 60) * hourPx - 2);
+                  const done = hasElapsed(e, Date.now());
+                  return (
+                    <button key={occKey(e)} type="button" onClick={() => onEdit(e)} title={`${fmtTime(e.startAt)} ${e.title}`}
+                      className={cn("absolute flex flex-col overflow-hidden rounded-[8px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1.5 py-[3px] text-left text-[11px] leading-tight shadow-[0_1px_2px_rgba(17,18,20,0.06)] transition-colors hover:border-[var(--st-ink)]",
+                        done && "opacity-60")}
+                      style={{ top, height, left: `calc(${(lane / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}>
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className="h-[5px] w-[5px] shrink-0 rounded-full bg-[var(--st-ink)]" />
+                        <span className="shrink-0 tabular-nums text-[var(--st-muted)]">{fmtTime(e.startAt)}</span>
+                        {/* A short block has one line: time and title together. */}
+                        {height < 34 && <span className="min-w-0 truncate font-medium">{e.title}</span>}
+                      </span>
+                      {height >= 34 && <span className="line-clamp-2 min-w-0 font-medium">{e.title}</span>}
+                      {height > 58 && e.location && <span className="truncate text-[var(--st-muted)]">{e.location}</span>}
+                    </button>
+                  );
+                })}
+                {today && nowMin >= firstHour * 60 && nowMin <= lastHour * 60 && (
+                  <span aria-hidden className="pointer-events-none absolute inset-x-0 z-10 flex items-center" style={{ top: ((nowMin - firstHour * 60) / 60) * hourPx }}>
+                    <span className="-ml-1 h-2 w-2 rounded-full bg-[var(--st-late)]" />
+                    <span className="h-px flex-1 bg-[var(--st-late)]" />
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------ Week view ----------------------------- */
 function WeekView({
   cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false,
@@ -1473,7 +1652,12 @@ function BriefRail({
   );
 }
 
-function EventRow({ event, onEdit, finished = false, onNow = false }: { event: CalendarEventView; onEdit: () => void; finished?: boolean; onNow?: boolean }) {
+/** Everything you can DO to a saved event — send the invite, add a Meet room,
+ *  share it, preview the email, draft reminders or a follow-up, delete it —
+ *  with its two dialogs. ONE copy: the agenda row (Desk) and the Studio event
+ *  screen's dark action bar both call it, so the two can never do different
+ *  things. `event` is null on a new, unsaved event: every action is a no-op. */
+function useEventActions(event: CalendarEventView | null, onDeleted?: () => void) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
@@ -1481,14 +1665,14 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
   // Delete confirmation (Aurora dialog, replaces the native confirm). For a
   // recurring event the operator chooses this-date-only vs the whole series.
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const isRecurring = !!event.recurrence && event.recurrence !== "none";
+  const isRecurring = !!event?.recurrence && event.recurrence !== "none";
   // UTC-derived key — MUST match how excluded dates + occurrence meeting_dates are
   // stored elsewhere (edit-form skip + deleteTaskForOccurrence).
-  const occDateKey = new Date(event.startAt).toISOString().slice(0, 10);
+  const occDateKey = event ? new Date(event.startAt).toISOString().slice(0, 10) : "";
   const [delScope, setDelScope] = useState<"occurrence" | "series">("occurrence");
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = `${origin}/e/${event.publicToken}`;
+  const shareUrl = event ? `${origin}/e/${event.publicToken}` : "";
 
   function copyLink() {
     navigator.clipboard.writeText(shareUrl).then(() => {
@@ -1499,6 +1683,7 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
   }
 
   function shareWhatsApp() {
+    if (!event) return;
     const lines = [
       `📅 ${event.title}`,
       `${fmtDayLabel(event.startAt)}${event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}`,
@@ -1516,59 +1701,66 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
   }
 
   function doDelete() {
+    if (!event) return;
     start(async () => {
       if (isRecurring && delScope === "occurrence") {
-        const r = await skipEventOccurrence(event.id, occDateKey);
+        const r = await skipEventOccurrence(event!.id, occDateKey);
         if (!r.ok) { toast(r.error, { tone: "danger" }); return; }
         toast("This event was cancelled — the rest of the series stays. Its task was removed.", { tone: "success", duration: 6000 });
       } else {
-        const r = await deleteEventAction(event.id);
+        const r = await deleteEventAction(event!.id);
         if (!r.ok) { toast(r.error, { tone: "danger" }); return; }
         const whole = isRecurring; // deleting a series vs a single one-off
         if (r.googleCancelled) toast(whole ? "Whole series deleted — guests notified." : "Event deleted — guests notified of the cancellation.", { tone: "success", duration: 6000 });
         else toast(whole ? "Whole series deleted." : "Event deleted.", { tone: "success" });
       }
       setConfirmOpen(false);
+      onDeleted?.();
     });
   }
 
-  const emailCount = event.attendees.filter((a) => a.email).length;
-  const isPast = new Date(event.endAt ?? event.startAt).getTime() < Date.now();
+  const emailCount = event ? event.attendees.filter((a) => a.email).length : 0;
+  const isPast = event ? new Date(event.endAt ?? event.startAt).getTime() < Date.now() : false;
 
   function openPreview() {
+    if (!event) return;
     start(async () => {
-      const r = await previewEventInviteAction(event.id, isPast ? "followup" : "invite");
+      const r = await previewEventInviteAction(event!.id, isPast ? "followup" : "invite");
       if (r.ok) setPreview({ subject: r.subject, html: r.html, recipients: r.recipients });
       else toast(r.error, { tone: "danger" });
     });
   }
 
   function addMeetNow() {
+    if (!event) return;
     start(async () => {
-      const m = await ensureEventMeetLink(event.id);
+      const m = await ensureEventMeetLink(event!.id);
       if (m.meetLink) toast("Google Meet link added. Press Send invite so guests get it.", { tone: "success", duration: 8000 });
       else toast("Google gave no Meet link — is Google connected in Settings?", { tone: "warn", duration: 6000 });
     });
   }
 
   function draftReminders() {
+    if (!event) return;
     start(async () => {
-      const r = await draftEventRemindersAction(event.id);
+      const r = await draftEventRemindersAction(event!.id);
       if (r.ok) toast(`Drafted ${r.count} reminder${r.count === 1 ? "" : "s"} in the Outbox to review.`, { tone: "success", duration: 6000 });
       else toast(r.error, { tone: "danger" });
     });
   }
   function draftFollowup() {
+    if (!event) return;
     start(async () => {
-      const r = await draftEventFollowupAction(event.id);
+      const r = await draftEventFollowupAction(event!.id);
       if (r.ok) toast(`Drafted ${r.count} follow-up${r.count === 1 ? "" : "s"} in the Outbox to review.`, { tone: "success", duration: 6000 });
       else toast(r.error, { tone: "danger" });
     });
   }
 
   function sendInvite() {
+    if (!event) return;
     start(async () => {
-      const r = await sendEventInviteAction(event.id);
+      const r = await sendEventInviteAction(event!.id);
       if (r.ok) {
         const who = `${r.count} ${r.count === 1 ? "guest" : "guests"}`;
         const base = r.via === "google"
@@ -1590,6 +1782,120 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
       }
     });
   }
+
+  const dialogs = (
+    <>
+      {preview && (
+        <HrmsDialog
+          open
+          onClose={() => setPreview(null)}
+          width="lg"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Mail size={16} className="text-accent" /> Email preview
+            </span>
+          }
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setPreview(null)}>Close</Button>
+              {preview.recipients.length > 0 && !isPast && (
+                <Button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => { setPreview(null); sendInvite(); }}
+                >
+                  <Mail size={15} /> Send to {preview.recipients.length} {preview.recipients.length === 1 ? "guest" : "guests"}
+                </Button>
+              )}
+            </>
+          }
+        >
+          <div className="space-y-2">
+            <div className="text-xs text-fg-muted">
+              <span className="font-medium text-fg">Subject:</span> {preview.subject}
+            </div>
+            <div className="text-xs text-fg-muted">
+              <span className="font-medium text-fg">To:</span>{" "}
+              {preview.recipients.length ? preview.recipients.join(", ") : "No attendees with an email yet — add one to send."}
+            </div>
+            <iframe
+              title="Email preview"
+              srcDoc={preview.html}
+              className="w-full h-[420px] rounded-xl border border-border bg-white"
+            />
+          </div>
+        </HrmsDialog>
+      )}
+
+      {confirmOpen && (
+        <HrmsDialog
+          open
+          onClose={() => setConfirmOpen(false)}
+          width="sm"
+          title={<span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Delete event</span>}
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+              <Button type="button" variant="danger" disabled={pending} onClick={doDelete}>
+                <Trash2 size={15} /> {!isRecurring ? "Delete" : delScope === "occurrence" ? "Delete this event" : "Delete series"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {/* Preview of what's being deleted */}
+            <div className="rounded-xl bg-bg-muted/40 p-3 ring-1 ring-border">
+              <p className="font-medium leading-snug">{event?.title}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
+                <span className="inline-flex items-center gap-1"><CalendarDays size={12} />{event ? fmtDayLabel(event.startAt) : ""}{!event || event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}</span>
+                {event?.companyLabel && <span className="inline-flex items-center gap-1"><Building2 size={12} />{event.companyLabel}</span>}
+                {event && event.attendees.length > 0 && <span className="inline-flex items-center gap-1"><Users size={12} />{event.attendees.length} {event.attendees.length === 1 ? "attendee" : "attendees"}</span>}
+                {isRecurring && <span className="inline-flex items-center gap-1 capitalize"><Repeat size={12} />{event?.recurrence}</span>}
+              </div>
+            </div>
+
+            {isRecurring ? (
+              <div className="space-y-1.5">
+                <p className="text-xs text-fg-muted">This is a repeating event — what would you like to delete?</p>
+                {([
+                  { v: "occurrence", label: "This event only", desc: "Cancels just this date; the rest of the series stays. Its task is removed." },
+                  { v: "series", label: "All events in the series", desc: "Deletes every occurrence and all their tasks. Guests are notified." },
+                ] as const).map((o) => {
+                  const active = delScope === o.v;
+                  return (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setDelScope(o.v)}
+                      className={cn(
+                        "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
+                        active ? "bg-accent-soft ring-accent" : "bg-bg-elev ring-border hover:bg-bg-muted",
+                      )}
+                    >
+                      <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ring-1", active ? "bg-accent text-accent-fg ring-accent" : "ring-border")}>
+                        {active && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-base font-medium text-fg">{o.label}</span>
+                        <span className="block text-xs text-fg-muted">{o.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-fg-muted">This permanently deletes the event. Its linked task (if any) is removed too, and any invited guests are notified.</p>
+            )}
+          </div>
+        </HrmsDialog>
+      )}
+    </>
+  );
+  return { pending, copied, emailCount, isPast, sendInvite, addMeetNow, copyLink, shareWhatsApp, openPreview, draftReminders, draftFollowup, remove, dialogs };
+}
+
+function EventRow({ event, onEdit, finished = false, onNow = false }: { event: CalendarEventView; onEdit: () => void; finished?: boolean; onNow?: boolean }) {
+  const { pending, copied, emailCount, isPast, sendInvite, addMeetNow, copyLink, shareWhatsApp, openPreview, draftReminders, draftFollowup, remove, dialogs } = useEventActions(event);
 
   return (
     <Card className={cn("p-3", finished && "opacity-55", onNow && "ring-1 ring-accent/40")}>
@@ -1763,110 +2069,7 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
         </div>
       </div>
 
-      {preview && (
-        <HrmsDialog
-          open
-          onClose={() => setPreview(null)}
-          width="lg"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <Mail size={16} className="text-accent" /> Email preview
-            </span>
-          }
-          footer={
-            <>
-              <Button type="button" variant="ghost" onClick={() => setPreview(null)}>Close</Button>
-              {preview.recipients.length > 0 && !isPast && (
-                <Button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => { setPreview(null); sendInvite(); }}
-                >
-                  <Mail size={15} /> Send to {preview.recipients.length} {preview.recipients.length === 1 ? "guest" : "guests"}
-                </Button>
-              )}
-            </>
-          }
-        >
-          <div className="space-y-2">
-            <div className="text-xs text-fg-muted">
-              <span className="font-medium text-fg">Subject:</span> {preview.subject}
-            </div>
-            <div className="text-xs text-fg-muted">
-              <span className="font-medium text-fg">To:</span>{" "}
-              {preview.recipients.length ? preview.recipients.join(", ") : "No attendees with an email yet — add one to send."}
-            </div>
-            <iframe
-              title="Email preview"
-              srcDoc={preview.html}
-              className="w-full h-[420px] rounded-xl border border-border bg-white"
-            />
-          </div>
-        </HrmsDialog>
-      )}
-
-      {confirmOpen && (
-        <HrmsDialog
-          open
-          onClose={() => setConfirmOpen(false)}
-          width="sm"
-          title={<span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Delete event</span>}
-          footer={
-            <>
-              <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-              <Button type="button" variant="danger" disabled={pending} onClick={doDelete}>
-                <Trash2 size={15} /> {!isRecurring ? "Delete" : delScope === "occurrence" ? "Delete this event" : "Delete series"}
-              </Button>
-            </>
-          }
-        >
-          <div className="space-y-3">
-            {/* Preview of what's being deleted */}
-            <div className="rounded-xl bg-bg-muted/40 p-3 ring-1 ring-border">
-              <p className="font-medium leading-snug">{event.title}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
-                <span className="inline-flex items-center gap-1"><CalendarDays size={12} />{fmtDayLabel(event.startAt)}{event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}</span>
-                {event.companyLabel && <span className="inline-flex items-center gap-1"><Building2 size={12} />{event.companyLabel}</span>}
-                {event.attendees.length > 0 && <span className="inline-flex items-center gap-1"><Users size={12} />{event.attendees.length} {event.attendees.length === 1 ? "attendee" : "attendees"}</span>}
-                {isRecurring && <span className="inline-flex items-center gap-1 capitalize"><Repeat size={12} />{event.recurrence}</span>}
-              </div>
-            </div>
-
-            {isRecurring ? (
-              <div className="space-y-1.5">
-                <p className="text-xs text-fg-muted">This is a repeating event — what would you like to delete?</p>
-                {([
-                  { v: "occurrence", label: "This event only", desc: "Cancels just this date; the rest of the series stays. Its task is removed." },
-                  { v: "series", label: "All events in the series", desc: "Deletes every occurrence and all their tasks. Guests are notified." },
-                ] as const).map((o) => {
-                  const active = delScope === o.v;
-                  return (
-                    <button
-                      key={o.v}
-                      type="button"
-                      onClick={() => setDelScope(o.v)}
-                      className={cn(
-                        "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
-                        active ? "bg-accent-soft ring-accent" : "bg-bg-elev ring-border hover:bg-bg-muted",
-                      )}
-                    >
-                      <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ring-1", active ? "bg-accent text-accent-fg ring-accent" : "ring-border")}>
-                        {active && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-base font-medium text-fg">{o.label}</span>
-                        <span className="block text-xs text-fg-muted">{o.desc}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-fg-muted">This permanently deletes the event. Its linked task (if any) is removed too, and any invited guests are notified.</p>
-            )}
-          </div>
-        </HrmsDialog>
-      )}
+      {dialogs}
     </Card>
   );
 }
@@ -1887,6 +2090,20 @@ const FIELD_SHELL =
   "h-10 rounded-xl bg-bg-subtle px-3.5 text-sm text-fg ring-1 ring-border transition-colors hover:ring-accent/40";
 const CHIP =
   "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium ring-1 transition-colors";
+
+/** The mockup's words for the alarm chips (the Desk form keeps its short ones). */
+const STUDIO_REMINDER_WORDS: Record<number, string> = { 0: "At start", 10: "10 min", 30: "30 min", 60: "1 hour", 1440: "1 day", 2880: "2 days", 10080: "1 week" };
+
+/** Studio's tick box: 16px, 5px corners, ink when ticked (mockup board Event). */
+function StudioTick({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={on} onClick={(e) => { e.preventDefault(); onClick(); }}
+      className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border-[1.5px] transition-colors",
+        on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-dash)]")}>
+      {on && <Check size={11} strokeWidth={3} />}
+    </button>
+  );
+}
 
 const REMINDER_OPTS: { v: number; label: string }[] = [
   { v: 0, label: "At start" },
@@ -1927,16 +2144,36 @@ function EventForm({
   editing,
   allEvents,
   onClose,
+  studio = false,
+  seed = null,
 }: {
+  /** A new event started from a grid slot: its day and hour. */
+  seed?: { date: string; time: string } | null;
   people: Person[];
   companies: Company[];
   categories: EventCategory[];
   editing: CalendarEventView | null;
   allEvents: CalendarEventView[];
   onClose: () => void;
+  /** Studio: the event screen from the mockup (board Event) — same form, same save. */
+  studio?: boolean;
 }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
+  // The saved event's own actions (invite, Meet, share, preview, remind, delete)
+  // — the Studio screen's dark bar. A no-op set on a new event.
+  const acts = useEventActions(editing, onClose);
+  useEffect(() => {
+    if (!studio) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && document.querySelectorAll('[role="dialog"]').length <= 1) onClose(); };
+    // On WINDOW, not document: menus inside listen on document and claim Escape
+    // with preventDefault — document listeners run first, so by the time it
+    // reaches here a menu has already said "that one was mine".
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  }, [studio, onClose]);
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [picked, setPicked] = useState<CalendarAttendee[]>(editing?.attendees ?? []);
   useEffect(() => {
@@ -1955,10 +2192,11 @@ function EventForm({
   // remembered on its own, in whichever order you fill them in.
   const startSeed = isoToLocalInput(editing?.startAt ?? null, editing?.allDay ?? false);
   const endSeed = isoToLocalInput(editing?.endAt ?? null, false);
-  const [startDate, setStartDate] = useState<string>(dateOf(startSeed));
-  const [startTime, setStartTime] = useState<string>(timeOf(startSeed) || "09:00");
-  const [endDate, setEndDate] = useState<string>(dateOf(endSeed));
-  const [endTime, setEndTime] = useState<string>(timeOf(endSeed) || "10:00");
+  const slotEnd = seed ? `${String(Math.min(23, Number(seed.time.slice(0, 2)) + 1)).padStart(2, "0")}:${seed.time.slice(3, 5)}` : null;
+  const [startDate, setStartDate] = useState<string>(editing ? dateOf(startSeed) : seed?.date ?? dateOf(startSeed));
+  const [startTime, setStartTime] = useState<string>(editing ? timeOf(startSeed) || "09:00" : seed?.time ?? (timeOf(startSeed) || "09:00"));
+  const [endDate, setEndDate] = useState<string>(editing ? dateOf(endSeed) : seed?.date ?? dateOf(endSeed));
+  const [endTime, setEndTime] = useState<string>(editing ? timeOf(endSeed) || "10:00" : slotEnd ?? (timeOf(endSeed) || "10:00"));
 
   const startVal = startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : "";
   const endVal = endDate ? `${endDate}T${endTime}` : "";
@@ -2140,6 +2378,271 @@ function EventForm({
         toast(r.error, { tone: "danger" });
       }
     });
+  }
+
+  if (studio) {
+    // ---- Studio (mockup board Event, design/studio-mockup/gen/p_event.py) ----
+    // The SAME form: every field above feeds the same `submit`, and the dark bar
+    // calls the same actions the agenda row does (useEventActions). Only the
+    // layout is the mockup's: title · two columns · a footer that says whether
+    // it clashes.
+    const LBL = "flex items-center justify-between gap-3 text-xs text-[var(--st-label)]";
+    const HINT = "text-[11px] text-[#A3A6AB]";
+    const BOX = "flex h-[38px] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px]";
+    const BARE = "bare-field h-full w-full min-w-0 rounded-none p-0 text-[13px] outline-none ring-0 focus:ring-0 placeholder:text-[var(--st-muted)]";
+    const ACT = "inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2E3035] px-2.5 text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] disabled:opacity-40";
+    const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).replace(",", "");
+    const shortDay = startDate ? new Date(`${startDate}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : null;
+    const hasEmails = picked.some((p) => p.email);
+    return createPortal(
+      <div className="studio fixed inset-0 z-[90] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label={editing ? "Edit event" : "New event"}>
+        <div className="st-tex-paper-dots absolute inset-0 bg-[var(--st-scrim)]" onClick={onClose} />
+        <form id="calendar-event-form" action={submit}
+          className="st-pop relative flex h-[min(760px,calc(100dvh-24px))] w-[min(1120px,calc(100vw-24px))] flex-col overflow-hidden rounded-[22px] bg-[var(--st-surface)] shadow-[0_30px_80px_rgba(17,18,20,0.22)]">
+          {/* ── The dark bar: back to the calendar, then everything you can DO to it. */}
+          <div className="flex shrink-0 items-center gap-2 bg-[#141517] px-[18px] py-3.5 text-[#F2F2F0]">
+            <button type="button" onClick={onClose} className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
+              <ChevronLeft size={13} strokeWidth={2.2} />Calendar
+            </button>
+            <span className="mx-1.5 h-5 w-px shrink-0 bg-[#2E3035]" />
+            <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]">
+              {editing ? (
+                <>
+                  {acts.emailCount > 0 && (
+                    <button type="button" onClick={acts.sendInvite} disabled={acts.pending} className={ACT} title={`Email the invitation to ${acts.emailCount} guest${acts.emailCount === 1 ? "" : "s"}`}>
+                      <Send size={13} />{acts.isPast ? "Send again" : "Send invite"}
+                    </button>
+                  )}
+                  {editing.meetLink
+                    ? <a href={editing.meetLink} target="_blank" rel="noreferrer" className={ACT}><Link2 size={13} />Meet link</a>
+                    : !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
+                  <a href={editing.icsPath} className={ACT}><Download size={13} />.ics</a>
+                  <a href={editing.googleUrl} target="_blank" rel="noreferrer" className={ACT}><Globe size={13} />Google</a>
+                  <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy link</button>
+                  <button type="button" onClick={acts.shareWhatsApp} className={ACT}><MessageCircle size={13} />WhatsApp</button>
+                  {acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
+                  {acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}
+                  {acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
+                </>
+              ) : (
+                <span className="self-center truncate px-1 text-xs text-[#8E9197]">New event — the invite, the links and sharing appear here once it is saved.</span>
+              )}
+            </div>
+            {editing && (
+              <button type="button" onClick={acts.remove} disabled={acts.pending}
+                className="h-[30px] shrink-0 rounded-lg border border-[#4A2A3C] px-2.5 text-xs text-[#F07BBE] transition-colors hover:bg-[#2A1622]">Delete…</button>
+            )}
+          </div>
+
+          {/* ── Body: what, when, who, where on the left; papers, alarms, repeats on the right. */}
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 gap-y-4 overflow-y-auto px-[26px] py-[22px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-4">
+              <label className="block">
+                <span className="sr-only">Title</span>
+                <input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What is it?" autoFocus={!editing}
+                  style={{ background: "transparent", border: 0, borderBottom: "1px solid var(--st-line-soft)", borderRadius: 0, boxShadow: "none", color: "var(--st-ink)" }}
+                  className="w-full pb-2.5 text-[26px] font-medium tracking-[-0.02em] outline-none placeholder:text-[var(--st-muted)]" />
+              </label>
+
+              <div className="flex flex-col gap-1.5">
+                <span className={LBL}><span>When</span><span className={HINT}>Times are Dar es Salaam (EAT)</span></span>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className={BOX}>
+                    <DatePopover block value={startDate || null} label={startDate ? longDay(startDate) : "Pick a day"} tone="text-[var(--st-muted)]"
+                      triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden"
+                      onChange={(d) => { setStartDate(d); if (!endDate) setEndDate(d); }} />
+                    {!allDay && <><span className="text-[var(--st-muted)]">·</span><TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={startTime} onChange={setStartTime} /></>}
+                  </div>
+                  {allDay ? (
+                    <div className={cn(BOX, "text-[var(--st-muted)]")}><Clock size={14} />All day — no end time</div>
+                  ) : (
+                    <div className={BOX}>
+                      <DatePopover block value={endDate || null} label={endDate ? longDay(endDate) : "Ends — set it"} tone="text-[var(--st-muted)]"
+                        triggerClassName={cn("h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden", !endDate && "[&>span]:!text-[var(--st-muted)]")}
+                        onChange={setEndDate} />
+                      <span className="text-[var(--st-muted)]">·</span>
+                      <TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={endTime} onChange={setEndTime} />
+                    </div>
+                  )}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-[var(--st-sub)]">
+                  <label className="flex cursor-pointer select-none items-center gap-1.5">
+                    <StudioTick on={allDay} onClick={() => setAllDay((v) => !v)} />All day
+                  </label>
+                  <span className="text-[var(--st-muted)]">
+                    Quick:{" "}
+                    {TEMPLATES.map((t, i) => (
+                      <span key={t.label}>{i > 0 && " · "}<button type="button" onClick={() => applyTemplate(t)} className="hover:text-[var(--st-ink)] hover:underline">{t.label}</button></span>
+                    ))}
+                  </span>
+                </div>
+                <input type="hidden" name="startAt" value={startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : ""} />
+                {!allDay && <input type="hidden" name="endAt" value={endDate ? `${endDate}T${endTime}` : ""} />}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className={LBL}><span>Guests</span><span className={HINT}>Green dot = will get the email</span></span>
+                <AttendeePicker studio people={people} value={picked} onChange={setPicked} />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Companies"}</span>{companyIds.length > 1 && <span className={HINT}>first is the lead</span>}</span>
+                  <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(BOX, "w-full justify-between")} />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>Type</span></span>
+                  <div className={BOX}>
+                    <FolderClosed size={14} className="shrink-0 text-[var(--st-muted)]" />
+                    <Combobox name="category" options={categories.map((c) => c.name)} defaultValue={editing?.categoryName ?? ""} placeholder="Choose a type" className={BARE} />
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
+              <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>Where</span></span>
+                  <div className={BOX}>
+                    <Globe size={14} className="shrink-0 text-[var(--st-muted)]" />
+                    <input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" className={BARE} />
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>Meeting link</span></span>
+                  <div className="flex items-center gap-2">
+                    <div className={cn(BOX, "flex-1")}>
+                      <Link2 size={14} className="shrink-0 text-[var(--st-muted)]" />
+                      <input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder={addMeet ? "Google Meet — made on save" : "No link"} className={BARE} />
+                    </div>
+                    {!editing && (
+                      <button type="button" role="switch" aria-checked={addMeet} onClick={() => { meetTouched.current = true; setAddMeet((v) => !v); }}
+                        title={addMeet ? "A Google Meet room is made with the event and sent in the invitation" : hasEmails ? "Guests will get the invitation with no way to join online" : "Switch on for a video call"}
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs text-[var(--st-sub)]">
+                        <span className={cn("relative h-[18px] w-[30px] rounded-full transition-colors", addMeet ? "bg-[var(--st-ink)]" : "bg-[var(--st-track-off)]")}>
+                          <span className={cn("absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white transition-all", addMeet ? "left-[14px]" : "left-[2px]")} />
+                        </span>
+                        Meet
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className={LBL}><span>Notes for guests</span></span>
+                <textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Agenda, what to bring, how to get there…"
+                  style={{ background: "var(--st-surface)", border: "1px solid var(--st-line)", borderRadius: 10, boxShadow: "none", color: "var(--st-sub)" }}
+                  className="min-h-16 w-full resize-y px-3 py-2.5 text-[13px] leading-[1.45] outline-none placeholder:text-[var(--st-muted)]" />
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-3.5">
+              {readBanner && <StudioReadCard prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
+
+              <EventAttachments studio eventId={editing?.id ?? null} companyId={companyIds[0] ?? editing?.companyId ?? null}
+                value={attachments} onChange={setAttachments} onPrefill={applyPrefill} allowLibrary />
+
+              <div className="flex flex-col gap-1.5">
+                <span className={LBL}><span>Remind me</span></span>
+                <div className="flex flex-wrap gap-1.5">
+                  {REMINDER_OPTS.map((o) => {
+                    const on = reminders.includes(o.v);
+                    return (
+                      <button key={o.v} type="button" aria-pressed={on} onClick={() => toggleReminder(o.v)}
+                        className={cn("flex h-7 items-center rounded-lg border px-2.5 text-xs transition-colors",
+                          on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
+                        {STUDIO_REMINDER_WORDS[o.v] ?? o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>Repeats</span></span>
+                  <FluidSelect value={recurrence} onSelect={setRecurrence}
+                    options={[{ value: "none", label: "Does not repeat" }, { value: "daily", label: "Every day" }, { value: "weekly", label: "Every week" }, { value: "monthly", label: "Every month" }]}
+                    buttonClassName={cn(BOX, "w-full justify-between")} />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className={LBL}><span>Until</span></span>
+                  {recurrence === "none" ? (
+                    <div className={cn(BOX, "text-[var(--st-muted)]")}>—</div>
+                  ) : (
+                    <div className={BOX}>
+                      <DatePopover block value={recurrenceUntil || null} label={recurrenceUntil ? longDay(recurrenceUntil) : "No end"} tone="text-[var(--st-muted)]"
+                        triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden" onChange={setRecurrenceUntil} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {isRecurring && (
+                <div className="flex flex-col gap-2 rounded-[12px] border border-[var(--st-line-soft)] px-3 py-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[var(--st-sub)]">One date of a repeating event — you can cancel just this one.</span>
+                    {alreadySkipped
+                      ? <span className="shrink-0 text-[var(--st-late-text)]">This date is cancelled</span>
+                      : <button type="button" onClick={doSkip} disabled={pending} className="h-7 shrink-0 rounded-lg border border-[var(--st-line)] px-2.5 hover:bg-[var(--st-page)]">Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</button>}
+                  </div>
+                  {editing!.excludedDates.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--st-line-soft)] pt-2">
+                      <span className="text-[var(--st-muted)]">Cancelled (tap to restore):</span>
+                      {editing!.excludedDates.map((d) => (
+                        <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
+                          className="inline-flex items-center gap-1 rounded-md bg-[var(--st-page)] px-2 py-0.5 hover:text-[var(--st-ink)]">
+                          {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 pt-1">
+                {editing && hasEmails && (
+                  <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px]">
+                    <StudioTick on={notifyGuests} onClick={() => setNotifyGuests((v) => !v)} />
+                    Tell guests about this change
+                    <span className="text-[11px] text-[#A3A6AB]">{notifyGuests ? "(they get an email of what changed)" : "(their calendar updates by itself)"}</span>
+                  </label>
+                )}
+                {!editing && (
+                  <label className={cn("flex cursor-pointer select-none items-center gap-2.5 text-[13px]", !trackTask && "text-[var(--st-sub)]")}>
+                    <StudioTick on={trackTask} onClick={() => setTrackTask((v) => !v)} />
+                    {companyIds.length > 1 ? `Track as ${companyIds.length} tasks` : "Track this meeting as a task"}
+                    <span className="text-[11px] text-[#A3A6AB]">{companyIds.length ? "(new events · one per company)" : "(pick a company first)"}</span>
+                  </label>
+                )}
+              </div>
+              <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
+            </div>
+          </div>
+
+          {/* ── Footer: does it clash? then Cancel / Save. */}
+          <div className="flex shrink-0 items-center gap-2 border-t border-[var(--st-line-soft)] px-[26px] py-3.5">
+            <span className={cn("min-w-0 flex-1 truncate text-xs", conflicts.length ? "text-[var(--st-soon-text)]" : "text-[var(--st-muted)]")}>
+              {!startDate
+                ? "Pick a day to check for clashes."
+                : allDay
+                  ? `All day on ${shortDay}.`
+                  : conflicts.length
+                    ? `Clashes with ${conflicts.slice(0, 2).map((c) => c.title).join(", ")}${conflicts.length > 2 ? ` and ${conflicts.length - 2} more` : ""} on ${shortDay}.`
+                    : `No clash with anything else on ${shortDay}.`}
+            </span>
+            <button type="button" onClick={onClose} className="flex h-[38px] items-center rounded-[10px] border border-[var(--st-line)] px-4 text-[13px] hover:bg-[var(--st-page)]">Cancel</button>
+            <button type="submit" disabled={pending} className="flex h-[38px] items-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-[18px] text-[13px] font-semibold text-[var(--st-surface)] transition-opacity hover:opacity-90 disabled:opacity-60">
+              {pending && <Loader2 size={14} className="animate-spin" />}{editing ? "Save changes" : "Create event"}
+            </button>
+          </div>
+        </form>
+        {acts.dialogs}
+      </div>,
+      document.body,
+    );
   }
 
   return (

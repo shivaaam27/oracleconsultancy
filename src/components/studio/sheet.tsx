@@ -29,8 +29,9 @@ export function StudioSheet({
     if (!open) return;
     // `defaultPrevented` = an open menu inside the sheet took this Escape.
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // On window so a menu inside (listening on document) claims Escape first.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
   if (!mounted || !open) return null;
   return createPortal(
