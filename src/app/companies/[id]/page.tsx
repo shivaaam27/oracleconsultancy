@@ -38,6 +38,10 @@ import { getAppSettings } from "@/lib/settings";
 import { isStudioOn } from "@/lib/studio";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StudioCompany, type StudioCompanyData } from "@/components/studio/companies/studio-company";
+import { StudioCompanyProfile } from "@/components/studio/companies/company-profile";
+import { StudioPickProvider } from "@/components/studio/tasks/pick";
+import { FactsPanel } from "@/components/facts-panel";
+import { GovernancePanel } from "@/components/governance-panel";
 import {
   ExternalLink,
   ChevronRight,
@@ -60,7 +64,7 @@ export default async function CompanyPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; tl?: string; from?: string }>;
+  searchParams: Promise<{ tab?: string; tl?: string; from?: string; tf?: string }>;
 }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
@@ -172,6 +176,136 @@ export default async function CompanyPage({
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
     const pickerPeople = allPeople.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
     orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads, pickerPeople };
+  }
+
+  // Studio (Settings → New look → Companies): mockup board Company.
+  if (isStudioOn(settings.studioPages, "companies")) {
+    let overview: StudioCompanyData["overview"] = null;
+    if (tab === "overview") {
+      const [capT, sigT, resT, factT, staffIds] = await Promise.all([
+        sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        getStaffIdMap(),
+      ]);
+      const docStatus = companyDocs.map((d) => deriveDocStatus(d));
+      const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
+      // Worst first: late, then by deadline, undated last.
+      const ordered = [...openRows].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
+      const eat = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "Africa/Nairobi" }).replace(",", "");
+      const primary = (peopleRaw ?? []).filter((p) => (p.company_id as number | null) === companyId);
+      // Directors and heads first, then by name.
+      const rank = (role: string | null) => (/director|ceo|chair/i.test(role ?? "") ? 0 : /head|manager|cfo|coo/i.test(role ?? "") ? 1 : 2);
+      const assets = overviewExtras?.assets ?? [];
+      const vendors = overviewExtras?.vendors ?? [];
+      overview = {
+        documents: {
+          total: companyDocs.length,
+          expired: docStatus.filter((x) => x === "Expired").length,
+          expiring: docStatus.filter((x) => x === "Expiring").length,
+        },
+        tasks: ordered.map((r) => {
+          const days = r.deadline ? Math.floor((r.deadline.getTime() - Date.now()) / 86_400_000) : null;
+          return {
+            code: r.code, title: r.actionItem,
+            when: !r.deadline ? "no date" : isLate(r) ? `${Math.max(1, -Math.ceil((r.deadline.getTime() - Date.now()) / 86_400_000))}d late` : eat(r.deadline),
+            tone: !r.deadline ? "none" as const : isLate(r) ? "late" as const : days != null && days <= 6 ? "soon" as const : "plain" as const,
+          };
+        }),
+        staff: primary
+          .map((p) => ({ id: p.id as number, name: p.name as string, role: (p.role as string | null) ?? null, staffId: staffIds.get(p.id as number) ?? null }))
+          .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name)),
+        alsoCount: Math.max(0, teamCount - primary.length),
+        equipment: {
+          assets: assets.length, vendors: vendors.length,
+          expiredContracts: vendors.filter((v) => v.expiredCount > 0).length,
+          items: [
+            ...vendors.filter((v) => v.expiredCount > 0).map((v) => ({ name: v.name, sub: "contract expired", bad: true })),
+            ...assets.map((a) => ({ name: a.name, sub: a.custodianName ?? a.assignedToName ?? a.location ?? "Unassigned" })),
+            ...vendors.filter((v) => v.expiredCount === 0).map((v) => ({ name: v.name, sub: v.category ?? "Supplier" })),
+          ],
+        },
+        governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
+      };
+    }
+    const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
+    const tf = sp.tf === "done" ? "done" as const : "open" as const;
+    const card = "st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4";
+    // Each tab in the Studio look — cards, and the Studio task list (the same
+    // TableView the Tasks page draws; StudioPickProvider is what switches it).
+    const studioBody =
+      tab === "profile" ? (
+        <StudioCompanyProfile
+          companyId={companyId} companyName={name} accent={(companyRaw.accent_color as string | null) ?? null} logoUrl={logoUrl}
+          profile={{
+            filePrefix: (companyRaw.file_prefix as string | null) ?? null,
+            legalName: (companyRaw.legal_name as string | null) ?? null,
+            registrationNo: (companyRaw.registration_no as string | null) ?? null,
+            tin: (companyRaw.tin as string | null) ?? null,
+            vrn: (companyRaw.vrn as string | null) ?? null,
+            incorporationDate: companyRaw.incorporation_date ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10) : null,
+            address: (companyRaw.address as string | null) ?? null,
+            phone: (companyRaw.phone as string | null) ?? null,
+            email: (companyRaw.email as string | null) ?? null,
+            signatoryName: (companyRaw.signatory_name as string | null) ?? null,
+            signatoryTitle: (companyRaw.signatory_title as string | null) ?? null,
+            sectorRegulated: false,
+          }}
+          relationships={relationships as Awaited<ReturnType<typeof getCompanyRelationships>>}
+          facts={<FactsPanel entityType="company" entityId={companyId} defaultOpen />}
+          governance={<GovernancePanel companyId={companyId} />}
+          documents={<CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
+        />
+      ) : tab === "tasks" ? (
+        (tf === "done" ? completedRows : openRows).length === 0 ? (
+          <section className="rounded-[20px] bg-[var(--st-surface)] px-5 py-12 text-center text-[13px] text-[var(--st-muted)]">
+            {tf === "done" ? "Nothing finished yet — completed tasks land here." : `Nothing open for ${name}.`}
+          </section>
+        ) : (
+          <StudioPickProvider>
+            <SelectionProvider>
+              <BulkBar />
+              <TableView rows={tf === "done" ? completedRows : openRows} hideCompany />
+            </SelectionProvider>
+          </StudioPickProvider>
+        )
+      ) : tab === "notes" ? (
+        <section className={card}>
+          <LinkedNotesList notes={await notesLinkedTo("company", companyId)} emptyHint={`Write @${name} in any note and it will appear here.`} about={{ entity: "company", id: companyId, label: name }} />
+        </section>
+      ) : tab === "timeline" ? (
+        <section className={card}><TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} /></section>
+      ) : tab === "org" && orgTab ? (
+        <section className={card}>
+          <ErrorBoundary label="company-org">
+            <OrgChart
+              companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
+              trees={{ [companyId]: orgTab.tree }} extras={orgTab.extras} associatedByCompany={{ [companyId]: orgTab.associated }}
+              deptHeads={orgTab.deptHeads} pickerPeople={orgTab.pickerPeople} initialCompanyId={companyId} showSwitcher={false} showEveryone={false}
+            />
+          </ErrorBoundary>
+        </section>
+      ) : null;
+    return (
+      <>
+        <CompanyActions companyId={companyId} companyName={name} />
+        {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
+        <StudioCompany data={{
+          id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
+          open: openRows.length, late: overdueCount, people: teamCount, tab, overview, tf, doneCount: completedRows.length,
+          chips: {
+            overdue: overdueCount,
+            dueSoon: openRows.filter((r) => r.flag === "due-soon").length,
+            stalled: openRows.filter((r) => r.flag === "stalled").length,
+            noDeadline: openRows.filter((r) => !r.deadline).length,
+            noOwner: openRows.filter((r) => r.assignees.length === 0).length,
+          },
+        }}>
+          {studioBody}
+        </StudioCompany>
+      </>
+    );
   }
 
   const otherTabs = (
@@ -301,79 +435,6 @@ export default async function CompanyPage({
       )}
     </>
   );
-
-  // Studio (Settings → New look → Companies): mockup board Company.
-  if (isStudioOn(settings.studioPages, "companies")) {
-    let overview: StudioCompanyData["overview"] = null;
-    if (tab === "overview") {
-      const [capT, sigT, resT, factT, staffIds] = await Promise.all([
-        sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        getStaffIdMap(),
-      ]);
-      const docStatus = companyDocs.map((d) => deriveDocStatus(d));
-      const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
-      // Worst first: late, then by deadline, undated last.
-      const ordered = [...openRows].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
-      const eat = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "Africa/Nairobi" }).replace(",", "");
-      const primary = (peopleRaw ?? []).filter((p) => (p.company_id as number | null) === companyId);
-      // Directors and heads first, then by name.
-      const rank = (role: string | null) => (/director|ceo|chair/i.test(role ?? "") ? 0 : /head|manager|cfo|coo/i.test(role ?? "") ? 1 : 2);
-      const assets = overviewExtras?.assets ?? [];
-      const vendors = overviewExtras?.vendors ?? [];
-      overview = {
-        documents: {
-          total: companyDocs.length,
-          expired: docStatus.filter((x) => x === "Expired").length,
-          expiring: docStatus.filter((x) => x === "Expiring").length,
-        },
-        chips: {
-          overdue: overdueCount,
-          dueSoon: openRows.filter((r) => r.flag === "due-soon").length,
-          stalled: openRows.filter((r) => r.flag === "stalled").length,
-          noDeadline: openRows.filter((r) => !r.deadline).length,
-          noOwner: openRows.filter((r) => r.assignees.length === 0).length,
-        },
-        tasks: ordered.map((r) => {
-          const days = r.deadline ? Math.floor((r.deadline.getTime() - Date.now()) / 86_400_000) : null;
-          return {
-            code: r.code, title: r.actionItem,
-            when: !r.deadline ? "no date" : isLate(r) ? `${Math.max(1, -Math.ceil((r.deadline.getTime() - Date.now()) / 86_400_000))}d late` : eat(r.deadline),
-            tone: !r.deadline ? "none" as const : isLate(r) ? "late" as const : days != null && days <= 6 ? "soon" as const : "plain" as const,
-          };
-        }),
-        staff: primary
-          .map((p) => ({ id: p.id as number, name: p.name as string, role: (p.role as string | null) ?? null, staffId: staffIds.get(p.id as number) ?? null }))
-          .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name)),
-        alsoCount: Math.max(0, teamCount - primary.length),
-        equipment: {
-          assets: assets.length, vendors: vendors.length,
-          expiredContracts: vendors.filter((v) => v.expiredCount > 0).length,
-          items: [
-            ...vendors.filter((v) => v.expiredCount > 0).map((v) => ({ name: v.name, sub: "contract expired", bad: true })),
-            ...assets.map((a) => ({ name: a.name, sub: a.custodianName ?? a.assignedToName ?? a.location ?? "Unassigned" })),
-            ...vendors.filter((v) => v.expiredCount === 0).map((v) => ({ name: v.name, sub: v.category ?? "Supplier" })),
-          ],
-        },
-        governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
-      };
-    }
-    const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
-    return (
-      <>
-        <CompanyActions companyId={companyId} companyName={name} />
-        {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
-        <StudioCompany data={{
-          id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
-          open: openRows.length, late: overdueCount, people: teamCount, tab, overview,
-        }}>
-          {otherTabs}
-        </StudioCompany>
-      </>
-    );
-  }
 
   return (
     /* Converted to the shared record shell (Stage 5). It keeps its own tab

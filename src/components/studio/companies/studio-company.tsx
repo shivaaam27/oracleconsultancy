@@ -39,9 +39,12 @@ export type StudioCompanyData = {
   late: number;
   people: number;
   tab: CompanyTabKey;
+  chips: { overdue: number; dueSoon: number; stalled: number; noDeadline: number; noOwner: number };
+  /** Tasks tab: open or done, and how many are done. */
+  tf: "open" | "done";
+  doneCount: number;
   overview: null | {
     documents: { total: number; expired: number; expiring: number };
-    chips: { overdue: number; dueSoon: number; stalled: number; noDeadline: number; noOwner: number };
     tasks: { code: string; title: string; when: string; tone: "late" | "soon" | "none" | "plain" }[];
     staff: { id: number; name: string; role: string | null; staffId: string | null }[];
     alsoCount: number;
@@ -110,7 +113,12 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
       {band}
       {data.tab === "overview" && data.overview
         ? <Overview data={data} o={data.overview} tasksHref={tasksHref} />
-        : <div className="st-company-tab min-w-0 rounded-[20px] bg-[var(--st-surface)] p-4 sm:p-5">{children}</div>}
+        : data.tab === "tasks"
+          ? <>
+              <TasksHead data={data} tasksHref={tasksHref} />
+              {children}
+            </>
+          : children}
     </StudioScope>
   );
 }
@@ -146,13 +154,6 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
     [o.documents.total, "documents", undefined, `/documents?company=${data.id}`],
     [o.documents.expired, "documents expired", o.documents.expired ? "var(--st-late-text)" : undefined, `/documents?company=${data.id}`],
   ];
-  const chips: [string, number | string, string, string, string][] = [
-    ["Overdue", o.chips.overdue, "var(--st-bad-wash)", "var(--st-late-text)", `${tasksHref}&flag=overdue`],
-    ["Due soon", o.chips.dueSoon, "var(--st-warn-wash)", "var(--st-soon-text)", `${tasksHref}&flag=due-soon`],
-    ["Stalled", o.chips.stalled, "var(--st-page)", "var(--st-sub)", `${tasksHref}&flag=stalled`],
-    ["No deadline", o.chips.noDeadline || "—", "var(--st-page)", "var(--st-sub)", `${tasksHref}&flag=no-deadline`],
-    ["No owner", o.chips.noOwner, "var(--st-page)", "var(--st-sub)", `${tasksHref}&noOwner=1`],
-  ];
 
   return (
     <div ref={fit} className="flex flex-col gap-4">
@@ -168,12 +169,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div className={COL}>
           <Card title="Open tasks" className={GROW} right={data.open > 0 && <Link href={`/companies/${data.id}?tab=tasks`} className="text-[var(--st-ink)] hover:underline">All {data.open} →</Link>}>
-            <div className="mt-2 flex shrink-0 flex-wrap gap-1.5">
-              {chips.map(([l, n, bg, fg, href]) => (
-                <Link key={l} href={href} className={cn("flex h-[26px] items-center gap-1.5 rounded-[7px] px-2.5 text-xs transition-opacity hover:opacity-80", (n === 0 || n === "—") && "pointer-events-none")}
-                  style={{ background: bg, color: fg }}>{l} <b className="font-semibold">{n}</b></Link>
-              ))}
-            </div>
+            <div className="mt-2 shrink-0"><Chips chips={data.chips} tasksHref={tasksHref} /></div>
             <div className={cn("mt-2 flex flex-col", LIST)}>
               {o.tasks.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">Nothing open for {data.name}.</div>}
               {o.tasks.map((t, i) => (
@@ -256,6 +252,44 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
         </div>
       </div>
     </div>
+  );
+}
+
+/** Overdue · Due soon · Stalled · No deadline · No owner — each opens the task
+ *  list filtered to it. Shared by the Overview card and the Tasks tab. */
+function Chips({ chips: c, tasksHref }: { chips: StudioCompanyData["chips"]; tasksHref: string }) {
+  const list: [string, number | string, string, string, string][] = [
+    ["Overdue", c.overdue, "var(--st-bad-wash)", "var(--st-late-text)", `${tasksHref}&flag=overdue`],
+    ["Due soon", c.dueSoon, "var(--st-warn-wash)", "var(--st-soon-text)", `${tasksHref}&flag=due-soon`],
+    ["Stalled", c.stalled, "var(--st-page)", "var(--st-sub)", `${tasksHref}&flag=stalled`],
+    ["No deadline", c.noDeadline || "—", "var(--st-page)", "var(--st-sub)", `${tasksHref}&flag=no-deadline`],
+    ["No owner", c.noOwner, "var(--st-page)", "var(--st-sub)", `${tasksHref}&noOwner=1`],
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {list.map(([l, n, bg, fg, href]) => (
+        <Link key={l} href={href} className={cn("flex h-[26px] items-center gap-1.5 rounded-[7px] px-2.5 text-xs transition-opacity hover:opacity-80", (n === 0 || n === "—") && "pointer-events-none")}
+          style={{ background: bg, color: fg }}>{l} <b className="font-semibold">{n}</b></Link>
+      ))}
+    </div>
+  );
+}
+
+/** The Tasks tab's head: the chips, Open | Done, and the way to the full list. */
+function TasksHead({ data, tasksHref }: { data: StudioCompanyData; tasksHref: string }) {
+  const base = `/companies/${data.id}?tab=tasks`;
+  return (
+    <section className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-[var(--st-surface)] px-5 py-3.5">
+      <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist">
+        {([["open", `Open ${data.open}`, base], ["done", `Done ${data.doneCount}`, `${base}&tf=done`]] as const).map(([k, l, href]) => (
+          <Link key={k} href={href} scroll={false} role="tab" aria-selected={data.tf === k}
+            className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs transition-colors", data.tf === k ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>{l}</Link>
+        ))}
+      </div>
+      {data.tf === "open" && <Chips chips={data.chips} tasksHref={tasksHref} />}
+      <span className="flex-1" />
+      <Link href={tasksHref} className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[var(--st-line)] px-3 text-xs hover:bg-[var(--st-page)]"><List size={13} />Open in Tasks</Link>
+    </section>
   );
 }
 

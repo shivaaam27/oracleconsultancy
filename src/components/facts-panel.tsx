@@ -40,9 +40,12 @@ const fmtDate = (iso: string) =>
 export function FactsPanel({
   entityType,
   entityId,
+  defaultOpen = false,
 }: {
   entityType: FactEntityType;
   entityId: number;
+  /** Open on arrival — the Studio company Profile gives facts their own card. */
+  defaultOpen?: boolean;
 }) {
   const [current, setCurrent] = useState<Fact[]>([]);
   const [all, setAll] = useState<Fact[]>([]);
@@ -64,7 +67,7 @@ export function FactsPanel({
   }, [entityType, entityId]);
 
   return (
-    <CollapsibleSection icon={<NotebookPen size={14} />} title="Tracked facts" count={current.length} contentClassName="p-3.5 space-y-3">
+    <CollapsibleSection icon={<NotebookPen size={14} />} title="Tracked facts" count={current.length} defaultOpen={defaultOpen} contentClassName="p-3.5 space-y-3">
       <button
         type="button"
         onClick={() => setAdding((a) => !a)}

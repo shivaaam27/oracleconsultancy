@@ -611,3 +611,31 @@ company); the page switch is `companies` (switched on live).
   owner themselves (they had no check at all).
 - Voice dictionary default and live value: DSC Ltd / Furaha Innovation Ltd
   replace Dar Spices / Cocozuri Chocolat.
+
+### Company tabs in Studio (24 Sept 2026, later)
+- **Profile** = cards (`studio/companies/company-profile.tsx`): official details
+  + contact & signatory (ONE form, Save in the card head, same action and field
+  names) · people in filings + governance · tracked facts (FactsPanel now takes
+  `defaultOpen`) · documents full width.
+- **Tasks** = the Studio task list (`TableView` inside `StudioPickProvider` —
+  that provider is what switches it to the Studio look) with a head card:
+  Open | Done (`?tf=done`), the chips, Open in Tasks.
+- **Notes / Timeline / Org** = their components inside a card with `.st-desk
+  .st-panel`.
+- **`.st-desk`** (globals.css) = the general rule for an older Desk panel inside
+  a Studio card: greys, hairlines, control box, sentence case, ink buttons;
+  `.st-panel` dissolves the panel's own outer box. Reuse it before rewriting a
+  panel.
+- Old look still works: the page builds `otherTabs` only on the Desk path now.
+- **Removed:** the "Regulated sector" checkbox (it only fed the deleted
+  required-documents checklist; the action no longer writes `sector_regulated`)
+  and the VRN "adds the VAT certificate to the checklist" line.
+- **Fixed:** "People in filings" split a filing line on ";" INSIDE brackets, so
+  "(of 1,000,000 authorised; Pulin Manek …, not shareholder)" listed
+  "authorised" and "not shareholder)" as people — `splitParties` now splits at
+  the top level only (tested). **Fixed:** `signDocumentFile` memoised a signed
+  URL for "now + an hour" even when the token it got back was older — it now
+  reads the token's own `exp`, so a cached response can't hand out a dead link
+  (the Furaha logo would not load).
+- Add company card: live preview tile, aligned prefix + colour row, the name
+  field takes focus.

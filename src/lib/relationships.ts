@@ -21,9 +21,25 @@ function roleOf(field: string): string | null {
   return null;
 }
 
-/** Split a fact value ("A; B (20%), C and D") into individual party strings. */
-function splitParties(raw: string): string[] {
-  return raw.split(/;|\n|,| and /i).map((s) => s.trim()).filter(Boolean);
+/** Split a fact value ("A; B (20%), C and D") into individual party strings —
+ *  only at the TOP level. A note in brackets belongs to the party before it:
+ *  "Dimpal Tanna 150 (of 1,000,000 authorised; Pulin Manek director/secretary,
+ *  not shareholder)" used to split inside the brackets and list "authorised"
+ *  and "not shareholder)" as people (found 24 Sept 2026). */
+export function splitParties(raw: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === "(" || ch === "[") depth++;
+    else if ((ch === ")" || ch === "]") && depth > 0) depth--;
+    if (depth === 0 && (ch === ";" || ch === "\n" || ch === ",")) { out.push(cur); cur = ""; continue; }
+    if (depth === 0 && raw.slice(i, i + 5).toLowerCase() === " and ") { out.push(cur); cur = ""; i += 4; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim()).filter(Boolean);
 }
 
 /** A party string → { name, detail } stripping trailing share counts / percentages. */

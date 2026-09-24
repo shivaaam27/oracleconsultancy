@@ -2037,3 +2037,41 @@ body:has(main .studio) > * [data-field-label] {
    columns fit one screen (24 Sept 2026). */
 .st-person-form [data-field-label] { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; color: var(--st-label); margin-bottom: 4px; }
 .st-person-form [data-field-label] .text-danger { color: var(--st-late-text); }
+
+/* ── .st-desk — an older (Desk) component inside a Studio card ─────────────
+   (24 Sept 2026, the company tabs.) The panels a Studio page reuses — tracked
+   facts, governance, the document library, the timeline, the org chart,
+   linked notes — keep their logic and markup; these rules give them Studio's
+   greys, hairlines, control box and sentence-case labels. `.st-panel` also
+   dissolves the panel's OWN outer box, so it does not draw a card in a card. */
+.st-desk { color: var(--st-ink); }
+.st-desk .glass, .st-desk .elevated, .st-desk .card {
+  background: var(--st-surface); box-shadow: none; border: 1px solid var(--st-line-soft); border-radius: 14px;
+}
+.st-panel > :is(.glass, .elevated, .card, .bg-bg-elev):first-child,
+.st-panel > div:first-child > :is(.glass, .elevated):only-child {
+  background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0;
+}
+.st-panel > div:first-child > .border-t { border-color: var(--st-line-soft); }
+.st-desk .uppercase { text-transform: none; letter-spacing: 0; }
+.st-desk h2 { font-size: 15px; font-weight: 600; }
+.st-desk .text-fg-muted, .st-desk .text-fg-subtle { color: var(--st-muted); }
+.st-desk .text-fg { color: var(--st-ink); }
+.st-desk .text-accent { color: var(--st-ink); }
+.st-desk .bg-accent { background: var(--st-ink); color: var(--st-surface); }
+.st-desk .bg-bg-subtle, .st-desk [class*="bg-bg-subtle/"], .st-desk .bg-bg-muted { background: var(--st-page); }
+.st-desk .bg-bg-elev, .st-desk [class*="bg-bg-elev/"] { background: var(--st-surface); }
+.st-desk .ring-1 { --tw-ring-color: var(--st-line-soft); }
+.st-desk .divide-y > * + *, .st-desk .border-border, .st-desk [class*="border-border/"] { border-color: var(--st-line-soft); }
+.st-desk input:is([type="text"], [type="email"], [type="password"], [type="number"], [type="date"], [type="search"], [type="tel"], [type="url"], :not([type])),
+.st-desk textarea {
+  border: 1px solid var(--st-line); border-radius: 10px; background: var(--st-surface); color: var(--st-ink); box-shadow: none; font-size: 13px;
+}
+.st-desk input:focus, .st-desk textarea:focus { border-color: var(--st-ink); outline: none; box-shadow: none; }
+.st-desk [data-variant] { border-radius: 10px; box-shadow: none; white-space: nowrap; }
+.st-desk [data-variant="primary"] { background: var(--st-ink); color: var(--st-surface); border: 0; }
+.st-desk [data-variant="secondary"], .st-desk [data-variant="ghost"] { background: var(--st-surface); color: var(--st-ink); border: 1px solid var(--st-line); }
+.st-desk [data-switch] { background: var(--st-track-off); box-shadow: none; }
+.st-desk [data-switch][data-on] { background: var(--st-ink); }
+.st-desk [data-switch][data-on] > span { background: var(--st-surface); }
+

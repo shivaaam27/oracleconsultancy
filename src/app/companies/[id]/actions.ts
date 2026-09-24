@@ -38,10 +38,8 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
     email: str(fd, "email"),
     signatory_name: str(fd, "signatoryName"),
     signatory_title: str(fd, "signatoryTitle"),
-    // Regulated sector (construction/industrial → needs CRB / OSHA / Local Content
-    // / Fire). Drives which statutory items are on THIS company's checklist, so the
-    // list reflects what the company actually needs (not the same generic set).
-    sector_regulated: fd.get("sectorRegulated") === "on",
+    // (sector_regulated is no longer written: it only fed the required-documents
+    // checklist, which was removed in Aug 2026 — nothing reads it.)
   };
 
   // Display name — the `companies.name` every surface reads. Never blank it.

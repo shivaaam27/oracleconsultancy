@@ -271,6 +271,19 @@ export async function removeDocumentFile(documentId: number): Promise<void> {
 // Keyed by path+expiry; reused while >60s of life remains.
 const _signedUrlCache = new Map<string, { url: string; exp: number }>();
 
+/** When a Supabase signed URL stops working (ms), read from its token. */
+function tokenExpiry(url: string): number | null {
+  try {
+    const token = new URL(url).searchParams.get("token");
+    const part = token?.split(".")[1];
+    if (!part) return null;
+    const payload = JSON.parse(Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Signed URL to view/download a stored file. Memoised per path so repeat loads
  *  reuse one browser-cacheable URL instead of re-downloading the object. */
 export async function signDocumentFile(storagePath: string, expiresInSeconds = 300): Promise<string | null> {
@@ -281,7 +294,11 @@ export async function signDocumentFile(storagePath: string, expiresInSeconds = 3
   const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUrl(storagePath, expiresInSeconds);
   if (error) return null;
   const url = data?.signedUrl ?? null;
-  if (url) _signedUrlCache.set(key, { url, exp: now + expiresInSeconds * 1000 });
+  // Trust the TOKEN's own expiry, not "now + the life we asked for": a response
+  // served from any cache on the way (the dev server's fetch cache did exactly
+  // this) carries an older token, and memoising it for another hour handed out
+  // a dead link — a company logo that would not load (24 Sept 2026).
+  if (url) _signedUrlCache.set(key, { url, exp: tokenExpiry(url) ?? now + expiresInSeconds * 1000 });
   return url;
 }
 
