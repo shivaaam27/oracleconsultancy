@@ -1,4 +1,5 @@
-import { getAllTasks, computeCompanyKpisByMembership, computeGlobalKpis } from "@/lib/queries";
+import { getAllTasks, computeGlobalKpis } from "@/lib/queries";
+import { computeCompanyKpisForCompanies } from "@/lib/company-kpis";
 import { PageHeader } from "@/components/ui";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
@@ -33,20 +34,20 @@ export default async function CompaniesPage({
     sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
     getPersonCompaniesMap(),
   ]);
-  // Count each task toward every company it touches (its own + its people's
-  // companies), and include every active company so a task-less one still shows.
+  // Each task counts once, under the company it is filed under (see
+  // company-kpis.ts for why not its people's companies). Every active company
+  // gets a card, so a task-less one still shows.
   const companyList = (allCompanies.data ?? []).map((c) => ({
     id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null,
   }));
-  const companies = computeCompanyKpisByMembership(rows, companyList, personCompanies);
+  const companies = computeCompanyKpisForCompanies(rows, companyList);
   // Active staff per company = anyone whose primary company OR an extra link
-  // points at it (same membership the task roll-up uses).
+  // points at it. (Staff DO count under every company they work for.)
   const staffByCompany = new Map<number, number>();
   for (const cids of personCompanies.values()) {
     for (const cid of cids) staffByCompany.set(cid, (staffByCompany.get(cid) ?? 0) + 1);
   }
-  // Portfolio totals are DISTINCT (a shared task counts once) — never the sum of
-  // the per-company cards, which double-count multi-company work.
+  // Portfolio totals come from the same rows, so they equal the sum of the cards.
   const g = computeGlobalKpis(rows);
   const totals = { open: g.open, overdue: g.overdue, completed: g.completed };
   return (

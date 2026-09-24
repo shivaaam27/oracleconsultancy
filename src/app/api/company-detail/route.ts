@@ -1,3 +1,4 @@
+import { tasksOfCompany } from "@/lib/company-kpis";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     sb.from("people").select("id,company_id,name,role").eq("active", true),
   ]);
 
-  const rows = allRows.filter((r) => r.companyId === companyId);
+  const rows = tasksOfCompany(allRows, companyId);
   if (!companyRaw && rows.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const name = (companyRaw?.name as string | undefined) ?? rows[0]?.companyName ?? "Company";

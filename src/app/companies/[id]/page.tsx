@@ -1,3 +1,4 @@
+import { tasksOfCompany } from "@/lib/company-kpis";
 import { getAllTasks } from "@/lib/queries";
 import { CompanySummary } from "@/components/company-summary";
 import { CompanyActions } from "./_tabs/company-actions";
@@ -86,15 +87,9 @@ export default async function CompanyPage({
     if ((p.company_id as number | null) === companyId) assocPersonIds.add(p.id as number);
   }
   const teamCount = assocPersonIds.size;
-  // This company's tasks = tasks owned by the company OR involving anyone who
-  // belongs to it (primary company or a person_companies link), so a multi-company
-  // person's work shows up here too.
-  const rows = allRows.filter(
-    (r) =>
-      r.companyId === companyId ||
-      (r.ownerId != null && assocPersonIds.has(r.ownerId)) ||
-      r.assigneeIds.some((aid) => assocPersonIds.has(aid))
-  );
+  // This company's tasks = the tasks FILED under it — not every task its people
+  // touch elsewhere (see company-kpis.ts). Matches the Tasks list and the Brief.
+  const rows = tasksOfCompany(allRows, companyId);
   // A real company with zero tasks must still render — gate not-found on the
   // COMPANY row missing, not on having no tasks. Name/accent come from the
   // company record (tasks are only a fallback for older accent data).
