@@ -1,3 +1,4 @@
+import { isAdminSession } from "@/lib/admin-auth";
 import { sb } from "@/db/supabase";
 import { TopPill } from "./top-pill";
 
@@ -5,7 +6,9 @@ import { TopPill } from "./top-pill";
  *  tab can carry its red badge (one cheap HEAD count per page render). */
 export async function TopPillServer() {
   let overdue = 0;
-  try {
+  // Owner only — see studio/shell-server.tsx: the layout renders this on the
+  // portal and public pages too, hidden only on the client.
+  if (await isAdminSession()) try {
     // Mirror the home hero's figure (signals: flag "overdue" OR "escalate-now"):
     // open + past deadline, excluding Escalated-status tasks (they count as
     // escalations, not overdue) — so the badge and the hero agree.

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { notifyMany, personRecipient } from "@/lib/notifications";
-import { getPortalPerson, companyScope } from "@/lib/portal-auth";
+import { getPortalPerson, companyScope, isScopedDirector } from "@/lib/portal-auth";
 import { reindexEntity } from "@/lib/index-hooks";
 
 /* Staff-portal BULK task creation — "paste multiple", one task per line.
@@ -68,7 +68,27 @@ export async function portalBulkCreateTasks(
   let workings: number[];
   let companyIds: number[];
 
-  if (me.portalRole === "director") {
+  if (me.portalRole === "director" && isScopedDirector(me)) {
+    // ⚠️ A COMPANY-SCOPED director is NOT group-wide. This branch used to accept
+    // any company and any person for every director, so a director limited to
+    // one company could bulk-create tasks in all of them (found in the portal
+    // audit, 25 Sept 2026). Same rule as the single-task path
+    // (portalDirectorCreateTask): companies AND people must sit inside scope.
+    const scope = (await companyScope(me)) ?? [];
+    companyIds = companyIdsRaw.filter((c) => scope.includes(c));
+    if (companyIds.length !== companyIdsRaw.length || companyIds.length === 0) return { ok: false, error: "You can only create tasks for your companies." };
+    const ids = [...leadIdsRaw, ...workingIdsRaw];
+    const [{ data: activeRows }, { data: pr }, { data: lr }] = await Promise.all([
+      sb.from("people").select("id").eq("active", true).in("id", ids),
+      sb.from("people").select("id").in("company_id", scope).in("id", ids),
+      sb.from("person_companies").select("person_id").in("company_id", scope).in("person_id", ids),
+    ]);
+    const inCompany = new Set<number>([...(pr ?? []).map((r) => r.id as number), ...(lr ?? []).map((r) => r.person_id as number)]);
+    const ok = new Set((activeRows ?? []).map((r) => r.id as number).filter((id) => inCompany.has(id)));
+    leads = leadIdsRaw.filter((id) => ok.has(id));
+    if (leads.length === 0) return { ok: false, error: "The responsible person isn't available." };
+    workings = workingIdsRaw.filter((id) => ok.has(id) && !leads.includes(id));
+  } else if (me.portalRole === "director") {
     // Group-wide: any active person, any companies (fan out per company per title).
     const { data: activeRows } = await sb
       .from("people").select("id").eq("active", true).in("id", [...leadIdsRaw, ...workingIdsRaw]);

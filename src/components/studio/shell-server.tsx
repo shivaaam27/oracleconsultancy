@@ -1,4 +1,5 @@
 import { sb } from "@/db/supabase";
+import { isAdminSession } from "@/lib/admin-auth";
 import { taskHref } from "@/lib/task-href";
 import { StudioShell, type StudioFootNote } from "./shell";
 
@@ -7,6 +8,11 @@ import { StudioShell, type StudioFootNote } from "./shell";
  *  overdue badge before it — decoration, so a failure shows nothing. */
 export async function StudioShellServer() {
   let note: StudioFootNote = null;
+  // ⚠️ ONLY FOR THE OWNER. The root layout renders this on EVERY page and only
+  // hides it on the client (HideOnPortal) — so without this check the owner's
+  // next task title rode along in the page data of the staff portal and of the
+  // public /e/ and /r/ links (portal audit, 25 Sept 2026).
+  if (!(await isAdminSession())) return <StudioShell nextDeadline={null} />;
   try {
     const todayEat = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" });
     const { data } = await sb
