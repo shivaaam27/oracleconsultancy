@@ -157,13 +157,16 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
             </StudioCard>
           </StudioCardRow>
 
-          <div ref={grid} className="st-scroll grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 min-[480px]:gap-3 md:grid-cols-3 lg:auto-rows-[minmax(132px,1fr)] lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
+          <div ref={grid} className="st-scroll grid grid-cols-1 rounded-[18px] bg-[var(--st-surface)] px-1 min-[480px]:grid-cols-2 min-[480px]:gap-3 min-[480px]:rounded-none min-[480px]:bg-transparent min-[480px]:px-0 md:grid-cols-3 lg:auto-rows-[minmax(132px,1fr)] lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
             {cos.map((c) => {
               const s = standing(c.open, c.late);
               const st = STANDING[s];
               return (
                 <Link key={c.id} href={withReturn(`/companies/${c.id}`, "/companies")}
-                  className={cn("flex min-w-0 flex-col gap-2 rounded-2xl bg-[var(--st-surface)] p-3.5 transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.07)]", s === 3 && "opacity-75")}>
+                  className={cn("flex min-w-0 flex-col gap-2 bg-[var(--st-surface)] transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.07)]",
+                    // Phone (mockup M_Companies): rows in one card, hairlines between.
+                    "border-b border-[var(--st-line-soft)] px-3 py-3 last:border-b-0 min-[480px]:rounded-2xl min-[480px]:border-0 min-[480px]:p-3.5",
+                    s === 3 && "opacity-75")}>
                   <span className="flex min-w-0 items-center gap-2.5">
                     <span className="st-mono flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-semibold" style={{ background: st.tile, color: st.text }}>{c.prefix}</span>
                     <span className="min-w-0 flex-1">
@@ -176,7 +179,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                         {c.open} open{c.late ? <> · <span className="text-[var(--st-late-text)]">{c.late} late</span></> : null} · {c.staff} staff
                       </span>
                     </span>
-                    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--st-page)] px-2 text-[11px] min-[480px]:hidden" style={{ color: st.text }}>
+                    <span className="inline-flex h-6 w-[100px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--st-page)] px-2 text-[11px] min-[480px]:hidden" style={{ color: st.text }}>
                       <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.dot }} />{st.label}
                     </span>
                   </span>

@@ -250,7 +250,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
                 return (
                 <Link key={k} href={`/companies/${data.id}?tab=profile`} className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]">
                   <span className="text-[var(--st-muted)]">{k}</span>
-                  <span className={cn("truncate", n === 0 && "text-[#A3A6AB]")}>{n === 0 ? empty : `${n} ${noun}${n === 1 ? "" : "s"}`}</span>
+                  <span className={cn("truncate", n === 0 && "text-[#A3A6AB]")}>{n === 0 ? empty : `${n} ${n === 1 ? noun : noun.replace(/y$/, "ie") + "s"}`}</span>
                 </Link>
                 );
               })}
