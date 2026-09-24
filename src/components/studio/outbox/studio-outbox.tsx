@@ -189,7 +189,8 @@ export function StudioOutbox({
           <CardHead label="Today" right={<span className="text-[var(--st-on-card-muted)]">{scopeLabel}</span>} />
           <div className="mt-auto flex items-end gap-7 pt-4">
             <div>
-              <BigNumber value={counts.reminders} unit="to chase" />
+              <span className="contents sm:hidden"><BigNumber value={counts.reminders} unit="to chase" size={56} /></span>
+              <span className="hidden sm:contents"><BigNumber value={counts.reminders} unit="to chase" /></span>
               <div className="mt-3 flex flex-wrap gap-3.5 text-xs text-[var(--st-on-card-muted)]">
                 {owner && <span>{plural(counts.drafts, "draft")} waiting</span>}
                 <span>{sent.length} sent</span>
@@ -197,7 +198,8 @@ export function StudioOutbox({
               </div>
             </div>
             <span className="flex-1" />
-            <Ring value={pct} size={116} stroke={12} track="var(--st-card-line)" label={`${pct}%`} sub="done today" />
+            <span className="contents sm:hidden"><Ring value={pct} size={84} stroke={9} track="var(--st-card-line)" label={`${pct}%`} sub="done" /></span>
+            <span className="hidden sm:contents"><Ring value={pct} size={116} stroke={12} track="var(--st-card-line)" label={`${pct}%`} sub="done today" /></span>
           </div>
         </StudioCard>
 
@@ -209,16 +211,17 @@ export function StudioOutbox({
               : <StudioPill onCard dot="var(--st-ok)">On</StudioPill>}
           />
           <div className="mt-auto grid grid-cols-1 items-end gap-x-6 gap-y-3 pt-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-            <div>
+            {/* Phone: the categories two across, so the card matches its neighbour. */}
+            <div className="max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-4">
               {automation.categories.map((c) => (
-                <div key={c.label} className="flex items-center justify-between gap-3 border-b border-[#222428] py-[5px] text-xs last:border-0">
+                <div key={c.label} className="flex min-w-0 items-center justify-between gap-2 border-b border-[#222428] py-[5px] text-xs last:border-0 max-sm:[&:nth-last-child(2)]:border-0">
                   <span className="truncate text-[#C9CBCF]">{c.label.replace(/\s*\(to you\)$/, "")}</span>
                   <span className="shrink-0 text-[var(--st-on-card-muted)]">{automation.paused && c.mode !== "off" ? "held" : MODE[c.mode] ?? c.mode}</span>
                 </div>
               ))}
             </div>
             <div className="flex flex-col gap-2">
-              <div className="text-xs leading-[1.45] text-[var(--st-muted)]">
+              <div className="text-xs leading-[1.45] text-[var(--st-muted)] max-sm:line-clamp-2">
                 {automation.paused ? "Nothing goes out on its own while paused." : automation.allOff ? "Nothing is switched on." : `Sends ${String(automation.windowStartHour).padStart(2, "0")}:00–${String(automation.windowEndHour).padStart(2, "0")}:00, up to ${automation.dailyCap} a day.`}
                 {owner ? " The send window, daily cap and each category live in Settings." : " These are set by the administrator."}
               </div>

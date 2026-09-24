@@ -479,9 +479,10 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
       <StudioCardRow className="lg:h-[210px]">
         <StudioCard tone="dark">
           <CardHead label={scopeName} right={`${fmtSize(scopeSize)} stored`} />
-          <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-4 pt-4">
+          <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-3 pt-3 sm:gap-y-4 sm:pt-4">
             <div>
-              <BigNumber value={scopeFiles.length} unit={scopeFiles.length === 1 ? "file" : "files"} />
+              <span className="contents sm:hidden"><BigNumber value={scopeFiles.length} unit={scopeFiles.length === 1 ? "file" : "files"} size={52} /></span>
+              <span className="hidden sm:contents"><BigNumber value={scopeFiles.length} unit={scopeFiles.length === 1 ? "file" : "files"} /></span>
               <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--st-on-card-muted)]">
                 <button type="button" onClick={() => go({ view: "renew", folder: null })} className="text-[#F07BBE] hover:underline">{scopeExpired} expired</button>
                 <button type="button" onClick={() => go({ view: "renew", folder: null })} className="text-[#F5B94E] hover:underline">{scopeSoon} due soon</button>
@@ -492,7 +493,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
             <div className="flex items-end gap-[18px]">
               {([[scopeKinds.pdf, "PDF", "#F07BBE"], [scopeKinds.image, "pictures", "#7CC0FF"], [scopeKinds.word, "Word", "#9DB4FF"], [scopeFolderCount, "folders", "#8E9197"]] as const).map(([v, l, c]) => (
                 <div key={l} className="text-center">
-                  <div className="text-[30px] leading-none tracking-[-0.03em] tabular-nums">{v}</div>
+                  <div className="text-[22px] leading-none tracking-[-0.03em] tabular-nums sm:text-[30px]">{v}</div>
                   <div className="mt-1.5 whitespace-nowrap text-[11px]" style={{ color: c }}>{l}</div>
                 </div>
               ))}
@@ -501,7 +502,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         </StudioCard>
         <StudioCard tone="dark" texture="rings">
           <CardHead label="Needs renewal" right={`soonest first · ${scopeDue.length} due${scopeFolder ? ` in ${scopeFolder.name}` : ""}`} />
-          <div className="mt-auto flex flex-col gap-2.5 pt-4">
+          <div className="mt-auto flex flex-col gap-2 pt-3 sm:gap-2.5 sm:pt-4">
             {scopeDue.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">Nothing here is expired or due for renewal.</div>}
             {scopeDue.slice(0, 4).map((f) => {
               const days = f.expiryDate ? Math.round((new Date(`${f.expiryDate}T00:00:00`).getTime() - Date.now()) / 86_400_000) : 0;

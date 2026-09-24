@@ -718,3 +718,25 @@ footer = Home · ‹ page › · bell · + (Profile / Sign out / theme move into
 sheet); the two summary cards become ONE swiped card; 40px targets; chips scroll;
 records show one main action + ⋯ sheet; details open as full-height sheets; tablet =
 desk one step narrower. NOT BUILT YET — the owner reviews the boards first.
+
+## Phone & tablet for directors — BUILT (25 Sept 2026, boards M_*)
+Rules that now hold everywhere (read before touching a Studio page's phone view):
+- ⚠️ **`--foot-h` is the footer height: 72px below md, 64px from md.** Every
+  "above the footer" offset uses `calc(var(--foot-h)+…)`, never a literal 64px.
+  Footer buttons are 44px on a phone (Apple HIG 44pt / Material 48dp).
+- Phone footer = Home · ‹ page › · bell · +. Profile/Settings, Sign out and
+  light/dark are in the Go-to sheet (a bottom sheet with a 3-across grid).
+- ⚠️ **`[data-st-menu]` = a dropdown that becomes a full-width panel at the foot
+  of the screen below 640px** (globals.css). Tag every new popup; the !importants
+  beat its inline desk position. Radix menus avoid collisions themselves.
+- `StudioCardRow` → `StudioSwipeRow`: on a phone the two dark cards are ONE swipe
+  strip with dots, **equal height** (owner: "not of the same size"); keep each
+  card compact on a phone so the pair stays ~200–240px.
+- `StudioHeader` on a phone: title + page buttons on line one, filters on ONE
+  line below (they shrink and truncate). Title 34px.
+- Phone task rows are `PhoneTaskRow` (table-view.tsx); a tap opens the
+  quick-update sheet (TaskPanel), not the full task.
+- Home on a phone: hero + `PhoneFolds` — same-shape folding cards, three rows and
+  "Show N more", open state in localStorage `studio.home.folds`.
+- Announcements and Chat are CLOSED to directors (`StudioRebuilding`) until they
+  are rebuilt; add them back to `directorStops` then.
