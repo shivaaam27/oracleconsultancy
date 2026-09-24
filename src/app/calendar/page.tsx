@@ -7,6 +7,8 @@ import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
 import { listAnnouncements, receiptStats, isLive, isScheduled } from "@/lib/announcements";
 import { CalendarBoard, type CalendarEventView, type BriefAnnouncement } from "./calendar-board";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +31,14 @@ export default async function CalendarPage() {
   const overlayFrom = shiftKey(-31);
   const overlayTo = shiftKey(400);
 
-  const [events, overlays, categories, announcementsRaw, { data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
+  const [events, overlays, categories, announcementsRaw, { data: peopleRaw }, { data: companiesRaw }, settings] = await Promise.all([
     listCalendarEvents(),
     listOverlayItems(overlayFrom, overlayTo),
     listEventCategories(),
     listAnnouncements(),
     sb.from("people").select("id,name,email").eq("active", true).order("name"),
     sb.from("companies").select("id,name,accent_color").order("name"),
+    getAppSettings(),
   ]);
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
@@ -109,6 +112,7 @@ export default async function CalendarPage() {
         categories={categories}
         announcements={announcements}
         counts={counts}
+        studio={isStudioOn(settings.studioPages, "calendar")}
       />
     </div>
   );

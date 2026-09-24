@@ -29,6 +29,8 @@ import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
+import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
+import { StudioMenu } from "@/components/studio/tasks/controls";
 import { hasElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
@@ -194,7 +196,11 @@ export function CalendarBoard({
   categories,
   announcements = [],
   counts = { thisWeek: 0, today: 0, needInvites: 0, unacknowledged: 0 },
+  studio = false,
 }: {
+  /** Settings → New look → Calendar: the Studio layout (mockup board Calendar).
+   *  Same state, filters, views, form and saves — only the frame differs. */
+  studio?: boolean;
   events: CalendarEventView[];
   overlays?: OverlayItem[];
   people: Person[];
@@ -214,8 +220,8 @@ export function CalendarBoard({
   // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
   // that name is watched globally by CompanyDrawer. Layers and the two noise
   // switches stay device preferences: they are taste, not a view.
-  const url = useUrlFilters({ view: "agenda", co: "all", type: "all", src: "all", q: "" }, { debounceKeys: ["q"] });
-  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : "agenda";
+  const url = useUrlFilters({ view: studio ? "month" : "agenda", co: "all", type: "all", src: "all", q: "" }, { debounceKeys: ["q"] });
+  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : studio ? "month" : "agenda";
   const setView = (v: ViewMode) => url.set({ view: v });
   const companyFilter = url.values.co;
   const setCompanyFilter = (v: string) => url.set({ co: v });
@@ -247,7 +253,7 @@ export function CalendarBoard({
         const p = JSON.parse(raw) as Partial<CalendarPrefs>;
         // The last VIEW is remembered, but an address that names one wins —
         // a link to "Month" must open Month whatever was used last.
-        if (!url.dirty && p.view && (["month", "week", "day"] as const).includes(p.view as "month")) {
+        if (!url.dirty && p.view && (["month", "week", "day", ...(studio ? ["agenda"] : [])] as string[]).includes(p.view)) {
           url.set({ view: p.view });
         }
         if (Array.isArray(p.disabledLayers)) {
@@ -392,6 +398,235 @@ export function CalendarBoard({
 
   const views: ViewMode[] = ["agenda", "month", "week", "day"];
   const chip = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors";
+
+
+  if (studio) {
+    // ---- Studio (mockup board Calendar) ---------------------------------
+    const todayEvs = byDay.get(todayKeyGlobal) ?? [];
+    const todayOvs = overlayByDay.get(todayKeyGlobal) ?? [];
+    const base = new Date(); base.setHours(12, 0, 0, 0);
+    const next7 = Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(base, i); const k = keyOfDate(d);
+      return { d, k, n: (byDay.get(k)?.length ?? 0) + (overlayByDay.get(k)?.length ?? 0) };
+    });
+    const next7Total = next7.reduce((a, x) => a + x.n, 0);
+    const peak = Math.max(1, ...next7.map((x) => x.n));
+    const live = announcements.filter((a) => a.live);
+    const companyLabel = companyFilter === "all" ? "Companies" : companies.find((c) => String(c.id) === companyFilter)?.name ?? "Companies";
+    const typeLabel = categoryFilter === "all" ? "Types" : categoryFilter === "none" ? "Uncategorised" : categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Types";
+    const periodShort = view === "agenda" ? "Upcoming" : view === "month" ? cursor.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" }) : periodLabel;
+    return (
+      <StudioScope className="space-y-5">
+        <StudioHeader
+          title="Calendar"
+          left={
+            <>
+              <StudioMenu label={companyLabel} searchable options={[
+                { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
+                ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
+              ]} />
+              <StudioMenu label={typeLabel} options={[
+                { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
+                ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
+                ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
+              ]} />
+              <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
+                <DropdownMenu.Trigger asChild>
+                  <button type="button" className={stBtn.chip}>More <ChevronDownIcon /></button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content align="start" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
+                    <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Search</div>
+                    <div className="px-1.5 pb-1.5">
+                      <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Events, people, companies…"
+                        style={{ background: "var(--st-page)", border: "1px solid var(--st-line)", color: "var(--st-ink)", boxShadow: "none" }}
+                        className="bare-field h-8 w-full rounded-lg px-2.5 text-[13px] outline-none" />
+                    </div>
+                    <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Source</div>
+                    {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((x) => (
+                      <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                        <span className="flex-1">{x.l}</span>{sourceFilter === x.v && <Check size={14} />}
+                      </button>
+                    ))}
+                    <div className="my-1 h-px bg-[var(--st-line)]" />
+                    {figures.needInvites > 0 && (
+                      <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                        <Bell size={14} /><span className="flex-1">Need invites ({figures.needInvites})</span>{needInvitesOnly && <Check size={14} />}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                      <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} />}
+                    </button>
+                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                      <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
+                    </button>
+                    <div className="my-1 h-px bg-[var(--st-line)]" />
+                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]">
+                      <Pencil size={14} /><span className="flex-1">Manage categories</span>
+                    </button>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+              {(search || sourceFilter !== "all" || needInvitesOnly || meetingsOnly) && (
+                <button type="button" onClick={() => { setSearch(""); setSourceFilter("all"); setNeedInvitesOnly(false); setMeetingsOnly(false); }}
+                  className="inline-flex h-8 items-center gap-1 rounded-[10px] px-2 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={12} />Clear</button>
+              )}
+            </>
+          }
+          right={
+            <>
+              <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
+                {views.map((v) => (
+                  <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
+                    className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs capitalize transition-colors",
+                      view === v ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+              {view !== "agenda" && (
+                <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
+                  <button type="button" onClick={() => step(-1)} aria-label="Previous" className="grid h-7 w-7 place-items-center rounded-lg text-[var(--st-sub)] hover:bg-[var(--st-page)]"><ChevronLeft size={14} /></button>
+                  <span className="min-w-[8.5rem] text-center text-[13px] font-medium">{periodShort}</span>
+                  <button type="button" onClick={() => step(1)} aria-label="Next" className="grid h-7 w-7 place-items-center rounded-lg text-[var(--st-sub)] hover:bg-[var(--st-page)]"><ChevronRight size={14} /></button>
+                  <button type="button" onClick={goToday} className="h-7 rounded-lg border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]">Today</button>
+                </div>
+              )}
+              <button type="button" onClick={openNew} className={stBtn.dark}><Plus size={14} />New event</button>
+            </>
+          }
+        />
+
+        {formOpen && (
+          <EventForm people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+        )}
+        {manageCatsOpen && (
+          <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
+            title={<span className="inline-flex items-center gap-2"><Pencil size={15} /> Event categories</span>}
+            sub="Name your meeting types (e.g. Board, Site visit, Review). Used to colour + filter the calendar.">
+            <ReferenceAdmin
+              items={categories.map((c) => ({ id: c.id, name: c.name }))}
+              noun="category" addPlaceholder="Add a category — e.g. Board meeting"
+              onCreate={createEventCategory} onRename={renameEventCategory} onMerge={mergeEventCategories} onDelete={deleteEventCategory}
+              mergeNote="Its events move to the target category." deleteNote="Its events become uncategorised."
+            />
+          </HrmsDialog>
+        )}
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <StudioCard className="min-h-[170px]">
+            <CardHead
+              label={`Today · ${new Date().toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}`}
+              right={<span className="text-[var(--st-on-card-muted)]">{todayEvs.length + todayOvs.length} {todayEvs.length + todayOvs.length === 1 ? "thing" : "things"}</span>}
+            />
+            {todayEvs.length + todayOvs.length === 0 ? (
+              <div className="m-auto text-sm text-[var(--st-on-card-muted)]">Nothing on today.</div>
+            ) : (
+              <ul className="mt-auto flex flex-col gap-1.5 pt-3">
+                {todayEvs.slice(0, 3).map((e) => (
+                  <li key={occKey(e)}>
+                    <button type="button" onClick={() => openEdit(e)} className={cn("flex w-full items-center gap-3 rounded-[12px] bg-[var(--st-card-2)] px-3 py-2 text-left transition-colors hover:bg-[var(--st-card-3)]", hasElapsed(e, Date.now()) && "opacity-60")}>
+                      <span className="st-mono w-[68px] shrink-0 rounded-md border border-[var(--st-card-line)] px-1.5 py-0.5 text-center text-[11px] text-[var(--st-on-card-muted)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--st-on-card)" }} />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{e.title}</span>
+                      <span className="text-[11px] text-[var(--st-on-card-muted)]">{isHappeningNow(e, Date.now()) ? "On now" : hasElapsed(e, Date.now()) ? "Finished" : "Event"}</span>
+                    </button>
+                  </li>
+                ))}
+                {todayOvs.slice(0, Math.max(0, 3 - Math.min(3, todayEvs.length))).map((o) => (
+                  <li key={o.id} className="flex items-center gap-3 rounded-[12px] bg-[var(--st-card-2)] px-3 py-2">
+                    <span className="st-mono w-[68px] shrink-0 rounded-md border border-[var(--st-card-line)] px-1.5 py-0.5 text-center text-[11px] text-[var(--st-on-card-muted)]">All day</span>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STUDIO_LAYER[o.kind] }} />
+                    {o.href ? <a href={o.href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">{o.title}</a> : <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{o.title}</span>}
+                    <span className="text-[11px] text-[var(--st-on-card-muted)]">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+                  </li>
+                ))}
+                {todayEvs.length + todayOvs.length > 3 && (
+                  <li><button type="button" onClick={() => { goToday(); setView("day"); }} className="px-1 text-xs text-[var(--st-on-card-muted)] hover:text-[var(--st-on-card)]">+{todayEvs.length + todayOvs.length - 3} more today →</button></li>
+                )}
+              </ul>
+            )}
+          </StudioCard>
+
+          <StudioCard texture="rings" className="min-h-[170px]">
+            <CardHead label="Next 7 days" right={<span className="text-[var(--st-on-card-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
+            <div className="mt-auto flex flex-wrap items-end justify-between gap-5 pt-3">
+              <div>
+                <BigNumber value={next7Total} size={64} />
+                <div className="mt-1 text-[13px]">{next7Total === 1 ? "thing" : "things"} coming up</div>
+                <div className="mt-1 text-xs text-[var(--st-on-card-muted)]">{figures.today} today · {figures.needInvites} need invites</div>
+              </div>
+              <div className="flex items-end gap-2" aria-label="Things each day, the next seven days">
+                {next7.map((x, i) => (
+                  <button key={x.k} type="button" onClick={() => { setCursor(x.d); setView("day"); }} className="flex w-9 flex-col items-center gap-1.5" title={`${x.n} on ${x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}`}>
+                    <span className="st-rise block w-full rounded-md" style={{ height: x.n ? Math.max(10, Math.round((x.n / peak) * 60)) : 4, background: i === 0 ? "var(--st-on-card)" : x.n ? "var(--st-late)" : "var(--st-card-line)" }} />
+                    <span className={cn("text-[11px]", i === 0 ? "font-semibold text-[var(--st-on-card)]" : "text-[var(--st-on-card-muted)]")}>{x.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short" })}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </StudioCard>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="min-w-0 rounded-[20px] bg-[var(--st-surface)] p-3 sm:p-4">
+            {view === "agenda" ? (
+              <HousedAgenda events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)} overlayByDay={overlayByDay} onEdit={openEdit} />
+            ) : view === "month" ? (
+              <MonthView studio cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+            ) : view === "week" ? (
+              <WeekView studio cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
+            ) : (
+              <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
+            )}
+          </div>
+
+          <aside className="flex flex-col gap-5">
+            <div className="rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
+              <div className="mb-2 text-[15px] font-semibold">Layers</div>
+              <div className="flex flex-col">
+                <span className="flex items-center gap-2.5 py-1 text-[13px]"><span className="h-3 w-3 rounded-[4px]" style={{ background: "var(--st-ink)" }} />Events</span>
+                {availableLayers.map((k) => {
+                  const on = enabledLayers.has(k) && !meetingsOnly;
+                  return (
+                    <button key={k} type="button" onClick={() => toggleLayer(k)} disabled={meetingsOnly} aria-pressed={on}
+                      className={cn("flex items-center gap-2.5 rounded-md py-1 text-left text-[13px] transition-opacity", on ? "" : "opacity-40 hover:opacity-70")}>
+                      <span className="h-3 w-3 rounded-[4px]" style={{ background: STUDIO_LAYER[k] }} />{OVERLAY_LABELS[k]}
+                    </button>
+                  );
+                })}
+              </div>
+              {meetingsOnly && <div className="mt-2 text-[11px] text-[var(--st-muted)]">Meetings only is on — layers are hidden.</div>}
+            </div>
+
+            <StudioCard className="!px-5 !py-4">
+              <div className="text-xs text-[var(--st-on-card-muted)]">{live.length ? "Live announcement" : "Announcements"}</div>
+              {live.length === 0 ? (
+                <div className="mt-1.5 text-[13px] text-[var(--st-on-card-muted)]">Nothing live right now.</div>
+              ) : (
+                (() => {
+                  const a = live[0];
+                  const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
+                  return (
+                    <>
+                      <div className="mt-1.5 line-clamp-2 text-[14px] font-medium leading-snug">{a.title}</div>
+                      {a.requireAck && (
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--st-card-line)]"><span className="block h-full rounded-full bg-[var(--st-ok)]" style={{ width: `${pct}%` }} /></div>
+                      )}
+                    </>
+                  );
+                })()
+              )}
+              <div className="mt-2 flex items-center justify-between text-xs text-[var(--st-on-card-muted)]">
+                <span>{live[0]?.requireAck ? `${live[0].stats.ack} / ${live[0].stats.total} acknowledged` : live.length > 1 ? `+${live.length - 1} more live` : ""}</span>
+                <Link href="/announcements" className="font-medium text-[var(--st-on-card)] hover:underline">Manage →</Link>
+              </div>
+            </StudioCard>
+          </aside>
+        </div>
+      </StudioScope>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -625,8 +860,9 @@ function DaySheet({
 
 /* ------------------------------ Month view ---------------------------- */
 function MonthView({
-  cursor, byDay, overlayByDay, onPickDay, onEdit,
+  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false,
 }: {
+  studio?: boolean;
   cursor: Date;
   byDay: Map<string, CalendarEventView[]>;
   overlayByDay: Map<string, OverlayItem[]>;
@@ -659,8 +895,46 @@ function MonthView({
 
   return (
     <>
+      {studio && (
+        /* Studio (mockup board Calendar): each day is its own soft tile, the
+           date top-left, today a black disc; chips are small tinted pills. */
+        <div className="hidden sm:block">
+          <div className="grid grid-cols-7 gap-1.5 pb-1.5">
+            {dows.map((d) => <div key={d} className="px-1 text-[11px] uppercase tracking-[0.06em] text-[var(--st-muted)]">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {cells.map((cell, i) => {
+              const k = keyOfDate(cell);
+              const evs = byDay.get(k) ?? [];
+              const ovs = overlayByDay.get(k) ?? [];
+              const inMonth = cell.getMonth() === cursor.getMonth();
+              const isToday = k === todayKeyGlobal;
+              const chips = [
+                ...evs.map((e) => <StudioEventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
+                ...ovs.map((o) => <StudioOverlayChip key={o.id} item={o} />),
+              ];
+              return (
+                <div key={i} role="button" tabIndex={0}
+                  onClick={() => onPickDay(cell)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPickDay(cell); } }}
+                  aria-label={cell.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
+                  className={cn("min-h-[92px] min-w-0 cursor-pointer rounded-[12px] p-1.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--st-ink)]",
+                    isToday ? "bg-[var(--st-surface)] ring-1 ring-[var(--st-ink)]" : chips.length ? "bg-[var(--st-page)] hover:bg-[var(--st-seg)]" : "hover:bg-[var(--st-page)]",
+                    !inMonth && "opacity-45")}>
+                  <div className="mb-1 flex items-center justify-between px-0.5">
+                    <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs tabular-nums",
+                      isToday ? "bg-[var(--st-ink)] font-semibold text-[var(--st-page)]" : "")}>{cell.getDate()}</span>
+                    {chips.length > 2 && <span className="text-[10px] text-[var(--st-muted)]">+{chips.length - 2}</span>}
+                  </div>
+                  <div className="space-y-1">{chips.slice(0, 2)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* Desktop / tablet — the full chip grid (unchanged). */}
-      <div className="hidden sm:block overflow-hidden rounded-lg border border-border bg-bg-elev">
+      <div className={cn("hidden overflow-hidden rounded-lg border border-border bg-bg-elev", !studio && "sm:block")}>
         <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
           {dows.map((d) => (
             <div key={d} className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
@@ -763,10 +1037,40 @@ function MonthView({
   );
 }
 
+/* Studio's month chips: a small pill on the day tile, a dot in the company or
+   layer colour, the time, the title. Same click targets as the Desk chips. */
+const STUDIO_LAYER: Record<OverlayKind, string> = {
+  task: "#E0479E", renewal: "#8B5CF6", birthday: "#F5A524", leave: "#2490EF", holiday: "#14B8A6",
+  anniversary: "#F97316", probation: "#8E9197", commitment: "#A16207", pipeline: "#19C37D",
+};
+function StudioEventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => void }) {
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} title={event.title}
+      className="flex w-full min-w-0 items-center gap-1 rounded-md bg-[var(--st-surface)] px-1.5 py-[3px] text-left text-[11px] leading-tight shadow-[0_0_0_1px_var(--st-line)] transition-colors hover:shadow-[0_0_0_1px_var(--st-ink)]">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: event.companyAccent || "var(--st-ink)" }} />
+      {!event.allDay && <span className="shrink-0 tabular-nums text-[var(--st-muted)]">{fmtTime(event.startAt)}</span>}
+      <span className="truncate">{event.title}</span>
+    </button>
+  );
+}
+function StudioOverlayChip({ item }: { item: OverlayItem }) {
+  const c = STUDIO_LAYER[item.kind];
+  const cls = "flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-[3px] text-left text-[11px] leading-tight";
+  const style = { background: `color-mix(in srgb, ${c} 13%, transparent)` };
+  const inner = <><span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c }} /><span className="truncate">{item.title}</span></>;
+  return item.href
+    ? <a href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cls} style={style}>{inner}</a>
+    : <div title={item.title} className={cls} style={style}>{inner}</div>;
+}
+function ChevronDownIcon() {
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>;
+}
+
 /* ------------------------------ Week view ----------------------------- */
 function WeekView({
-  cursor, byDay, overlayByDay, onPickDay, onEdit,
+  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false,
 }: {
+  studio?: boolean;
   cursor: Date;
   byDay: Map<string, CalendarEventView[]>;
   overlayByDay: Map<string, OverlayItem[]>;
@@ -775,6 +1079,34 @@ function WeekView({
 }) {
   const ws = startOfWeekMon(cursor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  if (studio) {
+    return (
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-7">
+        {days.map((d, i) => {
+          const k = keyOfDate(d);
+          const evs = byDay.get(k) ?? [];
+          const ovs = overlayByDay.get(k) ?? [];
+          const isToday = k === todayKeyGlobal;
+          return (
+            <div key={i} className={cn("min-w-0 rounded-[12px] p-1.5", isToday ? "bg-[var(--st-surface)] ring-1 ring-[var(--st-ink)]" : "bg-[var(--st-page)]")}>
+              <button type="button" onClick={() => onPickDay(d)} className="mb-1.5 flex w-full items-center gap-1.5 px-0.5 text-left">
+                <span className="text-[11px] uppercase tracking-[0.06em] text-[var(--st-muted)]">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
+                <span className={cn("ml-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs tabular-nums", isToday && "bg-[var(--st-ink)] font-semibold text-[var(--st-page)]")}>{d.getDate()}</span>
+              </button>
+              <div className="space-y-1 sm:min-h-[180px]">
+                {evs.length === 0 && ovs.length === 0
+                  ? <div className="px-1 text-[11px] text-[var(--st-muted)]">—</div>
+                  : <>
+                      {evs.map((e) => <StudioEventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
+                      {ovs.map((o) => <StudioOverlayChip key={o.id} item={o} />)}
+                    </>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
       {days.map((d, i) => {

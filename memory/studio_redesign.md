@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages (Recurring ✅) ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation ✅ · 3 Home ✅ · 4 Work pages (Recurring ✅ Calendar ✅) ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -298,3 +298,23 @@ acts as search of the whole system but smarter without opening so many things".
   on a Studio page — the quick-add card's look (`.st-sheet`, from the footer,
   Esc/click-outside). `RecurringTaskSheet` takes `studio` to use it; the portal
   keeps BottomSheet. Reuse it for Announcements/Events/Outbox forms.
+
+## Phase 4 — Calendar, built 24 Sept 2026
+
+- `CalendarBoard` takes `studio` (page reads the `calendar` switch). ONE
+  component, two frames: every hook, filter, view, the EventForm and every save
+  are shared; `if (studio) return …` sits after the last hook.
+- Header: Companies · Types (StudioMenu, via `url.hrefFor` — still `co`/`type`
+  in the address) · More (search, source, need invites, meetings only, hide
+  repeats, manage categories) | Agenda/Month/Week/Day · ‹ period › Today ·
+  + New event. Studio opens on **Month** (the mockup); Desk keeps Agenda.
+- Cards: **Today** (events then layer items, time in a mono box, Finished/On
+  now) and **Next 7 days** (count of events + layer items, a bar per day,
+  today white; a bar opens that day).
+- Month and Week have a Studio look (`studio` prop): day tiles, today a black
+  disc, `StudioEventChip`/`StudioOverlayChip`. `STUDIO_LAYER` holds the mockup's
+  layer colours (Desk's OVERLAY_META tones collapse to ink inside `.studio`).
+  Agenda/Day and the phone month are the Desk components on Studio tokens.
+- Rail: Layers legend (Events + each layer, click toggles) and the live
+  announcement (dark card, ack bar, Manage →). The Events/Announcements tab is
+  gone in Studio — Announcements gets its own Studio page.
