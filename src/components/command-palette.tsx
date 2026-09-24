@@ -157,14 +157,29 @@ function isDeterministicQuery(text: string): boolean {
 // the old hand-written TYPE_META/TYPE_ORDER.
 const { order: TYPE_ORDER, meta: TYPE_META } = buildPaletteTypeMeta();
 
+/** The "Try asking" cards in Studio's empty palette — real questions ORI answers today. */
+const STUDIO_PROMPTS: [string, string][] = [
+  ["What needs me today?", "Late, due today and waiting on you"],
+  ["Who is overloaded?", "Open and late work per person"],
+  ["Which company has the most late work?", "Open tasks and what is late, by company"],
+  ["What changed since yesterday?", "Updates, completions and new tasks"],
+  ["Remember that TRA filings go to Vishal", "ORI keeps it for next time"],
+  ["Find the PES trading licence", "Documents, by name, company or date"],
+];
+
 export function CommandPaletteProvider({
   children,
   operatorName,
   voiceLanguage,
+  studio = false,
 }: {
   children: React.ReactNode;
   operatorName?: string;
   voiceLanguage?: string;
+  /** Studio footer on (mockup board Ask): the same palette — search, ORI,
+   *  commands, preview — drawn as the dark sheet that rises from the footer,
+   *  with "Try asking" cards when the box is empty. */
+  studio?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"search" | "chat">("search");
@@ -753,13 +768,13 @@ export function CommandPaletteProvider({
       <TracePanel />
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4">
+          <div className={cn("fixed inset-0 z-50 flex justify-center px-4", studio ? "items-end pb-[calc(64px+env(safe-area-inset-bottom)+12px)]" : "items-start pt-[10vh]")}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+              className={cn("absolute inset-0", studio ? "bg-[rgba(14,15,16,0.38)]" : "bg-black/30 backdrop-blur-sm")}
               onClick={() => setIsOpen(false)}
             />
             <motion.div
@@ -770,8 +785,13 @@ export function CommandPaletteProvider({
               exit={{ opacity: 0, y: 6, scale: 0.99 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
               className={cn(
-                "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
-                mode === "chat" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
+                "relative w-full overflow-hidden flex flex-col",
+                studio
+                  ? "st-on-dark st-palette rounded-3xl text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.45)] [font-family:var(--font-geist),var(--font-sans)]"
+                  : "glass rounded-2xl shadow-lg",
+                studio
+                  ? mode === "chat" ? "max-w-3xl h-[72vh] max-h-[720px]" : "max-w-[1080px]"
+                  : mode === "chat" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl lg:max-w-[52rem]",
               )}
             >
               {/* GSAP-driven sheen that sweeps once on open. */}
@@ -804,8 +824,8 @@ export function CommandPaletteProvider({
                 />
               ) : (
                 <Command shouldFilter={true} loop onValueChange={setActiveValue}>
-                  <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-border">
-                    <Search size={16} className="text-fg-subtle shrink-0" />
+                  <div className={cn("flex items-center gap-2.5", studio ? "m-4 mb-2 h-14 rounded-2xl border border-[#3A3D42] bg-[#1F2023] pl-4 pr-2" : "px-4 py-3.5 border-b border-border")}>
+                    {studio ? <Sparkles size={18} className="shrink-0 text-[#F2F2F0]" /> : <Search size={16} className="text-fg-subtle shrink-0" />}
                     <Command.Input
                       autoFocus
                       value={query}
@@ -821,9 +841,14 @@ export function CommandPaletteProvider({
                           }
                         }
                       }}
-                      placeholder="Search, ask ORI, or type a command…"
-                      className="flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none text-[15px] leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle"
+                      placeholder={studio ? "Ask ORI, search, or say what you need…" : "Search, ask ORI, or type a command…"}
+                      className={cn("flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle", studio ? "text-[18px] tracking-[-0.01em]" : "text-[15px]")}
                     />
+                    {studio && (
+                      <span className="hidden shrink-0 rounded-lg bg-[#26282C] px-2.5 py-1 text-[11px] text-[#C9CBCF] sm:inline">
+                        {!trimmed ? "Search · Ask · Do" : /\?\s*$|^(who|what|when|why|how|which|is|are|do|does|did|can|should)\b/i.test(trimmed) ? "Asking ORI" : /^(remind|create|add|draft|send|move|mark|complete|close|assign)\b/i.test(trimmed) ? "Doing it" : "Searching"}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => setIncludeHistory((h) => !h)}
@@ -843,8 +868,24 @@ export function CommandPaletteProvider({
                       ESC
                     </kbd>
                   </div>
-                  <div className="flex min-h-0">
-                  <Command.List className="flex-1 min-w-0 max-h-[460px] overflow-y-auto p-1.5 scroll-fade-y slim-scroll">
+                  <div className={cn("flex min-h-0", studio && !trimmed && "flex-col gap-4 px-4 pb-2 lg:flex-row")}>
+                  {studio && !trimmed && (
+                    /* Studio's empty state (mockup board Ask): questions to start from.
+                       Each one goes straight to ORI, the same path as typing it. */
+                    <div className="min-w-0 lg:flex-[1.5]">
+                      <div className="mb-2.5 text-xs text-[#6E7177]">Try asking</div>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {STUDIO_PROMPTS.map(([q, hint]) => (
+                          <button key={q} type="button" onClick={() => submitPrompt(q)}
+                            className="flex gap-2.5 rounded-[14px] border border-[#26282C] bg-[#1A1B1E] px-3.5 py-3 text-left transition-colors hover:border-[#3A3D42]">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#26282C] text-[#C9CBCF]"><Sparkles size={13} /></span>
+                            <span className="min-w-0"><span className="block text-[13px] font-medium text-[#F2F2F0]">{q}</span><span className="mt-0.5 block text-[11px] text-[#8E9197]">{hint}</span></span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <Command.List className={cn("min-w-0 overflow-y-auto p-1.5 scroll-fade-y slim-scroll", studio && !trimmed ? "max-h-[360px] lg:flex-1 lg:p-0" : "flex-1 max-h-[460px]")}>
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>

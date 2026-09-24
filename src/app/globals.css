@@ -1866,3 +1866,12 @@ body:has(main .studio) > * [data-field-label] {
 .studio { --st-track: #EAF7F0; }
 .dark .studio { --st-track: #1D2A23; }
 
+
+/* The Studio palette (Ask ORI · search · do): dark and dotted, like every
+   sheet that rises from the footer. */
+.st-palette {
+  background-color: #141517;
+  background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1.4px);
+  background-size: 14px 14px;
+}
+

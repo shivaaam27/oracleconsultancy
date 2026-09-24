@@ -314,6 +314,24 @@
    "title": "Create & edit — the pattern, and the phase each record gets it",
    "page": "tasks",
    "is_interactive": true
+  },
+  "Ask.dc.html": {
+   "x": 0,
+   "y": 5280,
+   "w": 1440,
+   "h": 900,
+   "title": "Ask ORI — search, ask and do, from the footer",
+   "page": "tasks",
+   "is_interactive": true
+  },
+  "Notifications.dc.html": {
+   "x": 1520,
+   "y": 5280,
+   "w": 1440,
+   "h": 900,
+   "title": "Notifications — needs you, activity, one tap to act",
+   "page": "tasks",
+   "is_interactive": true
   }
  },
  "createdOnFiles": {
@@ -387,6 +405,8 @@
   "QuickAdd.dc.html",
   "NewTask.dc.html",
   "CreateEdit.dc.html",
+  "Ask.dc.html",
+  "Notifications.dc.html",
   "Recurring.dc.html",
   "Calendar.dc.html",
   "Event.dc.html",

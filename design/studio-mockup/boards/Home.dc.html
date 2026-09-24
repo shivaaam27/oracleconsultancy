@@ -127,7 +127,7 @@ class Component extends DCLogic {
       }
     });
     const isToday = S.due === 'today';
-    const setS = (card, d) => { const s = S.s.slice(); s[card] = (s[card] + d + 3) % 3; this.setState({ s }); };
+    const setS = (card, d, n) => { const s = S.s.slice(); s[card] = (s[card] + d + n) % n; this.setState({ s }); };
     const dots = (card, n) => Array.from({ length: n }, (_, i) => ({ w: i === S.s[card] ? '18px' : '6px', c: i === S.s[card] ? '#111214' : '#D6D6D2' }));
     const L = (items) => items.map(([title, sub, right, dot, rc]) => ({ title, sub, right, dot, rc: rc || '#8E9197' }));
 
@@ -145,7 +145,12 @@ class Component extends DCLogic {
         ['Stamp Duty - CZ', 'CC-029 · Furaha Innovation Ltd', 'Quiet', '#CFE05A'],
         ['PES Operations and Logistics Report', 'PE-032 · PES Ltd', 'Quiet', '#CFE05A'],
         ['Website Development', 'OC-053 · Oracle Consultancy Ltd', 'Quiet', '#CFE05A'],
-        ['CCTV, Fridge, Storage, Chillers etc', 'VI-006 · due Sat 26 Sept', 'Quiet 2d', '#CFE05A']]) }
+        ['CCTV, Fridge, Storage, Chillers etc', 'VI-006 · due Sat 26 Sept', 'Quiet 2d', '#CFE05A']]) },
+      { kicker: 'Tasks', title: 'Latest activity', sub: 'What moved, newest first', items: L([
+        ['Jilna Manek posted on DD-002', '“20 post pictures are sent.”', '24m', '#2490EF'],
+        ['Jitesh Solanki updated CC-026', '“In process, awaiting rate from Pulin”', '1h', '#2490EF'],
+        ['Vishal Pragji completed DS-030', 'Coldroom annual maintenance', '3h', '#19C37D'],
+        ['Hriday Solanki moved a deadline', 'CC-002 → Sat 26 Sept', '1d', '#8B5CF6']]) }
     ];
     const card2 = [
       { kicker: 'People', title: 'Team load', sub: 'Open tasks per person', gauge: true, big: '6.7', bigSub: 'open each, on average', note: 'Shivam Parmar carries 31 — well above average. Pulin Manek has 8 of 12 late.', dash: '160 410' },
@@ -157,7 +162,17 @@ class Component extends DCLogic {
       { kicker: 'People', title: 'Finished this month', sub: 'September · completed tasks', items: L([
         ['Shivam Parmar', 'Most finished', '16 done', '#19C37D', '#111214'],
         ['Jitesh Solanki', '', '12 done', '#19C37D', '#111214'],
-        ['Hiral Borsadiya', '', '9 done', '#19C37D', '#111214']]) }
+        ['Hiral Borsadiya', '', '9 done', '#19C37D', '#111214']]) },
+      { kicker: 'People', title: 'Team today', sub: '34 people · 2 on leave', items: L([
+        ['In today', 'Checked in on the register', '28', '#19C37D', '#111214'],
+        ['On leave', 'Amina Salim, Gift Abraham', '2', '#F5A524', '#B7700A'],
+        ['Leave to approve', 'Nothing waiting', '0', '#B9BBBF'],
+        ['Birthday', 'Vishal Pragji — in 3 days', 'Sun 27', '#8B5CF6']]) },
+      { kicker: 'Records', title: 'Documents', sub: '197 on file · 4 expire this month', items: L([
+        ['PES trading licence', 'PES Ltd · Licence', 'Expired', '#E0479E', '#C2327F'],
+        ['Office lease — Masaki', 'Oracle Consultancy · Lease', '12 days', '#F5A524', '#B7700A'],
+        ['Fire certificate', 'DSC Ltd · Certificate', '18 days', '#F5A524', '#B7700A'],
+        ['Work permit — K. Suchak', 'MES Ltd · Permit', '27 days', '#F5A524', '#B7700A']]) }
     ];
     const card3 = [
       { kicker: 'Companies', title: 'Company health', sub: 'Most late first', items: L([
@@ -170,11 +185,20 @@ class Component extends DCLogic {
       { kicker: 'Controls', title: 'Run the day', sub: 'The levers that were on Home', items: L([
         ['Run automations now', 'Recurring tasks, reminders, renewals', 'Run', '#2490EF', '#111214'],
         ['Send the Director Brief', 'WhatsApp · email · PDF', 'Send', '#2490EF', '#111214'],
-        ['Approvals', 'Things waiting for your yes', 'Open', '#2490EF', '#111214']]) }
+        ['Approvals', 'Things waiting for your yes', 'Open', '#2490EF', '#111214']]) },
+      { kicker: 'Controls', title: 'Controls held', sub: 'What runs on its own — tap to switch', items: L([
+        ['Automations', 'Recurring tasks, reminders, renewals', 'Paused', '#F5A524', '#B7700A'],
+        ['Director outreach', 'WhatsApp and email to directors', 'On', '#19C37D', '#111214'],
+        ['AI', 'Reading, drafting, answering', 'On', '#19C37D', '#111214'],
+        ['Email', 'Sending for real, not test mode', 'Live', '#19C37D', '#111214']]) },
+      { kicker: 'ORI', title: 'What ORI did', sub: 'On its own — each can be undone', items: L([
+        ['Filed a receipt to DS-030', 'From the attachment on the update', '2h', '#8B5CF6'],
+        ['Made this week’s TRA filing task', 'From the recurring rule', '9h', '#8B5CF6'],
+        ['Chased 3 quiet tasks', 'Reminders drafted for Pulin and Jitesh', '1d', '#8B5CF6']]) }
     ];
     const pack = (arr, card) => {
       const c = arr[S.s[card]];
-      return { ...c, isList: !c.gauge, isGauge: !!c.gauge, items: c.items || [], dots: dots(card, arr.length), prev: () => setS(card, -1), next: () => setS(card, 1) };
+      return { ...c, isList: !c.gauge, isGauge: !!c.gauge, items: c.items || [], dots: dots(card, arr.length), prev: () => setS(card, -1, arr.length), next: () => setS(card, 1, arr.length) };
     };
     return {
       ticks,

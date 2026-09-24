@@ -16,7 +16,7 @@ import { useRef, useState, useTransition, type PointerEvent as RPointerEvent } f
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, FileText, ListChecks, Loader2, Megaphone, Zap } from "lucide-react";
-import { runAutomationsNowAction, sendBriefNowAction } from "@/app/_hub/control-actions";
+import { runAutomationsNowAction, sendBriefNowAction, setAutomationPausedAction, setDirectorOutreachPausedAction, setAiEnabledAction, setEmailTestModeAction } from "@/app/_hub/control-actions";
 import { useToast } from "@/components/toast";
 import { StudioScope } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
@@ -26,7 +26,10 @@ export type HomeItem = { title: string; sub: string; right: string; dot: string;
 export type HomeSlide =
   | { kind: "list"; kicker: string; title: string; sub: string; items: HomeItem[]; empty: string; more?: { label: string; href: string } }
   | { kind: "gauge"; kicker: string; title: string; sub: string; big: string; bigSub: string; fill: number; note: string; href: string }
-  | { kind: "actions"; kicker: string; title: string; sub: string; approvals: number };
+  | { kind: "actions"; kicker: string; title: string; sub: string; approvals: number }
+  | { kind: "controls"; kicker: string; title: string; sub: string; state: ControlsState };
+
+export type ControlsState = { automationPaused: boolean; outreachPaused: boolean; aiEnabled: boolean; emailConnected: boolean; emailTestMode: boolean };
 
 export type StudioHomeData = {
   greeting: string;
@@ -186,6 +189,7 @@ function TurnCard({ slides }: { slides: HomeSlide[] }) {
         {s.kind === "list" && <ListSlide s={s} />}
         {s.kind === "gauge" && <GaugeSlide s={s} />}
         {s.kind === "actions" && <ActionsSlide s={s} />}
+        {s.kind === "controls" && <ControlsSlide s={s} />}
       </div>
 
       <div className="flex justify-center gap-1.5" aria-hidden>
@@ -265,7 +269,7 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
   const row = "flex shrink-0 items-center gap-3 rounded-xl border border-[var(--st-line-soft)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--st-page)] disabled:opacity-60";
   const icon = "flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--st-page)]";
   return (
-    <div className="flex flex-1 flex-col gap-1.5">
+    <div className="st-scroll -mr-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-2">
       <button type="button" onClick={() => fire("run", runAutomationsNowAction)} disabled={busy !== null} className={row}>
         <span className={icon}>{busy === "run" ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}</span>
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Run automations now</span><span className="block truncate text-[11px] text-[var(--st-muted)]">Recurring tasks, reminders, renewals</span></span>
@@ -282,7 +286,51 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Approvals</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{s.approvals ? `${s.approvals} waiting for your yes` : "Nothing waiting for you"}</span></span>
         <span className="text-xs font-medium">Open</span>
       </Link>
-      <Link href="/brief" className="mt-1 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Read the Brief first →</Link>
+      <Link href="/brief" className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Read the Brief first →</Link>
+    </div>
+  );
+}
+
+/** The old Home's "Controls held" panel: the switches that decide what COS
+ *  does on its own. Same actions, optimistic, rolled back if the save fails. */
+function ControlsSlide({ s }: { s: Extract<HomeSlide, { kind: "controls" }> }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [st, setSt] = useState(s.state);
+  const [busy, setBusy] = useState<string | null>(null);
+  async function flip(key: keyof ControlsState, next: boolean, action: () => Promise<{ ok: true } | { ok: false; error: string }>, said: string) {
+    const prev = st;
+    setSt({ ...st, [key]: next });
+    setBusy(key);
+    const res = await action();
+    setBusy(null);
+    if (!res.ok) { setSt(prev); toast(res.error, { tone: "warn" }); return; }
+    toast(said, { tone: "success" });
+    router.refresh();
+  }
+  const rows: { key: keyof ControlsState; title: string; sub: string; on: boolean; onWord: string; offWord: string; run: () => void; hidden?: boolean }[] = [
+    { key: "automationPaused", title: "Automations", sub: "Recurring tasks, reminders, renewals", on: !st.automationPaused, onWord: "On", offWord: "Paused",
+      run: () => flip("automationPaused", !st.automationPaused, () => setAutomationPausedAction(!st.automationPaused), st.automationPaused ? "Automations resumed." : "Automations paused.") },
+    { key: "outreachPaused", title: "Director outreach", sub: "WhatsApp and email to directors", on: !st.outreachPaused, onWord: "On", offWord: "Paused",
+      run: () => flip("outreachPaused", !st.outreachPaused, () => setDirectorOutreachPausedAction(!st.outreachPaused), st.outreachPaused ? "Director outreach resumed." : "Director outreach paused.") },
+    { key: "aiEnabled", title: "AI", sub: "Reading, drafting, answering", on: st.aiEnabled, onWord: "On", offWord: "Off",
+      run: () => flip("aiEnabled", !st.aiEnabled, () => setAiEnabledAction(!st.aiEnabled), st.aiEnabled ? "AI switched off." : "AI switched on.") },
+    { key: "emailTestMode", title: "Email", sub: st.emailConnected ? "Live sends, or test mode" : "Not connected — set it up in Settings", on: st.emailConnected && !st.emailTestMode, onWord: "Live", offWord: st.emailConnected ? "Test mode" : "Off",
+      run: () => (st.emailConnected ? flip("emailTestMode", !st.emailTestMode, () => setEmailTestModeAction(!st.emailTestMode), st.emailTestMode ? "Email is live." : "Email is in test mode.") : router.push("/settings#email-automation")) },
+  ];
+  return (
+    <div className="st-scroll -mr-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-2">
+      {rows.map((r) => (
+        <button key={r.key} type="button" role="switch" aria-checked={r.on} disabled={busy !== null} onClick={r.run}
+          className="flex shrink-0 items-center gap-3 rounded-xl border border-[var(--st-line-soft)] px-3 py-2 text-left transition-colors hover:bg-[var(--st-page)] disabled:opacity-60">
+          <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">{r.title}</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{r.sub}</span></span>
+          <span className={cn("text-xs", r.on ? "text-[var(--st-ok-text)]" : "text-[var(--st-soon-text)]")}>{busy === r.key ? <Loader2 size={12} className="animate-spin" /> : r.on ? r.onWord : r.offWord}</span>
+          <span aria-hidden className={cn("relative h-5 w-[34px] shrink-0 rounded-full transition-colors", r.on ? "bg-[var(--st-ink)]" : "bg-[#D6D6D2]")}>
+            <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-[left]", r.on ? "left-4" : "left-0.5")} />
+          </span>
+        </button>
+      ))}
+      <Link href="/settings" className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Every setting →</Link>
     </div>
   );
 }

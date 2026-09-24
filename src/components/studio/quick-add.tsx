@@ -85,7 +85,7 @@ export function StudioQuickAdd({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Create something">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       {/* Dark and dotted, like the Go-to panel — both open from the footer. */}
-      <div className="studio st-tex-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(720px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-5 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] sm:right-6">
+      <div style={{ color: "#F2F2F0" }} className="studio st-tex-dots st-pop absolute bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] right-3 flex max-h-[calc(100dvh-100px)] w-[min(720px,calc(100vw-24px))] flex-col gap-4 overflow-y-auto rounded-3xl bg-[#141517] p-5 text-[#F2F2F0] shadow-[0_30px_80px_rgba(0,0,0,0.4)] sm:right-6">
         <div className="flex items-center gap-2.5">
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist">
             {items.map((c) => (

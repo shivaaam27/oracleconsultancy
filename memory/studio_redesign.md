@@ -152,6 +152,29 @@ figure, from `getAllTasks`, with Tasks' own meaning of late/due soon) +
   part of the newer design system"); "Keep open" became "Create and add
   another" (also Ctrl+Enter). QuickAdd board updated to match.
 
+### Home finished, Ask and Notifications redesigned (24 Sept 2026)
+- Home's leftovers are slides now: Tasks → "Latest activity"; People →
+  "Team today" (leave, approvals, birthdays) and "Documents" (expiring soon
+  first, then most recently expired); Companies & the day → "Controls held"
+  (automations, director outreach, AI, email — the same actions, optimistic,
+  rolled back on failure). Controls/Run-the-day scroll inside their card.
+- ASK (mockup board Ask): the ⌘K palette with `studio` on the provider
+  (layout passes `studioShell`) — a dark dotted sheet rising from the footer,
+  big input, "Search · Ask · Do" tag that reads the typing, "Try asking"
+  cards (STUDIO_PROMPTS) beside Recent/Quick actions when empty. The engine
+  (search, ORI, commands, preview) is untouched. Footer: "Ask or search ⌘K".
+- NOTIFICATIONS (mockup board Notifications): `NotificationBell
+  variant="studio"` renders `studio/notifications-panel.tsx` — same rows,
+  polling and actions; dark panel, Needs you / Activity, filter chips, ORI's
+  digests folded into one row, per-row Open · Reply (task conversation) ·
+  Mark read · Dismiss. No Snooze: /api/notifications/act only serves portal
+  people, so the admin panel shows only what works.
+- ⚠️ `.studio { color: var(--st-ink) }` is UNLAYERED — a dark surface that
+  carries the `studio` class needs an inline `color`, or inherited text is
+  drawn dark on dark (every name in the notification panel was invisible).
+- ⚠️ Python heredocs: `` inside a normal string became a BACKSPACE byte
+  in a regex. Write JS regexes with the Write tool, or check with `od -c`.
+
 ### Create & edit — the pattern (designed 24 Sept 2026)
 Boards QuickAdd / NewTask / CreateEdit on the canvas (Tasks & Home page).
 The pattern: ONE "+ New" card with a tab per record (Task, Note, Event,

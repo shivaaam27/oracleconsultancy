@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { markPush, withReturn } from "@/lib/return-to";
 import { createPortal } from "react-dom";
+import { StudioNotificationsPanel } from "./studio/notifications-panel";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   AtSign,
@@ -82,7 +83,11 @@ export function NotificationBell({
   align = "right",
   lanes: showLanes = false,
   triggerClassName,
+  variant,
 }: {
+  /** "studio" = the Studio footer's panel (mockup board Notifications). Same
+   *  rows, same fetching and actions; only the panel is drawn differently. */
+  variant?: "studio";
   /** Replaces the trigger's look (the Studio footer draws a larger, dark one). */
   triggerClassName?: string;
   to: "/portal/task" | "/task";
@@ -291,7 +296,32 @@ export function NotificationBell({
         )}
       </button>
 
-      {open &&
+      {open && variant === "studio" &&
+        createPortal(
+          <>
+            <button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="fixed inset-0 z-[55] bg-[rgba(14,15,16,0.32)]" />
+            <div ref={panelRef}>
+              <StudioNotificationsPanel
+                items={items}
+                onClose={() => setOpen(false)}
+                onOpen={openGroup}
+                onReply={async (g) => {
+                  await markGroupRead(g);
+                  setOpen(false);
+                  if (!g.lead.taskCode) return;
+                  const dest = withReturn(taskHref(g.lead.taskCode, { tab: "conversation" }), `${window.location.pathname}${window.location.search}`);
+                  markPush(dest);
+                  router.push(dest);
+                }}
+                onRead={markGroupRead}
+                onDismiss={dismissGroup}
+                onReadAll={markAllRead}
+              />
+            </div>
+          </>,
+          document.body,
+        )}
+      {open && variant !== "studio" &&
         createPortal(
           <>
             <button

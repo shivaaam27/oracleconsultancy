@@ -15,7 +15,8 @@
  */
 import type { TaskRow } from "@/lib/queries";
 import { sb } from "@/db/supabase";
-import { getAppSettings } from "@/lib/settings";
+import { getAppSettings, getEmailConfig } from "@/lib/settings";
+import { listRecentActivity } from "@/lib/activity";
 import { getGivenName } from "@/lib/names";
 import { gatherCockpitNow } from "@/lib/cockpit-now";
 import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
@@ -38,14 +39,25 @@ function greeting(hourEat: number) {
 }
 
 export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
-  const [settings, nowData, approvals, autonomy, automation, companiesRes] = await Promise.all([
+  const soon30 = new Date(Date.now() + 30 * DAY).toISOString();
+  const nowIso = new Date().toISOString();
+  const [settings, nowData, approvals, autonomy, automation, companiesRes, activity, emailCfg, dirRow, docCountRes, soonDocs, expiredDocs] = await Promise.all([
     getAppSettings(),
     gatherCockpitNow(),
     listApprovals(),
     listCockpitActivity(8),
     getAutomationConfig(),
     sb.from("companies").select("id,name"),
+    listRecentActivity(10),
+    getEmailConfig(),
+    sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle(),
+    sb.from("documents").select("id", { count: "exact", head: true }).eq("archived", false),
+    // What is ABOUT to expire, soonest first — then what expired most recently.
+    // (Ascending over everything put 2024's long-dead papers at the top.)
+    sb.from("documents").select("id,title,expiry_date,company_id,category", { count: "exact" }).eq("archived", false).gte("expiry_date", nowIso).lte("expiry_date", soon30).order("expiry_date", { ascending: true }).limit(8),
+    sb.from("documents").select("id,title,expiry_date,company_id,category", { count: "exact" }).eq("archived", false).lt("expiry_date", nowIso).order("expiry_date", { ascending: false }).limit(6),
   ]);
+  const docRows = [...(soonDocs.data ?? []), ...(expiredDocs.data ?? [])];
   // What staff are seeing right now — carried in the hero, not a banner above
   // it (the old Home's "Live announcements" strip).
   let live: { title: string }[] = [];
@@ -180,6 +192,9 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
         { kind: "list", kicker: "Tasks", title: "No updates yet", sub: "Nobody has said a word", more: silent.length ? { label: "Quiet tasks", href: "/?tab=tasks&quiet=1" } : undefined,
           items: silent.map((r) => ({ title: r.actionItem, sub: `${r.code} · ${r.companyName}`, right: r.deadline ? shortDay(r) : "No date", dot: "#CFE05A", href: href(r.code) })),
           empty: "Every open task has had an update." },
+        { kind: "list", kicker: "Tasks", title: "Latest activity", sub: "What moved, newest first", more: { label: "The whole activity log", href: "/activity" },
+          items: activity.map((a) => ({ title: `${a.isOri ? "ORI" : clean(a.author)} · ${a.actionItem}`, sub: `“${a.body.length > 90 ? `${a.body.slice(0, 90)}…` : a.body}”`, right: ago(a.createdAt), dot: a.isOri ? "#8B5CF6" : "#2490EF", href: href(a.code) })),
+          empty: "Nothing has moved yet today." },
       ],
       [
         { kind: "gauge", kicker: "People", title: "Team load", sub: "Open tasks per person", big: avg ? avg.toFixed(1) : "0", bigSub: "open each, on average",
@@ -194,6 +209,23 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
         { kind: "list", kicker: "People", title: "Finished this month", sub: `${monthName} · completed tasks`,
           items: finishers.map(([n, c], i) => ({ title: clean(n), sub: i === 0 ? "Most finished" : "", right: `${c} done`, dot: "#19C37D", rightColor: "#111214", href: "/?tab=tasks&done=1" })),
           empty: "Nothing finished yet this month." },
+        { kind: "list", kicker: "People", title: "Team today", sub: `${nowData.headcount} people · ${nowData.onLeaveToday} on leave`,
+          items: [
+            { title: "On leave today", sub: nowData.onLeaveToday ? "Marked on the register" : "Everyone is in", right: String(nowData.onLeaveToday), dot: nowData.onLeaveToday ? "#F5A524" : "#19C37D", href: "/hrms/leave" },
+            { title: "Leave to approve", sub: nowData.pendingLeave ? "Waiting for your yes" : "Nothing waiting", right: String(nowData.pendingLeave), dot: nowData.pendingLeave ? "#E0479E" : "#B9BBBF", rightColor: nowData.pendingLeave ? "#C2327F" : undefined, href: "/hrms/leave" },
+            ...nowData.birthdays.map((b) => ({ title: `${clean(b.name)}’s birthday`, sub: b.inDays === 0 ? "Today" : b.inDays === 1 ? "Tomorrow" : `In ${b.inDays} days`, right: b.inDays === 0 ? "Today" : `${b.inDays}d`, dot: "#8B5CF6", href: "/people" })),
+            { title: "Everyone", sub: "The people directory", right: String(nowData.headcount), dot: "#2490EF", href: "/people" },
+          ],
+          empty: "" },
+        { kind: "list", kicker: "Records", title: "Documents", sub: `${docCountRes.count ?? 0} on file · ${soonDocs.count ?? 0} expiring within 30 days · ${expiredDocs.count ?? 0} expired`, more: { label: "The document library", href: "/documents" },
+          items: docRows.map((d) => {
+            const expMs = new Date(d.expiry_date as string).getTime();
+            const expired = expMs < nowMs;
+            const days = Math.ceil((expMs - nowMs) / DAY);
+            const right = expired ? (eatDay(expMs) === today ? "Expired today" : "Expired") : eatDay(expMs) === today ? "Today" : `${days} ${days === 1 ? "day" : "days"}`;
+            return { title: d.title as string, sub: `${companyNames.get(d.company_id as number) ?? "No company"}${d.category ? ` · ${d.category}` : ""}`, right, dot: expired ? "#E0479E" : "#F5A524", rightColor: expired ? "#C2327F" : "#B7700A", href: "/documents" };
+          }),
+          empty: "Nothing expires in the next 30 days." },
       ],
       [
         { kind: "list", kicker: "Companies", title: "Company health", sub: "Most late first",
@@ -205,6 +237,14 @@ export async function StudioHomeServer({ rows }: { rows: TaskRow[] }) {
           href: "/companies" },
         { kind: "actions", kicker: "Controls", title: "Run the day", sub: automation.paused ? "Automations are paused" : "The levers that were on Home",
           approvals: approvals.length },
+        { kind: "controls", kicker: "Controls", title: "Controls held", sub: "What runs on its own — tap to switch",
+          state: {
+            automationPaused: automation.paused,
+            outreachPaused: (dirRow.data?.value as string | null) === "1",
+            aiEnabled: settings.aiEnabled,
+            emailConnected: emailCfg !== null,
+            emailTestMode: emailCfg?.testMode ?? false,
+          } },
         { kind: "list", kicker: "ORI", title: "What ORI did", sub: autonomy.length ? "On its own — each one can be undone" : "Nothing done on its own lately",
           more: { label: "Open Approvals", href: "/approvals" },
           items: autonomy.map((a) => ({ title: a.summary, sub: a.detail ?? "", right: ago(a.createdAt), dot: "#8B5CF6", href: "/approvals" })),

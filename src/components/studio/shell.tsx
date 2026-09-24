@@ -153,13 +153,17 @@ export function StudioShell({ nextDeadline }: { nextDeadline: StudioFootNote }) 
 
           {/* Right: search everything · notifications · + New */}
           <div className="col-start-3 flex items-center justify-end gap-2">
-            <button type="button" onClick={openPalette} aria-label="Search everything (⌘K)" className={cn(FOOT_BTN, "hidden px-3 sm:inline-flex")}>
-              <Search size={14} />⌘K
+            {/* Ask ORI or search — the palette (mockup board Ask). */}
+            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2 sm:inline-flex")}>
+              <Search size={14} />
+              <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
+              <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#8E9197]">⌘K</span>
             </button>
             <NotificationBell
               to="/task"
               align="right"
               lanes
+              variant="studio"
               triggerClassName="relative inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
             />
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}

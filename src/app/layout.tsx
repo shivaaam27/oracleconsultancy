@@ -122,7 +122,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <ToastProvider>
             <UndoBanner />
             <Suspense>
-            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage}>
+            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio={studioShell}>
               <NavVisibilityProvider value={{ commandCentrePaused }}>
               <RecentsTracker />
               <ContextActionsProvider>
