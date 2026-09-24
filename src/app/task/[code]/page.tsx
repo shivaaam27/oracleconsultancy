@@ -1,6 +1,4 @@
 import { TaskRecordPage } from "@/components/task-drawer";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/viewer";
 
@@ -22,6 +20,6 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
   // The owner, or a director (lib/viewer.ts) — the record's data route then
   // refuses a task outside their companies.
   if (!(await getViewer())) redirect("/portal");
-  const [{ code }, { studioPages }] = await Promise.all([params, getAppSettings()]);
-  return <TaskRecordPage code={decodeURIComponent(code)} studio={isStudioOn(studioPages, "tasks")} />;
+  const { code } = await params;
+  return <TaskRecordPage code={decodeURIComponent(code)} />;
 }

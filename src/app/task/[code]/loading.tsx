@@ -12,22 +12,19 @@
  * wrong shape (the parent `task/loading.tsx` is a board skeleton, and it
  * still serves /task/new and /task/recurring).
  *
- * Whether the Studio look is on is read from `<html data-studio-pages>` (root
- * layout) — a loading boundary is given no props. First render is empty on
- * purpose, so a hard load hydrates cleanly.
+ * First render is empty on purpose, so a hard load hydrates cleanly.
  */
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { TaskRecordPage } from "@/components/task-drawer";
 import { cachedTaskDetail } from "@/lib/task-detail-cache";
-import { isStudioOn } from "@/lib/studio";
 
 export default function TaskLoading() {
   const pathname = usePathname();
-  const [ready, setReady] = useState<{ studio: boolean } | null>(null);
-  useEffect(() => { setReady({ studio: isStudioOn(document.documentElement.dataset.studioPages, "tasks") }); }, []);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
   const raw = /^\/task\/([^/?#]+)/.exec(pathname)?.[1];
   const code = raw ? decodeURIComponent(raw) : null;
   if (!ready || !code || !cachedTaskDetail(code)) return null;
-  return <TaskRecordPage code={code} studio={ready.studio} />;
+  return <TaskRecordPage code={code} />;
 }

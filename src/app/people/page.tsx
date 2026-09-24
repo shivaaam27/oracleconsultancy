@@ -1,29 +1,15 @@
-import { PeopleTable } from "@/components/people-table";
-import { NewPersonButton } from "@/components/new-person-button";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { sb } from "@/db/supabase";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { StudioPeople } from "@/components/studio/people/studio-people";
 
 export const dynamic = "force-dynamic";
 
-export default async function PeoplePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string }>;
-}) {
-  const { from } = await searchParams;
-  const [people, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }, logoMap, settings] = await Promise.all([
+export default async function PeoplePage() {
+  const [people, { data: companiesRaw }, logoMap] = await Promise.all([
     getAllPeopleWithWorkload(),
     sb.from("companies").select("id,name,accent_color").order("name"),
-    sb.from("departments").select("name").order("name"),
-    sb.from("sites").select("name").eq("active", true).order("name"),
-    sb.from("job_titles").select("name").eq("active", true).order("name"),
     getCompanyLogoMap(),
-    getAppSettings(),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
@@ -32,9 +18,6 @@ export default async function PeoplePage({
     accentColor: (c.accent_color as string | null) ?? null,
     logoUrl: logoMap.get(c.id as number) ?? null,
   }));
-  const departments = (departmentsRaw ?? []).map((d) => d.name as string);
-  const sites = (sitesRaw ?? []).map((s) => s.name as string);
-  const roles = (rolesRaw ?? []).map((r) => r.name as string);
 
   // Directory hints (2f): who's on leave today + this-month attendance. Attendance
   // is empty until the register is used, so its chip simply lights up when there's data.
@@ -63,32 +46,8 @@ export default async function PeoplePage({
   }
 
   // For the manager dropdown in the create dialog — derived from already-loaded data
-  const peopleList = people.map((p) => ({ id: p.id, name: p.name, active: p.active }));
 
-  const siteCount = new Set(
-    people.flatMap((p) => [p.workSiteName, p.residenceName].filter(Boolean) as string[])
-  ).size;
 
   // Studio (Settings → New look → People): mockup board People.
-  if (isStudioOn(settings.studioPages, "people")) {
-    return <StudioPeople people={people} companies={companies.map((c) => ({ id: c.id, name: c.name }))} hints={directoryHints} />;
-  }
-
-  return (
-    <div className="space-y-4">
-      <HrmsCrumbs from={from} />
-      <PeopleTable
-        people={people}
-        companies={companies}
-        directoryHints={directoryHints}
-        totalCompanies={companies.length}
-        totalSites={siteCount}
-        createSlot={
-          <div className="flex items-center gap-2">
-            <NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />
-          </div>
-        }
-      />
-    </div>
-  );
+  return <StudioPeople people={people} companies={companies.map((c) => ({ id: c.id, name: c.name }))} hints={directoryHints} />;
 }

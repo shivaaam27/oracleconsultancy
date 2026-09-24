@@ -7,8 +7,7 @@ import "server-only";
  * COS is one system now, the way an ERP is: the administrator and a director use
  * the SAME screens, and what differs is what each may see and do.
  *   - The OWNER (admin cookie): everything, every company.
- *   - A DIRECTOR (portal cookie, role "director", and the Studio switch on for
- *     directors — Settings → General → New look): the same task and home powers
+ *   - A DIRECTOR (portal cookie, role "director"): the same task and home powers
  *     as the owner, over THEIR companies only (a portfolio director = all), and
  *     view-only on companies, people, files and the calendar.
  * Managers and staff come later and will slot in here.
@@ -33,8 +32,6 @@ import { cache } from "react";
 import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson, companyScope, personCanSeeTask, type PortalPerson } from "@/lib/portal-auth";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 
 export type Viewer =
   | { kind: "owner"; person: null; scope: null; actor: "web-ui"; name: string }
@@ -48,18 +45,11 @@ export type Viewer =
       name: string;
     };
 
-/** Portal roles switched onto the Studio screens (settings `ui.studioRoles`). */
-export function parseStudioRoles(raw: string | null | undefined): Set<string> {
-  return new Set((raw ?? "").split(",").map((s) => s.trim()).filter(Boolean));
-}
-
-/** Is this portal person one of the roles that uses the Studio screens? */
+/** Does this portal person use the shared screens? Directors do — always, no
+ *  switch (owner, Sept 2026: "make it a default thing"). Managers and staff
+ *  join here when their turn comes. */
 export async function usesStudio(p: PortalPerson | null): Promise<boolean> {
-  if (!p) return false;
-  const { studioRoles, studioPages } = await getAppSettings();
-  // The shared screens ARE the Studio screens: with the owner's Studio Tasks
-  // page switched off there is nothing for a director to share.
-  return p.portalRole === "director" && parseStudioRoles(studioRoles).has("director") && isStudioOn(studioPages, "tasks");
+  return p?.portalRole === "director";
 }
 
 /** Who is looking at this request. Owner first: an owner who is ALSO signed in

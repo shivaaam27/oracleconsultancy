@@ -135,7 +135,6 @@ export function CompanyDocuments({
     setAddOpen(true);
   }
 
-  const linkableDocs = documents.map((d) => ({ id: d.id, title: d.title, category: d.category }));
 
   // Group the company's documents into the owner's eight shelves (their on-disk
   // folders), so the page reads like their file explorer. Within a shelf,

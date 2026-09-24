@@ -2,9 +2,8 @@
 
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import Link from "next/link";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
-import { RecordBody, RecordPage, RecordSidebarBlock } from "./record-page";
+import { RecordBody, RecordSidebarBlock } from "./record-page";
 import { taskHref } from "@/lib/task-href";
 import { canStepBack, clearPush, returnLabel, safeReturn } from "@/lib/return-to";
 import { cachedTaskDetail, prefetchTaskDetail, storeTaskDetail } from "@/lib/task-detail-cache";
@@ -16,7 +15,7 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore, Repeat,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore,
 } from "lucide-react";
 import { StudioScope, stBtn } from "./studio/kit";
 import { StudioStatusCell, StudioPriorityCell } from "./studio/tasks/cells";
@@ -24,11 +23,10 @@ import { StudioDetails } from "./studio/tasks/details";
 import { DateInput } from "./date-input";
 import { useFitFrame } from "./studio/use-fit-frame";
 import { avatarTint, initials as studioInitials } from "./studio/tasks/task-words";
-import { StudioBlocker } from "./studio/tasks/blocker";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeAvatars } from "./assignee-avatars";
-import { Badge, Textarea, Button, IconButton, FIELD } from "./ui";
+import { Badge, Textarea, Button, IconButton } from "./ui";
 import { SelectField } from "./select-field";
 import { FormSwitch } from "./form-switch";
 import { Combobox } from "./combobox";
@@ -170,7 +168,7 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
  * Everything between here and the return statement is shared — one record, one
  * set of actions, no second implementation to drift.
  */
-function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page"; codeProp?: string; studio?: boolean }) {
+function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -208,7 +206,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   // Studio record: the three columns fill the frame and scroll inside
   // themselves — the page itself does not scroll (from lg up).
   const studioGridRef = useRef<HTMLDivElement>(null);
-  useFitFrame(studioGridRef, { enabled: mode === "page" && !!studio && !!data, deps: [data?.task.code] });
+  useFitFrame(studioGridRef, { enabled: mode === "page" && !!data, deps: [data?.task.code] });
   // Decision-strip re-date popover (inline date input, no Edit-tab trip).
   const [redating, setRedating] = useState(false);
   const [newDate, setNewDate] = useState("");
@@ -240,7 +238,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [mode, pathname, router, searchParams]);
 
-  const close = useCallback((opts?: { replace?: boolean }) => {
+  const close = useCallback(() => {
     if (mode === "page") {
       /* ⚠️ BACK TO THE LIST YOU CAME FROM, not to a bare `/?tab=tasks`.
        * The hub's filters, sort and chosen view live in its address, so a fixed
@@ -407,7 +405,7 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
       const c = data.task.code;
       // deleteTaskQuick already revalidated the list; the navigation fetches it
       // fresh, so no extra refresh of the page we are leaving.
-      close({ replace: true });
+      close();
       toast(`${c} deleted`, { tone: "success", duration: 10000, action: res.undoToken ? { label: "Undo", onClick: async () => { const r = await callUndo(res.undoToken!); toast(r.message, { tone: r.ok ? "success" : "warn", duration: 3000 }); router.refresh(); } } : undefined });
     } else {
       toast(res.error || "Could not delete", { tone: "warn", duration: 3000 });
@@ -1035,14 +1033,14 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
   ) : null;
 
   /* ---------------- Studio: the same record, the mockup's layout ----------------
-     (Settings → New look → Tasks.) ⚠️ EVERY PIECE BELOW IS ONE OF THE BLOCKS
+     ⚠️ EVERY PIECE BELOW IS ONE OF THE BLOCKS
      ABOVE — the conversation, details, history, notes and edit form are the very
      same elements the classic page shows, so nothing can drift. What Studio adds:
      status / priority / deadline in one click at the top (the drawer had them,
      the page never did), "Waiting on…" (setTaskBlocker had no admin screen), and
      correct / take down on each update (the actions existed; the admin
      conversation never passed them in). */
-  if (mode === "page" && studio) {
+  if (mode === "page") {
     if (loading && !data) {
       return <StudioScope><p className="py-16 text-center text-base text-[var(--st-muted)]">Loading {code}…</p></StudioScope>;
     }
@@ -1250,59 +1248,6 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
     );
   }
 
-  if (mode === "page") {
-    if (loading && !data) {
-      return <p className="py-16 text-center text-base text-fg-muted">Loading {code}…</p>;
-    }
-    if (error || !t) {
-      return (
-        <div className="py-16 text-center">
-          <p className="text-base text-fg-muted">Couldn&apos;t load {code}.</p>
-          <Button type="button" onClick={() => router.push("/?tab=tasks")} variant="ghost" size="sm" className="mt-3">
-            Back to tasks
-          </Button>
-        </div>
-      );
-    }
-    const active = tabs.find((x) => x.id === activeTab) ?? tabs[0];
-    return (
-      <div className="mx-auto max-w-[1100px]">
-        <div className="mb-3 flex items-center gap-1.5">
-          {/* ⚠️ IT SAYS WHERE IT IS GOING. A fixed "Tasks" was a promise the
-              button could not keep once the record could be opened from the
-              board, the timeline, a company or a person — `returnLabel` reads
-              the address the opener handed over. */}
-          <Button type="button" onClick={() => close()} variant="ghost" size="sm">
-            <ChevronLeft size={14} /> {backLabel}
-          </Button>
-          {(prevCode || nextCode) && (
-            <span className="ml-auto flex items-center gap-1">
-              <IconButton aria-label="Previous task" disabled={!prevCode} onClick={() => prevCode && goToCode(prevCode)}>
-                <ChevronLeft size={15} />
-              </IconButton>
-              <IconButton aria-label="Next task" disabled={!nextCode} onClick={() => nextCode && goToCode(nextCode)}>
-                <ChevronRight size={15} />
-              </IconButton>
-            </span>
-          )}
-        </div>
-        <RecordPage
-          code={t.code}
-          title={t.actionItem}
-          subtitle={t.companyName}
-          status={<Badge tone={tone === "danger" ? "danger" : tone === "success" ? "success" : "default"}>{t.status}</Badge>}
-          actions={actionBar}
-          tabs={tabs.map((x) => ({ id: x.id, label: x.label, count: typeof x.badge === "number" ? x.badge : undefined }))}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        >
-          {active?.content}
-        </RecordPage>
-        {repeatSheet}
-      </div>
-    );
-  }
-
   return (
     <>
     {repeatSheet}
@@ -1330,8 +1275,8 @@ function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page
 
 /** The record at its own URL — /task/CODE. This is the primary way to open a
  *  task (the owner's decision: a record is a page, as in ERPNext). */
-export function TaskRecordPage({ code, studio = false }: { code: string; studio?: boolean }) {
-  return <TaskRecord mode="page" codeProp={code} studio={studio} />;
+export function TaskRecordPage({ code }: { code: string }) {
+  return <TaskRecord mode="page" codeProp={code} />;
 }
 
 /** Legacy `?task=CODE` links (old emails, notifications, pasted URLs) still

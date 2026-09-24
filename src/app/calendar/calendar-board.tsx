@@ -3,20 +3,17 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
-  Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
+  Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, 
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
-  Megaphone, Plus, Paperclip, Layers as LayersIcon, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, type LucideIcon,
+  Plus, Paperclip, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, type LucideIcon,
 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea, PageHeader, CONTROL_BOX, Switch } from "@/components/ui";
+import { Button, Card, EmptyState } from "@/components/ui";
 import { useCreateParam } from "@/lib/use-create-param";
 import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
-import { ANNOUNCEMENT_TYPES } from "@/lib/announcements-shared";
-import { nudgeAnnouncementAction } from "@/app/announcements/actions";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
@@ -25,7 +22,7 @@ import { isoToLocalInput as sharedIsoToLocalInput, TimeField } from "@/component
 import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { Combobox } from "@/components/combobox";
 import { ReferenceAdmin } from "@/components/reference-admin";
-import { EventAttachments, ReadSummary, StudioReadCard, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
+import { EventAttachments, StudioReadCard, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
 import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
@@ -81,7 +78,6 @@ type Person = { id: number; name: string; email: string | null };
 type Company = { id: number; name: string; accent?: string | null };
 type EventCategory = { id: number; name: string };
 type ViewMode = "month" | "week" | "day" | "agenda";
-type BriefTab = "events" | "announcements";
 
 /** An announcement enriched with live receipt stats for the Brief's
  *  Announcements tab (seen / acknowledged / audience total). */
@@ -100,17 +96,9 @@ export type BriefCounts = {
 
 // Distinct hues for category tags/dots, picked deterministically by id so a
 // category keeps its colour without needing a stored colour column.
-const CATEGORY_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
-function categoryColor(id: number): string {
-  return CATEGORY_COLORS[Math.abs(id) % CATEGORY_COLORS.length];
-}
 
 const EAT = "Africa/Dar_es_Salaam";
 
-function fmtDayKey(iso: string): string {
-  // Group by Dar es Salaam calendar day.
-  return new Date(iso).toLocaleDateString("en-GB", { timeZone: EAT, year: "numeric", month: "2-digit", day: "2-digit" });
-}
 function fmtDayLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" });
 }
@@ -198,12 +186,7 @@ export function CalendarBoard({
   companies,
   categories,
   announcements = [],
-  counts = { thisWeek: 0, today: 0, needInvites: 0, unacknowledged: 0 },
-  studio = false,
 }: {
-  /** Settings → New look → Calendar: the Studio layout (mockup board Calendar).
-   *  Same state, filters, views, form and saves — only the frame differs. */
-  studio?: boolean;
   events: CalendarEventView[];
   overlays?: OverlayItem[];
   people: Person[];
@@ -212,7 +195,6 @@ export function CalendarBoard({
   announcements?: BriefAnnouncement[];
   counts?: BriefCounts;
 }) {
-  const [tab, setTab] = useState<BriefTab>("events");
   const [formOpen, setFormOpen] = useState(false);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: () => openNew(), primary: true, tone: "accent" }], []);
@@ -223,16 +205,14 @@ export function CalendarBoard({
   // "Month, DSC only" can be bookmarked and sent. ⚠️ `co`, never `company` —
   // that name is watched globally by CompanyDrawer. Layers and the two noise
   // switches stay device preferences: they are taste, not a view.
-  const url = useUrlFilters({ view: studio ? "month" : "agenda", co: "all", type: "all", src: "all", q: "", day: "" }, { debounceKeys: ["q"] });
+  const url = useUrlFilters({ view: "month", co: "all", type: "all", src: "all", q: "", day: "" }, { debounceKeys: ["q"] });
   // Studio's picked day lives in the address, so opening a task from the day's
   // list and pressing Back lands on the same day, not on today.
   const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(url.values.day) ? url.values.day : "";
-  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : studio ? "month" : "agenda";
+  const view: ViewMode = (["month", "week", "day", "agenda"] as const).includes(url.values.view as ViewMode) ? (url.values.view as ViewMode) : "month";
   const setView = (v: ViewMode) => url.set({ view: v });
   const companyFilter = url.values.co;
-  const setCompanyFilter = (v: string) => url.set({ co: v });
   const categoryFilter = url.values.type;
-  const setCategoryFilter = (v: string) => url.set({ type: v });
   const sourceFilter = url.values.src;
   const setSourceFilter = (v: string) => url.set({ src: v });
   const search = url.values.q;
@@ -264,7 +244,7 @@ export function CalendarBoard({
   };
   const [hideEvents, setHideEvents] = useState(false);
   const studioGrid = useRef<HTMLDivElement>(null);
-  useFitFrame(studioGrid, { enabled: studio, minimum: 460 });
+  useFitFrame(studioGrid, { enabled: true, minimum: 460 });
   const hydrated = useRef(false);
 
   // Restore the operator's last calendar view + filters (once, on mount). Reading
@@ -278,7 +258,7 @@ export function CalendarBoard({
         const p = JSON.parse(raw) as Partial<CalendarPrefs>;
         // The last VIEW is remembered, but an address that names one wins —
         // a link to "Month" must open Month whatever was used last.
-        if (!url.dirty && p.view && (["month", "week", "day", ...(studio ? ["agenda"] : [])] as string[]).includes(p.view)) {
+        if (!url.dirty && p.view && (["month", "week", "day", "agenda"] as string[]).includes(p.view)) {
           url.set({ view: p.view });
         }
         if (Array.isArray(p.disabledLayers)) {
@@ -311,11 +291,6 @@ export function CalendarBoard({
   }
 
   // Which overlay kinds actually have items, so we only show relevant toggles.
-  const availableLayers = useMemo(() => {
-    const s = new Set<OverlayKind>();
-    for (const o of overlays) s.add(o.kind);
-    return OVERLAY_KINDS.filter((k) => s.has(k));
-  }, [overlays]);
 
   // A slot clicked on the Week/Day grid starts the new event at that time.
   const [seed, setSeed] = useState<{ date: string; time: string } | null>(null);
@@ -424,251 +399,120 @@ export function CalendarBoard({
   }, [view, cursor]);
 
   const views: ViewMode[] = ["agenda", "month", "week", "day"];
-  const chip = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors";
 
 
-  if (studio) {
-    // ---- Studio (mockup board Calendar, design/studio-mockup/gen/p_calendar.py) ----
-    // Every size and colour below is the board's own; read that file before
-    // changing one. The Events layer hides events the way the others hide theirs.
-    const evByDay = hideEvents ? new Map<string, CalendarEventView[]>() : byDay;
-    const pickedDate = new Date(`${pickedKey}T12:00:00+03:00`);
-    const pickEvs = evByDay.get(pickedKey) ?? [];
-    const pickOvs = overlayByDay.get(pickedKey) ?? [];
-    const pickItems = pickEvs.length + pickOvs.length;
-    const dayName = (d: Date) => d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" });
-    const base = new Date(); base.setHours(12, 0, 0, 0);
-    const next7 = Array.from({ length: 7 }, (_, i) => {
-      const d = addDays(base, i); const k = keyOfDate(d);
-      return { d, k, ev: evByDay.get(k)?.length ?? 0, other: overlayByDay.get(k)?.length ?? 0 };
-    });
-    const next7Total = next7.reduce((a, x) => a + x.ev + x.other, 0);
-    // 18px a thing, as drawn — scaled down only when the busiest day would
-    // outgrow the 96px the bars have under their labels.
-    const perThing = Math.min(18, 96 / Math.max(1, ...next7.map((x) => x.ev + x.other)));
-    const live = announcements.filter((a) => a.live);
-    const companyLabel = companyFilter === "all" ? "Companies" : companies.find((c) => String(c.id) === companyFilter)?.name ?? "Companies";
-    const typeLabel = categoryFilter === "all" ? "Types" : categoryFilter === "none" ? "Uncategorised" : categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Types";
-    const periodShort = view === "agenda" ? "Upcoming" : view === "month" ? cursor.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" }) : periodLabel;
-    const pick = (d: Date) => { setPickedKey(keyOfDate(d)); setCursor(d); };
-    const menuItem = "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]";
-    return (
-      <StudioScope className="flex flex-col gap-5">
-        <StudioHeader
-          title="Calendar"
-          left={
-            <>
-              <StudioMenu label={companyLabel} searchable options={[
-                { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
-                ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
-              ]} />
-              <StudioMenu label={typeLabel} options={[
-                { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
-                ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
-                ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
-              ]} />
-              <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
-                <DropdownMenu.Trigger asChild>
-                  <button type="button" className={stBtn.chip}>More <ChevronDownIcon /></button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content align="start" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
-                    <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Search</div>
-                    <div className="px-1.5 pb-1.5">
-                      <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder="Events, people, companies…"
-                        style={{ background: "var(--st-page)", border: "1px solid var(--st-line)", color: "var(--st-ink)", boxShadow: "none" }}
-                        className="bare-field h-8 w-full rounded-lg px-2.5 text-[13px] outline-none" />
-                    </div>
-                    <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Source</div>
-                    {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((x) => (
-                      <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className={menuItem}>
-                        <span className="flex-1">{x.l}</span>{sourceFilter === x.v && <Check size={14} />}
-                      </button>
-                    ))}
-                    <div className="my-1 h-px bg-[var(--st-line)]" />
-                    {figures.needInvites > 0 && (
-                      <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className={menuItem}>
-                        <Bell size={14} /><span className="flex-1">Need invites ({figures.needInvites})</span>{needInvitesOnly && <Check size={14} />}
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className={menuItem}>
-                      <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} />}
-                    </button>
-                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className={menuItem}>
-                      <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
-                    </button>
-                    <div className="my-1 h-px bg-[var(--st-line)]" />
-                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className={menuItem}>
-                      <Pencil size={14} /><span className="flex-1">Manage categories</span>
-                    </button>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-              {(search || sourceFilter !== "all" || needInvitesOnly || meetingsOnly) && (
-                <button type="button" onClick={() => { setSearch(""); setSourceFilter("all"); setNeedInvitesOnly(false); setMeetingsOnly(false); }}
-                  className="inline-flex h-8 items-center gap-1 rounded-[10px] px-2 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={12} />Clear</button>
-              )}
-            </>
-          }
-          right={
-            <>
-              <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
-                {views.map((v) => (
-                  <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
-                    className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs font-medium capitalize transition-colors",
-                      view === v ? "bg-[var(--st-surface)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-              {view !== "agenda" && (
-                <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
-                  <button type="button" onClick={() => step(-1)} aria-label="Previous" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronLeft size={13} strokeWidth={2.2} /></button>
-                  <span className="px-1.5 text-[13px] font-medium">{periodShort}</span>
-                  <button type="button" onClick={() => step(1)} aria-label="Next" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronRight size={13} strokeWidth={2.2} /></button>
-                  <button type="button" onClick={() => { goToday(); setPickedKey(todayKeyGlobal); }} className="h-7 rounded-lg bg-[var(--st-page)] px-2.5 text-xs hover:bg-[var(--st-seg)]">Today</button>
-                </div>
-              )}
-              <button type="button" onClick={() => openNew()} className={stBtn.dark}><Plus size={15} />New event</button>
-            </>
-          }
-        />
-
-        {formOpen && (
-          <EventForm studio seed={seed} people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
-        )}
-        {manageCatsOpen && (
-          <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
-            title={<span className="inline-flex items-center gap-2"><Pencil size={15} /> Event categories</span>}
-            sub="Name your meeting types (e.g. Board, Site visit, Review). Used to colour + filter the calendar.">
-            <ReferenceAdmin
-              items={categories.map((c) => ({ id: c.id, name: c.name }))}
-              noun="category" addPlaceholder="Add a category — e.g. Board meeting"
-              onCreate={createEventCategory} onRename={renameEventCategory} onMerge={mergeEventCategories} onDelete={deleteEventCategory}
-              mergeNote="Its events move to the target category." deleteNote="Its events become uncategorised."
-            />
-          </HrmsDialog>
-        )}
-
-        <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
-          {/* The picked day — today until you pick another in the grid. */}
-          <StudioCard className="h-[260px] lg:h-auto">
-            <CardHead
-              label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
-              right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}{pickItems > 3 && " · scroll for more"}</span>}
-            />
-            <div className="mt-2 flex min-h-0 flex-1 flex-col">
-              <StudioDayList dayKey={pickedKey} evs={pickEvs} ovs={pickOvs} onEdit={openEdit} />
-            </div>
-          </StudioCard>
-
-          <StudioCard texture="rings" className="min-h-[170px]">
-            <CardHead label="Next 7 days" right={<span className="text-xs text-[var(--st-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
-            <div className="grid flex-1 grid-cols-[170px_minmax(0,1fr)] items-end gap-x-6">
-              <div>
-                <BigNumber value={next7Total} />
-                <div className="mt-2.5 text-[13px] text-[#C9CBCF]">{next7Total === 1 ? "thing" : "things"} coming up</div>
-                <div className="mt-1.5 flex gap-3 text-xs text-[var(--st-muted)]"><span>{figures.today} today</span><span>{figures.needInvites} need invites</span></div>
-              </div>
-              <StudioNext7Bars days={next7} perThing={perThing} pickedKey={pickedKey} evByDay={evByDay} overlayByDay={overlayByDay} onPick={pick} />
-            </div>
-          </StudioCard>
-        </div>
-
-        <div ref={studioGrid} className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_232px]">
-          <div className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:min-h-0">
-            {view === "agenda" ? (
-              <StudioAgenda evByDay={evByDay} overlayByDay={overlayByDay} onEdit={openEdit} />
-            ) : view === "month" ? (
-              <MonthView studio cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} pickedKey={pickedKey} onPick={pick}
-                onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} />
-            ) : view === "week" ? (
-              <StudioTimeGrid mode="week" days={Array.from({ length: 7 }, (_, i) => addDays(startOfWeekMon(cursor), i))} byDay={evByDay} overlayByDay={overlayByDay}
-                onEdit={openEdit} onPickDay={(d) => { pick(d); setView("day"); }} onNewAt={(k, t) => openNew({ date: k, time: t })} />
-            ) : (
-              <StudioTimeGrid mode="day" days={[cursor]} byDay={evByDay} overlayByDay={overlayByDay}
-                onEdit={openEdit} onPickDay={pick} onNewAt={(k, t) => openNew({ date: k, time: t })} />
-            )}
-          </div>
-
-          <aside className="flex min-h-0 flex-col gap-3.5">
-            <div className="rounded-[20px] bg-[var(--st-surface)] px-4 pb-3 pt-4">
-              <div className="flex min-h-[26px] items-center text-[15px] font-semibold">Layers</div>
-              <div className="mt-1.5 flex flex-col gap-0.5">
-                {([["events", "Events", "var(--st-ink)"] as const, ...STUDIO_LAYER_ORDER.map((k) => [k, k === "commitment" ? "Lease / insurance notice" : OVERLAY_LABELS[k], STUDIO_LAYER[k].c] as const)]).map(([k, label, c]) => {
-                  const on = k === "events" ? !hideEvents : enabledLayers.has(k as OverlayKind) && !meetingsOnly;
-                  return (
-                    <button key={k} type="button" aria-pressed={on}
-                      onClick={() => (k === "events" ? setHideEvents((v) => !v) : toggleLayer(k as OverlayKind))}
-                      disabled={k !== "events" && meetingsOnly}
-                      className={cn("flex h-6 items-center gap-2.5 rounded-md px-1 text-left text-xs transition-colors", on ? "text-[var(--st-ink)]" : "text-[#A3A6AB]")}>
-                      <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] border-[1.5px]" style={{ borderColor: c, background: on ? c : "transparent" }} />
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              {meetingsOnly && <div className="mt-1.5 px-1 text-[11px] text-[var(--st-muted)]">Meetings only is on (More) — the layers are hidden.</div>}
-            </div>
-
-            <StudioCard texture="dots" className="!p-4">
-              <div className="text-xs text-[var(--st-on-card-muted)]">{live.length ? "Live announcement" : "Announcements"}</div>
-              {live.length === 0 ? (
-                <div className="mt-1.5 text-sm leading-[1.35] text-[var(--st-muted)]">Nothing live right now.</div>
-              ) : (
-                <>
-                  <div className="mt-1.5 line-clamp-3 text-sm leading-[1.35]">{live[0].title}</div>
-                  {live[0].requireAck && (
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-[3px] bg-[var(--st-card-line)]">
-                      <span className="block h-full bg-[var(--st-ok)]" style={{ width: `${live[0].stats.total ? Math.round((live[0].stats.ack / live[0].stats.total) * 1000) / 10 : 0}%` }} />
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--st-muted)]">
-                <span>{live[0]?.requireAck ? `${live[0].stats.ack} / ${live[0].stats.total} acknowledged` : live.length > 1 ? `+${live.length - 1} more live` : ""}</span>
-                <Link href="/announcements" className="text-[var(--st-on-card)] hover:underline">Manage →</Link>
-              </div>
-            </StudioCard>
-          </aside>
-        </div>
-      </StudioScope>
-    );
-  }
-
+  // ---- Studio (mockup board Calendar, design/studio-mockup/gen/p_calendar.py) ----
+  // Every size and colour below is the board's own; read that file before
+  // changing one. The Events layer hides events the way the others hide theirs.
+  const evByDay = hideEvents ? new Map<string, CalendarEventView[]>() : byDay;
+  const pickedDate = new Date(`${pickedKey}T12:00:00+03:00`);
+  const pickEvs = evByDay.get(pickedKey) ?? [];
+  const pickOvs = overlayByDay.get(pickedKey) ?? [];
+  const pickItems = pickEvs.length + pickOvs.length;
+  const dayName = (d: Date) => d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" });
+  const base = new Date(); base.setHours(12, 0, 0, 0);
+  const next7 = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(base, i); const k = keyOfDate(d);
+    return { d, k, ev: evByDay.get(k)?.length ?? 0, other: overlayByDay.get(k)?.length ?? 0 };
+  });
+  const next7Total = next7.reduce((a, x) => a + x.ev + x.other, 0);
+  // 18px a thing, as drawn — scaled down only when the busiest day would
+  // outgrow the 96px the bars have under their labels.
+  const perThing = Math.min(18, 96 / Math.max(1, ...next7.map((x) => x.ev + x.other)));
+  const live = announcements.filter((a) => a.live);
+  const companyLabel = companyFilter === "all" ? "Companies" : companies.find((c) => String(c.id) === companyFilter)?.name ?? "Companies";
+  const typeLabel = categoryFilter === "all" ? "Types" : categoryFilter === "none" ? "Uncategorised" : categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Types";
+  const periodShort = view === "agenda" ? "Upcoming" : view === "month" ? cursor.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" }) : periodLabel;
+  const pick = (d: Date) => { setPickedKey(keyOfDate(d)); setCursor(d); };
+  const menuItem = "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]";
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <StudioScope className="flex flex-col gap-5">
+      <StudioHeader
         title="Calendar"
-        sub="Events, invitations and what the week holds — with deadlines, renewals and birthdays laid over it."
-        action={
-          <span className="inline-flex items-center rounded-md border border-border bg-bg-elev p-0.5">
-            <button type="button" onClick={() => setTab("events")} className={cn("inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors", tab === "events" ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
-              <CalendarDays size={13} /> Events
-            </button>
-            <button type="button" onClick={() => setTab("announcements")} className={cn("inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors", tab === "announcements" ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
-              <Megaphone size={13} /> Announcements
-              {counts.unacknowledged > 0 && <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] font-semibold", tab === "announcements" ? "bg-white/20" : "bg-violet-500 text-white")}>{counts.unacknowledged}</span>}
-            </button>
-          </span>
+        left={
+          <>
+            <StudioMenu label={companyLabel} searchable options={[
+              { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
+              ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
+            ]} />
+            <StudioMenu label={typeLabel} options={[
+              { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
+              ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
+              ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
+            ]} />
+            <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
+              <DropdownMenu.Trigger asChild>
+                <button type="button" className={stBtn.chip}>More <ChevronDownIcon /></button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content align="start" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
+                  <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Search</div>
+                  <div className="px-1.5 pb-1.5">
+                    <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder="Events, people, companies…"
+                      style={{ background: "var(--st-page)", border: "1px solid var(--st-line)", color: "var(--st-ink)", boxShadow: "none" }}
+                      className="bare-field h-8 w-full rounded-lg px-2.5 text-[13px] outline-none" />
+                  </div>
+                  <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Source</div>
+                  {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((x) => (
+                    <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className={menuItem}>
+                      <span className="flex-1">{x.l}</span>{sourceFilter === x.v && <Check size={14} />}
+                    </button>
+                  ))}
+                  <div className="my-1 h-px bg-[var(--st-line)]" />
+                  {figures.needInvites > 0 && (
+                    <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className={menuItem}>
+                      <Bell size={14} /><span className="flex-1">Need invites ({figures.needInvites})</span>{needInvitesOnly && <Check size={14} />}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className={menuItem}>
+                    <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} />}
+                  </button>
+                  <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className={menuItem}>
+                    <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
+                  </button>
+                  <div className="my-1 h-px bg-[var(--st-line)]" />
+                  <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className={menuItem}>
+                    <Pencil size={14} /><span className="flex-1">Manage categories</span>
+                  </button>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+            {(search || sourceFilter !== "all" || needInvitesOnly || meetingsOnly) && (
+              <button type="button" onClick={() => { setSearch(""); setSourceFilter("all"); setNeedInvitesOnly(false); setMeetingsOnly(false); }}
+                className="inline-flex h-8 items-center gap-1 rounded-[10px] px-2 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={12} />Clear</button>
+            )}
+          </>
         }
-        metrics={
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-            <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{figures.next7}</b><span className="text-fg-muted">next 7 days</span></span>
-            <span className="inline-flex items-baseline gap-1.5"><b className="font-semibold tabular text-fg">{figures.today}</b><span className="text-fg-muted">today</span></span>
-            <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", figures.needInvites > 0 ? "text-warn" : "text-fg")}>{figures.needInvites}</b><span className="text-fg-muted">need invites</span></span>
-            <span className="inline-flex items-baseline gap-1.5"><b className={cn("font-semibold tabular", counts.unacknowledged > 0 ? "text-violet-500" : "text-fg")}>{counts.unacknowledged}</b><span className="text-fg-muted">unacknowledged</span></span>
-          </div>
+        right={
+          <>
+            <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
+              {views.map((v) => (
+                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
+                  className={cn("flex h-[30px] items-center rounded-lg px-3 text-xs font-medium capitalize transition-colors",
+                    view === v ? "bg-[var(--st-surface)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            {view !== "agenda" && (
+              <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
+                <button type="button" onClick={() => step(-1)} aria-label="Previous" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronLeft size={13} strokeWidth={2.2} /></button>
+                <span className="px-1.5 text-[13px] font-medium">{periodShort}</span>
+                <button type="button" onClick={() => step(1)} aria-label="Next" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronRight size={13} strokeWidth={2.2} /></button>
+                <button type="button" onClick={() => { goToday(); setPickedKey(todayKeyGlobal); }} className="h-7 rounded-lg bg-[var(--st-page)] px-2.5 text-xs hover:bg-[var(--st-seg)]">Today</button>
+              </div>
+            )}
+            <button type="button" onClick={() => openNew()} className={stBtn.dark}><Plus size={15} />New event</button>
+          </>
         }
       />
 
-      {/* Remounted on each open so its state seeds cleanly from `editing`. */}
       {formOpen && (
-        <EventForm people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+        <EventForm seed={seed} people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
       )}
       {manageCatsOpen && (
         <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
-          title={<span className="inline-flex items-center gap-2"><Pencil size={15} className="text-accent" /> Event categories</span>}
+          title={<span className="inline-flex items-center gap-2"><Pencil size={15} /> Event categories</span>}
           sub="Name your meeting types (e.g. Board, Site visit, Review). Used to colour + filter the calendar.">
           <ReferenceAdmin
             items={categories.map((c) => ({ id: c.id, name: c.name }))}
@@ -679,142 +523,94 @@ export function CalendarBoard({
         </HrmsDialog>
       )}
 
-      {tab === "announcements" ? (
-        <AnnouncementsPanel announcements={announcements} />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-3">
-            {/* New button + search. On mobile the New button sits ABOVE the search
-                full-width (flex-col-reverse); on desktop it's to the right of it.
-                The hero itself never carries an add button (CC rule). */}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-              <div className="relative sm:flex-1">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-                <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people, companies…"
-                  className={cn(CONTROL_BOX, "w-full border border-border bg-bg-elev pl-9 pr-3 outline-none transition-colors placeholder:text-fg-subtle focus:border-accent/50")} />
-              </div>
-              {tab === "events" ? (
-                <Button type="button" onClick={() => openNew()} className="w-full sm:w-auto"><Plus size={15} /> New event</Button>
-              ) : (
-                <Link href="/announcements" className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 sm:w-auto">
-                  <Plus size={15} /> New announcement
-                </Link>
-              )}
-            </div>
-            {/* ONE filter row — tasks-page grammar (rounded-lg chips, outline icons). */}
-            <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-              {views.map((v) => (
-                <button key={v} type="button" onClick={() => setView(v)}
-                  className={cn(chip, "capitalize", view === v ? "border-accent/40 bg-accent-soft text-accent" : "border-border bg-bg-elev text-fg-muted hover:text-fg")}>
-                  {v}
-                </button>
-              ))}
-              <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden />
-              {figures.needInvites > 0 && (
-                <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)}
-                  className={cn(chip, needInvitesOnly ? "border-warn bg-warn text-white" : "border-warn/30 bg-warn-soft/50 text-warn")}>
-                  <Bell size={13} /> Need invites <b className="font-bold tabular">{figures.needInvites}</b>
-                </button>
-              )}
-              <div className="shrink-0"><FluidSelect value={companyFilter} onSelect={setCompanyFilter}
-                options={[{ value: "all", label: "Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
-                buttonClassName="h-8 rounded-md border border-border bg-bg-elev px-3 text-xs font-medium" /></div>
-              <div className="shrink-0"><FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
-                options={[{ value: "all", label: "Types" }, ...categories.map((c) => ({ value: String(c.id), label: c.name })), ...(categories.length ? [{ value: "none", label: "Uncategorised" }] : [])]}
-                buttonClassName="h-8 rounded-md border border-border bg-bg-elev px-3 text-xs font-medium" /></div>
-              {/* ⋯ More — source, noise controls, category manager. */}
-              <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
-                <DropdownMenu.Trigger asChild>
-                  <button type="button" className={cn(chip, "border-border bg-bg-elev text-fg-muted hover:text-fg")}>
-                    <MoreHorizontal size={13} /> More
-                  </button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content align="end" sideOffset={6} className="z-[140] w-56 rounded-md border border-border bg-bg-elev p-1.5 text-sm shadow-lg">
-                    <div className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-fg-subtle">Source</div>
-                    {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((s) => (
-                      <button key={s.v} type="button" onClick={() => setSourceFilter(s.v)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors", sourceFilter === s.v ? "bg-accent/12 font-medium text-fg" : "text-fg-muted hover:bg-bg-muted")}>
-                        <span className="flex-1">{s.l}</span>{sourceFilter === s.v && <Check size={14} className="text-accent" />}
-                      </button>
-                    ))}
-                    <div className="my-1 h-px bg-border/60" />
-                    <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
-                      <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} className="text-accent" />}
-                    </button>
-                    <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
-                      <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} className="text-accent" />}
-                    </button>
-                    <div className="my-1 h-px bg-border/60" />
-                    <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-fg-muted hover:bg-bg-muted">
-                      <Pencil size={14} /><span className="flex-1">Manage categories</span>
-                    </button>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-              {/* Period nav for the grid views. */}
-              {view !== "agenda" && (
-                <span className="ml-auto flex shrink-0 items-center gap-1">
-                  <button type="button" onClick={() => step(-1)} title="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted hover:text-fg"><ChevronLeft size={15} /></button>
-                  <button type="button" onClick={goToday} className="inline-flex h-8 items-center rounded-md border border-border bg-bg-elev px-3 text-xs font-medium text-fg-muted hover:text-fg">Today</button>
-                  <button type="button" onClick={() => step(1)} title="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elev text-fg-muted hover:text-fg"><ChevronRight size={15} /></button>
-                </span>
-              )}
-            </div>
-            {view !== "agenda" && <p className="px-0.5 text-sm font-semibold tracking-tight">{periodLabel}</p>}
+      <div className="grid shrink-0 grid-cols-1 gap-5 lg:h-[196px] lg:grid-cols-2">
+        {/* The picked day — today until you pick another in the grid. */}
+        <StudioCard className="h-[260px] lg:h-auto">
+          <CardHead
+            label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
+            right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}{pickItems > 3 && " · scroll for more"}</span>}
+          />
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
+            <StudioDayList dayKey={pickedKey} evs={pickEvs} ovs={pickOvs} onEdit={openEdit} />
+          </div>
+        </StudioCard>
 
-            {/* Views */}
-            {view === "agenda" ? (
-              <HousedAgenda
-                events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)}
-                overlayByDay={overlayByDay} onEdit={openEdit}
-              />
-            ) : view === "month" ? (
-              <MonthView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
-            ) : view === "week" ? (
-              <WeekView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={(d) => { setCursor(d); setView("day"); }} onEdit={openEdit} />
-            ) : (
-              <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
-            )}
+        <StudioCard texture="rings" className="min-h-[170px]">
+          <CardHead label="Next 7 days" right={<span className="text-xs text-[var(--st-muted)]">{next7[0].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric" })} – {next7[6].d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>} />
+          <div className="grid flex-1 grid-cols-[170px_minmax(0,1fr)] items-end gap-x-6">
+            <div>
+              <BigNumber value={next7Total} />
+              <div className="mt-2.5 text-[13px] text-[#C9CBCF]">{next7Total === 1 ? "thing" : "things"} coming up</div>
+              <div className="mt-1.5 flex gap-3 text-xs text-[var(--st-muted)]"><span>{figures.today} today</span><span>{figures.needInvites} need invites</span></div>
+            </div>
+            <StudioNext7Bars days={next7} perThing={perThing} pickedKey={pickedKey} evByDay={evByDay} overlayByDay={overlayByDay} onPick={pick} />
+          </div>
+        </StudioCard>
+      </div>
+
+      <div ref={studioGrid} className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_232px]">
+        <div className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:min-h-0">
+          {view === "agenda" ? (
+            <StudioAgenda evByDay={evByDay} overlayByDay={overlayByDay} onEdit={openEdit} />
+          ) : view === "month" ? (
+            <MonthView cursor={cursor} byDay={evByDay} overlayByDay={overlayByDay} pickedKey={pickedKey} onPick={pick}
+              onPickDay={(d) => { pick(d); setView("day"); }} onEdit={openEdit} />
+          ) : view === "week" ? (
+            <StudioTimeGrid mode="week" days={Array.from({ length: 7 }, (_, i) => addDays(startOfWeekMon(cursor), i))} byDay={evByDay} overlayByDay={overlayByDay}
+              onEdit={openEdit} onPickDay={(d) => { pick(d); setView("day"); }} onNewAt={(k, t) => openNew({ date: k, time: t })} />
+          ) : (
+            <StudioTimeGrid mode="day" days={[cursor]} byDay={evByDay} overlayByDay={overlayByDay}
+              onEdit={openEdit} onPickDay={pick} onNewAt={(k, t) => openNew({ date: k, time: t })} />
+          )}
+        </div>
+
+        <aside className="flex min-h-0 flex-col gap-3.5">
+          <div className="rounded-[20px] bg-[var(--st-surface)] px-4 pb-3 pt-4">
+            <div className="flex min-h-[26px] items-center text-[15px] font-semibold">Layers</div>
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              {([["events", "Events", "var(--st-ink)"] as const, ...STUDIO_LAYER_ORDER.map((k) => [k, k === "commitment" ? "Lease / insurance notice" : OVERLAY_LABELS[k], STUDIO_LAYER[k].c] as const)]).map(([k, label, c]) => {
+                const on = k === "events" ? !hideEvents : enabledLayers.has(k as OverlayKind) && !meetingsOnly;
+                return (
+                  <button key={k} type="button" aria-pressed={on}
+                    onClick={() => (k === "events" ? setHideEvents((v) => !v) : toggleLayer(k as OverlayKind))}
+                    disabled={k !== "events" && meetingsOnly}
+                    className={cn("flex h-6 items-center gap-2.5 rounded-md px-1 text-left text-xs transition-colors", on ? "text-[var(--st-ink)]" : "text-[#A3A6AB]")}>
+                    <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] border-[1.5px]" style={{ borderColor: c, background: on ? c : "transparent" }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {meetingsOnly && <div className="mt-1.5 px-1 text-[11px] text-[var(--st-muted)]">Meetings only is on (More) — the layers are hidden.</div>}
           </div>
 
-          {/* ---- The rail (desktop lg+): mini-month · layers · announcements ---- */}
-          <BriefRail
-            cursor={cursor} byDay={byDay} overlayByDay={overlayByDay}
-            onPickDay={(d) => { setCursor(d); setView("day"); }}
-            availableLayers={availableLayers} enabledLayers={enabledLayers} toggleLayer={toggleLayer} meetingsOnly={meetingsOnly}
-            announcements={announcements}
-          />
-        </div>
-      )}
-    </div>
+          <StudioCard texture="dots" className="!p-4">
+            <div className="text-xs text-[var(--st-on-card-muted)]">{live.length ? "Live announcement" : "Announcements"}</div>
+            {live.length === 0 ? (
+              <div className="mt-1.5 text-sm leading-[1.35] text-[var(--st-muted)]">Nothing live right now.</div>
+            ) : (
+              <>
+                <div className="mt-1.5 line-clamp-3 text-sm leading-[1.35]">{live[0].title}</div>
+                {live[0].requireAck && (
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-[3px] bg-[var(--st-card-line)]">
+                    <span className="block h-full bg-[var(--st-ok)]" style={{ width: `${live[0].stats.total ? Math.round((live[0].stats.ack / live[0].stats.total) * 1000) / 10 : 0}%` }} />
+                  </div>
+                )}
+              </>
+            )}
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--st-muted)]">
+              <span>{live[0]?.requireAck ? `${live[0].stats.ack} / ${live[0].stats.total} acknowledged` : live.length > 1 ? `+${live.length - 1} more live` : ""}</span>
+              <Link href="/announcements" className="text-[var(--st-on-card)] hover:underline">Manage →</Link>
+            </div>
+          </StudioCard>
+        </aside>
+      </div>
+    </StudioScope>
   );
 }
 
 /* ----------------------------- Event chip ----------------------------- */
-function EventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => void }) {
-  return (
-    <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }}
-      title={event.title}
-      className="w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs leading-tight hover:bg-bg-muted transition-colors"
-      style={{ borderLeft: `3px solid ${accentOf(event)}` }}>
-      {event.categoryId != null && (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColor(event.categoryId) }} title={event.categoryName ?? undefined} />
-      )}
-      {!event.allDay && <span className="tabular text-fg-muted shrink-0">{fmtTime(event.startAt)}</span>}
-      {event.recurrence && event.recurrence !== "none" && <Repeat size={9} className="shrink-0 text-fg-subtle" />}
-      <span className="truncate">{event.title}</span>
-    </button>
-  );
-}
 
-function OverlayChip({ item }: { item: OverlayItem }) {
-  const m = OVERLAY_META[item.kind]; const Icon = m.icon;
-  const cls = "w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs leading-tight text-fg-muted hover:bg-bg-muted transition-colors";
-  const inner = <><Icon size={11} className={cn("shrink-0", m.tone)} /><span className="truncate">{item.title}</span></>;
-  return item.href
-    ? <a href={item.href} onClick={(e) => e.stopPropagation()} className={cls}>{inner}</a>
-    : <div className={cls}>{inner}</div>;
-}
 
 /** A full overlay row for the day-sheet — a tinted icon badge, the title, and a
  *  quiet kind label, in the rounded-rectangle grammar (outline icons only). */
@@ -868,9 +664,8 @@ function DaySheet({
 
 /* ------------------------------ Month view ---------------------------- */
 function MonthView({
-  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false, pickedKey, onPick,
+  cursor, byDay, overlayByDay, onPickDay, onEdit, pickedKey, onPick,
 }: {
-  studio?: boolean;
   /** Studio: the picked day (ringed) and what picking one does. */
   pickedKey?: string;
   onPick?: (d: Date) => void;
@@ -906,7 +701,7 @@ function MonthView({
 
   return (
     <>
-      {studio && (
+      {(
         /* Studio (mockup board Calendar): six rows that FILL the card, a tile a
            day. Click picks a day (ringed; the card above follows it); double-
            click opens it. Today is the black disc. Only the date of a day
@@ -953,47 +748,6 @@ function MonthView({
           </div>
         </div>
       )}
-      {/* Desktop / tablet — the full chip grid (unchanged). */}
-      <div className={cn("hidden overflow-hidden rounded-lg border border-border bg-bg-elev", !studio && "sm:block")}>
-        <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
-          {dows.map((d) => (
-            <div key={d} className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {cells.map((cell, i) => {
-            const k = keyOfDate(cell);
-            const evs = byDay.get(k) ?? [];
-            const ovs = overlayByDay.get(k) ?? [];
-            const inMonth = cell.getMonth() === cursor.getMonth();
-            const isToday = k === todayKeyGlobal;
-            const chips = [
-              ...evs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
-              ...ovs.map((o) => <OverlayChip key={o.id} item={o} />),
-            ];
-            return (
-              /* ⚠️ A div, not a button: every event chip inside is a button, and a
-                 button inside a button is invalid HTML — it threw a hydration
-                 error on every Month load and the first paint came up blank. */
-              <div key={i} role="button" tabIndex={0}
-                onClick={() => onPickDay(cell)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPickDay(cell); } }}
-                aria-label={cell.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
-                className={cn("min-h-[96px] cursor-pointer text-left border-b border-r border-border/50 p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-                  i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20")}>
-                <div className={cn("text-xs mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
-                  isToday ? "bg-accent text-white font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
-                  {cell.getDate()}
-                </div>
-                <div className="space-y-0.5">
-                  {chips.slice(0, 3)}
-                  {chips.length > 3 && <div className="text-xs text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Phones — condensed dots-per-day grid; tap a day to list its events below. */}
       <div className="sm:hidden space-y-3">
@@ -1483,296 +1237,15 @@ function StudioTimeGrid({
 }
 
 /* ------------------------------ Week view ----------------------------- */
-function WeekView({
-  cursor, byDay, overlayByDay, onPickDay, onEdit, studio = false,
-}: {
-  studio?: boolean;
-  cursor: Date;
-  byDay: Map<string, CalendarEventView[]>;
-  overlayByDay: Map<string, OverlayItem[]>;
-  onPickDay: (d: Date) => void;
-  onEdit: (e: CalendarEventView) => void;
-}) {
-  const ws = startOfWeekMon(cursor);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  if (studio) {
-    return (
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-7">
-        {days.map((d, i) => {
-          const k = keyOfDate(d);
-          const evs = byDay.get(k) ?? [];
-          const ovs = overlayByDay.get(k) ?? [];
-          const isToday = k === todayKeyGlobal;
-          return (
-            <div key={i} className={cn("min-w-0 rounded-[10px] border-[1.5px] p-1.5", isToday ? "border-[var(--st-ink)]" : "border-transparent", evs.length + ovs.length ? "bg-[var(--st-cal-busy)]" : "bg-[var(--st-surface)]")}>
-              <button type="button" onClick={() => onPickDay(d)} className="mb-1.5 flex w-full items-center gap-1.5 px-0.5 text-left">
-                <span className="text-[11px] uppercase tracking-[0.06em] text-[var(--st-muted)]">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
-                <span className={cn("ml-auto inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full text-xs tabular-nums", isToday && "bg-[var(--st-ink)] font-semibold text-[var(--st-surface)]")}>{d.getDate()}</span>
-              </button>
-              <div className="space-y-[3px] sm:min-h-[180px]">
-                {evs.length === 0 && ovs.length === 0
-                  ? <div className="px-1 text-[11px] text-[var(--st-muted)]">—</div>
-                  : <>
-                      {evs.map((e) => <StudioEventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
-                      {ovs.map((o) => <StudioOverlayChip key={o.id} item={o} />)}
-                    </>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
-      {days.map((d, i) => {
-        const k = keyOfDate(d);
-        const evs = byDay.get(k) ?? [];
-        const ovs = overlayByDay.get(k) ?? [];
-        const isToday = k === todayKeyGlobal;
-        return (
-          <div key={i} className="bg-bg-elev ring-1 ring-border elevated rounded-xl overflow-hidden">
-            <button type="button" onClick={() => onPickDay(d)}
-              className={cn("w-full flex sm:flex-col items-center sm:items-start gap-1.5 px-2.5 py-1.5 border-b border-border/60 hover:bg-bg-subtle/40 transition-colors",
-                isToday && "bg-accent-soft/40")}>
-              <span className="text-xs uppercase tracking-wider text-fg-subtle">{d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
-              <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{d.getDate()}</span>
-            </button>
-            <div className="p-1.5 space-y-1 min-h-[44px]">
-              {evs.length === 0 && ovs.length === 0
-                ? <div className="text-xs text-fg-subtle px-1 py-1">—</div>
-                : <>
-                    {evs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
-                    {ovs.map((o) => <OverlayChip key={o.id} item={o} />)}
-                  </>}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 /* ------------------------------- Day view ----------------------------- */
-function DayView({
-  cursor, byDay, overlayByDay, onEdit,
-}: {
-  cursor: Date;
-  byDay: Map<string, CalendarEventView[]>;
-  overlayByDay: Map<string, OverlayItem[]>;
-  onEdit: (e: CalendarEventView) => void;
-}) {
-  const evs = byDay.get(keyOfDate(cursor)) ?? [];
-  const ovs = overlayByDay.get(keyOfDate(cursor)) ?? [];
-  return <DaySheet evs={evs} ovs={ovs} onEdit={onEdit} />;
-}
 
 /* -------------------------- Housed agenda (Brief) --------------------- */
-/** True when an upcoming event has email attendees but no Google event yet — the
- *  "invite not sent" signal (mirrors the page's needInvites count). */
-function eventNeedsInvite(e: CalendarEventView): boolean {
-  return new Date(e.startAt).getTime() >= Date.now() && !e.googleEventId && e.attendees.some((a) => a.email);
-}
 
-/** The Brief agenda: each day is a housing with a tinted header (today glows with
- *  a live ● ring), the day's events as rows, and an overlay footer (birthdays,
- *  deadlines, leave…). */
-function HousedAgenda({
-  events, overlayByDay, onEdit,
-}: {
-  events: CalendarEventView[];
-  overlayByDay: Map<string, OverlayItem[]>;
-  onEdit: (e: CalendarEventView) => void;
-}) {
-  // ⚠️ AN EVENT THAT HAS FINISHED IS STILL LISTED HERE — the calendar is where
-  // everything is SAVED — but it must not read as something still to come
-  // (owner, 17 Sep 2026). It dims, is struck through and says "Finished"; the
-  // one under way says "On now". Ticking every half minute so a meeting changes
-  // state while you are looking at the page, rather than only on a reload.
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  const grouped = useMemo(() => {
-    const map = new Map<string, CalendarEventView[]>();
-    for (const e of events) (map.get(keyOfIso(e.startAt)) ?? map.set(keyOfIso(e.startAt), []).get(keyOfIso(e.startAt))!).push(e);
-    return [...map.entries()].sort((a, b) => new Date(a[1][0].startAt).getTime() - new Date(b[1][0].startAt).getTime());
-  }, [events]);
-
-  if (grouped.length === 0) {
-    return (
-      <EmptyState icon={<CalendarDays size={28} />} title="Nothing coming up"
-        hint="Create an event to generate a calendar invite (.ics) and a Google Meet link you can share." />
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {grouped.map(([key, evs]) => {
-        const isToday = key === todayKeyGlobal;
-        const ovs = overlayByDay.get(key) ?? [];
-        return (
-          <section key={key} className={cn("overflow-hidden rounded-lg border bg-bg-elev", isToday ? "border-accent/40" : "border-border")}>
-            <div className={cn("flex items-center gap-2 border-b px-3.5 py-2.5", isToday ? "border-accent/20 bg-accent-soft/40" : "border-border/60 bg-bg-subtle/60")}>
-              {isToday && <span className="relative inline-flex h-1.5 w-1.5"><span className="absolute inset-0 rounded-full bg-accent opacity-50 motion-safe:animate-ping" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" /></span>}
-              <span className={cn("text-sm font-semibold", isToday && "text-accent")}>{isToday ? "Today · " : ""}{fmtDayLabel(evs[0].startAt)}</span>
-              <span className="ml-auto text-xs text-fg-subtle">
-                {(() => {
-                  const left = evs.filter((e) => !hasElapsed(e, nowMs)).length;
-                  if (left === evs.length) return `${evs.length} event${evs.length === 1 ? "" : "s"}`;
-                  if (left === 0) return `${evs.length} event${evs.length === 1 ? "" : "s"} · all done`;
-                  return `${left} of ${evs.length} left`;
-                })()}
-              </span>
-            </div>
-            <div className="space-y-2 p-2">
-              {evs.map((e) => (
-                <EventRow
-                  key={occKey(e)}
-                  event={e}
-                  onEdit={() => onEdit(e)}
-                  finished={hasElapsed(e, nowMs)}
-                  onNow={isHappeningNow(e, nowMs)}
-                />
-              ))}
-            </div>
-            {ovs.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/60 bg-bg-subtle/30 px-3.5 py-2">
-                {ovs.map((o) => {
-                  const m = OVERLAY_META[o.kind]; const Icon = m.icon;
-                  return <span key={o.id} className="inline-flex items-center gap-1 text-xs text-fg-muted"><Icon size={12} className={m.tone} /> {o.title}</span>;
-                })}
-              </div>
-            )}
-          </section>
-        );
-      })}
-    </div>
-  );
-}
 
 /* ----------------------------- Mini month (rail) ---------------------- */
-function MiniMonth({
-  cursor, byDay, overlayByDay, onPickDay,
-}: {
-  cursor: Date;
-  byDay: Map<string, CalendarEventView[]>;
-  overlayByDay: Map<string, OverlayItem[]>;
-  onPickDay: (d: Date) => void;
-}) {
-  // The mini-month browses MONTH-by-MONTH on its own (a calendar's chevrons page
-  // months), independent of the main view's period nav (< Today >). Re-syncs to
-  // the shown month whenever the main cursor jumps (e.g. Today / picking a day).
-  const [viewMonth, setViewMonth] = useState<Date>(() => new Date(cursor.getFullYear(), cursor.getMonth(), 1, 12));
-  useEffect(() => { setViewMonth(new Date(cursor.getFullYear(), cursor.getMonth(), 1, 12)); }, [cursor]);
-  const monthStart = viewMonth;
-  const gridStart = startOfWeekMon(monthStart);
-  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const monthLabel = viewMonth.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" });
-  return (
-    <div className="rounded-lg border border-border bg-bg-elev p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{monthLabel}</span>
-        <span className="ml-auto flex items-center gap-0.5">
-          <button type="button" onClick={() => setViewMonth((m) => addMonths(m, -1))} title="Previous month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronLeft size={13} /></button>
-          <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} title="Next month" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"><ChevronRight size={13} /></button>
-        </span>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center">
-        {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i} className="pb-1 text-[8px] font-medium uppercase text-fg-subtle">{d}</span>)}
-        {cells.map((cell, i) => {
-          const k = keyOfDate(cell);
-          const evs = byDay.get(k) ?? [];
-          const ovs = overlayByDay.get(k) ?? [];
-          const inMonth = cell.getMonth() === viewMonth.getMonth();
-          const isToday = k === todayKeyGlobal;
-          const dots = [...evs.map((e) => accentOf(e)), ...ovs.map((o) => OVERLAY_META[o.kind].dot)].slice(0, 3);
-          return (
-            <button key={i} type="button" onClick={() => onPickDay(cell)}
-              className={cn("relative flex h-8 flex-col items-center justify-center rounded-md text-xs transition-colors hover:bg-bg-muted",
-                isToday ? "bg-accent font-semibold text-white" : inMonth ? "text-fg" : "text-fg-subtle/60")}>
-              {cell.getDate()}
-              {dots.length > 0 && (
-                <span className="absolute bottom-0.5 flex gap-[1.5px]">
-                  {dots.map((c, di) => <span key={di} className="h-[3px] w-[3px] rounded-full" style={{ backgroundColor: isToday ? "#fff" : c }} />)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------ Brief rail ---------------------------- */
-function BriefRail({
-  cursor, byDay, overlayByDay, onPickDay,
-  availableLayers, enabledLayers, toggleLayer, meetingsOnly, announcements,
-}: {
-  cursor: Date;
-  byDay: Map<string, CalendarEventView[]>;
-  overlayByDay: Map<string, OverlayItem[]>;
-  onPickDay: (d: Date) => void;
-  availableLayers: OverlayKind[];
-  enabledLayers: Set<OverlayKind>;
-  toggleLayer: (k: OverlayKind) => void;
-  meetingsOnly: boolean;
-  announcements: BriefAnnouncement[];
-}) {
-  const live = announcements.filter((a) => a.live);
-  return (
-    <aside className="hidden space-y-3 lg:block">
-      <MiniMonth cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onPickDay={onPickDay} />
-
-      {!meetingsOnly && availableLayers.length > 0 && (
-        <div className="rounded-lg border border-border bg-bg-elev p-3">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle"><LayersIcon size={12} /> Layers</p>
-          <div className="flex flex-wrap gap-1.5">
-            {availableLayers.map((k) => {
-              const m = OVERLAY_META[k]; const Icon = m.icon; const on = enabledLayers.has(k);
-              return (
-                <button key={k} type="button" onClick={() => toggleLayer(k)}
-                  className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ring-1 transition-colors",
-                    on ? "bg-bg-subtle text-fg ring-border" : "text-fg-subtle opacity-55 ring-border/60 hover:opacity-100")}>
-                  <Icon size={11} className={on ? m.tone : ""} /> {OVERLAY_LABELS[k]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-lg border border-border bg-bg-elev p-3">
-        <div className="mb-1.5 flex items-center gap-2">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-violet-500"><Megaphone size={12} /> Announcements</p>
-          <Link href="/announcements" className="ml-auto text-xs font-medium text-accent hover:underline">Manage →</Link>
-        </div>
-        {live.length === 0 ? (
-          <p className="text-xs text-fg-subtle">Nothing live right now.</p>
-        ) : (
-          <div className="space-y-2">
-            {live.slice(0, 2).map((a) => {
-              const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
-              return (
-                <div key={a.id} className="rounded-xl border-l-2 border-violet-400 bg-bg-elev px-2.5 py-1.5 ring-1 ring-border/50">
-                  <p className="truncate text-xs font-medium text-fg">{a.title}</p>
-                  {a.requireAck && (
-                    <>
-                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-violet-100"><span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div>
-                      <p className="mt-0.5 text-[9.5px] text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</p>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </aside>
-  );
-}
 
 /** Everything you can DO to a saved event — send the invite, add a Meet room,
  *  share it, preview the email, draft reminders or a follow-up, delete it —
@@ -2207,11 +1680,6 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
  * FIELD_SHELL — the full box, for controls we style ourselves (date, time, company, category).
  * CHIP        — every small toggle: reminders and the quick templates.
  */
-const FIELD = "h-10 rounded-xl";
-const FIELD_SHELL =
-  "h-10 rounded-xl bg-bg-subtle px-3.5 text-sm text-fg ring-1 ring-border transition-colors hover:ring-accent/40";
-const CHIP =
-  "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium ring-1 transition-colors";
 
 /** The mockup's words for the alarm chips (the Desk form keeps its short ones). */
 const STUDIO_REMINDER_WORDS: Record<number, string> = { 0: "At start", 10: "10 min", 30: "30 min", 60: "1 hour", 1440: "1 day", 2880: "2 days", 10080: "1 week" };
@@ -2266,7 +1734,6 @@ function EventForm({
   editing,
   allEvents,
   onClose,
-  studio = false,
   seed = null,
 }: {
   /** A new event started from a grid slot: its day and hour. */
@@ -2277,8 +1744,6 @@ function EventForm({
   editing: CalendarEventView | null;
   allEvents: CalendarEventView[];
   onClose: () => void;
-  /** Studio: the event screen from the mockup (board Event) — same form, same save. */
-  studio?: boolean;
 }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
@@ -2286,7 +1751,6 @@ function EventForm({
   // — the Studio screen's dark bar. A no-op set on a new event.
   const acts = useEventActions(editing, onClose);
   useEffect(() => {
-    if (!studio) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && document.querySelectorAll('[role="dialog"]').length <= 1) onClose(); };
@@ -2295,7 +1759,7 @@ function EventForm({
     // reaches here a menu has already said "that one was mine".
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
-  }, [studio, onClose]);
+  }, [onClose]);
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [picked, setPicked] = useState<CalendarAttendee[]>(editing?.attendees ?? []);
   useEffect(() => {
@@ -2502,659 +1966,269 @@ function EventForm({
     });
   }
 
-  if (studio) {
-    // ---- Studio (mockup board Event, design/studio-mockup/gen/p_event.py) ----
-    // The SAME form: every field above feeds the same `submit`, and the dark bar
-    // calls the same actions the agenda row does (useEventActions). Only the
-    // layout is the mockup's: title · two columns · a footer that says whether
-    // it clashes.
-    const LBL = "flex items-center justify-between gap-3 text-xs text-[var(--st-label)]";
-    const HINT = "text-[11px] text-[#A3A6AB]";
-    const BOX = "flex h-[38px] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px]";
-    const BARE = "bare-field h-full w-full min-w-0 rounded-none p-0 text-[13px] outline-none ring-0 focus:ring-0 placeholder:text-[var(--st-muted)]";
-    const ACT = "inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2E3035] px-2.5 text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] disabled:opacity-40";
-    const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).replace(",", "");
-    const shortDay = startDate ? new Date(`${startDate}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : null;
-    const hasEmails = picked.some((p) => p.email);
-    return createPortal(
-      <div className="studio fixed inset-0 z-[90] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label={editing ? "Edit event" : "New event"}>
-        <div className="st-tex-paper-dots absolute inset-0 bg-[var(--st-scrim)]" onClick={onClose} />
-        <form id="calendar-event-form" action={submit}
-          className="st-pop relative flex h-[min(760px,calc(100dvh-24px))] w-[min(1120px,calc(100vw-24px))] flex-col overflow-hidden rounded-[22px] bg-[var(--st-surface)] shadow-[0_30px_80px_rgba(17,18,20,0.22)]">
-          {/* ── The dark bar: back to the calendar, then everything you can DO to it. */}
-          <div className="flex shrink-0 items-center gap-2 bg-[#141517] px-[18px] py-3.5 text-[#F2F2F0]">
-            <button type="button" onClick={onClose} className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
-              <ChevronLeft size={13} strokeWidth={2.2} />Calendar
-            </button>
-            <span className="mx-1.5 h-5 w-px shrink-0 bg-[#2E3035]" />
-            <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]">
-              {editing ? (
-                <>
-                  {acts.emailCount > 0 && (
-                    <button type="button" onClick={acts.sendInvite} disabled={acts.pending} className={ACT} title={`Email the invitation to ${acts.emailCount} guest${acts.emailCount === 1 ? "" : "s"}`}>
-                      <Send size={13} />{acts.isPast ? "Send again" : "Send invite"}
+  // ---- Studio (mockup board Event, design/studio-mockup/gen/p_event.py) ----
+  // The SAME form: every field above feeds the same `submit`, and the dark bar
+  // calls the same actions the agenda row does (useEventActions). Only the
+  // layout is the mockup's: title · two columns · a footer that says whether
+  // it clashes.
+  const LBL = "flex items-center justify-between gap-3 text-xs text-[var(--st-label)]";
+  const HINT = "text-[11px] text-[#A3A6AB]";
+  const BOX = "flex h-[38px] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px]";
+  const BARE = "bare-field h-full w-full min-w-0 rounded-none p-0 text-[13px] outline-none ring-0 focus:ring-0 placeholder:text-[var(--st-muted)]";
+  const ACT = "inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2E3035] px-2.5 text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] disabled:opacity-40";
+  const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).replace(",", "");
+  const shortDay = startDate ? new Date(`${startDate}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : null;
+  const hasEmails = picked.some((p) => p.email);
+  return createPortal(
+    <div className="studio fixed inset-0 z-[90] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label={editing ? "Edit event" : "New event"}>
+      <div className="st-tex-paper-dots absolute inset-0 bg-[var(--st-scrim)]" onClick={onClose} />
+      <form id="calendar-event-form" action={submit}
+        className="st-pop relative flex h-[min(760px,calc(100dvh-24px))] w-[min(1120px,calc(100vw-24px))] flex-col overflow-hidden rounded-[22px] bg-[var(--st-surface)] shadow-[0_30px_80px_rgba(17,18,20,0.22)]">
+        {/* ── The dark bar: back to the calendar, then everything you can DO to it. */}
+        <div className="flex shrink-0 items-center gap-2 bg-[#141517] px-[18px] py-3.5 text-[#F2F2F0]">
+          <button type="button" onClick={onClose} className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg bg-[#F2F2F0] px-2.5 text-xs font-medium text-[#111214]">
+            <ChevronLeft size={13} strokeWidth={2.2} />Calendar
+          </button>
+          <span className="mx-1.5 h-5 w-px shrink-0 bg-[#2E3035]" />
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]">
+            {editing ? (
+              <>
+                {acts.emailCount > 0 && (
+                  <button type="button" onClick={acts.sendInvite} disabled={acts.pending} className={ACT} title={`Email the invitation to ${acts.emailCount} guest${acts.emailCount === 1 ? "" : "s"}`}>
+                    <Send size={13} />{acts.isPast ? "Send again" : "Send invite"}
+                  </button>
+                )}
+                {editing.meetLink
+                  ? <a href={editing.meetLink} target="_blank" rel="noreferrer" className={ACT}><Link2 size={13} />Meet link</a>
+                  : !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
+                <a href={editing.icsPath} className={ACT}><Download size={13} />.ics</a>
+                <a href={editing.googleUrl} target="_blank" rel="noreferrer" className={ACT}><Globe size={13} />Google</a>
+                <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy link</button>
+                <button type="button" onClick={acts.shareWhatsApp} className={ACT}><MessageCircle size={13} />WhatsApp</button>
+                {acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
+                {acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}
+                {acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
+              </>
+            ) : (
+              <span className="self-center truncate px-1 text-xs text-[#8E9197]">New event — the invite, the links and sharing appear here once it is saved.</span>
+            )}
+          </div>
+          {editing && (
+            <button type="button" onClick={acts.remove} disabled={acts.pending}
+              className="h-[30px] shrink-0 rounded-lg border border-[#4A2A3C] px-2.5 text-xs text-[#F07BBE] transition-colors hover:bg-[#2A1622]">Delete…</button>
+          )}
+        </div>
+
+        {/* ── Body: what, when, who, where on the left; papers, alarms, repeats on the right. */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 gap-y-4 overflow-y-auto px-[26px] py-[22px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <label className="block">
+              <span className="sr-only">Title</span>
+              <input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What is it?" autoFocus={!editing}
+                style={{ background: "transparent", border: 0, borderBottom: "1px solid var(--st-line-soft)", borderRadius: 0, boxShadow: "none", color: "var(--st-ink)" }}
+                className="w-full pb-2.5 text-[26px] font-medium tracking-[-0.02em] outline-none placeholder:text-[var(--st-muted)]" />
+            </label>
+
+            <div className="flex flex-col gap-1.5">
+              <span className={LBL}><span>When</span><span className={HINT}>Times are Dar es Salaam (EAT)</span></span>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className={BOX}>
+                  <DatePopover block value={startDate || null} label={startDate ? longDay(startDate) : "Pick a day"} tone="text-[var(--st-muted)]"
+                    triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden"
+                    onChange={(d) => { setStartDate(d); if (!endDate) setEndDate(d); }} />
+                  {!allDay && <><span className="text-[var(--st-muted)]">·</span><TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={startTime} onChange={setStartTime} /></>}
+                </div>
+                {allDay ? (
+                  <div className={cn(BOX, "text-[var(--st-muted)]")}><Clock size={14} />All day — no end time</div>
+                ) : (
+                  <div className={BOX}>
+                    <DatePopover block value={endDate || null} label={endDate ? longDay(endDate) : "Ends — set it"} tone="text-[var(--st-muted)]"
+                      triggerClassName={cn("h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden", !endDate && "[&>span]:!text-[var(--st-muted)]")}
+                      onChange={setEndDate} />
+                    <span className="text-[var(--st-muted)]">·</span>
+                    <TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={endTime} onChange={setEndTime} />
+                  </div>
+                )}
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-[var(--st-sub)]">
+                <label className="flex cursor-pointer select-none items-center gap-1.5">
+                  <StudioTick on={allDay} onClick={() => setAllDay((v) => !v)} />All day
+                </label>
+                <span className="text-[var(--st-muted)]">
+                  Quick:{" "}
+                  {TEMPLATES.map((t, i) => (
+                    <span key={t.label}>{i > 0 && " · "}<button type="button" onClick={() => applyTemplate(t)} className="hover:text-[var(--st-ink)] hover:underline">{t.label}</button></span>
+                  ))}
+                </span>
+              </div>
+              <input type="hidden" name="startAt" value={startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : ""} />
+              {!allDay && <input type="hidden" name="endAt" value={endDate ? `${endDate}T${endTime}` : ""} />}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className={LBL}><span>Guests</span><span className={HINT}>Green dot = will get the email</span></span>
+              <AttendeePicker studio people={people} value={picked} onChange={setPicked} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Companies"}</span>{companyIds.length > 1 && <span className={HINT}>first is the lead</span>}</span>
+                <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(BOX, "w-full justify-between")} />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>Type</span></span>
+                <div className={BOX}>
+                  <FolderClosed size={14} className="shrink-0 text-[var(--st-muted)]" />
+                  <Combobox name="category" options={categories.map((c) => c.name)} defaultValue={editing?.categoryName ?? ""} placeholder="Choose a type" className={BARE} />
+                </div>
+              </div>
+            </div>
+            <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
+            <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>Where</span></span>
+                <div className={BOX}>
+                  <Globe size={14} className="shrink-0 text-[var(--st-muted)]" />
+                  <input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" className={BARE} />
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>Meeting link</span></span>
+                <div className="flex items-center gap-2">
+                  <div className={cn(BOX, "flex-1")}>
+                    <Link2 size={14} className="shrink-0 text-[var(--st-muted)]" />
+                    <input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder={addMeet ? "Google Meet — made on save" : "No link"} className={BARE} />
+                  </div>
+                  {!editing && (
+                    <button type="button" role="switch" aria-checked={addMeet} onClick={() => { meetTouched.current = true; setAddMeet((v) => !v); }}
+                      title={addMeet ? "A Google Meet room is made with the event and sent in the invitation" : hasEmails ? "Guests will get the invitation with no way to join online" : "Switch on for a video call"}
+                      className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs text-[var(--st-sub)]">
+                      <span className={cn("relative h-[18px] w-[30px] rounded-full transition-colors", addMeet ? "bg-[var(--st-ink)]" : "bg-[var(--st-track-off)]")}>
+                        <span className={cn("absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white transition-all", addMeet ? "left-[14px]" : "left-[2px]")} />
+                      </span>
+                      Meet
                     </button>
                   )}
-                  {editing.meetLink
-                    ? <a href={editing.meetLink} target="_blank" rel="noreferrer" className={ACT}><Link2 size={13} />Meet link</a>
-                    : !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
-                  <a href={editing.icsPath} className={ACT}><Download size={13} />.ics</a>
-                  <a href={editing.googleUrl} target="_blank" rel="noreferrer" className={ACT}><Globe size={13} />Google</a>
-                  <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy link</button>
-                  <button type="button" onClick={acts.shareWhatsApp} className={ACT}><MessageCircle size={13} />WhatsApp</button>
-                  {acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
-                  {acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}
-                  {acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
-                </>
-              ) : (
-                <span className="self-center truncate px-1 text-xs text-[#8E9197]">New event — the invite, the links and sharing appear here once it is saved.</span>
-              )}
+                </div>
+              </div>
             </div>
-            {editing && (
-              <button type="button" onClick={acts.remove} disabled={acts.pending}
-                className="h-[30px] shrink-0 rounded-lg border border-[#4A2A3C] px-2.5 text-xs text-[#F07BBE] transition-colors hover:bg-[#2A1622]">Delete…</button>
-            )}
+
+            <div className="flex flex-col gap-1.5">
+              <span className={LBL}><span>Notes for guests</span></span>
+              <textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Agenda, what to bring, how to get there…"
+                style={{ background: "var(--st-surface)", border: "1px solid var(--st-line)", borderRadius: 10, boxShadow: "none", color: "var(--st-sub)" }}
+                className="min-h-16 w-full resize-y px-3 py-2.5 text-[13px] leading-[1.45] outline-none placeholder:text-[var(--st-muted)]" />
+            </div>
           </div>
 
-          {/* ── Body: what, when, who, where on the left; papers, alarms, repeats on the right. */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 gap-y-4 overflow-y-auto px-[26px] py-[22px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-            <div className="flex min-w-0 flex-col gap-4">
-              <label className="block">
-                <span className="sr-only">Title</span>
-                <input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What is it?" autoFocus={!editing}
-                  style={{ background: "transparent", border: 0, borderBottom: "1px solid var(--st-line-soft)", borderRadius: 0, boxShadow: "none", color: "var(--st-ink)" }}
-                  className="w-full pb-2.5 text-[26px] font-medium tracking-[-0.02em] outline-none placeholder:text-[var(--st-muted)]" />
-              </label>
+          <div className="flex min-w-0 flex-col gap-3.5">
+            {readBanner && <StudioReadCard prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
 
-              <div className="flex flex-col gap-1.5">
-                <span className={LBL}><span>When</span><span className={HINT}>Times are Dar es Salaam (EAT)</span></span>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <EventAttachments studio eventId={editing?.id ?? null} companyId={companyIds[0] ?? editing?.companyId ?? null}
+              value={attachments} onChange={setAttachments} onPrefill={applyPrefill} allowLibrary />
+
+            <div className="flex flex-col gap-1.5">
+              <span className={LBL}><span>Remind me</span></span>
+              <div className="flex flex-wrap gap-1.5">
+                {REMINDER_OPTS.map((o) => {
+                  const on = reminders.includes(o.v);
+                  return (
+                    <button key={o.v} type="button" aria-pressed={on} onClick={() => toggleReminder(o.v)}
+                      className={cn("flex h-7 items-center rounded-lg border px-2.5 text-xs transition-colors",
+                        on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
+                      {STUDIO_REMINDER_WORDS[o.v] ?? o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>Repeats</span></span>
+                <FluidSelect value={recurrence} onSelect={setRecurrence}
+                  options={[{ value: "none", label: "Does not repeat" }, { value: "daily", label: "Every day" }, { value: "weekly", label: "Every week" }, { value: "monthly", label: "Every month" }]}
+                  buttonClassName={cn(BOX, "w-full justify-between")} />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={LBL}><span>Until</span></span>
+                {recurrence === "none" ? (
+                  <div className={cn(BOX, "text-[var(--st-muted)]")}>—</div>
+                ) : (
                   <div className={BOX}>
-                    <DatePopover block value={startDate || null} label={startDate ? longDay(startDate) : "Pick a day"} tone="text-[var(--st-muted)]"
-                      triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden"
-                      onChange={(d) => { setStartDate(d); if (!endDate) setEndDate(d); }} />
-                    {!allDay && <><span className="text-[var(--st-muted)]">·</span><TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={startTime} onChange={setStartTime} /></>}
+                    <DatePopover block value={recurrenceUntil || null} label={recurrenceUntil ? longDay(recurrenceUntil) : "No end"} tone="text-[var(--st-muted)]"
+                      triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden" onChange={setRecurrenceUntil} />
                   </div>
-                  {allDay ? (
-                    <div className={cn(BOX, "text-[var(--st-muted)]")}><Clock size={14} />All day — no end time</div>
-                  ) : (
-                    <div className={BOX}>
-                      <DatePopover block value={endDate || null} label={endDate ? longDay(endDate) : "Ends — set it"} tone="text-[var(--st-muted)]"
-                        triggerClassName={cn("h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden", !endDate && "[&>span]:!text-[var(--st-muted)]")}
-                        onChange={setEndDate} />
-                      <span className="text-[var(--st-muted)]">·</span>
-                      <TimeField className="w-[58px] shrink-0" inputClassName={cn(BARE, "px-0")} value={endTime} onChange={setEndTime} />
-                    </div>
-                  )}
+                )}
+              </div>
+            </div>
+
+            {isRecurring && (
+              <div className="flex flex-col gap-2 rounded-[12px] border border-[var(--st-line-soft)] px-3 py-2.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--st-sub)]">One date of a repeating event — you can cancel just this one.</span>
+                  {alreadySkipped
+                    ? <span className="shrink-0 text-[var(--st-late-text)]">This date is cancelled</span>
+                    : <button type="button" onClick={doSkip} disabled={pending} className="h-7 shrink-0 rounded-lg border border-[var(--st-line)] px-2.5 hover:bg-[var(--st-page)]">Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</button>}
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-[var(--st-sub)]">
-                  <label className="flex cursor-pointer select-none items-center gap-1.5">
-                    <StudioTick on={allDay} onClick={() => setAllDay((v) => !v)} />All day
-                  </label>
-                  <span className="text-[var(--st-muted)]">
-                    Quick:{" "}
-                    {TEMPLATES.map((t, i) => (
-                      <span key={t.label}>{i > 0 && " · "}<button type="button" onClick={() => applyTemplate(t)} className="hover:text-[var(--st-ink)] hover:underline">{t.label}</button></span>
+                {editing!.excludedDates.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--st-line-soft)] pt-2">
+                    <span className="text-[var(--st-muted)]">Cancelled (tap to restore):</span>
+                    {editing!.excludedDates.map((d) => (
+                      <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
+                        className="inline-flex items-center gap-1 rounded-md bg-[var(--st-page)] px-2 py-0.5 hover:text-[var(--st-ink)]">
+                        {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
+                      </button>
                     ))}
-                  </span>
-                </div>
-                <input type="hidden" name="startAt" value={startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : ""} />
-                {!allDay && <input type="hidden" name="endAt" value={endDate ? `${endDate}T${endTime}` : ""} />}
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className={LBL}><span>Guests</span><span className={HINT}>Green dot = will get the email</span></span>
-                <AttendeePicker studio people={people} value={picked} onChange={setPicked} />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Companies"}</span>{companyIds.length > 1 && <span className={HINT}>first is the lead</span>}</span>
-                  <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(BOX, "w-full justify-between")} />
-                </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>Type</span></span>
-                  <div className={BOX}>
-                    <FolderClosed size={14} className="shrink-0 text-[var(--st-muted)]" />
-                    <Combobox name="category" options={categories.map((c) => c.name)} defaultValue={editing?.categoryName ?? ""} placeholder="Choose a type" className={BARE} />
                   </div>
-                </div>
-              </div>
-              <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
-              <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>Where</span></span>
-                  <div className={BOX}>
-                    <Globe size={14} className="shrink-0 text-[var(--st-muted)]" />
-                    <input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" className={BARE} />
-                  </div>
-                </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>Meeting link</span></span>
-                  <div className="flex items-center gap-2">
-                    <div className={cn(BOX, "flex-1")}>
-                      <Link2 size={14} className="shrink-0 text-[var(--st-muted)]" />
-                      <input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder={addMeet ? "Google Meet — made on save" : "No link"} className={BARE} />
-                    </div>
-                    {!editing && (
-                      <button type="button" role="switch" aria-checked={addMeet} onClick={() => { meetTouched.current = true; setAddMeet((v) => !v); }}
-                        title={addMeet ? "A Google Meet room is made with the event and sent in the invitation" : hasEmails ? "Guests will get the invitation with no way to join online" : "Switch on for a video call"}
-                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs text-[var(--st-sub)]">
-                        <span className={cn("relative h-[18px] w-[30px] rounded-full transition-colors", addMeet ? "bg-[var(--st-ink)]" : "bg-[var(--st-track-off)]")}>
-                          <span className={cn("absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white transition-all", addMeet ? "left-[14px]" : "left-[2px]")} />
-                        </span>
-                        Meet
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className={LBL}><span>Notes for guests</span></span>
-                <textarea name="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Agenda, what to bring, how to get there…"
-                  style={{ background: "var(--st-surface)", border: "1px solid var(--st-line)", borderRadius: 10, boxShadow: "none", color: "var(--st-sub)" }}
-                  className="min-h-16 w-full resize-y px-3 py-2.5 text-[13px] leading-[1.45] outline-none placeholder:text-[var(--st-muted)]" />
-              </div>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-3.5">
-              {readBanner && <StudioReadCard prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
-
-              <EventAttachments studio eventId={editing?.id ?? null} companyId={companyIds[0] ?? editing?.companyId ?? null}
-                value={attachments} onChange={setAttachments} onPrefill={applyPrefill} allowLibrary />
-
-              <div className="flex flex-col gap-1.5">
-                <span className={LBL}><span>Remind me</span></span>
-                <div className="flex flex-wrap gap-1.5">
-                  {REMINDER_OPTS.map((o) => {
-                    const on = reminders.includes(o.v);
-                    return (
-                      <button key={o.v} type="button" aria-pressed={on} onClick={() => toggleReminder(o.v)}
-                        className={cn("flex h-7 items-center rounded-lg border px-2.5 text-xs transition-colors",
-                          on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
-                        {STUDIO_REMINDER_WORDS[o.v] ?? o.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>Repeats</span></span>
-                  <FluidSelect value={recurrence} onSelect={setRecurrence}
-                    options={[{ value: "none", label: "Does not repeat" }, { value: "daily", label: "Every day" }, { value: "weekly", label: "Every week" }, { value: "monthly", label: "Every month" }]}
-                    buttonClassName={cn(BOX, "w-full justify-between")} />
-                </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className={LBL}><span>Until</span></span>
-                  {recurrence === "none" ? (
-                    <div className={cn(BOX, "text-[var(--st-muted)]")}>—</div>
-                  ) : (
-                    <div className={BOX}>
-                      <DatePopover block value={recurrenceUntil || null} label={recurrenceUntil ? longDay(recurrenceUntil) : "No end"} tone="text-[var(--st-muted)]"
-                        triggerClassName="h-full min-w-0 flex-1 bg-transparent text-[13px] [&>svg:last-child]:hidden" onChange={setRecurrenceUntil} />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {isRecurring && (
-                <div className="flex flex-col gap-2 rounded-[12px] border border-[var(--st-line-soft)] px-3 py-2.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[var(--st-sub)]">One date of a repeating event — you can cancel just this one.</span>
-                    {alreadySkipped
-                      ? <span className="shrink-0 text-[var(--st-late-text)]">This date is cancelled</span>
-                      : <button type="button" onClick={doSkip} disabled={pending} className="h-7 shrink-0 rounded-lg border border-[var(--st-line)] px-2.5 hover:bg-[var(--st-page)]">Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</button>}
-                  </div>
-                  {editing!.excludedDates.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--st-line-soft)] pt-2">
-                      <span className="text-[var(--st-muted)]">Cancelled (tap to restore):</span>
-                      {editing!.excludedDates.map((d) => (
-                        <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
-                          className="inline-flex items-center gap-1 rounded-md bg-[var(--st-page)] px-2 py-0.5 hover:text-[var(--st-ink)]">
-                          {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2 pt-1">
-                {editing && hasEmails && (
-                  <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px]">
-                    <StudioTick on={notifyGuests} onClick={() => setNotifyGuests((v) => !v)} />
-                    Tell guests about this change
-                    <span className="text-[11px] text-[#A3A6AB]">{notifyGuests ? "(they get an email of what changed)" : "(their calendar updates by itself)"}</span>
-                  </label>
-                )}
-                {!editing && (
-                  <label className={cn("flex cursor-pointer select-none items-center gap-2.5 text-[13px]", !trackTask && "text-[var(--st-sub)]")}>
-                    <StudioTick on={trackTask} onClick={() => setTrackTask((v) => !v)} />
-                    {companyIds.length > 1 ? `Track as ${companyIds.length} tasks` : "Track this meeting as a task"}
-                    <span className="text-[11px] text-[#A3A6AB]">{companyIds.length ? "(new events · one per company)" : "(pick a company first)"}</span>
-                  </label>
                 )}
               </div>
-              <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
-            </div>
-          </div>
-
-          {/* ── Footer: does it clash? then Cancel / Save. */}
-          <div className="flex shrink-0 items-center gap-2 border-t border-[var(--st-line-soft)] px-[26px] py-3.5">
-            <span className={cn("min-w-0 flex-1 truncate text-xs", conflicts.length ? "text-[var(--st-soon-text)]" : "text-[var(--st-muted)]")}>
-              {!startDate
-                ? "Pick a day to check for clashes."
-                : allDay
-                  ? `All day on ${shortDay}.`
-                  : conflicts.length
-                    ? `Clashes with ${conflicts.slice(0, 2).map((c) => c.title).join(", ")}${conflicts.length > 2 ? ` and ${conflicts.length - 2} more` : ""} on ${shortDay}.`
-                    : `No clash with anything else on ${shortDay}.`}
-            </span>
-            <button type="button" onClick={onClose} className="flex h-[38px] items-center rounded-[10px] border border-[var(--st-line)] px-4 text-[13px] hover:bg-[var(--st-page)]">Cancel</button>
-            <button type="submit" disabled={pending} className="flex h-[38px] items-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-[18px] text-[13px] font-semibold text-[var(--st-surface)] transition-opacity hover:opacity-90 disabled:opacity-60">
-              {pending && <Loader2 size={14} className="animate-spin" />}{editing ? "Save changes" : "Create event"}
-            </button>
-          </div>
-        </form>
-        {acts.dialogs}
-      </div>,
-      document.body,
-    );
-  }
-
-  return (
-    <HrmsDialog
-      open
-      onClose={onClose}
-      // 820px, not the "lg" preset: two columns need roughly 380px each to hold
-      // a Meet link or a long company name without wrapping.
-      width={820}
-      title={
-        <span className="inline-flex items-center gap-2">
-          <CalendarPlus size={16} className="text-accent" />
-          {editing ? "Edit event" : "New event"}
-        </span>
-      }
-      footer={
-        <>
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          {/* `form` ties this submit button to the form below even though the
-              footer renders outside it (HrmsDialog owns the footer slot). */}
-          <Button type="submit" form="calendar-event-form" loading={pending}>
-            {editing ? "Save changes" : "Create event"}
-          </Button>
-        </>
-      }
-    >
-      {/* ONE grid, two columns. Every short field is half-width, so the 311px of
-          dead space that sat beside Category and Repeats is gone and the form is
-          roughly half as tall — it now fits without scrolling. Fields holding
-          long text (title, description, attachments, attendees) span both.
-          Order follows how an event is actually decided: what · when · who ·
-          where · detail · optional extras last. */}
-      <form id="calendar-event-form" action={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
-        {/* ── What ─────────────────────────────────────────────────────── */}
-        <div className="sm:col-span-2">
-          <FieldLabel>Title</FieldLabel>
-          <Input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 review with DSC Ltd" className={cn(FIELD, "font-medium")} />
-        </div>
-
-        {/* ── When: start, end and all-day on ONE row ──────────────────── */}
-        <div className="sm:col-span-2">
-          <div className="mb-1.5 flex items-end justify-between gap-3">
-            <span className="block text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">When</span>
-            {/* Quick templates sit WITH the times they change, rather than
-                floating above the title as the first thing you met. */}
-            {!editing && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {TEMPLATES.map((t) => (
-                  <button key={t.label} type="button" onClick={() => applyTemplate(t)}
-                    className={cn(CHIP, "bg-bg-subtle text-fg-muted ring-border hover:text-fg")}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
             )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-[132px] flex-1">
-              <DatePopover
-                block
-                triggerClassName={FIELD_SHELL}
-                value={startDate || null}
-                // Mirror the end date when it is still blank. Almost every event
-                // starts and ends on the same day, and the row already shows an
-                // end TIME — leaving "No date" beside it meant that time was
-                // quietly ignored on save.
-                onChange={(d) => { setStartDate(d); if (!endDate) setEndDate(d); }}
-              />
-            </div>
-            {!allDay && (
-              <>
-                <TimeField className="w-[104px] shrink-0" inputClassName={FIELD_SHELL} value={startTime} onChange={setStartTime} />
-                <span className="text-xs text-fg-subtle">to</span>
-                <div className="min-w-[132px] flex-1">
-                  <DatePopover block triggerClassName={FIELD_SHELL} value={endDate || null} onChange={setEndDate} />
-                </div>
-                <TimeField className="w-[104px] shrink-0" inputClassName={FIELD_SHELL} value={endTime} onChange={setEndTime} />
-              </>
-            )}
-            <label className={cn(FIELD_SHELL, "inline-flex shrink-0 cursor-pointer select-none items-center gap-2")}>
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="h-3.5 w-3.5 accent-[hsl(var(--accent))]" />
-              All-day
-            </label>
-          </div>
-          {/* Canonical values the server reads (datetime-local / date shape). */}
-          <input type="hidden" name="startAt" value={startDate ? (allDay ? startDate : `${startDate}T${startTime}`) : ""} />
-          {!allDay && <input type="hidden" name="endAt" value={endDate ? `${endDate}T${endTime}` : ""} />}
-          {conflicts.length > 0 && (
-            <div className="mt-2 flex items-start gap-2 rounded-lg bg-warn-soft/60 px-3 py-2 text-xs text-warn ring-1 ring-warn/30">
-              <Bell size={13} className="mt-0.5 shrink-0" />
-              <span>Overlaps {conflicts.length} existing event{conflicts.length === 1 ? "" : "s"}: {conflicts.slice(0, 3).map((c) => c.title).join(", ")}{conflicts.length > 3 ? "…" : ""}</span>
-            </div>
-          )}
-        </div>
 
-        {/* ── Who — moved up: you settle who it is with early, not last. ── */}
-        <div className="sm:col-span-2">
-          <FieldLabel>Attendees</FieldLabel>
-          <AttendeePicker people={people} value={picked} onChange={setPicked} />
-        </div>
-
-        {/* ── Filing: company + category, paired ───────────────────────── */}
-        <div>
-          <FieldLabel>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company"}</FieldLabel>
-          <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} buttonClassName={cn(FIELD_SHELL, "flex w-full items-center justify-between")} />
-          {companyIds.length > 1 && (
-            <p className="mt-1 text-xs text-fg-subtle">One task per company; the first is the lead.</p>
-          )}
-        </div>
-        <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
-        <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
-
-        <div>
-          <FieldLabel>Category</FieldLabel>
-          <Combobox
-            name="category"
-            options={categories.map((c) => c.name)}
-            defaultValue={editing?.categoryName ?? ""}
-            placeholder="Board meeting…"
-            className={cn(FIELD_SHELL, "w-full placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40")}
-          />
-        </div>
-
-        {/* ── Where: place + link, paired ──────────────────────────────── */}
-        <div>
-          <FieldLabel>Location</FieldLabel>
-          <Input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office, address…" className={FIELD} />
-        </div>
-        <div>
-          <FieldLabel>Meeting link</FieldLabel>
-          <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Paste a Zoom / Teams link, or leave blank for Google Meet" className={FIELD} />
-          {!editing && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={addMeet}
-              onClick={() => { meetTouched.current = true; setAddMeet((v) => !v); }}
-              className="mt-2 flex w-full items-center gap-3 rounded-md border border-border bg-bg-elev px-3 py-2 text-left transition-colors hover:bg-bg-subtle"
-            >
-              <Video size={14} className={cn("shrink-0", addMeet ? "text-accent" : "text-fg-muted")} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-fg">{addMeet ? "Google Meet link will be added" : "No video link"}</span>
-                <span className="block text-xs text-fg-muted">
-                  {addMeet ? "Created with the event and sent in the invitation." : picked.some((p) => p.email) ? "Guests will get the invitation without a way to join online." : "Switch on for a video call."}
-                </span>
-              </span>
-              <Switch on={addMeet} />
-            </button>
-          )}
-        </div>
-
-        {/* ── Detail — full width and roomy. An AI-read ticket runs to ten
-               lines and used to arrive in a two-line box. ──────────────── */}
-        <div className="sm:col-span-2">
-          <FieldLabel>Description</FieldLabel>
-          <Textarea
-            name="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={5}
-            placeholder="Agenda, notes…"
-            className="min-h-[7.5rem] resize-y leading-relaxed"
-          />
-        </div>
-
-        {/* Papers that travel with the entry — ticket, booking, agenda. */}
-        <div className="sm:col-span-2">
-          <EventAttachments
-            eventId={editing?.id ?? null}
-            companyId={companyIds[0] ?? editing?.companyId ?? null}
-            value={attachments}
-            onChange={setAttachments}
-            onPrefill={applyPrefill}
-            allowLibrary
-          />
-          {readBanner && <ReadSummary prefill={readBanner} onDismiss={() => setReadBanner(null)} />}
-        </div>
-
-        {/* ── Reminders + repeats, paired ──────────────────────────────── */}
-        <div>
-          <FieldLabel>Reminders</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {REMINDER_OPTS.map((o) => {
-              const on = reminders.includes(o.v);
-              return (
-                <button key={o.v} type="button" onClick={() => toggleReminder(o.v)}
-                  className={cn(CHIP, on ? "bg-accent/15 text-accent ring-accent/40" : "bg-bg-subtle text-fg-muted ring-border hover:text-fg")}>
-                  <Bell size={11} /> {o.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <FieldLabel>Repeats</FieldLabel>
-          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)} className={FIELD}>
-            <option value="none">Does not repeat</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </Select>
-          {recurrence !== "none" && (
-            <Input type="date" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className={cn(FIELD, "mt-2")} aria-label="Repeat until" />
-          )}
-        </div>
-
-        {/* Per-occurrence skip — cancel JUST this date of a repeating event. */}
-        {isRecurring && (
-          <div className="space-y-2 rounded-xl bg-bg-subtle/60 p-3 ring-1 ring-border/70 sm:col-span-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
-              {alreadySkipped ? (
-                <span className="shrink-0 text-xs font-medium text-danger">This date is cancelled</span>
-              ) : (
-                <Button type="button" size="sm" variant="ghost" onClick={doSkip} disabled={pending} className="shrink-0">
-                  Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                </Button>
+            <div className="flex flex-col gap-2 pt-1">
+              {editing && hasEmails && (
+                <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px]">
+                  <StudioTick on={notifyGuests} onClick={() => setNotifyGuests((v) => !v)} />
+                  Tell guests about this change
+                  <span className="text-[11px] text-[#A3A6AB]">{notifyGuests ? "(they get an email of what changed)" : "(their calendar updates by itself)"}</span>
+                </label>
+              )}
+              {!editing && (
+                <label className={cn("flex cursor-pointer select-none items-center gap-2.5 text-[13px]", !trackTask && "text-[var(--st-sub)]")}>
+                  <StudioTick on={trackTask} onClick={() => setTrackTask((v) => !v)} />
+                  {companyIds.length > 1 ? `Track as ${companyIds.length} tasks` : "Track this meeting as a task"}
+                  <span className="text-[11px] text-[#A3A6AB]">{companyIds.length ? "(new events · one per company)" : "(pick a company first)"}</span>
+                </label>
               )}
             </div>
-            {editing!.excludedDates.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-                <span className="text-xs text-fg-subtle">Cancelled dates (tap to restore):</span>
-                {editing!.excludedDates.map((d) => (
-                  <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
-                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-xs text-danger ring-1 ring-danger/20 transition-colors hover:bg-danger-soft/70">
-                    {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
-                  </button>
-                ))}
-              </div>
-            )}
+            <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
           </div>
-        )}
+        </div>
 
-        {/* Telling guests is a DELIBERATE act, never a side effect of saving.
-            Only shown when there is somebody with an email to tell. */}
-        {editing && picked.some((p) => p.email) && (
-          <label className="flex cursor-pointer select-none items-start gap-2.5 rounded-xl bg-bg-subtle px-3 py-2.5 ring-1 ring-border/70 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={notifyGuests}
-              onChange={(e) => setNotifyGuests(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--accent))]"
-            />
-            <span className="text-sm">
-              Tell guests about this change
-              <span className="block text-sm text-fg-muted">
-                {notifyGuests
-                  ? "They will get an email saying exactly what changed."
-                  : "Their calendar updates by itself — tick this only if they need to be told."}
-              </span>
-            </span>
-          </label>
-        )}
-
-        {/* Meeting-as-task — OFF by default (owner's call): most diary entries
-            are not something to follow through as a task. */}
-        {!editing && (
-          <label className="flex h-10 cursor-pointer select-none items-center gap-2.5 rounded-xl bg-bg-subtle px-3 ring-1 ring-border/70 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={trackTask}
-              onChange={(e) => setTrackTask(e.target.checked)}
-              className="h-3.5 w-3.5 accent-[hsl(var(--accent))]"
-            />
-            <span className="truncate text-sm">
-              {companyIds.length > 1 ? `Track as ${companyIds.length} tasks (one per company)` : "Track this meeting as a task"}
-              <span className="text-fg-muted"> — {companyIds.length > 0 ? "prep and follow it through" : "pick a company first"}</span>
-            </span>
-          </label>
-        )}
-        <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
+        {/* ── Footer: does it clash? then Cancel / Save. */}
+        <div className="flex shrink-0 items-center gap-2 border-t border-[var(--st-line-soft)] px-[26px] py-3.5">
+          <span className={cn("min-w-0 flex-1 truncate text-xs", conflicts.length ? "text-[var(--st-soon-text)]" : "text-[var(--st-muted)]")}>
+            {!startDate
+              ? "Pick a day to check for clashes."
+              : allDay
+                ? `All day on ${shortDay}.`
+                : conflicts.length
+                  ? `Clashes with ${conflicts.slice(0, 2).map((c) => c.title).join(", ")}${conflicts.length > 2 ? ` and ${conflicts.length - 2} more` : ""} on ${shortDay}.`
+                  : `No clash with anything else on ${shortDay}.`}
+          </span>
+          <button type="button" onClick={onClose} className="flex h-[38px] items-center rounded-[10px] border border-[var(--st-line)] px-4 text-[13px] hover:bg-[var(--st-page)]">Cancel</button>
+          <button type="submit" disabled={pending} className="flex h-[38px] items-center gap-1.5 rounded-[10px] bg-[var(--st-ink)] px-[18px] text-[13px] font-semibold text-[var(--st-surface)] transition-opacity hover:opacity-90 disabled:opacity-60">
+            {pending && <Loader2 size={14} className="animate-spin" />}{editing ? "Save changes" : "Create event"}
+          </button>
+        </div>
       </form>
-    </HrmsDialog>
+      {acts.dialogs}
+    </div>,
+    document.body,
   );
 }
 
 /* -------------------------- Announcements panel ----------------------- */
-function toneClasses(tone: string): { pill: string; border: string } {
-  switch (tone) {
-    case "danger": return { pill: "bg-danger-soft text-danger ring-danger/25", border: "border-danger" };
-    case "warn": return { pill: "bg-warn-soft text-warn ring-warn/25", border: "border-warn" };
-    case "success": return { pill: "bg-success-soft text-success ring-success/25", border: "border-success" };
-    case "info": return { pill: "bg-info-soft text-info ring-info/25", border: "border-info" };
-    default: return { pill: "bg-violet-100 text-violet-600 ring-violet-300/40", border: "border-violet-400" };
-  }
-}
 
-function AnnouncementsPanel({ announcements }: { announcements: BriefAnnouncement[] }) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [busy, setBusy] = useState<number | null>(null);
-
-  const live = announcements.filter((a) => a.live);
-  const scheduled = announcements.filter((a) => a.scheduled);
-  const drafts = announcements.filter((a) => a.status === "draft");
-
-  function nudge(id: number) {
-    setBusy(id);
-    start(async () => {
-      const res = await nudgeAnnouncementAction(id);
-      setBusy(null);
-      if (!res.ok) return toast(res.error ?? "Could not nudge.", { tone: "warn" });
-      toast(res.nudged ? `Reminded ${res.nudged} ${res.nudged === 1 ? "person" : "people"}.` : "Everyone's already seen it.", { tone: "success" });
-      router.refresh();
-    });
-  }
-
-  const typeMeta = (t: string) => ANNOUNCEMENT_TYPES.find((x) => x.value === t) ?? ANNOUNCEMENT_TYPES[0];
-
-  function Card_({ a, faded }: { a: BriefAnnouncement; faded?: boolean }) {
-    const meta = typeMeta(a.type);
-    const tc = toneClasses(meta.tone);
-    const pct = a.stats.total ? Math.round((a.stats.ack / a.stats.total) * 100) : 0;
-    const outstanding = Math.max(0, a.stats.total - a.stats.ack);
-    return (
-      <div className={cn("rounded-2xl border-l-[3px] bg-bg-elev p-3.5 ring-1 ring-border/60", tc.border, faded && "opacity-70")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold ring-1", tc.pill)}>{meta.label}</span>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{a.title}</span>
-          {a.scheduled && a.publishAt && (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle px-2 py-0.5 text-xs font-medium text-fg-muted ring-1 ring-border/60">
-              scheduled · {new Date(a.publishAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-            </span>
-          )}
-          {a.status === "draft" && <span className="rounded-lg bg-bg-subtle px-2 py-0.5 text-xs font-medium text-fg-muted ring-1 ring-border/60">draft</span>}
-        </div>
-        {a.body && <p className="mt-1.5 line-clamp-2 text-base leading-relaxed text-fg-muted">{a.body}</p>}
-        {a.live && a.requireAck && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-            <div className="h-1.5 min-w-[120px] flex-1 overflow-hidden rounded-full bg-violet-100">
-              <span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
-            </div>
-            <span className="text-xs tabular text-fg-subtle">{a.stats.ack}/{a.stats.total} acknowledged</span>
-            {outstanding > 0 && (
-              <button type="button" onClick={() => nudge(a.id)} disabled={busy === a.id}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-warn transition-colors hover:border-warn/40 disabled:opacity-50">
-                <Bell size={13} /> Nudge {outstanding}
-              </button>
-            )}
-          </div>
-        )}
-        <div className="mt-2 flex items-center gap-1.5">
-          {a.live && !a.requireAck && <span className="text-xs text-fg-subtle">Seen by {a.stats.seen}/{a.stats.total}</span>}
-          <Link href="/announcements" className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-bg-elev px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:border-accent/40 hover:text-accent">
-            <Pencil size={12} /> Edit
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (announcements.length === 0) {
-    return <EmptyState icon={<Megaphone size={28} />} title="No announcements yet" hint="Post one to broadcast it to staff — with read + acknowledge tracking." />;
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="min-w-0 space-y-4">
-        {live.length > 0 && (
-          <section className="space-y-2">
-            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Live</p>
-            {live.map((a) => <Card_ key={a.id} a={a} />)}
-          </section>
-        )}
-        {scheduled.length > 0 && (
-          <section className="space-y-2">
-            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Scheduled</p>
-            {scheduled.map((a) => <Card_ key={a.id} a={a} faded />)}
-          </section>
-        )}
-        {drafts.length > 0 && (
-          <section className="space-y-2">
-            <p className="px-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">Drafts</p>
-            {drafts.map((a) => <Card_ key={a.id} a={a} faded />)}
-          </section>
-        )}
-      </div>
-      <aside className="hidden lg:block">
-        <div className="rounded-2xl bg-bg-elev/50 p-3.5 ring-1 ring-border/60">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">This board</p>
-          <p className="mt-2 text-base leading-relaxed text-fg-muted">
-            Announcements publish to staff&apos;s portal + phone, mirror into their Announcements chat, and (when you tick <b className="text-fg">require acknowledge</b>) track who&apos;s read them. Scheduled ones also appear on the Events agenda until they go live.
-          </p>
-          <Link href="/announcements" className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent/40">
-            <Plus size={13} /> New announcement
-          </Link>
-        </div>
-      </aside>
-    </div>
-  );
-}

@@ -1,12 +1,5 @@
 import { notFound } from "next/navigation";
-import { Mail, Phone } from "lucide-react";
-import { BackLink } from "@/components/back-link";
-import { ButtonLink } from "@/components/ui";
 import { getPersonDetail } from "@/lib/people-queries";
-import { taskHref } from "@/lib/task-href";
-import { PersonRecord } from "./person-record";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { getAllTasks } from "@/lib/queries";
 import { safeReturn } from "@/lib/return-to";
 import { StudioPerson } from "@/components/studio/people/studio-person";
@@ -47,182 +40,60 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const docs = detail.documents;
 
   // Studio (Settings → New look → People): mockup board Person.
-  const { studioPages } = await getAppSettings();
-  if (isStudioOn(studioPages, "people")) {
-    // Each direct report's load, for the "1 late / 13 open" beside their name —
-    // from the same cached task list the loader already read.
-    const all = await getAllTasks();
-    const isOpen = (s: string) => s !== "Completed" && s !== "Closed";
-    const loadOf = (pid: number) => {
-      const mine = all.filter((t) => isOpen(t.status) && (t.ownerId === pid || t.assigneeIds.includes(pid)));
-      return { open: mine.length, overdue: mine.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length };
-    };
-    const iso = (d: Date | null) => (d ? d.toISOString() : null);
-    return (
-      <StudioPerson
-        backHref={safeReturn(back) ?? "/people"}
-        data={{
-          person: {
-            id: p.id, name: p.name, staffId: p.staffId, active: p.active, role: p.role, personType: p.personType,
-            companyId: p.companyId, companyName: p.companyName, departmentName: p.departmentName,
-            managerId: p.managerId, managerName: p.managerName, secondaryManagers: p.secondaryManagers,
-            alsoCompanies: p.associations.filter((a) => a.companyId !== p.companyId).map((a) => a.companyName ?? `#${a.companyId}`),
-            companyIds: [...new Set([p.companyId, ...p.associations.map((a) => a.companyId)].filter((n): n is number => n != null))],
-            email: p.email, phone: p.phone, whatsapp: p.whatsapp, preferredChannel: p.preferredChannel,
-            startDate: iso(p.startDate), probationEndDate: iso(p.probationEndDate), dateOfBirth: iso(p.dateOfBirth),
-            nationality: p.nationality, nationalId: p.nationalId, passportNo: p.passportNo,
-            workSite: p.workSiteName, residence: p.residenceName, address: p.address,
-            emergencyContactName: p.emergencyContactName, emergencyContactPhone: p.emergencyContactPhone,
-            notes: p.notes, snoozedUntil: iso(p.snoozedUntil), relatedPersonName: p.relatedPersonName,
-          },
-          workload: { open: openTasks.length, overdue: detail.workload.overdue, completedThisMonth: detail.workload.completedThisMonth },
-          tasks: detail.assignedTasks.map((t) => ({
-            code: t.code, title: t.actionItem, status: t.status, companyName: t.companyName, priority: t.priority,
-            deadline: iso(t.deadline), days: typeof t.daysToDeadline === "number" ? t.daysToDeadline : null,
-            done: !isOpen(t.status), overdue: t.flag === "overdue" || t.flag === "escalate-now", closedDate: iso(t.closedDate),
-          })),
-          documents: docs.map((d) => ({
-            id: d.id, title: d.title, category: d.category, docType: d.docType, expiryDate: iso(d.expiryDate),
-            status: d.status, expiryLabel: d.expiryLabel, companyName: d.companyName,
-          })),
-          reports: detail.directReports.map((r) => ({ id: r.id, name: r.name, role: r.role, companyName: r.companyName, dotted: r.kind === "dotted", ...loadOf(r.id) })),
-          portal: detail.portal,
-          portalScope: detail.portalScope,
-          events: detail.events,
-          editDefaults: {
-            name: p.name, email: p.email, phone: p.phone, whatsapp: p.whatsapp, preferredChannel: p.preferredChannel,
-            role: p.role, staffCategory: p.staffCategory, companyId: p.companyId, department: p.departmentName,
-            startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : null,
-            dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString().slice(0, 10) : null,
-            nationality: p.nationality, nationalId: p.nationalId, passportNo: p.passportNo, address: p.address,
-            emergencyContactName: p.emergencyContactName, emergencyContactPhone: p.emergencyContactPhone,
-            probationEndDate: p.probationEndDate ? p.probationEndDate.toISOString().slice(0, 10) : null,
-            managerId: p.managerId, secondaryManagerIds: p.secondaryManagers.map((m) => m.id), notes: p.notes,
-            personType: p.personType, relatedPersonId: p.relatedPersonId, workSite: p.workSiteName, residence: p.residenceName,
-            associations: p.associations,
-          },
-          lookups: { companies: detail.companies, peopleList: detail.peopleList, departments: detail.departments, sites: detail.sites, roles: detail.roles },
-        }}
-      />
-    );
-  }
-
+  // Each direct report's load, for the "1 late / 13 open" beside their name —
+  // from the same cached task list the loader already read.
+  const all = await getAllTasks();
+  const isOpen = (s: string) => s !== "Completed" && s !== "Closed";
+  const loadOf = (pid: number) => {
+    const mine = all.filter((t) => isOpen(t.status) && (t.ownerId === pid || t.assigneeIds.includes(pid)));
+    return { open: mine.length, overdue: mine.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length };
+  };
+  const iso = (d: Date | null) => (d ? d.toISOString() : null);
   return (
-    <div className="space-y-3">
-      <BackLink
-        fallbackHref="/people"
-        fallbackLabel="People"
-        className="text-sm text-fg-muted transition-colors hover:text-accent"
-      />
-
-      <PersonRecord
-        person={{
-          id: p.id,
-          name: p.name,
-          staffId: p.staffId,
-          active: p.active,
-          role: p.role,
-          personType: p.personType,
-          companyId: p.companyId,
-          companyName: p.companyName,
-          department: p.departmentName,
-          managerId: p.managerId,
-          managerName: p.managerName,
-          email: p.email,
-          phone: p.phone,
-          whatsapp: p.whatsapp,
-          startDate: p.startDate ? p.startDate.toISOString() : null,
-          probationEndDate: p.probationEndDate ? p.probationEndDate.toISOString() : null,
-          dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString() : null,
-          nationality: p.nationality,
-          workSite: p.workSiteName,
-          residence: p.residenceName,
-          address: p.address,
-          emergencyContactName: p.emergencyContactName,
-          emergencyContactPhone: p.emergencyContactPhone,
-          notes: p.notes,
-        }}
-        workload={{
-          open: openTasks.length,
-          overdue: detail.workload.overdue,
-          documents: docs.length,
-          reports: detail.directReports.length,
-        }}
-        tasks={openTasks.slice(0, 12).map((t) => ({
-          code: t.code,
-          href: taskHref(t.code),
-          title: t.actionItem,
-          status: t.status,
-          companyName: t.companyName,
-          overdue: t.flag === "overdue" || t.flag === "escalate-now",
-        }))}
-        documents={docs.slice(0, 12).map((d) => ({
-          id: d.id,
-          title: d.title,
-          category: d.category,
-          // PersonDocument already carries the derived status from the loader.
-          status: d.status,
-        }))}
-        reports={detail.directReports.map((r) => ({
-          id: r.id,
-          name: r.name,
-          role: r.role,
-          companyName: r.companyName,
-          dotted: r.kind === "dotted",
-        }))}
-        portal={detail.portal}
-        contacts={
-          <>
-            {p.email && (
-              <ButtonLink href={`mailto:${p.email}`} variant="secondary" size="sm">
-                <Mail size={13} /> Email
-              </ButtonLink>
-            )}
-            {(p.whatsapp || p.phone) && (
-              <ButtonLink href={`tel:${p.phone ?? p.whatsapp}`} variant="secondary" size="sm">
-                <Phone size={13} /> Call
-              </ButtonLink>
-            )}
-          </>
-        }
-        /* Editing happens in the record's own Edit tab (see person-record.tsx),
-           the same way a task is edited — it no longer sends you to an overlay. */
-        editDefaults={{
-          name: p.name,
-          email: p.email,
-          phone: p.phone,
-          whatsapp: p.whatsapp,
-          preferredChannel: p.preferredChannel,
-          role: p.role,
-          staffCategory: p.staffCategory,
-          companyId: p.companyId,
-          department: p.departmentName,
+    <StudioPerson
+      backHref={safeReturn(back) ?? "/people"}
+      data={{
+        person: {
+          id: p.id, name: p.name, staffId: p.staffId, active: p.active, role: p.role, personType: p.personType,
+          companyId: p.companyId, companyName: p.companyName, departmentName: p.departmentName,
+          managerId: p.managerId, managerName: p.managerName, secondaryManagers: p.secondaryManagers,
+          alsoCompanies: p.associations.filter((a) => a.companyId !== p.companyId).map((a) => a.companyName ?? `#${a.companyId}`),
+          companyIds: [...new Set([p.companyId, ...p.associations.map((a) => a.companyId)].filter((n): n is number => n != null))],
+          email: p.email, phone: p.phone, whatsapp: p.whatsapp, preferredChannel: p.preferredChannel,
+          startDate: iso(p.startDate), probationEndDate: iso(p.probationEndDate), dateOfBirth: iso(p.dateOfBirth),
+          nationality: p.nationality, nationalId: p.nationalId, passportNo: p.passportNo,
+          workSite: p.workSiteName, residence: p.residenceName, address: p.address,
+          emergencyContactName: p.emergencyContactName, emergencyContactPhone: p.emergencyContactPhone,
+          notes: p.notes, snoozedUntil: iso(p.snoozedUntil), relatedPersonName: p.relatedPersonName,
+        },
+        workload: { open: openTasks.length, overdue: detail.workload.overdue, completedThisMonth: detail.workload.completedThisMonth },
+        tasks: detail.assignedTasks.map((t) => ({
+          code: t.code, title: t.actionItem, status: t.status, companyName: t.companyName, priority: t.priority,
+          deadline: iso(t.deadline), days: typeof t.daysToDeadline === "number" ? t.daysToDeadline : null,
+          done: !isOpen(t.status), overdue: t.flag === "overdue" || t.flag === "escalate-now", closedDate: iso(t.closedDate),
+        })),
+        documents: docs.map((d) => ({
+          id: d.id, title: d.title, category: d.category, docType: d.docType, expiryDate: iso(d.expiryDate),
+          status: d.status, expiryLabel: d.expiryLabel, companyName: d.companyName,
+        })),
+        reports: detail.directReports.map((r) => ({ id: r.id, name: r.name, role: r.role, companyName: r.companyName, dotted: r.kind === "dotted", ...loadOf(r.id) })),
+        portal: detail.portal,
+        portalScope: detail.portalScope,
+        events: detail.events,
+        editDefaults: {
+          name: p.name, email: p.email, phone: p.phone, whatsapp: p.whatsapp, preferredChannel: p.preferredChannel,
+          role: p.role, staffCategory: p.staffCategory, companyId: p.companyId, department: p.departmentName,
           startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : null,
           dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString().slice(0, 10) : null,
-          nationality: p.nationality,
-          nationalId: p.nationalId,
-          passportNo: p.passportNo,
-          address: p.address,
-          emergencyContactName: p.emergencyContactName,
-          emergencyContactPhone: p.emergencyContactPhone,
+          nationality: p.nationality, nationalId: p.nationalId, passportNo: p.passportNo, address: p.address,
+          emergencyContactName: p.emergencyContactName, emergencyContactPhone: p.emergencyContactPhone,
           probationEndDate: p.probationEndDate ? p.probationEndDate.toISOString().slice(0, 10) : null,
-          managerId: p.managerId,
-          secondaryManagerIds: p.secondaryManagers.map((m) => m.id),
-          notes: p.notes,
-          personType: p.personType,
-          relatedPersonId: p.relatedPersonId,
-          workSite: p.workSiteName,
-          residence: p.residenceName,
+          managerId: p.managerId, secondaryManagerIds: p.secondaryManagers.map((m) => m.id), notes: p.notes,
+          personType: p.personType, relatedPersonId: p.relatedPersonId, workSite: p.workSiteName, residence: p.residenceName,
           associations: p.associations,
-        }}
-        lookups={{
-          companies: detail.companies,
-          peopleList: detail.peopleList,
-          departments: detail.departments,
-          sites: detail.sites,
-          roles: detail.roles,
-        }}
-      />
-    </div>
+        },
+        lookups: { companies: detail.companies, peopleList: detail.peopleList, departments: detail.departments, sites: detail.sites, roles: detail.roles },
+      }}
+    />
   );
 }

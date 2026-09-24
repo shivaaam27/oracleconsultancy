@@ -7,7 +7,6 @@ const { actionAsyncStorage } = await import("next/dist/server/app-render/action-
 vi.mock("server-only", () => ({}));
 const state = { admin: false, portal: null as null | { id: number; name: string; portalRole: string; directorCompanyIds: number[] } };
 vi.mock("@/lib/admin-auth", () => ({ isAdminSession: async () => state.admin }));
-vi.mock("@/lib/settings", () => ({ getAppSettings: async () => ({ studioRoles: "director", studioPages: "tasks" }) }));
 vi.mock("@/lib/portal-auth", () => ({
   getPortalPerson: async () => state.portal,
   companyScope: async () => [7],

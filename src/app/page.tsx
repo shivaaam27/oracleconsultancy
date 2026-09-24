@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAllTasks } from "@/lib/queries";
-import { listTodos } from "./todos/actions";
-import { CosHome } from "./_hub/cos-home";
 import { TasksSection } from "./_hub/tasks-section";
 import { StudioHomeServer } from "./_hub/studio-home";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -59,12 +55,7 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
     );
   }
 
-  // COS Home — the calm landing page.
-  // Studio (Settings → New look → Home): the widget home, mockup board Home.
-  const { studioPages } = await getAppSettings();
-  // A director always gets the Studio Home, cut down to their companies.
-  if (isStudioOn(studioPages, "home") || viewer.kind === "director") return <StudioHomeServer rows={await getAllTasks()} viewer={viewer} />;
-
-  const [rows, todos] = await Promise.all([getAllTasks(), listTodos()]);
-  return <CosHome rows={rows} todos={todos} />;
+  // COS Home (mockup board Home). A director gets it cut down to their
+  // companies — see StudioHomeServer.
+  return <StudioHomeServer rows={await getAllTasks()} viewer={viewer} />;
 }

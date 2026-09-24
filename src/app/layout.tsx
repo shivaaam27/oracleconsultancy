@@ -13,7 +13,6 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 import { ThemeProvider } from "@/components/theme-provider";
-import { TopPillServer } from "@/components/top-pill-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
@@ -30,13 +29,10 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { LocationTracker } from "@/components/location-tracker";
 import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
-import { DeskSidebar, DESK_RAIL_COOKIE } from "@/components/desk-sidebar";
-import { cookies } from "next/headers";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { getViewer } from "@/lib/viewer";
 import { StudioShellServer } from "@/components/studio/shell-server";
 import { appBaseUrl } from "@/lib/app-url";
@@ -81,19 +77,17 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
-  const { operatorName, voiceLanguage, commandCentrePaused, studioPages } = await getAppSettings();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
   // Studio Phase 2: the footer navigator replaces the sidebar AND the pill.
-  const studioShell = isStudioOn(studioPages, "nav");
   // The rail's width, from its cookie, so <main>'s gutter is correct in the FIRST
   // paint. Without this the gutter arrived an effect late and content began life
   // underneath the rail — see the note in `portal-sidebar.tsx`.
-  const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
   // A director on the shared screens (lib/viewer.ts): the everything-search and
   // the owner's record drawers stay off for them.
   const asDirector = (await getViewer())?.kind === "director";
   return (
-    <html lang="en-GB" data-voice-lang={voiceLanguage || undefined} data-studio-pages={studioPages || undefined} className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
+    <html lang="en-GB" data-voice-lang={voiceLanguage || undefined} className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} style={{ scrollbarGutter: "stable" }} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />
@@ -126,7 +120,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <ToastProvider>
             <UndoBanner />
             <Suspense>
-            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio={studioShell} disabled={asDirector}>
+            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage} studio disabled={asDirector}>
               <NavVisibilityProvider value={{ commandCentrePaused }}>
               <RecentsTracker />
               <ContextActionsProvider>
@@ -141,15 +135,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                     grey down each side of a wide monitor. 1600px is the stop, so
                     a 27" display doesn't stretch rows to absurdity. Records cap
                     themselves narrower for readability — see RecordPage. */}
-                {!studioShell && (
-                  <HideOnPortal>
-                    <Suspense>
-                      <DeskSidebar initialCollapsed={railCollapsed} />
-                    </Suspense>
-                  </HideOnPortal>
-                )}
                 <main
-                  style={{ "--desk-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
                   className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12"
                 >
                   <div className="mx-auto max-w-[1600px]">
@@ -161,10 +147,9 @@ export default async function RootLayout({ children, modal }: { children: React.
                     <PageTransition stableUnder={["/portal"]}>{children}</PageTransition>
                   </div>
                 </main>
-                {modal}
                 <HideOnPortal>
                   <Suspense>
-                    {studioShell ? <StudioShellServer /> : <TopPillServer />}
+                    <StudioShellServer />
                   </Suspense>
                 </HideOnPortal>
               </ContextActionsProvider>

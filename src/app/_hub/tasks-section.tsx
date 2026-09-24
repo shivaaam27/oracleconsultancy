@@ -1,27 +1,22 @@
-import Link from "next/link";
 import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { sb } from "@/db/supabase";
 import { getSavedViewsFor } from "@/lib/saved-views";
 import { getViewer } from "@/lib/viewer";
 import { viewerPeopleIds } from "@/lib/viewer-scope";
 import { getCompanyLogoMap } from "@/lib/company-brand";
-import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
 import { SavedViewsBar } from "@/components/saved-views-bar";
 import { ViewPublisher } from "@/components/view-publisher";
-import { TaskFilterBar, type FilterChip, type FilterOption, type IdentityStrip } from "@/components/task-filter-bar";
-import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
+import { type FilterChip, type FilterOption, type IdentityStrip } from "@/components/task-filter-bar";
+import { parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
 import { CardsView, FocusQueue, type CompanyMeta } from "@/app/task/_views/cards-view";
 import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
-import type { RecordFilter } from "@/components/record-list";
 import type { TaskRow } from "@/lib/queries";
-import { CheckSquare, Sparkles, Archive, Repeat } from "lucide-react";
 import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { StudioTasks, StudioEmpty, StudioLaneNote } from "@/components/studio/tasks/studio-tasks";
 import type { InsightsData } from "@/components/studio/tasks/insights-card";
 import type { FilterSection } from "@/components/studio/tasks/controls";
@@ -394,7 +389,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       href: buildHref(sp, { archived: showArchived ? undefined : "1" }),
     },
   ];
-  const moreActiveCount = moreItems.filter((m) => m.active).length;
 
   // Group-by. Cards default to company; "none" is explicit.
   const groupBy = (["company", "status", "person"].includes(sp.group || "") ? sp.group : null) as
@@ -405,31 +399,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
      The rail is the same data as the chips and pickers above — the counts are
      already computed — just laid out the way ERPNext lays it out. Built here,
      on the server, because this is where the counts live. */
-  const railFilters: RecordFilter[] = [
-    ...chips.map((c) => ({ key: `s-${c.key}`, label: c.label, count: c.count, href: c.href, active: c.active, group: "Status", tone: c.tone })),
-    // The "More" flags used to hide behind a popover. On the rail they show their
-    // counts, which is the point of a rail — you can see where the trouble is
-    // without opening anything. Empty flags are dropped so it stays short, EXCEPT
-    // the two lane switches: "Archived" always reports 0 (it counts nothing) and
-    // Renewals can legitimately be empty, and both must stay reachable because the
-    // More popover is hidden at this width.
-    ...moreItems
-      .filter((m) => (m.count ?? 0) > 0 || m.active || m.key === "archived" || m.key === "renewals" || m.key === "recurring")
-      .map((m) => ({
-        key: `f-${m.key}`,
-        label: m.label,
-        // "Archived" counts nothing, so showing a hard 0 beside it would read as
-        // "there are no archived tasks" — which it does not mean.
-        count: m.key === "archived" ? undefined : m.count,
-        href: m.href,
-        active: m.active,
-        group: "Flags",
-        tone: m.tone,
-      })),
-    ...companyOptions
-      .filter((o) => o.key === "all" || (o.count ?? 0) > 0 || o.active)
-      .map((o) => ({ key: `c-${o.key}`, label: o.label, count: o.count, href: o.href, active: o.active, group: "Company" })),
-  ];
 
   // Column sort runs FIRST, then the group sort — Array.sort is stable, so rows
   // keep their column order inside each group instead of fighting it.
@@ -489,7 +458,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     href: buildHref(sp, { group: g.key ?? (view === "cards" ? "none" : undefined) }),
     active: view === "cards" ? cardsGroupBy === g.key : (groupBy ?? null) === g.key,
   }));
-  const groupLabel = (view === "cards" ? cardsGroupBy : groupBy) ?? "None";
 
   /* ---------- Identity strip ---------- */
   let strip: IdentityStrip | null = null;
@@ -533,7 +501,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     (r) => (r.status === "Completed" || r.status === "Closed") && r.closedDate &&
       r.closedDate.getMonth() === now.getMonth() && r.closedDate.getFullYear() === now.getFullYear()
   ).length;
-  const needYou = counts.overdue + counts.escalated;
 
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread || sp.quiet || sp.who || sp.done);
 
@@ -558,373 +525,189 @@ export async function TasksSection({ sp }: { sp: Sp }) {
      Everything above is shared: the Studio page gets the SAME rows, counts,
      options and links, and only draws them differently. With the switch off
      this block is skipped and the page below renders exactly as before. */
-  const { studioPages, starredTasks } = await getAppSettings();
-  if (isStudioOn(studioPages, "tasks")) {
-    // ☆ Starred tasks lead the list (the owner's own bookmarks). Not while the
-    // list is grouped — a starred row would open a second copy of its group.
-    // Stars are the OWNER's bookmarks (one global setting) — a director neither
-    // sees nor sets them.
-    const stars = director ? new Set<number>() : new Set(starredTasks.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
-    if (stars.size > 0 && !groupBy) {
-      rows = [...rows.filter((r) => stars.has(r.id)), ...rows.filter((r) => !stars.has(r.id))];
+  const { starredTasks } = await getAppSettings();
+  // ☆ Starred tasks lead the list (the owner's own bookmarks). Not while the
+  // list is grouped — a starred row would open a second copy of its group.
+  // Stars are the OWNER's bookmarks (one global setting) — a director neither
+  // sees nor sets them.
+  const stars = director ? new Set<number>() : new Set(starredTasks.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0));
+  if (stars.size > 0 && !groupBy) {
+    rows = [...rows.filter((r) => stars.has(r.id)), ...rows.filter((r) => !stars.has(r.id))];
+  }
+  // The mockup's four lenses. The other chips (Quiet, Unread, Done) stay in
+  // the Filters panel, so nothing the old bar could do is lost.
+  const onTrackLens = Math.max(0, counts.all - counts.overdue - counts.dueSoon);
+  const studioLenses: FilterChip[] = [
+    chip("all", "All", counts.all, noStatusFilters, {}),
+    chip("ontrack", "On track", onTrackLens, sp.flag === "on-track", { flag: "on-track" }, "success"),
+    chip("duesoon", "Due soon", counts.dueSoon, sp.flag === "due-soon", { flag: "due-soon" }, "warn"),
+    chip("overdue", "Late", counts.overdue, sp.flag === "overdue", { flag: "overdue" }, "danger"),
+  ];
+  // Days are Dar es Salaam days (UTC+3), whatever zone the server runs in.
+  const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
+  const today = eatDay(Date.now());
+
+  // "Last 7 days" — updates per day on each listed task. Only the List view
+  // draws it, so only the List view asks for it.
+  const pulse: Record<string, number[]> = {};
+  if (view === "table" && rows.length > 0) {
+    const codeById = new Map(rows.map((r) => [r.id, r.code]));
+    const { data: recent } = await sb
+      .from("task_updates")
+      .select("task_id,created_at")
+      .is("deleted_at", null)
+      .gte("created_at", new Date(Date.now() - 8 * 86_400_000).toISOString());
+    for (const u of recent ?? []) {
+      const code = codeById.get(u.task_id as number);
+      if (!code) continue;
+      const idx = 6 - (today - eatDay(new Date(u.created_at as string).getTime()));
+      if (idx < 0 || idx > 6) continue;
+      (pulse[code] ??= [0, 0, 0, 0, 0, 0, 0])[idx]++;
     }
-    // The mockup's four lenses. The other chips (Quiet, Unread, Done) stay in
-    // the Filters panel, so nothing the old bar could do is lost.
-    const onTrack = Math.max(0, counts.all - counts.overdue - counts.dueSoon);
-    const studioLenses: FilterChip[] = [
-      chip("all", "All", counts.all, noStatusFilters, {}),
-      chip("ontrack", "On track", onTrack, sp.flag === "on-track", { flag: "on-track" }, "success"),
-      chip("duesoon", "Due soon", counts.dueSoon, sp.flag === "due-soon", { flag: "due-soon" }, "warn"),
-      chip("overdue", "Late", counts.overdue, sp.flag === "overdue", { flag: "overdue" }, "danger"),
-    ];
-    // Days are Dar es Salaam days (UTC+3), whatever zone the server runs in.
-    const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
-    const today = eatDay(Date.now());
-
-    // "Last 7 days" — updates per day on each listed task. Only the List view
-    // draws it, so only the List view asks for it.
-    const pulse: Record<string, number[]> = {};
-    if (view === "table" && rows.length > 0) {
-      const codeById = new Map(rows.map((r) => [r.id, r.code]));
-      const { data: recent } = await sb
-        .from("task_updates")
-        .select("task_id,created_at")
-        .is("deleted_at", null)
-        .gte("created_at", new Date(Date.now() - 8 * 86_400_000).toISOString());
-      for (const u of recent ?? []) {
-        const code = codeById.get(u.task_id as number);
-        if (!code) continue;
-        const idx = 6 - (today - eatDay(new Date(u.created_at as string).getTime()));
-        if (idx < 0 || idx > 6) continue;
-        (pulse[code] ??= [0, 0, 0, 0, 0, 0, 0])[idx]++;
-      }
-    }
-
-    // The summary cards.
-    const openAll = base.filter(isOpenRow);
-    const isLate = (r: (typeof all)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
-    const lateByCompany = new Map<string, number>();
-    for (const r of openAll.filter(matchesPerson)) if (isLate(r)) lateByCompany.set(r.companyName, (lateByCompany.get(r.companyName) ?? 0) + 1);
-    const lateByPerson = new Map<number, number>();
-    for (const r of openBase) if (isLate(r)) for (const id of r.assigneeIds) lateByPerson.set(id, (lateByPerson.get(id) ?? 0) + 1);
-    const hrefOf = (items: FilterChip[], key: string) => items.find((c) => c.key === key)?.href ?? buildHref(sp, {});
-    const insights: InsightsData = {
-      open: counts.all,
-      onTrackPct,
-      bar: {
-        late: counts.overdue,
-        soon: counts.dueSoon,
-        noDate: counts.noDeadline,
-        onSchedule: Math.max(0, counts.all - counts.overdue - counts.dueSoon - counts.noDeadline),
-      },
-      hrefs: { late: hrefOf(chips, "overdue"), soon: hrefOf(chips, "duesoon"), noDate: hrefOf(moreItems, "nodeadline") },
-      tiles: [
-        { n: counts.quiet, label: "Quiet 7+ days", href: hrefOf(chips, "quiet") },
-        { n: counts.unread, label: "Unread updates", href: hrefOf(chips, "unread") },
-        { n: counts.escalated, label: "Escalated", href: hrefOf(moreItems, "escalated") },
-        { n: completedThisMonth, label: "Done this month", href: hrefOf(chips, "done") },
-      ],
-      companies: [...openByCompany.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 9)
-        .map(([name, open]) => ({ name, open, late: lateByCompany.get(name) ?? 0, href: buildHref(sp, { company: name }) })),
-      people: people
-        .map((p) => ({ p, n: assignedCount.get(p.id) ?? 0 }))
-        .filter((x) => x.n > 0)
-        .sort((a, b) => b.n - a.n)
-        .slice(0, 4)
-        .map(({ p, n }) => ({ name: p.name.replace(/^(Mr|Mrs|Ms|Chef)\s+/, ""), open: n, late: lateByPerson.get(p.id) ?? 0, href: buildHref(sp, { who: String(p.id), whoMode: undefined }) })),
-    };
-    const withNews = openAll.filter((r) => r.latestActivity);
-    // The Updates card: every UNREAD update, newest first, three to a page (the
-    // owner steps through with ‹ ›). With nothing unread it shows the latest
-    // three instead, so the card is never an empty box.
-    const newest = [...withNews].sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO));
-    const unreadNews = newest.filter((r) => r.unread);
-    const fresh = unreadNews.length ? unreadNews.slice(0, 60) : newest.slice(0, 3);
-    const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
-
-    // The Filters panel: every filter the old page offers, grouped.
-    const filterSections: FilterSection[] = [
-      { title: "Show", items: chips },
-      { title: "Flags and lanes", items: moreItems },
-      { title: "Stage", items: statusOptions },
-      { title: "Company", note: "also in the title bar", items: companyOptions },
-      { title: "Person", note: personModeCreated ? "tasks they created" : "tasks assigned to them", items: personOptions },
-      { title: "Group the list by", items: groupOptions },
-      ...(view === "cards" && !showArchived
-        ? [{ title: "Cards", note: "Focus = the chase queue, worst first", items: [
-            { key: "focus", label: "Focus", href: buildHref(sp, { mode: "focus", done: undefined }), active: focusMode },
-            { key: "browse", label: "Browse", href: buildHref(sp, { mode: undefined }), active: !focusMode },
-          ] }]
-        : []),
-    ];
-    const activeFilterCount =
-      [sp.flag, sp.status, sp.priority, sp.quiet, sp.unread, sp.done, sp.noOwner, sp.archived, sp.kind, sp.company, sp.who].filter(Boolean).length +
-      (groupBy ? 1 : 0);
-
-    const empty = total === 0 && view !== "calendar" && view !== "timeline" && !focusMode;
-    const quickAddNode = (
-      <TaskActions
-        companies={companyList}
-        people={peopleNames}
-        defaultCompanyId={quickDefaultCompanyId}
-        showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
-      />
-    );
-    return (
-      <StudioTasks
-        title={kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "Tasks"}
-        view={view}
-        queryWithoutView={queryWithoutView(sp)}
-        recurringCount={director ? 0 : await recurringRulesCount}
-        company={sp.company ?? null}
-        companyOptions={companyOptions}
-        personLabel={person?.name ?? null}
-        personMode={person ? (personModeCreated ? "created" : "assigned") : null}
-        personOptions={personOptions}
-        filterSections={filterSections}
-        activeFilterCount={activeFilterCount}
-        savedViews={director ? null :
-          <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} basePath="/" extraQuery="tab=tasks" listKey="task" />
-        }
-        strip={strip}
-        notes={<>{showArchived && <StudioLaneNote kind="archived" />}{kindAuto && <StudioLaneNote kind="auto" />}</>}
-        insights={insights}
-        tableRows={rows}
-        fresh={fresh}
-        unreadCount={counts.unread}
-        updatedToday={updatedToday}
-        q={sp.q || ""}
-        searchHrefBase={buildHref(sp, { q: undefined })}
-        lenses={studioLenses}
-        quickAdd={view === "table" ? null : quickAddNode}
-        body={
-          <>
-            <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
-            {empty ? (
-              <StudioEmpty archived={showArchived} done={doneTab} filtered={hasFilters} />
-            ) : view === "calendar" ? (
-              <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
-            ) : view === "timeline" ? (
-              <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
-            ) : (
-              <SelectionProvider>
-                <BulkBar />
-                {view === "board" ? (
-                  <BoardView rows={rows} showClosed={showClosed} />
-                ) : view === "cards" ? (
-                  focusMode ? (
-                    <FocusQueue rows={rows.filter(isOpenRow)} />
-                  ) : (
-                    <CardsView
-                      rows={rows}
-                      groupBy={cardsGroupBy}
-                      companyMeta={companyMeta}
-                      sortMode={sortMode}
-                      allCompanies={cardsGroupBy === "company" ? companyList.map((c) => c.name) : undefined}
-                    />
-                  )
-                ) : (
-                  <TableView
-                    rows={rows}
-                    groupBy={groupBy}
-                    hideCompany={groupBy === "company"}
-                    sortHrefs={sortHrefs}
-                    sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
-                    total={base.length}
-                    studioPulse={pulse}
-                    studioStars={director ? undefined : stars}
-                    studioLead={quickAddNode}
-                  />
-                )}
-              </SelectionProvider>
-            )}
-          </>
-        }
-      />
-    );
   }
 
+  // The summary cards.
+  const openAll = base.filter(isOpenRow);
+  const isLate = (r: (typeof all)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
+  const lateByCompany = new Map<string, number>();
+  for (const r of openAll.filter(matchesPerson)) if (isLate(r)) lateByCompany.set(r.companyName, (lateByCompany.get(r.companyName) ?? 0) + 1);
+  const lateByPerson = new Map<number, number>();
+  for (const r of openBase) if (isLate(r)) for (const id of r.assigneeIds) lateByPerson.set(id, (lateByPerson.get(id) ?? 0) + 1);
+  const hrefOf = (items: FilterChip[], key: string) => items.find((c) => c.key === key)?.href ?? buildHref(sp, {});
+  const insights: InsightsData = {
+    open: counts.all,
+    onTrackPct,
+    bar: {
+      late: counts.overdue,
+      soon: counts.dueSoon,
+      noDate: counts.noDeadline,
+      onSchedule: Math.max(0, counts.all - counts.overdue - counts.dueSoon - counts.noDeadline),
+    },
+    hrefs: { late: hrefOf(chips, "overdue"), soon: hrefOf(chips, "duesoon"), noDate: hrefOf(moreItems, "nodeadline") },
+    tiles: [
+      { n: counts.quiet, label: "Quiet 7+ days", href: hrefOf(chips, "quiet") },
+      { n: counts.unread, label: "Unread updates", href: hrefOf(chips, "unread") },
+      { n: counts.escalated, label: "Escalated", href: hrefOf(moreItems, "escalated") },
+      { n: completedThisMonth, label: "Done this month", href: hrefOf(chips, "done") },
+    ],
+    companies: [...openByCompany.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 9)
+      .map(([name, open]) => ({ name, open, late: lateByCompany.get(name) ?? 0, href: buildHref(sp, { company: name }) })),
+    people: people
+      .map((p) => ({ p, n: assignedCount.get(p.id) ?? 0 }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 4)
+      .map(({ p, n }) => ({ name: p.name.replace(/^(Mr|Mrs|Ms|Chef)\s+/, ""), open: n, late: lateByPerson.get(p.id) ?? 0, href: buildHref(sp, { who: String(p.id), whoMode: undefined }) })),
+  };
+  const withNews = openAll.filter((r) => r.latestActivity);
+  // The Updates card: every UNREAD update, newest first, three to a page (the
+  // owner steps through with ‹ ›). With nothing unread it shows the latest
+  // three instead, so the card is never an empty box.
+  const newest = [...withNews].sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO));
+  const unreadNews = newest.filter((r) => r.unread);
+  const fresh = unreadNews.length ? unreadNews.slice(0, 60) : newest.slice(0, 3);
+  const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
+
+  // The Filters panel: every filter the old page offers, grouped.
+  const filterSections: FilterSection[] = [
+    { title: "Show", items: chips },
+    { title: "Flags and lanes", items: moreItems },
+    { title: "Stage", items: statusOptions },
+    { title: "Company", note: "also in the title bar", items: companyOptions },
+    { title: "Person", note: personModeCreated ? "tasks they created" : "tasks assigned to them", items: personOptions },
+    { title: "Group the list by", items: groupOptions },
+    ...(view === "cards" && !showArchived
+      ? [{ title: "Cards", note: "Focus = the chase queue, worst first", items: [
+          { key: "focus", label: "Focus", href: buildHref(sp, { mode: "focus", done: undefined }), active: focusMode },
+          { key: "browse", label: "Browse", href: buildHref(sp, { mode: undefined }), active: !focusMode },
+        ] }]
+      : []),
+  ];
+  const activeFilterCount =
+    [sp.flag, sp.status, sp.priority, sp.quiet, sp.unread, sp.done, sp.noOwner, sp.archived, sp.kind, sp.company, sp.who].filter(Boolean).length +
+    (groupBy ? 1 : 0);
+
+  const empty = total === 0 && view !== "calendar" && view !== "timeline" && !focusMode;
+  const quickAddNode = (
+    <TaskActions
+      companies={companyList}
+      people={peopleNames}
+      defaultCompanyId={quickDefaultCompanyId}
+      showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
+    />
+  );
   return (
-    <div className="space-y-4">
-      <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
-
-      {/* ---- Hero strip — the portal-unified header (refinement round 1). ---- */}
-      {/* ⚠️ NO `data-page-header` here, on purpose.
-           That attribute is Desk's "a page opens with a title and a rule, not a
-           card" contract, and it forces `background: transparent` and
-           `padding: 0 0 10px`. This header is one of only two in the app that
-           carries `.glass elevated rounded-3xl p-4` — it is MEANT to be a card,
-           and the owner wants it that way.
-           The bug he first reported ("text too tight to the borders") was that
-           contract's zero side padding fighting the card surface, which in dark
-           mode `.dark .glass` painted anyway. Without the attribute the card's
-           own `p-4 sm:p-5` applies and the two stop arguing. */}
-      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
-        <div aria-hidden data-decor className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.25), transparent 70%)" }} />
-        </div>
-        <div className="relative flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="min-w-0 sm:flex-1">
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">
-              Task Management
-              <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
-                <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-              </span>
-              <span className="normal-case tracking-normal text-success/90">live</span>
-            </p>
-            <h1 className="mt-0.5 text-xl font-semibold tracking-tight sm:truncate sm:text-2xl">
-              {kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "All work, one queue"}
-            </h1>
-          </div>
-          {/* On mobile the actions drop to their own row under the title — but
-              only when there ARE any. The wrapper used to render empty on every
-              view except Cards, and an empty row still takes the column gap: a
-              10px band of nothing under the title on four screens out of five. */}
-          {view === "cards" && !showArchived && (
-            <div className="flex items-center gap-2 sm:contents">
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
-                <Link
-                  href={buildHref(sp, { mode: "focus", done: undefined })}
-                  scroll={false}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
-                >
-                  <Sparkles size={12} /> Focus
-                </Link>
-                <Link
-                  href={buildHref(sp, { mode: undefined })}
-                  scroll={false}
-                  className={`rounded-full px-3 py-1.5 text-xs transition-all ${!focusMode ? "bg-accent font-medium text-accent-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
-                >
-                  Browse
-                </Link>
-              </span>
-            </div>
-          )}
-        </div>
-        {/* The four figures. On a phone they are a 2×2 grid with the view
-            switcher on its own line under them: as a wrapping row the four ran
-            to 343px inside 342px, so it broke after "on track" and left the
-            middle dot hanging at the end of the line with the switcher jammed
-            against the last figure. The dots only separate where the figures
-            actually sit side by side. From `sm` up it is the same single row it
-            has always been. */}
-        <div className="relative mt-3 grid grid-cols-2 items-center gap-x-3 gap-y-1 rounded-2xl bg-bg-elev/55 px-3.5 py-2 text-sm text-fg-muted ring-1 ring-border sm:flex sm:flex-wrap">
-          <span><b className="font-semibold text-fg tabular">{counts.all}</b> open</span>
-          <span aria-hidden className="hidden text-border sm:inline">·</span>
-          <span className={needYou > 0 ? "text-danger" : ""}><b className="font-semibold tabular">{needYou}</b> need{needYou === 1 ? "s" : ""} you</span>
-          <span aria-hidden className="hidden text-border sm:inline">·</span>
-          <span><b className="font-semibold text-fg tabular">{onTrackPct}%</b> on track</span>
-          <span aria-hidden className="hidden text-border sm:inline">·</span>
-          <span><b className="font-semibold text-fg tabular">{completedThisMonth}</b> done this month</span>
-          <span aria-hidden className="hidden text-border sm:inline">·</span>
-          <Link href="/task/recurring" className="inline-flex items-center gap-1 hover:text-fg" title="Every standing repeat rule — add, change, switch off">
-            <Repeat size={12} /> <b className="font-semibold text-fg tabular">{await recurringRulesCount}</b> recurring
-          </Link>
-          <span className="col-span-2 mt-1 sm:col-span-1 sm:ml-auto sm:mt-0">
-            <ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />
-          </span>
-        </div>
-      </section>
-
-      {/* ---- Search + the one filter row + identity strip. ---- */}
-      <TaskFilterBar
-        q={sp.q || ""}
-        searchHrefBase={buildHref(sp, { q: undefined })}
-        chips={chips}
-        companyLabel={sp.company ?? null}
-        companyOptions={companyOptions}
-        personLabel={person?.name ?? null}
-        personOptions={personOptions}
-        statusLabel={sp.status ?? null}
-        statusOptions={statusOptions}
-        moreItems={moreItems}
-        moreActiveCount={moreActiveCount}
-        groupLabel={groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1)}
-        groupOptions={groupOptions}
-        strip={strip}
-        /* The List view shows RecordList's own filter rail from md up, and the
-           rail carries the same status chips + company list. Tell the bar, so it
-           drops the duplicates there instead of showing every filter twice. */
-        railOwnsFilters={view === "table"}
-      />
-
-      {showArchived && (
-        <p className="-mt-2 flex items-center gap-1.5 text-xs text-fg-subtle">
-          <Archive size={12} /> Showing archived tasks — retire a task without losing its history. Untick it in ⋯ More to return.
-        </p>
-      )}
-      {kindAuto && (
-        <p className="-mt-2 flex items-center gap-1.5 text-xs text-fg-subtle">
-          <Sparkles size={12} /> Auto-created by the system from expiring documents &amp; commitments. Complete or undo them like any task.
-        </p>
-      )}
-
-      <SavedViewsBar
-        initialViews={savedViews}
-        currentQuery={currentQuery}
-        hasFilters={hasFilters}
-        basePath="/"
-        extraQuery="tab=tasks"
-        listKey="task"
-      />
-
-      {/* Quick-create host: registers the nav-pill `+` page action + renders the
-          inline "Add a task…" row (list views only). Enter opens the full form
-          prefilled; Shift+Enter quick-saves. */}
-      <TaskActions
-        companies={companyList}
-        people={peopleNames}
-        defaultCompanyId={quickDefaultCompanyId}
-        showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
-      />
-
-      {total === 0 && view !== "calendar" && view !== "timeline" && !focusMode ? (
-        <Card className="p-8">
-          <EmptyState
-            icon={showArchived ? <Archive size={32} /> : <CheckSquare size={32} />}
-            title={showArchived ? "No archived tasks." : doneTab ? "Nothing completed yet." : hasFilters ? "No tasks match these filters." : "No open tasks."}
-            hint={showArchived ? "Archive a task to retire it without losing its history." : hasFilters ? "Try resetting or pick a different view." : "Create one above."}
-          />
-        </Card>
-      ) : view === "calendar" ? (
-        <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
-      ) : view === "timeline" ? (
-        <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
-      ) : (
-        <SelectionProvider>
-          <BulkBar />
-          {view === "board" ? (
-            <BoardView rows={rows} showClosed={showClosed} />
-          ) : view === "cards" ? (
-            focusMode ? (
-              <FocusQueue rows={rows.filter(isOpenRow)} />
-            ) : (
-              <CardsView
-                rows={rows}
-                groupBy={cardsGroupBy}
-                companyMeta={companyMeta}
-                sortMode={sortMode}
-                allCompanies={cardsGroupBy === "company" ? companyList.map((c) => c.name) : undefined}
-              />
-            )
+    <StudioTasks
+      title={kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "Tasks"}
+      view={view}
+      queryWithoutView={queryWithoutView(sp)}
+      recurringCount={director ? 0 : await recurringRulesCount}
+      company={sp.company ?? null}
+      companyOptions={companyOptions}
+      personLabel={person?.name ?? null}
+      personMode={person ? (personModeCreated ? "created" : "assigned") : null}
+      personOptions={personOptions}
+      filterSections={filterSections}
+      activeFilterCount={activeFilterCount}
+      savedViews={director ? null :
+        <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} basePath="/" extraQuery="tab=tasks" listKey="task" />
+      }
+      strip={strip}
+      notes={<>{showArchived && <StudioLaneNote kind="archived" />}{kindAuto && <StudioLaneNote kind="auto" />}</>}
+      insights={insights}
+      tableRows={rows}
+      fresh={fresh}
+      unreadCount={counts.unread}
+      updatedToday={updatedToday}
+      q={sp.q || ""}
+      searchHrefBase={buildHref(sp, { q: undefined })}
+      lenses={studioLenses}
+      quickAdd={view === "table" ? null : quickAddNode}
+      body={
+        <>
+          <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
+          {empty ? (
+            <StudioEmpty archived={showArchived} done={doneTab} filtered={hasFilters} />
+          ) : view === "calendar" ? (
+            <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
+          ) : view === "timeline" ? (
+            <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
           ) : (
-            <TableView
-              rows={rows}
-              groupBy={view === "table" ? groupBy : null}
-              hideCompany={view === "table" && groupBy === "company"}
-              filters={railFilters}
-              sortHrefs={sortHrefs}
-              sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
-              /* "N of M shown" — M is every task in this lane before filters,
-                 so the footer says what the filters are hiding from you. */
-              total={base.length}
-            />
+            <SelectionProvider>
+              <BulkBar />
+              {view === "board" ? (
+                <BoardView rows={rows} showClosed={showClosed} />
+              ) : view === "cards" ? (
+                focusMode ? (
+                  <FocusQueue rows={rows.filter(isOpenRow)} />
+                ) : (
+                  <CardsView
+                    rows={rows}
+                    groupBy={cardsGroupBy}
+                    companyMeta={companyMeta}
+                    sortMode={sortMode}
+                    allCompanies={cardsGroupBy === "company" ? companyList.map((c) => c.name) : undefined}
+                  />
+                )
+              ) : (
+                <TableView
+                  rows={rows}
+                  groupBy={groupBy}
+                  hideCompany={groupBy === "company"}
+                  sortHrefs={sortHrefs}
+                  sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
+                  total={base.length}
+                  studioPulse={pulse}
+                  studioStars={director ? undefined : stars}
+                  studioLead={quickAddNode}
+                />
+              )}
+            </SelectionProvider>
           )}
-        </SelectionProvider>
-      )}
-    </div>
+        </>
+      }
+    />
   );
 }

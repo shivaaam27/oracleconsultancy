@@ -1,5 +1,4 @@
-import { PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
+import { Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
@@ -10,7 +9,7 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause, savePortalPermissionsAction } from "./actions";
+import { saveSettings, setPortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause, savePortalPermissionsAction } from "./actions";
 import { getPortalPermissions } from "@/lib/portal-permissions-store";
 import { resolveMatrix, PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS } from "@/lib/portal-permissions";
 import { parsePortalRole, directorScopeOf } from "@/lib/portal-access";
@@ -34,11 +33,10 @@ import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorReachSelect } from "@/components/director-reach-select";
 import { PortalAccessList } from "@/components/portal-access-list";
 import { FormSwitch } from "@/components/form-switch";
-import { STUDIO_PAGES, parseStudioPages, isStudioOn } from "@/lib/studio";
 import { StudioScope, StudioCard, CardHead } from "@/components/studio/kit";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
+import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +53,7 @@ const NOTES: Record<string, { ok: boolean; text: string }> = {
 };
 
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "navigation", "studio"] },
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
@@ -124,12 +122,8 @@ export default async function SettingsPage({
   // used to say "can spawn tasks" regardless (audit 24 Sept 2026).
   const taskCreateOff = automationStatuses.find((r) => r.kind === "task-create")?.mode === "off";
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
-  const studioOn = parseStudioPages(s.studioPages);
-  // Studio (Settings → New look → Settings): mockup board Settings. Same cards,
-  // same forms, same saves — a new frame, and the cards restyled by .st-settings.
-  const studio = isStudioOn(s.studioPages, "settings");
-  const Wrap = studio ? StudioScope : "div";
-  const studioFrame = studio ? {
+  // Mockup board Settings: the cards in the Studio frame, restyled by .st-settings.
+  const studioFrame = {
     title: "Settings",
     note: <span className="flex items-center gap-1.5 text-xs text-[var(--st-ok-text)]"><Check size={13} strokeWidth={2.4} />Each section saves on its own</span>,
     top: (
@@ -164,15 +158,10 @@ export default async function SettingsPage({
         </StudioCard>
       </div>
     ),
-  } : undefined;
+  };
 
   return (
-    <Wrap className="w-full">
-      {!studio && <HrmsCrumbs />}
-      {!studio && <PageHeader
-        title="Settings"
-        sub="Live controls — changes take effect across the whole system."
-      />}
+    <StudioScope className="w-full">
 
       {(sp.saved || sp.google || sp.note) && (
         <div className="mt-4 space-y-2">
@@ -241,34 +230,6 @@ export default async function SettingsPage({
           <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin your most-used pages. Saves automatically." keywords="pin nav pages search command menu shortcuts">
             <NavSettings />
           </SettingsCard>
-
-          {/* Studio redesign — one switch per page. A page switches on only once
-              it is built (`ready` in src/lib/studio.ts); until then it is listed
-              with the phase it arrives in, so the plan is visible here too. */}
-          <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="studioPages,studioRoles" />
-            <input type="hidden" name="__section" value="general" />
-            <input type="hidden" name="__studio" value="1" />
-            <SettingsCard id="studio" icon={<Sparkles size={15} />} title="New look" desc="Switch each page to the new design on its own — and back." keywords="studio new look redesign design cards beta switch pages theme">
-              <div className="space-y-2">
-                {STUDIO_PAGES.filter((p) => p.ready).map((p) => (
-                  <FormSwitch key={p.id} name={`studio_${p.id}`} defaultChecked={studioOn.has(p.id)} label={p.label} hint={`Phase ${p.phase}`} />
-                ))}
-                {/* Portal unification: directors use these same screens —
-                    Home and Tasks — over their own companies (lib/viewer.ts). */}
-                <div className="border-t border-border/60 pt-2">
-                  <FormSwitch name="studio_role_director" defaultChecked={s.studioRoles.split(",").includes("director")} label="Directors use these screens" hint="Home and Tasks as you see them, limited to each director’s companies. Needs Tasks switched on above." />
-                </div>
-                {STUDIO_PAGES.some((p) => !p.ready) && (
-                  <div className="rounded-md border border-border px-3 py-2 text-xs text-fg-muted">
-                    <span className="font-medium text-fg">Coming next: </span>
-                    {STUDIO_PAGES.filter((p) => !p.ready).map((p) => `${p.label} (phase ${p.phase})`).join(" · ")}
-                  </div>
-                )}
-              </div>
-            </SettingsCard>
-            {STUDIO_PAGES.some((p) => p.ready) && <SaveBar />}
-          </form>
         </section>
 
         {/* ───────────────────────── AI & Voice ───────────────────────── */}
@@ -928,6 +889,6 @@ export default async function SettingsPage({
           </SettingsCard>
         </section>
       </SettingsSections>
-    </Wrap>
+    </StudioScope>
   );
 }

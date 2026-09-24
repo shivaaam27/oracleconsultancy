@@ -2,9 +2,15 @@
 
 **⚠️ THE STUDIO REDESIGN IS UNDER WAY (branch `studiotask`, Sept 2026) — read
 `memory/studio_redesign.md` before touching any page.** The mockup in
-`design/studio-mockup/` is the specification. One phase at a time, each page
-behind its own switch (Settings → General → New look, `src/lib/studio.ts`);
-the Studio look is scoped to `.studio` and never leaks onto a page that is off.
+`design/studio-mockup/` is the specification. **The per-page switches are GONE
+(25 Sept 2026, owner: "make it a default thing… delete the old design")**: every
+rebuilt page (Tasks, task record, Home, Recurring, Calendar, People, Companies,
+Files, Settings, the footer) is Studio only, its old version deleted, and
+`src/lib/studio.ts` / `ui.studioPages` no longer exist. Pages not yet rebuilt
+keep their old look until their turn. **Directors use the same Home and Tasks as
+the owner, over their companies — always, no switch.** Read
+`memory/portal_unification_plan.md` and `src/lib/viewer.ts` before touching a
+server action: every one is guarded (`guardOwner` / `guardViewer`).
 
 **⚠️ COS IS A TASK-MANAGEMENT SYSTEM AGAIN (21 Sept 2026).** It was split into
 six modules behind an `/apps` launcher in Aug 2026 — CocoZuri Operations, the

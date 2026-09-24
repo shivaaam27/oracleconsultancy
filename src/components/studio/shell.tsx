@@ -18,7 +18,9 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, Home, Plus, Search, Settings as SettingsIcon, UserRound, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Plus, Search, Settings as SettingsIcon, UserRound, X } from "lucide-react";
+import { adminLogout } from "@/app/login/actions";
+import { portalLogout } from "@/app/portal/actions";
 import { studioStops, stopIndexFor, directorStops, directorStopIndex, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
@@ -273,6 +275,19 @@ export function StudioShell({ nextDeadline, director = null }: { nextDeadline: S
               <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
               <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#8E9197]">⌘K</span>
             </button>
+            {/* Sign out — the owner's session, or a director's portal one. It
+                lived only at the foot of Settings, which nobody finds (owner,
+                25 Sept 2026: "how do you expect me to log out"). */}
+            <form action={director ? portalLogout : adminLogout}>
+              <button
+                type="submit"
+                aria-label="Sign out"
+                title="Sign out"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
+              >
+                <LogOut size={15} />
+              </button>
+            </form>
             <NotificationBell
               to="/task"
               align="right"

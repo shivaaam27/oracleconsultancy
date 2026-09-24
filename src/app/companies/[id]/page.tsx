@@ -1,22 +1,15 @@
 import { tasksOfCompany } from "@/lib/company-kpis";
 import { getAllTasks } from "@/lib/queries";
-import { CompanySummary } from "@/components/company-summary";
 import { CompanyActions } from "./_tabs/company-actions";
 import { ViewPublisher } from "@/components/view-publisher";
-import { COMPANY_TABS, COMPANY_TAB_LABELS, parseCompanyTab } from "./_tabs/tabs";
+import { parseCompanyTab } from "./_tabs/tabs";
 import { notesLinkedTo } from "@/lib/note-links";
 import { LinkedNotesList } from "@/components/linked-notes";
-import { RecordPage } from "@/components/record-page";
 import { TimelineTab } from "./_tabs/timeline-tab";
-import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { CompanyDocuments } from "./_tabs/company-documents";
-import { CompanyProfile } from "./_tabs/company-profile";
 import { getCompanyRelationships } from "@/lib/relationships";
-import { CompanyRelationships } from "@/components/company-relationships";
-import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { OrgChart } from "@/components/org-chart";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree } from "@/lib/org-chart";
@@ -24,36 +17,20 @@ import { getOrgExtras } from "@/lib/org-extras";
 import { getDepartmentHeads } from "@/lib/departments";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { listDocuments } from "@/lib/documents";
-import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+import { deriveDocStatus } from "@/lib/documents-shared";
 import { listAssets } from "@/lib/assets";
 import type { AssetRow } from "@/lib/assets-shared";
 import { listVendors } from "@/lib/vendors";
 import type { VendorRow } from "@/lib/vendors-shared";
 import { sb } from "@/db/supabase";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
-import { CompanyAvatar } from "@/components/company-avatar";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StudioCompany, type StudioCompanyData } from "@/components/studio/companies/studio-company";
 import { StudioCompanyProfile } from "@/components/studio/companies/company-profile";
 import { StudioPickProvider } from "@/components/studio/tasks/pick";
 import { FactsPanel } from "@/components/facts-panel";
 import { GovernancePanel } from "@/components/governance-panel";
-import {
-  ExternalLink,
-  ChevronRight,
-  Clock,
-  AlertOctagon,
-  Users,
-  FileText,
-  FileWarning,
-  Package,
-  Truck,
-  Network,
-} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +46,7 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl, settings] =
+  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl] =
     await Promise.all([
       getAllTasks(),
       listDocuments(),
@@ -82,7 +59,6 @@ export default async function CompanyPage({
       sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,role,company_id").eq("active", true).order("name"),
       getCompanyLogoUrl(companyId),
-      getAppSettings(),
     ]);
   const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
   const peopleList = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
@@ -104,7 +80,6 @@ export default async function CompanyPage({
   // company record (tasks are only a fallback for older accent data).
   if (!companyRaw) return notFound();
   const name = (companyRaw.name as string | null) ?? rows[0]?.companyName ?? "Company";
-  const accent = (companyRaw.accent_color as string | null) || rows[0]?.companyAccent || "hsl(var(--accent))";
   const openRows = rows
     .filter((r) => r.status !== "Completed" && r.status !== "Closed")
     .sort((a, b) => DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
@@ -113,10 +88,6 @@ export default async function CompanyPage({
 
   // Company documents (this company's files), with derived lifecycle status.
   const companyDocs = documents.filter((doc) => doc.companyId === companyId);
-  const attentionDocs = companyDocs
-    .map((doc) => ({ doc, status: deriveDocStatus(doc) }))
-    .filter((x) => x.status === "Expired" || x.status === "Expiring")
-    .sort((a, b) => DEADLINE_RANK(a.doc.expiryDate) - DEADLINE_RANK(b.doc.expiryDate));
 
   // Staff files: documents owned by people associated with this company,
   // grouped per person (separate from the company's own documents).
@@ -179,499 +150,133 @@ export default async function CompanyPage({
   }
 
   // Studio (Settings → New look → Companies): mockup board Company.
-  if (isStudioOn(settings.studioPages, "companies")) {
-    let overview: StudioCompanyData["overview"] = null;
-    if (tab === "overview") {
-      const [capT, sigT, resT, factT, staffIds] = await Promise.all([
-        sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        getStaffIdMap(),
-      ]);
-      const docStatus = companyDocs.map((d) => deriveDocStatus(d));
-      const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
-      // Worst first: late, then by deadline, undated last.
-      const ordered = [...openRows].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
-      const eat = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "Africa/Nairobi" }).replace(",", "");
-      const primary = (peopleRaw ?? []).filter((p) => (p.company_id as number | null) === companyId);
-      // Directors and heads first, then by name.
-      const rank = (role: string | null) => (/director|ceo|chair/i.test(role ?? "") ? 0 : /head|manager|cfo|coo/i.test(role ?? "") ? 1 : 2);
-      const assets = overviewExtras?.assets ?? [];
-      const vendors = overviewExtras?.vendors ?? [];
-      overview = {
-        documents: {
-          total: companyDocs.length,
-          expired: docStatus.filter((x) => x === "Expired").length,
-          expiring: docStatus.filter((x) => x === "Expiring").length,
-        },
-        tasks: ordered.map((r) => {
-          const days = r.deadline ? Math.floor((r.deadline.getTime() - Date.now()) / 86_400_000) : null;
-          return {
-            code: r.code, title: r.actionItem,
-            when: !r.deadline ? "no date" : isLate(r) ? `${Math.max(1, -Math.ceil((r.deadline.getTime() - Date.now()) / 86_400_000))}d late` : eat(r.deadline),
-            tone: !r.deadline ? "none" as const : isLate(r) ? "late" as const : days != null && days <= 6 ? "soon" as const : "plain" as const,
-          };
-        }),
-        staff: primary
-          .map((p) => ({ id: p.id as number, name: p.name as string, role: (p.role as string | null) ?? null, staffId: staffIds.get(p.id as number) ?? null }))
-          .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name)),
-        alsoCount: Math.max(0, teamCount - primary.length),
-        equipment: {
-          assets: assets.length, vendors: vendors.length,
-          expiredContracts: vendors.filter((v) => v.expiredCount > 0).length,
-          items: [
-            ...vendors.filter((v) => v.expiredCount > 0).map((v) => ({ name: v.name, sub: "contract expired", bad: true })),
-            ...assets.map((a) => ({ name: a.name, sub: a.custodianName ?? a.assignedToName ?? a.location ?? "Unassigned" })),
-            ...vendors.filter((v) => v.expiredCount === 0).map((v) => ({ name: v.name, sub: v.category ?? "Supplier" })),
-          ],
-        },
-        governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
-      };
-    }
-    const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
-    const tf = sp.tf === "done" ? "done" as const : "open" as const;
-    const card = "st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4";
-    // Each tab in the Studio look — cards, and the Studio task list (the same
-    // TableView the Tasks page draws; StudioPickProvider is what switches it).
-    const studioBody =
-      tab === "profile" ? (
-        <StudioCompanyProfile
-          companyId={companyId} companyName={name} accent={(companyRaw.accent_color as string | null) ?? null} logoUrl={logoUrl}
-          profile={{
-            filePrefix: (companyRaw.file_prefix as string | null) ?? null,
-            legalName: (companyRaw.legal_name as string | null) ?? null,
-            registrationNo: (companyRaw.registration_no as string | null) ?? null,
-            tin: (companyRaw.tin as string | null) ?? null,
-            vrn: (companyRaw.vrn as string | null) ?? null,
-            incorporationDate: companyRaw.incorporation_date ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10) : null,
-            address: (companyRaw.address as string | null) ?? null,
-            phone: (companyRaw.phone as string | null) ?? null,
-            email: (companyRaw.email as string | null) ?? null,
-            signatoryName: (companyRaw.signatory_name as string | null) ?? null,
-            signatoryTitle: (companyRaw.signatory_title as string | null) ?? null,
-            sectorRegulated: false,
-          }}
-          relationships={relationships as Awaited<ReturnType<typeof getCompanyRelationships>>}
-          facts={<FactsPanel entityType="company" entityId={companyId} defaultOpen />}
-          governance={<GovernancePanel companyId={companyId} />}
-          documents={<CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
-        />
-      ) : tab === "tasks" ? (
-        (tf === "done" ? completedRows : openRows).length === 0 ? (
-          <section className="rounded-[20px] bg-[var(--st-surface)] px-5 py-12 text-center text-[13px] text-[var(--st-muted)]">
-            {tf === "done" ? "Nothing finished yet — completed tasks land here." : `Nothing open for ${name}.`}
-          </section>
-        ) : (
-          <StudioPickProvider>
-            <SelectionProvider>
-              <BulkBar />
-              <TableView rows={tf === "done" ? completedRows : openRows} hideCompany />
-            </SelectionProvider>
-          </StudioPickProvider>
-        )
-      ) : tab === "notes" ? (
-        <section className={card}>
-          <LinkedNotesList notes={await notesLinkedTo("company", companyId)} emptyHint={`Write @${name} in any note and it will appear here.`} about={{ entity: "company", id: companyId, label: name }} />
-        </section>
-      ) : tab === "timeline" ? (
-        <section className={card}><TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} /></section>
-      ) : tab === "org" && orgTab ? (
-        <section className={card}>
-          <ErrorBoundary label="company-org">
-            <OrgChart
-              companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
-              trees={{ [companyId]: orgTab.tree }} extras={orgTab.extras} associatedByCompany={{ [companyId]: orgTab.associated }}
-              deptHeads={orgTab.deptHeads} pickerPeople={orgTab.pickerPeople} initialCompanyId={companyId} showSwitcher={false} showEveryone={false}
-            />
-          </ErrorBoundary>
-        </section>
-      ) : null;
-    return (
-      <>
-        <CompanyActions companyId={companyId} companyName={name} />
-        {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
-        <StudioCompany data={{
-          id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
-          open: openRows.length, late: overdueCount, people: teamCount, tab, overview, tf, doneCount: completedRows.length,
-          chips: {
-            overdue: overdueCount,
-            dueSoon: openRows.filter((r) => r.flag === "due-soon").length,
-            stalled: openRows.filter((r) => r.flag === "stalled").length,
-            noDeadline: openRows.filter((r) => !r.deadline).length,
-            noOwner: openRows.filter((r) => r.assignees.length === 0).length,
-          },
-        }}>
-          {studioBody}
-        </StudioCompany>
-      </>
-    );
+  let overview: StudioCompanyData["overview"] = null;
+  if (tab === "overview") {
+    const [capT, sigT, resT, factT, staffIds] = await Promise.all([
+      sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      getStaffIdMap(),
+    ]);
+    const docStatus = companyDocs.map((d) => deriveDocStatus(d));
+    const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
+    // Worst first: late, then by deadline, undated last.
+    const ordered = [...openRows].sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
+    const eat = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "Africa/Nairobi" }).replace(",", "");
+    const primary = (peopleRaw ?? []).filter((p) => (p.company_id as number | null) === companyId);
+    // Directors and heads first, then by name.
+    const rank = (role: string | null) => (/director|ceo|chair/i.test(role ?? "") ? 0 : /head|manager|cfo|coo/i.test(role ?? "") ? 1 : 2);
+    const assets = overviewExtras?.assets ?? [];
+    const vendors = overviewExtras?.vendors ?? [];
+    overview = {
+      documents: {
+        total: companyDocs.length,
+        expired: docStatus.filter((x) => x === "Expired").length,
+        expiring: docStatus.filter((x) => x === "Expiring").length,
+      },
+      tasks: ordered.map((r) => {
+        const days = r.deadline ? Math.floor((r.deadline.getTime() - Date.now()) / 86_400_000) : null;
+        return {
+          code: r.code, title: r.actionItem,
+          when: !r.deadline ? "no date" : isLate(r) ? `${Math.max(1, -Math.ceil((r.deadline.getTime() - Date.now()) / 86_400_000))}d late` : eat(r.deadline),
+          tone: !r.deadline ? "none" as const : isLate(r) ? "late" as const : days != null && days <= 6 ? "soon" as const : "plain" as const,
+        };
+      }),
+      staff: primary
+        .map((p) => ({ id: p.id as number, name: p.name as string, role: (p.role as string | null) ?? null, staffId: staffIds.get(p.id as number) ?? null }))
+        .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name)),
+      alsoCount: Math.max(0, teamCount - primary.length),
+      equipment: {
+        assets: assets.length, vendors: vendors.length,
+        expiredContracts: vendors.filter((v) => v.expiredCount > 0).length,
+        items: [
+          ...vendors.filter((v) => v.expiredCount > 0).map((v) => ({ name: v.name, sub: "contract expired", bad: true })),
+          ...assets.map((a) => ({ name: a.name, sub: a.custodianName ?? a.assignedToName ?? a.location ?? "Unassigned" })),
+          ...vendors.filter((v) => v.expiredCount === 0).map((v) => ({ name: v.name, sub: v.category ?? "Supplier" })),
+        ],
+      },
+      governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
+    };
   }
-
-  const otherTabs = (
-    <>
-      {tab === "profile" && (
-        <div className="space-y-3.5">
-          <CompanyRelationships relationships={relationships} />
-          <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60">
-            <Network size={13} /> Explore all connections
-          </Link>
-          <CompanyProfile
-            companyId={companyId}
-            companyName={name}
-            accent={accent}
-            logoUrl={logoUrl}
-            profile={{
-              filePrefix: (companyRaw?.file_prefix as string | null) ?? null,
-              legalName: (companyRaw?.legal_name as string | null) ?? null,
-              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
-              tin: (companyRaw?.tin as string | null) ?? null,
-              vrn: (companyRaw?.vrn as string | null) ?? null,
-              incorporationDate: companyRaw?.incorporation_date
-                ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10)
-                : null,
-              address: (companyRaw?.address as string | null) ?? null,
-              phone: (companyRaw?.phone as string | null) ?? null,
-              email: (companyRaw?.email as string | null) ?? null,
-              signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
-              signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
-              sectorRegulated: !!(companyRaw?.sector_regulated as boolean | null),
-            }}
-          />
-          {/* CompanyKeyDocuments removed: the statutory numbers/expiries it showed
-              are the Statutory checklist's job (they were displayed three times on
-              this tab). The checklist below is the single home for them. */}
-          <CompanyDocuments
-            companyId={companyId}
-            companyName={name}
-            documents={companyDocs}
-            staffGroups={staffGroups}
-            companies={companiesList}
-            people={peopleList}
-            stageByDoc={stageByDoc}
-          />
-        </div>
-      )}
-
-      {tab === "tasks" && (
-        <>
-          <CompanyKpiStrip rows={rows} companyName={name} />
-          <div className="flex items-center justify-between pt-1">
-            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Open tasks
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
-                {openRows.length}
-              </span>
-            </h2>
-            <Link
-              href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
-              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-            >
-              <ExternalLink size={12} /> Open in hub Tasks
-            </Link>
-          </div>
-          {openRows.length === 0 ? (
-            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
-          ) : (
-            <SelectionProvider>
-              <BulkBar />
-              <TableView rows={openRows} hideCompany />
-            </SelectionProvider>
-          )}
-
-          {/* Completed & closed fold in under Tasks rather than a separate tab. */}
-          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
-            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
-              <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
-              Completed &amp; closed
-              <span className="text-xs text-fg-subtle font-normal tabular">{completedRows.length}</span>
-            </summary>
-            <div className="px-2 pb-2">
-              {completedRows.length === 0 ? (
-                <div className="text-sm text-fg-muted px-2 py-6 text-center">
-                  Nothing completed yet. Finished tasks move here automatically.
-                </div>
-              ) : (
-                <SelectionProvider>
-                  <BulkBar />
-                  <TableView rows={completedRows} hideCompany />
-                </SelectionProvider>
-              )}
-            </div>
-          </details>
-        </>
-      )}
-
-      {/* Notes that mention this company (Phase 3 of the notes plan). A server
-          read, so there is no fetch and no spinner — the page already knows.
-          Owner-only, like every note: this page is behind the admin gate and has
-          no portal twin. */}
-      {tab === "notes" && (
-        <LinkedNotesList
-          notes={await notesLinkedTo("company", companyId)}
-          emptyHint={`Write @${name} in any note and it will appear here.`}
-          about={{ entity: "company", id: companyId, label: name }}
-        />
-      )}
-
-      {tab === "timeline" && (
-        <TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} />
-      )}
-
-      {tab === "org" && orgTab && (
+  const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
+  const tf = sp.tf === "done" ? "done" as const : "open" as const;
+  const card = "st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4";
+  // Each tab in the Studio look — cards, and the Studio task list (the same
+  // TableView the Tasks page draws; StudioPickProvider is what switches it).
+  const studioBody =
+    tab === "profile" ? (
+      <StudioCompanyProfile
+        companyId={companyId} companyName={name} accent={(companyRaw.accent_color as string | null) ?? null} logoUrl={logoUrl}
+        profile={{
+          filePrefix: (companyRaw.file_prefix as string | null) ?? null,
+          legalName: (companyRaw.legal_name as string | null) ?? null,
+          registrationNo: (companyRaw.registration_no as string | null) ?? null,
+          tin: (companyRaw.tin as string | null) ?? null,
+          vrn: (companyRaw.vrn as string | null) ?? null,
+          incorporationDate: companyRaw.incorporation_date ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10) : null,
+          address: (companyRaw.address as string | null) ?? null,
+          phone: (companyRaw.phone as string | null) ?? null,
+          email: (companyRaw.email as string | null) ?? null,
+          signatoryName: (companyRaw.signatory_name as string | null) ?? null,
+          signatoryTitle: (companyRaw.signatory_title as string | null) ?? null,
+          sectorRegulated: false,
+        }}
+        relationships={relationships as Awaited<ReturnType<typeof getCompanyRelationships>>}
+        facts={<FactsPanel entityType="company" entityId={companyId} defaultOpen />}
+        governance={<GovernancePanel companyId={companyId} />}
+        documents={<CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
+      />
+    ) : tab === "tasks" ? (
+      (tf === "done" ? completedRows : openRows).length === 0 ? (
+        <section className="rounded-[20px] bg-[var(--st-surface)] px-5 py-12 text-center text-[13px] text-[var(--st-muted)]">
+          {tf === "done" ? "Nothing finished yet — completed tasks land here." : `Nothing open for ${name}.`}
+        </section>
+      ) : (
+        <StudioPickProvider>
+          <SelectionProvider>
+            <BulkBar />
+            <TableView rows={tf === "done" ? completedRows : openRows} hideCompany />
+          </SelectionProvider>
+        </StudioPickProvider>
+      )
+    ) : tab === "notes" ? (
+      <section className={card}>
+        <LinkedNotesList notes={await notesLinkedTo("company", companyId)} emptyHint={`Write @${name} in any note and it will appear here.`} about={{ entity: "company", id: companyId, label: name }} />
+      </section>
+    ) : tab === "timeline" ? (
+      <section className={card}><TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} /></section>
+    ) : tab === "org" && orgTab ? (
+      <section className={card}>
         <ErrorBoundary label="company-org">
-        <OrgChart
-          companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
-          trees={{ [companyId]: orgTab.tree }}
-          extras={orgTab.extras}
-          associatedByCompany={{ [companyId]: orgTab.associated }}
-          deptHeads={orgTab.deptHeads}
-          pickerPeople={orgTab.pickerPeople}
-          initialCompanyId={companyId}
-          showSwitcher={false}
-          showEveryone={false}
-        />
+          <OrgChart
+            companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
+            trees={{ [companyId]: orgTab.tree }} extras={orgTab.extras} associatedByCompany={{ [companyId]: orgTab.associated }}
+            deptHeads={orgTab.deptHeads} pickerPeople={orgTab.pickerPeople} initialCompanyId={companyId} showSwitcher={false} showEveryone={false}
+          />
         </ErrorBoundary>
-      )}
+      </section>
+    ) : null;
+  return (
+    <>
+      <CompanyActions companyId={companyId} companyName={name} />
+      {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
+      <StudioCompany data={{
+        id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
+        open: openRows.length, late: overdueCount, people: teamCount, tab, overview, tf, doneCount: completedRows.length,
+        chips: {
+          overdue: overdueCount,
+          dueSoon: openRows.filter((r) => r.flag === "due-soon").length,
+          stalled: openRows.filter((r) => r.flag === "stalled").length,
+          noDeadline: openRows.filter((r) => !r.deadline).length,
+          noOwner: openRows.filter((r) => r.assignees.length === 0).length,
+        },
+      }}>
+        {studioBody}
+      </StudioCompany>
     </>
   );
-
-  return (
-    /* Converted to the shared record shell (Stage 5). It keeps its own tab
-       BODIES — they are big and company-specific — but the header and tab strip
-       are now RecordPage's, so a company reads like a task, a person or an asset.
-       Its tab lives in the URL, so it uses RecordPage's `tabHref` form and stays
-       a server component. Width is the app default now, not a 1100px column. */
-    <div className="space-y-3.5">
-      <HrmsCrumbs from={sp.from} />
-      <CompanyActions companyId={companyId} companyName={name} />
-
-      <RecordPage
-        title={
-          <span className="flex min-w-0 items-center gap-2.5">
-            <CompanyAvatar name={name} accent={accent} logoUrl={logoUrl} size={28} rounded="rounded-md" iconSize={14} />
-            <span className="truncate">{name}</span>
-          </span>
-        }
-        subtitle={`${openRows.length} open · ${rows.length} total · ${teamCount} people`}
-        tabs={COMPANY_TABS.map((t) => ({
-          id: t,
-          label: COMPANY_TAB_LABELS[t],
-          count: t === "tasks" ? openRows.length : undefined,
-          href: t === "overview" ? `/companies/${companyId}` : `/companies/${companyId}?tab=${t}`,
-        }))}
-        activeTab={tab}
-      />
-
-      {tab === "overview" && (
-        <>
-          {/* Publish this company's open tasks so the assistant can bulk-act on "these". */}
-          <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
-
-          {/* At-a-glance tiles — the company file health in one row. */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            <StatTile label="Open tasks" value={openRows.length} Icon={Clock} tone="info" href={`/companies/${companyId}?tab=tasks`} />
-            <StatTile
-              label="Overdue"
-              value={overdueCount}
-              Icon={AlertOctagon}
-              tone={overdueCount ? "danger" : "muted"}
-              href={`/?tab=tasks&view=table&company=${encodeURIComponent(name)}&flag=overdue`}
-            />
-            <StatTile label="Team" value={teamCount ?? 0} Icon={Users} tone="info" href={`/companies/${companyId}?tab=org`} />
-            <StatTile label="Files" value={companyDocs.length} Icon={FileText} tone="info" href={`/files?co=${companyId}`} />
-            <StatTile
-              label="Expiring"
-              value={attentionDocs.length}
-              Icon={FileWarning}
-              tone={attentionDocs.length ? "warn" : "muted"}
-              href={`/files?co=${companyId}`}
-            />
-          </div>
-
-          {/* Documents needing attention — expired / expiring company files. */}
-          {attentionDocs.length > 0 && (
-            <section className="glass elevated rounded-2xl p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-                  <FileWarning size={13} /> Documents needing attention
-                </h2>
-                <Link
-                  href={`/files?co=${companyId}`}
-                  className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-                >
-                  <ExternalLink size={12} /> All documents
-                </Link>
-              </div>
-              <ul className="divide-y divide-border/50">
-                {attentionDocs.slice(0, 5).map(({ doc, status }) => (
-                  <li key={doc.id} className="flex items-center gap-3 py-2">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{doc.title}</span>
-                      <span className="block truncate text-xs text-fg-subtle">
-                        {doc.category ?? "Uncategorised"}
-                        {expiryLabel(doc) ? ` · ${expiryLabel(doc)}` : ""}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        status === "Expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* Open tasks — compact preview; the full table lives on the Tasks tab. */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between pt-1">
-              <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-                Open tasks
-                <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular normal-case">
-                  {openRows.length}
-                </span>
-              </h2>
-              <Link
-                href={`/companies/${companyId}?tab=tasks`}
-                className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-              >
-                <ExternalLink size={12} /> Open in Tasks
-              </Link>
-            </div>
-            <CompanyKpiStrip rows={rows} companyName={name} />
-            {openRows.length === 0 ? (
-              <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
-            ) : (
-              <ul className="glass elevated rounded-2xl divide-y divide-border/50 overflow-hidden">
-                {openRows.slice(0, 5).map((r) => (
-                  <li key={r.code}>
-                    <Link href={`/task/${r.code}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/50 transition-colors">
-                      <span className="text-xs font-semibold tabular text-fg-subtle shrink-0">{r.code}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm">{r.actionItem}</span>
-                      {r.deadline && (
-                        <span className="shrink-0 text-xs text-fg-subtle tabular">
-                          {r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                        </span>
-                      )}
-                      <ChevronRight size={14} className="text-fg-subtle shrink-0" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Equipment & suppliers — assets at this company and its vendors. */}
-          {overviewExtras && (overviewExtras.assets.length > 0 || overviewExtras.vendors.length > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {overviewExtras.assets.length > 0 && (
-                <section className="glass elevated rounded-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
-                    <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                      <Package size={14} className="text-accent" /> Equipment
-                      <span className="text-xs font-normal text-fg-subtle tabular">{overviewExtras.assets.length}</span>
-                    </h2>
-                    <Link href="/hrms/assets" className="text-xs text-fg-muted hover:text-accent transition-colors">All</Link>
-                  </div>
-                  <ul className="divide-y divide-border/50">
-                    {overviewExtras.assets.slice(0, 5).map((a) => (
-                      <li key={a.id} className="px-4 py-2">
-                        <span className="block truncate text-sm font-medium">{a.name}</span>
-                        <span className="block truncate text-xs text-fg-subtle">
-                          {[a.custodianName ?? a.assignedToName, a.location, a.tag].filter(Boolean).join(" · ") || "Unassigned"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {overviewExtras.vendors.length > 0 && (
-                <section className="glass elevated rounded-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
-                    <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                      <Truck size={14} className="text-accent" /> Suppliers
-                      <span className="text-xs font-normal text-fg-subtle tabular">{overviewExtras.vendors.length}</span>
-                    </h2>
-                    <Link href="/hrms/assets?tab=vendors" className="text-xs text-fg-muted hover:text-accent transition-colors">All</Link>
-                  </div>
-                  <ul className="divide-y divide-border/50">
-                    {overviewExtras.vendors.slice(0, 5).map((v) => (
-                      <li key={v.id} className="flex items-center gap-2 px-4 py-2">
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{v.name}</span>
-                          <span className="block truncate text-xs text-fg-subtle">
-                            {[v.category, v.docCount ? `${v.docCount} doc${v.docCount === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ") || "Supplier"}
-                          </span>
-                        </span>
-                        {(v.expiredCount > 0 || v.expiringCount > 0) && (
-                          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v.expiredCount > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>
-                            {v.expiredCount > 0 ? "Expired" : "Expiring"}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </div>
-          )}
-
-          {/* Insights — available but collapsed so they never block the snapshot. */}
-          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
-            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
-              <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
-              Company insights
-              <span className="text-xs text-fg-subtle font-normal">momentum &amp; AI briefing</span>
-            </summary>
-            <div className="px-4 pb-4 space-y-4">
-              <MomentumStrip companyId={companyId} />
-              <CompanySummary companyId={companyId} />
-            </div>
-          </details>
-        </>
-      )}
-
-      {otherTabs}
-    </div>
-  );
 }
 
-type Tone = "info" | "danger" | "warn" | "success" | "muted";
 
-const TONE_CLS: Record<Tone, string> = {
-  info: "text-info",
-  danger: "text-danger",
-  warn: "text-warn",
-  success: "text-success",
-  muted: "text-fg-muted",
-};
 
-function StatTile({
-  label,
-  value,
-  Icon,
-  tone,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-  tone: Tone;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="glass elevated rounded-2xl p-3 flex flex-col gap-1.5 transition-all hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-subtle">
-        <Icon size={12} className={TONE_CLS[tone]} /> {label}
-      </span>
-      <span className={`text-xl font-semibold tabular ${TONE_CLS[tone]}`}>{value}</span>
-    </Link>
-  );
-}

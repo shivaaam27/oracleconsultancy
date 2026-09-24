@@ -1,13 +1,8 @@
-import { PageHeader } from "@/components/ui";
-import { getAppSettings } from "@/lib/settings";
-import { isStudioOn } from "@/lib/studio";
 import { StudioRecurring } from "@/components/studio/recurring/studio-recurring";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { sb } from "@/db/supabase";
-import { RecurringTasksPanel } from "@/components/portal-recurring-tasks";
 import type { PickerCompany, PickerPerson } from "@/lib/portal-picker";
 import {
-  listRecurringTasks, createRecurringTask, updateRecurringTask, setRecurringTaskPaused, deleteRecurringTask,
+  listRecurringTasks,
 } from "../recurring-actions";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +13,10 @@ export const dynamic = "force-dynamic";
  *  cancelled but never edited. The portal had this panel; the administrator did
  *  not. Same panel, the administrator's door. */
 export default async function RecurringTasksPage() {
-  const [rules, companiesRes, peopleRes, settings] = await Promise.all([
+  const [rules, companiesRes, peopleRes] = await Promise.all([
     listRecurringTasks(),
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-    getAppSettings(),
   ]);
   const companies: PickerCompany[] = ((companiesRes.data ?? []) as { id: number; name: string }[]).map((c) => ({ id: c.id, name: c.name }));
   const people: PickerPerson[] = ((peopleRes.data ?? []) as { id: number; name: string; company_id: number | null }[]).map((p) => ({
@@ -30,24 +24,5 @@ export default async function RecurringTasksPage() {
   }));
 
   // Studio (Settings → New look → Recurring tasks): mockup board Recurring.
-  if (isStudioOn(settings.studioPages, "recurring")) {
-    return <StudioRecurring rules={rules} companies={companies} people={people} />;
-  }
-
-  return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-28">
-      <HrmsCrumbs />
-      <PageHeader
-        title="Recurring tasks"
-        sub="Tasks that recreate themselves on chosen days each week or month — every standing rule, whoever set it up. Switch one off to keep its settings without it firing."
-      />
-      <RecurringTasksPanel
-        rules={rules}
-        companies={companies}
-        people={people}
-        showCreator
-        actions={{ create: createRecurringTask, update: updateRecurringTask, setPaused: setRecurringTaskPaused, remove: deleteRecurringTask }}
-      />
-    </main>
-  );
+  return <StudioRecurring rules={rules} companies={companies} people={people} />;
 }

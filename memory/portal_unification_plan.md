@@ -56,3 +56,34 @@ new caps → 3 managers → 4 staff → 5 retire the portal twins one by one.
   still gates document downloads beside the configurable `caps`.
 - MCP task scope uses only companyScope — an `own` staff caller sees none.
 - ORI's `set_role_capability` saves without diffFromDefaults.
+
+## Built — 25 Sept 2026
+- **Step 0 (safety)**: `lib/viewer.ts` — `getViewer()` (owner | director),
+  `guardOwner` / `guardViewer` / `guardSignedIn` at the top of every
+  administrator server action (codemod `scripts/guard-actions.mts`), decided by
+  Next's `actionAsyncStorage` (`isAction`, covers fetch AND plain-form posts):
+  from a browser → must be allowed; from the server (MCP, ORI, cron, render) →
+  stands aside; a portal action calling an admin function on the person's
+  behalf wraps it in `trusted()`. Proven live: an anonymous action call is
+  refused. Closed: admin actions bundled into ungated portal pages were
+  callable with no session (listTodos, updatePerson, grantPortalAccess…);
+  announcements' `canAuthor` treated "no session" as the owner; upload slots
+  needed no sign-in; portal chat `listPeople` listed every name to anyone.
+- **Step 1**: directors on the shared Home + Tasks (list, record, side panel,
+  bulk, new task) — `src/proxy.ts` `DIRECTOR_PATHS` admits a SIGNATURE-CHECKED
+  portal session to `/`, `/task/new`, `/task/CODE`, `/api/task-detail` only;
+  each checks `getViewer()` itself. Task actions: `taskActor()` (scope +
+  capability), `lib/viewer-scope.ts` (`needCap`, `needCompany`, `stampOf`,
+  `assigneesFor` — directors never create a person, stamped `portal-dir:<Name>`).
+  Director footer (`directorStops`), no ⌘K, no owner drawers, Home cut down;
+  portal board/tasks/task redirect to the shared pages. **No switch** — every
+  director, always (owner's decision).
+- **Old design deleted**: the page switches and `lib/studio.ts`, every rebuilt
+  page's old branch, 44 orphaned files (old Home, desk sidebar, top pill,
+  command deck, signals…), the `@modal` new-task pop-up. ~9k lines.
+- Footer has **Sign out** (owner → adminLogout, director → portalLogout).
+
+## Next
+Companies / People / Files / Calendar for directors, VIEW-ONLY (+ download):
+viewer-aware pages and APIs, then add each to `DIRECTOR_PATHS` and the
+director footer. Then managers, then staff.
