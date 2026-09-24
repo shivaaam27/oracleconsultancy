@@ -21,7 +21,7 @@ export type StudioPage = {
 };
 
 export const STUDIO_PAGES: StudioPage[] = [
-  { id: "tasks", label: "Tasks", phase: 1, ready: false },
+  { id: "tasks", label: "Tasks", phase: 1, ready: true },
   { id: "nav", label: "Footer navigation", phase: 2, ready: false },
   { id: "home", label: "Home", phase: 3, ready: false },
   { id: "recurring", label: "Recurring tasks", phase: 4, ready: false },

@@ -731,6 +731,25 @@ export async function deleteTaskUpdate(
   return { ok: true };
 }
 
+/** Form wrappers so the administrator's conversation can correct or take down an
+ *  update in place (Studio). Same writers as everywhere else — `editTaskUpdate`
+ *  keeps the original text and audits the change; `deleteTaskUpdate` is a soft
+ *  delete that `restoreTaskUpdate` can undo. Field names match PortalConversation. */
+export async function adminEditUpdate(formData: FormData): Promise<void> {
+  const updateId = Number(formData.get("updateId"));
+  const body = String(formData.get("body") ?? "");
+  if (!Number.isFinite(updateId) || updateId <= 0) return;
+  const res = await editTaskUpdate(updateId, body, undefined, "web-ui");
+  if (!res.ok) throw new Error(res.error ?? "Couldn't change the update.");
+}
+
+export async function adminDeleteUpdate(formData: FormData): Promise<void> {
+  const updateId = Number(formData.get("updateId"));
+  if (!Number.isFinite(updateId) || updateId <= 0) return;
+  const res = await deleteTaskUpdate(updateId, "Taken down by the administrator", "web-ui");
+  if (!res.ok) throw new Error(res.error ?? "Couldn't take the update down.");
+}
+
 export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };

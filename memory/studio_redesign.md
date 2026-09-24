@@ -27,7 +27,7 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - **One database change in the whole plan:** the ☆ "pin a task to the top".
 
 ## Phases
-0 Groundwork ✅ · 1 Tasks · 2 Footer navigation · 3 Home · 4 Work pages ·
+0 Groundwork ✅ · 1 Tasks ✅ · 2 Footer navigation · 3 Home · 4 Work pages ·
 5 Records · 6 Operations · 7 System · 8 Staff portal & phone.
 
 ### Phase 0 — built 24 Sept 2026
@@ -43,6 +43,31 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
 - `layout.tsx` — Geist + Geist Mono loaded as CSS variables only.
 - Settings → General → **New look** card (lists what is coming, by phase).
 
+### Phase 1 — Tasks, built 24 Sept 2026
+Switch: Settings → General → New look → Tasks (`ui.studioPages` holds `tasks`).
+It turns on BOTH the list (`/?tab=tasks`) and the record (`/task/CODE`).
+- **Same data, new frame.** `tasks-section.tsx` computes everything once; a
+  Studio branch before the old `return` renders `StudioTasks`
+  (`src/components/studio/tasks/`) around the SAME body components. Board,
+  Calendar, Timeline and Cards are unchanged inside the new frame.
+- Top: two equal cards — `InsightsCard` (3 slides: Overview / By company / By
+  person, every number a link) and `UpdateCard` (idle = unread + today's fresh
+  three; picked = summary, latest update, quick post, Complete/Escalate/Remind,
+  ⤢ to the full record). Picking is `StudioPickProvider` state — it does NOT
+  change the URL; Esc clears it.
+- Rows: `RecordList variant="studio"` (looks only — same columns engine,
+  sorting, bulk, export) + `activeKey`. The task table gains a 7-day pulse and
+  latest-update column in Studio only; its filter rail moves into the
+  **Filters** panel (`FiltersButton`) and the lenses into the bottom
+  `StudioSearchBar` (live search, 300ms, replace-not-push, typing ref).
+- Record: `TaskRecord` `studio` prop — dark band (actions), light chips
+  (status, priority, deadline, repeats), tabs; Conversation beside a rail
+  (decision strip, people, facts, **Waiting on** = `StudioBlocker` — the first
+  admin screen for `setTaskBlocker`, Repeats, links, similar). All other tabs
+  reuse the existing blocks. Admin can now edit/take down an update
+  (`adminEditUpdate` / `adminDeleteUpdate`).
+- Switch off = byte-for-byte the old page: every change is behind `studio`.
+
 ## Also on this branch
 - `9957091d` — the Companies hub / company page / drawer counted a task under
   every company its PEOPLE work for (Jitesh, Shivam, Pulin are in 8–12 each), so
@@ -50,6 +75,14 @@ there), published canvas https://claude.ai/artifact/KtgVP9gLJr4yAcceLwJtxt
   once, under its filed company. Independent of the redesign — can go to master alone.
 
 ## Traps met so far
+- ⚠️ **`position: sticky` never worked anywhere in COS** until Phase 1:
+  `overflow-x: hidden` on `body` makes body a scroll box that never scrolls, so
+  sticky stuck to body, not the screen. Now `overflow-x: clip` (globals.css).
+  This also brought the Settings save bar and the bulk-select bar back to life.
+- Below `lg` the old floating nav pill owns the foot of the screen — anything
+  sticky at the bottom must ride above it (~4.75rem) until Phase 2 replaces it.
+- The pane forces a light render: use `resize_window colorScheme: dark` to see
+  dark mode, not just the `.dark` class.
 - The Browser pane returns **blank screenshots when the pane is hidden** — check
   `tabs_context`; read the page text instead, or ask the owner to show the pane.
 - The admin side needs the owner's sign-in on localhost too; ask, never type it.

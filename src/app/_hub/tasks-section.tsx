@@ -18,6 +18,11 @@ import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import type { RecordFilter } from "@/components/record-list";
 import type { TaskRow } from "@/lib/queries";
 import { CheckSquare, Sparkles, Archive, Repeat } from "lucide-react";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
+import { StudioTasks, StudioEmpty, StudioLaneNote } from "@/components/studio/tasks/studio-tasks";
+import type { InsightsData } from "@/components/studio/tasks/insights-card";
+import type { FilterSection } from "@/components/studio/tasks/controls";
 
 type Sp = {
   company?: string;
@@ -532,6 +537,175 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         const bits = [sp.flag, sp.priority, sp.status, sp.company, person?.name, sp.quiet === "1" ? "quiet" : null, doneTab ? "done" : null, sp.noOwner === "1" ? "no owner" : null].filter(Boolean);
         return bits.length ? bits.join(" · ") : (showClosed ? "all tasks" : "open tasks");
       })();
+
+  /* ─────────────── Studio (Settings → New look → Tasks) ───────────────
+     Everything above is shared: the Studio page gets the SAME rows, counts,
+     options and links, and only draws them differently. With the switch off
+     this block is skipped and the page below renders exactly as before. */
+  const { studioPages } = await getAppSettings();
+  if (isStudioOn(studioPages, "tasks")) {
+    // Days are Dar es Salaam days (UTC+3), whatever zone the server runs in.
+    const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
+    const today = eatDay(Date.now());
+
+    // "Last 7 days" — updates per day on each listed task. Only the List view
+    // draws it, so only the List view asks for it.
+    const pulse: Record<string, number[]> = {};
+    if (view === "table" && rows.length > 0) {
+      const codeById = new Map(rows.map((r) => [r.id, r.code]));
+      const { data: recent } = await sb
+        .from("task_updates")
+        .select("task_id,created_at")
+        .is("deleted_at", null)
+        .gte("created_at", new Date(Date.now() - 8 * 86_400_000).toISOString());
+      for (const u of recent ?? []) {
+        const code = codeById.get(u.task_id as number);
+        if (!code) continue;
+        const idx = 6 - (today - eatDay(new Date(u.created_at as string).getTime()));
+        if (idx < 0 || idx > 6) continue;
+        (pulse[code] ??= [0, 0, 0, 0, 0, 0, 0])[idx]++;
+      }
+    }
+
+    // The summary cards.
+    const openAll = base.filter(isOpenRow);
+    const isLate = (r: (typeof all)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
+    const lateByCompany = new Map<string, number>();
+    for (const r of openAll.filter(matchesPerson)) if (isLate(r)) lateByCompany.set(r.companyName, (lateByCompany.get(r.companyName) ?? 0) + 1);
+    const lateByPerson = new Map<number, number>();
+    for (const r of openBase) if (isLate(r)) for (const id of r.assigneeIds) lateByPerson.set(id, (lateByPerson.get(id) ?? 0) + 1);
+    const hrefOf = (items: FilterChip[], key: string) => items.find((c) => c.key === key)?.href ?? buildHref(sp, {});
+    const insights: InsightsData = {
+      open: counts.all,
+      onTrackPct,
+      bar: {
+        late: counts.overdue,
+        soon: counts.dueSoon,
+        noDate: counts.noDeadline,
+        onSchedule: Math.max(0, counts.all - counts.overdue - counts.dueSoon - counts.noDeadline),
+      },
+      hrefs: { late: hrefOf(chips, "overdue"), soon: hrefOf(chips, "duesoon"), noDate: hrefOf(moreItems, "nodeadline") },
+      tiles: [
+        { n: counts.quiet, label: "Quiet 7+ days", href: hrefOf(chips, "quiet") },
+        { n: counts.unread, label: "Unread updates", href: hrefOf(chips, "unread") },
+        { n: counts.escalated, label: "Escalated", href: hrefOf(moreItems, "escalated") },
+        { n: completedThisMonth, label: "Done this month", href: hrefOf(chips, "done") },
+      ],
+      companies: [...openByCompany.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 9)
+        .map(([name, open]) => ({ name, open, late: lateByCompany.get(name) ?? 0, href: buildHref(sp, { company: name }) })),
+      people: people
+        .map((p) => ({ p, n: assignedCount.get(p.id) ?? 0 }))
+        .filter((x) => x.n > 0)
+        .sort((a, b) => b.n - a.n)
+        .slice(0, 4)
+        .map(({ p, n }) => ({ name: p.name.replace(/^(Mr|Mrs|Ms|Chef)\s+/, ""), open: n, late: lateByPerson.get(p.id) ?? 0, href: buildHref(sp, { who: String(p.id), whoMode: undefined }) })),
+    };
+    const withNews = openAll.filter((r) => r.latestActivity);
+    const fresh = [...withNews]
+      .sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO))
+      .slice(0, 3);
+    const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
+
+    // The Filters panel: every filter the old page offers, grouped.
+    const filterSections: FilterSection[] = [
+      { title: "Show", items: chips },
+      { title: "Flags and lanes", items: moreItems },
+      { title: "Stage", items: statusOptions },
+      { title: "Company", note: "also in the title bar", items: companyOptions },
+      { title: "Person", note: personModeCreated ? "tasks they created" : "tasks assigned to them", items: personOptions },
+      { title: "Group the list by", items: groupOptions },
+      ...(view === "cards" && !showArchived
+        ? [{ title: "Cards", note: "Focus = the chase queue, worst first", items: [
+            { key: "focus", label: "Focus", href: buildHref(sp, { mode: "focus", done: undefined }), active: focusMode },
+            { key: "browse", label: "Browse", href: buildHref(sp, { mode: undefined }), active: !focusMode },
+          ] }]
+        : []),
+    ];
+    const activeFilterCount =
+      [sp.flag, sp.status, sp.priority, sp.quiet, sp.unread, sp.done, sp.noOwner, sp.archived, sp.kind, sp.company, sp.who].filter(Boolean).length +
+      (groupBy ? 1 : 0);
+
+    const empty = total === 0 && view !== "calendar" && view !== "timeline" && !focusMode;
+    return (
+      <StudioTasks
+        title={kindAuto ? "Renewals & admin" : showArchived ? "Archived tasks" : "Tasks"}
+        view={view}
+        queryWithoutView={queryWithoutView(sp)}
+        recurringCount={await recurringRulesCount}
+        company={sp.company ?? null}
+        companyOptions={companyOptions}
+        personLabel={person?.name ?? null}
+        personMode={person ? (personModeCreated ? "created" : "assigned") : null}
+        personOptions={personOptions}
+        filterSections={filterSections}
+        activeFilterCount={activeFilterCount}
+        savedViews={
+          <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} basePath="/" extraQuery="tab=tasks" listKey="task" />
+        }
+        strip={strip}
+        notes={<>{showArchived && <StudioLaneNote kind="archived" />}{kindAuto && <StudioLaneNote kind="auto" />}</>}
+        insights={insights}
+        tableRows={rows}
+        fresh={fresh}
+        unreadCount={counts.unread}
+        updatedToday={updatedToday}
+        q={sp.q || ""}
+        searchHrefBase={buildHref(sp, { q: undefined })}
+        lenses={chips}
+        quickAdd={
+          <TaskActions
+            companies={companyList}
+            people={peopleNames}
+            defaultCompanyId={quickDefaultCompanyId}
+            showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
+          />
+        }
+        body={
+          <>
+            <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
+            {empty ? (
+              <StudioEmpty archived={showArchived} done={doneTab} filtered={hasFilters} />
+            ) : view === "calendar" ? (
+              <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
+            ) : view === "timeline" ? (
+              <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
+            ) : (
+              <SelectionProvider>
+                <BulkBar />
+                {view === "board" ? (
+                  <BoardView rows={rows} showClosed={showClosed} />
+                ) : view === "cards" ? (
+                  focusMode ? (
+                    <FocusQueue rows={rows.filter(isOpenRow)} />
+                  ) : (
+                    <CardsView
+                      rows={rows}
+                      groupBy={cardsGroupBy}
+                      companyMeta={companyMeta}
+                      sortMode={sortMode}
+                      allCompanies={cardsGroupBy === "company" ? companyList.map((c) => c.name) : undefined}
+                    />
+                  )
+                ) : (
+                  <TableView
+                    rows={rows}
+                    groupBy={groupBy}
+                    hideCompany={groupBy === "company"}
+                    sortHrefs={sortHrefs}
+                    sortedBy={sortKey ? { key: sortKey, dir: sortDir } : undefined}
+                    total={base.length}
+                    studioPulse={pulse}
+                  />
+                )}
+              </SelectionProvider>
+            )}
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">

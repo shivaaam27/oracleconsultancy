@@ -29,6 +29,7 @@ import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { cn } from "@/lib/cn";
+import { useStudioPick } from "@/components/studio/tasks/pick";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -76,8 +77,10 @@ function groupLabelFor(r: TaskRow, by: GroupBy): string {
 }
 
 export function TableView({
-  rows, hideCompany = false, groupBy = null, filters, sortHrefs, sortedBy, total,
+  rows, hideCompany = false, groupBy = null, filters, sortHrefs, sortedBy, total, studioPulse,
 }: {
+  /** Studio only: updates per day over the last 7 days, oldest first, by code. */
+  studioPulse?: Record<string, number[]>;
   rows: TaskRow[];
   hideCompany?: boolean;
   groupBy?: GroupBy;
@@ -103,6 +106,12 @@ export function TableView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  /* ⚠️ Studio is DETECTED, not passed: only the Studio page renders the pick
+     provider, so on the old page this is null and every line below behaves
+     exactly as it always has. In Studio a click PICKS the row (the update card
+     shows it); the card's ↗ opens the record. */
+  const pick = useStudioPick();
+  const studio = !!pick;
 
   const [peek, setPeek] = useState<TaskRow | null>(null);
   // Which row has its inline update composer open (one at a time).
@@ -157,6 +166,95 @@ export function TableView({
     router.refresh();
   }
 
+  /** A click on a row. Studio picks it (a second click lets go); the old page opens it. */
+  function rowClick(r: TaskRow) {
+    if (longPressed.current) { longPressed.current = false; return; }
+    if (pick) pick.setCode(pick.code === r.code ? null : r.code);
+    else openTask(r.code);
+  }
+
+  /* The Studio columns (design/studio-mockup, Main board). Sort keys are the
+     same as the old page's — `SORTERS` in tasks-section.tsx — so a sorted
+     address means the same thing in both looks. */
+  const sortProps = (key: string) => ({
+    sortHref: sortHrefs?.[key],
+    sorted: sortedBy?.key === key ? sortedBy.dir : undefined,
+  });
+  const studioColumns: RecordColumn<TaskRow>[] = [
+    {
+      key: "actionItem", label: "Task", width: "minmax(0,1.5fr)", ...sortProps("actionItem"),
+      csv: (r) => `${r.code} ${r.actionItem}`,
+      render: (r) => (
+        <div
+          className="min-w-0 py-0.5"
+          onPointerDown={(e) => onRowPointerDown(r, e)}
+          onPointerMove={onRowPointerMove}
+          onPointerUp={clearPress}
+          onPointerLeave={clearPress}
+          onPointerCancel={clearPress}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {r.unread ? (
+              <span title="New activity since you last looked" className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--st-blue)]" />
+            ) : (r.priority === "Critical" || r.priority === "High") ? (
+              <span title={`${r.priority} priority`} className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: r.priority === "Critical" ? "var(--st-late)" : "var(--st-soon)" }} />
+            ) : null}
+            <span className={cn(
+              "truncate text-[15px] font-medium",
+              (r.status === "Completed" || r.status === "Closed") && "text-[var(--st-muted)] line-through",
+            )}>{r.actionItem}</span>
+            <PinnedMarker task={r} className="shrink-0" />
+            {r.recurringRuleId != null && <Repeat size={12} className="shrink-0 text-[var(--st-muted)]" aria-label="Repeats" />}
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--st-muted)]">
+            <span className="st-mono shrink-0 text-[11px] text-[#6E7177]">{r.code}</span>
+            {!hideCompany && <span className="truncate">{r.companyName}</span>}
+            <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status", label: "Status", width: "150px", ...sortProps("status"),
+      csv: (r) => r.status,
+      render: (r) => <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-xs" /></Stop>,
+    },
+    {
+      key: "assignees", label: "Who", width: "96px", ...sortProps("assignees"),
+      csv: (r) => r.assignees.join(", "),
+      render: (r) => r.assignees.length > 0
+        ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
+        : <span className="text-xs text-[var(--st-muted)]">—</span>,
+    },
+    {
+      key: "pulse", label: "Last 7 days", width: "76px", hideBelow: "lg",
+      csv: (r) => (studioPulse?.[r.code] ?? []).reduce((a, b) => a + b, 0),
+      render: (r) => {
+        const days = studioPulse?.[r.code] ?? [0, 0, 0, 0, 0, 0, 0];
+        const n = days.filter(Boolean).length;
+        const tone = r.flag === "overdue" || r.flag === "escalate-now" ? "var(--st-late)" : r.flag === "due-soon" ? "var(--st-soon)" : "var(--st-ok)";
+        return (
+          <span className="flex h-5 items-end gap-[3px]" title={`${n} day${n === 1 ? "" : "s"} with an update in the last week`}>
+            {days.map((v, i) => (
+              <span key={i} className="w-1.5 rounded-sm" style={{ height: v ? Math.min(18, 8 + v * 5) : 6, background: v ? tone : "var(--st-line)" }} />
+            ))}
+          </span>
+        );
+      },
+    },
+    {
+      key: "latest", label: "Latest update", width: "minmax(0,1.6fr)", hideBelow: "md",
+      csv: (r) => r.latestActivity?.body ?? "",
+      render: (r) => <TaskUpdateLine task={r} onOpenConversation={() => pick?.setCode(r.code)} />,
+    },
+    {
+      key: "deadline", label: "Deadline", width: "120px", ...sortProps("deadline"),
+      csv: (r) => (r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : ""),
+      render: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>,
+    },
+  ];
+
   const peekActions = (r: TaskRow): PeekAction[] => [
     { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
     { label: "Complete", icon: <CheckCircle2 size={15} />, onClick: () => runPeek("complete", r) },
@@ -199,9 +297,14 @@ export function TableView({
         <RecordList<TaskRow>
           rows={rows}
           rowKey={(r) => r.id}
-          onRowClick={(r) => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
-          filters={filters}
-          listKey="task"
+          onRowClick={rowClick}
+          /* Studio moves the filters into its Filters panel; the rail is the old look. */
+          filters={studio ? undefined : filters}
+          /* Its own key: the two looks have different columns, so a column hidden
+             in one must not silently vanish from the other. */
+          listKey={studio ? "task-studio" : "task"}
+          variant={studio ? "studio" : "desk"}
+          activeKey={studio ? rows.find((r) => r.code === pick!.code)?.id ?? null : undefined}
           total={total}
           groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
           subRowAlways
@@ -212,7 +315,7 @@ export function TableView({
              genuinely INTERACTIVE cells are overridden here — metadata cannot
              describe an inline editor. Add a column to the metadata and it
              appears; no change to this file. */
-          columns={buildColumns<TaskRow & Record<string, unknown>>(TASK_COLUMNS, {
+          columns={studio ? studioColumns : buildColumns<TaskRow & Record<string, unknown>>(TASK_COLUMNS, {
             sortHrefs,
             sortedBy,
             overrides: {
@@ -272,7 +375,7 @@ export function TableView({
                 onDone={() => setComposeFor(null)}
                 onCancel={() => setComposeFor(null)}
               />
-            ) : (
+            ) : studio ? null : (
             /* ONE context line, not two: company · waiting-on · the latest update.
                Stacking the company and the update made every row three lines
                (80px) — a 74-task list ran to 5,700px. The About text is on the

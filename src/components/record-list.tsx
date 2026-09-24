@@ -583,6 +583,8 @@ export function RecordList<T>({
   exportName,
   bulkActions,
   className,
+  variant = "desk",
+  activeKey,
 }: {
   rows: T[];
   columns: RecordColumn<T>[];
@@ -704,21 +706,35 @@ export function RecordList<T>({
    *  A list that already owns its own selection passes `selectionSlot` instead. */
   bulkActions?: BulkAction<T>[];
   className?: string;
+  /**
+   * `"studio"` draws the rows as separate white cards on the page (the Studio
+   * redesign, design/studio-mockup) instead of lines inside one card.
+   *
+   * ⚠️ LOOKS ONLY. Paging, search, sorting, the column chooser, export, ticking,
+   * the keyboard and "where you were" are the same code in both — that is why
+   * this is a variant here and not a second list. Every list that does not pass
+   * it renders exactly as before.
+   */
+  variant?: "desk" | "studio";
+  /** Studio: the row the page is showing elsewhere (the update card) — ringed. */
+  activeKey?: string | number | null;
 }) {
+  const studio = variant === "studio";
   const { hidden, toggle } = useHiddenColumns(listKey, columns);
   /* The card grows to the foot of the window; the ROWS take the slack, so the
      "N of M shown" strip stays pinned to the bottom of the panel the way
      ERPNext's does, rather than floating halfway up a field of white. */
   const card = useRef<HTMLDivElement>(null);
-  useFillViewport(card, { mode: "min", enabled: !bare && fillViewport });
+  // Studio rows sit on the page itself, so there is no card to grow.
+  useFillViewport(card, { mode: "min", enabled: !bare && fillViewport && !studio });
 
 
   /* Edge to edge on a phone — see the `bleed` prop. `RL_PAD` is what every row,
      header, group heading and footer inside the card uses, so the whole card
      shifts together: 16px on a phone (where the page gutter is gone and 12px
      would leave the text glued to the glass), the usual dense 12px from `sm` up. */
-  const bleedNow = bleed && !bare;
-  const RL_PAD = bleedNow ? "px-4 sm:px-3" : "px-3";
+  const bleedNow = bleed && !bare && !studio;
+  const RL_PAD = studio ? "px-5" : bleedNow ? "px-4 sm:px-3" : "px-3";
 
   /* ------------------------------------------- search, then paging ------ */
   // ⚠️ Filter BEFORE paging. The other way round pages the whole list and then
@@ -988,17 +1004,24 @@ export function RecordList<T>({
                `border-x-0` over it. Both set a border WIDTH, and which one wins
                depends on the order Tailwind happens to emit them in — a coin
                toss to build a layout on. */
-            !bare && "mt-2 flex flex-col overflow-hidden border-y border-border bg-bg-elev",
-            !bare && (bleedNow
-              ? "-mx-4 sm:mx-0 sm:rounded-xl sm:border-x"
-              : "rounded-xl border-x"),
+            studio ? "mt-2 flex flex-col" : [
+              !bare && "mt-2 flex flex-col overflow-hidden border-y border-border bg-bg-elev",
+              !bare && (bleedNow
+                ? "-mx-4 sm:mx-0 sm:rounded-xl sm:border-x"
+                : "rounded-xl border-x"),
+            ],
           )}
         >
           {showHeader && (
             <div
               data-list-head
               style={gridStyle}
-              className={cn(RL_GRID, "grid items-center gap-x-3 border-b border-border bg-bg-subtle text-xs", RL_PAD)}
+              className={cn(
+                RL_GRID,
+                "grid items-center gap-x-3 text-xs",
+                studio ? "pb-2 text-[var(--st-muted)]" : "border-b border-border bg-bg-subtle",
+                RL_PAD,
+              )}
             >
               {tick && (
                 <span>
@@ -1051,7 +1074,7 @@ export function RecordList<T>({
               ) : empty}
             </div>
           ) : (
-            <ul className="flex-1 divide-y divide-border">
+            <ul className={studio ? "flex flex-1 flex-col gap-2" : "flex-1 divide-y divide-border"}>
               {paged.map((row, i) => {
                 const key = rowKey(row);
                 const group = groupOf?.(row) ?? null;
@@ -1131,7 +1154,12 @@ export function RecordList<T>({
                          company and priority bands, and a band you can't read is
                          just a stripe. Now 12.5px semibold in full `text-fg`, with
                          the room to breathe. */
-                      <li className={cn("sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle py-1.5 text-sm font-semibold uppercase tracking-[0.06em] text-fg", RL_PAD)}>
+                      <li className={cn(
+                        studio
+                          ? "flex items-baseline gap-2 pb-1 pt-3 text-[15px] font-semibold"
+                          : "sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-bg-subtle py-1.5 text-sm font-semibold uppercase tracking-[0.06em] text-fg",
+                        RL_PAD,
+                      )}>
                         <span className="truncate">{group}</span>
                         <span className="tabular text-xs font-medium normal-case tracking-normal text-fg-muted">
                           {paged.filter((r) => (groupOf?.(r) ?? null) === group).length}
@@ -1142,13 +1170,29 @@ export function RecordList<T>({
                       ref={(el) => { rowRefs.current[i] = el; place.attach(el, rowKey(row)); }}
                       aria-current={i === cursor ? "true" : undefined}
                       className={cn(
-                        "transition-colors hover:bg-bg-subtle",
-                        // The highlight is a left accent edge, not a fill: it has
-                        // to read at a glance without fighting the status dots.
-                        i === cursor && "bg-accent-soft/70 shadow-[inset_2px_0_0_0_var(--color-accent)]",
-                        // "This is the one you just had open" — the same edge in
-                        // a softer wash, fading out on its own after a moment.
-                        place.isMarked(rowKey(row)) && "bg-accent-soft/50 shadow-[inset_2px_0_0_0_var(--color-accent)]"
+                        studio
+                          ? [
+                              // A card per row. The ring (not a fill) marks the row
+                              // the update card is showing, the keyboard cursor and
+                              // the row you just came back from.
+                              "rounded-[14px] border-[1.5px] bg-[var(--st-surface)] py-1.5 transition-[border-color,box-shadow]",
+                              activeKey != null && key === activeKey
+                                ? "border-[var(--st-ink)] shadow-[0_8px_22px_rgba(17,18,20,0.12)]"
+                                : i === cursor
+                                  ? "border-[var(--st-muted)]"
+                                  : place.isMarked(rowKey(row))
+                                    ? "border-[var(--st-blue)]"
+                                    : "border-transparent hover:border-[var(--st-line)]",
+                            ]
+                          : [
+                              "transition-colors hover:bg-bg-subtle",
+                              // The highlight is a left accent edge, not a fill: it has
+                              // to read at a glance without fighting the status dots.
+                              i === cursor && "bg-accent-soft/70 shadow-[inset_2px_0_0_0_var(--color-accent)]",
+                              // "This is the one you just had open" — the same edge in
+                              // a softer wash, fading out on its own after a moment.
+                              place.isMarked(rowKey(row)) && "bg-accent-soft/50 shadow-[inset_2px_0_0_0_var(--color-accent)]",
+                            ]
                       )}
                     >
                       {onRowClick ? (
@@ -1201,7 +1245,11 @@ export function RecordList<T>({
 
           {/* Footer: how many of how many — ERPNext tells you, always. */}
           {showFooter && rows.length > 0 && (
-            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-bg-subtle py-1.5 text-xs text-fg-muted", RL_PAD)}>
+            <div className={cn(
+              "flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-xs",
+              studio ? "mt-1 justify-center text-[var(--st-muted)]" : "border-t border-border bg-bg-subtle text-fg-muted",
+              RL_PAD,
+            )}>
               <span>
                 <b className="tabular font-semibold text-fg">{shown ?? paged.length}</b>
                 {" of "}

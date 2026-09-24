@@ -1,4 +1,6 @@
 import { TaskRecordPage } from "@/components/task-drawer";
+import { getAppSettings } from "@/lib/settings";
+import { isStudioOn } from "@/lib/studio";
 
 /**
  * /task/CODE — the task record, at its own URL.
@@ -9,8 +11,12 @@ import { TaskRecordPage } from "@/components/task-drawer";
  *
  * Legacy codes resolve through the record's own API, so old deep links keep
  * working.
+ *
+ * Studio (Settings → New look → Tasks) lays the same record out as the
+ * mockup's expanded view; the switch that turns on the new Tasks list turns
+ * this on with it, so the two always match.
  */
 export default async function TaskPage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params;
-  return <TaskRecordPage code={decodeURIComponent(code)} />;
+  const [{ code }, { studioPages }] = await Promise.all([params, getAppSettings()]);
+  return <TaskRecordPage code={decodeURIComponent(code)} studio={isStudioOn(studioPages, "tasks")} />;
 }

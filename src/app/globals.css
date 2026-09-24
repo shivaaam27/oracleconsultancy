@@ -212,8 +212,15 @@ html {
 
 /* Lock the document to vertical scrolling only — inner regions (e.g. the board
    columns) still scroll horizontally via their own overflow containers. Stops
-   the whole page rubber-banding sideways on mobile. */
-html, body { overflow-x: hidden; max-width: 100%; }
+   the whole page rubber-banding sideways on mobile.
+   ⚠️ `clip`, NOT `hidden`. `hidden` on `body` quietly makes it a scroll box
+   (its overflow-y computes to `auto`) — one that never scrolls, because the
+   document does. Every `position: sticky` in COS then stuck to THAT box
+   instead of the screen, i.e. never stuck at all: the Settings save bar, the
+   bulk-select bar, the Studio search bar. Measured: the Studio bar sat at
+   5,682px on a 900px window. `clip` cuts the overflow without making a scroll
+   box. `hidden` stays first as the fallback for a browser without `clip`. */
+html, body { overflow-x: hidden; overflow-x: clip; max-width: 100%; }
 
 body {
   background: hsl(var(--bg));
@@ -1607,6 +1614,7 @@ section[data-page-header],
   --st-surface: #FFFFFF;
   --st-line: #E4E4E0;
   --st-line-soft: #F0F0EC;
+  --st-seg: #E6E6E2;
   --st-muted: #8E9197;
   --st-sub: #55585E;
   --st-card: #141517;
@@ -1632,6 +1640,7 @@ section[data-page-header],
   --st-surface: #17181B;
   --st-line: #2A2C30;
   --st-line-soft: #222428;
+  --st-seg: #232428;
   --st-muted: #8E9197;
   --st-sub: #A3A6AB;
   --st-card: #1C1D21;

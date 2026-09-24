@@ -15,8 +15,10 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell, Archive, ArchiveRestore, Repeat,
 } from "lucide-react";
+import { StudioScope, stBtn } from "./studio/kit";
+import { StudioBlocker } from "./studio/tasks/blocker";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeAvatars } from "./assignee-avatars";
@@ -34,7 +36,7 @@ import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskArchived, copyTaskToCompany } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskArchived, copyTaskToCompany, adminEditUpdate, adminDeleteUpdate } from "@/app/task/actions";
 import { TaskCopyToCompanies, type CopyActions } from "@/components/task-copy-companies";
 import { setTaskRecurrence, stopTaskRecurrence } from "@/app/task/recurring-actions";
 import { RecurringTaskSheet, draftFromRule, scheduleLabel, BLANK as BLANK_RULE } from "@/components/portal-recurring-tasks";
@@ -162,7 +164,7 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
  * Everything between here and the return statement is shared — one record, one
  * set of actions, no second implementation to drift.
  */
-function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: string }) {
+function TaskRecord({ mode, codeProp, studio = false }: { mode: "drawer" | "page"; codeProp?: string; studio?: boolean }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -992,6 +994,216 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     />
   ) : null;
 
+  /* ---------------- Studio: the same record, the mockup's layout ----------------
+     (Settings → New look → Tasks.) ⚠️ EVERY PIECE BELOW IS ONE OF THE BLOCKS
+     ABOVE — the conversation, details, history, notes and edit form are the very
+     same elements the classic page shows, so nothing can drift. What Studio adds:
+     status / priority / deadline in one click at the top (the drawer had them,
+     the page never did), "Waiting on…" (setTaskBlocker had no admin screen), and
+     correct / take down on each update (the actions existed; the admin
+     conversation never passed them in). */
+  if (mode === "page" && studio) {
+    if (loading && !data) {
+      return <StudioScope><p className="py-16 text-center text-base text-[var(--st-muted)]">Loading {code}…</p></StudioScope>;
+    }
+    if (error || !t || !data) {
+      return (
+        <StudioScope className="py-16 text-center">
+          <p className="text-base text-[var(--st-muted)]">Couldn&apos;t load {code}.</p>
+          <button type="button" onClick={() => router.push("/?tab=tasks")} className={cn(stBtn.ghost, "mt-3")}>Back to tasks</button>
+        </StudioScope>
+      );
+    }
+    const light = "rounded-lg bg-[var(--st-on-card)] px-2.5 py-1 text-xs text-[#111214]";
+    const refresh = () => { setRefreshKey((k) => k + 1); router.refresh(); };
+    const studioTabs: { id: string; label: string; n?: number }[] = [
+      { id: "conversation", label: "Conversation", n: convoCount || undefined },
+      { id: "overview", label: "Details" },
+      { id: "history", label: "History", n: counts.all || undefined },
+      { id: "notes", label: "Notes" },
+      { id: "edit", label: "Edit" },
+    ];
+    const panel = "rounded-[18px] bg-[var(--st-surface)] p-4";
+    const rail = (
+      <div className="flex min-w-0 flex-col gap-3.5">
+        {decisionStrip && <div className={panel}>{decisionStrip}</div>}
+        <div className={panel}>
+          <div className="mb-2.5 text-[13px] font-semibold">People</div>
+          {t.assignees.length ? (
+            <div className="flex items-center gap-2.5">
+              <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={28} />
+              <span className="min-w-0 truncate text-[13px]">{t.assignees.join(", ")}</span>
+            </div>
+          ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
+          {t.assignees.length > 0 && !done && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <div className="inline-flex gap-0.5 rounded-lg bg-[var(--st-page)] p-0.5 text-xs">
+                {(["task", "all"] as const).map((s) => (
+                  <button key={s} type="button" onClick={() => setRemindScope(s)} className={cn("rounded-md px-2 py-1", remindScope === s ? "bg-[var(--st-surface)] font-medium shadow-sm" : "text-[var(--st-sub)]")}>
+                    {s === "task" ? "This task" : "All their tasks"}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={remindOwner} disabled={reminding} className={cn(stBtn.dark, "h-8 text-xs")}>
+                <Bell size={12} />Remind {getGivenName(t.assignees[0])}
+              </button>
+            </div>
+          )}
+        </div>
+        <div className={panel}>
+          <div className="mb-1.5 text-[13px] font-semibold">At a glance</div>
+          <FactRow label="Deadline"><DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} /></FactRow>
+          <FactRow label="Category">{t.category ? <span className="text-sm font-medium">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}</FactRow>
+          <FactRow label="Department" last>{t.department ? <span className="text-sm font-medium">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set</SetLink>}</FactRow>
+          {t.comments && t.comments.trim() && (
+            <p className="mt-2 line-clamp-6 whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--st-sub)]"><CodeLinkedText text={t.comments} /></p>
+          )}
+        </div>
+        <div className={panel}>
+          <div className="mb-2 text-[13px] font-semibold">Waiting on</div>
+          <StudioBlocker taskId={t.id} closed={done} blockedOnPersonId={t.blockedOnPersonId} blockedReason={t.blockedReason} people={data.people} onChanged={refresh} />
+        </div>
+        <div className={panel}>
+          <div className="mb-2 text-[13px] font-semibold">Repeats</div>
+          {data.recurrence ? (
+            <div className="space-y-1.5 text-sm">
+              <p>{scheduleLabel(data.recurrence)}{data.recurrence.paused ? <span className="ml-1.5 text-[var(--st-muted)]">· switched off</span> : null}</p>
+              {confirmStop ? (
+                <p className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-[var(--st-muted)]">Stop every future copy?</span>
+                  <button type="button" onClick={stopRepeat} disabled={repeatBusy} className="font-medium text-[var(--st-late-text)] hover:underline">Stop repeating</button>
+                  <button type="button" onClick={() => setConfirmStop(false)} className="text-[var(--st-muted)]">Keep</button>
+                </p>
+              ) : (
+                <p className="flex flex-wrap items-center gap-3 text-xs">
+                  <SetLink onClick={() => setRepeatOpen(true)}>Change how it repeats</SetLink>
+                  <button type="button" onClick={() => setConfirmStop(true)} className="text-[var(--st-muted)] hover:text-[var(--st-late-text)]">Stop</button>
+                </p>
+              )}
+            </div>
+          ) : <SetLink onClick={() => setRepeatOpen(true)}>Make this task repeat</SetLink>}
+        </div>
+        <div className={cn(panel, "flex flex-wrap gap-1.5")}>
+          <button type="button" onClick={copyLink} className={cn(stBtn.ghost, "h-8 text-xs")}><LinkIcon size={12} />Copy link</button>
+          <DraftEmailButton taskId={t.id} />
+        </div>
+        <div className={panel}><SimilarTasks query={t.actionItem} excludeId={t.id} /></div>
+      </div>
+    );
+    return (
+      <StudioScope className="space-y-4">
+        <div className="st-tex-rings flex flex-col gap-3.5 rounded-[20px] bg-[var(--st-card)] px-5 py-4 text-[var(--st-on-card)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => close()} className={cn(stBtn.onCard, "h-8")}><ChevronLeft size={13} />{backLabel}</button>
+            <span className="st-mono rounded-md bg-[var(--st-card-3)] px-2 py-1 text-[11px] text-[#C9CBCF]">{t.code}</span>
+            <CompanyDrawerLink id={t.companyId} className="truncate text-[13px] text-[var(--st-on-card-muted)] hover:text-white">{t.companyName}</CompanyDrawerLink>
+            <span className="grow" />
+            {(prevCode || nextCode) && (
+              <span className="flex items-center gap-1">
+                {seqIdx >= 0 && <span className="mr-1 text-xs text-[var(--st-muted)]">{seqIdx + 1} of {seq.length}</span>}
+                <button type="button" aria-label="Previous task" disabled={!prevCode} onClick={() => prevCode && goToCode(prevCode)} className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--st-card-line)] disabled:opacity-40"><ChevronLeft size={14} /></button>
+                <button type="button" aria-label="Next task" disabled={!nextCode} onClick={() => nextCode && goToCode(nextCode)} className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--st-card-line)] disabled:opacity-40"><ChevronRight size={14} /></button>
+              </span>
+            )}
+            <span className="mx-1 h-5 w-px bg-[var(--st-card-line)]" aria-hidden />
+            <button type="button" onClick={() => quickAction("complete")} disabled={acting !== null} className={stBtn.onCard}>
+              {done ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}{done ? "Reopen" : "Complete"}
+            </button>
+            {t.escalation !== "Yes" && (
+              <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null} className={stBtn.onCardGhost}><AlertOctagon size={13} />Escalate</button>
+            )}
+            {data.companies.length > 1 && !t.archived && (
+              <span className="rounded-[9px] bg-[var(--st-on-card)] text-[#111214]">
+                <TaskCopyToCompanies taskId={t.id} currentCompanyId={t.companyId} currentCompanyName={t.companyName} companies={data.companies} actions={copyActions} />
+              </span>
+            )}
+            <button type="button" onClick={toggleArchived} disabled={archiving} className={stBtn.onCardGhost}>
+              {t.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}{t.archived ? "Restore" : "Archive"}
+            </button>
+            <button type="button" onClick={() => setConfirmDel((v) => !v)} aria-label="Delete" className={cn(stBtn.onCardGhost, "border-[#4A2A3C] text-[#F07BBE]")}><Trash2 size={13} /></button>
+          </div>
+          {confirmDel && (
+            <div className="flex items-center gap-2 rounded-xl bg-[#3A1D2E] px-3 py-2 text-xs">
+              <Trash2 size={14} className="shrink-0 text-[#F07BBE]" />
+              <span className="min-w-0 flex-1">Delete this task permanently? Archive keeps everything instead.</span>
+              <button type="button" onClick={() => setConfirmDel(false)} className={stBtn.onCardGhost}>Cancel</button>
+              <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="inline-flex h-8 items-center rounded-[9px] bg-[#E0479E] px-3 text-xs font-semibold text-white">Delete</button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <h1 className="m-0 min-w-0 text-[28px] font-medium leading-tight tracking-[-0.03em] sm:text-[36px]">{t.actionItem}</h1>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <TaskInlineStatus task={t} buttonClassName={light} />
+              <TaskInlinePriority task={t} buttonClassName={light} />
+              <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} className={light} />
+              {t.escalation === "Yes" && <span className="rounded-lg bg-[#3A1D2E] px-2.5 py-1 text-xs text-[#F07BBE]">Escalated</span>}
+              <button type="button" onClick={() => setRepeatOpen(true)} className={cn(light, "inline-flex items-center gap-1.5")}>
+                <Repeat size={12} />{data.recurrence ? scheduleLabel(data.recurrence) : "Doesn’t repeat"}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Task sections">
+            {studioTabs.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === x.id}
+                onClick={() => setActiveTab(x.id)}
+                className={cn("inline-flex h-8 items-center gap-1.5 rounded-[9px] px-3 text-[13px]", activeTab === x.id ? "bg-[var(--st-on-card)] text-[#111214]" : "text-[#C9CBCF] hover:bg-[var(--st-card-2)]")}
+              >
+                {x.label}{x.n != null && <span className="text-xs text-[var(--st-muted)]">{x.n}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeTab === "conversation" ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className={cn(panel, "min-w-0 p-5")}>
+              {pinnedUpdate && (
+                <div className="mb-4 rounded-xl bg-[var(--st-page)] px-3.5 py-3">
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]"><Pin size={12} />Current instruction</div>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium"><CodeLinkedText text={pinnedUpdate.body} /></p>
+                </div>
+              )}
+              <PortalConversation
+                taskId={t.id}
+                code={t.code}
+                closed={done}
+                statusOptions={data.statusOptions}
+                currentStatus={t.status}
+                messages={data.convoMessages}
+                events={data.convoEvents}
+                latestId={data.latestId}
+                seenLabel={data.seenLabel}
+                team={data.team}
+                addAction={adminAddUpdate}
+                pinAction={adminTogglePin}
+                editAction={async (fd: FormData) => { await adminEditUpdate(fd); refresh(); }}
+                deleteAction={async (fd: FormData) => { await adminDeleteUpdate(fd); refresh(); }}
+                canModerate
+                canPin
+                canAck={false}
+                composerHint="You can set any status, pin the current instruction, attach files, @mention the team — and correct or take down an update."
+                onPosted={() => setRefreshKey((k) => k + 1)}
+              />
+            </div>
+            {rail}
+          </div>
+        ) : (
+          <div className={cn(panel, "p-5")}>
+            {activeTab === "overview" ? overviewContent
+              : activeTab === "history" ? historyContent
+              : activeTab === "notes" ? <LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} />
+              : editContent}
+          </div>
+        )}
+        {repeatSheet}
+      </StudioScope>
+    );
+  }
+
   if (mode === "page") {
     if (loading && !data) {
       return <p className="py-16 text-center text-base text-fg-muted">Loading {code}…</p>;
@@ -1072,8 +1284,8 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
 
 /** The record at its own URL — /task/CODE. This is the primary way to open a
  *  task (the owner's decision: a record is a page, as in ERPNext). */
-export function TaskRecordPage({ code }: { code: string }) {
-  return <TaskRecord mode="page" codeProp={code} />;
+export function TaskRecordPage({ code, studio = false }: { code: string; studio?: boolean }) {
+  return <TaskRecord mode="page" codeProp={code} studio={studio} />;
 }
 
 /** Legacy `?task=CODE` links (old emails, notifications, pasted URLs) still
