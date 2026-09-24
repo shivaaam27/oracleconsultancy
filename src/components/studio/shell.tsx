@@ -30,7 +30,7 @@ import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
 
-export type StudioFootNote = { label: string; text: string; href?: string } | null;
+export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
 const FOOT_BTN =
   "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#2A2C30] bg-transparent text-xs text-[#A3A6AB] transition-colors hover:border-[#3A3D42] hover:text-[#F2F2F0]";
@@ -40,7 +40,7 @@ const FOOT_BTN =
  *  makes a task (the one thing they create here). */
 export type ShellDirector = { name: string; outbox: boolean; createTasks: boolean };
 
-export function StudioShell({ nextDeadline, director = null }: { nextDeadline: StudioFootNote; director?: ShellDirector | null }) {
+export function StudioShell({ needs, director = null }: { needs: NonNullable<StudioFootNote>[]; director?: ShellDirector | null }) {
   const pathname = usePathname() || "/";
   const params = useSearchParams();
   const router = useRouter();
@@ -160,14 +160,10 @@ export function StudioShell({ nextDeadline, director = null }: { nextDeadline: S
     : pathname.startsWith("/announcements") ? "announcement"
     : "task";
 
-  // The left-hand note: on a task record say where you are; everywhere else,
-  // the next thing due.
-  const recordCode = /^\/task\/([A-Za-z0-9]+-\d+)$/.exec(pathname)?.[1];
-  const note: StudioFootNote = recordCode
-    ? { label: "You are in", text: `Tasks › ${recordCode}` }
-    : pageNote && pageNote.path === pathname ? pageNote.note
-    : director ? { label: "Signed in as", text: `${director.name} · Director` }
-    : nextDeadline;
+  // The left corner: "What needs you now" (StudioShellServer). A page's own
+  // line (useStudioFootNote), when it set one, leads — it is about THIS page.
+  const own = pageNote && pageNote.path === pathname ? pageNote.note : null;
+  const items = own ? [own, ...needs] : needs;
 
   // Chat is a full-screen app on a phone; the footer steps aside there, as the
   // pill did.
@@ -187,18 +183,9 @@ export function StudioShell({ nextDeadline, director = null }: { nextDeadline: S
         )}
       >
         <div className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-5">
-          {/* Left: the next deadline (hidden on a phone — no room). */}
+          {/* Left: what needs you now (hidden on a phone — no room). */}
           <div className="hidden min-w-0 md:block">
-            {note && (
-              <>
-                <div className="text-[11px] text-[#8E9197]">{note.label}</div>
-                {note.href ? (
-                  <Link href={note.href} className="block truncate text-[13px] text-[#F2F2F0] hover:underline">{note.text}</Link>
-                ) : (
-                  <div className="truncate text-[13px]">{note.text}</div>
-                )}
-              </>
-            )}
+            <NeedsTicker items={items} />
           </div>
 
           {/* Centre: Home · ‹ page › · Settings */}
@@ -429,6 +416,52 @@ function GoToPanel({
             <span className="[&_button]:text-[var(--sh-sub)]"><ThemeToggle /></span>
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const TONE_DOT: Record<string, string> = { late: "#E0479E", soon: "#F5A524", info: "#2490EF" };
+
+/** "What needs you now": one item at a time, the next every few seconds,
+ *  still while the pointer (or focus) is on it so it can be read and clicked.
+ *  Reduced motion: no stepping — the most urgent item stays. */
+function NeedsTicker({ items }: { items: NonNullable<StudioFootNote>[] }) {
+  const [i, setI] = useState(0);
+  const [held, setHeld] = useState(false);
+  const count = items.length;
+  const sig = items.map((x) => x.label + x.text).join("|");
+  useEffect(() => { setI(0); }, [sig]);
+  useEffect(() => {
+    if (count < 2 || held) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
+    if (reduced) return;
+    const t = window.setInterval(() => setI((n) => (n + 1) % count), 5000);
+    return () => window.clearInterval(t);
+  }, [count, held]);
+  const it = items[Math.min(i, count - 1)];
+  if (!it) return null;
+  return (
+    <div
+      onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-1.5 text-[11px] text-[#8E9197]">
+        {it.tone && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TONE_DOT[it.tone] }} />}
+        <span>{it.label}</span>
+        {count > 1 && (
+          <button type="button" onClick={() => setI((n) => (n + 1) % count)} title="Next" className="tabular-nums text-[#6E7177] hover:text-[#C9CBCF]">
+            {Math.min(i, count - 1) + 1}/{count}
+          </button>
+        )}
+      </div>
+      <div key={i} className="st-slide-l">
+        {it.href ? (
+          <Link href={it.href} className="block truncate text-[13px] text-[#F2F2F0] hover:underline">{it.text}</Link>
+        ) : (
+          <div className="truncate text-[13px]">{it.text}</div>
+        )}
       </div>
     </div>
   );
