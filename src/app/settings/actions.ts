@@ -1,5 +1,6 @@
 "use server";
 
+import { STUDIO_PAGES, serializeStudioPages } from "@/lib/studio";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
@@ -195,6 +196,11 @@ export async function saveSettings(fd: FormData): Promise<void> {
     portalNudgeNoUpdateDays: num(fd, "portalNudgeNoUpdateDays"),
     portalNudgeNotStartedMsg: ((fd.get("portalNudgeNotStartedMsg") as string | null) ?? "").trim(),
     portalNudgeNoUpdateMsg: ((fd.get("portalNudgeNoUpdateMsg") as string | null) ?? "").trim(),
+    // Studio "New look" switches: one `studio_<id>` on/off per page. Only read
+    // when that card's form is the one being saved (it carries `__studio`).
+    studioPages: fd.has("__studio")
+      ? serializeStudioPages(STUDIO_PAGES.filter((p) => p.ready && fd.get(`studio_${p.id}`) === "on").map((p) => p.id))
+      : undefined,
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

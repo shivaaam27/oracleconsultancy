@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { MotionConfig } from "framer-motion";
-import { Inter } from "next/font/google";
+import { Inter, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 // One self-hosted webfont so the app renders identically on every device
 // (Windows/iPhone/Mac), instead of the per-device system font. Exposed as the
 // CSS variable --font-inter, which globals.css feeds into --font-sans.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// The Studio redesign's typefaces. Only the variables are set here; nothing uses
+// them until a page is switched to the new look (`.studio` in globals.css).
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPillServer } from "@/components/top-pill-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
@@ -81,7 +85,7 @@ export default async function RootLayout({ children, modal }: { children: React.
   // underneath the rail — see the note in `portal-sidebar.tsx`.
   const railCollapsed = (await cookies()).get(DESK_RAIL_COOKIE)?.value === "1";
   return (
-    <html lang="en-GB" className={inter.variable} suppressHydrationWarning>
+    <html lang="en-GB" className={`${inter.variable} ${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />

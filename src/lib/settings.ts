@@ -234,6 +234,10 @@ export type AppSettings = {
   signalDecisionReminderDays: number;
   /** Weekly Monday system health & cost digest → owner (in-app + push). */
   signalHealthDigestEnabled: boolean;
+
+  /** Studio redesign: comma list of page ids switched to the new look
+   *  (see src/lib/studio.ts). Blank = every page as it was. */
+  studioPages: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -304,6 +308,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   signalDecisionReminderEnabled: true,
   signalDecisionReminderDays: 5,
   signalHealthDigestEnabled: true,
+  studioPages: "", // nothing switched on — every page looks as it always has
 };
 
 /** Map of canonical setting field → storage key. */
@@ -362,6 +367,7 @@ const KEY: Record<keyof AppSettings, string> = {
   signalDecisionReminderEnabled: "signals.decisionReminder.enabled",
   signalDecisionReminderDays: "signals.decisionReminder.days",
   signalHealthDigestEnabled: "signals.healthDigest.enabled",
+  studioPages: "ui.studioPages",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -445,6 +451,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     signalDecisionReminderEnabled: toBool(map.get(KEY.signalDecisionReminderEnabled), d.signalDecisionReminderEnabled),
     signalDecisionReminderDays: toNum(map.get(KEY.signalDecisionReminderDays), d.signalDecisionReminderDays),
     signalHealthDigestEnabled: toBool(map.get(KEY.signalHealthDigestEnabled), d.signalHealthDigestEnabled),
+    studioPages: map.get(KEY.studioPages) ?? d.studioPages,
   };
 });
 

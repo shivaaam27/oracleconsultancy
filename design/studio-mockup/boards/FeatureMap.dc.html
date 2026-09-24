@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feature map — nothing left behind</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF;font-family:'Geist',system-ui,sans-serif;color:#111214}
+button{font:inherit;color:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1440px; height: 2100px; box-sizing: border-box; background: #FFFFFF; padding: 48px 56px; font-family: 'Geist', system-ui, sans-serif; color: #111214; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: flex-end; justify-content: space-between">
+<div>
+<h1 style="margin: 0; font-size: 44px; font-weight: 500; letter-spacing: -0.03em">Every feature, and where it goes</h1>
+<div style="font-size: 15px; color: #55585E; margin-top: 6px">Checked against the code, not from memory. Nothing that works today is removed — each item is kept, moved or improved.</div>
+</div>
+<div style="display: flex; gap: 6px">
+<sc-for list="{{legend}}" as="l" hint-placeholder-count="5"><button type="button" onClick="{{l.pick}}" aria-pressed="{{l.on}}" style="height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid {{l.border}}; background: {{l.bg}}; color: {{l.fg}}; font-size: 12px; display: flex; align-items: center; gap: 7px"><span style="width: 8px; height: 8px; border-radius: 4px; background: {{l.dot}}"></span>{{l.label}}<span style="opacity: 0.6">{{l.n}}</span></button></sc-for>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1.3fr) 120px; column-gap: 20px; padding: 0 14px 8px; font-size: 12px; color: #8E9197; border-bottom: 1px solid #EEEEEA">
+<span>Feature</span><span>Where it is today</span><span>Where it lives in the new design</span><span>Change</span>
+</div>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="40">
+<sc-if value="{{r.isHead}}" hint-placeholder-val="{{ false }}"><div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E7177; padding: 16px 14px 6px">{{r.head}}</div></sc-if>
+<sc-if value="{{r.isRow}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1.3fr) 120px; column-gap: 20px; padding: 8px 14px; border-bottom: 1px solid #F2F2EE; font-size: 13px; line-height: 1.4; align-items: start">
+<span style="font-weight: 500">{{r.f}}</span><span style="color: #55585E">{{r.now}}</span><span>{{r.next}}</span>
+<span style="display: flex; align-items: center; gap: 7px; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 4px; background: {{r.dot}}"></span>{{r.kind}}</span>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2100}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { only: null }; }
+  renderVals() {
+    const K = { Kept: '#19C37D', Moved: '#2490EF', Improved: '#8B5CF6', 'Gap fixed': '#F5A524', New: '#E0479E' };
+    const data = [
+      ['The list'],
+      ['Five views: List, Cards, Board, Calendar, Timeline', 'Switcher in the header card', 'Same five, top right of the title bar', 'Kept'],
+      ['Focus queue (worst first, Remind/Escalate/Re-date/Done)', 'Cards view, Focus toggle', 'Unchanged inside Cards view', 'Kept'],
+      ['Chips: All · Overdue · Due soon · Quiet · Unread · Done', 'Chip row or left rail', 'Bottom bar: All · On track · Due soon · Late. Quiet, Unread, Done in Filters and the insight card', 'Moved'],
+      ['Flags: Critical, Escalated, Stalled, No deadline, No owner, Recurring', '“More” menu / rail', 'Filters panel › Flags', 'Moved'],
+      ['Lanes: Renewals & admin, Archived, Closed', '“More” menu', 'Filters panel › Lanes', 'Moved'],
+      ['Company filter', 'Dropdown / rail', 'Title-bar chip, bottom “Filter by company”, and Filters panel', 'Moved'],
+      ['Person filter + Assigned / Created by', 'Dropdown + identity strip', 'Title-bar chip “Everyone · assigned”', 'Moved'],
+      ['Identity strip (person: Remind all late; company: logo, counts)', 'Above the list when filtered', 'The black insight card turns into that person or company', 'Improved'],
+      ['Group by company / status / person', 'Dropdown', 'Filters panel › Group by', 'Moved'],
+      ['Search as you type (300 ms, no history spam)', 'Search box above the list', 'Bottom bar search — same behaviour; ⌘K unchanged', 'Moved'],
+      ['Sort by Task, Status, Deadline, Who (empties last)', 'Column headers', 'Same column headers', 'Kept'],
+      ['Saved views', 'Views bar', 'Filters panel › Saved views', 'Moved'],
+      ['Export CSV · Columns chooser', 'List toolbar', 'Filters panel footer', 'Moved'],
+      ['Show 100, then “Show more” · “N of M shown”', 'List footer', 'List footer', 'Kept'],
+      ['Keyboard j/k, Enter, x, /, Esc, ?', 'List', 'Same keys; Enter fills the right card instead of leaving the page', 'Improved'],
+      ['Bulk: Status, Priority, Postpone, Deadlines, Update, Escalate, Close, Archive, Restore, Delete + Undo', 'Select bar', 'Black bulk bar at the bottom', 'Kept'],
+      ['Row actions: Update, Complete, Escalate · ⋯ Pin latest, Snooze, Archive, Delete', 'On the row', 'On the row (hover) and in the right card', 'Kept'],
+      ['Unread dot, priority dot, code, repeat icon, done struck through', 'Task cell', 'Task cell', 'Kept'],
+      ['Latest update under each row', 'Second line of the row', 'Its own column, plus a “last 7 days” pulse', 'Improved'],
+      ['Quick add (Company, Who, When, Priority, Paste a list, Full form)', 'Top of the list', 'First row of the list', 'Kept'],
+      ['New task (button, split menu, /task/new form)', 'Sidebar button', 'Footer “New task”; the form itself unchanged', 'Moved'],
+      ['Star a task to the top of your list', '—', 'Star on each row', 'New'],
+      ['One task'],
+      ['Task has its own address /task/CODE', 'Full page', 'Right card for a glance; expand = the full view, still /task/CODE', 'Improved'],
+      ['Back to the list keeps filters and your place', 'Back link', 'Collapse button — filters and row kept', 'Kept'],
+      ['Previous / next task', 'Record header', 'Arrows in the card and the expanded header', 'Kept'],
+      ['Complete / Reopen, Escalate, Copy to other companies, Archive / Restore, Delete + Undo', 'Action bar', 'Card: Complete, Escalate, Remind, ⋯ · Expanded: all of them', 'Kept'],
+      ['Status, priority and deadline changed in one click', 'Only in the old drawer (missing on the page)', 'Chips at the top of the card and expanded view', 'Gap fixed'],
+      ['Edit: title, company, accountable, status, priority, deadline, meeting date, risk, escalation, department, category, description', 'Edit tab (whole form)', 'Expanded › Details — change one value in place', 'Improved'],
+      ['“Waiting on” — who a task is blocked on', 'Server action exists, no admin screen', 'Expanded › Details › Waiting on', 'Gap fixed'],
+      ['First person is the lead · Needs a file to complete', 'Edit tab switches', 'Expanded › Rules', 'Moved'],
+      ['Repeats: make, change, stop', 'Details sidebar', 'Expanded › “Make it repeat”, and a chip in the header', 'Moved'],
+      ['History with filters and “record a correction”', 'History tab', 'Expanded › History tab', 'Kept'],
+      ['Notes that mention the task · Write a note about this', 'Notes tab', 'Expanded › Notes tab', 'Kept'],
+      ['Remind (this task / all their tasks), Copy link, Draft email, Similar tasks', 'Details tab', 'Expanded › right-hand column', 'Moved'],
+      ['Updates'],
+      ['Post with @mention, reply, one attachment, voice, status change', 'Composer on the record', 'Composer in the right card — without leaving the list', 'Improved'],
+      ['One-tap starters (“Still on it”, “Waiting on…”, “Done, ready to close”)', '—', 'Above the composer; they fill the box, you still press Post', 'New'],
+      ['Pin as current instruction · “Read by” / “Not yet acknowledged”', 'In the conversation', 'Pin toggle on the composer; pinned box at the top of the card', 'Kept'],
+      ['“Seen by” read receipts', 'Under the latest message', 'Same place', 'Kept'],
+      ['Correct / take down an update', 'Server actions exist; admin only via History', 'On each message in the expanded view', 'Gap fixed'],
+      ['Composer hidden on Completed / Closed', 'Yes', 'Same rule', 'Kept'],
+      ['Getting around'],
+      ['Sidebar: Work, Records, Operations, System (24 pages)', 'Left sidebar', 'Footer: Home · ‹ page name › · Settings. The page name opens “Go to” with all 24', 'Moved'],
+      ['⌘K palette and Ask ORI', 'Everywhere', 'Unchanged', 'Kept'],
+      ['Home: hero, numbers, today, Needs you, company heat, ORI recap, controls', 'Home page', 'Home: bar strip, “Due” card, three swipeable cards (Tasks, People, Companies/Controls)', 'Improved'],
+      ['Staff portal and director board', 'Their own screens', 'Not in this pass — they get the same look once you sign this off', 'Kept']
+    ];
+    const counts = {};
+    data.forEach((d) => { if (d.length > 1) counts[d[3]] = (counts[d[3]] || 0) + 1; });
+    const only = this.state.only;
+    const rows = [];
+    data.forEach((d) => {
+      if (d.length === 1) { rows.push({ isHead: true, isRow: false, head: d[0] }); return; }
+      if (only && d[3] !== only) return;
+      rows.push({ isHead: false, isRow: true, f: d[0], now: d[1], next: d[2], kind: d[3], dot: K[d[3]] });
+    });
+    const legend = Object.keys(K).map((k) => {
+      const on = only === k;
+      return { label: k, n: counts[k] || 0, dot: K[k], on, bg: on ? '#111214' : '#FFFFFF', fg: on ? '#FFFFFF' : '#111214', border: on ? '#111214' : '#E4E4E0', pick: () => this.setState({ only: on ? null : k }) };
+    });
+    return { rows, legend };
+  }
+}
+</script>
+</body>
+</html>

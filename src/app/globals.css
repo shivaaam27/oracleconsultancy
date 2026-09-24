@@ -1596,3 +1596,69 @@ section[data-page-header],
   height: 0;
   pointer-events: none;
 }
+
+/* ═══════════════════════════ Studio (redesign) ═══════════════════════════
+   The look from design/studio-mockup. ⚠️ EVERYTHING HERE IS SCOPED TO `.studio`
+   — a page only wears it once its switch is on (src/lib/studio.ts), so nothing
+   else in COS changes. Colours are tokens so the dark theme can remap them. */
+.studio {
+  --st-ink: #111214;
+  --st-page: #F3F3F1;
+  --st-surface: #FFFFFF;
+  --st-line: #E4E4E0;
+  --st-line-soft: #F0F0EC;
+  --st-muted: #8E9197;
+  --st-sub: #55585E;
+  --st-card: #141517;
+  --st-card-2: #1A1B1E;
+  --st-card-3: #1F2023;
+  --st-card-line: #26282C;
+  --st-on-card: #F2F2F0;
+  --st-on-card-muted: #A3A6AB;
+  --st-late: #E0479E;
+  --st-late-text: #C2327F;
+  --st-soon: #F5A524;
+  --st-soon-text: #B7700A;
+  --st-ok: #19C37D;
+  --st-ok-text: #19A06A;
+  --st-blue: #2490EF;
+  --st-violet: #8B5CF6;
+  font-family: var(--font-geist), var(--font-sans);
+  color: var(--st-ink);
+}
+.dark .studio {
+  --st-ink: #F2F2F0;
+  --st-page: #0E0F10;
+  --st-surface: #17181B;
+  --st-line: #2A2C30;
+  --st-line-soft: #222428;
+  --st-muted: #8E9197;
+  --st-sub: #A3A6AB;
+  --st-card: #1C1D21;
+  --st-card-2: #232428;
+  --st-card-3: #27292D;
+  --st-card-line: #303237;
+  --st-late-text: #F07BBE;
+  --st-soon-text: #F5B94E;
+  --st-ok-text: #5BE0A5;
+}
+.studio .st-mono { font-family: var(--font-geist-mono), ui-monospace, monospace; }
+
+/* Textures for cards that would otherwise be blank (the mockup's rings/dots). */
+.st-tex-rings { background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); }
+.st-tex-contour { background-image: repeating-radial-gradient(ellipse 140% 90% at 85% 115%, rgba(255,255,255,0.055) 0 1.2px, transparent 1.2px 14px); }
+.st-tex-hatch { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 11px); }
+.st-tex-dots { background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1.4px); background-size: 14px 14px; }
+.st-tex-paper-dots { background-image: radial-gradient(rgba(17,18,20,0.12) 1px, transparent 1.3px); background-size: 14px 14px; }
+.st-tex-paper-rings { background-image: repeating-radial-gradient(circle at 110% 120%, rgba(17,18,20,0.05) 0 1.2px, transparent 1.2px 12px); }
+.dark .st-tex-paper-dots { background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1.3px); }
+.dark .st-tex-paper-rings { background-image: repeating-radial-gradient(circle at 110% 120%, rgba(255,255,255,0.05) 0 1.2px, transparent 1.2px 12px); }
+
+@keyframes st-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes st-rise { from { transform: scaleY(0.15); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes st-draw { from { stroke-dashoffset: var(--st-len, 400); } to { stroke-dashoffset: 0; } }
+.st-pop { animation: st-pop 220ms ease-out both; }
+.st-rise { transform-origin: bottom; animation: st-rise 600ms cubic-bezier(.2,.8,.2,1) both; }
+.st-draw { animation: st-draw 900ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .st-pop, .st-rise, .st-draw { animation: none; } }
+:root[data-motion="reduced"] .st-pop, :root[data-motion="reduced"] .st-rise, :root[data-motion="reduced"] .st-draw { animation: none; }

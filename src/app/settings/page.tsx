@@ -34,6 +34,7 @@ import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { PortalAccessList } from "@/components/portal-access-list";
 import { FormSwitch } from "@/components/form-switch";
+import { STUDIO_PAGES, parseStudioPages } from "@/lib/studio";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
@@ -44,7 +45,7 @@ export const dynamic = "force-dynamic";
 // show. Order here = rail order. `cards` lets a deep link to #card-id open the
 // group that holds it.
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "ledger", "location", "swipe", "navigation"] },
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "ledger", "location", "swipe", "navigation", "studio"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
@@ -111,6 +112,7 @@ export default async function SettingsPage({
   const automationStatuses = await getAutomationRuleStatuses();
   const recordsConfidence = await getRecordsConfidence();
   const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
+  const studioOn = parseStudioPages(s.studioPages);
 
   return (
     <div className="w-full">
@@ -238,6 +240,29 @@ export default async function SettingsPage({
           <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin your most-used pages. Saves automatically." keywords="pin nav pages search command menu shortcuts">
             <NavSettings />
           </SettingsCard>
+
+          {/* Studio redesign — one switch per page. A page switches on only once
+              it is built (`ready` in src/lib/studio.ts); until then it is listed
+              with the phase it arrives in, so the plan is visible here too. */}
+          <form action={saveSettings} className="space-y-4">
+            <input type="hidden" name="__keys" value="studioPages" />
+            <input type="hidden" name="__section" value="general" />
+            <input type="hidden" name="__studio" value="1" />
+            <SettingsCard id="studio" icon={<Sparkles size={15} />} title="New look" desc="Switch each page to the new design on its own — and back." keywords="studio new look redesign design cards beta switch pages theme">
+              <div className="space-y-2">
+                {STUDIO_PAGES.filter((p) => p.ready).map((p) => (
+                  <FormSwitch key={p.id} name={`studio_${p.id}`} defaultChecked={studioOn.has(p.id)} label={p.label} hint={`Phase ${p.phase} · the old page stays one switch away`} />
+                ))}
+                {STUDIO_PAGES.some((p) => !p.ready) && (
+                  <div className="rounded-md border border-border px-3 py-2 text-xs text-fg-muted">
+                    <span className="font-medium text-fg">Coming next: </span>
+                    {STUDIO_PAGES.filter((p) => !p.ready).map((p) => `${p.label} (phase ${p.phase})`).join(" · ")}
+                  </div>
+                )}
+              </div>
+            </SettingsCard>
+            {STUDIO_PAGES.some((p) => p.ready) && <SaveBar />}
+          </form>
         </section>
 
         {/* ───────────────────────── AI & Voice ───────────────────────── */}

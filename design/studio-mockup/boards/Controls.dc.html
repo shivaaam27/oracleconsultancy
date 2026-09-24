@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Controls — filters, go-to, row actions, bulk edit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9E9E6;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder{color:#8E9197}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #E9E9E6; padding: 28px; display: grid; grid-template-columns: 440px 360px minmax(0, 1fr); gap: 24px; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+
+<div style="background: #FFFFFF; border-radius: 20px; box-shadow: 0 20px 50px rgba(17,18,20,0.16); display: flex; flex-direction: column; overflow: hidden">
+<div style="padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #EEEEEA">
+<div><div style="font-size: 18px; font-weight: 600">Filters</div><div style="font-size: 12px; color: #8E9197">Opens from the black Filters button · every choice goes in the address, so a view can be saved</div></div>
+<a href="Main.dc.html" aria-label="Close filters" style="width: 32px; height: 32px; border-radius: 10px; border: 1px solid #E4E4E0; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+</div>
+<div style="flex-grow: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 18px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="6">
+<div>
+<div style="font-size: 12px; color: #6E7177; margin-bottom: 8px; display: flex; justify-content: space-between"><span>{{g.title}}</span><span style="color: #A3A6AB">{{g.note}}</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<sc-for list="{{g.opts}}" as="o" hint-placeholder-count="5"><button type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid {{o.border}}; background: {{o.bg}}; color: {{o.fg}}; font-size: 12px; display: flex; align-items: center; gap: 7px"><sc-if value="{{o.hasDot}}" hint-placeholder-val="{{ false }}"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{o.dot}}"></span></sc-if>{{o.label}}<span style="font-family: 'Geist Mono', monospace; font-size: 11px; opacity: 0.6">{{o.n}}</span></button></sc-for>
+</div>
+</div>
+</sc-for>
+<div>
+<div style="font-size: 12px; color: #6E7177; margin-bottom: 8px">Saved views</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 9px; background: #F3F3F1; font-size: 13px"><span style="flex-grow: 1">Late for Jitesh</span><span style="font-size: 11px; color: #8E9197">example</span></div>
+<button type="button" style="height: 34px; border-radius: 9px; border: 1px dashed #CFCFCA; background: transparent; font-size: 12px; color: #55585E">Save these filters as a view</button>
+</div>
+</div>
+</div>
+<div style="padding: 14px 20px; border-top: 1px solid #EEEEEA; display: flex; gap: 8px; align-items: center">
+<button type="button" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; font-size: 12px">Export CSV</button>
+<button type="button" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; font-size: 12px">Columns</button>
+<span style="flex-grow: 1"></span>
+<button type="button" onClick="{{clear}}" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; font-size: 12px; color: #55585E">Clear</button>
+<a href="Main.dc.html" style="height: 34px; padding: 0 14px; border-radius: 10px; background: #111214; color: #FFFFFF; font-size: 12px; font-weight: 600; display: flex; align-items: center">Show {{shown}} tasks</a>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px; min-height: 0">
+<div style="background: #141517; border-radius: 20px; color: #F2F2F0; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 50px rgba(17,18,20,0.25); min-height: 0; flex-grow: 1">
+<div style="display: flex; align-items: center; justify-content: space-between"><div style="font-size: 15px; font-weight: 600">Go to</div><span style="font-size: 11px; color: #8E9197">Opens from the page name in the footer</span></div>
+<label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 10px; background: #1F2023; color: #8E9197"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Find a page</span><input placeholder="Find a page" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #F2F2F0; width: 100%"></label>
+<div style="display: flex; gap: 6px">
+<a href="Home.dc.html" style="flex-grow: 1; height: 34px; border-radius: 10px; border: 1px solid #2A2C30; display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 12px; color: #C9CBCF"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>Home</a>
+<button type="button" style="flex-grow: 1; height: 34px; border-radius: 10px; border: 1px solid #2A2C30; background: transparent; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 10px; font-size: 12px; color: #C9CBCF">Approvals<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button>
+</div>
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{nav}}" as="n" hint-placeholder-count="4">
+<div>
+<div style="font-size: 11px; color: #6E7177; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px">{{n.title}}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px">
+<sc-for list="{{n.items}}" as="i" hint-placeholder-count="6"><button type="button" style="height: 30px; border-radius: 8px; border: 0; background: {{i.bg}}; color: {{i.fg}}; text-align: left; padding: 0 10px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{i.label}}</button></sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 18px; min-width: 0">
+<div style="font-size: 13px; color: #55585E">Row, hovered — the quick actions from today’s list, unchanged</div>
+<div style="position: relative">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 14px; align-items: center; background: #FFFFFF; border-radius: 14px; padding: 11px 16px; border: 1.5px solid #D6D6D2">
+<div><div style="font-size: 15px; font-weight: 500">Bank and TRA Machine Reconciliation</div><div style="font-size: 12px; color: #8E9197; margin-top: 3px"><span style="font-family: 'Geist Mono', monospace; font-size: 11px">CC-002</span> · Furaha Innovation Ltd</div></div>
+<div style="display: flex; gap: 6px">
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid #E4E4E0; background: #FFFFFF; font-size: 12px">Update</button>
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid #E4E4E0; background: #FFFFFF; font-size: 12px">Complete</button>
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid #E4E4E0; background: #FFFFFF; font-size: 12px">Escalate</button>
+<button type="button" aria-label="More" style="height: 30px; width: 30px; border-radius: 9px; border: 1px solid #111214; background: #111214; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></button>
+</div>
+</div>
+<div style="position: absolute; right: 0; top: 56px; width: 220px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 30px rgba(17,18,20,0.18); padding: 6px; display: flex; flex-direction: column; z-index: 2">
+<button type="button" style="height: 32px; border: 0; background: transparent; border-radius: 8px; text-align: left; padding: 0 10px; font-size: 13px">Pin latest update</button>
+<button type="button" style="height: 32px; border: 0; background: transparent; border-radius: 8px; text-align: left; padding: 0 10px; font-size: 13px">Snooze…</button>
+<button type="button" style="height: 32px; border: 0; background: transparent; border-radius: 8px; text-align: left; padding: 0 10px; font-size: 13px">Archive</button>
+<button type="button" style="height: 32px; border: 0; background: transparent; border-radius: 8px; text-align: left; padding: 0 10px; font-size: 13px; color: #C2327F">Delete… (asks first, then offers Undo)</button>
+</div>
+</div>
+
+<div style="height: 110px"></div>
+<div style="font-size: 13px; color: #55585E">Quick add, opened — Enter adds it, Shift+Enter opens the full form</div>
+<div style="background: #FFFFFF; border-radius: 14px; border: 1.5px solid #111214; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 15px">Chase TRA for the stamp duty receipt<span style="display: inline-block; width: 2px; height: 16px; background: #2490EF; vertical-align: -3px; margin-left: 1px"></span></div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; background: #F3F3F1; font-size: 12px; display: flex; align-items: center">Furaha Innovation Ltd</span>
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; background: #F3F3F1; font-size: 12px; display: flex; align-items: center">Who</span>
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; background: #F3F3F1; font-size: 12px; display: flex; align-items: center">When: Tomorrow</span>
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; background: #F3F3F1; font-size: 12px; display: flex; align-items: center">Medium</span>
+<span style="flex-grow: 1"></span>
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; color: #55585E; display: flex; align-items: center">Paste a list</span>
+<span style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; color: #55585E; display: flex; align-items: center">Full form</span>
+<span style="height: 28px; padding: 0 12px; border-radius: 8px; background: #111214; color: #FFFFFF; font-size: 12px; display: flex; align-items: center">Add</span>
+</div>
+</div>
+
+<div style="flex-grow: 1"></div>
+<div style="font-size: 13px; color: #55585E">Several rows ticked — the bulk bar replaces the search bar at the bottom</div>
+<div style="background: #141517; color: #F2F2F0; border-radius: 16px; height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 16px; box-shadow: 0 12px 30px rgba(17,18,20,0.25)">
+<span style="font-size: 13px; font-weight: 500; margin-right: 8px">3 selected</span>
+<sc-for list="{{bulk}}" as="b" hint-placeholder-count="9"><button type="button" style="height: 32px; padding: 0 9px; border-radius: 8px; border: 0; background: transparent; color: {{b.fg}}; font-size: 12px">{{b.label}}</button></sc-for>
+<span style="flex-grow: 1"></span>
+<button type="button" aria-label="Clear selection" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid #2E3035; background: transparent; color: #C9CBCF; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { on: { 'Status:Late': true } }; }
+  renderVals() {
+    const S = this.state;
+    const D = { Late: '#E0479E', 'Due soon': '#F5A524', 'On track': '#19C37D', Quiet: '#CFE05A', Unread: '#2490EF' };
+    const defs = [
+      ['Status', 'pick any', [['All', 70], ['On track', 51], ['Due soon', 3], ['Late', 16], ['Quiet', 13], ['Unread', 9], ['Done', 106]]],
+      ['Flags', '', [['Critical priority', 2], ['Escalated', 2], ['Stalled', ''], ['No deadline', 48], ['No owner', ''], ['Recurring', 10]]],
+      ['Company', 'also in the title bar', [['Furaha Innovation', 12], ['PES', 11], ['V1 Supermarket', 11], ['Oracle Consultancy', 11], ['MES', 8], ['DSC', 8], ['Terra Green', 6], ['Dar Distributors', 2], ['Tanam Advisory', 1]]],
+      ['Person', 'assigned to · or created by', [['Assigned to', ''], ['Created by', ''], ['Shivam Parmar', 31], ['Jitesh Solanki', 25], ['Vishal Pragji', 13], ['Pulin Manek', 12], ['Everyone else…', '']]],
+      ['Stage', '', [['Not Started', 33], ['In Progress', 33], ['Under Review', 2], ['Blocked', 0], ['Waiting External', 0], ['Escalated', 2]]],
+      ['Lanes', '', [['Renewals & admin', 0], ['Archived tasks', ''], ['Closed', 83]]],
+      ['Group by', '', [['None', ''], ['Company', ''], ['Status', ''], ['Person', '']]]
+    ];
+    let shown = 0;
+    const groups = defs.map(([title, note, opts]) => ({
+      title, note,
+      opts: opts.map(([label, n]) => {
+        const key = title + ':' + label;
+        const on = !!S.on[key];
+        if (on && typeof n === 'number') shown += n;
+        return { label, n, on, hasDot: !!D[label], dot: D[label] || '', bg: on ? '#111214' : '#FFFFFF', fg: on ? '#FFFFFF' : '#111214', border: on ? '#111214' : '#E4E4E0', pick: () => this.setState({ on: { ...S.on, [key]: !on } }) };
+      })
+    }));
+    const navDefs = [
+      ['Work', ['Home', 'Tasks', 'Approvals', 'Recurring tasks', 'Notes', 'Outbox', 'Chat', 'Calendar', 'Director Brief', 'Announcements']],
+      ['Records', ['People', 'Companies', 'Documents', 'Assets, Tools & Vendors']],
+      ['Operations', ['Tax & Legal', 'Commitments', 'Applications', 'Attendance', 'Supplies', 'Cleaning']],
+      ['System', ['Insights', 'Activity log', 'ORI Automation', 'Settings']]
+    ];
+    const nav = navDefs.map(([title, items]) => ({ title, items: items.map((label) => ({ label, bg: label === 'Tasks' ? '#2A2C30' : 'transparent', fg: label === 'Tasks' ? '#FFFFFF' : '#C9CBCF' })) }));
+    const bulk = ['Status', 'Priority', 'Postpone', 'Deadlines', 'Update', 'Escalate', 'Close', 'Archive', 'Delete'].map((label) => ({ label, fg: label === 'Delete' ? '#F07BBE' : '#F2F2F0' }));
+    return { groups, nav, bulk, shown: shown || 70, clear: () => this.setState({ on: {} }) };
+  }
+}
+</script>
+</body>
+</html>

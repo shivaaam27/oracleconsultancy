@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Documents</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder,textarea::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rise{from{transform:scaleY(0.15);opacity:0}to{transform:none;opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,400)}to{stroke-dashoffset:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.6}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; overflow: hidden; position: relative">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px; min-width: 0">
+<div><h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9; white-space: nowrap">Documents</h1></div>
+<div style="display: flex; gap: 8px; align-items: center"><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">All companies<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">Category<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">Status<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0"><div style="display: flex; gap: 2px; padding: 3px; background: #E6E6E2; border-radius: 11px"><sc-for list="{{views}}" as="s" hint-placeholder-count="3"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: {{s.bg}}; color: {{s.fg}}; box-shadow: {{s.shadow}}; font-size: 12px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px">{{s.label}}<span style="font-size: 11px; color: #8E9197">{{s.n}}</span></button></sc-for></div><a href="AddDocs.dc.html" type="button" style="height: 36px; padding: 0 14px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"></path></svg>Add several</a><button type="button" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; border: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add document</button></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 252px; flex-shrink: 0"><div style="background-color: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Document room</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>197 documents</span></div></div>
+<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 28px">
+<div style="position: relative; width: 124px; height: 124px; flex-shrink: 0">
+<svg width="124" height="124" viewBox="0 0 124 124" aria-hidden="true" style="transform: rotate(-90deg)"><circle cx="62.0" cy="62.0" r="55.5" fill="none" stroke="#26282C" stroke-width="13"></circle><circle cx="62.0" cy="62.0" r="55.5" fill="none" stroke="#19C37D" stroke-width="13" stroke-linecap="round" stroke-dasharray="313.8 348.7" style="--len: 313.8; stroke-dashoffset: 0; animation: draw 900ms cubic-bezier(.2,.8,.2,1) both"></circle></svg>
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #F2F2F0"><div style="font-size: 29px; letter-spacing: -0.03em; line-height: 1">177</div><div style="font-size: 11px; color: #8E9197; margin-top: 3px">valid</div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px">
+<button type="button" onClick="{{showExpired}}" style="border: 0; background: transparent; padding: 0; text-align: left; color: #F2F2F0"><div style="font-size: 30px; letter-spacing: -0.03em; line-height: 1">15</div><div style="font-size: 12px; color: #F07BBE; margin-top: 4px">expired</div></button>
+<button type="button" onClick="{{showSoon}}" style="border: 0; background: transparent; padding: 0; text-align: left; color: #F2F2F0"><div style="font-size: 30px; letter-spacing: -0.03em; line-height: 1">5</div><div style="font-size: 12px; color: #F5B94E; margin-top: 4px">due soon</div></button>
+</div>
+<span style="flex-grow: 1"></span>
+<div style="font-size: 12px; color: #8E9197; max-width: 200px; line-height: 1.5; padding-bottom: 6px">Expiry dates are typed by you. COS reminds you before each one and can open a renewal task.</div>
+</div></div><div style="background-color: #141517; background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Expiring next</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>soonest first</span></div></div><div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px"><div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; column-gap: 12px; align-items: center; padding: 5px 10px; border-radius: 10px; background: rgba(20,21,23,0.85); border: 1px solid #26282C"><span style="min-width: 0"><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">DarSpices Interim Pass — Sanjay Kaushik</span><span style="display: block; font-size: 11px; color: #8E9197">Staff file</span></span><span style="font-size: 12px; color: #F5B94E">Today</span><span style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; font-size: 11px; display: flex; align-items: center">Renew</span></div><div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; column-gap: 12px; align-items: center; padding: 5px 10px; border-radius: 10px; background: rgba(20,21,23,0.85); border: 1px solid #26282C"><span style="min-width: 0"><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">MES Interim Pass — Gangadhar Mathankar</span><span style="display: block; font-size: 11px; color: #8E9197">Staff file</span></span><span style="font-size: 12px; color: #F5B94E">Sat 26 Sept</span><span style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; font-size: 11px; display: flex; align-items: center">Renew</span></div><div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; column-gap: 12px; align-items: center; padding: 5px 10px; border-radius: 10px; background: rgba(20,21,23,0.85); border: 1px solid #26282C"><span style="min-width: 0"><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">DarSpices Business Licence</span><span style="display: block; font-size: 11px; color: #8E9197">DSC Ltd</span></span><span style="font-size: 12px; color: #C9CBCF">Mon 5 Oct</span><span style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; font-size: 11px; display: flex; align-items: center">Renew</span></div><div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; column-gap: 12px; align-items: center; padding: 5px 10px; border-radius: 10px; background: rgba(20,21,23,0.85); border: 1px solid #26282C"><span style="min-width: 0"><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">V1 Plant Import Permit</span><span style="display: block; font-size: 11px; color: #8E9197">V1 Supermarket</span></span><span style="font-size: 12px; color: #F07BBE">335 days ago</span><span style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; font-size: 11px; display: flex; align-items: center">Renew</span></div></div></div></div><div style="flex-grow: 1; min-height: 0; position: relative">
+<sc-if value="{{byCo}}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 76px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="10">
+<div style="background: #FFFFFF; border-radius: 14px; overflow: hidden; flex-shrink: 0">
+<button type="button" onClick="{{g.toggle}}" style="width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) 140px 120px 90px 24px; column-gap: 14px; align-items: center; border: 0; background: transparent; padding: 12px 18px; text-align: left">
+<span style="width: 34px; height: 34px; border-radius: 10px; background: #F3F3F1; display: flex; align-items: center; justify-content: center; color: #55585E"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>
+<span style="font-size: 15px; font-weight: 500">{{g.name}}</span>
+<span style="font-size: 12px; color: #C2327F">{{g.expired}}</span><span style="font-size: 12px; color: #B7700A">{{g.soon}}</span>
+<span style="font-size: 12px; color: #8E9197; text-align: right">{{g.n}}</span>
+<span style="color: #8E9197; display: flex; transform: rotate({{g.rot}})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></button>
+<sc-if value="{{g.open}}" hint-placeholder-val="{{ false }}"><div style="border-top: 1px solid #F0F0EC; padding: 6px 18px 12px 66px; animation: pop 180ms ease-out">
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 150px 150px 120px 40px; column-gap: 14px; font-size: 11px; color: #8E9197; padding: 6px 0"><span>Document</span><span>Category</span><span style="color: #111214">Expires</span><span>Status</span><span></span></div>
+<sc-for list="{{g.docs}}" as="d" hint-placeholder-count="2"><div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 150px 150px 120px 40px; column-gap: 14px; align-items: center; padding: 8px 0; border-top: 1px solid #F5F5F2; font-size: 13px">
+<span style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{d.title}}</span><span style="color: #55585E">{{d.cat}}</span><span style="color: {{d.c}}">{{d.when}}</span><span><span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: {{d.bg}}; color: {{d.fg}}; font-size: 11px">{{d.status}}</span></span><span style="color: #8E9197; display: flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="19" cy="12" r="1.2"></circle></svg></span></div></sc-for>
+</div></sc-if>
+</div>
+</sc-for>
+</div></sc-if>
+<sc-if value="{{byExp}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; height: calc(100% - 76px)">
+<sc-for list="{{buckets}}" as="b" hint-placeholder-count="5"><div style="background: #FFFFFF; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; {{b.tex}}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 4px; background: {{b.c}}"></span><span style="font-size: 14px; font-weight: 500">{{b.label}}</span><span style="margin-left: auto; font-size: 20px; letter-spacing: -0.02em">{{b.n}}</span></div>
+<sc-for list="{{b.items}}" as="d" hint-placeholder-count="2"><div style="border-radius: 10px; border: 1px solid #F0F0EC; padding: 8px 10px; font-size: 12px; background: #FFFFFF">{{d}}</div></sc-for>
+</div></sc-for>
+</div></sc-if>
+<div style="position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; width: 860px; height: 56px; background: #FFFFFF; border: 1px solid #E4E4E0; border-radius: 16px; box-shadow: 0 10px 28px rgba(17,18,20,0.12); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; box-sizing: border-box; z-index: 3">
+<label style="display: flex; align-items: center; gap: 8px; flex-grow: 1; color: #8E9197"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span><input placeholder="Search title, type, issuer, reference, company or person" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #111214; width: 100%"></label>
+<span style="width: 1px; height: 24px; background: #E4E4E0"></span><button type="button" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #F3F3F1; font-size: 12px; display: flex; align-items: center; gap: 6px">Saved views <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #F3F3F1; font-size: 12px; display: flex; align-items: center; gap: 6px">Select</button>
+</div>
+</div>
+</div>
+<dc-import name="Footer" page="Documents" action="Add document" left-label="Expires today" left-text="DarSpices Interim Pass — Sanjay Kaushik" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+
+function segs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2] == null ? '' : d[2], on: on, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#111214' : '#55585E', shadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', pick: function () { pick(d[0]); } };
+  });
+}
+function av(ini) {
+  var C = { JS: '#9FE2C2', SP: '#C9D8FF', KA: '#FFD7A1', JM: '#F8C4DE', PM: '#D9CCFF', HS: '#BFE7F2', VP: '#E7E3A6', DB: '#D3D6DA', HB: '#FBD0C0', GM: '#CDE7B0', KS: '#F6D2A8', NV: '#C8E0F4', AS: '#E4CCF2', YC: '#D5E8D4', JU: '#F2E0B8', DK: '#F8D6C8', PA: '#D0E4E8', GA: '#E8D8C0', CT: '#DCD4F0', OM: '#E0E0DA', DO: '#CFE3D8', MK: '#F0D0D8', KH: '#E6E0C8', AR: '#D8E0F0', HI: '#FBD0C0', SM: '#E0D8EE', PR: '#F3D3DF', DT: '#D6ECE4' };
+  return C[ini] || '#DADAD5';
+}
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: 'co', open: { 0: true } }; }
+  renderVals() {
+    var S = this.state, self = this;
+    var G = [['Staff & personal files', 5, 3, 33, [['DarSpices Interim Pass — Sanjay Kaushik', 'Permit', 'Today', 'soon'], ['MES Interim Pass — Gangadhar Mathankar', 'Permit', 'Sat 26 Sept', 'soon'], ['PES Interim Pass — Abinash Raj', 'Permit', '4 Sept', 'exp']]],
+      ['PES Ltd', 3, 1, 65, []], ['Furaha Innovation Ltd', 2, 0, 15, []], ['Oracle Consultancy Ltd', 2, 0, 18, []], ['DSC Ltd', 1, 1, 20, [['DarSpices Business Licence', 'Licence', 'Mon 5 Oct', 'soon']]], ['MES Ltd', 1, 0, 18, []],
+      ['V1 Supermarket and Supplies Limited', 1, 0, 11, [['V1_Plant-Import-Permit', 'Licence', '335 days ago', 'exp']]], ['Terra Green Ltd', 0, 0, 13, []], ['Venture Advisory FZCO', 0, 0, 1, []], ['Unfiled', 0, 0, 3, []]];
+    var ST = { exp: ['Expired', '#FDEBF4', '#A3226A', '#C2327F'], soon: ['Expiring', '#FEF3E0', '#8A5A06', '#B7700A'], ok: ['Valid', '#E4F7EE', '#0E7A4F', '#55585E'] };
+    var groups = G.map(function (g, i) {
+      var open = !!S.open[i];
+      return { name: g[0], expired: g[1] ? g[1] + ' expired' : '', soon: g[2] ? g[2] + ' due soon' : (g[1] ? '' : 'all valid'), n: g[3] + (g[3] === 1 ? ' doc' : ' docs'), open: open, rot: open ? '180deg' : '0deg',
+        docs: (g[4].length ? g[4] : [['Documents in ' + g[0], 'by category', '—', 'ok']]).map(function (d) { var s = ST[d[3]]; return { title: d[0], cat: d[1], when: d[2], status: s[0], bg: s[1], fg: s[2], c: s[3] }; }),
+        toggle: function () { var o = Object.assign({}, S.open); o[i] = !open; self.setState({ open: o }); } };
+    });
+    var buckets = [['Expired', 15, '#E0479E', ['PES Interim Pass — Abinash Raj', 'V1 Plant Import Permit', '+ 13 more']], ['Next 7 days', 2, '#F5A524', ['DarSpices Interim Pass — Sanjay Kaushik', 'MES Interim Pass — Gangadhar Mathankar']], ['Next 30 days', 3, '#2490EF', ['DarSpices Business Licence', '+ 2 more']], ['Later or no expiry', 177, '#19C37D', ['Everything else — calm']]]
+      .map(function (b, i) { return { label: b[0], n: b[1], c: b[2], items: b[3], tex: i === 3 ? 'background-image: repeating-radial-gradient(circle at 110% 120%, rgba(17,18,20,0.05) 0 1.2px, transparent 1.2px 12px)' : '' }; });
+    return {
+      groups: groups, buckets: buckets, byCo: S.view === 'co', byExp: S.view === 'exp',
+      showExpired: function () { self.setState({ view: 'exp' }); }, showSoon: function () { self.setState({ view: 'exp' }); },
+      views: segs([['co', 'By company'], ['exp', 'By expiry']], S.view, function (k) { self.setState({ view: k }); })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

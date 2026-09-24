@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Attendance</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder,textarea::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rise{from{transform:scaleY(0.15);opacity:0}to{transform:none;opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,400)}to{stroke-dashoffset:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.6}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; overflow: hidden; position: relative">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px; min-width: 0">
+<div><h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9; white-space: nowrap">Attendance</h1></div>
+<div style="display: flex; gap: 8px; align-items: center"><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">All companies<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0"><div style="display: flex; gap: 2px; padding: 3px; background: #E6E6E2; border-radius: 11px"><sc-for list="{{views}}" as="s" hint-placeholder-count="3"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: {{s.bg}}; color: {{s.fg}}; box-shadow: {{s.shadow}}; font-size: 12px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px">{{s.label}}<span style="font-size: 11px; color: #8E9197">{{s.n}}</span></button></sc-for></div><div style="display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9">
+<button type="button" aria-label="Previous" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<span style="font-size: 13px; font-weight: 500; padding: 0 6px">September 2026</span>
+<button type="button" aria-label="Next" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></button></div><button type="button" onClick="{{markAll}}" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; border: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Mark all present today</button></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 196px; flex-shrink: 0"><div style="background-color: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Today · Thu 24 Sept</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>{{marked}} of 14 marked</span></div></div>
+<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 24px">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; flex-grow: 1">
+<sc-for list="{{tally}}" as="t" hint-placeholder-count="4"><div><div style="font-size: 34px; letter-spacing: -0.03em; line-height: 1">{{t.n}}</div><div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #A3A6AB; margin-top: 6px"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{t.c}}"></span>{{t.l}}</div></div></sc-for>
+</div>
+<div style="font-size: 12px; color: #8E9197; max-width: 180px; line-height: 1.5">Staff can check themselves in from the portal — those show a small dot.</div>
+</div></div><div style="background-color: #141517; background-image: repeating-radial-gradient(ellipse 140% 90% at 85% 115%, rgba(255,255,255,0.055) 0 1.2px, transparent 1.2px 14px); border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Public holidays</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>0 coming up</span></div></div><div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px"><div style="font-size: 22px; font-weight: 500; letter-spacing: -0.015em">No holidays added yet</div><div style="font-size: 13px; color: #A3A6AB; max-width: 440px; line-height: 1.5">Add each public holiday once — for every company or one — and it fills the register by itself and can’t be painted over.</div><div><button type="button" onClick="{{toHol}}" style="height: 32px; padding: 0 12px; border-radius: 9px; border: 0; background: #F2F2F0; color: #111214; font-size: 12px; font-weight: 600">Add a holiday</button></div></div></div></div><sc-if value="{{isReg}}" hint-placeholder-val="{{ true }}"><div style="flex-grow: 1; min-height: 0; background: #FFFFFF; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid #F0F0EC"><span style="font-size: 12px; color: #6E7177; margin-right: 4px; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 3l3 3-9 9-3-3z"></path><path d="M9 12l-4 1-2 5 5-2 1-4"></path></svg>Paint</span>
+<sc-for list="{{brushes}}" as="b" hint-placeholder-count="7"><button type="button" onClick="{{b.pick}}" aria-pressed="{{b.on}}" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 1.5px solid {{b.border}}; background: {{b.bg}}; font-size: 12px; display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; border-radius: 5px; background: {{b.c}}; color: {{b.fg}}; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{b.k}}</span>{{b.l}}</button></sc-for>
+<span style="flex-grow: 1"></span><span style="font-size: 12px; color: #8E9197">Click a day to paint it · Sundays shaded · today outlined</span></div>
+<div style="flex-grow: 1; min-height: 0; overflow: auto; padding: 8px 16px 12px">
+<div style="display: grid; grid-template-columns: 190px repeat(30, minmax(0, 1fr)); gap: 3px; align-items: center">
+<span style="font-size: 11px; color: #8E9197">Person</span>
+<sc-for list="{{days}}" as="d" hint-placeholder-count="30"><span style="font-size: 10px; color: {{d.c}}; text-align: center; font-weight: {{d.w}}; line-height: 1.2">{{d.n}}<br>{{d.wd}}</span></sc-for>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="14">
+<span style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px">{{r.name}}</span>
+<sc-for list="{{r.cells}}" as="c" hint-placeholder-count="30"><button type="button" onClick="{{c.paint}}" aria-label="{{c.label}}" style="height: 26px; border-radius: 5px; border: {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 10px; font-weight: 600; padding: 0">{{c.k}}</button></sc-for>
+</sc-for>
+</div></div></div></sc-if><sc-if value="{{isHol}}" hint-placeholder-val="{{ false }}"><div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px">
+<div style="background: #FFFFFF; border-radius: 20px; display: flex; align-items: center; justify-content: center; background-image: repeating-radial-gradient(circle at 110% 120%, rgba(17,18,20,0.05) 0 1.2px, transparent 1.2px 12px)"><div style="text-align: center; color: #55585E; font-size: 14px; background: #FFFFFF; padding: 14px 20px; border-radius: 12px">No holidays yet. Each one you add lists here with its date and company, and an ✕ to remove it.</div></div>
+<div style="background-color: #FFFFFF; border-radius: 20px; padding: 20px 22px; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 15px; font-weight: 600">Add a public holiday</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"></div></div><div style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px"><div style="display: flex; flex-direction: column; gap: 6px; min-width: 0"><span style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #6E7177"><span>Holiday name</span></span><div style="height: 38px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 13px; color: #8E9197; min-width: 0; white-space: nowrap; overflow: hidden; box-sizing: border-box">e.g. Independence Day</div></div><div style="display: flex; flex-direction: column; gap: 6px; min-width: 0"><span style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #6E7177"><span>Date</span></span><div style="height: 38px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 13px; color: #8E9197; min-width: 0; white-space: nowrap; overflow: hidden; box-sizing: border-box"><span style="color: #8E9197; display: flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg></span>Pick a date</div></div><div style="display: flex; flex-direction: column; gap: 6px; min-width: 0"><span style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #6E7177"><span>Company</span></span><div style="height: 38px; border-radius: 10px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 13px; color: #111214; min-width: 0; white-space: nowrap; overflow: hidden; box-sizing: border-box"><span style="color: #8E9197; display: flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"></rect><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"></path></svg></span>All companies</div></div><span style="height: 40px; border-radius: 10px; background: #111214; color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center">Add holiday</span></div></div>
+</div></sc-if>
+</div>
+<dc-import name="Footer" page="Attendance" action="New task" left-label="Today" left-text="Nobody marked yet · 0 self check-ins" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+
+function segs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2] == null ? '' : d[2], on: on, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#111214' : '#55585E', shadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', pick: function () { pick(d[0]); } };
+  });
+}
+function av(ini) {
+  var C = { JS: '#9FE2C2', SP: '#C9D8FF', KA: '#FFD7A1', JM: '#F8C4DE', PM: '#D9CCFF', HS: '#BFE7F2', VP: '#E7E3A6', DB: '#D3D6DA', HB: '#FBD0C0', GM: '#CDE7B0', KS: '#F6D2A8', NV: '#C8E0F4', AS: '#E4CCF2', YC: '#D5E8D4', JU: '#F2E0B8', DK: '#F8D6C8', PA: '#D0E4E8', GA: '#E8D8C0', CT: '#DCD4F0', OM: '#E0E0DA', DO: '#CFE3D8', MK: '#F0D0D8', KH: '#E6E0C8', AR: '#D8E0F0', HI: '#FBD0C0', SM: '#E0D8EE', PR: '#F3D3DF', DT: '#D6ECE4' };
+  return C[ini] || '#DADAD5';
+}
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: 'reg', brush: 'P', marks: {} }; }
+  renderVals() {
+    var S = this.state, self = this;
+    var B = [['P', 'Present', '#19C37D', '#FFFFFF'], ['A', 'Absent', '#E0479E', '#FFFFFF'], ['L', 'On leave', '#2490EF', '#FFFFFF'], ['R', 'Remote', '#8B5CF6', '#FFFFFF'], ['½', 'Half-day', '#F5A524', '#111214'], ['S', 'Sick', '#F0703A', '#FFFFFF'], ['', 'Clear', '#F3F3F1', '#111214']];
+    var BM = {}; B.forEach(function (b) { BM[b[0]] = b; });
+    var people = ['Chef Dukhishyam Khuntia', 'Gift Abraham', 'Khadija Ally', 'Mr Abinash Raja', 'Mr Amal Somaiya', 'Mr Ashit Shah', 'Mr Chirag Tanna', 'Mr Daniel Opanga', 'Mr Diptobrato Bagchi', 'Mr Emmanuel Allando', 'Mr Gangadhar Mathankar', 'Mr Hriday Solanki', 'Mr Jitesh Solanki', 'Mr Juned Shaikh'];
+    var WD = ['T', 'W', 'T', 'F', 'S', 'S', 'M'];
+    var days = []; for (var d = 1; d <= 30; d++) days.push({ n: d, wd: WD[(d - 1) % 7], c: d === 24 ? '#111214' : ((d - 1) % 7 === 5 ? '#C4C5C9' : '#8E9197'), w: d === 24 ? '700' : '400' });
+    var rows = people.map(function (name, pi) {
+      var cells = []; for (var d = 1; d <= 30; d++) (function (d) {
+        var k = S.marks[pi + ':' + d] || ''; var b = BM[k]; var sun = (d - 1) % 7 === 5;
+        cells.push({ k: k, bg: k ? b[2] : (sun ? '#F3F3F1' : '#FAFAF8'), fg: k ? b[3] : '#111214', border: d === 24 ? '1.5px solid #111214' : '1px solid #F0F0EC', label: name + ' · ' + d + ' Sept',
+          paint: function () { var m = Object.assign({}, S.marks); if (S.brush) m[pi + ':' + d] = S.brush; else delete m[pi + ':' + d]; self.setState({ marks: m }); } });
+      })(d);
+      return { name: name.replace(/^(Mr|Ms|Mrs|Chef) /, ''), cells: cells };
+    });
+    var count = function (k) { return people.filter(function (_, pi) { return S.marks[pi + ':24'] === k; }).length; };
+    var marked = people.filter(function (_, pi) { return S.marks[pi + ':24']; }).length;
+    return {
+      rows: rows, days: days, marked: marked,
+      tally: [['P', 'present'], ['A', 'absent'], ['L', 'on leave'], ['R', 'remote']].map(function (t) { return { n: count(t[0]), l: t[1], c: BM[t[0]][2] }; }),
+      brushes: B.map(function (b) { var on = S.brush === b[0]; return { k: b[0] || '×', l: b[1], c: b[2], fg: b[3], on: on, bg: on ? '#F3F3F1' : '#FFFFFF', border: on ? '#111214' : '#E4E4E0', pick: function () { self.setState({ brush: b[0] }); } }; }),
+      markAll: function () { var m = Object.assign({}, S.marks); people.forEach(function (_, pi) { m[pi + ':24'] = S.brush || 'P'; }); self.setState({ marks: m }); },
+      isReg: S.view === 'reg', isHol: S.view === 'hol', toHol: function () { self.setState({ view: 'hol' }); },
+      views: segs([['reg', 'Register'], ['hol', 'Holidays', 0]], S.view, function (k) { self.setState({ view: k }); })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+from kit import *
+
+nav = '''<div style="display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9">
+<button type="button" aria-label="Previous month" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center">''' + ic('left', 13, 2.2) + '''</button>
+<span style="font-size: 13px; font-weight: 500; padding: 0 6px">September 2026</span>
+<button type="button" aria-label="Next month" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center">''' + ic('right', 13, 2.2) + '''</button>
+<button type="button" style="height: 28px; padding: 0 10px; border-radius: 8px; border: 0; background: #F3F3F1; font-size: 12px">Today</button></div>'''
+
+left = dark_card(card_title('{{dayTitle}}', '<span>{{dayCount}}</span>') + '''
+<div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; margin-top: 8px">
+<sc-if value="{{dayEmpty}}" hint-placeholder-val="{{ false }}"><div style="font-size: 14px; color: #8E9197">Nothing on this day. Press “New event” to plan something.</div></sc-if>
+<sc-for list="{{dayItems}}" as="e" hint-placeholder-count="3"><div style="display: grid; grid-template-columns: 58px 10px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; background: #1A1B1E; border: 1px solid #26282C; animation: pop 200ms ease-out">
+<span style="font-size: 12px; color: #A3A6AB; font-family: 'Geist Mono', monospace">{{e.time}}</span><span style="width: 8px; height: 8px; border-radius: 4px; background: {{e.c}}"></span>
+<span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.title}}</span><span style="font-size: 11px; color: #8E9197; white-space: nowrap">{{e.kind}}</span></div></sc-for>
+</div>''')
+
+right = dark_card(card_title('Next 7 days', '<span>Thu 24 – Wed 30 Sept</span>') + '''
+<div style="flex-grow: 1; display: grid; grid-template-columns: 170px minmax(0, 1fr); column-gap: 24px; align-items: end">
+<div>''' + big('27') + '''<div style="font-size: 13px; color: #C9CBCF; margin-top: 10px">things coming up</div>
+<div style="display: flex; gap: 12px; margin-top: 6px; font-size: 12px; color: #8E9197"><span>1 today</span><span>0 need invites</span></div></div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: end; height: 110px">
+<sc-for list="{{next7}}" as="d" hint-placeholder-count="7"><div style="display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; justify-content: flex-end">
+<div style="display: flex; flex-direction: column-reverse; gap: 2px; width: 100%; max-width: 30px">
+<sc-for list="{{d.stack}}" as="b" hint-placeholder-count="2"><span style="display: block; height: {{b.h}}; border-radius: 4px; background: {{b.c}}; transform-origin: bottom; animation: rise 600ms cubic-bezier(.2,.8,.2,1) both"></span></sc-for></div>
+<span style="font-size: 11px; color: {{d.labC}}">{{d.label}}</span></div></sc-for>
+</div></div>''', texture='rings')
+
+grid = '''<div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 20px">
+<div style="background: #FFFFFF; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; min-height: 0">
+<sc-if value="{{isMonth}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 10px 10px 0; font-size: 11px; color: #8E9197; letter-spacing: 0.04em"><sc-for list="{{wk}}" as="w" hint-placeholder-count="7"><span style="padding: 0 8px">{{w}}</span></sc-for></div>
+<div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 6px 10px 10px">
+<sc-for list="{{cells}}" as="c" hint-placeholder-count="42">
+<button type="button" onClick="{{c.pick}}" style="border: 1.5px solid {{c.ring}}; background: {{c.bg}}; border-radius: 10px; padding: 5px 6px; text-align: left; display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0; overflow: hidden">
+<span style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: {{c.numBg}}; color: {{c.numFg}}; font-weight: {{c.numW}}">{{c.d}}</span><span style="font-size: 10px; color: #8E9197">{{c.more}}</span></span>
+<sc-for list="{{c.items}}" as="e" hint-placeholder-count="2"><span style="display: flex; align-items: center; gap: 5px; min-width: 0; height: 18px; padding: 0 5px; border-radius: 5px; background: {{e.bg}}; font-size: 10.5px; color: #111214"><span style="width: 5px; height: 5px; border-radius: 3px; background: {{e.c}}; flex-shrink: 0"></span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.short}}</span></span></sc-for>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{isAgenda}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{agenda}}" as="g" hint-placeholder-count="4"><div>
+<div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px"><span style="font-size: 15px; font-weight: 600">{{g.day}}</span><span style="font-size: 12px; color: {{g.subC}}">{{g.sub}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><sc-for list="{{g.items}}" as="e" hint-placeholder-count="2"><div style="display: grid; grid-template-columns: 64px 10px minmax(0, 1fr) auto auto; column-gap: 12px; align-items: center; padding: 10px 14px; border-radius: 12px; border: 1px solid #EFEFEB">
+<span style="font-size: 12px; color: #55585E; font-family: 'Geist Mono', monospace">{{e.time}}</span><span style="width: 8px; height: 8px; border-radius: 4px; background: {{e.c}}"></span><span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.title}}</span><span style="font-size: 11px; color: #8E9197">{{e.kind}}</span>
+<a href="Event.dc.html" style="height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid #E4E4E0; font-size: 12px; display: flex; align-items: center">Open</a></div></sc-for></div>
+</div></sc-for></div>
+</sc-if>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px; min-height: 0">
+''' + white_card(wcard_title('Layers') + '''<div style="display: flex; flex-direction: column; gap: 2px; margin-top: 6px">
+<sc-for list="{{layers}}" as="l" hint-placeholder-count="9"><button type="button" onClick="{{l.pick}}" aria-pressed="{{l.on}}" style="display: flex; align-items: center; gap: 10px; height: 24px; border: 0; background: transparent; padding: 0 4px; border-radius: 6px; text-align: left; font-size: 12px; color: {{l.fg}}"><span style="width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid {{l.c}}; background: {{l.fill}}; flex-shrink: 0"></span>{{l.label}}</button></sc-for></div>''', 'padding: 16px 16px 12px') + '''
+''' + dark_card('<div style="font-size: 12px; color: #A3A6AB">Live announcement</div><div style="font-size: 14px; margin-top: 6px; line-height: 1.35">Test Announcement - Task Creation Advice</div><div style="margin-top: 12px; height: 6px; border-radius: 3px; background: #26282C; overflow: hidden"><span style="display: block; width: 20.6%; height: 100%; background: #19C37D"></span></div><div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #8E9197"><span>7 / 34 acknowledged</span><a href="Announcements.dc.html" style="color: #F2F2F0">Manage →</a></div>', 'padding: 16px', 'dots') + '''
+</div></div>'''
+
+inner = header('Calendar', chip('Companies') + chip('Types') + chip('More'), seg_dyn('views') + nav + dark_btn('New event', href='Event.dc.html')) + \
+    '<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 196px; flex-shrink: 0">' + left + right + '</div>' + grid
+
+script = r'''
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: 'month', day: 24, off: {} }; }
+  renderVals() {
+    var S = this.state, self = this, set = function (o) { self.setState(o); };
+    var L = { ev: ['Events', '#111214', '#F3F3F1'], task: ['Task deadlines', '#E0479E', '#FDEBF4'], ren: ['Renewals', '#8B5CF6', '#F1ECFE'], bday: ['Birthdays', '#F5A524', '#FEF3E0'], leave: ['Leave', '#2490EF', '#E6F2FD'], hol: ['Holidays', '#19C37D', '#E4F7EE'], ann: ['Anniversaries', '#F0703A', '#FDEEE6'], prob: ['Probation ends', '#5B5E63', '#EEEEEA'], notice: ['Lease / insurance notice', '#B7700A', '#FBF1DF'], app: ['Applications due', '#0E9F8A', '#E0F4F1'] };
+    var E = {
+      3: [['ev', '11:30', 'Interview With Karan']],
+      4: [['ren', 'All day', 'PES Interim Pass (Abinash Raj) expires']],
+      7: [['ev', '10:45', 'Pulin — TC208 DAR → JNB (PNR 1C9MSZ)']],
+      12: [['ev', '15:15', 'Pulin — TC209 JNB → DAR (PNR 1C9MSZ)']],
+      17: [['ev', '11:00', 'MES Tanzania II MIT II Introduction Meeting'], ['ev', '12:00', 'Tube Mill Line Manager Interview - Roushan'], ['ev', '13:00', 'Tube Mill Line Manager Interview - Arihant']],
+      19: [['ev', '12:30', 'Plant Head Interview - Nilesh'], ['ev', '13:00', 'Plant Head Interview - Ranjan'], ['ev', '16:00', 'Plant Head Interview - Sandeep']],
+      22: [['task', 'Due', 'CC-026 Cocofix Payment'], ['task', 'Due', 'DS-041 Cash flow planning meeting'], ['task', 'Due', 'OC-047 Intercompany Billing - September'], ['task', 'Due', '3 more tasks']],
+      23: [['ev', '10:00', 'Interview with Krupa Patel'], ['task', 'Due', 'ME-023 ISO Certification - Full details and execution'], ['task', 'Due', 'ME-021 Source Air Chiller and Compressor'], ['task', 'Due', '9 more tasks']],
+      24: [['ev', '11:00', 'Interview with Nitesh'], ['ren', 'All day', 'DarSpices Interim Pass (Sanjay Kaushik) expires']],
+      25: [['task', 'Due', 'TG-001 6 Months Projection Plan']],
+      26: [['task', 'Due', 'VI-006 CCTV, Fridge, Storage, Chillers etc'], ['task', 'Due', 'CC-002 Bank and TRA Machine Reconciliation'], ['ren', 'All day', 'MES Interim Pass (Gangadhar Mathankar) expires']],
+      28: [['task', 'Due', 'OC-044 Jateen Money Recovery'], ['bday', 'All day', 'Ms Disha Tulsidas — birthday']],
+      35: [['ren', 'All day', 'DarSpices Business License expires']]
+    };
+    var vis = function (d) { return (E[d] || []).filter(function (e) { return !S.off[e[0]]; }); };
+    var cells = [];
+    for (var i = 0; i < 42; i++) {
+      var d = i; var inMonth = d >= 1 && d <= 30; var label = d < 1 ? 31 : (d > 30 ? d - 30 : d);
+      var items = inMonth || d === 35 ? vis(d) : [];
+      var today = d === 24, on = d === S.day;
+      (function (dd) {
+        cells.push({ d: label, ring: on ? '#111214' : 'transparent', bg: inMonth ? (items.length ? '#FAFAF8' : '#FFFFFF') : '#FBFBFA',
+          numBg: today ? '#111214' : 'transparent', numFg: today ? '#FFFFFF' : (inMonth ? '#111214' : '#C4C5C9'), numW: today ? '600' : '400',
+          items: items.slice(0, 2).map(function (e) { return { c: L[e[0]][1], bg: L[e[0]][2], short: (e[1] !== 'All day' && e[1] !== 'Due' ? e[1] + ' ' : '') + e[2] }; }),
+          more: items.length > 2 ? '+' + (items.length - 2) : '',
+          pick: function () { set({ day: dd }); } });
+      })(d);
+    }
+    var name = function (d) { var wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][(d + 1) % 7]; return d > 30 ? wd + ' ' + (d - 30) + ' Oct' : wd + ' ' + d + ' Sept'; };
+    var dayItems = vis(S.day).map(function (e) { return { time: e[1], title: e[2], kind: L[e[0]][0].replace(/s$/, ''), c: e[0] === 'ev' ? '#F2F2F0' : L[e[0]][1] }; });
+    var next7 = [24, 25, 26, 27, 28, 29, 30].map(function (d) {
+      var it = vis(d), ev = it.filter(function (e) { return e[0] === 'ev'; }).length, other = it.length - ev;
+      var st = []; if (ev) st.push({ h: ev * 18 + 'px', c: '#F2F2F0' }); if (other) st.push({ h: other * 18 + 'px', c: '#E0479E' }); if (!st.length) st.push({ h: '4px', c: '#2A2C30' });
+      return { stack: st, label: name(d).split(' ')[0], labC: d === 24 ? '#F2F2F0' : '#8E9197' };
+    });
+    var layers = Object.keys(L).map(function (k) { var on = !S.off[k]; return { label: L[k][0], c: L[k][1], fill: on ? L[k][1] : 'transparent', fg: on ? '#111214' : '#A3A6AB', on: on, pick: function () { var o = Object.assign({}, S.off); o[k] = on; set({ off: o }); } }; });
+    var agenda = [24, 25, 26, 28].map(function (d) { var it = vis(d); return { day: name(d), sub: d === 24 ? 'Today · ' + it.length + ' things' : it.length + ' things', subC: d === 24 ? '#19C37D' : '#8E9197', items: it.map(function (e) { return { time: e[1], title: e[2], kind: L[e[0]][0].replace(/s$/, ''), c: L[e[0]][1] }; }) }; });
+    return {
+      cells: cells, wk: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'], next7: next7, layers: layers, agenda: agenda,
+      dayTitle: S.day === 24 ? 'Today · Thu 24 Sept' : name(S.day), dayCount: dayItems.length + (dayItems.length === 1 ? ' thing' : ' things'),
+      dayItems: dayItems.slice(0, 3), dayEmpty: dayItems.length === 0,
+      isMonth: S.view === 'month' || S.view === 'week' || S.view === 'day', isAgenda: S.view === 'agenda',
+      views: segs([['agenda', 'Agenda'], ['month', 'Month'], ['week', 'Week'], ['day', 'Day']], S.view, function (k) { set({ view: k }); })
+    };
+  }
+}
+'''
+write('Calendar.dc.html', head('Calendar') + frame(inner, 'Calendar', 'New event', 'Next event', 'Today 11:00 · Interview with Nitesh') + tail(script))

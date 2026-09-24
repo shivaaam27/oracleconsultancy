@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>People</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder,textarea::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rise{from{transform:scaleY(0.15);opacity:0}to{transform:none;opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,400)}to{stroke-dashoffset:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.6}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; overflow: hidden; position: relative">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px; min-width: 0">
+<div><h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9; white-space: nowrap">People</h1></div>
+<div style="display: flex; gap: 8px; align-items: center"><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">All companies<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">All types<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">All locations<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0"><div style="display: flex; gap: 2px; padding: 3px; background: #E6E6E2; border-radius: 11px"><sc-for list="{{modes}}" as="s" hint-placeholder-count="3"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: {{s.bg}}; color: {{s.fg}}; box-shadow: {{s.shadow}}; font-size: 12px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px">{{s.label}}<span style="font-size: 11px; color: #8E9197">{{s.n}}</span></button></sc-for></div><button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap">Group<span style="color: #8E9197"> · Company</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; border: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add person</button></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 220px; flex-shrink: 0"><div style="background-color: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Directory</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>48 people · 14 companies</span></div></div>
+<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 28px">
+<div><div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 76px; line-height: 0.85; letter-spacing: -0.045em">34</span><span style="font-size: 18px; color: #8E9197">active</span></div><div style="display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: #A3A6AB"><span>14 inactive</span><span>4 without a portal login</span></div></div>
+<span style="flex-grow: 1"></span><div style="position: relative; width: 116px; height: 116px; flex-shrink: 0">
+<svg width="116" height="116" viewBox="0 0 116 116" aria-hidden="true" style="transform: rotate(-90deg)"><circle cx="58.0" cy="58.0" r="52.0" fill="none" stroke="#26282C" stroke-width="12"></circle><circle cx="58.0" cy="58.0" r="52.0" fill="none" stroke="#19C37D" stroke-width="12" stroke-linecap="round" stroke-dasharray="287.5 326.7" style="--len: 287.5; stroke-dashoffset: 0; animation: draw 900ms cubic-bezier(.2,.8,.2,1) both"></circle></svg>
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #F2F2F0"><div style="font-size: 27px; letter-spacing: -0.03em; line-height: 1">30</div><div style="font-size: 11px; color: #8E9197; margin-top: 3px">on the portal</div></div>
+</div><div style="position: relative; width: 116px; height: 116px; flex-shrink: 0">
+<svg width="116" height="116" viewBox="0 0 116 116" aria-hidden="true" style="transform: rotate(-90deg)"><circle cx="58.0" cy="58.0" r="52.0" fill="none" stroke="#26282C" stroke-width="12"></circle><circle cx="58.0" cy="58.0" r="52.0" fill="none" stroke="#E0479E" stroke-width="12" stroke-linecap="round" stroke-dasharray="68.6 326.7" style="--len: 68.6; stroke-dashoffset: 0; animation: draw 900ms cubic-bezier(.2,.8,.2,1) both"></circle></svg>
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #F2F2F0"><div style="font-size: 27px; letter-spacing: -0.03em; line-height: 1">7</div><div style="font-size: 11px; color: #8E9197; margin-top: 3px">overloaded</div></div>
+</div>
+</div></div><div style="background-color: #141517; background-image: repeating-radial-gradient(ellipse 140% 90% at 85% 115%, rgba(255,255,255,0.055) 0 1.2px, transparent 1.2px 14px); border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><sc-if value="{{idle}}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; height: 100%; animation: pop 200ms ease-out"><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Needs attention · 15</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197">Pick a person to see them here</div></div>
+<div style="flex-grow: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: end">
+<div style="border-radius: 12px; background: #1A1B1E; border: 1px solid #26282C; padding: 12px"><div style="font-size: 26px; letter-spacing: -0.02em">7</div><div style="font-size: 11px; color: #8E9197">carry 5+ open tasks</div></div>
+<div style="border-radius: 12px; background: #1A1B1E; border: 1px solid #26282C; padding: 12px"><div style="font-size: 26px; letter-spacing: -0.02em">4</div><div style="font-size: 11px; color: #8E9197">have no contact details</div></div>
+<div style="border-radius: 12px; background: #1A1B1E; border: 1px solid #26282C; padding: 12px"><div style="font-size: 26px; letter-spacing: -0.02em">0</div><div style="font-size: 11px; color: #8E9197">probations ending soon</div></div>
+</div>
+<div style="font-size: 12px; color: #8E9197; margin-top: 10px">Switch to <b style="color: #F2F2F0; font-weight: 500">Attention</b> to work through them worst first — message, fix documents, snooze or skip.</div>
+</div></sc-if><sc-if value="{{picked}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; height: 100%; gap: 10px; animation: pop 200ms ease-out">
+<div style="display: flex; align-items: center; gap: 8px; height: 26px"><span style="font-family: 'Geist Mono', monospace; font-size: 11px; padding: 3px 7px; border-radius: 6px; background: #26282C; color: #C9CBCF">{{p.id}}</span><span style="font-size: 12px; color: #A3A6AB; flex-grow: 1">{{p.co}}</span>
+<a href="Person.dc.html" aria-label="Open the full record" style="width: 28px; height: 28px; border-radius: 8px; background: #F2F2F0; color: #111214; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"></path><path d="M10 20H4v-6"></path><path d="M20 4l-7 7"></path><path d="M4 20l7-7"></path></svg></a>
+<button type="button" onClick="{{unpick}}" aria-label="Close" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid #2E3035; background: transparent; color: #C9CBCF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 44px; height: 44px; border-radius: 22px; background: {{p.av}}; color: #111214; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{p.ini}}</span><div><div style="font-size: 22px; font-weight: 500; letter-spacing: -0.015em">{{p.name}}</div><div style="font-size: 13px; color: #A3A6AB">{{p.role}}{{p.mgr}}</div></div></div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="height: 26px; padding: 0 10px; border-radius: 8px; background: #1F2023; font-size: 12px; display: flex; align-items: center">{{p.open}} open</span><span style="height: 26px; padding: 0 10px; border-radius: 8px; background: #1F2023; font-size: 12px; display: flex; align-items: center; color: {{p.lateC}}">{{p.late}} late</span><span style="height: 26px; padding: 0 10px; border-radius: 8px; background: #1F2023; font-size: 12px; display: flex; align-items: center">{{p.portal}}</span><span style="flex-grow: 1"></span>
+<button type="button" aria-label="Email" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg></button><button type="button" aria-label="WhatsApp" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"></path><path d="M9 9.5c.5 2 2.5 4 4.5 4.5l1.2-1.2 2 1-.7 1.7c-3 .3-7.5-4.2-7.2-7.2l1.7-.7 1 2z"></path></svg></button><button type="button" aria-label="Call" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"></path></svg></button><button type="button" aria-label="Chat" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></button>
+<button type="button" style="height: 32px; padding: 0 12px; border-radius: 9px; border: 0; background: #F2F2F0; color: #111214; font-size: 12px; font-weight: 600">Remind about open work</button></div>
+</div></sc-if></div></div><div style="flex-grow: 1; min-height: 0; position: relative">
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding-bottom: 80px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="4"><div>
+<div style="display: flex; align-items: baseline; gap: 10px; padding: 0 4px 8px"><span style="font-size: 15px; font-weight: 600">{{g.name}}</span><span style="font-size: 12px; color: {{g.c}}">{{g.note}}</span><span style="font-size: 12px; color: #A3A6AB">{{g.n}}</span></div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{g.people}}" as="p" hint-placeholder-count="3"><button type="button" onClick="{{p.pick}}" style="text-align: left; border: 1.5px solid {{p.ring}}; background: #FFFFFF; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<span style="display: flex; align-items: center; gap: 10px; min-width: 0"><span style="width: 38px; height: 38px; border-radius: 19px; background: {{p.av}}; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{p.ini}}</span>
+<span style="min-width: 0"><span style="display: block; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.short}}</span><span style="display: block; font-size: 12px; color: #8E9197; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.role}}</span></span></span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px"><span style="font-family: 'Geist Mono', monospace; color: #6E7177; background: #F3F3F1; border-radius: 5px; padding: 2px 6px; white-space: nowrap">{{p.id}}</span><span style="color: #8E9197; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.portal}}</span><span style="flex-grow: 1"></span><span style="font-size: 12px; color: {{p.loadC}}; font-weight: 500; white-space: nowrap">{{p.load}}</span></span>
+</button></sc-for>
+</div></div></sc-for>
+</div>
+<div style="position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; width: 1100px; height: 56px; background: #FFFFFF; border: 1px solid #E4E4E0; border-radius: 16px; box-shadow: 0 10px 28px rgba(17,18,20,0.12); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; box-sizing: border-box; z-index: 3">
+<label style="display: flex; align-items: center; gap: 8px; flex-grow: 1; color: #8E9197"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span><input placeholder="Search people" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #111214; width: 100%"></label>
+<span style="width: 1px; height: 24px; background: #E4E4E0"></span><sc-for list="{{chips}}" as="s" hint-placeholder-count="4"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: {{s.fg}}; font-size: 12px; display: flex; align-items: center; gap: 7px; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{s.dot}}"></span>{{s.label}}<span style="font-family: 'Geist Mono', monospace; font-size: 11px; opacity: 0.7">{{s.n}}</span></button></sc-for>
+</div>
+</div>
+</div>
+<dc-import name="Footer" page="People" action="Add person" left-label="Most loaded" left-text="Shivam Parmar · 31 open tasks" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+
+function segs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2] == null ? '' : d[2], on: on, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#111214' : '#55585E', shadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', pick: function () { pick(d[0]); } };
+  });
+}
+function av(ini) {
+  var C = { JS: '#9FE2C2', SP: '#C9D8FF', KA: '#FFD7A1', JM: '#F8C4DE', PM: '#D9CCFF', HS: '#BFE7F2', VP: '#E7E3A6', DB: '#D3D6DA', HB: '#FBD0C0', GM: '#CDE7B0', KS: '#F6D2A8', NV: '#C8E0F4', AS: '#E4CCF2', YC: '#D5E8D4', JU: '#F2E0B8', DK: '#F8D6C8', PA: '#D0E4E8', GA: '#E8D8C0', CT: '#DCD4F0', OM: '#E0E0DA', DO: '#CFE3D8', MK: '#F0D0D8', KH: '#E6E0C8', AR: '#D8E0F0', HI: '#FBD0C0', SM: '#E0D8EE', PR: '#F3D3DF', DT: '#D6ECE4' };
+  return C[ini] || '#DADAD5';
+}
+
+function barsegs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2], dot: d[3], on: on, bg: on ? '#111214' : '#FFFFFF', fg: on ? '#FFFFFF' : '#111214', border: on ? '#111214' : '#E4E4E0', pick: function () { pick(d[0]); } };
+  });
+}
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { sel: null, mode: 'browse', chip: 'all' }; }
+  renderVals() {
+    var S = this.state, self = this;
+    var G = [
+      ['Oracle Consultancy Ltd', '4 overdue', '#C2327F', [['PM', 'Mr Pulin Manek', 'OC-D03', 'Director', 'Director', 12, 8, null], ['JS', 'Mr Jitesh Solanki', 'OC-M01', 'CFO', 'Manager', 25, 6, 'Pulin Manek'], ['SP', 'Mr Shivam Parmar', 'OC-AH07', 'Group Admin Manager', 'Group Admin Manager', 31, 1, 'Pulin Manek']]],
+      ['MES Ltd', '4 overdue · 1 no contact', '#C2327F', [['GM', 'Mr Gangadhar Mathankar', 'ME-M04', 'Plant Head', 'Staff', 3, 3, 'Pulin Manek'], ['KS', 'Mr Kishan Suchak', 'ME-D06', 'Director', 'Director', 3, 3, null], ['OM', 'Ops Manager', 'ME-E01', 'Operations', 'Staff', 3, 3, null], ['NV', 'Mr Nayan Vaghela', 'ME-E07', 'Accountant', 'Staff', 2, 2, null], ['CT', 'Mr Chirag Tanna', 'ME-D05', 'Director', 'Director', 0, 0, null]]],
+      ['DSC Ltd', '1 overdue', '#B7700A', [['DB', 'Mr Diptobrato Bagchi', 'DS-M04', 'Business Development Manager', 'Staff', 1, 1, 'Jitesh Solanki'], ['VP', 'Mr Vishal Pragji', 'DS-E01', 'TRA and Government Spokesperson', 'Staff', 13, 0, 'Jitesh Solanki'], ['PA', 'Mr Pankaj', 'DS-M05', 'Warehouse Manager', 'Staff', 0, 0, null]]],
+      ['Dar Distributors', 'on track', '#19A06A', [['JM', 'Ms Jilna Manek', 'DD-D01', 'Director', 'Director', 6, 0, null], ['GA', 'Gift Abraham', 'DD-E02', 'Sales Associate', 'No portal', 0, 0, null]]],
+      ['Furaha Innovation Ltd', 'on track', '#19A06A', [['DK', 'Chef Dukhishyam Khuntia', 'CC-E04', 'Senior Chef', 'Staff', 1, 0, null], ['PR', 'Mrs Parin Manek', 'CC-D01', 'Director', 'Director', 0, 0, null]]]
+    ];
+    var all = [];
+    var groups = G.map(function (g) {
+      return { name: g[0], note: g[1], c: g[2], n: g[3].length + ' people', people: g[3].map(function (p) {
+        var rec = { ini: p[0], av: av(p[0]), name: p[1], short: p[1].replace(/^(Mr|Ms|Mrs|Chef) /, ''), id: p[2], role: p[3], portal: p[4] === 'No portal' ? 'No portal' : p[4] + ' portal', open: p[5], late: p[6], mgr: p[7] ? ' · reports to ' + p[7] : '', co: g[0],
+          load: p[5] ? p[5] + (p[6] ? ' · ' + p[6] + ' late' : ' open') : '—', loadC: p[6] >= 3 ? '#C2327F' : (p[6] ? '#B7700A' : '#55585E'), lateC: p[6] ? '#F07BBE' : '#A3A6AB',
+          ring: S.sel === p[2] ? '#111214' : '#FFFFFF', pick: function () { self.setState({ sel: S.sel === p[2] ? null : p[2] }); } };
+        all.push(rec); return rec; }) };
+    });
+    var p = all.filter(function (x) { return x.id === S.sel; })[0] || {};
+    return {
+      groups: groups, p: p, idle: !S.sel, picked: !!S.sel, unpick: function () { self.setState({ sel: null }); },
+      modes: segs([['browse', 'Browse'], ['att', 'Attention', 15]], S.mode, function (k) { self.setState({ mode: k }); }),
+      chips: barsegs([['all', 'All', 34, '#111214'], ['over', 'Overloaded', 7, '#E0479E'], ['nocon', 'No contact', 4, '#F5A524'], ['prob', 'Probation ending', 0, '#8B5CF6'], ['portal', 'Has portal', 30, '#19C37D'], ['noportal', 'No portal', 4, '#B9BBBF'], ['inactive', 'Inactive', 14, '#5B5E63']], S.chip, function (k) { self.setState({ chip: k }); })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

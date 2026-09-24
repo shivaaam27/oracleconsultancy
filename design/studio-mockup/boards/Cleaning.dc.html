@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cleaning</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder,textarea::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rise{from{transform:scaleY(0.15);opacity:0}to{transform:none;opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,400)}to{stroke-dashoffset:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.6}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; overflow: hidden; position: relative">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px; min-width: 0">
+<div><h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9; white-space: nowrap">Cleaning</h1></div>
+<div style="display: flex; gap: 8px; align-items: center"></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0"><div style="display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9"><button type="button" aria-label="Previous day" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button><span style="font-size: 13px; font-weight: 500; padding: 0 6px">Today</span><button type="button" aria-label="Next day" disabled style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; color: #C4C5C9; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></button></div><button type="button" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; border: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Sign off the day</button></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 220px; flex-shrink: 0"><div style="background-color: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Thursday 24 September</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>{{status}}</span></div></div>
+<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 26px">
+<div style="position: relative; width: 128px; height: 128px; flex-shrink: 0"><svg width="128" height="128" viewBox="0 0 128 128" aria-hidden="true" style="transform: rotate(-90deg)"><circle cx="64" cy="64" r="57" fill="none" stroke="#26282C" stroke-width="13"></circle><circle cx="64" cy="64" r="57" fill="none" stroke="#19C37D" stroke-width="13" stroke-linecap="round" stroke-dasharray="{{dash}}"></circle></svg>
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center"><div style="font-size: 30px; letter-spacing: -0.03em; line-height: 1">{{done}}/12</div><div style="font-size: 11px; color: #8E9197; margin-top: 3px">areas done</div></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px"><div style="font-size: 12px; color: #8E9197">Who cleaned today</div><div style="height: 36px; padding: 0 12px; border-radius: 10px; background: #1F2023; border: 1px solid #2E3035; display: flex; align-items: center; gap: 10px; font-size: 13px; min-width: 220px">Not set<span style="flex-grow: 1"></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></div><div style="font-size: 12px; color: #8E9197">The receptionist ticks from the portal; you can step in here.</div></div>
+</div></div><div style="background-color: #141517; background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1.4px); background-size: 14px 14px; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Day note</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>optional · saves when you click away</span></div></div><div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px"><div style="height: 70px; border-radius: 12px; background: #1F2023; border: 1px solid #2E3035; padding: 10px 12px; font-size: 13px; color: #8E9197; box-sizing: border-box">Anything worth recording about today’s cleaning…</div><div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8E9197"><span style="flex-grow: 1">Once signed off, ticks lock until someone presses Unlock.</span><span style="height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #34363B; color: #E6E6E3; display: flex; align-items: center">Previous days</span></div></div></div></div><div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 12px">
+<sc-for list="{{areas}}" as="a" hint-placeholder-count="12"><div style="background: #FFFFFF; border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; border: 1.5px solid {{a.ring}}">
+<button type="button" onClick="{{a.tick}}" aria-pressed="{{a.on}}" aria-label="Tick {{a.name}}" style="width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid {{a.bb}}; background: {{a.bg}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></button>
+<span style="flex-grow: 1; min-width: 0"><span style="display: block; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{a.name}}</span><span style="display: block; font-size: 12px; color: {{a.sc}}">{{a.sub}}</span></span>
+<button type="button" aria-label="Comment on {{a.name}}" style="width: 32px; height: 32px; border-radius: 9px; border: 0; background: transparent; color: #A3A6AB; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></button>
+</div></sc-for></div>
+</div>
+<dc-import name="Footer" page="Cleaning" action="New task" left-label="Checklist" left-text="12 areas · the receptionist logs from the portal" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+
+function segs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2] == null ? '' : d[2], on: on, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#111214' : '#55585E', shadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', pick: function () { pick(d[0]); } };
+  });
+}
+function av(ini) {
+  var C = { JS: '#9FE2C2', SP: '#C9D8FF', KA: '#FFD7A1', JM: '#F8C4DE', PM: '#D9CCFF', HS: '#BFE7F2', VP: '#E7E3A6', DB: '#D3D6DA', HB: '#FBD0C0', GM: '#CDE7B0', KS: '#F6D2A8', NV: '#C8E0F4', AS: '#E4CCF2', YC: '#D5E8D4', JU: '#F2E0B8', DK: '#F8D6C8', PA: '#D0E4E8', GA: '#E8D8C0', CT: '#DCD4F0', OM: '#E0E0DA', DO: '#CFE3D8', MK: '#F0D0D8', KH: '#E6E0C8', AR: '#D8E0F0', HI: '#FBD0C0', SM: '#E0D8EE', PR: '#F3D3DF', DT: '#D6ECE4' };
+  return C[ini] || '#DADAD5';
+}
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { done: {} }; }
+  renderVals() {
+    var S = this.state, self = this;
+    var A = ['Reception', 'Directors Office', 'Staff Working Area', 'Board Room 1', 'Board Room 2', 'Daniel, Ashit and Jitesh Office', 'Admin Office', 'Kitchen', 'Office Washroom', 'Staff Washroom', 'Bathing Area', 'Outside Area'];
+    var n = Object.keys(S.done).length, C = 2 * Math.PI * 57;
+    return {
+      done: n, dash: (C * n / 12).toFixed(1) + ' ' + C.toFixed(1), status: n === 0 ? 'Not started' : (n === 12 ? 'Complete — sign it off' : 'In progress'),
+      areas: A.map(function (a, i) { var on = !!S.done[i]; return { name: a, on: on, bg: on ? '#19C37D' : '#FFFFFF', bb: on ? '#19C37D' : '#DADAD5', ring: on ? '#CFEFDF' : '#FFFFFF', sub: on ? 'Done just now' : 'Not done yet', sc: on ? '#19A06A' : '#A3A6AB',
+        tick: function () { var d = Object.assign({}, S.done); if (on) delete d[i]; else d[i] = 1; self.setState({ done: d }); } }; })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,5 +1,11 @@
 # COS System - Project Instructions
 
+**⚠️ THE STUDIO REDESIGN IS UNDER WAY (branch `studiotask`, Sept 2026) — read
+`memory/studio_redesign.md` before touching any page.** The mockup in
+`design/studio-mockup/` is the specification. One phase at a time, each page
+behind its own switch (Settings → General → New look, `src/lib/studio.ts`);
+the Studio look is scoped to `.studio` and never leaks onto a page that is off.
+
 **⚠️ COS IS A TASK-MANAGEMENT SYSTEM AGAIN (21 Sept 2026).** It was split into
 six modules behind an `/apps` launcher in Aug 2026 — CocoZuri Operations, the
 general ledger, Orders & Imports, Capital projects, Marketing and Recruitment.

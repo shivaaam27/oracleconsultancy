@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder,textarea::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rise{from{transform:scaleY(0.15);opacity:0}to{transform:none;opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,400)}to{stroke-dashoffset:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.6}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; overflow: hidden; position: relative">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px; min-width: 0">
+<div><h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9; white-space: nowrap">Notes</h1></div>
+<div style="display: flex; gap: 8px; align-items: center"></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0"><div style="display: flex; gap: 2px; padding: 3px; background: #E6E6E2; border-radius: 11px"><sc-for list="{{tabs}}" as="s" hint-placeholder-count="3"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: {{s.bg}}; color: {{s.fg}}; box-shadow: {{s.shadow}}; font-size: 12px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px">{{s.label}}<span style="font-size: 11px; color: #8E9197">{{s.n}}</span></button></sc-for></div><button type="button" style="height: 36px; padding: 0 14px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Today</button><button type="button" style="height: 36px; padding: 0 14px; border-radius: 11px; background: #FFFFFF; border: 1px solid #DEDED9; display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>New folder</button><a href="Note.dc.html" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; border: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New note</a></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 232px; flex-shrink: 0"><div style="background-color: #141517; background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1.4px); background-size: 14px 14px; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Ask your notes</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>Answers only from what you wrote</span></div></div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px">
+<div style="display: flex; gap: 8px; align-items: center; height: 44px; padding: 0 6px 0 14px; border-radius: 12px; background: #1F2023; border: 1px solid #2E3035"><span style="color: #8E9197; display: flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></span><span style="flex-grow: 1; font-size: 13px; color: #E6E6E3">What did I decide about the Cocozuri plan of action?</span><span style="height: 32px; padding: 0 12px; border-radius: 9px; background: #F2F2F0; color: #111214; font-size: 12px; font-weight: 600; display: flex; align-items: center">Ask</span></div>
+<div style="font-size: 13px; color: #C9CBCF; line-height: 1.5">A full week plan for Dipto — minimum order level, raw materials, finished goods and packaging — marked in progress.</div>
+<div style="display: flex; gap: 6px"><span style="height: 24px; padding: 0 9px; border-radius: 7px; background: #26282C; font-size: 11px; display: flex; align-items: center; gap: 6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4M9 13h6M9 17h6"></path></svg>02.08.2026 Updates</span><span style="height: 24px; padding: 0 9px; border-radius: 7px; background: #26282C; font-size: 11px; display: flex; align-items: center; gap: 6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4M9 13h6M9 17h6"></path></svg>Monday 31st August</span></div>
+</div></div><div style="background-color: #141517; background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative; "><div style="display: flex; align-items: center; justify-content: space-between; min-height: 26px; flex-shrink: 0"><div style="font-size: 13px; color: #A3A6AB">Today’s page</div><div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E9197"><span>Thursday 24 September</span></div></div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px">
+<div style="font-size: 28px; font-weight: 500; letter-spacing: -0.02em">Nothing written today yet</div>
+<div style="font-size: 13px; color: #A3A6AB">One page per day, opened from your daily template. Tick-box lines can become to-dos with a reminder.</div>
+<div style="display: flex; gap: 8px"><a href="Note.dc.html" style="height: 34px; padding: 0 14px; border-radius: 10px; background: #F2F2F0; color: #111214; font-size: 13px; font-weight: 600; display: flex; align-items: center">Start today’s page</a><button type="button" style="height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; font-size: 13px">Tidy 1 empty note</button></div>
+</div></div></div><div style="flex-grow: 1; min-height: 0; position: relative; display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) 120px 100px 28px; column-gap: 20px; padding: 0 20px 8px; font-size: 12px; color: #6E7177"><span>Note</span><span>Starts with</span><span>Folder</span><span style="color: #111214; font-weight: 500">Updated</span><span></span></div>
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 76px">
+<sc-for list="{{notes}}" as="n" hint-placeholder-count="8"><a href="Note.dc.html" style="flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) 120px 100px 28px; column-gap: 20px; align-items: center; background: #FFFFFF; border-radius: 14px; padding: 13px 20px">
+<span style="font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{n.tc}}">{{n.title}}</span>
+<span style="font-size: 13px; color: #6E7177; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{n.snip}}</span>
+<span><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 7px; background: #F3F3F1; color: #111214; font-size: 12px; white-space: nowrap">Unfiled</span></span>
+<span style="font-size: 13px; color: #55585E">{{n.when}}</span>
+<span style="color: #C4C5C9; display: flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"></path></svg></span></a></sc-for>
+</div>
+<div style="position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; width: 720px; height: 56px; background: #FFFFFF; border: 1px solid #E4E4E0; border-radius: 16px; box-shadow: 0 10px 28px rgba(17,18,20,0.12); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; box-sizing: border-box; z-index: 3">
+<label style="display: flex; align-items: center; gap: 8px; flex-grow: 1; color: #8E9197"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span><input placeholder="Search notes — words, #tags or @people" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #111214; width: 100%"></label>
+<span style="width: 1px; height: 24px; background: #E4E4E0"></span><button type="button" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #F3F3F1; font-size: 12px; display: flex; align-items: center; gap: 6px">#tags <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><button type="button" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #F3F3F1; font-size: 12px; display: flex; align-items: center; gap: 6px">Smart folders <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+</div>
+</div>
+<dc-import name="Footer" page="Notes" action="New note" left-label="Last written" left-text="15.09 · Ray handling licence" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+
+function segs(defs, cur, pick) {
+  return defs.map(function (d) {
+    var on = d[0] === cur;
+    return { label: d[1], n: d[2] == null ? '' : d[2], on: on, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#111214' : '#55585E', shadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', pick: function () { pick(d[0]); } };
+  });
+}
+function av(ini) {
+  var C = { JS: '#9FE2C2', SP: '#C9D8FF', KA: '#FFD7A1', JM: '#F8C4DE', PM: '#D9CCFF', HS: '#BFE7F2', VP: '#E7E3A6', DB: '#D3D6DA', HB: '#FBD0C0', GM: '#CDE7B0', KS: '#F6D2A8', NV: '#C8E0F4', AS: '#E4CCF2', YC: '#D5E8D4', JU: '#F2E0B8', DK: '#F8D6C8', PA: '#D0E4E8', GA: '#E8D8C0', CT: '#DCD4F0', OM: '#E0E0DA', DO: '#CFE3D8', MK: '#F0D0D8', KH: '#E6E0C8', AR: '#D8E0F0', HI: '#FBD0C0', SM: '#E0D8EE', PR: '#F3D3DF', DT: '#D6ECE4' };
+  return C[ini] || '#DADAD5';
+}
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { tab: 'all' }; }
+  renderVals() {
+    var S = this.state, self = this;
+    var N = [
+      ['Monday 31st August', 'Gymkhana Membership - Parin - done · Cocozuri Plan of Action and each raw material pricing', '1 Sept'],
+      ['02.08.2026 Updates', 'Cocozuri Plan of action for Dipto - full week plan for him and company, minimum order level…', '3 Sept'],
+      ['15.09', 'Ray handling licence - inform Hriday not to pay', '15 Sept'],
+      ['Task', 'Calendar for all social media posts. Accountable: Juned, Shivam - done', '3 Sept'],
+      ['Today’s Priorities — 20 Aug 2026', 'Board resolution Gift Sulle — permit / agent follow-up', '1 Sept'],
+      ['Saturday Tasks', 'Cocozuri Website - finding new vendor but I will try to create it', '22 Aug'],
+      ['Tasks & Reminders', 'Empty note', '1 Sept'],
+      ['Untitled note', 'Empty note', '21 Sept']
+    ];
+    return {
+      notes: N.map(function (n) { return { title: n[0], snip: n[1], when: n[2], tc: n[1] === 'Empty note' ? '#8E9197' : '#111214' }; }),
+      tabs: segs([['all', 'All', 16], ['pin', 'Pinned', 0], ['unf', 'Unfiled', 16], ['arch', 'Archived', 4]], S.tab, function (k) { self.setState({ tab: k }); })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

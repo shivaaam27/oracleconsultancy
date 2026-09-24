@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home — widgets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+@keyframes rise{from{transform:scaleY(0.2);opacity:0}to{transform:none;opacity:1}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.55}}
+@keyframes slide{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: 300px minmax(0, 1fr); gap: 14px; box-sizing: border-box">
+
+<div style="grid-column: 1 / span 2; background: #141517; border-radius: 18px; padding: 22px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: flex-start">
+<div>
+<div style="font-size: 13px; color: #A3A6AB">Good afternoon · Thursday 24 September</div>
+<div style="font-size: 30px; font-weight: 500; letter-spacing: -0.02em; margin-top: 6px">Your 70 open tasks, at a glance</div>
+</div>
+<div style="display: flex; gap: 22px; text-align: right">
+<div><div style="font-size: 30px; letter-spacing: -0.03em">16</div><div style="font-size: 11px; color: #F07BBE">late</div></div>
+<div><div style="font-size: 30px; letter-spacing: -0.03em">3</div><div style="font-size: 11px; color: #F5B94E">due soon</div></div>
+<div><div style="font-size: 30px; letter-spacing: -0.03em">37</div><div style="font-size: 11px; color: #5BE0A5">done this month</div></div>
+</div>
+</div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; align-items: flex-end; gap: 3px; height: 70px" aria-label="Each bar is one open task, coloured by how it is doing">
+<sc-for list="{{ticks}}" as="t" hint-placeholder-count="70"><a href="Main.dc.html" title="{{t.label}}" style="display: block; width: {{t.w}}; height: {{t.h}}; border-radius: 3px; background: {{t.c}}; transform-origin: bottom; animation: rise 520ms cubic-bezier(.2,.8,.2,1) both; animation-delay: {{t.delay}}"></a></sc-for>
+</div>
+<div style="display: flex; gap: 18px; margin-top: 14px; font-size: 12px; color: #C9CBCF">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #CFE05A"></span>Quiet 7+ days · 13</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #19C37D"></span>Moving · 38</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #F5A524"></span>Due soon · 3</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #E0479E"></span>Late · 16</span>
+<span style="flex-grow: 1"></span>
+<span style="color: #8E9197">Tap a bar to open that task</span>
+</div>
+</div>
+
+<div style="border-radius: 18px; padding: 22px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; background-color: #141517; background-image: repeating-radial-gradient(circle at 115% -10%, rgba(255,255,255,0.07) 0 2px, transparent 2px 13px); position: relative; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<div style="font-size: 22px; font-weight: 500">{{dueTitle}}</div>
+<div style="display: flex; gap: 2px; padding: 3px; background: #1F2023; border-radius: 10px">
+<button type="button" onClick="{{dueToday}}" aria-pressed="{{isToday}}" style="height: 26px; padding: 0 10px; border-radius: 7px; border: 0; background: {{todayBg}}; color: {{todayFg}}; font-size: 12px">Today</button>
+<button type="button" onClick="{{dueWeek}}" aria-pressed="{{isWeek}}" style="height: 26px; padding: 0 10px; border-radius: 7px; border: 0; background: {{weekBg}}; color: {{weekFg}}; font-size: 12px">This week</button>
+</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 10px; margin-top: 10px"><span style="font-size: 96px; line-height: 0.95; letter-spacing: -0.05em">{{dueN}}</span><span style="font-size: 14px; color: #A3A6AB">{{dueSub}}</span></div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{dueList}}" as="d" hint-placeholder-count="2"><a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.06); font-size: 13px"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{d.dot}}"></span><span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{d.title}}</span><span style="font-size: 11px; color: #A3A6AB">{{d.when}}</span></a></sc-for>
+</div>
+</div>
+
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="3">
+<div style="background: #FFFFFF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: flex-start">
+<div>
+<div style="font-size: 12px; color: #8E9197">{{c.kicker}}</div>
+<div style="font-size: 22px; font-weight: 500; letter-spacing: -0.015em; margin-top: 2px">{{c.title}}</div>
+<div style="font-size: 13px; color: #8E9197; margin-top: 2px">{{c.sub}}</div>
+</div>
+<div style="display: flex; gap: 4px">
+<button type="button" onClick="{{c.prev}}" aria-label="Previous" style="width: 30px; height: 30px; border-radius: 15px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<button type="button" onClick="{{c.next}}" aria-label="Next" style="width: 30px; height: 30px; border-radius: 15px; border: 1px solid #E4E4E0; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button>
+</div>
+</div>
+
+<sc-if value="{{c.isList}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px; animation: slide 240ms ease-out; flex-grow: 1; min-height: 0; overflow-y: auto">
+<sc-for list="{{c.items}}" as="i" hint-placeholder-count="4">
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid #EFEFEB">
+<span style="width: 7px; height: 7px; border-radius: 4px; background: {{i.dot}}; flex-shrink: 0"></span>
+<span style="flex-grow: 1; min-width: 0"><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{i.title}}</span><span style="display: block; font-size: 11px; color: #8E9197; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{i.sub}}</span></span>
+<span style="font-size: 11px; color: {{i.rc}}; white-space: nowrap">{{i.right}}</span>
+</a>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{c.isGauge}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-end; animation: slide 240ms ease-out; position: relative">
+<svg viewBox="0 0 300 150" width="100%" height="150" aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0">
+<path d="M20 150 A130 130 0 0 1 280 150" fill="none" stroke="#EAF7F0" stroke-width="22"></path>
+<path d="M20 150 A130 130 0 0 1 280 150" fill="none" stroke="#19C37D" stroke-width="22" stroke-dasharray="{{c.dash}}" style="animation: breathe 3.2s ease-in-out infinite"></path>
+</svg>
+<div style="display: flex; align-items: baseline; gap: 8px; position: relative"><span style="font-size: 56px; letter-spacing: -0.04em; line-height: 1">{{c.big}}</span><span style="font-size: 13px; color: #8E9197">{{c.bigSub}}</span></div>
+<div style="font-size: 12px; color: #55585E; margin-top: 8px; position: relative">{{c.note}}</div>
+</div>
+</sc-if>
+
+<div style="display: flex; justify-content: center; gap: 6px">
+<sc-for list="{{c.dots}}" as="d" hint-placeholder-count="3"><span style="width: {{d.w}}; height: 6px; border-radius: 3px; background: {{d.c}}"></span></sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+
+<dc-import name="Footer" page="Home" action="New task" left-label="Next deadline" left-text="Sat 26 Sept · Bank and TRA Machine Reconciliation" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { due: 'week', s: [0, 0, 0] }; }
+  renderVals() {
+    const S = this.state;
+    const groups = [['#CFE05A', 13, 'Quiet 7+ days'], ['#19C37D', 38, 'Moving'], ['#F5A524', 3, 'Due soon'], ['#E0479E', 16, 'Late']];
+    const ticks = [];
+    let k = 0;
+    groups.forEach(([c, n, label]) => {
+      for (let i = 0; i < n; i++) {
+        const h = 26 + ((k * 37) % 44);
+        ticks.push({ c, label, w: (k % 5 === 0 ? 14 : 9) + 'px', h: h + 'px', delay: (k * 12) + 'ms' });
+        k++;
+      }
+    });
+    const isToday = S.due === 'today';
+    const setS = (card, d) => { const s = S.s.slice(); s[card] = (s[card] + d + 3) % 3; this.setState({ s }); };
+    const dots = (card, n) => Array.from({ length: n }, (_, i) => ({ w: i === S.s[card] ? '18px' : '6px', c: i === S.s[card] ? '#111214' : '#D6D6D2' }));
+    const L = (items) => items.map(([title, sub, right, dot, rc]) => ({ title, sub, right, dot, rc: rc || '#8E9197' }));
+
+    const card1 = [
+      { kicker: 'Tasks', title: 'Late, needs you', sub: '16 late · worst first', items: L([
+        ['Cocofix Payment', 'CC-026 · Jitesh Solanki', '2d late', '#E0479E', '#C2327F'],
+        ['ERP meeting', 'PE-026 · Pulin Manek', '2d late', '#E0479E', '#C2327F'],
+        ['Cash flow planning meeting', 'DS-041 · Jitesh, Pulin', '2d late', '#E0479E', '#C2327F'],
+        ['Plan Of Action', 'CC-022 · 3 people', '1d late', '#E0479E', '#C2327F']]) },
+      { kicker: 'Tasks', title: 'Waiting on someone', sub: 'The update says who has the ball', items: L([
+        ['Cocofix Payment', 'Awaiting rate from Pulin', 'CC-026', '#F5A524'],
+        ['itrust account opening', 'Awaiting Mr Maurice’s signature', 'PE-028', '#F5A524'],
+        ['CCTV', 'Mr Pulin to get one more quotation', 'VI-009', '#F5A524']]) },
+      { kicker: 'Tasks', title: 'No updates yet', sub: 'Nobody has said a word', items: L([
+        ['Stamp Duty - CZ', 'CC-029 · Furaha Innovation Ltd', 'Quiet', '#CFE05A'],
+        ['PES Operations and Logistics Report', 'PE-032 · PES Ltd', 'Quiet', '#CFE05A'],
+        ['Website Development', 'OC-053 · Oracle Consultancy Ltd', 'Quiet', '#CFE05A'],
+        ['CCTV, Fridge, Storage, Chillers etc', 'VI-006 · due Sat 26 Sept', 'Quiet 2d', '#CFE05A']]) }
+    ];
+    const card2 = [
+      { kicker: 'People', title: 'Team load', sub: 'Open tasks per person', gauge: true, big: '6.7', bigSub: 'open each, on average', note: 'Shivam Parmar carries 31 — well above average. Pulin Manek has 8 of 12 late.', dash: '160 410' },
+      { kicker: 'People', title: 'Who is carrying most', sub: 'Open · late', items: L([
+        ['Shivam Parmar', '31 open', '1 late', '#19C37D'],
+        ['Jitesh Solanki', '25 open', '6 late', '#E0479E', '#C2327F'],
+        ['Vishal Pragji', '13 open', 'none late', '#19C37D'],
+        ['Pulin Manek', '12 open', '8 late', '#E0479E', '#C2327F']]) },
+      { kicker: 'People', title: 'Finished this month', sub: 'September · completed tasks', items: L([
+        ['Shivam Parmar', 'Most finished', '16 done', '#19C37D', '#111214'],
+        ['Jitesh Solanki', '', '12 done', '#19C37D', '#111214'],
+        ['Hiral Borsadiya', '', '9 done', '#19C37D', '#111214']]) }
+    ];
+    const card3 = [
+      { kicker: 'Companies', title: 'Company health', sub: 'Most late first', items: L([
+        ['MES Ltd', '8 open', '8 late', '#E0479E', '#C2327F'],
+        ['Furaha Innovation Ltd', '12 open', '2 late', '#F5A524', '#B7700A'],
+        ['PES Ltd', '11 open', '2 late', '#F5A524', '#B7700A'],
+        ['Oracle Consultancy Ltd', '11 open', '2 late', '#F5A524', '#B7700A'],
+        ['V1 Supermarket and Supplies', '11 open', 'none late', '#19C37D']]) },
+      { kicker: 'Companies', title: 'Where the work is', sub: 'Open tasks by company', gauge: true, big: '9', bigSub: 'companies with open work', note: 'Furaha Innovation has the most (12). Tanam Advisory has one.', dash: '300 410' },
+      { kicker: 'Controls', title: 'Run the day', sub: 'The levers that were on Home', items: L([
+        ['Run automations now', 'Recurring tasks, reminders, renewals', 'Run', '#2490EF', '#111214'],
+        ['Send the Director Brief', 'WhatsApp · email · PDF', 'Send', '#2490EF', '#111214'],
+        ['Approvals', 'Things waiting for your yes', 'Open', '#2490EF', '#111214']]) }
+    ];
+    const pack = (arr, card) => {
+      const c = arr[S.s[card]];
+      return { ...c, isList: !c.gauge, isGauge: !!c.gauge, items: c.items || [], dots: dots(card, arr.length), prev: () => setS(card, -1), next: () => setS(card, 1) };
+    };
+    return {
+      ticks,
+      isToday, isWeek: !isToday,
+      dueToday: () => this.setState({ due: 'today' }), dueWeek: () => this.setState({ due: 'week' }),
+      todayBg: isToday ? '#F2F2F0' : 'transparent', todayFg: isToday ? '#111214' : '#A3A6AB',
+      weekBg: !isToday ? '#F2F2F0' : 'transparent', weekFg: !isToday ? '#111214' : '#A3A6AB',
+      dueTitle: isToday ? 'Due today' : 'Due this week',
+      dueN: isToday ? '0' : '2', dueSub: isToday ? 'nothing due today — 16 are already late' : 'both on Saturday',
+      dueList: isToday ? [{ title: '16 late tasks — open the list', when: 'View', dot: '#E0479E' }] : [
+        { title: 'Bank and TRA Machine Reconciliation', when: 'Sat 26', dot: '#F5A524' },
+        { title: 'CCTV, Fridge, Storage, Chillers etc', when: 'Sat 26', dot: '#F5A524' }],
+      cards: [pack(card1, 0), pack(card2, 1), pack(card3, 2)]
+    };
+  }
+}
+</script>
+</body>
+</html>

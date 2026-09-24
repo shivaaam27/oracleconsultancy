@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tasks — list with update preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F10;font-family:'Geist',system-ui,sans-serif;color:#111214}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder{color:#8E9197}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F10; display: flex; flex-direction: column; padding: 12px 12px 0; font-family: 'Geist', system-ui, sans-serif; color: #111214">
+<div style="flex-grow: 1; min-height: 0; background: #F3F3F1; border-radius: 20px; padding: 28px 28px 20px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-shrink: 0">
+<div style="display: flex; align-items: flex-end; gap: 16px">
+<h1 style="margin: 0; font-size: 56px; font-weight: 500; letter-spacing: -0.035em; line-height: 0.9">Tasks</h1>
+<div style="display: flex; gap: 8px">
+<button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px">All companies<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<button type="button" style="height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #DEDED9; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px">Everyone<span style="color: #8E9197">· assigned</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="display: flex; gap: 2px; padding: 3px; background: #E6E6E2; border-radius: 11px">
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: #FFFFFF; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.08)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg>List</button>
+<button type="button" aria-label="Cards view" style="height: 30px; width: 32px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #5B5E63"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></button>
+<button type="button" aria-label="Board view" style="height: 30px; width: 32px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #5B5E63"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1.5"></rect><rect x="10" y="4" width="5" height="10" rx="1.5"></rect><rect x="17" y="4" width="4" height="13" rx="1.5"></rect></svg></button>
+<button type="button" aria-label="Calendar view" style="height: 30px; width: 32px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #5B5E63"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg></button>
+<button type="button" aria-label="Timeline view" style="height: 30px; width: 32px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #5B5E63"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h8M7 12h12M5 18h9"></path></svg></button>
+</div>
+<a href="Controls.dc.html" style="height: 36px; padding: 0 16px; border-radius: 11px; background: #111214; color: #FFFFFF; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Filters</a>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; height: 244px; flex-shrink: 0">
+
+<div style="background: #141517; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden">
+<div style="display: flex; align-items: center; justify-content: space-between; height: 26px">
+<div style="font-size: 13px; color: #A3A6AB">{{insTitle}}</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<sc-for list="{{insDots}}" as="d" hint-placeholder-count="3"><span style="width: {{d.w}}; height: 6px; border-radius: 3px; background: {{d.c}}"></span></sc-for>
+<button type="button" aria-label="Previous insight" onClick="{{insPrev}}" style="margin-left: 4px; width: 26px; height: 26px; border-radius: 8px; border: 1px solid #2E3035; background: transparent; display: flex; align-items: center; justify-content: center; color: #C9CBCF"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<button type="button" aria-label="Next insight" onClick="{{insNext}}" style="width: 26px; height: 26px; border-radius: 8px; border: 1px solid #2E3035; background: transparent; display: flex; align-items: center; justify-content: center; color: #C9CBCF"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></button>
+</div>
+</div>
+
+<sc-if value="{{ins0}}" hint-placeholder-val="{{ true }}">
+<div style="flex-grow: 1; display: grid; grid-template-columns: minmax(0, 1fr) 200px; column-gap: 28px; align-items: end; animation: pop 220ms ease-out">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 76px; line-height: 0.85; letter-spacing: -0.045em">70</span><span style="font-size: 18px; color: #8E9197">open tasks</span><span style="margin-left: 8px; display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px; border-radius: 8px; background: #1D2A23; color: #5BE0A5; font-size: 12px; align-self: flex-end; margin-bottom: 2px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #19C37D"></span>74% on track</span></div>
+<div>
+<div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px"><span style="width: 22.9%; background: #E0479E"></span><span style="width: 4.3%; background: #F5A524"></span><span style="width: 4.3%; background: #19C37D"></span><span style="flex-grow: 1; background: #3A3D42"></span></div>
+<div style="display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: #C9CBCF">
+<button type="button" onClick="{{segLate}}" style="border: 0; background: transparent; padding: 0; display: flex; align-items: center; gap: 6px; color: #C9CBCF"><span style="width: 7px; height: 7px; border-radius: 4px; background: #E0479E"></span>16 late</button>
+<button type="button" onClick="{{segSoon}}" style="border: 0; background: transparent; padding: 0; display: flex; align-items: center; gap: 6px; color: #C9CBCF"><span style="width: 7px; height: 7px; border-radius: 4px; background: #F5A524"></span>3 due soon</button>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #19C37D"></span>3 on schedule</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #5B5E63"></span>48 no date</span>
+</div>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="4"><button type="button" style="border: 1px solid #2A2C30; background: #1A1B1E; border-radius: 12px; padding: 9px 11px; text-align: left; color: #F2F2F0"><div style="font-size: 20px; letter-spacing: -0.02em; line-height: 1.1">{{t.n}}</div><div style="font-size: 11px; color: #8E9197; margin-top: 2px; white-space: nowrap">{{t.label}}</div></button></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ins1}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; row-gap: 14px; align-content: end; animation: pop 220ms ease-out">
+<sc-for list="{{companies}}" as="c" hint-placeholder-count="9">
+<button type="button" style="border: 0; background: transparent; padding: 0; text-align: left; color: #F2F2F0; min-width: 0">
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.name}}</span><span style="color: #A3A6AB; font-family: 'Geist Mono', monospace; white-space: nowrap">{{c.open}}<span style="color: #F07BBE">{{c.lateTxt}}</span></span></div>
+<div style="margin-top: 6px; height: 5px; background: #26282C; border-radius: 3px; display: flex; overflow: hidden"><span style="width: {{c.okW}}; background: #19C37D"></span><span style="width: {{c.lateW}}; background: #E0479E"></span></div>
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ins2}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 20px; align-items: end; animation: pop 220ms ease-out">
+<sc-for list="{{workload}}" as="w" hint-placeholder-count="4">
+<button type="button" style="border: 0; background: transparent; padding: 0; text-align: left; color: #F2F2F0; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 6px"><span style="font-size: 40px; letter-spacing: -0.03em; line-height: 1">{{w.open}}</span><span style="font-size: 12px; color: #8E9197">open</span></div>
+<div style="margin-top: 10px; height: 5px; background: #26282C; border-radius: 3px; display: flex; overflow: hidden"><span style="width: {{w.okW}}; background: #19C37D"></span><span style="width: {{w.lateW}}; background: #E0479E"></span></div>
+<div style="margin-top: 10px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{w.name}}</div>
+<div style="font-size: 11px; color: #8E9197">{{w.note}}</div>
+</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<div style="background-color: #141517; background-image: {{rightTexture}}; border-radius: 20px; padding: 20px 24px; color: #F2F2F0; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow: hidden; position: relative">
+
+<sc-if value="{{idle}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; height: 100%; animation: pop 220ms ease-out">
+<div style="display: flex; align-items: center; justify-content: space-between; height: 26px">
+<div style="font-size: 13px; color: #A3A6AB">Updates</div>
+<div style="font-size: 12px; color: #8E9197">Pick a task to read and reply here</div>
+</div>
+<div style="flex-grow: 1; display: grid; grid-template-columns: 190px minmax(0, 1fr); column-gap: 24px; align-items: end">
+<div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 76px; line-height: 0.85; letter-spacing: -0.045em">9</span></div>
+<div style="font-size: 13px; color: #C9CBCF; margin-top: 10px">unread updates</div>
+<div style="font-size: 12px; color: #8E9197; margin-top: 2px">5 posted today</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{fresh}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" style="display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; text-align: left; border: 1px solid #26282C; background: rgba(20,21,23,0.85); border-radius: 12px; padding: 8px 10px; color: #F2F2F0"><span style="width: 24px; height: 24px; border-radius: 12px; background: {{f.bg}}; color: #111214; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{f.ini}}</span><span style="min-width: 0"><span style="display: block; font-size: 12px; color: #A3A6AB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.task}}</span><span style="display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.body}}</span></span><span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8E9197; white-space: nowrap"><sc-if value="{{f.unread}}" hint-placeholder-val="{{ false }}"><span style="width: 6px; height: 6px; border-radius: 3px; background: #2490EF"></span></sc-if>{{f.ago}}</span></button></sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{picked}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; height: 100%; animation: pop 200ms ease-out">
+<div style="display: flex; align-items: center; gap: 8px; height: 26px">
+<span style="font-family: 'Geist Mono', monospace; font-size: 11px; padding: 3px 7px; border-radius: 6px; background: #26282C; color: #C9CBCF">{{sel.code}}</span>
+<span style="font-size: 12px; color: #A3A6AB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-grow: 1">{{sel.co}}</span>
+<a href="Expanded.dc.html" aria-label="Expand to the full task" title="Open the whole task" style="width: 28px; height: 28px; border-radius: 8px; background: #F2F2F0; color: #111214; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M10 20H4v-6"></path><path d="M20 4l-7 7"></path><path d="M4 20l7-7"></path></svg></a>
+<button type="button" onClick="{{unpick}}" aria-label="Close the preview" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid #2E3035; background: transparent; color: #C9CBCF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; min-width: 0">
+<div style="font-size: 24px; font-weight: 500; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0">{{sel.title}}</div>
+<span style="flex-shrink: 0; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 7px; background: #1F2023; font-size: 12px"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{sel.statusDot}}"></span>{{sel.status}}</span>
+<span style="flex-shrink: 0; height: 24px; padding: 0 9px; border-radius: 7px; background: #1F2023; font-size: 12px; display: flex; align-items: center; color: {{sel.dueColor}}">{{sel.due}}</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<div style="display: flex"><sc-for list="{{sel.people}}" as="p" hint-placeholder-count="2"><span title="{{p.name}}" style="width: 22px; height: 22px; border-radius: 11px; background: {{p.bg}}; color: #111214; border: 2px solid #141517; font-size: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-left: {{p.ml}}">{{p.ini}}</span></sc-for></div>
+<span style="font-size: 12px; color: #A3A6AB; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sel.whoLabel}}</span>
+<button type="button" style="height: 26px; padding: 0 10px; border-radius: 7px; border: 0; background: #F2F2F0; color: #111214; font-size: 11px; font-weight: 600">Complete</button>
+<button type="button" style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; font-size: 11px">Escalate</button>
+<button type="button" style="height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid #34363B; background: transparent; color: #E6E6E3; font-size: 11px">Remind</button>
+</div>
+<div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px">
+<sc-if value="{{sel.hasLast}}" hint-placeholder-val="{{ true }}">
+<div style="font-size: 11px; color: #8E9197">{{sel.lastWho}} · {{sel.lastAt}}<span style="color: #6E7177">{{sel.more}}</span></div>
+<div style="font-size: 14px; line-height: 1.45; color: #E6E6E3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{{sel.last}}</div>
+</sc-if>
+<sc-if value="{{sel.noLast}}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: #8E9197">No updates yet — the first one you post tells everyone on the task.</div></sc-if>
+</div>
+<div style="display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 5px 0 12px; border-radius: 12px; background: #1F2023; border: 1px solid #2E3035">
+<label style="flex-grow: 1; display: flex; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Post an update</span><input value="{{draft}}" onChange="{{onDraft}}" placeholder="Post an update… @ to mention" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #F2F2F0; width: 100%"></label>
+<sc-for list="{{starters}}" as="s" hint-placeholder-count="2"><button type="button" onClick="{{s.pick}}" style="height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid #34363B; background: transparent; color: #C9CBCF; font-size: 11px; white-space: nowrap">{{s.label}}</button></sc-for>
+<button type="button" aria-label="Attach a file" style="width: 28px; height: 28px; border-radius: 7px; border: 0; background: transparent; color: #A3A6AB; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"></path></svg></button>
+<button type="button" aria-label="Speak your update" style="width: 28px; height: 28px; border-radius: 7px; border: 0; background: transparent; color: #A3A6AB; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></button>
+<button type="button" onClick="{{post}}" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: #F2F2F0; color: #111214; font-size: 12px; font-weight: 600">Post</button>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; position: relative; display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: {{cols}}; column-gap: 20px; padding: 0 20px 8px; font-size: 12px; color: #6E7177; flex-shrink: 0">
+<span style="display: flex; align-items: center; gap: 4px">Task<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"></path></svg></span>
+<span style="display: flex; align-items: center; gap: 4px">Status<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"></path></svg></span>
+<span>Who</span><span>Last 7 days</span><span>Latest update</span>
+<span style="display: flex; align-items: center; gap: 4px; color: #111214; font-weight: 500">Deadline<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"></path></svg></span>
+<span></span>
+</div>
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 80px">
+<button type="button" style="height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px dashed #CFCFCA; background: transparent; display: flex; align-items: center; gap: 10px; padding: 0 20px; color: #55585E; font-size: 13px; text-align: left"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>What needs doing?<span style="color: #A3A6AB">Enter adds it · Shift+Enter opens the full form · or paste a list</span></button>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+<div style="flex-shrink: 0; display: grid; grid-template-columns: {{cols}}; column-gap: 20px; align-items: center; background: #FFFFFF; border-radius: 14px; padding: 12px 20px; border: 1.5px solid {{r.ring}}; box-shadow: {{r.shadow}}">
+<button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="border: 0; background: transparent; padding: 0; text-align: left; min-width: 0; color: #111214">
+<span style="display: flex; align-items: center; gap: 8px; min-width: 0">
+<sc-if value="{{r.unread}}" hint-placeholder-val="{{ false }}"><span aria-label="Unread" style="width: 7px; height: 7px; border-radius: 4px; background: #2490EF; flex-shrink: 0"></span></sc-if>
+<span style="font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</span>
+</span>
+<span style="display: flex; gap: 8px; margin-top: 3px; font-size: 12px; color: #8E9197; min-width: 0"><span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E7177">{{r.code}}</span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.co}}</span></span>
+</button>
+<div style="display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap"><span style="width: 8px; height: 8px; border-radius: 4px; background: {{r.statusDot}}"></span>{{r.status}}</div>
+<div style="display: flex">
+<sc-for list="{{r.people}}" as="p" hint-placeholder-count="2"><span title="{{p.name}}" style="width: 26px; height: 26px; border-radius: 13px; background: {{p.bg}}; border: 2px solid #FFFFFF; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-left: {{p.ml}}; box-sizing: border-box">{{p.ini}}</span></sc-for>
+</div>
+<div style="display: flex; align-items: flex-end; gap: 3px; height: 20px" title="{{r.pulseLabel}}">
+<sc-for list="{{r.pulse}}" as="c" hint-placeholder-count="7"><span style="width: 6px; height: {{c.h}}; border-radius: 2px; background: {{c.c}}"></span></sc-for>
+</div>
+<div style="min-width: 0; font-size: 13px; color: #55585E; line-height: 1.35">
+<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.latest}}</div>
+<div style="color: #A3A6AB; font-size: 11px; margin-top: 2px">{{r.ago}}</div>
+</div>
+<div style="font-size: 13px; color: {{r.dueColor}}; font-weight: {{r.dueWeight}}; white-space: nowrap">{{r.due}}</div>
+<button type="button" onClick="{{r.star}}" aria-label="{{r.starLabel}}" aria-pressed="{{r.starred}}" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: {{r.starColor}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="{{r.starFill}}" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"></path></svg></button>
+</div>
+</sc-for>
+<div style="text-align: center; font-size: 12px; color: #8E9197; padding: 8px 0">{{shownLabel}} · <span style="color: #111214">Show more</span> · j / k to move · Enter opens · Esc closes the preview</div>
+</div>
+
+<div style="position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; width: 860px; height: 56px; background: #FFFFFF; border: 1px solid #E4E4E0; border-radius: 16px; box-shadow: 0 10px 28px rgba(17,18,20,0.12); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; box-sizing: border-box">
+<label style="display: flex; align-items: center; gap: 8px; flex-grow: 1; color: #8E9197"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search tasks</span><input value="{{q}}" onChange="{{onQ}}" placeholder="Search — try “Cocofix” or “Karim”" style="border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: #111214; width: 100%"></label>
+<button type="button" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #F3F3F1; font-size: 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap">Filter by company<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+<span style="width: 1px; height: 24px; background: #E4E4E0"></span>
+<sc-for list="{{segs}}" as="s" hint-placeholder-count="4"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: {{s.fg}}; font-size: 12px; display: flex; align-items: center; gap: 7px; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 4px; background: {{s.dot}}"></span>{{s.label}}<span style="font-family: 'Geist Mono', monospace; font-size: 11px; opacity: 0.7">{{s.n}}</span></button></sc-for>
+</div>
+</div>
+</div>
+<dc-import name="Footer" page="Tasks" hint-size="1416px,64px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: null, seg: 'all', q: '', stars: {}, draft: '', extra: {}, statusOver: {}, ins: 0 };
+  }
+  renderVals() {
+    const S = this.state;
+    const set = (o) => this.setState(o);
+    const TONE = { late: '#E0479E', soon: '#F5A524', ok: '#19C37D', none: '#19C37D' };
+    const DUE = { late: '#C2327F', soon: '#B7700A', ok: '#111214', none: '#A3A6AB' };
+    const SDOT = { 'Not Started': '#B9BBBF', 'In Progress': '#2490EF', 'Under Review': '#8B5CF6', 'Blocked': '#E0479E', 'Waiting External': '#F5A524', 'Escalated': '#F0703A', 'Completed': '#19C37D', 'Closed': '#5B5E63' };
+    const PPL = { JS: ['Jitesh Solanki', '#9FE2C2'], SP: ['Shivam Parmar', '#C9D8FF'], KA: ['Karim', '#FFD7A1'], JM: ['Jilna Manek', '#F8C4DE'], PM: ['Pulin Manek', '#D9CCFF'], HS: ['Hriday Solanki', '#BFE7F2'], VP: ['Vishal Pragji', '#E7E3A6'], DB: ['Diptobrato Bagchi', '#D3D6DA'] };
+    const T = [
+      { code: 'CC-026', title: 'Cocofix Payment', co: 'Furaha Innovation Ltd', status: 'In Progress', tone: 'late', due: '2d late', pr: 'Medium', who: ['JS'], ago: 'You · 2d ago', pulse: [0,0,0,0,1,1,0], msgs: [['You', '21 Sept', '$10,000 payment'], ['You', '22 Sept', 'In process, awaiting rate from Pulin']] },
+      { code: 'CC-022', title: 'Plan Of Action', co: 'Furaha Innovation Ltd', status: 'In Progress', tone: 'late', due: '1d late', who: ['SP', 'DB', 'PM'], ago: 'You · 2d ago', pulse: [0,0,1,0,1,1,0], msgs: [['You', 'earlier', 'Sales plan to be obtained'], ['You', 'earlier', 'Meeting on thursday'], ['You', '22 Sept', 'Meeting on Wednesday']] },
+      { code: 'PE-026', title: 'ERP meeting', co: 'PES Ltd', status: 'In Progress', tone: 'late', due: '2d late', who: ['PM'], ago: 'You · 2d ago', pulse: [0,0,0,0,1,0,0], msgs: [['You', '22 Sept', 'Mr Jitesh is reviewing']] },
+      { code: 'DS-041', title: 'Cash flow planning meeting', co: 'DSC Ltd', status: 'In Progress', tone: 'late', due: '2d late', who: ['JS', 'PM'], ago: 'You · 2d ago', pulse: [0,0,0,0,1,0,0], msgs: [['You', '22 Sept', 'Ongoing']] },
+      { code: 'CC-002', title: 'Bank and TRA Machine Reconciliation', co: 'Furaha Innovation Ltd', status: 'Not Started', tone: 'soon', due: 'Sat 26 Sept', who: ['HS', 'VP', 'JS'], ago: 'You · 3d ago', pulse: [0,0,1,1,0,0,0], msgs: [['You', '21 Sept', 'To update by end of today']] },
+      { code: 'VI-006', title: 'CCTV, Fridge, Storage, Chillers etc', co: 'V1 Supermarket and Supplies Limited', status: 'In Progress', tone: 'soon', due: 'Sat 26 Sept', who: ['KA', 'SP', 'JS'], ago: 'Quiet for 2d', pulse: [0,0,0,0,0,0,0], msgs: [] },
+      { code: 'DD-002', title: 'Dar Distributors Instagram Plan', co: 'Dar Distributors', status: 'In Progress', tone: 'none', due: 'No date', who: ['SP', 'JS', 'JM'], ago: 'Jilna Manek · 24h ago', pulse: [0,0,0,0,0,1,1], unread: true, msgs: [['Jilna Manek', 'yesterday', '@Mr Shivam Parmar will send you logo on email. 20 post pictures are sent.']] },
+      { code: 'VI-003', title: 'Shelving quotations', co: 'V1 Supermarket and Supplies Limited', status: 'In Progress', tone: 'none', due: 'No date', who: ['KA'], ago: 'You · 1d ago', pulse: [0,0,0,1,0,1,0], msgs: [['You', '22 Sept', 'sticker design for shelves - Shivam.'], ['You', 'yesterday', 'One centre shelve pending in the 2.7m by 4m area. Informed Mr Karim to followup'], ['You', 'yesterday', 'The centre shelve is not included due to spacing constraints. So the final quotation is 8.22m']] },
+      { code: 'VI-001', title: 'V1 POS', co: 'V1 Supermarket and Supplies Limited', status: 'In Progress', tone: 'none', due: 'No date', who: ['SP', 'JM'], ago: 'You · 1d ago', pulse: [0,0,0,1,0,1,0], msgs: [['You', 'earlier', 'Quotation received from PowerComputers. Also spoke with Odoo representatives.'], ['You', 'yesterday', 'Finalizing with power computers and also getting the final pricing on hardware']] },
+      { code: 'PE-028', title: 'itrust account opening', co: 'PES Ltd', status: 'In Progress', tone: 'none', due: 'No date', who: ['JS'], ago: 'You · 2d ago', pulse: [0,0,0,0,1,0,0], msgs: [['You', '22 Sept', 'Awaiting Mr Maurice signature on board resolution, already shared with Mr Daniel, he is following up']] },
+      { code: 'VI-009', title: 'CCTV', co: 'V1 Supermarket and Supplies Limited', status: 'In Progress', tone: 'none', due: 'No date', who: ['SP', 'KA'], ago: 'You · 1d ago', pulse: [0,0,0,0,0,1,0], msgs: [['You', 'yesterday', 'Once Mr Pulin gets one more quotation, we will finalize what company package and installation service to use']] },
+      { code: 'OC-053', title: 'Website Development', co: 'Oracle Consultancy Ltd', status: 'In Progress', tone: 'none', due: 'No date', who: ['SP'], ago: 'Quiet', pulse: [0,0,0,0,0,0,0], msgs: [] },
+      { code: 'CC-029', title: 'Stamp Duty - CZ', co: 'Furaha Innovation Ltd', status: 'Not Started', tone: 'none', due: 'No date', who: ['SP', 'VP'], ago: 'Quiet', pulse: [0,0,0,0,0,0,0], msgs: [] }
+    ];
+    const people = (who) => who.map((i, n) => ({ ini: i, name: (PPL[i] || [i])[0], bg: (PPL[i] || [i, '#D3D6DA'])[1], ml: n ? '-7px' : '0' }));
+    const stOf = (t) => S.statusOver[t.code] || t.status;
+    const msgsOf = (t) => t.msgs.concat(S.extra[t.code] || []);
+    const pick = (code) => set({ sel: S.sel === code ? null : code, draft: '' });
+
+    const q = S.q.trim().toLowerCase();
+    let list = T.filter((t) => {
+      if (S.seg === 'late' && t.tone !== 'late') return false;
+      if (S.seg === 'soon' && t.tone !== 'soon') return false;
+      if (S.seg === 'ok' && (t.tone === 'late' || t.tone === 'soon')) return false;
+      if (!q) return true;
+      return (t.title + ' ' + t.code + ' ' + t.co + ' ' + t.who.map((i) => (PPL[i] || [i])[0]).join(' ')).toLowerCase().indexOf(q) >= 0;
+    });
+    list = list.slice().sort((a, b) => (S.stars[b.code] ? 1 : 0) - (S.stars[a.code] ? 1 : 0));
+    const rows = list.map((t) => {
+      const on = t.code === S.sel;
+      const starred = !!S.stars[t.code];
+      const st = stOf(t);
+      const m = msgsOf(t);
+      const last = m[m.length - 1];
+      const mine = (S.extra[t.code] || []).length > 0;
+      return {
+        ...t, on, status: st, statusDot: SDOT[st] || '#B9BBBF',
+        latest: last ? last[2] : 'No updates yet', ago: mine ? 'You · just now' : t.ago,
+        people: people(t.who),
+        ring: on ? '#111214' : '#FFFFFF', shadow: on ? '0 8px 22px rgba(17,18,20,0.12)' : 'none',
+        dueColor: DUE[t.tone], dueWeight: t.tone === 'late' ? '600' : '400',
+        pulse: t.pulse.map((v) => ({ h: v ? '18px' : '6px', c: v ? TONE[t.tone] : '#E6E6E2' })),
+        pulseLabel: t.pulse.filter(Boolean).length + ' days with an update in the last week',
+        starred, starFill: starred ? '#111214' : 'none', starColor: starred ? '#111214' : '#C4C5C9',
+        starLabel: starred ? 'Unpin from the top' : 'Pin to the top',
+        pick: () => pick(t.code), star: () => set({ stars: { ...S.stars, [t.code]: !starred } })
+      };
+    });
+
+    const base = T.find((t) => t.code === S.sel);
+    let sel = {};
+    if (base) {
+      const m = msgsOf(base);
+      const last = m[m.length - 1];
+      const st = stOf(base);
+      sel = {
+        ...base, status: st, statusDot: SDOT[st] || '#B9BBBF',
+        dueColor: base.tone === 'late' ? '#F07BBE' : base.tone === 'soon' ? '#F5B94E' : '#A3A6AB',
+        hasLast: !!last, noLast: !last,
+        last: last ? last[2] : '', lastWho: last ? last[0] : '', lastAt: last ? last[1] : '',
+        more: m.length > 1 ? ' · ' + (m.length - 1) + ' earlier — expand to read' : '',
+        people: people(base.who).map((p) => ({ ...p, ml: p.ml === '0' ? '0' : '-6px' })), whoLabel: base.who.map((i) => (PPL[i] || [i])[0]).join(', ')
+      };
+    }
+    const post = () => {
+      const body = S.draft.trim();
+      if (!body || !base) return;
+      set({ extra: { ...S.extra, [base.code]: (S.extra[base.code] || []).concat([['You', 'just now', body]]) }, draft: '' });
+    };
+    const starters = [['Still on it', 'Still on it — '], ['Waiting on', 'Waiting on ']].map(([label, text]) => ({ label, pick: () => set({ draft: text }) }));
+
+    const fresh = [
+      ['DD-002', 'JM', '#F8C4DE', 'Dar Distributors Instagram Plan', '20 post pictures are sent.', '24h', true],
+      ['VI-003', 'KA', '#FFD7A1', 'Shelving quotations', 'The final quotation is 8.22m', '1d', false],
+      ['VI-001', 'SP', '#C9D8FF', 'V1 POS', 'Finalizing with power computers…', '1d', false]
+    ].map(([code, ini, bg, task, body, ago, unread]) => ({ ini, bg, task, body, ago, unread, pick: () => pick(code) }));
+
+    const segs = [['all', 'All', 70, '#111214'], ['ok', 'On track', 51, '#19C37D'], ['soon', 'Due soon', 3, '#F5A524'], ['late', 'Late', 16, '#E0479E']].map(([k, l, n, d]) => {
+      const on = S.seg === k;
+      return { label: l, n, dot: d, on, bg: on ? '#111214' : '#FFFFFF', fg: on ? '#FFFFFF' : '#111214', border: on ? '#111214' : '#E4E4E0', pick: () => set({ seg: k }) };
+    });
+    const companies = [['Furaha Innovation', 12, 2], ['PES Ltd', 11, 2], ['V1 Supermarket', 11, 0], ['Oracle Consultancy', 11, 2], ['MES Ltd', 8, 8], ['DSC Ltd', 8, 1], ['Terra Green', 6, 1], ['Dar Distributors', 2, 0], ['Tanam Advisory', 1, 0]]
+      .map(([name, open, late]) => ({ name, open, lateTxt: late ? ' · ' + late + ' late' : '', okW: ((open - late) / 12 * 100) + '%', lateW: (late / 12 * 100) + '%' }));
+    const workload = [['Shivam Parmar', 31, 1, 'Well above the 6.7 average'], ['Jitesh Solanki', 25, 6, '6 late'], ['Vishal Pragji', 13, 0, 'None late'], ['Pulin Manek', 12, 8, '8 late — the most']]
+      .map(([name, open, late, note]) => ({ name, open, note, okW: ((open - late) / 31 * 100) + '%', lateW: (late / 31 * 100) + '%' }));
+    const titles = ['Overview', 'By company · open, and how many are late', 'By person · who is carrying the most'];
+    const tiles = [[13, 'Quiet 7+ days'], [9, 'Unread updates'], [2, 'Escalated'], [37, 'Done this month']].map(([n, label]) => ({ n, label }));
+
+    return {
+      rows, sel, fresh, starters, segs, companies, workload, tiles,
+      idle: !base, picked: !!base, unpick: () => set({ sel: null, draft: '' }),
+      rightTexture: base ? 'none' : 'repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px)',
+      cols: 'minmax(0, 1.5fr) 128px 84px 64px minmax(0, 1.6fr) 96px 28px',
+      q: S.q, onQ: (e) => set({ q: e.target.value }),
+      draft: S.draft, onDraft: (e) => set({ draft: e.target.value }), post,
+      shownLabel: rows.length + ' of 70 shown',
+      ins0: S.ins === 0, ins1: S.ins === 1, ins2: S.ins === 2, insTitle: titles[S.ins],
+      insDots: [0, 1, 2].map((i) => ({ w: i === S.ins ? '16px' : '6px', c: i === S.ins ? '#F2F2F0' : '#3A3D42' })),
+      insPrev: () => set({ ins: (S.ins + 2) % 3 }), insNext: () => set({ ins: (S.ins + 1) % 3 }),
+      segLate: () => set({ seg: 'late' }), segSoon: () => set({ seg: 'soon' })
+    };
+  }
+}
+</script>
+</body>
+</html>
