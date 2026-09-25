@@ -7,6 +7,7 @@
  * ⚠️ THEY WRITE THROUGH THE SAME PATHS AS THE OLD CELLS — `useInlineField`
  * (status, with its undo toast) and `toggleTaskStar`. Only the look is new.
  */
+import { PersonFace } from "@/components/studio/face";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -174,12 +175,8 @@ export function StudioFaces({ names, max = 3 }: { names: string[]; max?: number 
   return (
     <span className="flex" title={names.join(", ")}>
       {shown.map((n, i) => (
-        <span
-          key={n + i}
-          className="flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-[var(--st-surface)] text-[9px] font-semibold text-[#111214]"
-          style={{ background: avatarTint(n), marginLeft: i ? -7 : 0 }}
-        >
-          {initials(n)}
+        <span key={n + i} className="flex rounded-full border-2 border-[var(--st-surface)]" style={{ marginLeft: i ? -7 : 0 }}>
+          <PersonFace name={n} size={22} peek />
         </span>
       ))}
       {more > 0 && (

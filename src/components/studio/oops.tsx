@@ -50,7 +50,7 @@ export function StudioOops({ kind, title, body, home = "/", homeLabel = "Home", 
           <button type="button" onClick={back} className={cn(onRetry ? stBtn.onCardGhost : stBtn.onCard, "h-10 px-4 text-[13px]")}><ArrowLeft size={14} />Go back</button>
           <Link href={home} className={cn(stBtn.onCardGhost, "h-10 px-4 text-[13px]")}><Home size={14} />{homeLabel}</Link>
         </div>
-        {reference && <div className="mt-6 text-[11px] text-[#6E7177]">Reference <span className="st-mono">{reference}</span> — quote it if this keeps happening.</div>}
+        {reference && <div className="mt-6 text-[11px] text-[#A3A6AB]">Reference <span className="st-mono">{reference}</span> — quote it if this keeps happening.</div>}
       </div>
     </StudioScope>
   );

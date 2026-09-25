@@ -127,7 +127,7 @@ export function DeadlineEditor({
           onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
           className={cn(
             "inline-flex h-7 items-center whitespace-nowrap rounded-lg bg-[#1F2023] px-2.5 text-xs transition-colors hover:bg-[#2A2C30]",
-            overdue ? "text-[#F07BBE]" : soon ? "text-[#F5B94E]" : deadline ? "text-[#F2F2F0]" : "text-[#A3A6AB]",
+            overdue ? "text-[#F07BBE]" : soon ? "text-[#F5B94E]" : deadline ? "text-[#F2F2F0]" : "text-[#D4D6DA]",
             className,
           )}
         >
@@ -143,7 +143,7 @@ export function DeadlineEditor({
           onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
           className={cn(
             "-mx-1 whitespace-nowrap rounded-md px-1 text-[13px] transition-colors hover:bg-[var(--st-page)]",
-            overdue ? "font-semibold text-[var(--st-late-text)]" : soon ? "text-[var(--st-soon-text)]" : deadline ? "text-[var(--st-ink)]" : "text-[#A3A6AB]",
+            overdue ? "font-semibold text-[var(--st-late-text)]" : soon ? "text-[var(--st-soon-text)]" : deadline ? "text-[var(--st-ink)]" : "text-[var(--st-muted)]",
             className,
           )}
         >

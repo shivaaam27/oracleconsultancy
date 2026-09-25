@@ -1633,14 +1633,14 @@ section[data-page-header],
   --st-line: #E4E4E0;
   --st-line-soft: #F0F0EC;
   --st-seg: #E6E6E2;
-  --st-muted: #8E9197;
+  --st-muted: #676A70;
   --st-sub: #55585E;
   --st-card: #141517;
   --st-card-2: #1A1B1E;
   --st-card-3: #1F2023;
   --st-card-line: #26282C;
   --st-on-card: #F2F2F0;
-  --st-on-card-muted: #A3A6AB;
+  --st-on-card-muted: #D4D6DA;
   --st-late: #E0479E;
   --st-late-text: #C2327F;
   --st-soon: #F5A524;
@@ -1659,8 +1659,8 @@ section[data-page-header],
   --st-line: #2A2C30;
   --st-line-soft: #222428;
   --st-seg: #232428;
-  --st-muted: #8E9197;
-  --st-sub: #A3A6AB;
+  --st-muted: #B4B7BC;
+  --st-sub: #D0D2D6;
   --st-card: #1C1D21;
   --st-card-2: #232428;
   --st-card-3: #27292D;
@@ -1703,6 +1703,18 @@ section[data-page-header],
    44px thumb target (Apple HIG 44pt, Material 48dp) — owner, 25 Sept 2026. */
 :root { --foot-h: 72px; }
 @media (min-width: 768px) { :root { --foot-h: 64px; } }
+/* Readable text everywhere (owner, 25 Sept 2026: "all texts should be white or
+   black or dark grey"). --st-muted is a DARK grey now, for white surfaces; on a
+   dark card the same token must be a LIGHT grey, so every dark surface — found
+   by the background class it is drawn with — redefines the muted tokens. */
+.studio [class*="bg-[var(--st-card)]"],
+.studio [class*="bg-[#141517]"],
+.studio [class*="bg-[#1C1D20]"],
+.studio[class*="bg-[var(--st-card)]"] {
+  --st-muted: #B4B7BC;
+  --st-sub: #D0D2D6;
+  --st-label: #B4B7BC;
+}
 /* Every dropdown on a phone is a panel along the foot of the screen, full width
    and never off the edge (owner, 25 Sept 2026: "click on drop down buttons also
    there is overflow"). Tag a popup with `data-st-menu` and it gets this. The
@@ -1944,7 +1956,7 @@ body:has(main .studio) > * [data-field-label] {
   --sh-dots: rgba(17, 18, 20, 0.07);
   --sh-fg: #111214;
   --sh-sub: #55585E;
-  --sh-muted: #8E9197;
+  --sh-muted: #676A70;
   --sh-field: #F3F3F1;
   --sh-field-line: #E4E4E0;
   --sh-card: #F7F7F5;
@@ -1967,8 +1979,8 @@ body:has(main .studio) > * [data-field-label] {
   --sh-bg: #141517;
   --sh-dots: rgba(255, 255, 255, 0.10);
   --sh-fg: #F2F2F0;
-  --sh-sub: #A3A6AB;
-  --sh-muted: #8E9197;
+  --sh-sub: #D0D2D6;
+  --sh-muted: #B4B7BC;
   --sh-field: #1F2023;
   --sh-field-line: #3A3D42;
   --sh-card: #1A1B1E;
@@ -2016,8 +2028,8 @@ body:has(main .studio) > * [data-field-label] {
 /* Studio Calendar (mockup gen/p_calendar.py): a day tile with something on it,
    a day outside the month, and that day's grey date. Chips carry their light
    tint and a dark mix as variables; the class picks by theme. */
-.studio { --st-cal-busy: #FAFAF8; --st-cal-out: #FBFBFA; --st-cal-num-out: #C4C5C9; --st-label: #6E7177; --st-dash: #CFCFCA; --st-scrim: rgba(243,243,241,0.82); --st-track-off: #D6D6D2; --st-bad-line: #F5C6DF; --st-bad-wash: #FDEBF4; --st-warn-wash: #FEF3E0; --st-ok-wash: #E4F7EE; }
-.dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; --st-label: #8E9197; --st-dash: #4A4C52; --st-scrim: rgba(14,15,16,0.82); --st-track-off: #3A3D42; --st-bad-line: #4A2A3C; --st-bad-wash: #2A1622; --st-warn-wash: #2A2211; --st-ok-wash: #12261C; }
+.studio { --st-cal-busy: #FAFAF8; --st-cal-out: #FBFBFA; --st-cal-num-out: #C4C5C9; --st-label: #55585E; --st-dash: #CFCFCA; --st-scrim: rgba(243,243,241,0.82); --st-track-off: #D6D6D2; --st-bad-line: #F5C6DF; --st-bad-wash: #FDEBF4; --st-warn-wash: #FEF3E0; --st-ok-wash: #E4F7EE; }
+.dark .studio { --st-cal-busy: #1E1F23; --st-cal-out: #141518; --st-cal-num-out: #55585E; --st-label: #B4B7BC; --st-dash: #4A4C52; --st-scrim: rgba(14,15,16,0.82); --st-track-off: #3A3D42; --st-bad-line: #4A2A3C; --st-bad-wash: #2A1622; --st-warn-wash: #2A2211; --st-ok-wash: #12261C; }
 .st-cal-chip { background: var(--chip-l); color: var(--st-ink); }
 .dark .st-cal-chip { background: var(--chip-d); }
 /* A list that scrolls inside a dark Studio card: a thin dark thumb. */

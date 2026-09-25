@@ -740,3 +740,20 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
   "Show N more", open state in localStorage `studio.home.folds`.
 - Announcements and Chat are CLOSED to directors (`StudioRebuilding`) until they
   are rebuilt; add them back to `directorStops` then.
+
+## Faces, readable text, sign-in (25 Sept 2026)
+- **Faces = Blobatar** (MIT, `blobatar` + `@blobatar/react` 2.7.0). `components/studio/face.tsx`
+  `PersonFace` — colour by ROLE, expression by WORK (`lib/face-mood.ts`, tested:
+  sick › sad › thinking(in a meeting) › unsure › surprised › love › happy › sleepy › idle).
+  Moods come from `/api/faces` (owner/director; a scoped director sees only their
+  people), fetched once in the background and re-read every 5 min. `peek` = task-row
+  circles: the face shows ~2.4s then fades to the initials; hover brings it back.
+  ⚠️ Blobatar's `expression` takes an OBJECT from `blobatar/expression`, not a string.
+- **Readable text**: `--st-muted` is now a DARK grey (#676A70) for white surfaces; every
+  dark surface (class contains `bg-[var(--st-card)]` / `bg-[#141517]` / `bg-[#1C1D20]`)
+  redefines it light in globals.css. Hard-coded greys on dark cards were lifted to near
+  white. Don't put #8E9197 / #A3A6AB text back on either surface.
+- **Names keep Mr/Mrs/Ms**; `initials()` drops the title itself.
+- **Sign-in**: ONE screen at /login and /portal/login (`studio/auth/studio-sign-in.tsx`),
+  "Task Management" + the owner's tagline; fits a 700px-tall phone without scrolling.
+- 404/error: `studio/oops.tsx` everywhere. Company logos back (list + page).

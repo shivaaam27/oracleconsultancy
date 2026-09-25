@@ -170,6 +170,7 @@ const DIRECTOR_PATHS: RegExp[] = [
   /^\/outbox$/,                            // reminders for their companies' people
   /^\/chat(\/\d+)?$/,                      // their own messages (portal identity)
   /^\/announcements$/,                     // the feed, and posting their own
+  /^\/api\/faces$/,                        // the avatars' moods (scoped to their people)
 ];
 
 async function validPortalToken(token: string | undefined): Promise<boolean> {

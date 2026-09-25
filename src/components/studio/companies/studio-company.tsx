@@ -112,7 +112,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{data.name}</h1>
           <div className="mt-1.5 flex min-w-0 items-center gap-3 sm:mt-2.5">
-            <span className="truncate text-xs text-[#A3A6AB] sm:text-sm">Code {data.prefix} · {data.open} open {data.open === 1 ? "task" : "tasks"} · {data.people} {data.people === 1 ? "person" : "people"}</span>
+            <span className="truncate text-xs text-[#D4D6DA] sm:text-sm">Code {data.prefix} · {data.open} open {data.open === 1 ? "task" : "tasks"} · {data.people} {data.people === 1 ? "person" : "people"}</span>
             <span className="hidden sm:contents">{standingPill}</span>
           </div>
         </div>
@@ -122,7 +122,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
         {TABS.filter((t) => !(data.readOnly && t.id === "notes")).map((t) => (
           <Link key={t.id} role="tab" aria-selected={data.tab === t.id} href={t.id === "overview" ? `/companies/${data.id}` : `/companies/${data.id}?tab=${t.id}`} scroll={false}
             className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors sm:h-8", data.tab === t.id ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
-            {t.label}{t.id === "tasks" && data.open > 0 && <span className="text-xs text-[#8E9197]">{data.open}</span>}
+            {t.label}{t.id === "tasks" && data.open > 0 && <span className="text-xs text-[#B4B7BC]">{data.open}</span>}
           </Link>
         ))}
       </div>
@@ -280,7 +280,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
                 return (
                 <Link key={k} href={`/companies/${data.id}?tab=profile`} className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]">
                   <span className="text-[var(--st-muted)]">{k}</span>
-                  <span className={cn("truncate", n === 0 && "text-[#A3A6AB]")}>{n === 0 ? empty : `${n} ${n === 1 ? noun : noun.replace(/y$/, "ie") + "s"}`}</span>
+                  <span className={cn("truncate", n === 0 && "text-[var(--st-muted)]")}>{n === 0 ? empty : `${n} ${n === 1 ? noun : noun.replace(/y$/, "ie") + "s"}`}</span>
                 </Link>
                 );
               })}
@@ -348,7 +348,7 @@ function Briefing({ companyId }: { companyId: number }) {
   return (
     <section className="st-tex-dots flex min-h-[220px] shrink-0 flex-col rounded-[20px] bg-[#141517] px-6 py-5 text-[#F2F2F0] xl:max-h-[58%] xl:min-h-0 xl:flex-1">
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <div className="text-[13px] text-[#A3A6AB]">ORI briefing</div>
+        <div className="text-[13px] text-[#D4D6DA]">ORI briefing</div>
         <div className="flex gap-1.5">
           {text && (
             <button type="button" onClick={() => { void navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }); }}
@@ -365,7 +365,7 @@ function Briefing({ companyId }: { companyId: number }) {
           : text ? <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#E6E6E3]">{text}</p>
             : <>
                 <p className="text-[15px] leading-normal text-[#E6E6E3]">A short written read of how this company is doing — what moved, what is stuck and who to chase — from its tasks, documents and people.</p>
-                <p className="mt-2.5 text-xs text-[#8E9197]">Press Generate. It reads, it changes nothing.</p>
+                <p className="mt-2.5 text-xs text-[#B4B7BC]">Press Generate. It reads, it changes nothing.</p>
               </>}
       </div>
     </section>

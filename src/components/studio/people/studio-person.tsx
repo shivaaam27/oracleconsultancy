@@ -11,6 +11,7 @@
  * PersonPortalAccess, PersonProbation, PersonPackPanel, DeletePersonDialog,
  * LinkedNotesTab, PersonForm, and the people / pack actions.
  */
+import { PersonFace } from "@/components/studio/face";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -70,7 +71,9 @@ type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = { overview: "Overview", tasks: "Tasks", documents: "Files", journey: "Journey", equipment: "Equipment", notes: "Notes", history: "History", edit: "Edit" };
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null);
-const shortName = (n: string) => n.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "");
+// Names keep their Mr / Mrs / Ms (owner, 25 Sept 2026); initials() drops the
+// title itself, so the circles still read "JS".
+const shortName = (n: string) => n.trim();
 const waHref = (n: string) => `https://wa.me/${n.replace(/[^0-9]/g, "")}`;
 
 /** "2d late" / "Today" / "Sat 26" / "3 Oct" / "no date" — and its colour. */
@@ -103,7 +106,7 @@ function F({ k, v, wide }: { k: string; v: ReactNode; wide?: boolean }) {
   return (
     <div className={cn("min-w-0", wide && "col-span-2")}>
       <div className="text-[11px] text-[var(--st-muted)]">{k}</div>
-      <div className={cn("mt-0.5 truncate text-[13px] leading-snug", empty && "text-[#A3A6AB]")}>{empty ? "Not set" : v}</div>
+      <div className={cn("mt-0.5 truncate text-[13px] leading-snug", empty && "text-[var(--st-muted)]")}>{empty ? "Not set" : v}</div>
     </div>
   );
 }
@@ -261,12 +264,12 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:items-end sm:gap-x-[18px]">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
+        <PersonFace name={p.name} size={48} />
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[30px]">{p.name}</h1>
           {/* Desk: the labels sit with the facts, as on a company (not floating in the top row). */}
           <div className="mt-1.5 flex min-w-0 items-center gap-2">
-            <span className="truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</span>
+            <span className="truncate text-[13px] text-[#D4D6DA]">{subLine || PERSON_TYPE_LABELS[p.personType]}</span>
             <span className="hidden shrink-0 items-center gap-1.5 sm:flex">{pills}</span>
           </div>
         </div>
@@ -295,8 +298,8 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
               className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", tab === t ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
               {TAB_LABEL[t]}
-              {t === "tasks" && open.length > 0 && <span className="text-xs text-[#8E9197]">{open.length}</span>}
-              {t === "documents" && data.documents.length > 0 && <span className="text-xs text-[#8E9197]">{data.documents.length}</span>}
+              {t === "tasks" && open.length > 0 && <span className="text-xs text-[#B4B7BC]">{open.length}</span>}
+              {t === "documents" && data.documents.length > 0 && <span className="text-xs text-[#B4B7BC]">{data.documents.length}</span>}
             </button>
           ))}
         </div>
@@ -439,7 +442,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             <div className={cn("mt-2.5 flex flex-col gap-1", LIST)}>
               {data.reports.map((r, i) => (
                 <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className={cn("flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)] sm:min-h-0", i >= 3 && !allReports && "max-sm:hidden")}>
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#111214]" style={{ background: avatarTint(r.name) }}>{initials(shortName(r.name))}</span>
+                  <PersonFace name={r.name} size={32} peek />
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{shortName(r.name)}{r.dotted && <span className="text-[var(--st-muted)]"> (also)</span>}</span>
                     <span className="block truncate text-[11px] text-[var(--st-muted)]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>

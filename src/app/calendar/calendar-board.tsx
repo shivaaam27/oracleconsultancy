@@ -593,7 +593,7 @@ export function CalendarBoard({
                   <button key={k} type="button" aria-pressed={on}
                     onClick={() => (k === "events" ? setHideEvents((v) => !v) : toggleLayer(k as OverlayKind))}
                     disabled={k !== "events" && meetingsOnly}
-                    className={cn("flex h-6 items-center gap-2.5 rounded-md px-1 text-left text-xs transition-colors", on ? "text-[var(--st-ink)]" : "text-[#A3A6AB]")}>
+                    className={cn("flex h-6 items-center gap-2.5 rounded-md px-1 text-left text-xs transition-colors", on ? "text-[var(--st-ink)]" : "text-[var(--st-muted)]")}>
                     <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] border-[1.5px]" style={{ borderColor: c, background: on ? c : "transparent" }} />
                     {label}
                   </button>
@@ -1108,25 +1108,25 @@ function StudioNext7Bars({ days, perThing, pickedKey, evByDay, overlayByDay, onP
           }}>
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[13px] font-medium">{day.d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "short" })}</span>
-            <span className="text-[11px] text-[#8E9197]">{lines.length} {lines.length === 1 ? "thing" : "things"}</span>
+            <span className="text-[11px] text-[#B4B7BC]">{lines.length} {lines.length === 1 ? "thing" : "things"}</span>
           </div>
           {kinds.size > 0 && (
-            <div className="mt-1 text-[11px] text-[#A3A6AB]">{[...kinds].map(([l, n]) => `${n} ${n === 1 ? l.replace(/s$/, "") : l}`).join(" · ")}</div>
+            <div className="mt-1 text-[11px] text-[#D4D6DA]">{[...kinds].map(([l, n]) => `${n} ${n === 1 ? l.replace(/s$/, "") : l}`).join(" · ")}</div>
           )}
           {lines.length === 0 ? (
-            <div className="mt-2 text-xs text-[#8E9197]">Nothing on this day.</div>
+            <div className="mt-2 text-xs text-[#B4B7BC]">Nothing on this day.</div>
           ) : (
             <ul className="mt-2 flex flex-col gap-1">
               {lines.slice(0, 6).map((l) => (
                 <li key={l.key} className="flex min-w-0 items-center gap-2 text-xs">
-                  <span className="w-[52px] shrink-0 whitespace-nowrap text-[11px] text-[#8E9197] [font-family:var(--font-geist-mono),ui-monospace,monospace]">{l.when}</span>
+                  <span className="w-[52px] shrink-0 whitespace-nowrap text-[11px] text-[#B4B7BC] [font-family:var(--font-geist-mono),ui-monospace,monospace]">{l.when}</span>
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: l.c }} />
                   <span className="truncate">{l.title}</span>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-2 border-t border-[#26282C] pt-2 text-[11px] text-[#8E9197]">
+          <div className="mt-2 border-t border-[#26282C] pt-2 text-[11px] text-[#B4B7BC]">
             {lines.length > 6 ? `+${lines.length - 6} more · ` : ""}Click to list {lines.length > 1 ? "them all" : "it"} on the left
           </div>
         </div>,
@@ -2049,7 +2049,7 @@ function EventForm({
   // layout is the mockup's: title · two columns · a footer that says whether
   // it clashes.
   const LBL = "flex items-center justify-between gap-3 text-xs text-[var(--st-label)]";
-  const HINT = "text-[11px] text-[#A3A6AB]";
+  const HINT = "text-[11px] text-[var(--st-muted)]";
   const BOX = "flex h-[38px] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px]";
   const BARE = "bare-field h-full w-full min-w-0 rounded-none p-0 text-[13px] outline-none ring-0 focus:ring-0 placeholder:text-[var(--st-muted)]";
   const ACT = "inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2E3035] px-2.5 text-xs text-[#E6E6E3] transition-colors hover:bg-[#1F2023] disabled:opacity-40";
@@ -2087,7 +2087,7 @@ function EventForm({
                 {!readOnly && acts.emailCount > 0 && acts.isPast && <button type="button" onClick={acts.draftFollowup} disabled={acts.pending} className={ACT} title="Draft a follow-up to each guest in the Outbox"><Undo2 size={13} />Follow-up</button>}
               </>
             ) : (
-              <span className="self-center truncate px-1 text-xs text-[#8E9197]">New event — the invite, the links and sharing appear here once it is saved.</span>
+              <span className="self-center truncate px-1 text-xs text-[#B4B7BC]">New event — the invite, the links and sharing appear here once it is saved.</span>
             )}
           </div>
           {editing && !readOnly && (
@@ -2270,14 +2270,14 @@ function EventForm({
                 <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px]">
                   <StudioTick on={notifyGuests} onClick={() => setNotifyGuests((v) => !v)} />
                   Tell guests about this change
-                  <span className="text-[11px] text-[#A3A6AB]">{notifyGuests ? "(they get an email of what changed)" : "(their calendar updates by itself)"}</span>
+                  <span className="text-[11px] text-[var(--st-muted)]">{notifyGuests ? "(they get an email of what changed)" : "(their calendar updates by itself)"}</span>
                 </label>
               )}
               {!editing && (
                 <label className={cn("flex cursor-pointer select-none items-center gap-2.5 text-[13px]", !trackTask && "text-[var(--st-sub)]")}>
                   <StudioTick on={trackTask} onClick={() => setTrackTask((v) => !v)} />
                   {companyIds.length > 1 ? `Track as ${companyIds.length} tasks` : "Track this meeting as a task"}
-                  <span className="text-[11px] text-[#A3A6AB]">{companyIds.length ? "(new events · one per company)" : "(pick a company first)"}</span>
+                  <span className="text-[11px] text-[var(--st-muted)]">{companyIds.length ? "(new events · one per company)" : "(pick a company first)"}</span>
                 </label>
               )}
             </div>

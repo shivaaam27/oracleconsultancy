@@ -59,7 +59,7 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
         <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 lg:col-span-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--st-on-card-muted)] sm:text-[13px]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--st-on-card)] sm:text-[13px]">
                 {data.greeting}
                 {data.announcements && (
                   <Link href="/announcements" className="inline-flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-lg bg-[#1F2023] px-2 py-0.5 text-xs text-[#E6E6E3] hover:bg-[#26282C]">
@@ -114,7 +114,7 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
             <div className="flex gap-0.5 rounded-[10px] bg-[#1F2023] p-[3px]">
               {(["today", "week"] as const).map((k) => (
                 <button key={k} type="button" aria-pressed={due === k} onClick={() => setDue(k)}
-                  className={cn("h-[26px] whitespace-nowrap rounded-[7px] px-2.5 text-xs", due === k ? "bg-[#F2F2F0] font-medium text-[#111214]" : "text-[#A3A6AB] hover:text-white")}>
+                  className={cn("h-[26px] whitespace-nowrap rounded-[7px] px-2.5 text-xs", due === k ? "bg-[#F2F2F0] font-medium text-[#111214]" : "text-[#D4D6DA] hover:text-white")}>
                   {k === "today" ? "Today" : "This week"}
                 </button>
               ))}

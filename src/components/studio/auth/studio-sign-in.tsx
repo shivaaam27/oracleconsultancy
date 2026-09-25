@@ -31,8 +31,8 @@ type As = "staff" | "admin";
 const AS_KEY = "cos.signin.as";
 const NAME_KEY = "portal.rememberedName";
 
-const FIELD = "bare-field h-12 w-full rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[15px] text-[var(--st-ink)] outline-none transition-colors placeholder:text-[var(--st-muted)] focus:border-[var(--st-ink)]";
-const PRIMARY = "inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--st-ink)] text-[15px] font-semibold text-[var(--st-page)] transition-opacity hover:opacity-90 disabled:opacity-60";
+const FIELD = "bare-field h-11 sm:h-12 w-full rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[15px] text-[var(--st-ink)] outline-none transition-colors placeholder:text-[var(--st-muted)] focus:border-[var(--st-ink)]";
+const PRIMARY = "inline-flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--st-ink)] text-[15px] font-semibold text-[var(--st-page)] transition-opacity hover:opacity-90 disabled:opacity-60";
 
 export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: boolean; defaultAs?: As }) {
   const [as, setAs] = useState<As>(defaultAs);
@@ -54,15 +54,16 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
       <div className="mx-auto grid min-h-full max-w-[1280px] grid-cols-1 gap-5 p-3 sm:p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:p-5">
         <BrandPanel />
 
-        <div className="flex flex-col items-center justify-center px-1 pb-10 pt-3 sm:px-2 sm:py-14">
-          <div className="flex w-full max-w-[440px] flex-col gap-6 lg:max-w-[400px]">
+        <div className="flex flex-col items-center justify-center px-1 pb-2 pt-1 sm:px-2 sm:py-14">
+          {/* Phone (owner, 25 Sept 2026): the whole screen fits without scrolling. */}
+          <div className="flex w-full max-w-[440px] flex-col gap-3 sm:gap-6 lg:max-w-[400px]">
             {/* Phone and tablet: the brand panel, compact, above the form. */}
             <BrandCompact />
 
-            <div className="flex flex-col gap-6 rounded-[22px] bg-[var(--st-surface)] p-5 sm:p-6 lg:bg-transparent lg:p-0">
+            <div className="flex flex-col gap-3.5 rounded-[22px] bg-[var(--st-surface)] p-4 sm:gap-6 sm:p-6 lg:bg-transparent lg:p-0">
             <div>
-              <h1 className="m-0 text-[34px] font-medium leading-none tracking-[-0.035em] sm:text-[40px]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
-              <p className="m-0 mt-2.5 text-[14px] text-[var(--st-sub)]">
+              <h1 className="m-0 text-[28px] font-medium leading-none tracking-[-0.035em] sm:text-[40px]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
+              <p className="m-0 mt-2.5 hidden text-[14px] text-[var(--st-sub)] sm:block">
                 {firstRun && as === "admin" ? "Choose the administrator password to begin." : "Welcome back. Who are you signing in as?"}
               </p>
             </div>
@@ -73,13 +74,13 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
                 style={{ transform: as === "admin" ? "translateX(100%)" : "translateX(0)" }} />
               {([["staff", "Team member", UserRound], ["admin", "Administrator", ShieldCheck]] as const).map(([v, label, Icon]) => (
                 <button key={v} type="button" role="radio" aria-checked={as === v} onClick={() => choose(v)}
-                  className={cn("relative z-10 flex h-11 items-center justify-center gap-2 rounded-[11px] text-[14px] transition-colors", as === v ? "font-semibold text-[var(--st-ink)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                  className={cn("relative z-10 flex h-10 items-center justify-center gap-2 rounded-[11px] text-[14px] transition-colors sm:h-11", as === v ? "font-semibold text-[var(--st-ink)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
                   <Icon size={16} />{label}
                 </button>
               ))}
             </div>
 
-            <div key={as} className="st-pop flex flex-col gap-4">
+            <div key={as} className="st-pop flex flex-col gap-3 sm:gap-4">
               {as === "staff" ? <StaffForm /> : <AdminForm firstRun={firstRun} />}
               {!(firstRun && as === "admin") && (
                 <>
@@ -91,7 +92,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
               )}
             </div>
 
-            <p className="m-0 text-center text-xs leading-relaxed text-[var(--st-muted)]">
+            <p className="m-0 hidden text-center text-xs leading-relaxed text-[var(--st-muted)] sm:block">
               {as === "staff"
                 ? "No access yet? Ask your administrator to switch the portal on for you."
                 : firstRun ? "You can add Face ID or a fingerprint from Settings afterwards." : "Forgot it? Reset it from Settings on a device that is already signed in."}
@@ -116,7 +117,7 @@ function StaffForm() {
   }, []);
   return (
     <ShakeOnError errorKey={state?.error ?? null}>
-      <form action={action} className="flex flex-col gap-3"
+      <form action={action} className="flex flex-col gap-2.5 sm:gap-3"
         onSubmit={() => {
           const v = name.current?.value.trim();
           try { if (remember && v) window.localStorage.setItem(NAME_KEY, v); else window.localStorage.removeItem(NAME_KEY); } catch { /* ignore */ }
@@ -126,7 +127,7 @@ function StaffForm() {
           <input ref={name} id="signin-staff-identifier" name="identifier" autoComplete="username webauthn" required className={FIELD} placeholder="you@company.com" />
         </label>
         <Password id="signin-staff-password" name="password" label="Password" autoComplete="current-password" />
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] text-[var(--st-sub)]">
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] text-[var(--st-sub)] max-sm:-my-0.5">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[#111214]" />
           Remember me on this device
         </label>
@@ -143,7 +144,7 @@ function AdminForm({ firstRun }: { firstRun: boolean }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(firstRun ? adminSetup : adminLogin, null);
   return (
     <ShakeOnError errorKey={state?.error ?? null}>
-      <form action={action} className="flex flex-col gap-3">
+      <form action={action} className="flex flex-col gap-2.5 sm:gap-3">
         {!firstRun && (
           <label className="flex flex-col gap-1.5">
             {/* The owner-identity second factor. It must never hint a REAL address. */}
@@ -203,17 +204,17 @@ const TAGLINE = "In-house, and the first in Tanzania — an advanced task manage
 /** Phone and tablet: the same dark panel, sized to sit above the form. */
 function BrandCompact() {
   return (
-    <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] px-5 pb-5 pt-5 text-[#F2F2F0] lg:hidden">
+    <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] p-4 text-[#F2F2F0] sm:p-5 lg:hidden">
       <div className="flex items-center gap-2.5">
         <LogoTile size={36} />
-        <div className="text-[13px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-[11px] font-normal text-[#A3A6AB]">Chief of Staff</span></div>
+        <div className="text-[13px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-[11px] font-normal text-[#D4D6DA]">Chief of Staff</span></div>
         <ThemeButton inline />
       </div>
-      <div className="mt-5 text-[32px] font-medium leading-[0.95] tracking-[-0.035em]">Every company.<br />One desk.</div>
-      <p className="m-0 mt-3 text-[13px] leading-relaxed text-[#A3A6AB]">{TAGLINE}</p>
-      <div className="mt-4 flex h-[34px] items-end gap-[3px]" aria-hidden>
+      <div className="mt-3.5 text-[26px] font-medium leading-none tracking-[-0.03em] sm:mt-5 sm:text-[32px]">Task Management</div>
+      <p className="m-0 mt-2 text-[12px] leading-snug text-[#D4D6DA] sm:mt-3 sm:text-[13px] sm:leading-relaxed">{TAGLINE}</p>
+      <div className="mt-3 flex h-[24px] items-end gap-[3px] sm:mt-4 sm:h-[34px]" aria-hidden>
         {BARS.map((h, i) => (
-          <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: Math.round(h / 2), maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
+          <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: `${Math.round((h / 66) * 100)}%`, maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
         ))}
       </div>
     </div>
@@ -228,11 +229,11 @@ function BrandPanel() {
     <aside className="st-tex-rings relative hidden min-h-[560px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#141517] p-10 text-[#F2F2F0] lg:flex">
       <div className="flex items-center gap-3">
         <LogoTile size={48} />
-        <div className="text-[15px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-xs font-normal text-[#A3A6AB]">Chief of Staff</span></div>
+        <div className="text-[15px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-xs font-normal text-[#D4D6DA]">Chief of Staff</span></div>
       </div>
       <div>
-        <div className="text-[64px] font-medium leading-[0.95] tracking-[-0.04em]">Every company.<br />One desk.</div>
-        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-[#A3A6AB]">{TAGLINE}</p>
+        <div className="text-[64px] font-medium leading-[0.95] tracking-[-0.04em]">Task<br />Management</div>
+        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-[#D4D6DA]">{TAGLINE}</p>
       </div>
       <div>
         <div className="flex h-[70px] items-end gap-[3px]" aria-hidden>
@@ -240,7 +241,7 @@ function BrandPanel() {
             <span key={i} className="st-rise block w-[7px] rounded-[3px]" style={{ height: h, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between text-xs text-[#8E9197]">
+        <div className="mt-4 flex items-center justify-between text-xs text-[#B4B7BC]">
           <span>Secure sign-in</span><span>© {new Date().getFullYear()} Oracle Consultancy</span>
         </div>
       </div>

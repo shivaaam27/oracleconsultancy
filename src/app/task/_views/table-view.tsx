@@ -223,7 +223,7 @@ export function TableView({
             {r.recurringRuleId != null && <Repeat size={12} className="shrink-0 text-[var(--st-muted)]" aria-label="Repeats" />}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--st-muted)]">
-            <span className="st-mono shrink-0 text-[11px] text-[#6E7177]">{r.code}</span>
+            <span className="st-mono shrink-0 text-[11px] text-[var(--st-muted)]">{r.code}</span>
             <span className="shrink-0 lg:hidden">· {r.status}</span>
             {!hideCompany && <span className="truncate">{r.companyName}</span>}
             <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
@@ -264,11 +264,11 @@ export function TableView({
       csv: (r) => r.latestActivity?.body ?? "",
       render: (r) => {
         const a = r.latestActivity;
-        if (!a) return <span className="text-[13px] text-[#A3A6AB]">No updates yet</span>;
+        if (!a) return <span className="text-[13px] text-[var(--st-muted)]">No updates yet</span>;
         return (
           <div className="min-w-0 leading-[1.35]">
             <div className="truncate text-[13px] text-[var(--st-sub)]">{a.body}</div>
-            <div className="mt-0.5 truncate text-[11px] text-[#A3A6AB]">{a.author} · {ago(a.atISO)}</div>
+            <div className="mt-0.5 truncate text-[11px] text-[var(--st-muted)]">{a.author} · {ago(a.atISO)}</div>
           </div>
         );
       },

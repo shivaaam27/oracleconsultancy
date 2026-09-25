@@ -73,7 +73,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
         <FileIcon ext={f.ext} size={26} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{displayName(f)}</div>
-          <div className="truncate text-xs text-[#8E9197]">{review ? <span className="text-[#F2F2F0]">Check the details · </span> : null}{place} · {fmtSize(f.size)} · {i + 1} of {list.length}</div>
+          <div className="truncate text-xs text-[#B4B7BC]">{review ? <span className="text-[#F2F2F0]">Check the details · </span> : null}{place} · {fmtSize(f.size)} · {i + 1} of {list.length}</div>
         </div>
         <div className="hidden items-center gap-1.5 md:flex">
           {!readOnly && <button type="button" className={BTN} onClick={() => onRename(f)}><PenLine size={14} />Rename</button>}
@@ -128,7 +128,7 @@ function WordFrame({ id, title }: { id: number; title: string }) {
     return () => { live = false; };
   }, [id]);
   if (failed) return <Empty text="This Word file couldn't be read — download it to open it." />;
-  if (html == null) return <Loader2 size={20} className="animate-spin text-[#8E9197]" />;
+  if (html == null) return <Loader2 size={20} className="animate-spin text-[#B4B7BC]" />;
   return <iframe title={title} srcDoc={html} sandbox="" className="h-full w-full max-w-[860px] rounded-lg bg-white shadow-[0_30px_80px_rgba(0,0,0,0.5)]" />;
 }
 
@@ -136,7 +136,7 @@ function Empty({ text, action }: { text: string; action?: React.ReactNode }) {
   return (
     <div className="flex max-w-[360px] flex-col items-center text-center">
       <FileIcon ext="" size={52} />
-      <p className="mt-4 text-[13px] text-[#A3A6AB]">{text}</p>
+      <p className="mt-4 text-[13px] text-[#D4D6DA]">{text}</p>
       {action}
     </div>
   );
@@ -204,29 +204,29 @@ function Details({ f, trail, onSaved, review = false, readOnly = false, last = f
     toast(r.ok ? "Renewal task raised — due on the expiry date." : r.error, { tone: r.ok ? "success" : "danger" });
     if (r.ok) onSaved({});
   });
-  const L = "mb-1 block text-xs text-[#8E9197]";
+  const L = "mb-1 block text-xs text-[#B4B7BC]";
   return (
     <aside className={cn("min-h-0 flex-col gap-4 overflow-y-auto border-[#26282C] p-5 lg:flex lg:border-l", review ? "flex border-t lg:border-t-0" : "hidden")}>
       {review && (
         <div className="flex items-center gap-2 rounded-[10px] border border-[#2E3035] bg-[#141517] px-3 py-2.5 text-[13px]">
-          {reading ? <Loader2 size={14} className="shrink-0 animate-spin text-[#8E9197]" /> : <Sparkles size={14} className="shrink-0 text-[#9DB4FF]" />}
-          <span className={reading ? "text-[#A3A6AB]" : ""}>{reading ? "Reading the file…" : readNote ?? "Check the boxes, then Save & next."}</span>
+          {reading ? <Loader2 size={14} className="shrink-0 animate-spin text-[#B4B7BC]" /> : <Sparkles size={14} className="shrink-0 text-[#9DB4FF]" />}
+          <span className={reading ? "text-[#D4D6DA]" : ""}>{reading ? "Reading the file…" : readNote ?? "Check the boxes, then Save & next."}</span>
         </div>
       )}
       <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
-        <span className="text-[#8E9197]">Company</span><span className="truncate">{f.companyName ?? "—"}</span>
-        <span className="text-[#8E9197]">Person</span><span className="truncate">{f.personName ?? "—"}</span>
-        <span className="text-[#8E9197]">Folder</span><span className="truncate" title={trail}>{trail}</span>
-        <span className="text-[#8E9197]">Added</span><span className="truncate">{addedBy(f.createdBy)} · {when(f.createdAt)}</span>
-        <span className="text-[#8E9197]">Changed</span><span>{when(f.updatedAt)}</span>
-        {f.expiryDate && <><span className="text-[#8E9197]">Status</span><span><ExpiryPill f={f} /></span></>}
+        <span className="text-[#B4B7BC]">Company</span><span className="truncate">{f.companyName ?? "—"}</span>
+        <span className="text-[#B4B7BC]">Person</span><span className="truncate">{f.personName ?? "—"}</span>
+        <span className="text-[#B4B7BC]">Folder</span><span className="truncate" title={trail}>{trail}</span>
+        <span className="text-[#B4B7BC]">Added</span><span className="truncate">{addedBy(f.createdBy)} · {when(f.createdAt)}</span>
+        <span className="text-[#B4B7BC]">Changed</span><span>{when(f.updatedAt)}</span>
+        {f.expiryDate && <><span className="text-[#B4B7BC]">Status</span><span><ExpiryPill f={f} /></span></>}
       </div>
       <div className="h-px shrink-0 bg-[#26282C]" />
       {readOnly ? (
         <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
           {([["Expires", f.expiryDate], ["Issued", f.issueDate], ["Type", f.docType], ["Reference", f.referenceNo], ["Issued by", f.issuer], ["Notes", f.notes]] as const)
             .filter(([, val]) => val)
-            .map(([k, val]) => <Fragment key={k}><span className="text-[#8E9197]">{k}</span><span className="whitespace-pre-wrap break-words">{val}</span></Fragment>)}
+            .map(([k, val]) => <Fragment key={k}><span className="text-[#B4B7BC]">{k}</span><span className="whitespace-pre-wrap break-words">{val}</span></Fragment>)}
         </div>
       ) : (
       <>
@@ -258,7 +258,7 @@ function Details({ f, trail, onSaved, review = false, readOnly = false, last = f
       </>
       )}
       {f.companyId && (
-        <a href={`/companies/${f.companyId}`} className="inline-flex items-center gap-1.5 text-xs text-[#A3A6AB] hover:text-[#F2F2F0]"><ExternalLink size={12} />{f.companyName}</a>
+        <a href={`/companies/${f.companyId}`} className="inline-flex items-center gap-1.5 text-xs text-[#D4D6DA] hover:text-[#F2F2F0]"><ExternalLink size={12} />{f.companyName}</a>
       )}
     </aside>
   );

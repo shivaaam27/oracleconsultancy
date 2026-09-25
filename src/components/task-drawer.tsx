@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonFace } from "@/components/studio/face";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
@@ -1093,7 +1094,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             <div className="space-y-2.5">
               {t.assignees.map((n, i) => (
                 <div key={n + i} className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-[#111214]" style={{ background: avatarTint(n) }}>{studioInitials(n)}</span>
+                  <PersonFace name={n} size={32} peek />
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] font-medium">{n}</span>
                     <span className="block text-[11px] text-[var(--st-muted)]">{i === 0 ? (t.accountability === "lead" ? "The lead" : "Accountable") : "Also on it"}</span>

@@ -13,6 +13,7 @@
  *   body    a card per person, grouped; or the Attention queue, worst first
  *   foot    search + the filter chips; Select for bulk changes
  */
+import { PersonFace } from "@/components/studio/face";
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -48,7 +49,9 @@ const CHIPS: [string, string, string][] = [
 ];
 const GROUPS: [string, string][] = [["company", "Company"], ["manager", "Manager"], ["department", "Department"], ["site", "Location"], ["none", "No grouping"]];
 
-const shortName = (n: string) => n.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "");
+// Names keep their Mr / Mrs / Ms (owner, 25 Sept 2026); initials() drops the
+// title itself, so the circles still read "JS".
+const shortName = (n: string) => n.trim();
 const probationSoon = (p: PersonRow, now: number) => {
   if (!p.probationEndDate) return false;
   const d = (new Date(p.probationEndDate).getTime() - now) / 86_400_000;
@@ -72,13 +75,9 @@ function reminderText(p: PersonRow): string {
 }
 const waHref = (num: string, text?: string) => `https://wa.me/${num.replace(/[^0-9]/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
+/** Their face (Blobatar): colour by role, expression by their work. */
 function Avatar({ name, size = 38 }: { name: string; size?: number }) {
-  return (
-    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-[#111214]"
-      style={{ width: size, height: size, background: avatarTint(name), fontSize: Math.round(size / 3.2) }}>
-      {initials(shortName(name))}
-    </span>
-  );
+  return <PersonFace name={name} size={size} />;
 }
 
 /** "+ Add person" opens the footer's "+ New" card on its Person tab (the one
@@ -374,7 +373,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                   <div className="flex items-baseline gap-2.5 px-1 pb-2">
                     <span className="text-[15px] font-semibold">{g.name}</span>
                     <span className="text-xs" style={{ color: noteC }}>{note}</span>
-                    <span className="text-xs text-[#A3A6AB]">{g.items.length} {g.items.length === 1 ? "person" : "people"}</span>
+                    <span className="text-xs text-[var(--st-muted)]">{g.items.length} {g.items.length === 1 ? "person" : "people"}</span>
                   </div>
                 )}
                 {/* Phone (mockup M_People): the group is one white card of rows. */}

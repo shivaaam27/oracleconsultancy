@@ -121,7 +121,7 @@ export function FiltersButton({ sections, activeCount, extra }: { sections: Filt
             <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
               {sections.map((s) => (
                 <div key={s.title}>
-                  <div className="mb-2 flex justify-between text-xs text-[#6E7177]"><span>{s.title}</span>{s.note && <span className="text-[#A3A6AB]">{s.note}</span>}</div>
+                  <div className="mb-2 flex justify-between text-xs text-[var(--st-muted)]"><span>{s.title}</span>{s.note && <span className="text-[var(--st-muted)]">{s.note}</span>}</div>
                   <div className="flex flex-wrap gap-1.5">
                     {s.items.map((o) => (
                       <Link

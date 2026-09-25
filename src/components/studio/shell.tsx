@@ -33,7 +33,7 @@ import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
 const FOOT_BTN =
-  "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#2A2C30] bg-transparent text-xs text-[#A3A6AB] transition-colors hover:border-[#3A3D42] hover:text-[#F2F2F0]";
+  "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#2A2C30] bg-transparent text-xs text-[#D4D6DA] transition-colors hover:border-[#3A3D42] hover:text-[#F2F2F0]";
 
 /** A director on the shared screens (lib/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
@@ -193,7 +193,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
             <Link
               href="/"
               aria-label="Home"
-              className={cn("flex h-11 w-11 shrink-0 items-center justify-center gap-[7px] rounded-[12px] transition-colors hover:text-white md:h-9 md:w-auto md:justify-start md:px-0", onHome ? "text-white" : "text-[#8E9197]")}
+              className={cn("flex h-11 w-11 shrink-0 items-center justify-center gap-[7px] rounded-[12px] transition-colors hover:text-white md:h-9 md:w-auto md:justify-start md:px-0", onHome ? "text-white" : "text-[#B4B7BC]")}
             >
               <Home size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Home</span>
@@ -205,7 +205,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(-1); setPending((i - 1 + stops.length) % stops.length); }}
                 aria-label={`Previous page: ${prev.label}`}
                 title={prev.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#D4D6DA] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
               >
                 <ChevronLeft size={13} strokeWidth={2.2} />
               </Link>
@@ -228,7 +228,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(1); setPending((i + 1) % stops.length); }}
                 aria-label={`Next page: ${next.label}`}
                 title={next.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#A3A6AB] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#D4D6DA] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
               >
                 <ChevronRight size={13} strokeWidth={2.2} />
               </Link>
@@ -237,7 +237,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               <Link
                 href="/portal/profile"
                 aria-label="Your profile"
-                className="hidden h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#8E9197] transition-colors hover:text-white sm:flex md:px-0"
+                className="hidden h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#B4B7BC] transition-colors hover:text-white sm:flex md:px-0"
               >
                 <UserRound size={16} strokeWidth={2} />
                 <span className="hidden lg:inline">Profile</span>
@@ -246,7 +246,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
             <Link
               href="/settings"
               aria-label="Settings"
-              className={cn("hidden h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white sm:flex md:px-0", onSettings ? "text-white" : "text-[#8E9197]")}
+              className={cn("hidden h-9 items-center gap-[7px] rounded-[10px] px-2 transition-colors hover:text-white sm:flex md:px-0", onSettings ? "text-white" : "text-[#B4B7BC]")}
             >
               <SettingsIcon size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Settings</span>
@@ -260,7 +260,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
             <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2", !director && "sm:inline-flex")}>
               <Search size={14} />
               <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
-              <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#8E9197]">⌘K</span>
+              <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#B4B7BC]">⌘K</span>
             </button>
             {/* Sign out — the owner's session, or a director's portal one. It
                 lived only at the foot of Settings, which nobody finds (owner,
@@ -535,11 +535,11 @@ function NeedsTicker({ items }: { items: NonNullable<StudioFootNote>[] }) {
       onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}
       aria-live="polite"
     >
-      <div className="flex items-center gap-1.5 text-[11px] text-[#8E9197]">
+      <div className="flex items-center gap-1.5 text-[11px] text-[#B4B7BC]">
         {it.tone && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TONE_DOT[it.tone] }} />}
         <span>{it.label}</span>
         {count > 1 && (
-          <button type="button" onClick={() => setI((n) => (n + 1) % count)} title="Next" className="tabular-nums text-[#6E7177] hover:text-[#C9CBCF]">
+          <button type="button" onClick={() => setI((n) => (n + 1) % count)} title="Next" className="tabular-nums text-[#A3A6AB] hover:text-[#C9CBCF]">
             {Math.min(i, count - 1) + 1}/{count}
           </button>
         )}

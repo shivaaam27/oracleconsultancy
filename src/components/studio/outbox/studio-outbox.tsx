@@ -12,6 +12,7 @@
  * drafts, no snoozing, no undo, and the automation card is there to read — the
  * server refuses all of it anyway (`app/outbox/actions.ts`).
  */
+import { PersonFace } from "@/components/studio/face";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -297,13 +298,10 @@ export function StudioOutbox({
   );
 }
 
+/** Their face: small ones in the list peek then show initials; the open
+ *  reminder's big one stays. */
 function Face({ name, size }: { name: string; size: number }) {
-  return (
-    <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-[#111214]"
-      style={{ width: size, height: size, background: avatarTint(name), fontSize: size >= 40 ? 14 : 11 }}>
-      {initials(name)}
-    </span>
-  );
+  return <PersonFace name={name} size={size} peek={size < 40} />;
 }
 
 function CompanyChip({ value, options, onChange }: { value: string | null; options: [string, number][]; onChange: (c: string | null) => void }) {
