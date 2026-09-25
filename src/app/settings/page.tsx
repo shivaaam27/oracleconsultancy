@@ -1,6 +1,5 @@
 import { Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
-import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
 import { SettingsSections, type SettingsGroup } from "@/components/settings-sections";
@@ -15,7 +14,8 @@ import { resolveMatrix, PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS } from "@/lib/port
 import { parsePortalRole, directorScopeOf } from "@/lib/portal-access";
 import { PortalPermissionsEditor } from "@/components/portal-permissions-editor";
 import { RevealPassword } from "@/components/reveal-password";
-import { InstallApp } from "@/components/install-app";
+import { StudioInstall } from "@/components/studio/studio-install";
+import { AppearanceSetting } from "@/components/studio/appearance-setting";
 import { getSecurityStatus } from "@/lib/security-status";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
@@ -36,7 +36,7 @@ import { FormSwitch } from "@/components/form-switch";
 import { StudioScope, StudioCard, StudioCardRow, CardHead } from "@/components/studio/kit";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
+import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, Sun, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -53,13 +53,15 @@ const NOTES: Record<string, { ok: boolean; text: string }> = {
 };
 
 const SETTINGS_GROUPS: SettingsGroup[] = [
-  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "install", "risk", "navigation"] },
+  // Navigation (pinned pages) was removed — unused (owner, 25 Sept 2026); this
+  // device's look and alerts moved in so General is not two lonely cards.
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "appearance", "risk", "notifications"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys"] },
-  { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "maintenance"] },
+  { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["quiet-hours", "maintenance"] },
 ];
 
 /** Sticky Save button shared by every per-section settings form. Tagged
@@ -151,14 +153,8 @@ export default async function SettingsPage({
           </div>
         </StudioCard>
         <StudioCard texture="rings" className="min-h-[180px]">
-          <CardHead label="Install COS as an app" right={<span className="text-xs text-[var(--st-muted)]">nothing to download</span>} />
-          <div className="mt-auto flex flex-wrap items-end gap-5 pt-3">
-            <div className="min-w-[220px] flex-1">
-              <div className="text-[20px] font-medium leading-tight tracking-[-0.015em]">Its own window, icon and taskbar spot — on Windows, Mac or a phone.</div>
-              <div className="mt-2 text-xs text-[var(--st-muted)]">It opens the live site, so there is nothing to keep up to date.</div>
-            </div>
-            <div className="st-on-dark min-w-0 basis-full text-xs text-[var(--st-on-card-muted)] [&_a]:text-[var(--st-on-card)] [&_b]:text-[var(--st-on-card)]"><InstallApp /></div>
-          </div>
+          <CardHead label="Install Oracle" right={<span className="text-xs text-[var(--st-muted)]">nothing to download</span>} />
+          <div className="mt-auto pt-3"><StudioInstall /></div>
         </StudioCard>
       </StudioCardRow>
     ),
@@ -227,12 +223,12 @@ export default async function SettingsPage({
             <SaveBar />
           </form>
 
-          <SettingsCard id="install" icon={<MonitorSmartphone size={15} />} title="Install as an app" desc="Put COS in your Start menu, in its own window." keywords="install app pwa desktop windows start menu taskbar standalone icon offline add to home screen">
-            <InstallApp />
+          <SettingsCard id="appearance" icon={<Sun size={15} />} title="Appearance" desc="Light, dark, or follow this device." keywords="theme dark light mode appearance colour system">
+            <AppearanceSetting />
           </SettingsCard>
 
-          <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin your most-used pages. Saves automatically." keywords="pin nav pages search command menu shortcuts">
-            <NavSettings />
+          <SettingsCard id="notifications" icon={<Bell size={15} />} title="Notifications" desc="Device alerts for overdue, escalated & due-today tasks." keywords="notifications push alerts device overdue escalated reminders iphone">
+            <NotificationSettings />
           </SettingsCard>
         </section>
 
@@ -850,11 +846,6 @@ export default async function SettingsPage({
 
         {/* ───────────────────── Notifications & More ───────────────────── */}
         <section data-group="alerts" className="space-y-4">
-          {/* Notifications */}
-          <SettingsCard id="notifications" icon={<Bell size={15} />} title="Notifications" desc="Device alerts for overdue, escalated & due-today tasks." keywords="notifications push alerts device overdue escalated reminders iphone">
-            <NotificationSettings />
-          </SettingsCard>
-
           {/* Quiet hours & batching — how non-urgent alerts behave */}
           <form action={saveSettings} className="space-y-4">
             <input type="hidden" name="__keys" value="quietHoursStart,quietHoursEnd,notifyDigest" />

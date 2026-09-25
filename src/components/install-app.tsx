@@ -30,6 +30,7 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+export type InstallMode = Mode;
 type Mode = "checking" | "installed" | "ready" | "ios" | "unsupported";
 
 /** Where the pre-hydration script parks the event. See InstallPromptScript. */
@@ -59,7 +60,9 @@ export function InstallPromptScript() {
   );
 }
 
-export function InstallApp({ compact = false }: { compact?: boolean }) {
+/** The install state and the one action — shared by `InstallApp` (the staff
+ *  portal's profile) and the Studio Settings card (`StudioInstall`). */
+export function useInstall(): { mode: Mode; busy: boolean; install: () => Promise<void> } {
   const [mode, setMode] = useState<Mode>("checking");
   const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
@@ -151,6 +154,11 @@ export function InstallApp({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  return { mode, busy, install };
+}
+
+export function InstallApp({ compact = false }: { compact?: boolean }) {
+  const { mode, busy, install } = useInstall();
   if (mode === "checking") return null;
 
   if (mode === "installed") {

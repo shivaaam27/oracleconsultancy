@@ -182,14 +182,18 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           chat && "max-md:hidden",
         )}
       >
-        <div className="grid h-[var(--foot-h)] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3.5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-5">
+        {/* Phone: every button is a direct child of ONE row spaced evenly
+            (the nav and the right cluster are `contents` there) — as two groups
+            the gaps were 6px, 29px and 8px (owner, 25 Sept 2026: "align the
+            footer properly with spacing"). Tablet and desk: three columns. */}
+        <div className="flex h-[var(--foot-h)] items-center justify-between gap-2 px-3.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-5">
           {/* Left: what needs you now (hidden on a phone — no room). */}
           <div className="hidden min-w-0 md:block">
             <NeedsTicker items={items} />
           </div>
 
           {/* Centre: Home · ‹ page › · Settings */}
-          <nav aria-label="Pages" className="flex min-w-0 items-center gap-1.5 text-[13px] md:gap-3 lg:gap-[22px]">
+          <nav aria-label="Pages" className="flex min-w-0 items-center gap-1.5 text-[13px] max-md:contents md:gap-3 lg:gap-[22px]">
             <Link
               href="/"
               aria-label="Home"
@@ -237,7 +241,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               <Link
                 href="/portal/profile"
                 aria-label="Your profile"
-                className="hidden h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#B4B7BC] transition-colors hover:text-white sm:flex md:px-0"
+                className="hidden h-9 items-center gap-[7px] rounded-[10px] px-2 text-[#B4B7BC] transition-colors hover:text-white lg:flex md:px-0"
               >
                 <UserRound size={16} strokeWidth={2} />
                 <span className="hidden lg:inline">Profile</span>
@@ -255,17 +259,18 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           </nav>
 
           {/* Right: search everything · notifications · + New */}
-          <div className="flex items-center justify-end gap-2 md:col-start-3">
+          <div className="flex items-center justify-end gap-2 max-md:contents md:col-start-3">
             {/* Ask ORI or search — the palette (mockup board Ask). */}
-            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden pl-3 pr-2", !director && "sm:inline-flex")}>
+            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden w-9 px-0 lg:w-auto lg:pl-3 lg:pr-2", !director && "sm:inline-flex")}>
               <Search size={14} />
               <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
-              <span className="rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#B4B7BC]">⌘K</span>
+              <span className="hidden rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#B4B7BC] lg:inline">⌘K</span>
             </button>
             {/* Sign out — the owner's session, or a director's portal one. It
                 lived only at the foot of Settings, which nobody finds (owner,
                 25 Sept 2026: "how do you expect me to log out"). */}
-            <form action={director ? portalLogout : adminLogout} className="hidden sm:block">
+            {/* Below lg it is in the Go-to sheet, with Profile and the theme. */}
+            <form action={director ? portalLogout : adminLogout} className="hidden lg:block">
               <button
                 type="submit"
                 aria-label="Sign out"
@@ -367,10 +372,10 @@ function GoToPanel({
       <div
         className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] sm:rounded-3xl sm:p-5"
       >
-        {/* Phone: the sheet's grabber, then who you are with Profile and Sign
-            out — they left the footer so the footer fits a thumb. */}
+        {/* Phone: the sheet's grabber. Below lg: who you are with Profile and
+            Sign out — they left the footer so it fits a thumb and a tablet. */}
         <span aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-[var(--sh-chip-line)] sm:hidden" />
-        <div className="flex items-center gap-3 border-b border-[var(--sh-line)] pb-3 sm:hidden">
+        <div className="flex items-center gap-3 border-b border-[var(--sh-line)] pb-3 lg:hidden">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--sh-hover)] text-sm font-semibold">{initialsOf(me.name)}</span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-semibold">{me.name}</div>
@@ -417,7 +422,7 @@ function GoToPanel({
           })}
           {shown.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
-        <div className="flex gap-2 sm:hidden">
+        <div className="flex gap-2 lg:hidden">
           <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
             <UserRound size={15} />{me.profileLabel}
           </Link>
